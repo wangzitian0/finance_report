@@ -11,6 +11,7 @@ describe("ReviewActionBar in-place unblock (EPIC-022 AC22.5.2)", () => {
         balanceValid: true,
     };
 
+    // AC-extraction.fe-ia-extraction.1
     it("AC22.5.2 enables Approve and shows no blocker when nothing is wrong", () => {
         render(<ReviewActionBar {...baseProps} />);
         expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();

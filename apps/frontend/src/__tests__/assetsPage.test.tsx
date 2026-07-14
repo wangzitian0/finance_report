@@ -77,6 +77,7 @@ describe("AssetsPage", () => {
     vi.unstubAllGlobals()
   })
 
+  // AC-portfolio.fe-assets.1
   it("AC16.15.4 renders loading and error retry states", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {
@@ -97,6 +98,7 @@ describe("AssetsPage", () => {
     expect(mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/assets/positions"))).toHaveLength(2)
   })
 
+  // AC-portfolio.fe-assets.2
   it("AC16.15.5 renders grouped positions and supports status filters", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/assets/valuation-snapshots")) {
@@ -159,6 +161,7 @@ describe("AssetsPage", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("status_filter=disposed"))
   })
 
+  // AC-portfolio.fe-assets.3
   it("AC16.15.6 reconcile action calls API and shows toast summary", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies ManagedPositionListResponse)
@@ -372,6 +375,7 @@ describe("AssetsPage", () => {
     expect(screen.getByText(/0\.123456789 units/)).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-ia-portfolio.2
   it("AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation", async () => {
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {

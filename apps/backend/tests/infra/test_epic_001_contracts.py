@@ -17,7 +17,7 @@ def _load_first_json_object(output: str) -> dict:
 
 
 def test_epic_001_moon_workspace_configs_exist() -> None:
-    """AC1.1.1 AC1.1.2 AC1.1.3 AC1.1.4: Moon and tools entry configs exist."""
+    """AC-meta.phase0.1 AC-meta.phase0.2 AC-meta.phase0.3 AC-meta.phase0.4: AC1.1.1 AC1.1.2 AC1.1.3 AC1.1.4: Moon and tools entry configs exist."""
     required_files = [
         REPO_ROOT / "moon.yml",
         REPO_ROOT / "apps/backend/moon.yml",
@@ -34,7 +34,7 @@ def test_epic_001_moon_workspace_configs_exist() -> None:
 
 
 def test_epic_001_backend_skeleton_exists() -> None:
-    """AC1.2.1 AC1.2.4 AC1.2.5: Backend skeleton, health, and logging files must exist."""
+    """AC-meta.phase0.5: AC1.2.1 AC1.2.4 AC1.2.5: Backend skeleton, health, and logging files must exist."""
     required_files = [
         REPO_ROOT / "apps/backend/src/main.py",
         REPO_ROOT / "apps/backend/src/database.py",
@@ -48,7 +48,7 @@ def test_epic_001_backend_skeleton_exists() -> None:
 
 
 def test_epic_001_frontend_skeleton_exists() -> None:
-    """AC1.3.1 AC1.3.2 AC1.3.3: Frontend skeleton, Tailwind, and ping-pong page must exist."""
+    """AC-meta.phase0.7 AC-meta.phase0.8 AC-meta.phase0.9: AC1.3.1 AC1.3.2 AC1.3.3: Frontend skeleton, Tailwind, and ping-pong page must exist."""
     required_files = [
         REPO_ROOT / "apps/frontend/src/app/layout.tsx",
         # EPIC-022 moved the authenticated root page into the (main) shell group.
@@ -62,7 +62,7 @@ def test_epic_001_frontend_skeleton_exists() -> None:
 
 
 def test_epic_001_frontend_uses_react_query() -> None:
-    """AC1.3.4: Frontend must declare TanStack Query dependency."""
+    """AC-meta.phase0.10: AC1.3.4: Frontend must declare TanStack Query dependency."""
     package_json_path = REPO_ROOT / "apps/frontend/package.json"
     package_json = json.loads(package_json_path.read_text(encoding="utf-8"))
     dependencies = package_json.get("dependencies", {})
@@ -70,7 +70,7 @@ def test_epic_001_frontend_uses_react_query() -> None:
 
 
 def test_epic_001_docker_compose_contract() -> None:
-    """AC1.4.2 AC1.4.3 AC1.4.4: Docker compose must define required infra services."""
+    """AC-meta.phase0.12 AC-meta.phase0.13 AC-meta.phase0.14: AC1.4.2 AC1.4.3 AC1.4.4: Docker compose must define required infra services."""
     compose_path = REPO_ROOT / "docker-compose.yml"
     compose_data = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
     assert isinstance(compose_data, dict), "docker-compose.yml must parse into a mapping"
@@ -85,7 +85,7 @@ def test_epic_001_docker_compose_contract() -> None:
 
 
 def test_epic_001_pre_commit_config_exists() -> None:
-    """AC1.6.1: Pre-commit configuration must exist and include ruff."""
+    """AC-meta.phase0.18: AC1.6.1: Pre-commit configuration must exist and include ruff."""
     pre_commit_path = REPO_ROOT / ".pre-commit-config.yaml"
     assert pre_commit_path.exists()
     config_text = pre_commit_path.read_text(encoding="utf-8")
@@ -94,7 +94,7 @@ def test_epic_001_pre_commit_config_exists() -> None:
 
 @pytest.mark.integration
 def test_epic_001_frontend_moon_tasks_configured() -> None:
-    """AC1.5.2 AC1.5.3 AC1.5.4 AC1.5.5: Moon project and app endpoints are configured."""
+    """AC-meta.phase0.16: AC1.5.2 AC1.5.3 AC1.5.4 AC1.5.5: Moon project and app endpoints are configured."""
     moon_bin = shutil.which("moon")
     if not moon_bin:
         pytest.skip("moon CLI not installed")

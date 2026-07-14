@@ -27,6 +27,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     capturedChartOption = null;
   });
 
+  // AC-reporting.fe-viz-reports.28 / AC-reporting.fe-viz-reports.31
   it("AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart", async () => {
     mockedApiFetch.mockResolvedValue({
       currency: "SGD",
@@ -45,6 +46,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/reports/net-worth/timeseries"));
   });
 
+  // AC-reporting.fe-viz-reports.29
   it("AC5.7.4 range selector toggles the from parameter and re-fetches", async () => {
     mockedApiFetch.mockResolvedValue({
       currency: "SGD",
@@ -69,6 +71,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     expect(String(mockedApiFetch.mock.calls[2][0])).toContain("granularity=monthly");
   });
 
+  // AC-reporting.fe-viz-reports.30
   it("AC5.7.5 renders an empty state when fewer than two points exist", async () => {
     mockedApiFetch.mockResolvedValue({
       currency: "SGD",

@@ -19,6 +19,7 @@ describe("JournalEntryForm", () => {
     onSuccess.mockReset()
   })
 
+  // AC-ledger.fe-accounts-journal.15
   it("AC16.21.4 loads account options and shows balanced/unbalanced state", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [
@@ -81,6 +82,7 @@ describe("JournalEntryForm", () => {
     })
   })
 
+  // AC-ledger.fe-accounts-journal.17
   it("AC16.21.6 supports add and remove line interactions", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 }],
@@ -112,6 +114,7 @@ describe("JournalEntryForm", () => {
     expect(screen.queryByRole("option", { name: "1000 - Cash" })).not.toBeInTheDocument()
   })
 
+  // AC-ledger.fe-accounts-journal.16
   it("AC16.21.5 submits create-draft payload with normalized amounts", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({

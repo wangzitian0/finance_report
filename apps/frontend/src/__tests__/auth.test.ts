@@ -27,10 +27,12 @@ describe("auth utilities", () => {
     });
 
     describe("getUserId", () => {
+        // AC-identity.fe-auth.1
         it("AC16.5.1/AC16.5.2 returns null when key is not set", () => {
             expect(getUserId()).toBeNull();
         });
 
+        // AC-identity.fe-auth.2
         it("AC16.5.2 returns stored userId from localStorage", () => {
             localStorage.setItem("finance_user_id", "user-123");
             expect(getUserId()).toBe("user-123");
@@ -60,6 +62,7 @@ describe("auth utilities", () => {
     });
 
     describe("setUser", () => {
+        // AC-identity.fe-auth.3
         it("AC16.5.3 stores userId and email", () => {
             setUser("user-456", "alice@example.com");
             expect(localStorage.getItem("finance_user_id")).toBe("user-456");
@@ -84,6 +87,7 @@ describe("auth utilities", () => {
     });
 
     describe("clearUser", () => {
+        // AC-identity.fe-auth.4
         it("AC16.5.4 removes all auth keys from localStorage", () => {
             setUser("user-789", "bob@example.com", "my-token");
             clearUser();
@@ -98,6 +102,7 @@ describe("auth utilities", () => {
             expect(isAuthenticated()).toBe(false);
         });
 
+        // AC-identity.fe-auth.5
         it("AC16.5.5 returns true when non-secret user session metadata exists", () => {
             setUser("user-456", "alice@example.com", "valid-token");
             expect(isAuthenticated()).toBe(true);

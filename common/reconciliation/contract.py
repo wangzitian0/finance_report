@@ -26,7 +26,15 @@ CONTRACT = PackageContract(
     # platform re-added #1675 D6: orm/reconciliation.py + orm/consistency_check.py
     # use the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved
     # from src/models/base.py to platform.orm.base.
-    depends_on=["audit", "extraction", "ledger", "llm", "observability", "platform", "pricing"],
+    depends_on=[
+        "audit",
+        "extraction",
+        "ledger",
+        "llm",
+        "observability",
+        "platform",
+        "pricing",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── taxonomy-only ORM units (module unset — the gate skips placement,
@@ -1490,6 +1498,368 @@ CONTRACT = PackageContract(
                 "::test_find_transfer_candidates_returns_pair"
             ),
             priority="P2",
+            status="done",
+        ),
+        # ── group conflict-resolution (continued): the conflicts endpoint's
+        # response contract (was EPIC-016 AC16.13.13/AC16.13.14, #1821 Wave
+        # A horizontal move) ──
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.4",
+            statement=(
+                "GET /api/review/conflicts/{statement_id} returns "
+                "{duplicates: [...], transfer_pairs: [...]}, consumed by "
+                "ConflictResolutionDialog."
+            ),
+            # was AC16.13.13
+            test=(
+                "apps/backend/tests/review/test_review_conflicts_router.py"
+                "::test_review_conflicts_returns_duplicate_and_transfer_candidates"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.conflict-resolution.5",
+            statement=(
+                "The conflicts endpoint returns 404 when the statement_id is not found."
+            ),
+            # was AC16.13.14
+            test=(
+                "apps/backend/tests/review/test_review_conflicts_router.py"
+                "::test_review_conflicts_returns_404_for_missing_statement"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # NOTE: AC4.10.3 (CI hard-gates the reconciliation audit thresholds)
+        # was evaluated for the #1821 Wave A horizontal move and REJECTED,
+        # per EPIC-004's own pre-existing "Retained" note: its proving test
+        # asserts a literal substring of the EPIC file's own text
+        # ("10,000-transaction runtime targets"), making it a doc-governance
+        # self-check, not reconciliation package behavior. Left as
+        # `horizontal` in EPIC-004.
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.1",
+            statement="Stage 2 UI supports batch operations",
+            # was AC16.2.4
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.4/AC16.17.3 approves selected matches through the batch approval API",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.2",
+            statement="Reconciliation entry pages render workbench and unmatched board components",
+            # was AC16.16.4
+            test="apps/frontend/src/__tests__/reconciliationEntryPages.test.tsx::AC16.16.4 renders workbench in reconciliation page",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.3",
+            # Anchor corrected (#1821 Wave B CR fix): was pointing at the
+            # loading-state test; the real error-fallback+retry proof is a
+            # separate, more specific test in the same file.
+            statement="Stage 2 review queue shows failure fallback and supports retry",
+            # was AC16.17.1
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.1 shows an error fallback and retries the Stage 2 queue fetch",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.4",
+            # Anchor corrected (#1821 Wave B CR fix): was pointing at the
+            # empty-states test; the real unresolved-checks-disable-approval
+            # proof is a separate, more specific test in the same file.
+            statement="Stage 2 review queue indicates unresolved checks and disables batch approval",
+            # was AC16.17.2
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.2.3/AC16.17.2 disables batch approval while unresolved checks remain",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.5",
+            # Anchor + statement corrected (#1821 Wave B CR fix): the original
+            # statement claimed both reject and approve, but the anchored test
+            # only proved approve (and duplicated the exact test already cited
+            # by AC-reconciliation.fe-stage2-review.1 / was AC16.2.4). Narrowed
+            # to the reject half, proven by its own distinct test; the approve
+            # half stays proven by fe-stage2-review.1.
+            statement=(
+                "Stage 2 review queue rejects selected matches through the "
+                "batch rejection API (the batch approve half of this "
+                "workflow is proven by AC-reconciliation.fe-stage2-review.1)"
+            ),
+            # was AC16.17.3
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.3 rejects selected matches through the batch rejection API",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.6",
+            statement="Stage 2 review queue resolves consistency checks through dialog actions",
+            # was AC16.17.4
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.17.4 resolves a consistency check from the dialog actions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.7",
+            statement="Reconciliation workbench loads stats and pending queue with default selection",
+            # was AC16.20.1
+            test="apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.1 loads stats and pending queue with default selection",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.8",
+            statement="Reconciliation workbench triggers run, accept, reject, and batch accept APIs",
+            # was AC16.20.2
+            test="apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.2 triggers run, batch, accept, and reject APIs",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.9",
+            statement="Unmatched board loads transactions and creates journal entry for selected item",
+            # was AC16.20.3
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.3 loads unmatched items and creates entry",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.10",
+            statement="Unmatched board flag and ignore actions update list and local state",
+            # was AC16.20.4
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.4 AC16.31.4 supports local flag and hide actions",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.11",
+            statement="Score distribution renders 0% height for buckets with value 0",
+            # was AC16.20.6
+            test="apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx::AC16.20.6 score distribution renders 0% height for buckets with value 0",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.12",
+            statement="Review, journal details, and mobile navigation surfaces do not create document-level horizontal scrolling at phone widths",
+            # was AC16.25.1
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC16.25.1 mobile review routes avoid document horizontal scrolling",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.13",
+            statement="AI suggestion review queue exposes accept, reject, correction, and edit-accept actions directly in a mobile card layout",
+            # was AC16.25.2
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC16.25.2 AI suggestions mobile cards expose feedback actions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.14",
+            statement="Stage 2 pending matches use selectable mobile cards with direct reject and approve selected actions visible without horizontal dragging",
+            # was AC16.26.2
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.15",
+            statement="Stage 2 run review keeps the run approval gate and pending match workflow usable at phone widths without document-level horizontal scrolling",
+            # was AC16.26.3
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.26.3 mobile run review preserves approval gate and pending match workflow",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.16",
+            statement="Stage 1 and Stage 2 mobile review lists render without JavaScript breakpoint gating that can create first-paint blank content",
+            # was AC16.27.1
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.27.1 keeps mobile pending-match cards in the DOM without matchMedia gating",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.17",
+            statement="Stage 2 desktop review keeps pending match rows readable at 1440px with the sidebar visible without local horizontal clipping",
+            # was AC16.27.3
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.18",
+            statement="Conflict resolution dialog `<ConflictResolutionDialog />` opens when backend returns duplicate or transfer-pair candidates; user can pick canonical row or link the pair",
+            # was AC16.23.3
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.19",
+            statement="Stage 2 listing exposes severity filter, check-type filter, and score-range slider; filters persist in URL query string",
+            # was AC16.23.4
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.20",
+            statement="Stage 2 run-level page at `/review/run/[runId]` summarizes duplicate, transfer-pair, and anomaly checks for a batch",
+            # was AC16.24.1
+            test="apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.21",
+            statement="Stage 2 run-level page shows unresolved transfer and Processing pending counts, then disables run approval while either remains unresolved",
+            # was AC16.24.2
+            test="apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.22",
+            statement="Stage 2 run-level approval submits all pending matches through the batch approval API after checks are resolved",
+            # was AC16.24.3
+            test="apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.3 approves all pending matches through the batch approval API",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.23",
+            statement="Stage 1 conflict dialog loads duplicate and transfer-pair candidates from `GET /api/review/conflicts/{statement_id}` instead of fake review payload fields",
+            # was AC16.31.1
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::AC16.23.3 AC16.31.1 opens the conflict dialog when duplicate or transfer-pair candidates exist",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.24",
+            statement="Stage 2 run review page states that it uses the shared Stage 2 queue endpoint when no run-scoped queue API exists",
+            # was AC16.31.3
+            test="apps/frontend/src/__tests__/reviewRunPage.test.tsx::AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.25",
+            statement="Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation",
+            # was AC16.31.4
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.4 AC16.31.4 supports local flag and hide actions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.26",
+            statement="Stage 2 review check lists request the full unresolved blocker set needed to unblock batch approval instead of silently truncating at the backend default page size. Backend half (`test_AC16_32_3_stage2_queue_returns_all_pending_checks`) migrated to the `reconciliation` package roadmap as `AC-reconciliation.review-hardening.1` (migration closeout continuation, #1663 / #1711); the frontend half stays here.",
+            # was AC16.32.3
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.32.3 requests an expanded consistency-check limit for unblockable queues",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.27",
+            statement="The ConflictResolutionDialog `Resolve` / `Link Pair` buttons call the resolve endpoint with the matching action and disable while a resolution is in flight (previously dead, no-op buttons)",
+            # was AC16.34.3
+            test="apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx::AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.28",
+            statement="The dedicated `/review` route renders the Stage-2 review queue standalone",
+            # was AC16.36.1
+            test="apps/frontend/src/__tests__/reviewLandingPage.test.tsx::AC16.36.1 renders the Stage-2 review queue as a standalone page",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.29",
+            statement="The dedicated route loads the global queue (no run filter)",
+            # was AC16.36.2
+            test="apps/frontend/src/__tests__/reviewLandingPage.test.tsx::AC16.36.2 loads the global queue (no run filter) on the dedicated route",
+            priority="P2",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.1",
+            statement="`/review/ai-suggestions` is reachable from AI Settings, so the AI-suggestion review surface is not orphaned",
+            # was AC22.4.3
+            test="apps/frontend/src/__tests__/aiSettingsPage.test.tsx::AC22.4.3 links to the AI suggestion review surface so it is not orphaned",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.2",
+            statement="E2E: a user with Stage 1 and Stage 2 attention sees both in the notification center and can open each detail surface",
+            # was AC22.4.5
+            test="apps/frontend/playwright/epic022-attention-journey.spec.ts::${label}: both Stage 1 and Stage 2 attention surface in the notification center with deep links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.3",
+            statement="The `/attention` page folds the open attention sources (Stage 1 statement review, reconciliation review, unmatched transactions, stalled processing transfers) into a single list sorted by ascending confidence, each row deep-linking to its action surface, with an all-clear empty state when nothing needs attention",
+            # was AC22.6.1
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.1 folds the open attention sources into one list sorted by ascending confidence",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.4",
+            statement="The Home renders a trust meter (trusted / needs-confirmation / low-confidence counts) derived from the same attention model and linking to `/attention`, and stays silent when nothing needs attention",
+            # was AC22.6.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.6.2 summarizes trust into trusted / needs-confirmation / low-confidence buckets",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.5",
+            statement="Desktop and mobile smoke covers the `/attention` queue and the Home trust meter without layout overflow",
+            # was AC22.6.4
+            test="apps/frontend/playwright/attention-surface.spec.ts::${label} renders the attention queue ranked by confidence without overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.6",
+            statement="Each attention-queue item surfaces a plain-language reason it was flagged — distinct per cause — alongside its confidence score",
+            # was AC22.11.2
+            test="apps/frontend/src/__tests__/attention.test.ts::AC22.11.2 every item explains why it was flagged",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.7",
+            statement="Attention-origin action links preserve `from=attention`, and the linked review/processing destinations render a return link to `/attention` while direct-entry notification/statement fallbacks remain unchanged",
+            # was AC22.11.3
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.8",
+            statement="Attention-queue reason text uses the normal muted content token, not a lower-opacity muted variant, so low-confidence explanations keep readable contrast",
+            # was AC22.12.4
+            test="apps/frontend/src/__tests__/attentionQueue.test.tsx::AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-ia-reconciliation.9",
+            statement="The Stage 2 review queue is composed from extracted sub-components (the match row/card and the queue controls) with unchanged review behavior",
+            # was AC22.17.2
+            test="apps/frontend/src/__tests__/stage2ReviewQueueParts.test.tsx::AC22.17.2 PendingMatchesPanel renders mobile + desktop rows and wires selection/batch callbacks",
+            priority="P1",
             status="done",
         ),
     ],

@@ -1044,5 +1044,1027 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── group phase0: EPIC-001 phase-0 scaffolding + EPIC-007 static infra
+        # contracts (was EPIC-001 AC1.1.1-1.6.1 and EPIC-007 AC7.8.1-3, #1821
+        # Wave A horizontal move). AC1.4.1/AC7.8.2 shared one test (Docker
+        # compose integrity) and are merged into `.11`; AC1.5.1/AC7.8.3 shared
+        # one test (moon project graph contract) and are merged into `.15`. ──
+        ACRecord(
+            id="AC-meta.phase0.1",
+            statement="Root moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.2",
+            statement="apps/backend/moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.3",
+            statement="apps/frontend/moon.yml exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.4",
+            statement="tools/infra.sh local infrastructure command exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_moon_workspace_configs_exist",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.5",
+            statement="The FastAPI project structure exists (apps/backend skeleton).",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_backend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.6",
+            statement=(
+                "SQLAlchemy + Alembic config is valid: no missing migrations "
+                "and a single Alembic head (also proven by test_single_head "
+                "in apps/backend/tests/infra/test_migrations.py)."
+            ),
+            test="apps/backend/tests/infra/test_schema_drift.py::test_missing_migrations_check",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.7",
+            statement="Next.js App Router files exist.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.8",
+            statement="TailwindCSS configuration exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.9",
+            statement="The ping-pong page exists.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_skeleton_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.10",
+            statement="TanStack Query dependency is configured.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_uses_react_query",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.11",
+            statement="docker-compose.yml integrity is valid.",
+            # was AC1.4.1 + AC7.8.2 (identical test, merged)
+            test="apps/backend/tests/infra/test_ci_config.py::test_docker_compose_integrity",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.12",
+            statement="PostgreSQL 15 container is defined in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.13",
+            statement="Redis 7 container is defined in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.14",
+            statement="Data volumes are configured in docker-compose.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_docker_compose_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.15",
+            statement=(
+                "The Moon project graph contract is declared in repo config "
+                "(backend startup command path resolves through it)."
+            ),
+            # was AC1.5.1 + AC7.8.3 (identical test, merged)
+            test="apps/backend/tests/infra/test_ci_config.py::test_moon_project_graph_static_contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.16",
+            statement="The frontend startup command path is valid (Moon task configured).",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_frontend_moon_tasks_configured",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.17",
+            statement="The backend ping-pong endpoint toggles state correctly.",
+            test="apps/backend/tests/infra/test_main.py::test_ping_toggle",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.18",
+            statement="Pre-commit hooks configuration is present.",
+            test="apps/backend/tests/infra/test_epic_001_contracts.py::test_epic_001_pre_commit_config_exists",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.phase0.19",
+            statement=(
+                "The Moon local CLI contract is versioned without a PR CI "
+                "bootstrap dependency."
+            ),
+            # was AC7.8.1
+            test="apps/backend/tests/infra/test_ci_config.py::test_moon_cli_static_contract_available",
+            priority="P1",
+            status="done",
+        ),
+        # ── group framework-neutrality: canonical ledger/reporting stay
+        # US/HK-framework-neutral, policy decisions belong to EPIC-020 (was
+        # EPIC-002 AC2.18.1 and EPIC-005 AC5.14.1, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-meta.framework-neutrality.1",
+            statement=(
+                "Canonical ledger documentation declares that double-entry "
+                "posting is framework-neutral and that US/HK policy "
+                "decisions belong to EPIC-020."
+            ),
+            # was AC2.18.1
+            test=(
+                "tests/tooling/test_framework_reporting_epic_contract.py"
+                "::test_AC2_18_1_canonical_ledger_is_framework_neutral"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.framework-neutrality.2",
+            statement=(
+                "Reporting docs declare that EPIC-005 consumes framework "
+                "policy results for US/HK package output and does not own "
+                "framework-specific accounting decisions."
+            ),
+            # was AC5.14.1
+            test=(
+                "tests/tooling/test_framework_reporting_epic_contract.py"
+                "::test_AC5_14_1_reporting_assembles_framework_policy_results_only"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # NOTE: the "archive-residual" rows (was EPIC-004 AC4.8.1, EPIC-008
+        # AC8.13.61-.63, EPIC-012 AC12.25.1) were evaluated for this move and
+        # REJECTED: their own proving test
+        # (tests/tooling/test_archive_residual_epic_ownership.py) asserts
+        # that the AC id and description text are still literally present
+        # IN THE EPIC DOC (e.g. `assert "AC8.13.61" in epic`) — the test's
+        # entire purpose is confirming the row stays EPIC-owned. Deleting the
+        # row to migrate it would make the test that is supposed to prove
+        # "this is intentionally still EPIC-owned" fail. These rows are left
+        # untouched as `horizontal` (#1821 Wave A).
+        # ── group transaction-boundary: cross-service commit/flush boundary
+        # discipline (was EPIC-012 AC12.26.1-.3, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-meta.transaction-boundary.1",
+            statement=(
+                "Service modules only call commit() in documented "
+                "background-task or streaming-response transaction-boundary "
+                "exceptions."
+            ),
+            # was AC12.26.1
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_service_commit_calls_are_documented_boundary_exceptions"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.transaction-boundary.2",
+            statement=(
+                "Market-data persistence helpers use flush() so router/"
+                "report/scheduler boundaries can roll back or commit "
+                "atomically."
+            ),
+            # was AC12.26.2
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_market_data_fx_persistence_is_rollbackable_until_boundary_commit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.transaction-boundary.3",
+            statement=(
+                "Market-data HTTP sync endpoints finalize service writes at "
+                "the router boundary."
+            ),
+            # was AC12.26.3
+            test=(
+                "apps/backend/tests/infra/test_transaction_boundaries.py"
+                "::test_market_data_sync_endpoint_commits_service_writes_at_router_boundary"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group workflow-events: workflow-events SSOT documents frontend
+        # surfaces (was EPIC-019 AC19.3.8, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-meta.workflow-events.1",
+            statement=(
+                "The workflow notification UI contract is documented in the "
+                "workflow-events SSOT and EPIC-019."
+            ),
+            # was AC19.3.8
+            test=(
+                "apps/backend/tests/workflow/test_workflow_events.py"
+                "::test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # NOTE: AC26.9.1 (the CODE/LLM band classifier's own test) was
+        # evaluated for this move and REJECTED, confirming EPIC-026's own
+        # documented reasoning: its proving test is itself marker-laden (it
+        # exercises cassette detection), so `check_authority_reconcile.py`
+        # detects the roadmap as CODE-LED (1 LLM-classified test) the moment
+        # it is added to `meta`'s roadmap, tripping meta's declared
+        # CODE-ONLY tier (verified: `code=88 llm=1` after a trial add).
+        # AC26.9.1 is left untouched as `horizontal` (#1821 Wave A).
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-meta.fe-utils.1",
+            statement="`formatDateInput` formats `Date` as `YYYY-MM-DD` with zero-padded month and day",
+            # was AC16.6.1
+            test="apps/frontend/src/__tests__/date.test.ts::AC16.6.1 formats a date as YYYY-MM-DD string",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.1",
+            statement="`apiFetch` returns JSON on `200` response",
+            # was AC16.10.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.1 returns JSON on 200 response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.1",
+            statement="Ping-pong page loads initial state and displays current ping/pong value",
+            # was AC16.12.8
+            test="apps/frontend/src/__tests__/pingPongPage.test.tsx::AC16.12.8 loads initial state and shows current value",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.2",
+            statement="Formats a Date object to en-US short date",
+            # was AC16.6.2
+            test="apps/frontend/src/__tests__/date.test.ts::AC16.6.2 formats a Date object to en-US short date",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.2",
+            statement="`apiFetch` returns `undefined` on `204 No Content`",
+            # was AC16.10.2
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.2 returns undefined on 204 No Content",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.2",
+            statement="Ping-pong page toggles state and updates toggle count on button click",
+            # was AC16.12.9
+            test="apps/frontend/src/__tests__/pingPongPage.test.tsx::AC16.12.9 toggles state and updates count",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.3",
+            statement="Formats a Date object with date and time",
+            # was AC16.6.3
+            test="apps/frontend/src/__tests__/date.test.ts::AC16.6.3 formats a Date object with date and time",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.3",
+            statement="`apiFetch` throws error with `detail` message on non-ok response",
+            # was AC16.10.3
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.3 throws with detail message on JSON error response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.3",
+            statement="Ping-pong page renders retry flow when initial load fails",
+            # was AC16.12.10
+            test="apps/frontend/src/__tests__/pingPongPage.test.tsx::AC16.12.10 renders retry flow on initial error",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.4",
+            statement="Returns short month name from date string",
+            # was AC16.6.4
+            test="apps/frontend/src/__tests__/date.test.ts::AC16.6.4 returns short month name from date string",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.4",
+            statement="`apiFetch` throws on non-JSON error text",
+            # was AC16.10.4
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.4 throws with raw text on non-JSON error response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.4",
+            statement="Root resolves to the authenticated Home entry (superseded by EPIC-022)",
+            # was AC16.16.1
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.5",
+            statement="`getTheme` returns stored value or system preference",
+            # was AC16.7.1
+            test="apps/frontend/src/__tests__/theme.test.ts::AC16.7.1 returns stored dark theme from localStorage",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.5",
+            statement="`apiFetch` calls `handle401Redirect` on `401` response",
+            # was AC16.10.5
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.5 redirects to /login on 401 unauthorized response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.5",
+            statement="Main layout renders children through `AppShell` wrapper",
+            # was AC16.16.2
+            test="apps/frontend/src/__tests__/mainLayout.test.tsx::AC16.16.2 renders children through AppShell",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.6",
+            statement="`setTheme` adds/removes `dark` CSS class and saves to `localStorage`",
+            # was AC16.7.2
+            test="apps/frontend/src/__tests__/theme.test.ts::AC16.7.2 adds dark class when setting dark theme",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.6",
+            statement="`resetRedirectGuard` resets the redirect guard state",
+            # was AC16.10.6
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.6 resetRedirectGuard is exported and callable",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.6",
+            statement="Root layout composes `Providers` and `AuthGuard` around children",
+            # was AC16.17.5
+            test="apps/frontend/src/__tests__/rootLayout.test.tsx::AC16.17.5 composes Providers and AuthGuard around children",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.7",
+            statement="`toggleTheme` switches between dark and light",
+            # was AC16.7.3
+            test="apps/frontend/src/__tests__/theme.test.ts::AC16.7.3 toggles from light to dark",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.7",
+            statement="`apiDelete` succeeds on `200` response",
+            # was AC16.10.7
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.7 succeeds on 200 response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.7",
+            statement="`Providers` wraps children with `QueryClientProvider`",
+            # was AC16.17.6
+            test="apps/frontend/src/__tests__/providers.test.tsx::AC16.17.6 wraps children with QueryClientProvider",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-utils.8",
+            statement="`initTheme` applies stored or system theme on load",
+            # was AC16.7.4
+            test="apps/frontend/src/__tests__/theme.test.ts::AC16.7.4 initializes theme from stored value",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.8",
+            statement="`apiDelete` throws on non-ok response",
+            # was AC16.10.8
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.8 throws on non-ok response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.8",
+            statement="Sidebar shows auth-aware actions and logout triggers `clearUser` plus login redirect",
+            # was AC16.19.3
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.9",
+            statement="`apiStream` returns response and `sessionId` on success",
+            # was AC16.10.9
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.9 returns response and sessionId on success",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.9",
+            statement="Workspace tabs derive route labels and invoke add/set/remove tab handlers",
+            # was AC16.19.4
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.4 adds and manages workspace tabs from route changes",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.10",
+            statement="`apiStream` throws on non-ok response",
+            # was AC16.10.10
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.10 throws on non-ok response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.10",
+            statement="Confirm dialog handles required input, cancel, and confirm interactions",
+            # was AC16.19.7
+            test="apps/frontend/src/__tests__/confirmDialogComponent.test.tsx::AC16.19.7 handles required input and confirm/cancel",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.11",
+            statement="`apiUpload` returns JSON on `200` response",
+            # was AC16.10.11
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.11 returns JSON on 200 response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.11",
+            statement="Confirm dialog responds to escape key and backdrop click when not loading",
+            # was AC16.19.8
+            test="apps/frontend/src/__tests__/confirmDialogComponent.test.tsx::AC16.19.8 AC16.30.4 handles escape and backdrop cancellation",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.12",
+            statement="`apiUpload` returns `undefined` on `204 No Content`",
+            # was AC16.10.12
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.12 returns undefined on 204 No Content",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.12",
+            statement="Toast provider shows, dismisses, and auto-expires notifications",
+            # was AC16.19.9
+            test="apps/frontend/src/__tests__/toastProviderComponent.test.tsx::AC16.19.9 shows and dismisses notifications",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.13",
+            statement="`apiFetch` normalizes path without leading slash",
+            # was AC16.10.13
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.13 normalizes path without leading slash",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.13",
+            statement="Keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)",
+            # was AC16.19.12
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.14",
+            statement="`apiFetch` includes `Authorization` header when token is present",
+            # was AC16.10.14
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.14 includes Authorization header when token present",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.14",
+            statement="WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG",
+            # was AC16.19.13
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.15",
+            statement="Handles 401 redirect in apiDelete",
+            # was AC16.10.15
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.15 handles 401 redirect in apiDelete",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.15",
+            statement="WorkspaceTabs section header is Open Tabs in both empty and active states",
+            # was AC16.19.14
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.14 WorkspaceTabs section header is Open Tabs in both empty and active states",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.16",
+            statement="Includes Authorization header when token present",
+            # was AC16.10.16
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.16 includes Authorization header when token present",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.16",
+            statement="Navigates workspace pages with ArrowRight keyboard",
+            # was AC16.19.15
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowRight keyboard",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.17",
+            statement="Handles 401 redirect in apiUpload",
+            # was AC16.10.17
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.17 handles 401 redirect in apiUpload",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.17",
+            statement="Renders dialog with ARIA attributes",
+            # was AC16.19.16
+            test="apps/frontend/src/__tests__/confirmDialogComponent.test.tsx::AC16.19.16 AC16.30.4 renders dialog with ARIA attributes",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.18",
+            statement="Throws with detail message on JSON error response",
+            # was AC16.10.18
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.18 throws with detail message on JSON error response",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.18",
+            statement="Traps focus with Tab and Shift+Tab",
+            # was AC16.19.17
+            test="apps/frontend/src/__tests__/confirmDialogComponent.test.tsx::AC16.19.17 AC16.30.4 traps focus with Tab and Shift+Tab",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.19",
+            statement="Throws with raw text on non-JSON error response",
+            # was AC16.10.19
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.19 throws with raw text on non-JSON error response",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.19",
+            statement="Workspace provider restores tabs from storage and persists active workspace updates",
+            # was AC16.21.9
+            test="apps/frontend/src/__tests__/useWorkspaceHook.test.tsx::AC16.21.9 hydrates tabs from localStorage and keeps active tab",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.20",
+            statement="API catch-all handlers return JSON `503` for all HTTP methods",
+            # was AC16.17.7
+            test="apps/frontend/src/__tests__/apiCatchAllRoute.test.ts::AC16.17.7 returns 503 JSON for all supported methods",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.20",
+            statement="Workspace provider handles tab deduplication, removal, and cross-tab storage sync",
+            # was AC16.21.10
+            test="apps/frontend/src/__tests__/useWorkspaceHook.test.tsx::AC16.21.10 deduplicates tabs by href and keeps existing active id",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.21",
+            statement="Root layout keeps theme color in the viewport export and avoids duplicate iOS web-app capability metadata",
+            # was AC16.25.4
+            test="apps/frontend/src/__tests__/rootLayout.test.tsx::AC16.25.4 root layout metadata keeps viewport-only theme color",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.22",
+            statement="Shared React UI primitives live under `apps/frontend/src/components/ui/` and cover button, icon button, badge, alert, empty state, loading state, and page header usage without requiring page-local class recipes",
+            # was AC16.28.1
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC16.28.1 AC16.28.4 renders button and badge variants through shared primitives",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.23",
+            statement="Icon-only actions require an accessible label through the primitive API and representative account/statement delete-edit actions use those labels",
+            # was AC16.28.2
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC16.28.2 AC16.28.4 requires icon-only actions to expose an accessible label",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.24",
+            statement="At least two representative frontend pages are migrated to the primitive layer without changing their existing workflows or API calls",
+            # was AC16.28.3
+            test="apps/frontend/src/__tests__/accountsPage.test.tsx::AC16.28.2 AC16.28.3 exposes account row icon actions with accessible labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.25",
+            statement="Primitive component tests cover variants, accessibility-facing props, and the migrated loading/error/empty states",
+            # was AC16.28.4
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC16.28.1 AC16.28.4 renders button and badge variants through shared primitives",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.26",
+            statement="Tailwind theme extension maps frontend CSS-variable tokens for semantic color, radius, shadow/elevation, z-index, motion, typography, and chart palette usage",
+            # was AC16.29.1
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.29.1 AC16.29.4 maps Tailwind theme values to CSS-variable design tokens",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.27",
+            statement="Frontend CSS and SSOT document the design-token model, including token usage rules and intentional page-local visual choices such as login/dashboard gradients, shadows, and radius",
+            # was AC16.29.2
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.29.2 AC16.29.4 documents token usage and page-local visual decisions in SSOT",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.28",
+            statement="Confidence and status UI components use semantic token-backed primitives instead of hardcoded Tailwind palette utilities across all confidence/status variants",
+            # was AC16.29.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.29",
+            statement="Frontend tests cover the token configuration contract and at least one tokenized semantic component across multiple variants",
+            # was AC16.29.4
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.29.1 AC16.29.4 maps Tailwind theme values to CSS-variable design tokens",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.30",
+            statement="`IconButton` keeps its required `label` as the authoritative accessible name so callers cannot override or remove it through passthrough props",
+            # was AC16.30.1
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC16.30.1 AC16.30.4 keeps IconButton label authoritative over passthrough props",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.31",
+            statement="The design-token follow-ups from issues #612 and #613 are resolved: border tokens are documented, core recipes use `border-border`, alert variants use semantic status token classes, and SSOT examples use accurate fence language",
+            # was AC16.30.2
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.32",
+            statement="`WorkspaceTabs` uses one coherent navigation/list semantic model with `aria-current` for the active route while preserving keyboard navigation between open workspace pages",
+            # was AC16.30.3
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowRight keyboard",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.33",
+            statement="Component tests cover keyboard and ARIA behavior for dialog, sheet, toast, workspace navigation, and icon-only controls",
+            # was AC16.30.4
+            test="apps/frontend/src/__tests__/confirmDialogComponent.test.tsx::AC16.19.8 AC16.30.4 handles escape and backdrop cancellation",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.34",
+            statement="Playwright visual smoke covers desktop and mobile representative app-shell, accounts, statements, and review pages with stable visual anchors and nonblank screenshots",
+            # was AC16.30.5
+            test="apps/frontend/playwright/ui-visual-smoke.spec.ts::captures representative app-shell, accounts, statements, and review pages",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell.35",
+            statement="Frontend SSOT documents the accessibility and visual-verification workflow required for future UI-system changes",
+            # was AC16.30.6
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens",
+            priority="P2",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-meta.fe-ia-nav.1",
+            statement="Primary navigation renders a bottom tab bar of exactly five hit targets — Home, Chat, a center Add action, Audit, and More — mirrored by the desktop sidebar; no accounting-jargon route (Journal, Reconciliation, Accounts, Statements) and no Settings page appears as a top-level tab (superseded by AC22.21.1 for the data-model shape)",
+            # was AC22.1.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.2",
+            statement="The sidebar brand links to `/` and the login flow redirects to `/` after authentication",
+            # was AC22.1.3
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC22.1.3 links the sidebar brand to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.3",
+            statement='`/dashboard` redirects to `/` and the label "Upload Pipeline" no longer appears in the navigation model',
+            # was AC22.1.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.4 redirects the legacy dashboard route to Home",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.4",
+            statement="`/events` redirects to `/notifications` and the notifications page renders the workflow event center",
+            # was AC22.1.5
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.5 redirects /events to /notifications",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.5",
+            statement='`/assets` redirects to `/portfolio` and exactly one navigation entry is labeled "Portfolio"',
+            # was AC22.1.6
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.1.6 lists Portfolio exactly once across the navigation model",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.6",
+            statement="Chat and AI Settings navigation entries use distinct icons",
+            # was AC22.1.7
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.7",
+            statement="`/upload` renders both the statement uploader and upload history, and `/statements/upload` redirects to `/upload`",
+            # was AC22.1.8
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.1.8 redirects legacy statement routes to /upload",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.8",
+            statement="Desktop and mobile smoke covers the five-target bottom-tab navigation (Home, Chat, Add, Audit, More) and the notification bell without layout overflow",
+            # was AC22.1.9
+            test="apps/frontend/playwright/epic022-ia-shell.spec.ts::desktop sidebar mirrors the five bottom-tab targets and the notification bell",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.9",
+            statement='The standalone Review Queue page is removed, `/review` redirects to `/notifications`, and "Review" is no longer a sidebar navigation entry',
+            # was AC22.2.4
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.10",
+            statement="The upload, statement-detail, and statement-review pages render a shared step indicator showing the Upload → Review & approve → Reports path with the current step highlighted",
+            # was AC22.5.1
+            test="apps/frontend/src/__tests__/flowStepBanner.test.tsx::AC22.5.1 renders the Upload -> Review & approve -> Reports path",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.11",
+            statement='Core jargon terms (balance "drift"/"balanced", "needs review", transfer pair, anomaly, duplicate, consistency check, match score) expose a plain-language explanation through an accessible `InfoHint` affordance',
+            # was AC22.5.5
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.5.5 exposes the plain-language glossary text to assistive tech",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.12",
+            statement='The reconciliation match-rate is shown under a single term ("Reconciliation coverage") on both Home and Reports, backed by one shared `InfoHint` glossary entry',
+            # was AC22.9.2
+            test="apps/frontend/src/__tests__/infoHint.test.tsx::AC22.9.2 exposes a single reconciliation-coverage term for the unified label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.13",
+            statement="Global styles honor `prefers-reduced-motion: reduce` by disabling non-essential animation/transition timing and smooth scrolling across the app shell",
+            # was AC22.12.1
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.14",
+            statement="The authenticated shell exposes a skip-to-content link that targets the main landmark so keyboard users can bypass navigation chrome",
+            # was AC22.12.2
+            test="apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC22.12.2 exposes a skip-to-content link targeting the main landmark",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.15",
+            statement="Global focus-visible styles cover links, form controls, and shared `.btn-*` controls with token-backed focus rings",
+            # was AC22.12.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.16",
+            statement="Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs",
+            # was AC22.12.5
+            test="apps/frontend/src/__tests__/toastProviderComponent.test.tsx::AC22.12.5 uses semantic icon components instead of unicode glyph icons",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.17",
+            statement="Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states",
+            # was AC22.12.6
+            test="apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC22.12.6 renders token-backed skeleton primitives without spinner affordances",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.18",
+            statement="Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name",
+            # was AC22.13.3
+            test="apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.19",
+            statement="A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response",
+            # was AC22.15.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.20",
+            statement="The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged",
+            # was AC22.18.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.21",
+            statement="Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`)",
+            # was AC5.17.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC5.17.1 downloads authenticated CSV blobs and preserves the server filename",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.21",
+            statement="The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect",
+            # was AC22.20.1
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.1 keeps install manifest on the canonical home-screen launch contract",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.22",
+            statement="The shared install hook captures Android/Chromium `beforeinstallprompt`, suppresses the browser's automatic prompt until the app-level action, invokes `prompt()`, and records dismissals so business pages do not handle install events",
+            # was AC22.20.2
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.2 captures Android beforeinstallprompt and invokes the deferred native prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.23",
+            statement="The global app-shell install prompt renders an Android install action when a deferred prompt is available and renders iOS Add to Home Screen guidance when the browser cannot provide a programmatic prompt",
+            # was AC22.20.3
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.3 renders the Android install action from the global app-shell prompt",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.24",
+            statement="Installed or standalone sessions hide the install prompt, and the app shell uses safe-area-aware standalone styling for home-screen launch without page-level changes",
+            # was AC22.20.4
+            test="apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.4 detects iOS and standalone launch states without page code",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.25",
+            statement="The navigation model exposes a bottom tab bar of Home (`/`), Chat (`/chat`), Audit (`/audit`), and More (`/more`) plus a center Add action, and no longer exposes a `primaryWorkflowNavItems`/`advancedNavItems` split or any of Journal/Reconciliation/Processing/Confidence/Accounts/Settings as a navigation entry",
+            # was AC22.21.1
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC19.6.2 AC19.8.5 AC22.1.1 AC22.1.7 AC22.2.4 AC22.21.1 exposes a five-target bottom tab bar with distinct icons (Home, Chat, Add, Audit, More)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.26",
+            statement='The shell renders the bottom tab bar on mobile and mirrors the same five targets in the desktop sidebar; tapping Add opens a bottom sheet offering "Upload statement" (the statement uploader) and "Manual entry" (the guided evidence form), and Add is an action, not a route',
+            # was AC22.21.2
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.27",
+            statement="`/audit` renders a verify-on-demand hub aggregating Trust (confidence), Reconciliation, Journal, and Processing as cards that deep-link to their existing pages, and those pages render a back-link to `/audit`",
+            # was AC22.21.3
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.28",
+            statement="`/settings` renders one page with General, AI, and LLM as tabs, and `/settings/general`, `/settings/ai`, `/settings/llm` resolve to that page with the corresponding tab active",
+            # was AC22.21.4
+            test="apps/frontend/src/__tests__/nextConfigRedirects.test.ts::AC22.21.4 redirects the legacy settings pages to the merged tabbed /settings",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.29",
+            statement="`/more` lists low-frequency destinations — Portfolio (shown only when the user holds securities), Settings, Advanced, and Logout",
+            # was AC22.21.5
+            test="apps/frontend/src/__tests__/navigation.test.ts::AC22.21.5 routes low-frequency destinations through the /more overflow",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-ia-nav.30",
+            statement="Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions",
+            # was AC22.21.7
+            test="apps/frontend/playwright/epic022-bottom-tab-ia.spec.ts::the bottom bar opens the Add sheet with both ways to add",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

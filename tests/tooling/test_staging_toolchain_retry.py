@@ -56,7 +56,7 @@ def _has_bounded_backoff_retry(shell: str) -> bool:
 
 
 def test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads() -> None:
-    """AC7.16.1: setup-e2e composite retries uv/playwright downloads with backoff.
+    """AC-testing.toolchain.11: AC7.16.1: setup-e2e composite retries uv/playwright downloads with backoff.
 
     The download commands (``uv pip install -r tests/e2e/requirements.txt`` and
     ``playwright install chromium``) must be wrapped in the bounded
@@ -116,7 +116,7 @@ def test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution() -> None:
 
 
 def test_AC7_16_2_staging_deploy_v2_dependency_install_retries() -> None:
-    """AC7.16.2: staging deploy_v2 dependency install retries with backoff.
+    """AC-testing.toolchain.12: AC7.16.2: staging deploy_v2 dependency install retries with backoff.
 
     The ``Install deploy_v2 dependencies`` step (``pip install httpx
     python-dotenv rich``) is a transient network download and must be wrapped in

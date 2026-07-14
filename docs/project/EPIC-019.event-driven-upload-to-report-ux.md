@@ -330,7 +330,7 @@ workflow state exists.
 | AC19.3.5 | Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links | `workflowSurfaces.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC19.3.6 | Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise | `workflowSurfaces.test.tsx`, `dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 | AC19.3.7 | Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow | `workflow-notifications.spec.ts` | P0 | <!-- epic-owned: fe-only -->
-| AC19.3.8 | Workflow notification UI contract is documented in the workflow-events SSOT and EPIC-019 | `test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces` | P0 | <!-- epic-owned: horizontal -->
+> (AC19.3.8 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.workflow-events.1`, #1821 Wave A)
 
 ### AC19.4 — Upload-First Entry Surface
 
@@ -382,8 +382,8 @@ before marking US/HK personal reports trusted.
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
 > **Partially migrated.** *(AC19.8.1 removed and AC19.8.2 removed and AC19.8.3 removed and AC19.8.9 removed — this group's backend session-model/API rows migrated to the `platform` package roadmap as `AC-platform.33.1-4`, migration closeout continuation, #1663 / #1712)*. *(AC19.8.5 removed —
-> a dead row explicitly superseded by EPIC-022 AC22.21, whose AC22.21.1
-> proof owns the bottom-tab navigation contract; deleted rather than
+> a dead row explicitly superseded by EPIC-022's bottom-tab navigation IA,
+> which owns the bottom-tab navigation contract; deleted rather than
 > migrated, #1719.)* The frontend, IA, and report-readiness rows below stay
 > with their own owners.
 

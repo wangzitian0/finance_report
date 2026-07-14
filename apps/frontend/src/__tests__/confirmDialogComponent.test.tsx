@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
 
 describe("ConfirmDialog component", () => {
+  // AC-meta.fe-app-shell.10
   it("AC16.19.7 handles required input and confirm/cancel", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
@@ -34,6 +35,7 @@ describe("ConfirmDialog component", () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
+  // AC-meta.fe-app-shell.11 / AC-meta.fe-app-shell.33
   it("AC16.19.8 AC16.30.4 handles escape and backdrop cancellation", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
@@ -51,6 +53,7 @@ describe("ConfirmDialog component", () => {
     expect(onCancel).toHaveBeenCalledTimes(2)
   })
 
+  // AC-meta.fe-app-shell.17
   it("AC16.19.16 AC16.30.4 renders dialog with ARIA attributes", () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
@@ -124,6 +127,7 @@ describe("ConfirmDialog component", () => {
     expect(screen.getByText("Extra info")).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.18
   it("AC16.19.17 AC16.30.4 traps focus with Tab and Shift+Tab", () => {
     render(
       <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,

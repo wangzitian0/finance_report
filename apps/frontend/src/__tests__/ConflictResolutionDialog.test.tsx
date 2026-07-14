@@ -57,6 +57,7 @@ describe("ConflictResolutionDialog", () => {
         expect(screen.getAllByText("Link Pair").length).toBeGreaterThanOrEqual(1);
     });
 
+    // AC-reconciliation.fe-stage2-review.27
     it("AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action", () => {
         const onResolve = vi.fn();
         render(

@@ -9,6 +9,7 @@ vi.mock("@/components/AppShell", () => ({
 }))
 
 describe("MainLayout", () => {
+  // AC-meta.fe-app-shell.5
   it("AC16.16.2 renders children through AppShell", () => {
     render(
       <MainLayout>

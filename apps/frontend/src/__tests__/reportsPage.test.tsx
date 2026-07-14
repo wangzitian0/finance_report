@@ -30,6 +30,7 @@ beforeEach(() => {
 })
 
 describe("ReportsPage", () => {
+  // AC-reporting.fe-report-surfaces.8
   it("AC16.12.11 renders the four front reports and the More reports with links", async () => {
     render(<ReportsPage />)
 
@@ -45,6 +46,7 @@ describe("ReportsPage", () => {
     expect(screen.getByRole("link", { name: /Cash Flow Statement/i })).toHaveAttribute("href", "/reports/cash-flow")
   })
 
+  // AC-reporting.fe-report-surfaces.9
   it("AC16.12.12 displays accounting equation section", () => {
     render(<ReportsPage />)
 

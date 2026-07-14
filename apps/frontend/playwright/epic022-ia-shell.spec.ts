@@ -111,6 +111,7 @@ test.describe("AC22.1.9 everyday-user IA shell smoke", () => {
     await installShellMocks(page);
   });
 
+  // AC-meta.fe-ia-nav.8
   test("desktop sidebar mirrors the five bottom-tab targets and the notification bell", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/", { waitUntil: "networkidle" });

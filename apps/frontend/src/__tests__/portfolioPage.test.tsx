@@ -375,6 +375,7 @@ describe("PortfolioPage", () => {
     expect(screen.getAllByText("$42.50").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-reporting.fe-viz-reports.2
   it("AC5.8.1 renders investment performance report schedule from the schedule API", async () => {
     mockPortfolioApi()
 

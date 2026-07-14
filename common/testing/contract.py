@@ -1613,6 +1613,65 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group deploy-gates (continued): staging AI/OCR gate timeout
+        # hardening + frontend smoke-route contract (was EPIC-008
+        # AC8.13.166/.167 and EPIC-007 AC7.17.1, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-testing.deploy-gates.41",
+            statement=(
+                "The staging AI/OCR gate's regression alerting cannot be "
+                "silently skipped by its own corpus step's timeout-minutes: "
+                "a job-level gate_timeout_fallback step runs if: always() "
+                "and fires the same GitHub-issue fallback alert (deduped by "
+                "a stable title) whenever the corpus step's outcome is not "
+                "success AND it produced no ai_ocr_status output, using a "
+                "distinct gate-timeout status (#1767)."
+            ),
+            # was AC8.13.166
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.42",
+            statement=(
+                "The staging AI/OCR gate's job/step timeout-minutes budget "
+                "is sized per corpus input instead of one fixed value, "
+                "using the corpus's total sequential parse-wait count times "
+                "the 8-minute PARSING_TIMEOUT_MS ceiling, plus checkout/"
+                "setup overhead (#1767)."
+            ),
+            # was AC8.13.167
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.deploy-gates.43",
+            statement=(
+                "Every page route the smoke gate asserts maps to a real "
+                "public Next.js route that exists under apps/frontend/src/"
+                "app (route-group folders excluded); a removed path with no "
+                "page.tsx is not asserted."
+            ),
+            # was AC7.17.1
+            test=(
+                "tests/tooling/test_smoke_routes_contract.py"
+                "::test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group product-gates: product-journey hard gates & fixture
         # contracts (was EPIC-008 AC8.13 subset), migration closeout,
         # #1663 / #1718 ──
@@ -2037,6 +2096,89 @@ CONTRACT = PackageContract(
                 "::test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline"
             ),
             priority="P1",
+            status="done",
+        ),
+        # ── group preview (continued): PR-preview lifecycle fail-fast +
+        # rollback classification (was EPIC-007 AC7.13.1-.5, #1821 Wave A
+        # horizontal move) ──
+        ACRecord(
+            id="AC-testing.preview.16",
+            statement=(
+                "A composeStatus=done rollout with no new deployment record "
+                "for the requested SHA fails fast with the classified "
+                "DokployNoNewDeploymentRecord error instead of proceeding "
+                "to commit-scoped readiness against stale records."
+            ),
+            # was AC7.13.1
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC7_13_1_no_new_deployment_record_raises_classified_subclass"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.17",
+            statement=(
+                "Rollout diagnostics distinguish 'no new deployment "
+                "created' from 'new deployment created but route not "
+                "ready', and effective-env reconciliation flags stale "
+                "non-allowlisted keys by name without leaking secret "
+                "values."
+            ),
+            # was AC7.13.2
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.18",
+            statement=(
+                "update_compose_env reconciles the whole requested env "
+                "against the effective remote env and fails fast when a "
+                "stale non-allowlisted key diverges."
+            ),
+            # was AC7.13.3
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.19",
+            statement=(
+                "On deploy/rollout failure the lifecycle rolls back to "
+                "last-known-good source/env or marks the record "
+                "safe-to-reconcile, recording which mutation step "
+                "(source/env/deploy/rollout) it was left at — never a "
+                "silent half-update."
+            ),
+            # was AC7.13.4
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC7_13_4_mutate_then_fail_marks_state_and_records_step"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preview.20",
+            statement=(
+                "The CI/CD SSOT documents both the no-new-deployment "
+                "fail-fast mode and the half-update rollback / "
+                "safe-to-reconcile recovery path."
+            ),
+            # was AC7.13.5
+            test=(
+                "tests/tooling/test_pr_preview_lifecycle.py"
+                "::test_AC7_13_5_ci_cd_docs_describe_failure_modes"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── group classifier: CI change classification (was EPIC-008
@@ -3008,6 +3150,55 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group governance (continued): the CI/deploy workflow contract
+        # itself (was EPIC-007 AC7.15.1-.3, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-testing.governance.11",
+            statement=(
+                "The CI/deploy SSOT references the live workflow job ids "
+                "and triggers through a checked contract (not stale "
+                "prose), and CI lint runs tools/check_workflow_contract.py."
+            ),
+            # was AC7.15.1
+            test=(
+                "tests/tooling/test_workflow_contract.py"
+                "::test_AC7_15_1_real_repo_passes_the_workflow_contract"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.12",
+            statement=(
+                "Issue templates use only labels that exist in the current "
+                "repository taxonomy (a stale infra/feature label or any "
+                "unknown label fails)."
+            ),
+            # was AC7.15.2
+            test=(
+                "tests/tooling/test_workflow_contract.py"
+                "::test_AC7_15_2_stale_issue_template_label_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.13",
+            statement=(
+                "The workflow contract FAILS when a workflow job id, "
+                "trigger, or issue-template label drifts from the "
+                "documented standard (e.g. stale classify-changes prose, a "
+                "push trigger re-added to the deploy.yml staging target, or "
+                "a renamed classifier job)."
+            ),
+            # was AC7.15.3
+            test=(
+                "tests/tooling/test_workflow_contract.py"
+                "::test_AC7_15_3_stale_ci_classifier_job_name_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group secret-scan: content-level secret scanning (was
         # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
         ACRecord(
@@ -3021,6 +3212,25 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_secret_scan_gate.py"
                 "::test_AC8_13_136_gitleaks_runs_in_precommit_and_ci"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group secret-scan (continued): the CI container-images build's
+        # own secret scan (was EPIC-007 AC7.18.1, #1821 Wave A horizontal
+        # move) ──
+        ACRecord(
+            id="AC-testing.secret-scan.2",
+            statement=(
+                "The CI container-images job runs a gitleaks secret scan "
+                "over the per-component build context before the image "
+                "build step, fails closed on detection, and keeps the "
+                "finding visible in logs."
+            ),
+            # was AC7.18.1
+            test=(
+                "tests/tooling/test_build_secret_scan_contract.py"
+                "::test_AC7_18_1_container_images_job_has_build_context_secret_scan"
             ),
             priority="P0",
             status="done",
@@ -3171,6 +3381,42 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_frontend_typecheck_contract.py"
                 "::test_AC8_13_99_frontend_typecheck_is_a_required_gate"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        # ── group toolchain (continued): E2E toolchain-setup + staging
+        # deploy_v2 dependency-install retry hardening (was EPIC-007
+        # AC7.16.1/.2, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-testing.toolchain.11",
+            statement=(
+                "The shared E2E toolchain-setup composite (setup-e2e-tests) "
+                "retries transient dependency/browser download failures "
+                "(uv pip install, playwright install) with bounded "
+                "exponential backoff and keeps the original external error "
+                "visible on exhaustion."
+            ),
+            # was AC7.16.1
+            test=(
+                "tests/tooling/test_staging_toolchain_retry.py"
+                "::test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.12",
+            statement=(
+                "The staging deploy_v2 dependency install retries transient "
+                "download failures with bounded exponential backoff; "
+                "application deploy/test steps remain fail-fast (not "
+                "wrapped in retry)."
+            ),
+            # was AC7.16.2
+            test=(
+                "tests/tooling/test_staging_toolchain_retry.py"
+                "::test_AC7_16_2_staging_deploy_v2_dependency_install_retries"
             ),
             priority="P0",
             status="done",

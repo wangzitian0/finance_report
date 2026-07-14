@@ -24,6 +24,7 @@ describe("ToastProvider component", () => {
     errorSpy.mockRestore()
   })
 
+  // AC-meta.fe-app-shell.12
   it("AC16.19.9 shows and dismisses notifications", () => {
     render(
       <ToastProvider>
@@ -58,6 +59,7 @@ describe("ToastProvider component", () => {
     expect(screen.queryByText("failed")).toBeNull()
   })
 
+  // AC-meta.fe-ia-nav.16
   it("AC22.12.5 uses semantic icon components instead of unicode glyph icons", () => {
     render(
       <ToastProvider>

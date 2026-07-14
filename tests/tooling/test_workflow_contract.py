@@ -58,7 +58,7 @@ def _write_infra2_workflow_set(target_root: Path) -> None:
 
 
 def test_AC7_15_1_real_repo_passes_the_workflow_contract() -> None:
-    """AC7.15.1: The real CI/deploy SSOT matches the live workflow contract."""
+    """AC-testing.governance.11: AC7.15.1: The real CI/deploy SSOT matches the live workflow contract."""
     assert contract.run_contract(ROOT) == 0
 
 
@@ -96,7 +96,7 @@ def test_AC7_15_1_container_images_publishes_on_every_main_release_push() -> Non
 
 
 def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
-    """AC7.15.3: A stale `classify-changes` reference in ci-cd.md fails."""
+    """AC-testing.governance.13: AC7.15.3: A stale `classify-changes` reference in ci-cd.md fails."""
     _copy_inputs(tmp_path)
     target = tmp_path / "common/testing/ci-cd.md"
     target.write_text(
@@ -192,7 +192,7 @@ def test_AC7_15_3_renamed_classifier_job_in_workflow_fails(tmp_path) -> None:
 
 
 def test_AC7_15_2_stale_issue_template_label_fails(tmp_path) -> None:
-    """AC7.15.2: A template using the stale `infra`/`feature` label fails."""
+    """AC-testing.governance.12: AC7.15.2: A template using the stale `infra`/`feature` label fails."""
     _copy_inputs(tmp_path)
     target = tmp_path / ".github/ISSUE_TEMPLATE/task.yml"
     content = target.read_text(encoding="utf-8")

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui"
 
 describe("UI primitives", () => {
+  // AC-meta.fe-app-shell.22 / AC-meta.fe-app-shell.25
   it("AC16.28.1 AC16.28.4 renders button and badge variants through shared primitives", () => {
     render(
       <div>
@@ -34,6 +35,7 @@ describe("UI primitives", () => {
     expect(screen.getByText("Posted")).toHaveClass("badge-success")
   })
 
+  // AC-meta.fe-app-shell.23
   it("AC16.28.2 AC16.28.4 requires icon-only actions to expose an accessible label", () => {
     render(<IconButton icon={Pencil} label="Edit account" />)
 
@@ -42,6 +44,7 @@ describe("UI primitives", () => {
     expect(button).toHaveAttribute("title", "Edit account")
   })
 
+  // AC-meta.fe-app-shell.30
   it("AC16.30.1 AC16.30.4 keeps IconButton label authoritative over passthrough props", () => {
     render(
       <IconButton
@@ -73,6 +76,7 @@ describe("UI primitives", () => {
     expect(screen.getByRole("status", { name: "Loading accounts" })).toBeInTheDocument()
   })
 
+  // AC-meta.fe-ia-nav.17
   it("AC22.12.6 renders token-backed skeleton primitives without spinner affordances", () => {
     const { container } = render(
       <div>

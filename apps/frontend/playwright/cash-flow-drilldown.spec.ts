@@ -91,6 +91,7 @@ test.describe("AC22.7.4 cash-flow drill-down smoke", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
+    // AC-reporting.fe-ia-reports.13
     test(`${scenario.name} opens account-lineage drawer from a cash-flow amount`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installCashFlowMocks(page);

@@ -103,6 +103,7 @@ describe("JournalEntryDetailsModal", () => {
     expect(screen.getByText(/CR:/)).toBeInTheDocument()
   })
 
+  // AC-ledger.fe-accounts-journal.18
   it("AC16.25.3 journal entry details mobile line cards expose all line fields", () => {
     const lines: JournalLine[] = [
       { id: "line-debit", account_id: "assets:cash:mobile", direction: "DEBIT", amount: "1234.56", currency: "SGD" },

@@ -36,6 +36,7 @@ describe('apiFetch', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.1
   it('AC16.10.1 returns JSON on 200 response', async () => {
     const fetchMock = makeFetchMock(200, { id: 1, name: 'test' });
     vi.stubGlobal('fetch', fetchMock);
@@ -50,6 +51,7 @@ describe('apiFetch', () => {
     );
   });
 
+  // AC-meta.fe-http-client.2
   it('AC16.10.2 returns undefined on 204 No Content', async () => {
     const fetchMock = makeFetchMock(204, null);
     vi.stubGlobal('fetch', fetchMock);
@@ -60,6 +62,7 @@ describe('apiFetch', () => {
     expect(result).toBeUndefined();
   });
 
+  // AC-meta.fe-http-client.3
   it('AC16.10.3 throws with detail message on JSON error response', async () => {
     const fetchMock = makeFetchMock(400, { detail: 'Validation failed' });
     vi.stubGlobal('fetch', fetchMock);
@@ -68,6 +71,7 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/test')).rejects.toThrow('Validation failed');
   });
 
+  // AC-meta.fe-http-client.4
   it('AC16.10.4 throws with raw text on non-JSON error response', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -80,6 +84,7 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/test')).rejects.toThrow('Internal Server Error');
   });
 
+  // AC-meta.fe-http-client.5
   it('AC16.10.5 redirects to /login on 401 unauthorized response', async () => {
     const fetchMock = makeFetchMock(401, { detail: 'Not authenticated' });
     vi.stubGlobal('fetch', fetchMock);
@@ -91,6 +96,7 @@ describe('apiFetch', () => {
     expect(window.location.href).toBe('/login');
   });
 
+  // AC-meta.fe-http-client.13
   it('AC16.10.13 normalizes path without leading slash', async () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
@@ -102,6 +108,7 @@ describe('apiFetch', () => {
     expect(calledUrl).toMatch(/\/api\/no-slash/);
   });
 
+  // AC-meta.fe-http-client.14
   it('AC16.10.14 includes Authorization header when token present', async () => {
     localStorageMock.setItem('finance_access_token', 'test-jwt-token');
     const fetchMock = makeFetchMock(200, {});
@@ -170,6 +177,7 @@ describe('resetRedirectGuard', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.6
   it('AC16.10.6 resetRedirectGuard is exported and callable', async () => {
     const { resetRedirectGuard } = await import('../lib/api');
     expect(() => resetRedirectGuard()).not.toThrow();
@@ -188,6 +196,7 @@ describe('apiDelete', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.7
   it('AC16.10.7 succeeds on 200 response', async () => {
     const fetchMock = makeFetchMock(200, '');
     vi.stubGlobal('fetch', fetchMock);
@@ -200,6 +209,7 @@ describe('apiDelete', () => {
     );
   });
 
+  // AC-meta.fe-http-client.8
   it('AC16.10.8 throws on non-ok response', async () => {
     const fetchMock = makeFetchMock(404, '');
     vi.stubGlobal('fetch', fetchMock);
@@ -208,6 +218,7 @@ describe('apiDelete', () => {
     await expect(apiDelete('/api/resource/missing')).rejects.toThrow('Delete failed with 404');
   });
 
+  // AC-meta.fe-http-client.15
   it('AC16.10.15 handles 401 redirect in apiDelete', async () => {
     const fetchMock = makeFetchMock(401, {});
     vi.stubGlobal('fetch', fetchMock);
@@ -246,6 +257,7 @@ describe('apiStream', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.9
   it('AC16.10.9 returns response and sessionId on success', async () => {
     const mockResponse = {
       ok: true,
@@ -263,6 +275,7 @@ describe('apiStream', () => {
     expect(result.sessionId).toBe('sess-abc');
   });
 
+  // AC-meta.fe-http-client.10
   it('AC16.10.10 throws on non-ok response', async () => {
     const fetchMock = makeFetchMock(503, { detail: 'Service Unavailable' });
     vi.stubGlobal('fetch', fetchMock);
@@ -312,6 +325,7 @@ describe('apiUpload', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.11
   it('AC16.10.11 returns JSON on 200 response', async () => {
     const fetchMock = makeFetchMock(200, { uploaded: true });
     vi.stubGlobal('fetch', fetchMock);
@@ -328,6 +342,7 @@ describe('apiUpload', () => {
     );
   });
 
+  // AC-meta.fe-http-client.12
   it('AC16.10.12 returns undefined on 204 No Content', async () => {
     const fetchMock = makeFetchMock(204, null);
     vi.stubGlobal('fetch', fetchMock);
@@ -338,6 +353,7 @@ describe('apiUpload', () => {
     expect(result).toBeUndefined();
   });
 
+  // AC-meta.fe-http-client.16
   it('AC16.10.16 includes Authorization header when token present', async () => {
     localStorageMock.setItem('finance_access_token', 'upload-token');
     const fetchMock = makeFetchMock(200, {});
@@ -351,6 +367,7 @@ describe('apiUpload', () => {
     expect(calledHeaders['Authorization']).toBe('Bearer upload-token');
   });
 
+  // AC-meta.fe-http-client.17
   it('AC16.10.17 handles 401 redirect in apiUpload', async () => {
     const fetchMock = makeFetchMock(401, {});
     vi.stubGlobal('fetch', fetchMock);
@@ -363,6 +380,7 @@ describe('apiUpload', () => {
     expect(window.location.href).toBe('/login');
   });
 
+  // AC-meta.fe-http-client.18
   it('AC16.10.18 throws with detail message on JSON error response', async () => {
     const fetchMock = makeFetchMock(400, { detail: 'Upload limit exceeded' });
     vi.stubGlobal('fetch', fetchMock);
@@ -372,6 +390,7 @@ describe('apiUpload', () => {
     await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Upload limit exceeded');
   });
 
+  // AC-meta.fe-http-client.19
   it('AC16.10.19 throws with raw text on non-JSON error response', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -407,6 +426,7 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-ia-nav.19
   it('AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch', async () => {
     const fetchMock = makeFetchMock(200, {
       enable_ai_reconciliation: true,
@@ -476,6 +496,7 @@ describe('apiDownload', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
+  // AC-meta.fe-http-client.21
   it('AC5.17.1 downloads authenticated CSV blobs and preserves the server filename', async () => {
     localStorageMock.setItem('finance_access_token', 'download-token');
     const csvBlob = new Blob(['section,account,amount\nAssets,Cash,100.00\n'], { type: 'text/csv' });

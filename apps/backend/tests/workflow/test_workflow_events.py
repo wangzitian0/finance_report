@@ -140,7 +140,7 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
 
 
 def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
-    """AC19.3.8: workflow notification UI contract is documented in SSOT and EPIC."""
+    """AC-meta.workflow-events.1: AC19.3.8: workflow notification UI contract is documented in SSOT and EPIC."""
     ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 

@@ -1016,5 +1016,112 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group 6 (new): OTEL keys wired through the app's Vault template,
+        # README, and compose.yaml (was EPIC-010 AC10.6.1-.4; AC10.7.6 was a
+        # duplicate of AC10.6.1 citing the identical test and is merged into
+        # `.1` with no separate entry, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-observability.6.1",
+            statement="OTEL keys are present in the app secrets template (Vault).",
+            # was AC10.6.1 (+ duplicate AC10.7.6)
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_vault_template_exposes_otel_keys_with_safe_quoting"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.6.2",
+            statement="OTEL keys are documented in the app README.",
+            # was AC10.6.2
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_app_readme_and_compose_document_observability_rollout"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.6.3",
+            statement="IAC_CONFIG_HASH is present in compose.yaml.",
+            # was AC10.6.3
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_app_readme_and_compose_document_observability_rollout"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.6.4",
+            statement="Vault template helpers use printf, not a default value fallback.",
+            # was AC10.6.4
+            test=(
+                "apps/backend/tests/infra/test_observability_contract.py"
+                "::test_vault_template_exposes_otel_keys_with_safe_quoting"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group 9 (continued): deploy-failure-snapshot boundary (was
+        # EPIC-010 AC10.9.5, #1821 Wave A horizontal move) ──
+        ACRecord(
+            id="AC-observability.9.4",
+            statement=(
+                "Deploy failure snapshots are infra2-owned end to end — the "
+                "app ships no Dokploy failure-snapshot tool and never "
+                "reaches the Dokploy API for platform diagnostics; the app "
+                "builds no observability-backend pivot links (App/Infra "
+                "boundary #876)."
+            ),
+            # was AC10.9.5
+            test=(
+                "tests/tooling/test_dokploy_snapshot_retired.py"
+                "::test_AC10_9_5_app_side_snapshot_is_retired"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group openpanel-query: the OpenPanel analytics query CLI (was
+        # EPIC-024 AC24.1.4, #1821 Wave A horizontal move; the EPIC row's
+        # own test citation was just the file name, not a function — the
+        # file's tests are docstring-tagged AC23.1.4, an id that resolves to
+        # no live registry entry; the function below is the closest content
+        # match) ──
+        ACRecord(
+            id="AC-observability.openpanel-query.1",
+            statement=(
+                "The OpenPanel query CLI exists, reads its API key from "
+                "OPENPANEL_API_KEY (never a CLI flag), and supports events/"
+                "funnels with an --env filter."
+            ),
+            # was AC24.1.4
+            test=(
+                "tests/tooling/test_openpanel_query.py"
+                "::test_AC23_1_4_api_key_read_from_env_not_args"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-observability.fe-ia-analytics.1",
+            statement="A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending",
+            # was AC22.18.2
+            test="apps/frontend/src/__tests__/analyticsTrack.test.ts::AC22.18.2 exposes a typed taxonomy of at least six named product events",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-ia-analytics.2",
+            statement="The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action",
+            # was AC22.18.3
+            test="apps/frontend/src/__tests__/StatementUploader.test.tsx::AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

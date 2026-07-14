@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC10_9_5_app_side_snapshot_is_retired() -> None:
-    """AC10.9.5: the app ships no Dokploy failure-snapshot tool, and no code or
+    """AC-observability.9.4: AC10.9.5: the app ships no Dokploy failure-snapshot tool, and no code or
     CI surface (tools/, common/, apps/, tests/, .github/) references one — the
     platform-diagnostic boundary belongs to infra2. (docs/ may narrate the
     retirement and is deliberately out of scope.)"""

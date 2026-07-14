@@ -213,9 +213,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.8.1 | Moon local CLI contract is versioned without PR CI bootstrap | `test_moon_cli_static_contract_available()` | `infra/test_ci_config.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.8.2 | Docker compose integrity | `test_docker_compose_integrity()` | `infra/test_ci_config.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.8.3 | Moon project graph contract is declared in repo config | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.8.1 removed and AC7.8.2 removed and AC7.8.3 removed, canonical: AC7.8.2 merged with EPIC-001's AC1.4.1 and AC7.8.3 merged with EPIC-001's AC1.5.1 (identical tests); all three migrated to the `meta` package roadmap as `AC-meta.phase0.19`, `.11`, `.15`, #1821 Wave A)
 
 ### AC7.9: Must-Have Acceptance Criteria Traceability
 
@@ -272,11 +270,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.13.1 | A `composeStatus=done` rollout with no new deployment record for the requested SHA fails fast with the classified `DokployNoNewDeploymentRecord` error (`platform_failure_domain=dokploy-worker-or-deployment-record`) instead of proceeding to commit-scoped readiness against stale records | `test_AC7_13_1_no_new_deployment_record_raises_classified_subclass` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.13.2 | Rollout diagnostics distinguish "no new deployment created" from "new deployment created but route not ready", and effective-env reconciliation flags stale non-allowlisted keys by name without leaking secret values | `test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.13.3 | `update_compose_env` reconciles the whole requested env against the effective remote env and fails fast when a stale non-allowlisted key diverges | `test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.13.4 | On deploy/rollout failure the lifecycle rolls back to last-known-good source/env or marks the record safe-to-reconcile, recording which mutation step (source/env/deploy/rollout) it was left at — never a silent half-update | `test_AC7_13_4_mutate_then_fail_marks_state_and_records_step` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.13.5 | The CI/CD SSOT documents both the no-new-deployment fail-fast mode and the half-update rollback / safe-to-reconcile recovery path | `test_AC7_13_5_ci_cd_docs_describe_failure_modes` | `tests/tooling/test_pr_preview_lifecycle.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.13.1 removed and AC7.13.2 removed and AC7.13.3 removed and AC7.13.4 removed and AC7.13.5 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.preview.16` through `.20`, #1821 Wave A)
 
 ### AC7.14: Effective Production App Env Verification (#575) — RELOCATED to infra2
 
@@ -297,9 +291,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.15.1 | The CI/deploy SSOT references the live workflow job ids and triggers through a checked contract (not stale prose), and CI lint runs `tools/check_workflow_contract.py` | `test_AC7_15_1_real_repo_passes_the_workflow_contract`, `test_AC7_15_1_ci_workflow_wires_the_workflow_contract_gate` | `tests/tooling/test_workflow_contract.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.15.2 | Issue templates use only labels that exist in the current repository taxonomy (stale `infra`/`feature` and any unknown label fail) | `test_AC7_15_2_stale_issue_template_label_fails`, `test_AC7_15_2_unknown_issue_template_label_fails` | `tests/tooling/test_workflow_contract.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.15.3 | The contract FAILS when a workflow job id, trigger, or issue-template label drifts from the documented standard (e.g. `classify-changes` prose, a `push` trigger re-added to the `deploy.yml` staging target, or a renamed classifier job) | `test_AC7_15_3_stale_ci_classifier_job_name_fails`, `test_AC7_15_3_stale_staging_push_trigger_prose_fails`, `test_AC7_15_3_staging_push_trigger_in_workflow_fails`, `test_AC7_15_3_renamed_classifier_job_in_workflow_fails`, `test_AC7_15_3_main_cli_returns_contract_result` | `tests/tooling/test_workflow_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.15.1 removed and AC7.15.2 removed and AC7.15.3 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.governance.11` through `.13`, #1821 Wave A)
 
 ### AC7.16: Transient Toolchain-Download Retry in the Staging Deploy Path (#412)
 
@@ -315,8 +307,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.16.1 | The shared E2E toolchain-setup composite (`setup-e2e-tests`) retries transient dependency/browser download failures (`uv pip install`, `playwright install`) with bounded exponential backoff and keeps the original external error visible on exhaustion | `test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads`, `test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution` | `tests/tooling/test_staging_toolchain_retry.py` | P0 | <!-- epic-owned: horizontal -->
-| AC7.16.2 | The staging deploy_v2 dependency install retries transient download failures with bounded exponential backoff; application deploy/test steps remain fail-fast (not wrapped in retry) | `test_AC7_16_2_staging_deploy_v2_dependency_install_retries`, `test_AC7_16_2_staging_deploy_and_e2e_steps_stay_fail_fast` | `tests/tooling/test_staging_toolchain_retry.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.16.1 removed and AC7.16.2 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.toolchain.11` and `.12`, #1821 Wave A)
 
 ### AC7.17: Smoke Gate Asserts Only Real Public Frontend Routes (#411)
 
@@ -330,7 +321,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.17.1 | Every page route the smoke gate asserts (`check_endpoint "...Page" "$BASE_URL/<route>"`) maps to a real public Next.js route that exists under `apps/frontend/src/app` (route-group folders excluded); the removed `/dashboard` path (no `page.tsx`) is not asserted | `test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes`, `test_AC7_17_1_smoke_does_not_assert_nonexistent_dashboard_route` | `tests/tooling/test_smoke_routes_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.17.1 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.deploy-gates.43`, #1821 Wave A)
 
 ### AC7.18: Build-Time Secret-Scan Gate on the Image Build Context (#1277)
 
@@ -343,7 +334,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.18.1 | The CI `container-images` job runs a gitleaks secret scan over the per-component build context before the image build step, fails closed on detection (`--exit-code 1` / `--no-git`), and keeps the finding visible in logs (`--redact`, no `--no-banner`-only silent pass) | `test_AC7_18_1_container_images_job_has_build_context_secret_scan`, `test_AC7_18_1_build_secret_scan_is_fail_closed_before_build` | `tests/tooling/test_build_secret_scan_contract.py` | P0 | <!-- epic-owned: horizontal -->
+> (AC7.18.1 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.secret-scan.2`, #1821 Wave A)
 
 ### AC7.19: GHCR SHA Image Retention (#1277)
 

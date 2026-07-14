@@ -17,6 +17,7 @@ describe("analytics track wrapper (EPIC-022 AC22.18.2)", () => {
     (window as { op?: unknown }).op = op;
   });
 
+  // AC-observability.fe-ia-analytics.1
   it("AC22.18.2 exposes a typed taxonomy of at least six named product events", () => {
     const names = Object.values(ANALYTICS_EVENTS);
     expect(new Set(names).size).toBe(names.length); // unique

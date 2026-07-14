@@ -36,6 +36,7 @@ describe("IncomeStatementPage", () => {
     mockedApiFetch.mockReset()
   })
 
+  // AC-reporting.fe-report-surfaces.13
   it("AC16.14.4 renders loading and error retry states", async () => {
     mockedApiFetch.mockRejectedValue(new Error("income failed"))
 
@@ -50,6 +51,7 @@ describe("IncomeStatementPage", () => {
     expect(mockedApiFetch).toHaveBeenCalled()
   })
 
+  // AC-reporting.fe-report-surfaces.14
   it("AC16.14.5 / test_AC8_13_48 renders string KPI cards and category lists", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
@@ -144,6 +146,7 @@ describe("IncomeStatementPage", () => {
     await waitFor(() => expect(screen.queryByText("January payroll")).toBeNull())
   })
 
+  // AC-reporting.fe-report-surfaces.15
   it("AC16.14.6 supports selecting and clearing tags", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",

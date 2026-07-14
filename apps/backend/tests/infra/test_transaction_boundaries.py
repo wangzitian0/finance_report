@@ -83,7 +83,7 @@ def _commit_calls(root: Path) -> list[tuple[str, str, int]]:
 
 
 def test_service_commit_calls_are_documented_boundary_exceptions() -> None:
-    """AC12.26.1: service commit calls are limited to documented boundary exceptions."""
+    """AC-meta.transaction-boundary.1: AC12.26.1: service commit calls are limited to documented boundary exceptions."""
     unexpected = [
         f"{filename}:{lineno} in {qualname}"
         for filename, qualname, lineno in _commit_calls(SERVICE_ROOT)
@@ -105,7 +105,7 @@ def test_pricing_commit_calls_are_documented_boundary_exceptions() -> None:
 
 
 async def test_market_data_fx_persistence_is_rollbackable_until_boundary_commit(db: AsyncSession) -> None:
-    """AC12.26.2: market-data persistence helpers flush but do not finalize transactions."""
+    """AC-meta.transaction-boundary.2: AC12.26.2: market-data persistence helpers flush but do not finalize transactions."""
     rate = await market_data._persist_fx_rate(
         db,
         market_data.FxRateObservation(
@@ -134,7 +134,7 @@ async def test_market_data_sync_endpoint_commits_service_writes_at_router_bounda
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC12.26.3: market-data sync endpoints commit service writes at the router boundary."""
+    """AC-meta.transaction-boundary.3: AC12.26.3: market-data sync endpoints commit service writes at the router boundary."""
 
     async def fake_fetch(
         _base_currency: str,

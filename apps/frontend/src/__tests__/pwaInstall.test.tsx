@@ -93,6 +93,7 @@ function mockDisplayMode(matches: boolean) {
 }
 
 describe("PWA install foundation", () => {
+  // AC-meta.fe-ia-nav.21
   it("AC22.20.1 keeps install manifest on the canonical home-screen launch contract", () => {
     const manifest = JSON.parse(
       readFileSync(resolve(process.cwd(), "public/site.webmanifest"), "utf8"),
@@ -111,6 +112,7 @@ describe("PWA install foundation", () => {
     )
   })
 
+  // AC-meta.fe-ia-nav.22
   it("AC22.20.2 captures Android beforeinstallprompt and invokes the deferred native prompt", async () => {
     const { result } = renderHook(() => usePwaInstall())
     const event = createBeforeInstallPromptEvent("accepted")
@@ -200,6 +202,7 @@ describe("PWA install foundation", () => {
     }
   })
 
+  // AC-meta.fe-ia-nav.24
   it("AC22.20.4 detects iOS and standalone launch states without page code", async () => {
     mockDisplayMode(false)
     Object.defineProperties(window.navigator, {
@@ -255,6 +258,7 @@ describe("PWA install foundation", () => {
     expect(displayMode.mediaQuery.removeEventListener).toHaveBeenCalled()
   })
 
+  // AC-meta.fe-ia-nav.23
   it("AC22.20.3 renders the Android install action from the global app-shell prompt", async () => {
     const user = userEvent.setup()
     const promptInstall = vi.fn().mockResolvedValue(undefined)

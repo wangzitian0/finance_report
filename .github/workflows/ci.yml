@@ -572,6 +572,30 @@ jobs:
       - name: Install dependencies
         run: cd apps/backend && uv sync
 
+      # #1828 G-health-honest-somewhere: this lane runs the REAL Bootloader
+      # _check_database/_check_s3 (tests/integration/test_bootloader_real_checks.py),
+      # so it needs a live S3-compatible service, not just the env vars.
+      - name: Start MinIO
+        run: |
+          docker run -d \
+            --name finance-report-minio-integration \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_local_secret \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            server /data --console-address ":9001"
+
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl -fsS http://127.0.0.1:9000/minio/health/live
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z \
+            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+
       - name: Run Integration Tests
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test

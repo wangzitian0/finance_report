@@ -14,6 +14,7 @@ vi.mock("next/link", () => ({
 }));
 
 describe("FlowStepBanner (EPIC-022 AC22.5.1)", () => {
+    // AC-meta.fe-ia-nav.10
     it("AC22.5.1 renders the Upload -> Review & approve -> Reports path", () => {
         render(<FlowStepBanner current="upload" />);
         expect(screen.getByRole("link", { name: /Upload/ })).toBeInTheDocument();

@@ -68,10 +68,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.1.1 | Root `moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.1.2 | `apps/backend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.1.3 | `apps/frontend/moon.yml` exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.1.4 | `tools/infra.sh` local infrastructure command exists | `test_epic_001_moon_workspace_configs_exist()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+> (AC1.1.1 removed and AC1.1.2 removed and AC1.1.3 removed and AC1.1.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.phase0.1` through `.4`, #1821 Wave A)
 
 ### AC1.2: Backend Skeleton Requirements
 
@@ -81,8 +78,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.2.1 | FastAPI project structure exists | `test_epic_001_backend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.2.3 | SQLAlchemy + Alembic config valid | `test_missing_migrations_check()`, `test_single_head()` | `infra/test_schema_drift.py`, `infra/test_migrations.py` | <!-- epic-owned: horizontal -->
+> (AC1.2.1 removed and AC1.2.3 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.phase0.5` and `.6`, #1821 Wave A)
 
 > (AC1.2.4 removed, duplicate: "Health endpoint returns success"
 > (`test_health_when_all_services_healthy`) was already fully migrated to
@@ -105,27 +101,19 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.3.1 | Next.js App Router files exist | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.3.2 | TailwindCSS configuration exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.3.3 | Ping-pong page exists | `test_epic_001_frontend_skeleton_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.3.4 | TanStack Query dependency configured | `test_epic_001_frontend_uses_react_query()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+> (AC1.3.1 removed and AC1.3.2 removed and AC1.3.3 removed and AC1.3.4 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.phase0.7` through `.10`, #1821 Wave A)
 
 ### AC1.4: Docker Environment Requirements
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.4.1 | `docker-compose.yml` integrity valid | `test_docker_compose_integrity()` | `infra/test_ci_config.py` | <!-- epic-owned: horizontal -->
-| AC1.4.2 | PostgreSQL 15 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.4.3 | Redis 7 container defined | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.4.4 | Data volumes configured | `test_epic_001_docker_compose_contract()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+> (AC1.4.1 removed and AC1.4.2 removed and AC1.4.3 removed and AC1.4.4 removed, canonical: AC1.4.1 merged with EPIC-007's AC7.8.2 (identical test); all four migrated to the `meta` package roadmap as `AC-meta.phase0.11` through `.14`, #1821 Wave A)
 
 ### AC1.5: Must-Have Acceptance Criteria Coverage
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.5.1 | Backend startup command path is valid | `test_moon_project_graph_static_contract()` | `infra/test_ci_config.py` | <!-- epic-owned: horizontal -->
-| AC1.5.2 | Frontend startup command path is valid | `test_epic_001_frontend_moon_tasks_configured()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
-| AC1.5.4 | Backend ping-pong endpoint toggles state correctly | `test_ping_toggle()` | `infra/test_main.py` | <!-- epic-owned: horizontal -->
+> (AC1.5.1 removed and AC1.5.2 removed and AC1.5.4 removed, canonical: AC1.5.1 merged with EPIC-007's AC7.8.3 (identical test); all three migrated to the `meta` package roadmap as `AC-meta.phase0.15`, `.16`, `.17`, #1821 Wave A)
 
 > (AC1.5.3 removed, duplicate: "Health endpoint returns 200"
 > (`test_health_when_all_services_healthy`) was already fully migrated to
@@ -146,7 +134,7 @@ Set up a runnable Monorepo development environment, complete user authentication
 
 | ID | Requirement | Test Function | File |
 |----|-------------|---------------|------|
-| AC1.6.1 | Pre-commit hooks configuration present | `test_epic_001_pre_commit_config_exists()` | `infra/test_epic_001_contracts.py` | <!-- epic-owned: horizontal -->
+> (AC1.6.1 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.phase0.18`, #1821 Wave A)
 
 > (AC1.6.2 removed, canonical: "`get_pending_stage1_review` returns empty when
 > no pending statements" migrated into the `extraction` package as

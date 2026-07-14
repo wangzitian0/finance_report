@@ -60,6 +60,7 @@ def _smoke_asserted_page_routes() -> list[str]:
 
 
 def test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes() -> None:
+    """AC-testing.deploy-gates.43: AC7.17.1: smoke asserts only existing public frontend routes."""
     real_routes = {r.rstrip("/") or "/" for r in _frontend_page_routes()}
     asserted = _smoke_asserted_page_routes()
     assert asserted, (

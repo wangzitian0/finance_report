@@ -223,6 +223,105 @@ class TestBootloaderStaticConfig:
         assert result is False
 
 
+# ── #1828 G-reject-path-proven: the full accept/reject matrix ──
+# Every development default × every protected-runtime trigger. The scattered
+# AC-runtime.21.* tests prove single cells; this matrix proves the whole grid
+# so a new trigger or default cannot ship with an unproven reject branch.
+
+_GUARD_DEV_DEFAULTS = {
+    "secret_key": "dev_secret_key_change_in_prod",
+    "database_url": "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report",
+    "s3_secret_key": "minio_local_secret",
+}
+_GUARD_STRONG_VALUES = {
+    # Obvious test placeholders — never real credentials. The secret values are
+    # concatenated so no long secret-shaped literal exists (gitleaks-clean);
+    # the JWT secret still clears the 32-byte minimum.
+    "secret_key": "unit-test-" + "x" * 26,
+    "database_url": "postgresql+asyncpg://finance:placeholder-password@db.internal:5432/finance_report",
+    "s3_secret_key": "placeholder-" + "y" * 12,
+}
+_GUARD_PROTECTED_TRIGGERS = {
+    "staging-env": ("staging", "http://localhost:3000"),
+    "production-env": ("production", "http://localhost:3000"),
+    "unknown-env-fails-closed": ("prod-eu", "http://localhost:3000"),
+    "public-https-url": ("development", "https://report.example.com"),
+}
+_GUARD_LOCAL_ENVIRONMENTS = ("development", "test", "ci")
+
+
+class TestGuardProofsStaticConfigMatrix:
+    def _configure(self, mock_settings, environment: str, app_url: str, **overrides: str) -> None:
+        values = {**_GUARD_STRONG_VALUES, **overrides}
+        for field, value in values.items():
+            setattr(mock_settings, field, value)
+        mock_settings.environment = environment
+        mock_settings.next_public_app_url = app_url
+
+    @pytest.mark.parametrize("trigger", sorted(_GUARD_PROTECTED_TRIGGERS))
+    @pytest.mark.parametrize("field", sorted(_GUARD_DEV_DEFAULTS))
+    def test_AC_runtime_guard_proofs_1_every_default_is_rejected_under_every_protected_trigger(
+        self, mock_settings, field: str, trigger: str
+    ) -> None:
+        """AC-runtime.guard-proofs.1 (#1828 G-reject-path-proven): each development
+        default (dev SECRET_KEY / default DATABASE_URL / default S3 secret) is
+        rejected under each protected-runtime trigger (staging env, production
+        env, unknown env fails closed, public https URL)."""
+        environment, app_url = _GUARD_PROTECTED_TRIGGERS[trigger]
+        self._configure(mock_settings, environment, app_url, **{field: _GUARD_DEV_DEFAULTS[field]})
+
+        assert Bootloader._check_static_config() is False
+
+    @pytest.mark.parametrize("environment", _GUARD_LOCAL_ENVIRONMENTS)
+    def test_AC_runtime_guard_proofs_2_development_defaults_accepted_in_local_environments(
+        self, mock_settings, environment: str
+    ) -> None:
+        """AC-runtime.guard-proofs.2 (#1828 G-reject-path-proven): the accept
+        branch — ALL development defaults together stay bootable in every local
+        environment (development/test/ci) with a localhost app URL."""
+        self._configure(mock_settings, environment, "http://localhost:3000", **_GUARD_DEV_DEFAULTS)
+
+        assert Bootloader._check_static_config() is True
+
+    @pytest.mark.parametrize("trigger", sorted(_GUARD_PROTECTED_TRIGGERS))
+    def test_guard_proofs_strong_values_accepted_under_every_protected_trigger(
+        self, mock_settings, trigger: str
+    ) -> None:
+        """Companion to AC-runtime.guard-proofs.2 (#1828 G-reject-path-proven):
+        the other accept branch — non-default values pass the static check under
+        every protected trigger, so the gate rejects defaults, not deployment
+        itself."""
+        environment, app_url = _GUARD_PROTECTED_TRIGGERS[trigger]
+        self._configure(mock_settings, environment, app_url)
+
+        assert Bootloader._check_static_config() is True
+
+    @pytest.mark.parametrize(
+        ("environment", "app_url", "expected"),
+        [
+            ("staging", "http://localhost:3000", True),
+            ("production", "http://localhost:3000", True),
+            ("  Production ", "http://localhost:3000", True),  # normalized
+            ("prod-eu", "http://localhost:3000", True),  # unknown env fails closed
+            ("development", "https://report.example.com", True),  # public URL
+            ("development", "http://localhost:3000", False),
+            ("test", "", False),
+            ("ci", "https://localhost:8443", False),  # localhost https stays local
+            ("development", "https://127.0.0.1:8443", False),
+        ],
+    )
+    def test_AC_runtime_guard_proofs_3_protected_runtime_classification(
+        self, mock_settings, environment: str, app_url: str, expected: bool
+    ) -> None:
+        """AC-runtime.guard-proofs.3 (#1828 G-reject-path-proven): the
+        protected-runtime classifier itself — protected envs, unknown envs
+        (fail closed) and public https URLs are protected; local envs and
+        localhost URLs are not."""
+        mock_settings.next_public_app_url = app_url
+
+        assert Bootloader._is_protected_runtime(environment) is expected
+
+
 class TestBootloaderPrintConfig:
     def test_print_config_skipped_when_not_debug(self, mock_settings, capsys):
         with patch.dict(os.environ, {"DEBUG": "false"}, clear=False):

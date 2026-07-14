@@ -1130,5 +1130,84 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # NOTE: AC21.1.1 was evaluated for this move and REJECTED: its own
+        # proving test (test_AC21_1_1_ai_advisor_is_application_layer_contract)
+        # hard-asserts `registry_entries["AC21.1.1"]["epic_name"] ==
+        # "application-ai-advisor"` — a package-scoped id's registry entry
+        # gets `epic_name="pkg-advisor"` instead (see
+        # generate_ac_registry.py's `_package_roadmap_acs`), so migrating
+        # would require also editing this assertion, not a pure "move".
+        # AC21.1.1 is left untouched as `horizontal` (#1821 Wave A).
+        # ── group application-layer: the advisor is a read-only application
+        # layer, not the source of record (was EPIC-021 AC21.1.2, #1821 Wave
+        # A horizontal move) ──
+        ACRecord(
+            id="AC-advisor.application-layer.1",
+            statement=(
+                "Scale coverage and confidence work is explicitly routed to "
+                "existing EPICs and issues instead of being re-owned by "
+                "EPIC-021."
+            ),
+            # was AC21.1.2
+            test=(
+                "tests/tooling/test_application_ai_advisor_epic021_contract.py"
+                "::test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-advisor.fe-chat.1",
+            statement="Chat page renders advisor client within suspense boundary",
+            # was AC16.16.3
+            test="apps/frontend/src/__tests__/chatPage.test.tsx::AC16.16.3 renders advisor client",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.2",
+            statement="Chat page client enforces disclaimer consent and passes initial prompt into chat panel",
+            # was AC16.19.5
+            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.5 enforces disclaimer consent and passes initial prompt",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.3",
+            statement="Chat widget hides on chat route and toggles panel visibility elsewhere",
+            # was AC16.19.6
+            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.6 hides widget on chat route and toggles elsewhere",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.4",
+            statement="Chat panel sends streaming responses, loads suggestions/history, and clears session",
+            # was AC16.20.5
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.5 loads suggestions/history and streams reply",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.5",
+            statement="Handles missing stream reader",
+            # was AC16.20.7
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.7 handles missing stream reader",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
+        # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
+        ACRecord(
+            id="AC-advisor.fe-ia-chat.1",
+            statement="`ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose",
+            # was AC22.14.2
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

@@ -2574,7 +2574,7 @@ def test_AC7_13_1_no_new_deployment_record_raises_classified_subclass(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC7.13.1: A done compose with no new deployment record fails fast with the
+    """AC-testing.preview.16: AC7.13.1: A done compose with no new deployment record fails fast with the
     dedicated DokployNoNewDeploymentRecord classified error (subclass of
     DokployDeploymentDidNotStart so the existing retry flow still catches it)."""
     lifecycle = lifecycle_module()
@@ -2612,7 +2612,7 @@ def test_AC7_13_1_no_new_deployment_record_raises_classified_subclass(
 
 
 def test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys() -> None:
-    """AC7.13.2: Non-allowlisted stale keys lingering in the effective env are
+    """AC-testing.preview.17: AC7.13.2: Non-allowlisted stale keys lingering in the effective env are
     detected and the diagnostic names keys only (no secret values)."""
     lifecycle = lifecycle_module()
 
@@ -2642,7 +2642,7 @@ def test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys() -> Non
 def test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC7.13.3: update_compose_env fails fast when the effective remote env keeps
+    """AC-testing.preview.18: AC7.13.3: update_compose_env fails fast when the effective remote env keeps
     a stale non-allowlisted key that diverges from the requested env."""
     lifecycle = lifecycle_module()
 
@@ -2674,7 +2674,7 @@ def test_AC7_13_4_mutate_then_fail_marks_state_and_records_step(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    """AC7.13.4: When rollout fails after the compose was mutated, deploy_action
+    """AC-testing.preview.19: AC7.13.4: When rollout fails after the compose was mutated, deploy_action
     leaves an explicitly-marked safe-to-reconcile state, records which mutation
     step it was left at, and does not silently report success."""
     lifecycle = lifecycle_module()
@@ -2853,7 +2853,7 @@ def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
 
 
 def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
-    """AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
+    """AC-testing.preview.20: AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
     and the half-update rollback / safe-to-reconcile recovery path."""
     ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
     assert "dokploy-worker-or-deployment-record" in ci_cd

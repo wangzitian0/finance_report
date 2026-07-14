@@ -163,6 +163,7 @@ test.describe("AC22.10.3 portfolio provenance smoke", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
+    // AC-portfolio.fe-ia-portfolio.3
     test(`${scenario.name} labels only imported holdings with provenance`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installPortfolioMocks(page);

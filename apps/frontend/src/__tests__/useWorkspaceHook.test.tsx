@@ -55,6 +55,7 @@ describe("useWorkspace and WorkspaceProvider", () => {
     expect(() => render(<BadConsumer />)).toThrow("useWorkspace must be used within a WorkspaceProvider")
   })
 
+  // AC-meta.fe-app-shell.19
   it("AC16.21.9 hydrates tabs from localStorage and keeps active tab", async () => {
     storage.set(
       "finance-workspace-tabs",
@@ -96,6 +97,7 @@ describe("useWorkspace and WorkspaceProvider", () => {
     expect(persisted).toContain("tab-uuid-1")
   })
 
+  // AC-meta.fe-app-shell.20
   it("AC16.21.10 deduplicates tabs by href and keeps existing active id", async () => {
     render(
       <WorkspaceProvider>

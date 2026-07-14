@@ -517,6 +517,19 @@ concepts:
       - tools/generate_env_reference.py
       - .env.example
 
+  required_env_manifest_generated:
+    owner: common/runtime/required-env.generated.json
+    family: development
+    kind: registry
+    description: Generated machine-readable required-env manifest (same config.py source of truth as .env.example; infra2 CI consumes it against secrets.ctmpl — #1828 G-injection-drift-gate over the #876 artifact boundary; do not edit by hand).
+    proofs:
+      - tests/tooling/test_required_env_manifest.py
+    cross_refs:
+      - apps/backend/src/config.py
+      - tools/generate_env_reference.py
+      - .env.example
+      - repo/finance_report/finance_report/10.app/secrets.ctmpl
+
   # ── Environments ───────────────────────────────────────────────────────
   six_environments:
     owner: common/runtime/environments.md#environment-overview

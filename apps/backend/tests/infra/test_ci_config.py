@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 @pytest.mark.integration
 def test_moon_cli_static_contract_available():
-    """AC7.8.1: Moon local CLI contract is versioned without CI bootstrap."""
+    """AC-meta.phase0.19: AC7.8.1: Moon local CLI contract is versioned without CI bootstrap."""
     moon_toolchain = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text())
     ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
 
@@ -47,7 +47,7 @@ def test_github_actions_lint():
 
 
 def test_docker_compose_integrity():
-    """AC7.8.2: Docker compose build contexts exist."""
+    """AC-meta.phase0.11: AC7.8.2: Docker compose build contexts exist."""
     import yaml
 
     compose_path = ROOT / "docker-compose.yml"
@@ -97,7 +97,7 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
 
 @pytest.mark.integration
 def test_moon_project_graph_static_contract():
-    """AC7.8.3: Moon project graph contract is declared in repo config."""
+    """AC-meta.phase0.15: AC7.8.3: Moon project graph contract is declared in repo config."""
     root_project = yaml.safe_load((ROOT / "moon.yml").read_text())
     backend_project = yaml.safe_load((ROOT / "apps/backend/moon.yml").read_text())
 

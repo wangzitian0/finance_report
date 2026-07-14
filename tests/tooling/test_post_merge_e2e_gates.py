@@ -810,7 +810,7 @@ def _run_gate_timeout_fallback(
 def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output(
     tmp_path: Path,
 ) -> None:
-    """AC8.13.166: alerting survives the corpus step's own timeout-minutes killing
+    """AC-testing.deploy-gates.41: AC8.13.166: alerting survives the corpus step's own timeout-minutes killing
     it before record_and_finish ever runs (the 5-night-red silent gap, #1767).
     Behavioral (subprocess), not a text mirror -- see _run_gate_timeout_fallback."""
     workflow = yaml.safe_load(read(".github/workflows/staging-ai-ocr-gate.yml"))
@@ -881,7 +881,7 @@ def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_o
 
 
 def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
-    """AC8.13.167: step/job timeout-minutes fit every sequential parse wait in a
+    """AC-testing.deploy-gates.42: AC8.13.167: step/job timeout-minutes fit every sequential parse wait in a
     corpus hitting its own 8-minute PARSING_TIMEOUT_MS ceiling, not just the
     happy path -- sized off the real per-corpus wait count, not a file/journey
     guess (#1767: the shipped 22-min budget only covered 66% of one real run)."""

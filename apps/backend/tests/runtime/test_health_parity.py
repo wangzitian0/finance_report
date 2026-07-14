@@ -91,3 +91,96 @@ def test_every_tier_declaration_is_smoke_assertable(tier: EnvTier) -> None:
     probed, unprobed = Bootloader._required_checks(tier)
     assert set(probed) == DEPENDENCY_MANIFEST.required_for(tier)
     assert unprobed == []
+
+
+# ── #1828 G-staleness-watchdog-visible: secrets-file age in ?full=1 ──
+# Operator decision 2026-07-14: detection only — the field is INFORMATIONAL,
+# never part of ``checks`` and never an input to the health verdict. The
+# out-of-band watchdog axis (#1653) consumes it.
+
+
+async def test_AC_runtime_guard_proofs_9_full_health_exposes_stale_vault_secrets_signal(
+    client: AsyncClient, monkeypatch, tmp_path
+) -> None:
+    """AC-runtime.guard-proofs.9 (#1828 G-staleness-watchdog-visible): a stale
+    secrets file flips the exposed ``vault_secrets.stale`` signal in
+    ``/health?full=1`` while the verdict and the ``checks`` parity set stay
+    unchanged (boot semantics untouched)."""
+    import os
+    import time as time_module
+
+    from src import boot as boot_module
+
+    _stub_probes(monkeypatch)
+    secrets_file = tmp_path / ".env"
+    secrets_file.write_text("PLACEHOLDER=1\n", encoding="utf-8")
+    stale_mtime = time_module.time() - (boot_module.VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS + 600)
+    os.utime(secrets_file, (stale_mtime, stale_mtime))
+    monkeypatch.setattr(boot_module, "VAULT_SECRETS_FILE_PATH", str(secrets_file))
+
+    response = await client.get("/health?full=1")
+
+    assert response.status_code == 200  # informational: verdict unchanged
+    body = response.json()
+    info = body["vault_secrets"]
+    assert info["present"] is True
+    assert info["stale"] is True
+    assert info["age_seconds"] >= boot_module.VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS
+    assert info["threshold_seconds"] == boot_module.VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS
+    assert "vault_secrets" not in body["checks"]  # never a verdict input
+    assert body["status"] == "healthy"
+
+
+async def test_guard_proofs_full_health_reports_fresh_vault_secrets_file(
+    client: AsyncClient, monkeypatch, tmp_path
+) -> None:
+    """Companion to AC-runtime.guard-proofs.9 (#1828
+    G-staleness-watchdog-visible): a fresh secrets file reports ``stale=False``
+    with its age — the signal actually tracks mtime rather than being a
+    constant."""
+    from src import boot as boot_module
+
+    _stub_probes(monkeypatch)
+    secrets_file = tmp_path / ".env"
+    secrets_file.write_text("PLACEHOLDER=1\n", encoding="utf-8")
+    monkeypatch.setattr(boot_module, "VAULT_SECRETS_FILE_PATH", str(secrets_file))
+
+    response = await client.get("/health?full=1")
+
+    assert response.status_code == 200
+    info = response.json()["vault_secrets"]
+    assert info["present"] is True
+    assert info["stale"] is False
+    assert 0 <= info["age_seconds"] <= boot_module.VAULT_SECRETS_STALENESS_THRESHOLD_SECONDS
+
+
+async def test_AC_runtime_guard_proofs_10_full_health_reports_absent_vault_secrets_file(
+    client: AsyncClient, monkeypatch, tmp_path
+) -> None:
+    """AC-runtime.guard-proofs.10 (#1828 G-staleness-watchdog-visible): a missing
+    secrets file is reported as absent (present=False, age/stale null) and the
+    verdict is still not affected — detection-only by operator decision."""
+    from src import boot as boot_module
+
+    _stub_probes(monkeypatch)
+    monkeypatch.setattr(boot_module, "VAULT_SECRETS_FILE_PATH", str(tmp_path / "missing.env"))
+
+    response = await client.get("/health?full=1")
+
+    assert response.status_code == 200
+    body = response.json()
+    info = body["vault_secrets"]
+    assert info["present"] is False
+    assert info["age_seconds"] is None
+    assert info["stale"] is None
+    assert body["status"] == "healthy"
+    assert "vault_secrets" not in body["checks"]
+
+
+async def test_guard_proofs_plain_health_omits_vault_secrets_info(client: AsyncClient, monkeypatch) -> None:
+    """The light Docker-healthcheck form stays light: no vault_secrets field."""
+    _stub_probes(monkeypatch)
+
+    response = await client.get("/health")
+
+    assert "vault_secrets" not in response.json()

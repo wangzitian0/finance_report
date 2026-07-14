@@ -257,6 +257,7 @@ describe("HomePage", () => {
     mockedApiFetch.mockReset()
   })
 
+  // AC-reporting.fe-report-surfaces.1
   it("AC16.12.1 shows loading state before dashboard data resolves", () => {
     mockedApiFetch.mockImplementation(() => new Promise(() => {}))
 
@@ -266,6 +267,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Loading dashboard analytics...")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-report-surfaces.2
   it("AC16.12.2 renders error fallback and retry action on failure", async () => {
     mockedApiFetch.mockRejectedValue(new Error("dashboard failed"))
 
@@ -280,6 +282,8 @@ describe("HomePage", () => {
     await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
+  // AC-reporting.fe-report-surfaces.3
+  // AC-reporting.fe-ia-reports.1
   it("AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
     mockDashboardApi()
 
@@ -297,6 +301,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-ia-reports.7
   it("AC22.4.4 defaults to a lean Home with heavy analytics behind an opt-in toggle", async () => {
     mockDashboardApi()
 
@@ -316,6 +321,7 @@ describe("HomePage", () => {
     await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
   })
 
+  // AC-reporting.fe-ia-reports.9 / AC-reporting.fe-ia-reports.21
   it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue", async () => {
     mockDashboardApi()
 
@@ -350,6 +356,7 @@ describe("HomePage", () => {
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-meta.fe-app-shell.4
   it("AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics", async () => {
     mockDashboardApi()
 
@@ -460,6 +467,7 @@ describe("HomePage", () => {
     expect(screen.getByText("balance failed")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-viz-reports.1
   it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
     mockDashboardApi()
 
@@ -560,6 +568,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Deficit")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-report-surfaces.4
   it("AC16.12.4 renders empty-state messages for missing datasets", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
@@ -637,6 +646,8 @@ describe("HomePage", () => {
     consoleErrorSpy.mockRestore()
   })
 
+  // AC-reporting.fe-report-surfaces.5 / AC-reporting.fe-report-surfaces.6
+  // AC-reporting.fe-ia-reports.20
   it("AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
@@ -688,6 +699,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
   })
 
+  // AC-reporting.fe-report-surfaces.7
   it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [{ account_id: "a1", name: "Cash", amount: 5000 }], total_liabilities: 0 },

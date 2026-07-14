@@ -153,7 +153,7 @@ def test_AC20_9_1_reporting_pipeline_declares_layer_authority_tiers() -> None:
 
 
 def test_AC2_18_1_canonical_ledger_is_framework_neutral() -> None:
-    """AC2.18.1: Canonical ledger remains framework-neutral."""
+    """AC-meta.framework-neutrality.1: AC2.18.1: Canonical ledger remains framework-neutral."""
     epic = read("docs/project/EPIC-002.double-entry-core.md")
 
     assert "Framework Boundary" in epic
@@ -174,7 +174,7 @@ def test_AC3_10_1_statement_parsing_is_source_capture_not_framework_policy() -> 
 
 
 def test_AC5_14_1_reporting_assembles_framework_policy_results_only() -> None:
-    """AC5.14.1: Reporting assembles framework policy results without owning policy."""
+    """AC-meta.framework-neutrality.2: AC5.14.1: Reporting assembles framework policy results without owning policy."""
     epic = read("docs/project/EPIC-005.reporting-visualization.md")
 
     assert "Framework Policy Result Consumption" in epic
