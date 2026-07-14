@@ -69,7 +69,14 @@ CONTRACT = PackageContract(
     # ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin), moved from
     # src/models/base.py to platform.orm.base — a downward edge (platform is
     # infra, L1; portfolio is domain, L3).
-    depends_on=["audit", "extraction", "ledger", "observability", "platform", "pricing"],
+    depends_on=[
+        "audit",
+        "extraction",
+        "ledger",
+        "observability",
+        "platform",
+        "pricing",
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: real value objects — plain exceptions, no ORM references ──
@@ -937,8 +944,11 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-portfolio.valuation.1",
             statement=(
-                "Unrealized P&L flows into the balance sheet: an imported statement's holdings "
-                "change balance-sheet value."
+                "Unrealized P&L flows into the balance sheet with EXACT values: an "
+                "imported statement's parsed position reaches holdings and the "
+                "balance sheet at the same exact Decimal market value "
+                "(quantity, market_value, total_assets, and the net-worth "
+                "adjustment all pinned)."
             ),
             # was AC17.5.4
             test=(
@@ -947,6 +957,9 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: the blocking value oracle behind the
+            # brokerage-pdf-to-portfolio-value critical proof.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-portfolio.valuation.2",

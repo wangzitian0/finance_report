@@ -2049,7 +2049,13 @@ CONTRACT = PackageContract(
             id="AC-extraction.813.10",
             statement=(
                 "Multi-brokerage PDF upload → position import → latest portfolio "
-                "value. Was EPIC-008 AC8.13.10."
+                "value, with value consistency asserted (#1826 G-value-oracle): "
+                "every imported holding carries a positive quantity and market "
+                "value, and the balance sheet's market-valuation lines cover the "
+                "holdings' total market value. The generated PDFs randomize "
+                "amounts, so the exact-Decimal oracle for this proof lives in "
+                "the blocking twin (AC-portfolio.valuation.1). Was EPIC-008 "
+                "AC8.13.10."
             ),
             test=(
                 "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
@@ -2057,6 +2063,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # LLM-LED lane: consistency property over a randomized live parse.
+            proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.813.11",

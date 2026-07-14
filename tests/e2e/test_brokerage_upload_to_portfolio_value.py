@@ -325,7 +325,13 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
 
 @ac_proof(
     "brokerage-pdf-to-portfolio-value",
-    ac_ids=["AC-extraction.813.10"],
+    # AC-portfolio.valuation.1 is the BLOCKING value oracle for this proof
+    # (#1826 G-value-oracle): the deterministic seeded-statement twin of this
+    # journey asserts the exact Decimal position value (1250.50) through
+    # holdings AND the balance sheet in the blocking backend lane; this
+    # randomized-PDF OCR journey proves the same path live, where per-run
+    # constants cannot exist (generated PDFs randomize amounts).
+    ac_ids=["AC-extraction.813.10", "AC-portfolio.valuation.1"],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="llm_ocr_post_merge",
@@ -343,7 +349,10 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
 ) -> None:
     """EPIC-003 EPIC-005 EPIC-008 EPIC-017.
 
-    AC-extraction.813.10: two brokerage PDFs -> real OCR -> positions -> balance sheet value.
+    AC-extraction.813.10: two brokerage PDFs -> real OCR -> positions -> balance
+    sheet value, every holding carrying a positive quantity and market value.
+    AC-portfolio.valuation.1 carries this proof's exact-Decimal value oracle in
+    the blocking lane (deterministic seeded twin).
     """
     headers = await _auth_headers(authenticated_page_unique)
     async with httpx.AsyncClient(
@@ -394,6 +403,17 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
         assert len(holdings) >= int(imported_positions), (
             f"missing imported holdings: {holdings}"
         )
+        # #1826 G-value-oracle (property lane): every imported holding must
+        # carry a positive quantity AND market value — a "Parsing"/$0.00
+        # placeholder row reaching the portfolio is exactly the green-but-
+        # wrong failure this gate exists to catch.
+        for holding in holdings:
+            assert money_amount(holding["market_value"]) > Decimal("0.00"), (
+                f"holding with no market value reached the portfolio: {holding}"
+            )
+            assert Decimal(str(holding["quantity"])) > Decimal("0"), (
+                f"holding with no quantity reached the portfolio: {holding}"
+            )
 
         balance_response = await client.get(
             _api_url(f"/reports/balance-sheet?as_of_date={date.today().isoformat()}")

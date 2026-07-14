@@ -70,7 +70,17 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
 
 @ac_proof(
     "market-data-provider-price-path",
-    ac_ids=["AC-pricing.marketdata.7", "AC-pricing.marketdata.11"],
+    # AC-pricing.marketdata.13 is the BLOCKING value oracle for this proof
+    # (#1826 G-fx-real-path): the same product path (position -> report-time
+    # freshness sync -> provider parse -> FX conversion) runs in the blocking
+    # backend lane against recorded provider payloads and asserts the exact
+    # converted amount; this env-gated live-provider journey stays the
+    # real-network canary on top of it.
+    ac_ids=[
+        "AC-pricing.marketdata.7",
+        "AC-pricing.marketdata.11",
+        "AC-pricing.marketdata.13",
+    ],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="hybrid",
@@ -88,10 +98,11 @@ def _market_valuation_lines(report: dict, broker_name: str) -> list[dict]:
 async def test_market_data_provider_sync_feeds_fx_and_stock_price_paths(
     shared_auth_state: AuthState,
 ) -> None:
-    """AC-pricing.marketdata.7 / AC-pricing.marketdata.11: EPIC-005 EPIC-008 EPIC-011 EPIC-017.
+    """AC-pricing.marketdata.7 / AC-pricing.marketdata.11 / AC-pricing.marketdata.13: EPIC-005 EPIC-008 EPIC-011 EPIC-017.
 
     AC11.10.7 AC11.10.11: Reports auto-refresh provider FX and stock data
-    from a user path.
+    from a user path. AC-pricing.marketdata.13 carries this proof's exact
+    converted-value oracle in the blocking lane (recorded provider replay).
     """
     headers = {"Authorization": f"Bearer {shared_auth_state.access_token}"}
     async with httpx.AsyncClient(
