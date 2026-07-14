@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - CLI guard
 from common.meta.extension.governance_report._base import (
     SSOT_FILE_EXCLUDES,
     SSOT_FILE_SUFFIXES,
+    SSOT_TERRITORY_ROOTS,
     _require_yaml,
     yaml,
 )
@@ -95,20 +96,28 @@ def _orphan_ssot_files(
     entries: list[GovernanceEntry],
     workspace_root: Path,
 ) -> list[str]:
-    ssot_dir = source.source_root / "docs" / "ssot"
-    if not ssot_dir.exists():
-        return []
+    """Files under this source's SSOT territory that no manifest entry owns.
 
+    Scans every :data:`SSOT_TERRITORY_ROOTS` root under the source (``docs/ssot``
+    — the legacy convention, still live for infra2 — plus ``common/meta/data``,
+    where finance_report's own concept registry relocated in #1823). A root
+    that does not exist under this source (e.g. infra2 has no
+    ``common/meta/data``) is skipped, not an error.
+    """
     owner_files = {_file_part(entry.owner) for entry in entries if entry.owner}
     orphan_files: list[str] = []
-    for path in sorted(ssot_dir.iterdir()):
-        if not path.is_file():
+    for root_parts in SSOT_TERRITORY_ROOTS:
+        territory_dir = source.source_root.joinpath(*root_parts)
+        if not territory_dir.exists():
             continue
-        if path.name in SSOT_FILE_EXCLUDES or path.suffix not in SSOT_FILE_SUFFIXES:
-            continue
-        relative = path.relative_to(source.source_root).as_posix()
-        if relative not in owner_files:
-            orphan_files.append(
-                _display_ref(source.source_root, relative, workspace_root)
-            )
-    return orphan_files
+        for path in sorted(territory_dir.iterdir()):
+            if not path.is_file():
+                continue
+            if path.name in SSOT_FILE_EXCLUDES or path.suffix not in SSOT_FILE_SUFFIXES:
+                continue
+            relative = path.relative_to(source.source_root).as_posix()
+            if relative not in owner_files:
+                orphan_files.append(
+                    _display_ref(source.source_root, relative, workspace_root)
+                )
+    return sorted(set(orphan_files))

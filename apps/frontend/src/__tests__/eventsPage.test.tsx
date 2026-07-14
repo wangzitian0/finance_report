@@ -8,6 +8,7 @@ vi.mock("@/components/workflow/WorkflowNotifications", () => ({
 }))
 
 describe("EventsPage", () => {
+  // AC-platform.fe-workflow.3
   it("AC19.3.5 renders the workflow events content surface", () => {
     render(<EventsPage />)
     expect(screen.getByText("Workflow events page content")).toBeInTheDocument()

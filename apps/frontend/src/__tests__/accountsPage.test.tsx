@@ -310,6 +310,7 @@ describe("AccountsPage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Account Details" })).not.toBeInTheDocument())
   })
 
+  // AC-ledger.fe-accounts2.2
   it("AC2.15.8 opens the guided opening-balance modal and refreshes on success", async () => {
     mockedApiFetch.mockResolvedValue({
       items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
@@ -329,6 +330,7 @@ describe("AccountsPage", () => {
     await waitFor(() => expect(screen.queryByText("Opening Balance Modal")).not.toBeInTheDocument())
   })
 
+  // AC-ledger.fe-accounts2.3
   it("AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/accounts/opening-balance-readiness") {

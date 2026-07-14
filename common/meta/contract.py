@@ -998,16 +998,17 @@ CONTRACT = PackageContract(
                 "pending-package -->) declaring why it is not in a package "
                 "roadmap; unmarked EPIC AC rows == 0 is the umbrella "
                 "scoreboard metric. The per-file per-category census must "
-                "equal docs/ssot/epic-residue-baseline.json (the fk-cascade "
-                "idiom): silent residue growth fails CI and adding residue "
-                "requires raising the baseline in the same PR, where the "
-                "diff makes the choice reviewable; the EPIC file set may "
-                "only shrink (a new EPIC file fails; a deleted one must "
-                "prune the baseline); an EPIC file with zero marked rows "
-                "must carry an explicit <!-- epic-file: design-doc|"
-                "goal-stub --> justification. The registry generator feeds "
-                "the AC registry from marked rows only, so an unmarked row "
-                "is invisible to the registry AND fails the gate."
+                "equal common/meta/data/epic-residue-baseline.json (the "
+                "fk-cascade idiom): silent residue growth fails CI and "
+                "adding residue requires raising the baseline in the same "
+                "PR, where the diff makes the choice reviewable; the EPIC "
+                "file set may only shrink (a new EPIC file fails; a deleted "
+                "one must prune the baseline); an EPIC file with zero "
+                "marked rows must carry an explicit <!-- epic-file: "
+                "design-doc|goal-stub --> justification. The registry "
+                "generator feeds the AC registry from marked rows only, so "
+                "an unmarked row is invisible to the registry AND fails the "
+                "gate."
             ),
             test=(
                 "tests/tooling/test_epic_residue_ratchet.py"
@@ -1016,30 +1017,54 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        # ── manifest: docs/ssot/MANIFEST.yaml stays hand-authored (a full
-        # computed concept index is a follow-up, #1799), but every file it
-        # governs must be explicitly classified — anti-drift in the same
-        # spirit as the residue markers above (#1664 "retire the center",
-        # Part C). ──
+        # ── terminal: both retired centers (docs/ssot/ entirely, and
+        # docs/project/'s file set) cannot silently regrow (#1823,
+        # Package-ization 4/4, FINAL — "retire the center" closeout). ──
+        ACRecord(
+            id="AC-meta.residue.2",
+            statement=(
+                "docs/ssot/ does not exist (retired in #1823: MANIFEST.yaml "
+                "and epic-residue-baseline.json relocated to "
+                "common/meta/data/, README.md tombstone retired), and "
+                "docs/project/'s directory listing is frozen to an explicit, "
+                "checked-in allowlist — the EPIC-*.md half sourced from "
+                "AC-meta.residue.1's own baseline (single source, no "
+                "duplicated vocabulary), the non-EPIC half a hardcoded "
+                "frozenset. Either directory growing outside its allowlist "
+                "fails CI; a deliberate addition requires a same-PR edit "
+                "here, making the choice reviewable — the same fk-cascade "
+                "idiom AC-meta.residue.1 uses for EPIC file counts."
+            ),
+            test=(
+                "tests/tooling/test_terminal_centers_allowlist.py"
+                "::test_docs_project_directory_listing_is_frozen"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── manifest: common/meta/data/MANIFEST.yaml stays hand-authored (a
+        # full computed concept index is a follow-up, #1799). Relocated from
+        # docs/ssot/ in #1823 (Package-ization 4/4); the former per-file
+        # docs/ssot/ classification check (#1664 "retire the center", Part C)
+        # is superseded by AC-meta.residue.2's docs/ssot-absence assertion,
+        # which is strictly stronger (nothing can exist there uncatalogued,
+        # vs. everything that exists must be catalogued). ──
         ACRecord(
             id="AC-meta.manifest.1",
             statement=(
-                "Every file physically present in docs/ssot/ is referenced "
-                "by name in docs/ssot/README.md — the pointer page "
-                "classifying each surviving file as cross-cutting infra "
-                "(Cross-Cutting Classification table), live gate data (Gate "
-                "Data Directory section), a generated artifact, or a "
-                "migrated pointer stub. A file dropped into docs/ssot/ "
-                "without a matching README entry is silent, unclassified "
-                "drift and fails CI. This stands in for the full computed "
+                "The cross-package concept-ownership registry lives at "
+                "common/meta/data/MANIFEST.yaml — a package's cross-cutting "
+                "gate-data home, not a hand-classified docs/ssot/ (retired). "
+                "check_manifest.py validates it: no two concepts share an "
+                "owner, every owner/cross_ref file and #anchor resolves on "
+                "disk. This stands in for the full computed "
                 "concept-ownership index (no `concepts` field exists on "
-                "PackageContract yet to project from — see docs/ssot/"
-                "README.md § 'MANIFEST.yaml Status' and follow-up #1799) "
+                "PackageContract yet to project from — follow-up #1799) "
                 "without forcing that larger rewrite under time pressure."
             ),
             test=(
                 "tests/tooling/test_check_manifest.py"
-                "::test_AC_meta_manifest_1_real_docs_ssot_is_fully_classified"
+                "::test_AC_meta_manifest_1_manifest_relocated_and_ssot_retired"
             ),
             priority="P2",
             status="done",
@@ -2063,6 +2088,48 @@ CONTRACT = PackageContract(
             statement="Desktop and mobile smoke covers the bottom tab bar, the Add sheet, the Audit hub, and the merged Settings without layout overflow, with safe-area-aware bottom-bar styling for standalone PWA sessions",
             # was AC22.21.7
             test="apps/frontend/playwright/epic022-bottom-tab-ia.spec.ts::the bottom bar opens the Add sheet with both ways to add",
+            priority="P1",
+            status="done",
+        ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-meta.fe-http-client.1",
+            statement="Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId`",
+            # was AC12.27.3
+            test="apps/frontend/src/__tests__/apiErrorStructured.test.ts::test_AC12_27_3_api_error_carries_error_id parses error_id from the body",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-app-shell2.1",
+            statement="`<ConfidenceBadge />` component renders `TRUSTED` / `HIGH` / `MEDIUM` / `LOW` pill with consistent color tokens (green / blue / amber / gray) and tooltip explaining source-type priority",
+            # was AC18.5.1
+            test="apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.1 — ConfidenceBadge renders confidence tier labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.1",
+            statement="The list-response envelope has a single `ListResponse<T>` definition and the per-entity list responses derive from it; declared OpenAPI-mirrored contract types resolve to a real generated `Schemas[...]` key (drift guard)",
+            # was AC25.3.1
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.1: every list response derives from the single ListResponse<T> envelope",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.2",
+            statement="High-traffic call sites type responses against the generated schema",
+            # was AC12.28.3
+            test="apps/frontend/src/__tests__/apiTypedClient.test.ts::test_AC12_28_3_types_stage2_batch_responses_against_generated_schema",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.2",
+            statement="`lib/api.ts` is the single raw-`fetch` boundary — no other frontend source module issues a raw `fetch(` call",
+            # was AC25.3.2
+            test="apps/frontend/src/__tests__/contractTypes.test.ts::AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend",
             priority="P1",
             status="done",
         ),

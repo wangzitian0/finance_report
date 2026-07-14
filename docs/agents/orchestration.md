@@ -126,26 +126,29 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
    EPIC table.** Anchor the slice to a project EPIC in `docs/project/` as its
    horizontal goal — but the AC is owned by the package once that package is
    migrated.
-   - **Legacy (not-yet-migrated) modules only**: the AC still lives in the
-     owning EPIC and materializes through `docs/ac_registry.yaml` (feature) or
+   - **Explicitly residue-marked EPIC rows only** (`docs/project/EPIC-*.md`,
+     terminal, shrink-only — Package-ization 4/4, #1823): an AC stays
+     EPIC-defined only with a trailing
+     `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker,
+     and materializes through `docs/ac_registry.yaml` (feature) or
      `docs/infra_registry.yaml` (infra), with historical/non-derived metadata in
-     `docs/ac_registry_overrides.yaml`. This EPIC-table source is being phased
-     out package by package; once a module becomes a package its ACs move into
-     the `roadmap`.
+     `docs/ac_registry_overrides.yaml`. `horizontal`/`fe-only`/`fe-half` rows are
+     permanent by design (no package owner exists for that scope);
+     `pending-package` rows migrate into a package `roadmap` once their named
+     blocker clears. New ACs never start here — the EPIC table is not a
+     parallel intake, only tracked terminal debt.
 2. **Test**: Write failing tests that reference the AC IDs (red phase).
    Regression fixtures and test data MUST be generated/anonymized, never
    derived from real user uploads or real statements — see the financial-data
    red line in [red-lines.md](./red-lines.md).
 3. **Code**: Write minimal code to make the tests pass (green phase)
-4. **Doc**: Update the package `readme`/contract (or, for legacy modules, SSOT
-   docs and README)
+4. **Doc**: Update the package `readme`/contract
 
 **Hard constraints**:
 - ❌ **NEVER** write code before the test exists
 - ❌ **NEVER** write a test without a registered AC number (a package `roadmap`
-  AC for migrated packages; an EPIC/registry AC for legacy modules)
-- ❌ **NEVER** ship without updating the owning package's contract/readme (or
-  SSOT docs for legacy modules)
+  AC, or — only for pre-existing residue — an explicitly marked EPIC-table row)
+- ❌ **NEVER** ship without updating the owning package's contract/readme
 
 Reference: [common/testing/tdd.md](../../common/testing/tdd.md) ·
 [package migration standard](../../common/meta/migration-standard.md)

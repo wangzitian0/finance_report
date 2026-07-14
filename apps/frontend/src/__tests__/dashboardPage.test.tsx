@@ -344,6 +344,7 @@ describe("HomePage", () => {
     expect(attentionLinks.length).toBeGreaterThanOrEqual(2)
   })
 
+  // AC-reporting.fe-remainder-reports.4
   it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
     mockDashboardApi()
 
@@ -357,6 +358,7 @@ describe("HomePage", () => {
   })
 
   // AC-meta.fe-app-shell.4
+  // AC-reporting.fe-remainder-reports.5
   it("AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics", async () => {
     mockDashboardApi()
 
@@ -394,6 +396,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-remainder-reports.6
   it("AC19.4.3 follows workflow next_action for blocker and upload primary CTAs", async () => {
     mockDashboardApi()
 
@@ -430,6 +433,7 @@ describe("HomePage", () => {
     })
   })
 
+  // AC-reporting.fe-remainder-reports.7
   it("AC19.4.4 renders report readiness above analytics with blocker count and link", async () => {
     mockDashboardApi()
 
@@ -443,6 +447,7 @@ describe("HomePage", () => {
     expect(Boolean(readiness.compareDocumentPosition(totalAssets) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
+  // AC-reporting.fe-remainder-reports.8
   it("AC19.4.5 shows actionable recent events and summarizes routine automation", async () => {
     mockDashboardApi()
 
@@ -455,6 +460,7 @@ describe("HomePage", () => {
     expect(screen.getAllByText("Safe entries posted").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-reporting.fe-remainder-reports.9
   it("AC19.4.6 keeps upload-to-report home visible when secondary analytics fail", async () => {
     mockDashboardApi({ balanceError: new Error("balance failed") })
 
@@ -468,6 +474,7 @@ describe("HomePage", () => {
   })
 
   // AC-reporting.fe-viz-reports.1
+  // AC-portfolio.fe-assets2.7 / AC-portfolio.fe-assets2.10
   it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
     mockDashboardApi()
 
@@ -481,6 +488,7 @@ describe("HomePage", () => {
     expect(screen.getByText(/As of May 20, 2026/)).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.8
   it("AC11.8.4 renders Restricted Holdings separately with vesting metadata", async () => {
     mockDashboardApi()
 
@@ -492,6 +500,7 @@ describe("HomePage", () => {
     expect(screen.getByText("$12,500")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.9
   it("AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included", async () => {
     mockDashboardApi()
 

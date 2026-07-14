@@ -52,6 +52,7 @@ const advisorSuggestions: AdvisorSuggestion[] = [
 ];
 
 describe("AdvisorBrief", () => {
+  // AC-advisor.fe-remainder-chat.2
   it("AC21.3.2 test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes", () => {
     render(<AdvisorBrief suggestions={advisorSuggestions} />);
 

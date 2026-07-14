@@ -1084,5 +1084,63 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-platform.fe-workflow.1",
+            statement="Frontend exposes typed workflow API helpers through `lib/api.ts` for status, events, and lifecycle patching",
+            # was AC19.3.3
+            test="apps/frontend/src/__tests__/workflowApi.test.ts::AC19.3.3 fetches typed workflow status through lib/api.ts",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.2",
+            statement="Header/app-shell badge reflects unread/action-required/blocked counts from the compact workflow API and stays quiet when no attention is needed",
+            # was AC19.3.4
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.3.4 AC22.2.3 shows the header badge from compact workflow counts and hides counts when quiet",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.3",
+            statement="Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links",
+            # was AC19.3.5
+            test="apps/frontend/src/__tests__/eventsPage.test.tsx::AC19.3.5 renders the workflow events content surface",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.4",
+            statement="Desktop and mobile Playwright smoke covers the workflow badge/inbox/feed without layout overflow",
+            # was AC19.3.7
+            test="apps/frontend/playwright/workflow-notifications.spec.ts::${scenario.name} shows workflow badge, inbox, and dashboard status feed",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.5",
+            statement="Workflow status returns cockpit-ready `next_action.label` and `next_action.summary`, routes processing to session history, and routes ready reports directly to `/reports/package`",
+            # was AC19.4.8
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.4.8 AC19.12.5 does not duplicate the workflow-state sentence when next-action summary is absent",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.6",
+            statement="Notification drawer and Events page group timestamped events by workflow session, while Upload Pipeline shows only active-session latest state plus recent timeline preview",
+            # was AC19.8.4
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.3.5 AC19.8.4 groups inbox events by workflow session timeline and supports lifecycle actions",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.fe-workflow.7",
+            statement="Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent",
+            # was AC19.12.5
+            test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.12.5 renders lightweight derived workflow events as user actions, not internal logs",
+            priority="P0",
+            status="done",
+        ),
     ],
 )

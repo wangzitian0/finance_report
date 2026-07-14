@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 FR_EPIC = ROOT / "docs/project/EPIC-014.ttd-transformation.md"
 INFRA_EPIC = ROOT / "repo/docs/project/Infra-006.documentation_engineering.md"
-FR_MANIFEST = ROOT / "docs/ssot/MANIFEST.yaml"
+FR_MANIFEST = ROOT / "common/meta/data/MANIFEST.yaml"
 INFRA_MANIFEST = ROOT / "repo/docs/ssot/MANIFEST.yaml"
 
 ISSUE_LINKS = (

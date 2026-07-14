@@ -1152,6 +1152,16 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-runtime.fe-deploy.1",
+            statement="Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks",
+            # was AC8.13.90
+            test="apps/frontend/src/__tests__/frontendVersionRoute.test.ts::AC8.13.90 returns deployed frontend version metadata for PR preview readiness",
+            priority="P0",
+            status="done",
+        ),
     ],
 )
 

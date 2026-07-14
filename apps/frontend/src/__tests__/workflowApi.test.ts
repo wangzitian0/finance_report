@@ -34,6 +34,7 @@ describe("workflow API helpers", () => {
     vi.stubGlobal("localStorage", localStorageMock)
   })
 
+  // AC-platform.fe-workflow.1
   it("AC19.3.3 fetches typed workflow status through lib/api.ts", async () => {
     const fetchMock = makeFetchMock(200, {
       primary_state: "needs_action",

@@ -265,7 +265,8 @@ on the low-confidence tail) and **source→ledger→report traceability** — pl
 > look only at the low-confidence tail — so the reason must be legible). The
 > `/events`→`/notifications` dedup that #865 scoped is already handled by a
 > `next.config` redirect (so #865 closed); the residual `/events` page is left in
-> place because it still anchors EPIC-019's AC19.3.5. The cross-surface
+> place because it still anchors EPIC-019's event-inbox-grouping AC (now
+> `AC-platform.fe-workflow.3`). The cross-surface
 > attention return path is handled as a narrow follow-up: attention-origin links
 > carry their source into the destination, and the destination renders an
 > attention-queue return link without changing direct-entry fallbacks.

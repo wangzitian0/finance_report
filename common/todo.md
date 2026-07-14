@@ -39,7 +39,7 @@ and types/ops/store/api). ACs are `AC-<pkg>.<entity>.<seq>` in each contract's
 | 3 | `extraction` #1421 ✅ · `portfolio` #1422 ✅ · `reconciliation` #1423 ✅ · `reporting` #1424 ✅ · `pricing` contract ✅ `status="active"` (roadmap populated in the wave-2 closeout, #1663/#1728; #1610 stays open for the physical-table unification) | partial |
 | 4 | `advisor` #1425 ✅ · `llm` #1426 ✅ · `platform` #1427 ✅ · `identity` #1428 ✅ | done |
 | 5 | `audit` consistency closeout (global invariants + cross-package ACs) | #1429 ⬜ |
-| 6 | cleanup — delete residual EPIC tables / SSOT; retire the central `docs/ssot/MANIFEST.yaml`/registry gates once meta's data layer is the computed index | tracked as a 3-wave closeout: #1662 (finish cutovers + doc-sync) → #1663 (EPIC AC migration) → #1664 (SSOT/index retirement); #1430 closed early on the directory-coverage-only reading |
+| 6 | cleanup — delete residual EPIC tables / SSOT; retire both centers (`docs/ssot/`, EPIC-table-as-AC-source) | tracked as a 4-wave closeout: #1662 (finish cutovers + doc-sync) → #1663 (EPIC AC migration) → #1664 (SSOT/index retirement) → #1819/#1823 (Package-ization terminal: `docs/ssot/` deleted, `MANIFEST.yaml` relocated to `common/meta/data/` — kept hand-authored, not a computed index; that rewrite is follow-up #1799; `docs/project/EPIC-*.md` frozen shrink-only to its gate-tracked residue set); #1430 closed early on the directory-coverage-only reading |
 
 All tracked under umbrella **#1416**. Every package listed above ships a
 `contract.py` — "✅" here means the cutover PR merged, not that the roadmap or
@@ -51,7 +51,7 @@ package's live `status`.
 A package cutover is one atomic PR that:
 1. moves each AC to the package `roadmap` as `AC-<pkg>.<entity>.<seq>` (removed from the EPIC table);
 2. deletes the EPIC only once **all** its ACs are distributed;
-3. internalizes the package's owned SSOT (into readme/contract; removed from `docs/ssot/` + `docs/ssot/MANIFEST.yaml`);
+3. internalizes the package's owned SSOT (into readme/contract; `docs/ssot/` itself is retired, #1823 — the concept's `owner:` in `common/meta/data/MANIFEST.yaml` points at the package, never a central doc);
 4. migrates its tests (every `invariants[].test` / `roadmap[].test` resolves);
 5. repoints consumers to the published `interface` (`__all__`), not submodules;
 6. **removes the original** — pre-migration modules are deleted, not copied: no

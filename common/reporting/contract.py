@@ -2770,5 +2770,119 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.1",
+            statement="The report package traceability surface exposes a lineage panel from at least one report traceability row",
+            # was AC18.9.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.2",
+            statement="The lineage panel renders source document, extracted record, atomic fact, ledger entry, ledger line, and report-line anchors when present",
+            # was AC18.9.5
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.3",
+            statement="Tests cover report line to source document navigation and source document to impacted ledger/report navigation",
+            # was AC18.9.6
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.4",
+            statement="Dashboard status feed renders primary state, report readiness, recent automation, blocker/action severity, and an empty no-action state without raw audit-log noise",
+            # was AC19.3.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.3.6 renders the workflow status feed on the dashboard landing surface",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.5",
+            statement="The first dashboard viewport renders the upload-to-report workflow home before KPI, chart, and activity content",
+            # was AC19.4.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.6",
+            statement="The dashboard primary CTA follows `workflow.status.next_action.href` and labels upload as the default action when no higher-priority blocker/action exists",
+            # was AC19.4.3
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.3 follows workflow next_action for blocker and upload primary CTAs",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.7",
+            statement="Report readiness state and blocker count are visible above secondary dashboard metrics and link to the readiness/report action path",
+            # was AC19.4.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.4 renders report readiness above analytics with blocker count and link",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.8",
+            statement="Recent workflow events are visible, grouped by actionability, and routine automation is summarized without dominating the page",
+            # was AC19.4.5
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.5 shows actionable recent events and summarizes routine automation",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.9",
+            statement="Secondary dashboard metric API failure does not hide the workflow home; the analytics section renders an isolated retry/error state",
+            # was AC19.4.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC19.4.6 keeps upload-to-report home visible when secondary analytics fail",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.10",
+            statement="Desktop and mobile Playwright smoke covers the upload-first dashboard entry without layout overflow",
+            # was AC19.4.7
+            test="apps/frontend/playwright/upload-first-dashboard.spec.ts::${scenario.name} renders upload-to-report home before secondary analytics",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.11",
+            statement="Personal report package page renders readiness state and blocker links before package section output",
+            # was AC19.5.4
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.4 renders package readiness before report package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.12",
+            statement="Personal report package page renders non-blocked readiness states without stale blocker cards",
+            # was AC19.5.5
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.5.5 renders non-blocked readiness states without blocker cards",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.13",
+            statement="Report readiness has route-level Playwright smoke coverage before package output",
+            # was AC19.8.7
+            test="apps/frontend/playwright/report-readiness.spec.ts::${scenario.name} renders cover, contents, and readiness before package output",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.fe-remainder-reports.14",
+            statement="Personal report package page renders a compact source trust summary before detailed package output",
+            # was AC19.9.2
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders compact source trust summary before traceability details",
+            priority="P0",
+            status="done",
+        ),
     ],
 )

@@ -97,6 +97,7 @@ describe("LoginPage", () => {
     })
   })
 
+  // AC-identity.fe-auth2.2
   it("AC8.19.1 login register controls expose distinct test ids and accessible names", () => {
     render(<LoginPage />)
 

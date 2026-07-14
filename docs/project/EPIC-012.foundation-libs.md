@@ -375,14 +375,12 @@ callers branch on a machine-readable code instead of matching `detail` text.
 > the AC12.27.* rows .1–.2) are owned by, and sourced directly from,
 > [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
 > as `AC-platform.27.1`–`AC-platform.27.2` (the leading "12" is dropped and the
-> group/seq preserved). The **frontend** row AC12.27.3 stays defined below: its
-> anchor is a `.test.ts` (a vitest `it()`, not a Python `path::func`) and the
-> `platform` package is `fe=None`, so it cannot be homed in the package roadmap
-> (same precedent as the ledger cutover leaving EPIC-002's frontend rows defined).
+> group/seq preserved). The **frontend** row's anchor is a `.test.ts` (a
+> vitest `it()`, not a Python `path::func`), so it could not be homed in the
+> `platform` roadmap (`fe=None`) — #1820/#1825 later gave the governance gate
+> TS test-ref resolution, so it migrated to `meta` instead (below).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.27.3 | Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId` | `test_AC12_27_3_api_error_carries_error_id` | `__tests__/apiErrorStructured.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC12.27.3 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-http-client.1`, #1821 Wave B)
 
 ### AC12.28: Generated Frontend API Types from OpenAPI ([#1004](https://github.com/wangzitian0/finance_report/issues/1004))
 
@@ -400,13 +398,12 @@ enforcing the FE↔BE contract instead of leaving the generated client as dead c
 > the AC12.28.* rows .1–.2) are owned by, and sourced directly from,
 > [`common/platform/contract.py`](../../common/platform/contract.py)'s `roadmap`
 > as `AC-platform.28.1`–`AC-platform.28.2` (the leading "12" is dropped and the
-> group/seq preserved). The **frontend** row AC12.28.3 stays defined below: its
-> anchor is a `.test.ts` (a vitest `it()`, not a Python `path::func`) and the
-> `platform` package is `fe=None`, so it cannot be homed in the package roadmap.
+> group/seq preserved). The **frontend** row's anchor is a `.test.ts` (a
+> vitest `it()`, not a Python `path::func`), so it could not be homed in the
+> `platform` roadmap (`fe=None`) — #1820/#1825 later gave the governance gate
+> TS test-ref resolution, so it migrated to `meta` instead (below).
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.28.3 | High-traffic call sites type responses against the generated schema | `test_AC12_28_3_types_stage2_batch_responses_against_generated_schema` | `__tests__/apiTypedClient.test.ts` | P2 | <!-- epic-owned: fe-only -->
+(AC12.28.3 removed, canonical: migrated to the `meta` package roadmap as `AC-meta.fe-http-client.2`, #1821 Wave B)
 
 ### AC12.29: API-Surface Consistency Sweep ([#1099](https://github.com/wangzitian0/finance_report/issues/1099))
 
@@ -660,9 +657,7 @@ Currency was resolved ad-hoc in ≥3 divergent ways (`or "SGD"`, `or settings.ba
 > **Frontend row retained** (below) — same `.test.tsx`/AST-resolver
 > limitation as EPIC-021's frontend rows.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC12.39.3 | The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`) {tier:CODE-ONLY} | `AC12.39.3 renders the effective base currency`, `AC12.39.3 submits the edited currency via updateBaseCurrency` | `apps/frontend/src/__tests__/generalSettingsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC12.39.3 removed, canonical: migrated to the `pricing` package roadmap as `AC-pricing.fe-settings.1`, #1821 Wave B)
 
 ### AC12.40: Currency established at ingest, never silent-defaulted — Phase E ([#1341](https://github.com/wangzitian0/finance_report/issues/1341))
 

@@ -45,14 +45,18 @@ and additional banks / XLSX / OCR ingest.
 - **Package contract roadmaps are the authoritative AC source**: a migrated
   package owns its ACs as `AC-<pkg>.<group>.<seq>` records in
   `common/<pkg>/contract.py`. New ACs go there — never into an EPIC table.
-- **EPIC docs hold only explicitly marked residue.** Every AC definition line
-  that stays in `docs/project/EPIC-*.md` carries a
+- **EPIC docs hold only explicitly marked residue — a terminal, shrink-only
+  home, not a growing feature-slice axis** (#1823, Package-ization 4/4).
+  Every AC definition line that stays in `docs/project/EPIC-*.md` carries a
   `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker;
   the residue ratchet (`tests/tooling/test_epic_residue_ratchet.py`,
-  baseline `docs/ssot/epic-residue-baseline.json`) enforces unmarked rows ==
-  0, census == baseline, and a shrink-only EPIC file set. `pending-package`
-  rows are the tracked non-permanent remainder for the post-migration
-  backlog.
+  baseline `common/meta/data/epic-residue-baseline.json`) enforces unmarked
+  rows == 0, census == baseline, and a shrink-only EPIC file set.
+  `pending-package` rows are the tracked non-permanent remainder for the
+  post-migration backlog. `docs/project/`'s own directory listing (which
+  EPIC + non-EPIC files may exist) is separately frozen by
+  `tests/tooling/test_terminal_centers_allowlist.py`, alongside the same
+  test's assertion that `docs/ssot/` (fully retired in #1823) stays absent.
 - The AC index is computed by `common/meta/extension/generate_ac_registry.py`
   from those two sources (roadmap-wins on any collision);
   `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index

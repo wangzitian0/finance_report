@@ -21,13 +21,17 @@ class TestSelectChecks:
         ]
         assert "ac-traceability" in names
 
-    def test_ssot_edit_selects_ownership_and_doc_consistency(self):
-        # docs/ssot/ now holds only MANIFEST.yaml/README.md/epic-residue-baseline.json
-        # (#1822 SSOT dissolution) — MANIFEST.yaml is a stable example of an edit
-        # under that glob.
-        names = [c.name for c in preflight.select_checks(["docs/ssot/MANIFEST.yaml"])]
+    def test_manifest_edit_selects_ownership(self):
+        # docs/ssot/ is retired (#1823, Package-ization 4/4); the concept
+        # registry lives at common/meta/data/MANIFEST.yaml now.
+        names = [
+            c.name for c in preflight.select_checks(["common/meta/data/MANIFEST.yaml"])
+        ]
         assert "ssot-ownership" in names
-        assert "doc-consistency" in names  # docs/* also matches
+
+    def test_docs_edit_selects_doc_consistency(self):
+        names = [c.name for c in preflight.select_checks(["docs/project/README.md"])]
+        assert "doc-consistency" in names  # docs/* matches
 
     def test_markdown_edit_selects_taxonomy_drift(self):
         names = [c.name for c in preflight.select_checks(["common/ledger/readme.md"])]

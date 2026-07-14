@@ -19,7 +19,7 @@ def test_AC21_1_1_ai_advisor_is_application_layer_contract() -> None:
     """AC21.1.1: AI Advisor product value is owned as a read-only application layer."""
     epic = read(EPIC_021)
     ssot = read(AI_SSOT)
-    manifest = read("docs/ssot/MANIFEST.yaml")
+    manifest = read("common/meta/data/MANIFEST.yaml")
     registry_entries = {entry["id"]: entry for entry in materialized_entries("feature")}
 
     assert "Application-Layer AI Advisor" in epic
@@ -46,7 +46,9 @@ def test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics() -> None:
     ):
         assert existing_owner in epic
 
-    assert "report package snapshots and export scale stay in EPIC-005 / EPIC-008" in epic
+    assert (
+        "report package snapshots and export scale stay in EPIC-005 / EPIC-008" in epic
+    )
     assert "manual evidence intake stays in EPIC-011 / EPIC-005" in epic
     assert "source coverage matrix" in ssot
     assert "docs/project/EPIC-021.application-ai-advisor.md" in root_readme

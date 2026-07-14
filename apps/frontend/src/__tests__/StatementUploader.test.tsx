@@ -372,6 +372,7 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     expect(apiUpload).not.toHaveBeenCalled();
   });
 
+  // AC-extraction.fe-remainder-extraction.4
   it("AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",

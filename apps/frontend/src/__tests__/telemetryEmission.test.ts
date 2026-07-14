@@ -42,6 +42,7 @@ describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
   // hands the span to `OTLPTraceExporter.export()` (the in-browser POST origin);
   // the real `POST /v1/traces` over the wire is asserted end-to-end in the
   // companion `playwright/telemetry-emission.spec.ts`.
+  // AC-observability.fe-telemetry.4
   it("emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)", async () => {
     // The SAME exporter class the app uses, pointed at a /v1/traces endpoint.
     const exporter = new OTLPTraceExporter({ url: OTLP_TRACES_ENDPOINT })
@@ -77,6 +78,7 @@ describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
 
   // AC24.2.2 — the analytics layer actually dispatches an OpenPanel event via
   // the global `window.op` command queue installed by the OpenPanel SDK.
+  // AC-observability.fe-telemetry.5
   it("dispatches an OpenPanel event via window.op when configured (AC24.2.2)", () => {
     const opCalls: unknown[][] = []
     // Recording stub for the OpenPanel global the real SDK installs. track()

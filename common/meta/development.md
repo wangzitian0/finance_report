@@ -430,4 +430,4 @@ gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true
 | [deployment.md](../runtime/deployment.md) | Deployment workflows, Vault, release process |
 | [coverage.md](../testing/coverage.md) | Unified coverage system |
 | [tdd.md](../testing/tdd.md) | TDD workflow |
-| [MANIFEST.yaml](../../docs/ssot/MANIFEST.yaml) | Concept ownership registry |
+| [MANIFEST.yaml](data/MANIFEST.yaml) | Concept ownership registry |

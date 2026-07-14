@@ -242,9 +242,7 @@ restricted compensation.
 > package roadmap as `AC-reporting.net-worth-components.1-2`; the frontend
 > row below stays here. Migration closeout continuation, #1663 / #1716.)*
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.20.3 | The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value | `test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels()` | `apps/frontend/src/__tests__/assetsPage.test.tsx` | P1 | <!-- epic-owned: fe-only -->
+(AC11.20.3 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.1`, #1821 Wave B)
 
 ### AC11.21-11.24: Valuation Taxonomy Stack (RETIRED — reinvented existing accounting primitives)
 
@@ -292,11 +290,7 @@ generated from the registry and tests, not from checkboxes in this file.
 *(AC11.9.1 removed and AC11.9.2 removed and AC11.9.3 removed and AC11.9.5
 removed, canonical: migrated to the `pricing` package roadmap as
 `AC-pricing.manualvaluation.5-8`, #1821 Wave A)*
-- **AC11.9.4 Frontend Entry**: `/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client. <!-- epic-owned: fe-only -->
-- **AC11.9.6 Guided Evidence Form — required-field validation** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the shared guided evidence form for the three source classes (`esop_rsu_plan`, `property_statement`, `liability_statement`) blocks submission and shows a readiness blocker when the required `valuation_basis` or `as_of_date` is missing, never calling the API; value is carried as a `Decimal`-safe string with no float math. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.6 *`. <!-- epic-owned: fe-only -->
-- **AC11.9.7 Guided Evidence Form — typed manual-valuation persistence** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): a valid guided evidence submission persists through the existing `POST /api/assets/valuation-snapshots` endpoint via the typed `lib/api.ts` client (never raw `fetch`), mapping the chosen source class to its `component_type`, `valuation_basis`, source label, anchor, and notes, with the monetary `value` sent as a string. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 *`. <!-- epic-owned: fe-only -->
-- **AC11.9.8 Manual-trusted disclosure label** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence flow surfaces a clear "Manual-trusted" disclosure badge for manually entered evidence so users and the traceability appendix can see the source-trust state of a value. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.8 *`. <!-- epic-owned: fe-only -->
-- **AC11.9.9 Guided Evidence Form — mobile layout** ([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence form renders an accessible single-column mobile layout (and the recent-evidence list) when a mobile viewport is reported by `matchMedia`, and degrades gracefully when `matchMedia` is unavailable. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.9 *`. <!-- epic-owned: fe-only -->
+(AC11.9.4 removed and AC11.9.6 removed and AC11.9.7 removed and AC11.9.8 removed and AC11.9.9 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.2` through `.6`, #1821 Wave B)
 *(AC11.9.10 removed, canonical: migrated to the `pricing` package roadmap as
 `AC-pricing.manualvaluation.9`, #1821 Wave A)*
 
@@ -338,12 +332,9 @@ lists; it must be represented by one of these owners:
 *(AC11.8.1 removed and AC11.8.7 removed, canonical: migrated to the
 `reporting` package roadmap as `AC-reporting.annualized-dashboard.1` and
 `.3`, #1821 Wave A)*
-- [x] **AC11.8.2** Dashboard "Annualized Income" card renders the four annualized figures with the currency code and `as_of` date subtitle <!-- epic-owned: fe-only -->
+(AC11.8.2 removed and AC11.8.4 removed and AC11.8.5 removed and AC11.8.6 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.7` through `.10`, #1821 Wave B)
 *(AC11.8.3 removed, canonical: migrated to the `reporting` package roadmap
 as `AC-reporting.annualized-dashboard.2`, #1821 Wave A)*
-- [x] **AC11.8.4** Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip <!-- epic-owned: fe-only -->
-- [x] **AC11.8.5** Net worth calculation toggle on dashboard (`include_restricted=true|false`) re-fetches and updates total, defaulting to `false` (vision: liquid wealth is primary) <!-- epic-owned: fe-only -->
-- [x] **AC11.8.6** Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render <!-- epic-owned: fe-only -->
 
 **Priority**: P1 (high) — closes the largest "vision parity" gap after net worth time series.
 **Estimated effort**: 4-6 days backend (income aggregation + restricted-flag schema check) + 3-4 days frontend.

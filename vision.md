@@ -205,7 +205,7 @@ Use this when the axioms and trade-off rules still leave a choice ambiguous:
 2. Does it keep the system self-hostable and data-private (no short stave)?
 3. Does it reduce user cognitive load without hiding critical details?
 4. Does it preserve double-entry integrity and traceability?
-5. Can the behavior be expressed as EPIC -> AC -> test?
+5. Can the behavior be expressed as contract -> AC -> test?
 
 If the answer is unclear, choose the smaller step that improves proof quality.
 
@@ -261,12 +261,12 @@ cost of declining managed services that would break private hosting.
 This file holds no contracts, status, or enumerations. They live with their
 owners:
 
-- **Implementation contracts** → `docs/ssot/`, routed by
-  `docs/ssot/MANIFEST.yaml` (one owner per concept). The staged
-  confidence pipeline (raw -> extracted -> validated -> confirmed -> reconciled
-  -> trusted -> reports) is owned by `docs/ssot/confirmation-workflow.md`;
-  supported source classes by
-  [`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml).
+- **Implementation contracts** → each owning package's `common/<pkg>/readme.md`
+  / `contract.py`, routed by `common/meta/data/MANIFEST.yaml` (one owner per
+  concept). The staged confidence pipeline (raw -> extracted -> validated ->
+  confirmed -> reconciled -> trusted -> reports) is owned by
+  `common/extraction/confirmation-workflow.md`; supported source classes by
+  [`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml).
 - **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 
