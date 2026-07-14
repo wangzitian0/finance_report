@@ -178,6 +178,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
     // AC-reporting.fe-ia-reports.17
+    // AC-reporting.fe-remainder-reports.13
     test(`${scenario.name} renders cover, contents, and readiness before package output`, async ({
       page,
     }) => {

@@ -144,6 +144,7 @@ test.describe("AC21.3.4 Advisor Brief responsive layout", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 } },
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
+    // AC-advisor.fe-remainder-chat.4
     test(`${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installAdvisorBriefMocks(page);

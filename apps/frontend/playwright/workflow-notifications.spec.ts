@@ -157,6 +157,7 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
     { name: "desktop", viewport: { width: 1440, height: 1000 }, isMobile: false },
     { name: "mobile", viewport: { width: 390, height: 844 }, isMobile: true },
   ]) {
+    // AC-platform.fe-workflow.4
     test(`${scenario.name} shows workflow badge, inbox, and dashboard status feed`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installWorkflowMocks(page);

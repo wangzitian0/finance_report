@@ -88,13 +88,9 @@ Not owned here:
 
 ### AC21.3: Frontend Advisor Brief and Contextual Next Actions
 
-> *(This group's first row removed — migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` as `AC-advisor.suggestions.3`, migration closeout wave 2, #1663.)* The remaining three rows stay here: they are frontend/E2E tests (`.tsx`/`.spec.ts`), and the governance gate's `_resolve_test()` (AST-based, Python-only) cannot resolve a non-Python test path — same limitation as EPIC-012's `AC12.27.3`/`AC12.28.3`.
+> *(This group's first row removed — migrated to [`common/advisor/contract.py`](../../common/advisor/contract.py)'s `roadmap` as `AC-advisor.suggestions.3`, migration closeout wave 2, #1663.)* The remaining three rows were frontend/E2E tests (`.tsx`/`.spec.ts`); #1820/#1825 later gave the governance gate TS test-ref resolution, so they migrated too (below) instead of staying blocked on the old Python-only limitation.
 
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC21.3.2 | Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links {tier:CODE-ONLY} | `test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes` | `apps/frontend/src/__tests__/advisorBrief.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC21.3.3 | Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior {tier:CODE-ONLY} | `test_AC21_3_3_chat_panel_renders_contextual_advisor_brief`, `test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics` | `apps/frontend/src/__tests__/chatPanelComponent.test.tsx`, `apps/frontend/src/__tests__/dashboardPage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
-| AC21.3.4 | Advisor Brief keeps desktop and mobile layouts free of horizontal overflow {tier:CODE-ONLY} | `advisor-brief desktop and mobile layouts avoid horizontal overflow` | `apps/frontend/playwright/advisor-brief.spec.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC21.3.2 removed and AC21.3.3 removed and AC21.3.4 removed, canonical: migrated to the `advisor` package roadmap as `AC-advisor.fe-remainder-chat.2` through `.4`, #1821 Wave B)
 
 ## Planned Implementation Slices
 

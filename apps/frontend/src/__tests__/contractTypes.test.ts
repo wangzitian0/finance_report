@@ -23,6 +23,7 @@ import type {
  * if a duplicate envelope or a second raw-fetch boundary is reintroduced.
  */
 describe("frontend contract consolidation (EPIC-025 / #1158)", () => {
+  // AC-meta.fe-contract-types.1
   it("AC25.3.1: every list response derives from the single ListResponse<T> envelope", () => {
     // Compile-time: each list response must be mutually assignable with
     // ListResponse<itsItem>. If any wrapper drifts from {items,total}, tsc fails.
@@ -75,6 +76,7 @@ describe("frontend contract consolidation (EPIC-025 / #1158)", () => {
     ]);
   });
 
+  // AC-meta.fe-contract-types.2
   it("AC25.3.2: lib/api.ts is the single raw-fetch boundary in the frontend", () => {
     const sourceFiles: string[] = [];
     const visit = (path: string) => {

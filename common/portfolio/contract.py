@@ -1843,5 +1843,199 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-portfolio.fe-assets2.1",
+            statement="The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value",
+            # was AC11.20.3
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.20.3 test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.2",
+            statement="`/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client.",
+            # was AC11.9.4
+            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.3",
+            statement="([#706](https://github.com/wangzitian0/finance_report/issues/706)): the shared guided evidence form for the three source classes (`esop_rsu_plan`, `property_statement`, `liability_statement`) blocks submission and shows a readiness blocker when the required `valuation_basis` or `as_of_date` is missing, never calling the API; value is carried as a `Decimal`-safe string with no float math. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.6 *`.",
+            # was AC11.9.6
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.6 validateEvidenceForm flags missing basis and as-of date",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.4",
+            statement="([#706](https://github.com/wangzitian0/finance_report/issues/706)): a valid guided evidence submission persists through the existing `POST /api/assets/valuation-snapshots` endpoint via the typed `lib/api.ts` client (never raw `fetch`), mapping the chosen source class to its `component_type`, `valuation_basis`, source label, anchor, and notes, with the monetary `value` sent as a string. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 *`.",
+            # was AC11.9.7
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.5",
+            statement='([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence flow surfaces a clear "Manual-trusted" disclosure badge for manually entered evidence so users and the traceability appendix can see the source-trust state of a value. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.8 *`.',
+            # was AC11.9.8
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.8 form shows a manual-trusted badge",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.6",
+            statement="([#706](https://github.com/wangzitian0/finance_report/issues/706)): the guided evidence form renders an accessible single-column mobile layout (and the recent-evidence list) when a mobile viewport is reported by `matchMedia`, and degrades gracefully when `matchMedia` is unavailable. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.9 *`.",
+            # was AC11.9.9
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.9 renders accessible single-column form on a mobile viewport",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.7",
+            statement='Dashboard "Annualized Income" card renders the four annualized figures with the currency code and `as_of` date subtitle',
+            # was AC11.8.2
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.8",
+            statement='Dashboard "Restricted Holdings" card lists restricted holdings separated from liquid net worth, with vesting timeline tooltip',
+            # was AC11.8.4
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.4 renders Restricted Holdings separately with vesting metadata",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.9",
+            statement="Net worth calculation toggle on dashboard (`include_restricted=true|false`) re-fetches and updates total, defaulting to `false` (vision: liquid wealth is primary)",
+            # was AC11.8.5
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.10",
+            statement="Frontend test mounts AnnualizedIncomeCard and asserts the four metric labels render",
+            # was AC11.8.6
+            test="apps/frontend/src/__tests__/dashboardPage.test.tsx::AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.11",
+            statement="Import to Portfolio button visible for parsed/approved statements",
+            # was AC17.8.1
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.12",
+            statement="Import result banner with stats and portfolio link shown on success",
+            # was AC17.8.2
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.13",
+            statement="Import failure shows actionable error without sensitive data",
+            # was AC17.8.3
+            test="apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx::AC17.8.3 shows actionable import error banner without exposing sensitive data",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.14",
+            statement="Portfolio page shows total portfolio value prominently after import",
+            # was AC17.8.4
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.15",
+            statement="Import button hidden for non-parsed/approved statements (partial batch)",
+            # was AC17.8.5
+            test="apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx::AC17.8.5 does not show Import to Portfolio for non-parsed statements",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.16",
+            statement="Portfolio page exposes an as-of date selector and passes it to `/api/portfolio/holdings`",
+            # was AC17.9.3
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC17.9.3 passes selected as-of date to holdings API",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.17",
+            statement="Portfolio page renders a unified allocation panel without claiming a portfolio-value tie-out when report and holdings currencies differ",
+            # was AC17.14.1
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC17.14.1 labels allocation and portfolio currencies instead of claiming a portfolio tie-out",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.18",
+            statement="Portfolio page consumes the report-owned net-worth allocation schedule, showing asset class, liquidity, source currency, net-worth share, source labels, and restricted-inclusion filtering",
+            # was AC17.14.3
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC17.14.3 renders net-worth allocation from the report schedule",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.19",
+            statement="The asset-dashboard performance surface leads with unrealized market-value gain/loss, a simple return on cost valued at the schedule as-of date, and a price-freshness flag; TWR/IRR/MWR are not presented as the asset-dashboard answer and stay on the reporting side as clearly-labelled analytical measures",
+            # was AC17.14.4
+            test="apps/frontend/src/__tests__/performanceCard.test.tsx::AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.20",
+            statement="Holding detail page `/portfolio/[ticker]` renders three tabs: `Overview`, `Dividends`, `Realized P&L`",
+            # was AC17.7.1
+            test="apps/frontend/src/__tests__/holdingDetailPage.test.tsx::AC17.7.1 renders Overview, Dividends, and Realized P&L tabs",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.21",
+            statement="Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends`",
+            # was AC17.7.2
+            test="apps/frontend/src/__tests__/holdingDetailPage.test.tsx::AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.22",
+            statement="Cost-basis method selector (`FIFO` / `LIFO` / `AvgCost`) on holding detail page persists per-holding via `PATCH /api/portfolio/{ticker}` and re-fetches realized P&L",
+            # was AC17.7.3
+            test="apps/frontend/src/__tests__/holdingDetailPage.test.tsx::AC17.7.3 persists cost-basis method and refetches realized P&L",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.23",
+            statement="Realized P&L tab shows lot-level table `{lot_id, acquired_date, sold_date, quantity, basis, proceeds, gain_loss, holding_period}` from `GET /api/portfolio/{ticker}/realized`",
+            # was AC17.7.4
+            test="apps/frontend/src/__tests__/holdingDetailPage.test.tsx::AC17.7.4 renders lot-level realized P&L table",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-portfolio.fe-assets2.24",
+            statement="Portfolio summary card on dashboard adds `realized_pnl_ytd` and `dividend_income_ytd` figures from `GET /api/portfolio/summary`",
+            # was AC17.7.5
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC17.7.5 renders realized P&L YTD and dividend income YTD from portfolio summary",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

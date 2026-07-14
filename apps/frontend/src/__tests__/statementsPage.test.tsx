@@ -149,6 +149,7 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByText("stmt.pdf")).toBeInTheDocument())
   })
 
+  // AC-extraction.fe-remainder-extraction.2
   it("AC19.15.1 exposes exactly three intake entries: one statement uploader plus CSV and Manual", async () => {
     mockStatementsPageApi({ statements: [{ items: [] }] })
 
@@ -165,6 +166,7 @@ describe("StatementsPage", () => {
     expect(screen.getByTestId("manual-evidence-form")).toBeInTheDocument()
   })
 
+  // AC-extraction.fe-remainder-extraction.3
   it("AC19.15.2 keeps secondary intake passive: CSV and Manual folded, no per-class checklist, no readiness fetch", async () => {
     mockStatementsPageApi({ statements: [{ items: [] }] })
 

@@ -1306,6 +1306,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.queryByText("Loading framework package...")).not.toBeInTheDocument();
   });
 
+  // AC-reporting.fe-remainder-reports.11
   it("AC19.5.4 renders package readiness before report package output", async () => {
     mockPackageApi();
 
@@ -1343,6 +1344,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Manual Valuations")).toBeInTheDocument();
   });
 
+  // AC-reporting.fe-remainder-reports.12
   it("AC19.5.5 renders non-blocked readiness states without blocker cards", async () => {
     mockPackageApi({
       ...readiness,
@@ -1363,6 +1365,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.queryByText("Pending source review")).not.toBeInTheDocument();
   });
 
+  // AC-reporting.fe-remainder-reports.14
   it("AC19.9.2 renders compact source trust summary before traceability details", async () => {
     mockPackageApi();
 
@@ -1614,6 +1617,7 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails("explicit_manual_input_required");
   });
 
+  // AC-reporting.fe-remainder-reports.1 / AC-reporting.fe-remainder-reports.2 / AC-reporting.fe-remainder-reports.3
   it("AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability", async () => {
     mockPackageApi();
 

@@ -611,5 +611,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-identity.fe-auth2.1",
+            statement="Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token",
+            # was AC1.10.3
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC1.10.3 sends HttpOnly auth cookies by default",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth2.2",
+            statement='Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register"',
+            # was AC8.19.1
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC8.19.1 login register controls expose distinct test ids and accessible names",
+            priority="P1",
+            status="done",
+        ),
     ],
 )

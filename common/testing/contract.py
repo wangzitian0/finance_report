@@ -3738,6 +3738,40 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-testing.fe-coverage.1",
+            statement="Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%",
+            # was AC8.13.48
+            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.fe-coverage.2",
+            statement="Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths",
+            # was AC8.13.76
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.fe-coverage.3",
+            statement="Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping (AC16.27.2 removed and AC16.27.3 removed, canonical: the same shared spec also proves `AC-extraction.fe-stage1-review.11` and `AC-reconciliation.fe-stage2-review.17`, #1821 Wave B)",
+            # was AC8.13.82
+            test="apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.fe-coverage.4",
+            statement="Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered",
+            # was AC8.13.92
+            test="apps/frontend/src/__tests__/coverageBaseline.test.ts::AC8.13.92 keeps the frontend Vitest threshold baseline code-owned",
+            priority="P0",
+            status="done",
+        ),
     ],
 )
 

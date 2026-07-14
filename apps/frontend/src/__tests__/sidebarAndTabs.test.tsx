@@ -120,6 +120,7 @@ describe("Sidebar and WorkspaceTabs", () => {
   })
 
   // AC-meta.fe-app-shell.13
+  // AC-ledger.fe-processing.6
   it("AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)", async () => {
     render(<Sidebar />)
 

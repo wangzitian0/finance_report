@@ -121,6 +121,7 @@ describe('apiFetch', () => {
     expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
   });
 
+  // AC-identity.fe-auth2.1
   it('AC1.10.3 sends HttpOnly auth cookies by default', async () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);

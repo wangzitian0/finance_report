@@ -63,6 +63,7 @@ describe("PerformanceCard", () => {
     expect(screen.getByText("Unable to load performance metrics")).toBeInTheDocument()
   })
 
+  // AC-portfolio.fe-assets2.19
   it("AC17.14.4 leads with unrealized gain/loss, return on cost, and price freshness", () => {
     render(<PerformanceCard schedule={baseSchedule} />)
 

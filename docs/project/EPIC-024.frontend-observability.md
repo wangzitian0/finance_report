@@ -1,5 +1,11 @@
 # EPIC-024: Frontend Browser Observability
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (#1821 Wave B): every registered AC migrated to the
+     `observability` package roadmap; remaining/future scope for this EPIC
+     is tracked by GitHub issues + the observability package contract, not
+     new EPIC-table rows. -->
+
 > **Status**: 🚧 In Progress
 > **Vision Anchor**: `decision-7-tech-stack`
 > **Owner**: Frontend / Platform
@@ -120,11 +126,7 @@ triaging issues.
 
 ### AC24.1: Browser OTel + OpenPanel Query CLI
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC24.1.1 | The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app | `otel.test.ts`, `frontendTelemetry.test.tsx` | P1 | <!-- epic-owned: fe-only -->
-| AC24.1.2 | The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted | `otel.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC24.1.3 | Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL | `otel.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC24.1.1 removed and AC24.1.2 removed and AC24.1.3 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.fe-telemetry.1` through `.3`, #1821 Wave B)
 > (AC24.1.4 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.openpanel-query.1`, #1821 Wave A)
 
 ### AC24.2: FE Telemetry + Analytics Emission Is Proven by an Automated Test
@@ -137,10 +139,7 @@ endpoint, and the analytics layer actually dispatches an OpenPanel
 event/page-view — both asserted hermetically (collector + OpenPanel stubbed, no
 real the observability backend/OpenPanel contacted).
 
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-| AC24.2.1 | With the OTLP endpoint configured, the real browser OTel exporter emits a span (span actually exported, not merely wired): the vitest proof asserts the span reaches `OTLPTraceExporter.export()`, and the Playwright spec asserts the actual outbound `POST /v1/traces` over the wire; both hermetic against a stubbed collector | vitest `emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)` + Playwright `POST /v1/traces` spec | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 | <!-- epic-owned: fe-only -->
-| AC24.2.2 | With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'\|'screenView', …)` invoked); asserted against a stubbed `window.op`/endpoint so the test is hermetic | `dispatches an OpenPanel event via window.op when configured (AC24.2.2)` | `playwright/telemetry-emission.spec.ts`, `src/__tests__/telemetryEmission.test.ts` | P1 | <!-- epic-owned: fe-only -->
+(AC24.2.1 removed and AC24.2.2 removed, canonical: migrated to the `observability` package roadmap as `AC-observability.fe-telemetry.4` through `.5`, #1821 Wave B)
 
 ---
 

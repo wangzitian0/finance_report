@@ -1123,5 +1123,53 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from the
+        # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
+        ACRecord(
+            id="AC-observability.fe-telemetry.1",
+            statement="The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app",
+            # was AC24.1.1
+            test="apps/frontend/src/__tests__/frontendTelemetry.test.tsx::AC24.1.1 renders nothing and forwards runtime props to initOtel as the env map",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-telemetry.2",
+            statement="The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted",
+            # was AC24.1.2
+            test="apps/frontend/src/__tests__/otel.test.ts::AC24.1.2 strips query string and fragment from an absolute URL",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-telemetry.3",
+            statement="Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL",
+            # was AC24.1.3
+            test="apps/frontend/src/__tests__/otel.test.ts::AC24.1.3 keeps the error type but redacts the message/stack",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-telemetry.4",
+            statement="With the OTLP endpoint configured, the real browser OTel exporter emits a span (span actually exported, not merely wired): the vitest proof asserts the span reaches `OTLPTraceExporter.export()`, and the Playwright spec asserts the actual outbound `POST /v1/traces` over the wire; both hermetic against a stubbed collector",
+            # was AC24.2.1
+            test="apps/frontend/src/__tests__/telemetryEmission.test.ts::emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.fe-telemetry.5",
+            statement=(
+                "With the OpenPanel client id configured, the analytics "
+                "layer actually dispatches an OpenPanel event/page-view "
+                "(`window.op('track'` or `'screenView', ...)` invoked); "
+                "asserted against a stubbed `window.op`/endpoint so the "
+                "test is hermetic"
+            ),
+            # was AC24.2.2
+            test="apps/frontend/src/__tests__/telemetryEmission.test.ts::dispatches an OpenPanel event via window.op when configured (AC24.2.2)",
+            priority="P1",
+            status="done",
+        ),
     ],
 )
