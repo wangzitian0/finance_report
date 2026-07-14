@@ -945,5 +945,31 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-llm.fe-ai-models-catalog.1",
+            statement="`fetchAiModels` calls `/api/llm/catalog` with no params when no options provided _(EPIC-023: repointed from the retired `/api/ai/models` to the local catalogue)_",
+            # was AC16.8.1
+            test="apps/frontend/src/__tests__/aiModels.test.ts::AC16.8.1 calls /api/llm/catalog with no query when no options provided",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.fe-ai-models-catalog.2",
+            statement="`fetchAiModels` appends `modality` query param when provided",
+            # was AC16.8.2
+            test="apps/frontend/src/__tests__/aiModels.test.ts::AC16.8.2 appends modality query param when provided",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-llm.fe-ai-models-catalog.3",
+            statement="`fetchAiModels` appends `free_only=true` when `freeOnly` is set",
+            # was AC16.8.3
+            test="apps/frontend/src/__tests__/aiModels.test.ts::AC16.8.3 appends free_only=true when freeOnly is set",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { formatDateInput, formatDateDisplay, formatDateTimeDisplay, formatMonthLabel } from "../lib/date";
 
 describe("formatDateInput", () => {
+    // AC-meta.fe-utils.1
     it("AC16.6.1 formats a date as YYYY-MM-DD string", () => {
         const result = formatDateInput(new Date(2024, 0, 15));
         expect(result).toBe("2024-01-15");
@@ -24,6 +25,7 @@ describe("formatDateInput", () => {
 });
 
 describe("formatDateDisplay", () => {
+    // AC-meta.fe-utils.2
     it("AC16.6.2 formats a Date object to en-US short date", () => {
         const result = formatDateDisplay(new Date(2024, 0, 15));
         expect(result).toContain("Jan");
@@ -46,6 +48,7 @@ describe("formatDateDisplay", () => {
 });
 
 describe("formatDateTimeDisplay", () => {
+    // AC-meta.fe-utils.3
     it("AC16.6.3 formats a Date object with date and time", () => {
         const result = formatDateTimeDisplay(new Date(2024, 5, 15, 14, 30));
         expect(result).toContain("Jun");
@@ -61,6 +64,7 @@ describe("formatDateTimeDisplay", () => {
 });
 
 describe("formatMonthLabel", () => {
+    // AC-meta.fe-utils.4
     it("AC16.6.4 returns short month name from date string", () => {
         expect(formatMonthLabel("2024-01-15")).toContain("Jan");
         expect(formatMonthLabel("2024-06-01")).toContain("Jun");

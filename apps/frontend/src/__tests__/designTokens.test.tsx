@@ -10,6 +10,7 @@ import tailwindConfig from "../../tailwind.config"
 const extend = tailwindConfig.theme?.extend as Record<string, unknown>
 
 describe("frontend design tokens", () => {
+  // AC-meta.fe-app-shell.26 / AC-meta.fe-app-shell.29
   it("AC16.29.1 AC16.29.4 maps Tailwind theme values to CSS-variable design tokens", () => {
     expect(extend.colors).toMatchObject({
       surface: {
@@ -76,6 +77,7 @@ describe("frontend design tokens", () => {
     })
   })
 
+  // AC-meta.fe-app-shell.27
   it("AC16.29.2 AC16.29.4 documents token usage and page-local visual decisions in SSOT", () => {
     const ssot = readFileSync(
       resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
@@ -89,6 +91,7 @@ describe("frontend design tokens", () => {
     expect(ssot).toContain("Dashboard cards and chart panels")
   })
 
+  // AC-meta.fe-app-shell.31 / AC-meta.fe-app-shell.35
   it("AC16.30.2 AC16.30.6 keeps SSOT and CSS recipes on semantic border and status tokens", () => {
     const ssot = readFileSync(
       resolve(process.cwd(), "../../apps/frontend/frontend-patterns.md"),
@@ -149,6 +152,7 @@ describe("frontend design tokens", () => {
     expect(globals).toContain("env(safe-area-inset-bottom)")
   })
 
+  // AC-meta.fe-app-shell.28
   it("AC16.29.3 AC16.29.4 renders ConfidenceBadge variants through semantic token classes", () => {
     const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const
 

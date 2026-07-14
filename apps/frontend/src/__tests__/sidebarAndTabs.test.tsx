@@ -94,6 +94,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     }
   })
 
+  // AC-meta.fe-app-shell.8
   it("AC16.19.3 AC22.21.2 shows auth-aware sidebar actions mirroring the bottom tabs", async () => {
     render(<Sidebar />)
 
@@ -116,6 +117,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(brand).toHaveAttribute("href", "/")
   })
 
+  // AC-meta.fe-app-shell.13
   it("AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)", async () => {
     render(<Sidebar />)
 
@@ -166,6 +168,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByRole("dialog", { name: "Add" })).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.9
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
     pathnameMock = "/reports/balance-sheet"
     render(<WorkspaceTabs />)
@@ -200,6 +203,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     })))
   });
 
+  // AC-meta.fe-app-shell.14
   it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {
     pathnameMock = "/assets"
     render(<WorkspaceTabs />)
@@ -208,11 +212,13 @@ describe("Sidebar and WorkspaceTabs", () => {
     )
   })
 
+  // AC-meta.fe-app-shell.15
   it("AC16.19.14 WorkspaceTabs section header is Open Tabs in both empty and active states", () => {
     render(<WorkspaceTabs />)
     expect(screen.getByText("Open Tabs")).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.16 / AC-meta.fe-app-shell.32
   it("AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowRight keyboard", () => {
     workspaceMockData = {
       isCollapsed: false,

@@ -283,7 +283,7 @@ visible to users.
 
 | ID | Test Case | Test Function | File | Priority |
 |----|-----------|---------------|------|----------|
-| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`) | `AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date` | `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
+| AC5.16.1 | Balance sheet page exposes the restricted-holdings include toggle and renders equation component detail (backend default-exclusion half migrated as `AC-reporting.trust-signals.1`; (AC16.14.2 removed, canonical: the same shared test also proves migrated to reporting package roadmap, #1821 Wave B)) | `test_AC8_13_48 renders string totals and refetches by date` | `frontend/src/__tests__/balanceSheetPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 | AC5.16.2 | Balance sheet, income statement, and cash-flow report pages surface backend `fx_warnings` instead of silently rendering partial totals (backend fx_warnings-preservation half migrated as `AC-reporting.trust-signals.2`) | page warning assertions | `frontend/src/__tests__/balanceSheetPage.test.tsx`, `frontend/src/__tests__/incomeStatementPage.test.tsx`, `frontend/src/__tests__/cashFlowPage.test.tsx` | P0 | <!-- epic-owned: fe-half -->
 | AC5.16.3 | Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them | `AC5.13.3 renders traceability appendix source, ledger, review, and confidence metadata` | `frontend/src/__tests__/personalReportPackagePage.test.tsx` | P0 | <!-- epic-owned: fe-only -->
 

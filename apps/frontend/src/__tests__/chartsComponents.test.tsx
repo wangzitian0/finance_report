@@ -6,6 +6,7 @@ import { PieChart } from "@/components/charts/PieChart"
 import { TrendChart } from "@/components/charts/TrendChart"
 
 describe("Chart components", () => {
+  // AC-reporting.fe-report-surfaces.19
   it("AC16.19.10 bar chart and pie chart render labels and filtered segments", () => {
     render(
       <div>
@@ -33,6 +34,7 @@ describe("Chart components", () => {
     expect(screen.queryByText("Zero")).toBeNull()
   })
 
+  // AC-reporting.fe-report-surfaces.20
   it("AC16.19.11 trend chart renders point labels and svg paths", () => {
     const { container } = render(
       <TrendChart

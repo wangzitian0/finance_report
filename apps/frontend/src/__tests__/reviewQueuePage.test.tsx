@@ -52,6 +52,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         vi.clearAllMocks();
     });
 
+    // AC-reconciliation.fe-stage2-review.3
     it("AC16.17.1 AC16.11.32 shows loading feedback while the Stage 2 queue is pending via the shared review harness", () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
@@ -96,6 +97,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         expect(queueAttempts).toBe(2);
     });
 
+    // AC-reconciliation.fe-stage2-review.4
     it("AC16.17.2 renders empty states when no checks or matches remain", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
@@ -144,6 +146,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         expect(approveButton).toBeDisabled();
     });
 
+    // AC-reconciliation.fe-stage2-review.26
     it("AC16.32.3 requests an expanded consistency-check limit for unblockable queues", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
@@ -167,6 +170,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         expect(await screen.findByText("No pending checks")).toBeInTheDocument();
     });
 
+    // AC-reconciliation.fe-stage2-review.1 / AC-reconciliation.fe-stage2-review.5
     it("AC16.2.4/AC16.17.3 approves selected matches through the batch approval API", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/stage2/queue") {
@@ -243,6 +247,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         });
     });
 
+    // AC-reconciliation.fe-stage2-review.6
     it("AC16.17.4 resolves a consistency check from the dialog actions", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/stage2/queue") {

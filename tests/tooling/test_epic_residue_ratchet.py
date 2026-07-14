@@ -101,25 +101,30 @@ def _census() -> tuple[dict[str, dict[str, int]], list[str], list[str]]:
 def test_AC_meta_residue_1_census_is_nonvacuous() -> None:
     """Guard non-vacuity (#1416 DoD-addition 1): the scan must see the known set.
 
-    At sanction time the EPIC directory holds 20+ EPIC docs and EPIC-016 alone
-    defines 100+ AC rows, so a census that sees fewer than 15 files or fewer
-    than 50 definitions in EPIC-016 is scanning the wrong root, not a drained
-    migration. If a future closeout genuinely deletes below the sentinel,
-    lower it in that PR — with the shrunken census in the same diff.
+    At sanction time the EPIC directory holds 20+ EPIC docs. EPIC-016 was the
+    original large-file sentinel (100+ AC rows) until #1821 Wave B drained its
+    fe-only/fe-half rows into package roadmaps, leaving only 4 documented
+    exceptions + 1 horizontal row — so the sentinel moved to EPIC-022 (still
+    83+ rows as of Wave B PR 1; it drains in a later Wave B PR). A census that
+    sees fewer than 15 files or fewer than 50 definitions in the sentinel file
+    is scanning the wrong root, not a drained migration. If a future closeout
+    genuinely deletes below the sentinel, lower it (or move the sentinel to
+    another still-large file) in that PR — with the shrunken census in the
+    same diff.
     """
     per_file, unmarked, invalid = _census()
     assert len(per_file) >= 15, (
         f"sentinel missing: expected >= 15 EPIC docs under {EPIC_DIR}, saw "
         f"{len(per_file)}; the census is scanning the wrong root"
     )
-    epic016 = [name for name in per_file if name.startswith("EPIC-016")]
-    assert epic016, "sentinel missing: EPIC-016 not seen by the census"
-    definition_count = sum(per_file[epic016[0]].values()) + sum(
-        1 for anchor in unmarked + invalid if anchor.startswith(epic016[0])
+    sentinel = [name for name in per_file if name.startswith("EPIC-022")]
+    assert sentinel, "sentinel missing: EPIC-022 not seen by the census"
+    definition_count = sum(per_file[sentinel[0]].values()) + sum(
+        1 for anchor in unmarked + invalid if anchor.startswith(sentinel[0])
     )
     assert definition_count >= 50, (
         f"sentinel missing: expected >= 50 AC definition lines in "
-        f"{epic016[0]}, saw {definition_count}; the definition parser is not "
+        f"{sentinel[0]}, saw {definition_count}; the definition parser is not "
         "matching the known row set"
     )
 

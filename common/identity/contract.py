@@ -474,5 +474,119 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-identity.fe-auth.1",
+            statement="`getUserId` returns `null` when not set",
+            # was AC16.5.1
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.2",
+            statement="`getUserId` returns stored `userId` from `localStorage`",
+            # was AC16.5.2
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.3",
+            statement="`setUser` stores `userId`, `email`, and optional `token`",
+            # was AC16.5.3
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.4",
+            statement="`clearUser` removes all auth keys from `localStorage`",
+            # was AC16.5.4
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.4 removes all auth keys from localStorage",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.5",
+            statement="`isAuthenticated` returns `false` when no token, `true` when token exists",
+            # was AC16.5.5
+            test="apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns false when no local session marker is stored",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.6",
+            statement="Login page submits login payload and redirects on success",
+            # was AC16.12.5
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.5 AC22.1.3 submits login payload and redirects to Home",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.7",
+            statement="Login page toggles register mode and switches endpoint for submit",
+            # was AC16.12.6
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.6 switches to register mode and uses register endpoint",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.8",
+            statement="Login page shows API error messages and resets loading state on failure",
+            # was AC16.12.7
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.7 shows API error and exits loading state",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.9",
+            statement="Toggles password visibility",
+            # was AC16.12.13
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.13 toggles password visibility",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.10",
+            statement="Shows error with alert role and aria-live",
+            # was AC16.12.14
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.14 shows error with alert role and aria-live",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.11",
+            statement="Shows mode toggle links",
+            # was AC16.12.15
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.15 shows mode toggle links",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.12",
+            statement="Shows loading spinner during submission",
+            # was AC16.12.16
+            test="apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.16 shows loading spinner during submission",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.13",
+            statement="App shell renders workspace providers and main content with collapse-aware layout",
+            # was AC16.19.1
+            test="apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.1 renders providers and collapse-aware shell layout",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.14",
+            statement="Auth guard redirects unauthenticated protected routes and allows public routes",
+            # was AC16.19.2
+            test="apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.2 redirects unauthenticated protected routes",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

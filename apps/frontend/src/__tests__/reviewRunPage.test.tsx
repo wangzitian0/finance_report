@@ -18,6 +18,7 @@ describe("RunReviewPage", () => {
         vi.clearAllMocks();
     });
 
+    // AC-reconciliation.fe-stage2-review.20 / AC-reconciliation.fe-stage2-review.21 / AC-reconciliation.fe-stage2-review.24
     it("AC16.24.1 AC16.24.2 AC16.31.3 summarizes unresolved run checks and blocks approval", async () => {
         const checks = [
             {
@@ -79,6 +80,7 @@ describe("RunReviewPage", () => {
         expect(approveRun).toBeDisabled();
     });
 
+    // AC-reconciliation.fe-stage2-review.22
     it("AC16.24.3 approves all pending matches through the batch approval API", async () => {
         const data = {
             pending_matches: [

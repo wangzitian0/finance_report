@@ -888,5 +888,31 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
+        # (two-stage-review-ui) ──
+        ACRecord(
+            id="AC-pricing.fe-currencies.1",
+            statement="`useCurrencies` returns default currencies while loading",
+            # was AC16.9.1
+            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.1 returns default currencies while loading",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.fe-currencies.2",
+            statement="`useCurrencies` updates currencies from API response",
+            # was AC16.9.2
+            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.2 updates currencies from API response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.fe-currencies.3",
+            statement="`useCurrencies` falls back to defaults on API error",
+            # was AC16.9.3
+            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.3 falls back to defaults when API returns empty array",
+            priority="P2",
+            status="done",
+        ),
     ],
 )

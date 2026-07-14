@@ -27,6 +27,7 @@ describe("auth utilities", () => {
     });
 
     describe("getUserId", () => {
+        // AC-identity.fe-auth.1 / AC-identity.fe-auth.2
         it("AC16.5.1/AC16.5.2 returns null when key is not set", () => {
             expect(getUserId()).toBeNull();
         });
@@ -60,6 +61,7 @@ describe("auth utilities", () => {
     });
 
     describe("setUser", () => {
+        // AC-identity.fe-auth.3
         it("AC16.5.3 stores userId and email", () => {
             setUser("user-456", "alice@example.com");
             expect(localStorage.getItem("finance_user_id")).toBe("user-456");
@@ -84,6 +86,7 @@ describe("auth utilities", () => {
     });
 
     describe("clearUser", () => {
+        // AC-identity.fe-auth.4
         it("AC16.5.4 removes all auth keys from localStorage", () => {
             setUser("user-789", "bob@example.com", "my-token");
             clearUser();
@@ -94,6 +97,7 @@ describe("auth utilities", () => {
     });
 
     describe("isAuthenticated", () => {
+        // AC-identity.fe-auth.5
         it("AC16.5.5 returns false when no local session marker is stored", () => {
             expect(isAuthenticated()).toBe(false);
         });

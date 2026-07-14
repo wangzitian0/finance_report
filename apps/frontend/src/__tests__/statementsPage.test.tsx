@@ -112,6 +112,7 @@ describe("StatementsPage", () => {
     vi.restoreAllMocks()
   })
 
+  // AC-extraction.fe-stage1-review.1
   it("AC16.14.10 AC22.1.8 renders the uploader and upload history (loading, error, empty, populated)", async () => {
     mockStatementsPageApi({
       statements: [
@@ -304,6 +305,7 @@ describe("StatementsPage", () => {
     expect(screen.getByText("frobnicating")).toBeInTheDocument()
   })
 
+  // AC-extraction.fe-stage1-review.2
   it("AC16.14.11 AC22.11.1 enables polling with an honest parsing state (no fabricated progress)", async () => {
     mockStatementsPageApi({
       statements: [
@@ -342,6 +344,7 @@ describe("StatementsPage", () => {
     expect(status.querySelector('[style*="width: 60%"]')).toBeNull()
   })
 
+  // AC-extraction.fe-stage1-review.3
   it("AC16.14.12 delete action calls delete API and toast", async () => {
     mockStatementsPageApi({
       statements: [

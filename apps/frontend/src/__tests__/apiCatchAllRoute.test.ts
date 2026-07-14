@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { DELETE, GET, PATCH, POST, PUT } from "@/app/api/[...path]/route"
 
 describe("API catch-all route", () => {
+  // AC-meta.fe-http-client.20
   it("AC16.17.7 returns 503 JSON for all supported methods", async () => {
     const responses = await Promise.all([GET(), POST(), PUT(), PATCH(), DELETE()])
 

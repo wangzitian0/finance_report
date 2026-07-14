@@ -15,6 +15,7 @@ describe("PingPongPage", () => {
     mockedApiFetch.mockReset()
   })
 
+  // AC-meta.fe-app-shell.1
   it("AC16.12.8 loads initial state and shows current value", async () => {
     mockedApiFetch.mockResolvedValueOnce({
       state: "ping",
@@ -28,6 +29,7 @@ describe("PingPongPage", () => {
     expect(screen.getByText(/Toggle count:/)).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.2
   it("AC16.12.9 toggles state and updates count", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({ state: "ping", toggle_count: 0, updated_at: null })
@@ -42,6 +44,7 @@ describe("PingPongPage", () => {
     expect(screen.getByText("1")).toBeInTheDocument()
   })
 
+  // AC-meta.fe-app-shell.3
   it("AC16.12.10 renders retry flow on initial error", async () => {
     mockedApiFetch
       .mockRejectedValueOnce(new Error("network failed"))

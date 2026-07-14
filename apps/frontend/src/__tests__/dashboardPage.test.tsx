@@ -257,6 +257,7 @@ describe("HomePage", () => {
     mockedApiFetch.mockReset()
   })
 
+  // AC-reporting.fe-report-surfaces.1
   it("AC16.12.1 shows loading state before dashboard data resolves", () => {
     mockedApiFetch.mockImplementation(() => new Promise(() => {}))
 
@@ -266,6 +267,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Loading dashboard analytics...")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-report-surfaces.2
   it("AC16.12.2 renders error fallback and retry action on failure", async () => {
     mockedApiFetch.mockRejectedValue(new Error("dashboard failed"))
 
@@ -280,6 +282,7 @@ describe("HomePage", () => {
     await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
+  // AC-reporting.fe-report-surfaces.3
   it("AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
     mockDashboardApi()
 
@@ -350,6 +353,7 @@ describe("HomePage", () => {
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
   })
 
+  // AC-meta.fe-app-shell.4
   it("AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics", async () => {
     mockDashboardApi()
 
@@ -560,6 +564,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Deficit")).toBeInTheDocument()
   })
 
+  // AC-reporting.fe-report-surfaces.4
   it("AC16.12.4 renders empty-state messages for missing datasets", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
@@ -637,6 +642,7 @@ describe("HomePage", () => {
     consoleErrorSpy.mockRestore()
   })
 
+  // AC-reporting.fe-report-surfaces.5 / AC-reporting.fe-report-surfaces.6
   it("AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
@@ -688,6 +694,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
   })
 
+  // AC-reporting.fe-report-surfaces.7
   it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
     mockDashboardApi({
       balance: { ...baseBalance, assets: [{ account_id: "a1", name: "Cash", amount: 5000 }], total_liabilities: 0 },
