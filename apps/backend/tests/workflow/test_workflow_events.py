@@ -135,13 +135,13 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
         manifest = fh.read()
 
     assert "workflow_events:" in manifest
-    assert "owner: docs/ssot/workflow-events.md" in manifest
+    assert "owner: common/platform/workflow-events.md" in manifest
     assert "docs/project/EPIC-019.event-driven-upload-to-report-ux.md" in manifest
 
 
 def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> None:
     """AC19.3.8: workflow notification UI contract is documented in SSOT and EPIC."""
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 
     for phrase in (
@@ -160,7 +160,7 @@ def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> No
 
 def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
     """AC-platform.32.3: AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
 
     for phrase in (
@@ -186,7 +186,7 @@ def test_AC22_21_1_workflow_events_ssot_cedes_navigation_ia_to_epic022() -> None
     the workflow-events SSOT only keeps the workflow-attention contract, not a
     primary/advanced split. (Was AC19.6.1; the AC19.6 rows were superseded by
     EPIC-022 AC22.21 and deleted by the migration closeout, #1719.)"""
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
 
     for phrase in (
         "owned by EPIC-022",
@@ -203,7 +203,7 @@ def test_AC22_21_1_workflow_events_ssot_cedes_navigation_ia_to_epic022() -> None
 
 def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
     """AC-platform.33.1: AC19.8.1: WorkflowSession is the workflow domain object; chat sessions are AI UI state."""
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
 
@@ -221,7 +221,7 @@ def test_AC19_8_1_workflow_session_ssot_separates_chat_sessions() -> None:
 
 def test_AC19_12_1_lightweight_derivation_boundary_is_documented() -> None:
     """AC-platform.34.1: AC19.12.1: workflow events stay lightweight and user-facing."""
-    ssot = (ROOT_DIR / "docs" / "ssot" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
     normalized_ssot = " ".join(ssot.split())
 

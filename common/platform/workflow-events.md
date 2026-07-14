@@ -5,9 +5,9 @@
 > model used by EPIC-019. Workflow events describe product attention state; they
 > do not replace audit logs, ledger state, reconciliation state, or report
 > traceability.
-> **Cross-references**: [confirmation-workflow.md](./confirmation-workflow.md),
-> [reconciliation.md](./reconciliation.md), [reporting.md](./reporting.md),
-> [schema.md](./schema.md), [EPIC-019](../project/EPIC-019.event-driven-upload-to-report-ux.md)
+> **Cross-references**: [confirmation-workflow.md](../extraction/confirmation-workflow.md),
+> [reconciliation.md](../reconciliation/reconciliation.md), [reporting.md](../reporting/reporting.md),
+> [schema.md](../meta/schema.md), [EPIC-019](../../docs/project/EPIC-019.event-driven-upload-to-report-ux.md)
 
 ---
 
@@ -49,7 +49,7 @@ They are intentionally separate from:
   statement processing and Stage 1 review state.
 - `ReconciliationMatch.status`, which is Stage 2 matching state.
 - Report package traceability, which proves report line support.
-- Report package readiness, which is owned by `docs/ssot/reporting.md` and
+- Report package readiness, which is owned by `common/reporting/reporting.md` and
   exposed at `GET /api/reports/package/readiness`.
 
 Workflow events may summarize those sources, but they do not own them.
@@ -398,7 +398,7 @@ Upload-to-Report home rules:
 
 ## 11. Workflow Navigation
 
-The product navigation IA is owned by EPIC-022 and `docs/ssot/frontend-patterns.md`
+The product navigation IA is owned by EPIC-022 and `apps/frontend/frontend-patterns.md`
 §9 (the mobile/PWA bottom tab bar — Home, Chat, Add, Audit, More). EPIC-019 no
 longer defines a primary/advanced navigation split; the earlier "Upload Pipeline
 / Reports / AI / Advanced" model was superseded by EPIC-022 AC22.21. This section

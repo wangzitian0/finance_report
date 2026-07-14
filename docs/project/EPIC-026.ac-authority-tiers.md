@@ -156,6 +156,6 @@ this EPIC references that contract rather than restating it.
 
 - SSOT: [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md)
   (the tier vocabulary, internalized into the `authority` package)
-- Untagged-debt baseline: [ac-tier-baseline.json](../ssot/ac-tier-baseline.json)
+- Untagged-debt baseline: [ac-tier-baseline.json](../../common/meta/data/ac-tier-baseline.json)
 - Generator: `tools/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
-- Workflow context: [tdd.md](../ssot/tdd.md)
+- Workflow context: [tdd.md](../../common/testing/tdd.md)

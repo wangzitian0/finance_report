@@ -121,10 +121,10 @@ their tests are introduced.
 
 ## Related
 
-- [ai.md](../ssot/ai.md)
-- [reporting.md](../ssot/reporting.md)
-- [workflow-events.md](../ssot/workflow-events.md)
-- [source-coverage-matrix.yaml](../ssot/source-coverage-matrix.yaml)
+- [ai.md](../../common/llm/ai.md)
+- [reporting.md](../../common/reporting/reporting.md)
+- [workflow-events.md](../../common/platform/workflow-events.md)
+- [source-coverage-matrix.yaml](../../common/testing/data/source-coverage-matrix.yaml)
 - [EPIC-006](./EPIC-006.ai-advisor.md)
 - [EPIC-018](./EPIC-018.ai-driven-pipeline.md)
 - [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md)

@@ -314,10 +314,10 @@ class TestCheckAnchorRefsExist:
             assert cm.check_anchor_refs_exist(concepts) == []
 
     def test_missing_owner_anchor_fails(self, tmp_path: Path) -> None:
-        ssot = tmp_path / "docs" / "ssot"
-        ssot.mkdir(parents=True)
-        (ssot / "schema.md").write_text("# Schema\n", encoding="utf-8")
-        concepts = _make_concepts(enum={"owner": "docs/ssot/schema.md#enum-naming"})
+        meta = tmp_path / "common" / "meta"
+        meta.mkdir(parents=True)
+        (meta / "schema.md").write_text("# Schema\n", encoding="utf-8")
+        concepts = _make_concepts(enum={"owner": "common/meta/schema.md#enum-naming"})
 
         with mock.patch.object(cm, "REPO_ROOT", tmp_path):
             violations = cm.check_anchor_refs_exist(concepts)

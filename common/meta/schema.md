@@ -8,10 +8,10 @@ mutable table, column, enum, index, or endpoint inventory.
 
 | Contract | Owner |
 |---|---|
-| Table/column/enum/index/FK inventory | [Generated DB Schema Reference](../reference/db-schema.md) |
+| Table/column/enum/index/FK inventory | [Generated DB Schema Reference](../../docs/reference/db-schema.md) |
 | Deployable schema chain | `apps/backend/migrations/` Alembic revisions |
 | Model metadata | each owning package's `orm/` SQLAlchemy models (`apps/backend/src/<pkg>/orm/`), discovered via `apps/backend/src/orm_registry.py` |
-| Request/response and endpoint inventory | [Generated API Reference](../reference/api.md) |
+| Request/response and endpoint inventory | [Generated API Reference](../../docs/reference/api.md) |
 | Schema validation payloads | `apps/backend/src/schemas/` Pydantic schemas |
 
 > Local dev no longer treats `Base.metadata.create_all()` as the schema
@@ -73,7 +73,7 @@ catalog.
 > detection resolves custody account from DWD (`statement_summaries` through
 > `resolve_custody_account_id`). The legacy `bank_statement*` ODS tables and
 > Layer-0 read path were removed. See
-> [EPIC-011](../project/EPIC-011.asset-lifecycle.md).
+> [EPIC-011](../../docs/project/EPIC-011.asset-lifecycle.md).
 
 ### Append-Only Fact Versioning (Axiom A)
 
@@ -98,7 +98,7 @@ and one version maps to exactly one value (vision Axiom A).
 
 Owner of the first applied instance: `manual_valuation_snapshots` (ODS), where a
 re-submitted `(component_type, source, as_of_date)` appends a new version. See
-[EPIC-011 AC11.19](../project/EPIC-011.asset-lifecycle.md) and issue #918.
+[EPIC-011 AC11.19](../../docs/project/EPIC-011.asset-lifecycle.md) and issue #918.
 
 ---
 
@@ -108,7 +108,7 @@ re-submitted `(component_type, source, as_of_date)` appends a new version. See
 
 The generated DB schema reference is the public schema inventory:
 
-- [Generated DB Schema Reference](../reference/db-schema.md)
+- [Generated DB Schema Reference](../../docs/reference/db-schema.md)
 - Command: `python tools/generate_db_schema_reference.py`
 - Build hook: `docs/hooks.py`
 - Drift gate: generate, then run `python tools/generate_db_schema_reference.py --check`
@@ -152,7 +152,7 @@ sa.Column(sa.Enum(Status, name="journal_entry_status"))
 Automated proof:
 
 - `apps/backend/tests/infra/test_schema_guardrails.py::test_enums_have_explicit_names`
-- [Generated DB Schema Reference](../reference/db-schema.md#enum-types)
+- [Generated DB Schema Reference](../../docs/reference/db-schema.md#enum-types)
 
 Migration file names and revision IDs must stay short enough for common
 filesystems and Docker volumes. Use concise Alembic descriptions and manually
@@ -202,7 +202,7 @@ Production data can contain historical rows, old enum values, production-only
 volume, and edge cases that CI and staging will never reproduce perfectly.
 
 The machine-readable owner for migration risk is
-[migration-risk.yaml](./migration-risk.yaml), validated by
+[migration-risk.yaml](data/migration-risk.yaml), validated by
 `tools/check_migration_risk.py`. Risk is **auto-classified** from each
 migration's `upgrade()` body (destructive drops → critical, data mutation →
 high, compatibility-sensitive schema changes → medium, otherwise low), so the
@@ -255,17 +255,17 @@ To prevent connection leaks and transaction-boundary drift:
 
 | Question | Go to |
 |---|---|
-| What tables, columns, indexes, enums, constraints, and FKs exist now? | [Generated DB Schema Reference](../reference/db-schema.md) |
-| What endpoints and request/response schemas exist now? | [Generated API Reference](../reference/api.md) |
+| What tables, columns, indexes, enums, constraints, and FKs exist now? | [Generated DB Schema Reference](../../docs/reference/db-schema.md) |
+| What endpoints and request/response schemas exist now? | [Generated API Reference](../../docs/reference/api.md) |
 | Why does the schema use DIM/ODS/DWD/DWM/DWS/ADS? | This file, [Data Layering Model](#data-layering) |
 | What is the enum naming rule? | This file, [enum naming](#enum-naming) |
-| What migration proof is required? | This file plus [CI/CD SSOT](./ci-cd.md) and [migration-risk.yaml](./migration-risk.yaml) |
+| What migration proof is required? | This file plus [CI/CD SSOT](../testing/ci-cd.md) and [migration-risk.yaml](data/migration-risk.yaml) |
 | What are accounting invariants? | [Ledger SSOT (double-entry)](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) |
 
 ## Used By
 
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
 - [Ledger SSOT (double-entry)](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
-- [Reconciliation SSOT](./reconciliation.md)
-- [CI/CD SSOT](./ci-cd.md)
-- [Generated DB Schema Reference](../reference/db-schema.md)
+- [Reconciliation SSOT](../reconciliation/reconciliation.md)
+- [CI/CD SSOT](../testing/ci-cd.md)
+- [Generated DB Schema Reference](../../docs/reference/db-schema.md)

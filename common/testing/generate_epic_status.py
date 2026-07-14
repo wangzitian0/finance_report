@@ -249,7 +249,7 @@ def render_pointer_block() -> str:
             BEGIN_MARKER,
             "",
             "> EPIC status is a DERIVED view of the one AC-keyed graph (see",
-            '> [`docs/ssot/tdd.md`](docs/ssot/tdd.md) "Cross-Cutting Index Artifacts"). The',
+            '> [`common/testing/tdd.md`](common/testing/tdd.md) "Cross-Cutting Index Artifacts"). The',
             "> per-EPIC completion numbers are **not committed** here, because a committed",
             "> snapshot churns on every AC change and is the merge-train false-sharing",
             "> hotspot this model removes.",

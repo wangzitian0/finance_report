@@ -2,7 +2,7 @@
 
 > **SSOT Key**: `observability-logging`
 > **Status**: Implemented
-> **Related**: [observability.md](./observability.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), [ai.md](./ai.md)
+> **Related**: [observability.md](./observability.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), [ai.md](../llm/ai.md)
 
 ## Source of Truth
 
@@ -464,4 +464,4 @@ attributes.retryable = true
 
 - [observability.md](./observability.md) - Overall observability architecture
 - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) - Statement parsing pipeline
-- [ai.md](./ai.md) - AI model selection and fallback logic
+- [ai.md](../llm/ai.md) - AI model selection and fallback logic

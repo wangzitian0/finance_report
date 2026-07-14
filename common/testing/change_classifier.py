@@ -211,7 +211,7 @@ STAGING_AI_OCR_EXACT = frozenset(
         ".github/workflows/deploy.yml",
         "apps/backend/src/config.py",
         "apps/backend/src/extraction/extension/prompts/statement.py",
-        "docs/ssot/ai.md",
+        "common/llm/ai.md",
         # The critical-proof matrix is no longer committed; it is a derived view
         # of the AC graph. Adding/removing an llm-marked post-merge @ac_proof
         # edits its OWN e2e test file, and every such file is already a staging

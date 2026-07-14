@@ -30,7 +30,7 @@ def _seed_finance_manifest(root: Path) -> None:
     for relative_path in (
         "docs/ssot/accounting.md",
         "docs/ssot/deployment.md",
-        "common/meta/data/migration-risk.yaml",
+        "docs/ssot/migration-risk.yaml",
         "docs/ssot/orphan.md",
         "docs/ssot/schema.md",
         "tools/check_deployment.py",
@@ -50,7 +50,7 @@ def _seed_finance_manifest(root: Path) -> None:
                     "description": "Intentional duplicate for report metrics.",
                 },
                 "migration_matrix": {
-                    "owner": "common/meta/data/migration-risk.yaml",
+                    "owner": "docs/ssot/migration-risk.yaml",
                     "description": "Migration risk matrix.",
                     "kind": "matrix",
                     "cross_refs": ["docs/ssot/schema.md"],
@@ -864,7 +864,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
         "docs/ssot/shaped.md",
         "docs/ssot/legacy-kind.md",
         "docs/ssot/new-family-only.md",
-        "common/meta/data/migration-risk.yaml",
+        "docs/ssot/migration-risk.yaml",
         "docs/ssot/migration-risk-reviewed.yaml",
         "tests/tooling/test_migration_risk.py",
     ):
@@ -890,7 +890,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
             proofs:
               - tests/tooling/test_migration_risk.py
           migration_unreviewed:
-            owner: common/meta/data/migration-risk.yaml
+            owner: docs/ssot/migration-risk.yaml
             description: Existing migration risk matrix proof debt.
             family: schema
             kind: matrix
@@ -919,7 +919,7 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
                     "proofs": ["tests/tooling/test_migration_risk.py"],
                 },
                 "migration_unreviewed": {
-                    "owner": "common/meta/data/migration-risk.yaml",
+                    "owner": "docs/ssot/migration-risk.yaml",
                     "description": "Existing migration risk matrix proof debt.",
                     "family": "schema",
                     "kind": "matrix",
@@ -1060,7 +1060,7 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
     concepts = manifest["concepts"]
 
     assert concepts["statement_parsing_model_selection_logging"]["owner"] == (
-        "docs/ssot/observability-logging.md"
+        "common/observability/observability-logging.md"
     )
     assert concepts["statement_parsing_model_selection_logging"]["parent"] == (
         "observability_logging"
@@ -1110,12 +1110,12 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     # link the moved registry via its GitHub blob URL (the docs/ -> common/
     # cross-tree convention), and the package readme links its sibling registry
     # via a relative path.
+    #
+    # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
+    # dissolution) and no longer indexes individual concepts by name, so it is
+    # intentionally absent from this inbound_refs check.
     blob = "https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml"
     inbound_refs = {
-        "docs/ssot/README.md": [
-            f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
-        ],
         "common/extraction/readme.md": [
             "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
             "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
@@ -1124,14 +1124,14 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
             f"[`extraction_failed_case_registry`]({blob})",
         ],
         "docs/project/EPIC-013.statement-parsing-v2.md": [
-            "[`source_coverage_matrix`](../ssot/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
         ],
         "vision.md": [
             "[`source_coverage_matrix`](docs/ssot/source-coverage-matrix.yaml)",
         ],
-        "docs/ssot/tdd.md": [
+        "common/testing/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
+            "[`source_coverage_matrix`](data/source-coverage-matrix.yaml)",
         ],
     }
     for path, markers in inbound_refs.items():

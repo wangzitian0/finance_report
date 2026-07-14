@@ -326,7 +326,7 @@ def test_AC8_13_128_command_entrypoint_delegates_to_common_guard() -> None:
 
 def test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane() -> None:
     """AC-testing.schema.6: AC8.13.129: schema SSOT names each backend persistence proof mode."""
-    schema_doc = (ROOT / "docs" / "ssot" / "schema.md").read_text(encoding="utf-8")
+    schema_doc = (ROOT / "common" / "meta" / "schema.md").read_text(encoding="utf-8")
 
     assert "Base.metadata.create_all()" in schema_doc
     assert "fast fixture schema" in schema_doc

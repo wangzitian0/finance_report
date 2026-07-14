@@ -3,7 +3,7 @@
 Property payloads on graph nodes and edges are small, closed audit-metadata
 records. Each ``node_kind`` and edge ``relation`` produced by deterministic
 materialization carries a known, documented shape (see
-``docs/ssot/evidence-lineage.md``). The typed models below replace the previous
+``common/extraction/evidence-lineage.md``). The typed models below replace the previous
 ``dict[str, Any]`` so callers and the OpenAPI schema describe these shapes
 explicitly. Monetary fields stay as strings (never ``float``) to preserve exact
 ``Decimal`` serialization.

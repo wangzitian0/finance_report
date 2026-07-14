@@ -7,7 +7,7 @@ Validates consistency between:
 2. config.py (Backend Code) vs .env.example (Documentation)
 
 Note (Infra-014 C3): the backend block of ``.env.example`` and
-``docs/ssot/env-reference.generated.md`` are now GENERATED from the
+``common/runtime/env-reference.generated.md`` are now GENERATED from the
 ``apps/backend/src/config.py`` pydantic Settings metadata by
 ``tools/generate_env_reference.py``. The .env.example <-> config.py leg below is
 therefore guaranteed by generation (the generated block contains every backend

@@ -366,7 +366,7 @@ jobs:
           existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
           if [ -z "$existing" ]; then
             gh issue create --title "$alert_title" --label "surface: ai-ocr" \
-              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See docs/ssot/ci-cd.md and #1767." \
+              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
               || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
           else
             echo "::notice::open staging-ai-ocr gate-timeout issue #${existing} already exists; not duplicating."

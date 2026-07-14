@@ -407,7 +407,7 @@ generation / scheduled) and the per-report-number confidence of #913 are separat
 
 The deterministic trust boundary that makes confidence consequential, not merely
 displayed: `authoritative ⇔ invariants_pass ∧ confidence ≥ τ` (see
-[confirmation-workflow.md](../ssot/confirmation-workflow.md) → Promotion Gate).
+[confirmation-workflow.md](../../common/extraction/confirmation-workflow.md) → Promotion Gate).
 AI / Derived versions may propose; the gate (strong code) disposes. Wiring each
 decision site to call the gate, and persisting the verdict on the version node,
 are incremental follow-ups; this AC owns the contract and the threshold
@@ -532,7 +532,7 @@ rather than duplicated.
 
 ## 🆕 Phase 5 — UI Gap Audit (April 2026): Confidence Hierarchy, AI Suggestion Review Queue, Feature-Flag UI & Audit Trail
 
-**Origin**: UI gap audit against [Project Vision](../target.md) and `docs/ssot/source-type-priority.md` / `docs/ssot/confirmation-workflow.md`. Backend confidence hierarchy and `enable_ai_reconciliation` flag exist but are invisible to users — no badge, no review queue for AI suggestions, no in-product flag toggle, no audit trail.
+**Origin**: UI gap audit against [Project Vision](../target.md) and `common/audit/readme.md#source-type-trust-hierarchy-provenance` / `common/extraction/confirmation-workflow.md`. Backend confidence hierarchy and `enable_ai_reconciliation` flag exist but are invisible to users — no badge, no review queue for AI suggestions, no in-product flag toggle, no audit trail.
 
 ### Acceptance Criteria — Phase 5 (Confidence & AI Suggestion UI)
 
@@ -551,5 +551,5 @@ rather than duplicated.
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../ssot/source-type-priority.md](../ssot/source-type-priority.md) — confidence and source trust hierarchy used by AI-assisted flows.
-- [../ssot/evidence-lineage.md](../ssot/evidence-lineage.md) — generic Evidence Graph contract for source-to-report audit lineage.
+- [../ssot/source-type-priority.md](../../common/audit/readme.md) — confidence and source trust hierarchy used by AI-assisted flows.
+- [../ssot/evidence-lineage.md](../../common/extraction/evidence-lineage.md) — generic Evidence Graph contract for source-to-report audit lineage.

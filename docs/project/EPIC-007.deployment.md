@@ -290,7 +290,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.15: CI/Deploy Workflow Contract vs SSOT (#531)
 
-> Prose in `docs/ssot/ci-cd.md`, `deployment.md`, and `environments.md`, plus the
+> Prose in `common/testing/ci-cd.md`, `common/runtime/ci-cd.md`, `common/runtime/deployment.md`, and `common/runtime/environments.md`, plus the
 > issue templates, must not drift from the live `.github/workflows/*.yml` job ids,
 > triggers, and the repository label taxonomy. `tools/check_workflow_contract.py`
 > is the mechanical guard; static docs must not duplicate mutable live run status.
@@ -417,8 +417,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../ssot/deployment.md](../ssot/deployment.md) — deployment architecture, Vault, staging, and release rationale.
-- [../ssot/environments.md](../ssot/environments.md) — six-environment taxonomy and isolation model.
+- [../ssot/deployment.md](../../common/runtime/deployment.md) — deployment architecture, Vault, staging, and release rationale.
+- [../ssot/environments.md](../../common/runtime/environments.md) — six-environment taxonomy and isolation model.
 
 ---
 

@@ -147,7 +147,7 @@ roadmap) stays registered in
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - data-layer and migration guardrails
+- [schema.md](../../common/meta/schema.md) - data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) - current uploaded document, statement summary, and atomic fact tables
 - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) - Parsing rules and Prompt design (internalized into the `extraction` package)
 
@@ -189,7 +189,7 @@ roadmap) stays registered in
 ## Issues & Gaps
 
 - [x] Align BankStatement and BankStatementTransaction fields with SSOT.
-- [x] Align model/config with `apps/backend/src/config.py` and `docs/ssot/ai.md`.
+- [x] Align model/config with `apps/backend/src/config.py` and `common/llm/ai.md`.
 - [x] Add confidence scoring and review queue routing.
 - [x] Enforce balance validation routing.
 

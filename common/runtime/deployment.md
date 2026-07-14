@@ -3,7 +3,7 @@
 > **SSOT Key**: `deployment`
 > **Source of Truth** for deployment workflows, secret injection, and release processes.
 
-*Extracted from [development.md](./development.md) — see also [environments.md](./environments.md) for environment overview.*
+*Extracted from [development.md](../meta/development.md) — see also [environments.md](./environments.md) for environment overview.*
 
 ---
 
@@ -384,7 +384,7 @@ If a change requires new environment variables or changes to `docker-compose.yml
 ## Related
 
 - [environments.md](./environments.md) — Six environment overview and naming
-- [development.md](./development.md) — Local development and Moon commands
-- [ci-cd.md](./ci-cd.md) — CI job structure and test strategy
-- [observability.md](./observability.md) — App observability runtime contract and OTLP setup
+- [development.md](../meta/development.md) — Local development and Moon commands
+- [ci-cd.md](../testing/ci-cd.md) — CI job structure and test strategy
+- [observability.md](../observability/observability.md) — App observability runtime contract and OTLP setup
 - [runtime-incident-response.md](./runtime-incident-response.md) — Runtime failure triage and stability proof routing

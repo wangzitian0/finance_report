@@ -4,7 +4,7 @@
 > **App-side view** of how this software *consumes* deployment environments —
 > naming conventions and isolation mechanisms the backend relies on.
 
-*Extracted from [development.md](./development.md) — see that file for Moon commands and local setup.*
+*Extracted from [development.md](../meta/development.md) — see that file for Moon commands and local setup.*
 
 !!! warning "Environment taxonomy & telemetry identity are owned by infra2"
     The canonical **environment taxonomy** and the **observability contract**
@@ -42,7 +42,7 @@
 | **6** | **Production** | `report.zitian.party` | Manual release<br>`deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
 Environment taxonomy is not the delivery pipeline stage count. The CI/CD model
-is documented in [ci-cd.md](./ci-cd.md) as a sparse environment x pipeline stage
+is documented in [ci-cd.md](../testing/ci-cd.md) as a sparse environment x pipeline stage
 matrix: environments are where proof runs, pipeline stages are what quality gate
 runs, and GitHub Actions jobs are implementation lanes for selected cells.
 
@@ -270,7 +270,7 @@ label so a reword cannot silently drop it.
 
 ## Related
 
-- [development.md](./development.md) — Moon commands and local setup
-- [ci-cd.md](./ci-cd.md) — CI job structure and test optimization
+- [development.md](../meta/development.md) — Moon commands and local setup
+- [ci-cd.md](../testing/ci-cd.md) — CI job structure and test optimization
 - [deployment.md](./deployment.md) — Deployment architecture and workflows
-- [docs/ssot/MANIFEST.yaml](./MANIFEST.yaml) — Concept ownership registry
+- [docs/ssot/MANIFEST.yaml](../../docs/ssot/MANIFEST.yaml) — Concept ownership registry

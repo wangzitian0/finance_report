@@ -17,9 +17,9 @@ Open <http://localhost:3000> for local development.
 
 | Need | Source |
 |---|---|
-| Frontend architecture and UI patterns | [frontend-patterns.md](../../docs/ssot/frontend-patterns.md) |
-| API client rule | [frontend-patterns.md](../../docs/ssot/frontend-patterns.md) |
-| Environment contract | [environments.md](../../docs/ssot/environments.md), [.env.example](../../.env.example) |
+| Frontend architecture and UI patterns | [frontend-patterns.md](../../apps/frontend/frontend-patterns.md) |
+| API client rule | [frontend-patterns.md](../../apps/frontend/frontend-patterns.md) |
+| Environment contract | [environments.md](../../common/runtime/environments.md), [.env.example](../../.env.example) |
 | API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
-| Test policy | [tdd.md](../../docs/ssot/tdd.md), [coverage.md](../../docs/ssot/coverage.md) |
+| Test policy | [tdd.md](../../common/testing/tdd.md), [coverage.md](../../common/testing/coverage.md) |
 | Product analytics event taxonomy | [analytics-events.md](../../docs/reference/analytics-events.md) |

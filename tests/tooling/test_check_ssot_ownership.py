@@ -28,16 +28,16 @@ from common.meta.extension.check_ssot_ownership import (
 
 class TestHasCrossReference:
     def test_contains_ssot_file_path(self) -> None:
-        text = "See: docs/ssot/reconciliation.md for details"
-        assert has_cross_reference(text, "docs/ssot/reconciliation.md") is True
+        text = "See: common/reconciliation/reconciliation.md for details"
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
 
     def test_contains_basename(self) -> None:
         text = "See reconciliation.md for the definition"
-        assert has_cross_reference(text, "docs/ssot/reconciliation.md") is True
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
 
     def test_absent_returns_false(self) -> None:
         text = "Nothing relevant here"
-        assert has_cross_reference(text, "docs/ssot/reconciliation.md") is False
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is False
 
 
 # ---------------------------------------------------------------------------

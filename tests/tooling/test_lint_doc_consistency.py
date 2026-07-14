@@ -947,7 +947,7 @@ class TestMain:
         infra = tmp_path / "docs" / "infra_registry.yaml"
         infra.write_text("version: '1.0'\ngroups: {}\n")
 
-        ci_cd = tmp_path / "docs" / "ssot" / "ci-cd.md"
+        ci_cd = tmp_path / "common" / "testing" / "ci-cd.md"
         ci_cd.parent.mkdir(parents=True, exist_ok=True)
         ci_cd.write_text(
             "\n".join(ldc.PROOF_PLACEMENT_REQUIRED_TOKENS),

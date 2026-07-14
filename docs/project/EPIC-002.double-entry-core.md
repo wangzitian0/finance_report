@@ -357,7 +357,7 @@ def test_many_lines_entry():
 
 ## 📚 SSOT References
 
-- [schema.md](../ssot/schema.md) - Database table structure
+- [schema.md](../../common/meta/schema.md) - Database table structure
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) - Accounting rules
 
 ---
@@ -392,12 +392,12 @@ retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
 - [x] `apps/backend/src/schemas/account.py` - Account schemas
 - [x] `apps/backend/src/schemas/journal.py` - Journal schemas
 - [x] `apps/backend/tests/test_accounting.py` - Unit tests
-- [x] Update `docs/ssot/schema.md` - ER diagram (implicit via models)
+- [x] Update `common/meta/schema.md` - ER diagram (implicit via models)
 - [x] Update `docs/ssot/accounting.md (retired -> common/ledger/readme.md)` - API documentation (implicit via service)
 - [x] `apps/frontend/src/app/(main)/accounts/page.tsx` - Account management
 - [x] `apps/frontend/src/app/(main)/journal/page.tsx` - Journal entries
 
-**Implementation Summary**: Current implementation truth is owned by the code paths listed above, [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md), [schema.md](../ssot/schema.md), and the AC2.* tests. Archive implementation notes are historical only and are not part of the active README -> EPIC -> AC -> test chain.
+**Implementation Summary**: Current implementation truth is owned by the code paths listed above, [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md), [schema.md](../../common/meta/schema.md), and the AC2.* tests. Archive implementation notes are historical only and are not part of the active README -> EPIC -> AC -> test chain.
 
 ## Framework Boundary
 

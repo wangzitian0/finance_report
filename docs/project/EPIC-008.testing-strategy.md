@@ -129,7 +129,7 @@ proof is managed by:
 | Proof layer | Owner |
 |---|---|
 | README macro outcomes and owner EPIC declarations | `README.md`, EPIC `Macro Proof Ownership` sections |
-| Critical E2E proof paths | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
+| Critical E2E proof paths | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml)) |
 | Product E2E function ownership | `tools/check_e2e_epic_traceability.py` |
 | AC proof and placeholder/stub exclusion | `tools/check_ac_index.py`, CI traceability artifact |
 
@@ -146,8 +146,8 @@ matrix rows, not as another prose scenario checklist.
 
 ### 4.2 CI/CD Integration
 
-CI execution shape is owned by [ci-cd.md](../ssot/ci-cd.md), workflows, and
-[test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml). Do not copy
+CI execution shape is owned by [ci-cd.md](../../common/testing/ci-cd.md), workflows, and
+[test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml). Do not copy
 job inventories or scenario counts into this EPIC.
 
 ---
@@ -481,7 +481,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
   CI traceability artifacts.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_index.py`.
 - Test path execution status for AC proof is owned by
-  [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml).
+  [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml).
 - Default AC traceability test-surface directories are owned by
   `common/testing/test_surface.py` and consumed by both the fail-closed gate and
   generated audit builder.
@@ -562,7 +562,7 @@ explicitly marked a lower severity (`P2`/`P3`/`nit`); everything else is lower
 severity. Only *unresolved* blocking threads fail the gate; resolved, outdated,
 and lower-severity unresolved threads are reported but never block. The gate is
 bootstrap-safe (a fresh PR with no unresolved P0/P1 passes) and skips cleanly on
-non-PR events. The classification rule is owned by [ci-cd.md](../ssot/ci-cd.md).
+non-PR events. The classification rule is owned by [ci-cd.md](../../common/testing/ci-cd.md).
 
 > (AC8.20.1 removed, canonical: migrated to `AC-testing.review-threads.1`.)
 > (AC8.20.2 removed, canonical: migrated to `AC-testing.review-threads.2`.)
@@ -705,10 +705,10 @@ by tooling instead of being copied into this EPIC:
 
 | Fact | Owner |
 |---|---|
-| Test path -> execution stage mapping | [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
+| Test path -> execution stage mapping | [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml) |
 | Product E2E function -> EPIC ownership | `tools/check_e2e_epic_traceability.py` |
 | Mandatory AC proof eligibility | `tools/check_ac_index.py` |
-| Critical macro outcome proof | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)) |
+| Critical macro outcome proof | `tools/check_ac_index.py` (derived view of [critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml)) |
 
 Product E2E ownership index:
 
@@ -858,7 +858,7 @@ The simplification priority remains:
 
 Workflow status is not hand-maintained here. CI structure, smoke-test placement,
 critical proof checks, and environment isolation are owned by
-[ci-cd.md](../ssot/ci-cd.md), `.github/workflows/*.yml`, and the corresponding
+[ci-cd.md](../../common/testing/ci-cd.md), `.github/workflows/*.yml`, and the corresponding
 tooling tests.
 
 ### 5.5 Known Gaps
@@ -868,8 +868,8 @@ these owners instead:
 
 | Gap type | Owner |
 |---|---|
-| Personal report package proof contract | `tools/check_ac_index.py` (derived view; macro outcome source [critical-proof-outcomes.yaml](../ssot/critical-proof-outcomes.yaml)), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
-| Provider-backed staging AI/OCR gates | [ci-cd.md](../ssot/ci-cd.md), staging workflow artifacts |
+| Personal report package proof contract | `tools/check_ac_index.py` (derived view; macro outcome source [critical-proof-outcomes.yaml](../../common/testing/data/critical-proof-outcomes.yaml)), #573/#649, `tests/tooling/test_personal_report_package_fixture_contract.py` |
+| Provider-backed staging AI/OCR gates | [ci-cd.md](../../common/testing/ci-cd.md), staging workflow artifacts |
 | Manual-verification treatment | [issue #454](https://github.com/wangzitian0/finance_report/issues/454) |
 | Generated README/project metrics | [issue #455](https://github.com/wangzitian0/finance_report/issues/455) |
 | Future observability, visual regression, and performance gates | AC8.13.61-AC8.13.63 |
@@ -915,7 +915,7 @@ artifacts, and coverage policy code.
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../ssot/coverage.md](../ssot/coverage.md) — coverage policy semantics.
-- [../ssot/ci-cd.md](../ssot/ci-cd.md) — CI gate semantics.
+- [../ssot/coverage.md](../../common/testing/coverage.md) — coverage policy semantics.
+- [../ssot/ci-cd.md](../../common/testing/ci-cd.md) — CI gate semantics.
 - Environment smoke-test rationale and command semantics — migrated out of this EPIC into the `runtime` package: [../../common/runtime/readme.md](../../common/runtime/readme.md).
 - [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) — backend test-suite navigation.

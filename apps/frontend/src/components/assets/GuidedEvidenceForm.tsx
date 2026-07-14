@@ -126,7 +126,7 @@ interface FieldErrors {
 /**
  * Decimal string-format check for the monetary value. Validated as a string,
  * never via JS number conversion (`Number()`/`parseFloat()`), per the frontend
- * monetary rule in docs/ssot/frontend-patterns.md §7. Accepts an optional
+ * monetary rule in apps/frontend/frontend-patterns.md §7. Accepts an optional
  * leading minus, digits, and an optional fractional part; rejects empty,
  * non-numeric, and `Infinity`/`NaN` inputs.
  */

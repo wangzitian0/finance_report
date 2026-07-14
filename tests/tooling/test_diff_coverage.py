@@ -161,7 +161,7 @@ def test_resolve_component_maps_paths_to_policy_components():
 def test_resolve_component_rejects_out_of_scope_paths():
     # Docs, tests, workflows, wrong extensions, and policy-excluded files are
     # out of scope for the diff gate.
-    assert dc.resolve_component("docs/ssot/coverage.md") is None
+    assert dc.resolve_component("common/testing/coverage.md") is None
     assert dc.resolve_component("tests/tooling/test_diff_coverage.py") is None
     assert dc.resolve_component(".github/workflows/ci.yml") is None
     assert dc.resolve_component("apps/backend/src/notes.txt") is None
@@ -307,7 +307,7 @@ def test_out_of_scope_files_and_absent_artifacts_are_lenient(tmp_path, capfd):
     # No coverage/ artifacts exist at all in this tree.
     _write(tmp_path, "tools/some_tool.py", "x = 1\n")
     changed = {
-        "docs/ssot/coverage.md": {1, 2},
+        "common/testing/coverage.md": {1, 2},
         "tests/tooling/test_something.py": {5},
         ".github/workflows/ci.yml": {100},
         "tools/some_tool.py": {1},

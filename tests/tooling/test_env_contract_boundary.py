@@ -16,8 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-OBSERVABILITY_DOC = ROOT / "docs" / "ssot" / "observability.md"
-ENVIRONMENTS_DOC = ROOT / "docs" / "ssot" / "environments.md"
+OBSERVABILITY_DOC = ROOT / "common" / "observability" / "observability.md"
+ENVIRONMENTS_DOC = ROOT / "common" / "runtime" / "environments.md"
 CONFIG_PY = ROOT / "apps" / "backend" / "src" / "config.py"
 
 # Pointers each App doc MUST keep to the infra2-owned contract.
@@ -42,11 +42,11 @@ def _read(path: Path) -> str:
 def test_observability_doc_points_to_infra2_contract() -> None:
     text = _read(OBSERVABILITY_DOC)
     assert OPS_OBSERVABILITY_POINTER in text, (
-        "docs/ssot/observability.md must point at the infra2-owned contract "
+        "common/observability/observability.md must point at the infra2-owned contract "
         f"({OPS_OBSERVABILITY_POINTER})"
     )
     assert CORE_ENVIRONMENTS_POINTER in text, (
-        "docs/ssot/observability.md must point at the infra2-owned contract "
+        "common/observability/observability.md must point at the infra2-owned contract "
         f"({CORE_ENVIRONMENTS_POINTER})"
     )
 
@@ -54,11 +54,11 @@ def test_observability_doc_points_to_infra2_contract() -> None:
 def test_environments_doc_points_to_infra2_contract() -> None:
     text = _read(ENVIRONMENTS_DOC)
     assert OPS_OBSERVABILITY_POINTER in text, (
-        "docs/ssot/environments.md must point at the infra2-owned contract "
+        "common/runtime/environments.md must point at the infra2-owned contract "
         f"({OPS_OBSERVABILITY_POINTER})"
     )
     assert CORE_ENVIRONMENTS_POINTER in text, (
-        "docs/ssot/environments.md must point at the infra2-owned contract "
+        "common/runtime/environments.md must point at the infra2-owned contract "
         f"({CORE_ENVIRONMENTS_POINTER})"
     )
 

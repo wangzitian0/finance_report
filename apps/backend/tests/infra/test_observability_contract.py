@@ -74,7 +74,7 @@ def test_telemetry_contract_fast_fails_in_deployed_env_without_tag(monkeypatch) 
 
 def test_observability_ssot_and_env_docs_are_linked() -> None:
     """AC-observability.17.1 / AC-observability.17.2 / AC-observability.17.3 / AC-observability.17.4: AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5: Observability docs are anchored."""
-    observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
+    observability = _read(REPO_ROOT / "common" / "observability" / "observability.md")
     ssot_index = _read(REPO_ROOT / "docs" / "ssot" / "README.md")
     env_example = _read(REPO_ROOT / ".env.example")
 

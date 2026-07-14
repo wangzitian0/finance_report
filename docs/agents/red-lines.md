@@ -38,7 +38,7 @@ Assets = Liabilities + Equity + (Income - Expenses)
 - Accounting equation must be satisfied at every point.  
   Test: `apps/backend/tests/ledger/test_accounting_equation.py::test_accounting_equation_violation_detected`
 - Reconciliation thresholds (≥85 auto-accept; 60–84 review; <60 unmatched) must not be overridden.  
-  See: [reconciliation.md](../ssot/reconciliation.md)
+  See: [reconciliation.md](../../common/reconciliation/reconciliation.md)
 
 ---
 
@@ -73,5 +73,5 @@ These concepts are **owned** by this document in the SSOT manifest:
 Cross-referenced by:
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md)
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
-- [docs/ssot/schema.md](../ssot/schema.md)
-- [docs/ssot/reconciliation.md](../ssot/reconciliation.md)
+- [common/meta/schema.md](../../common/meta/schema.md)
+- [common/reconciliation/reconciliation.md](../../common/reconciliation/reconciliation.md)

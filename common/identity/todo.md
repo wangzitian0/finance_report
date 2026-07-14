@@ -19,7 +19,7 @@ The package-local worklist. Cross-package migration lives in
       contract `roadmap`; removed from the EPIC-001 table with a disclaimer.
 - [x] Internalized the auth SSOT: the backend half moved into
       [`readme.md`](./readme.md); the frontend/browser-security half moved to
-      `docs/ssot/frontend-patterns.md`; `docs/ssot/auth.md` deleted and the
+      `apps/frontend/frontend-patterns.md`; `docs/ssot/auth.md` deleted and the
       `auth_flow` MANIFEST concept retired.
 
 ## Next

@@ -52,7 +52,7 @@ uvx pre-commit install
 | `moon run :test -- --backend-e2e` | Backend Tier-1 API E2E tests |
 | `moon run :build` | Build all |
 
-Full reference: [docs/ssot/development.md](../ssot/development.md)
+Full reference: [common/meta/development.md](../../common/meta/development.md)
 
 ---
 
@@ -83,7 +83,7 @@ service_name = "finance-report-backend"
 deployment.environment = "production"  # or "staging", "pr-47"
 ```
 
-Full observability reference: [docs/ssot/observability.md](../ssot/observability.md)
+Full observability reference: [common/observability/observability.md](../../common/observability/observability.md)
 
 ---
 
@@ -105,13 +105,13 @@ Full observability reference: [docs/ssot/observability.md](../ssot/observability
 - **Optional** (`config.py` defaults): `DEBUG`, `BASE_CURRENCY`, `AI_PROVIDER`, `ZAI_API_KEY`, `AI_BASE_URL`, `PRIMARY_MODEL`, `OCR_MODEL`, `VISION_MODEL`, `AI_JSON_TIMEOUT_SECONDS`, `AI_JSON_MAX_TOKENS`, `AI_JSON_DISABLE_THINKING`, `REDIS_URL`
 - **Infrastructure** (direnv managed): `DOKPLOY_*`, `VAULT_*`, `VPS_*`
 
-Full reference: [docs/ssot/development.md](../ssot/development.md)
+Full reference: [common/meta/development.md](../../common/meta/development.md)
 
 ---
 
 ## Related
 
-- [docs/ssot/development.md](../ssot/development.md) — Full development environment setup
+- [common/meta/development.md](../../common/meta/development.md) — Full development environment setup
 - [docs/agents/orchestration.md](../agents/orchestration.md) — Agent workflow and STAR framework
 - [docs/agents/red-lines.md](../agents/red-lines.md) — Security rules
 - [AGENTS.md](https://github.com/wangzitian0/finance_report/blob/main/AGENTS.md) — Top-level routing

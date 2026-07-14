@@ -30,10 +30,10 @@ _CONTRACT_INPUTS = (
     ".github/workflows/maintenance.yml",
     ".github/workflows/notify-infra2.yml",
     ".github/actions/setup-e2e-tests/action.yml",
-    "docs/ssot/ci-cd.md",
+    "common/testing/ci-cd.md",
     "common/testing/data/github-action-runtime.yaml",
-    "docs/ssot/deployment.md",
-    "docs/ssot/environments.md",
+    "common/runtime/deployment.md",
+    "common/runtime/environments.md",
     ".github/ISSUE_TEMPLATE/issue.yml",
     ".github/ISSUE_TEMPLATE/task.yml",
     ".github/ISSUE_TEMPLATE/idea.yml",
@@ -98,7 +98,7 @@ def test_AC7_15_1_container_images_publishes_on_every_main_release_push() -> Non
 def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
     """AC7.15.3: A stale `classify-changes` reference in ci-cd.md fails."""
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/ci-cd.md"
+    target = tmp_path / "common/testing/ci-cd.md"
     target.write_text(
         target.read_text(encoding="utf-8") + "\nThe classify-changes job runs.\n",
         encoding="utf-8",
@@ -109,7 +109,7 @@ def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
 def test_AC7_15_3_stale_backend_shard_count_prose_fails(tmp_path) -> None:
     """AC7.15.3: Stale 8-shard backend prose fails."""
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/ci-cd.md"
+    target = tmp_path / "common/testing/ci-cd.md"
     target.write_text(
         target.read_text(encoding="utf-8").replace("Shards 1-5", "Shards 1-8"),
         encoding="utf-8",
@@ -159,7 +159,7 @@ def test_AC7_15_3_infra2_workflow_drift_message_uses_submodule_prefix(
 def test_AC7_15_3_stale_staging_push_trigger_prose_fails(tmp_path) -> None:
     """AC7.15.3: Stale `Push to main (apps/** changed)` prose fails."""
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/deployment.md"
+    target = tmp_path / "common/runtime/deployment.md"
     target.write_text(
         target.read_text(encoding="utf-8")
         + "\nStaging trigger: Push to main (apps/** changed).\n",
@@ -214,7 +214,7 @@ def test_AC7_15_2_unknown_issue_template_label_fails(tmp_path) -> None:
 def test_AC7_15_3_main_cli_returns_contract_result(tmp_path, capsys) -> None:
     """AC7.15.3: The CLI wrapper exits non-zero on injected drift."""
     _copy_inputs(tmp_path)
-    target = tmp_path / "docs/ssot/environments.md"
+    target = tmp_path / "common/runtime/environments.md"
     target.write_text(
         target.read_text(encoding="utf-8") + "\nLocal CI matches GitHub CI exactly.\n",
         encoding="utf-8",

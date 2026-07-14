@@ -403,7 +403,7 @@ def render_markdown(matrix: dict[str, Any]) -> str:
             "- See: common/ledger/readme.md#decimal-rule",
             "- See: common/ledger/readme.md#async-tx-boundary",
             "- See: common/ledger/readme.md#entry-balance",
-            "- See: docs/ssot/schema.md#enum-naming",
+            "- See: common/meta/schema.md#enum-naming",
             "",
         ]
     )

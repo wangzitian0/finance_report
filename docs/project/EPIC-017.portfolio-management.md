@@ -75,10 +75,10 @@ now better managed by code, SSOT files, and generated proof.
 |---|---|
 | Holdings, cost basis, P&L, allocation, dividends | `apps/backend/src/portfolio/extension/` (`holdings.py`, `performance.py`, `allocation.py`, …), portfolio tests |
 | Brokerage statement parsing and import bridge | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md), extraction/portfolio tests |
-| Asset and atomic-position model rationale | [assets.md](../ssot/assets.md), [schema.md](../ssot/schema.md) |
+| Asset and atomic-position model rationale | [assets.md](../../common/portfolio/assets.md), [schema.md](../../common/meta/schema.md) |
 | Portfolio API surface | `apps/backend/src/routers/portfolio.py`, API contract tests |
 | Portfolio UI surfaces | `apps/frontend/src/app/(main)/portfolio`, frontend tests |
-| Current proof and execution stage | AC registries, `tools/check_ac_index.py`, [test-execution-matrix.yaml](../ssot/test-execution-matrix.yaml) |
+| Current proof and execution stage | AC registries, `tools/check_ac_index.py`, [test-execution-matrix.yaml](../../common/testing/data/test-execution-matrix.yaml) |
 
 Framework boundary: EPIC-017 supplies portfolio facts, not final framework
 accounting conclusions. Holdings, lots, cost basis, dividends, fees, prices,
@@ -313,7 +313,7 @@ EPIC-008 remains the owner of the provider-backed staging AI/OCR gate.
 
 Provider-backed gate details live in
 [EPIC-008](EPIC-008.testing-strategy.md#ac813-tier-3-browser-e2e-full-statement-journey) and
-[CI/CD SSOT](../ssot/ci-cd.md#deploy-e2e-gates). The README keeps
+[CI/CD SSOT](../../common/runtime/ci-cd.md#deploy-e2e-gates). The README keeps
 the compact entry-point version of this matrix.
 
 ### Personal Report Package Dependency
@@ -356,7 +356,7 @@ scope decisions are:
 | Brokerage statements are uploaded and parsed through the statement pipeline | AC17.4, EPIC-003/EPIC-013 extraction SSOT |
 | Manual price update remains valid for low-frequency holdings; provider sync is governed separately | `AC-pricing.providers.1`, `AC-pricing.marketdata.1-11` (`common/pricing/contract.py`) — price/valuation data ownership moved to the `pricing` package (#1610); portfolio consumes prices, it does not own them |
 | Report-ready investment schedule is consumed by the personal report package | `AC-portfolio.report-schedule.*` and EPIC-005 package contract |
-| Framework-specific report presentation for portfolio facts is not owned here | [framework-reporting.md](../ssot/framework-reporting.md), EPIC-020, AC17.13 |
+| Framework-specific report presentation for portfolio facts is not owned here | [framework-reporting.md](../../common/reporting/framework-reporting.md), EPIC-020, AC17.13 |
 
 Current proof status comes from generated registries, traceability checks, tests,
 critical proof matrix rows, and CI artifacts. Open product questions should be

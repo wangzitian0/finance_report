@@ -16,7 +16,7 @@ def test_enums_have_explicit_names():
     Guardrail: All sa.Enum columns MUST have a 'name' parameter.
     Failure to do so causes postgres migration issues (implicit naming conflicts).
 
-    See: docs/ssot/schema.md
+    See: common/meta/schema.md
     """
     models_to_check = get_all_models()
     # Anti-vacuity: the guardrail went silently green once when the models

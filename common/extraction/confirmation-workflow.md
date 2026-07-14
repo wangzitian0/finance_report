@@ -1,8 +1,16 @@
-# Confirmation Workflow SSOT
+# Confirmation Workflow — Parse-Confirm (Stage 1)
 
-> **SSOT Key**: `confirmation-workflow`
-> **Authority**: This document defines the `pending_review` state machine used across both Stage 1 (statement import) and Stage 2 (reconciliation) of the review pipeline.
-> **Cross-references**: [reconciliation.md](./reconciliation.md) §7 (Stage 1 & Stage 2 state machines), [schema.md](./schema.md), [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md)
+> **SSOT Key**: `confirmation-workflow` (parse-confirm half)
+> **Authority**: This document defines the `pending_review` state machine used
+> across both Stage 1 (statement import, owned here by `extraction`) and
+> Stage 2 (reconciliation, owned by
+> [`common/reconciliation/confirmation-workflow.md`](../reconciliation/confirmation-workflow.md#state-machine))
+> of the review pipeline. The two halves split at #1822 (SSOT dissolution);
+> this half is the canonical home for the shared cross-cutting framing (the
+> full state-machine diagram, tolerance reference, and confidence/promotion
+> model) plus everything Stage-1-specific. See the reconciliation half for
+> Stage 2 transitions, endpoints, and tests.
+> **Cross-references**: [reconciliation.md](../reconciliation/reconciliation.md) §7 (Stage 1 & Stage 2 state machines), [schema.md](../meta/schema.md), [common/extraction/readme.md](./readme.md)
 
 ---
 
@@ -11,10 +19,10 @@
 | Concern | Location |
 |---------|----------|
 | `Stage1Status` enum | `apps/backend/src/extraction/orm/statement_enums.py` (enum); `apps/backend/src/extraction/orm/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
-| `Stage2Status` on match | `apps/backend/src/reconciliation/orm/reconciliation.py` — `ReconciliationMatch.status` |
+| `Stage2Status` on match | `apps/backend/src/reconciliation/orm/reconciliation.py` — `ReconciliationMatch.status` (see the reconciliation half) |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
 | Balance-chain validation | `apps/backend/src/extraction/extension/statement_validation.py` |
-| Consistency checks | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
+| Consistency checks | `apps/backend/src/reconciliation/extension/consistency_checks.py` (see the reconciliation half) |
 
 ---
 
@@ -25,7 +33,7 @@
 | Field | Model | Meaning |
 |-------|-------|---------|
 | `StatementSummary.stage1_status = PENDING_REVIEW` | Stage 1 | Parsed statement awaiting user visual verification against the original PDF (**nullable** — `None` after upload; set to `PENDING_REVIEW` when review is triggered) |
-| `ReconciliationMatch.status = PENDING_REVIEW` | Stage 2 | Reconciliation match scoring 60–84 pts, requiring human decision before journal entry creation |
+| `ReconciliationMatch.status = PENDING_REVIEW` | Stage 2 | Reconciliation match scoring 60–84 pts, requiring human decision before journal entry creation (see the reconciliation half) |
 
 Both use the string value `"pending_review"` by convention, but the state machines they live in are independent.
 
@@ -33,7 +41,7 @@ Both use the string value `"pending_review"` by convention, but the state machin
 
 ## 3. <a id="state-machine"></a>Cross-Cutting State Machine
 
-The following diagram shows how a bank statement travels from upload through to posted journal entries.
+The following diagram shows how a bank statement travels from upload through to posted journal entries. This diagram is canonical here (Stage 1 is the entry point of the flow); the reconciliation half's Stage 2 Transitions table is the detailed continuation.
 
 ```
                  ┌─────────────────────────────────────────────────────┐
@@ -73,14 +81,8 @@ The following diagram shows how a bank statement travels from upload through to 
 | `pending_review` | `reject_statement()` | `rejected` | — |
 | `rejected` | re-parse triggered | `pending_review` | — |
 
-### Stage 2 Transitions
-
-| From | Event | To | Guard |
-|------|-------|----|-------|
-| `pending_review` | `accept_match()` | `accepted` | All consistency checks resolved in the active Stage 2 scope |
-| `pending_review` | `reject_match()` | `rejected` | — |
-| `auto_accepted` | system auto-accept | `accepted` | Score ≥ 85 |
-| `accepted` | journal created | (terminal) | Accounting equation holds |
+Stage 2 Transitions live in the reconciliation half:
+[common/reconciliation/confirmation-workflow.md §Stage 2 Transitions](../reconciliation/confirmation-workflow.md#stage-2-transitions).
 
 ---
 
@@ -112,7 +114,7 @@ The following diagram shows how a bank statement travels from upload through to 
 |---------|-----------|--------|
 | Stage 1 balance chain validation | 0.001 USD | `src.audit.promotion.STATEMENT_BALANCE_TOLERANCE` (#930) |
 | Stage 2 reconciliation auto-accept / review | 85 / 60 | `src.audit.promotion.RECONCILIATION_AUTO_ACCEPT_SCORE` / `src.audit.promotion.RECONCILIATION_REVIEW_SCORE` (#930) |
-| Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, reconciliation.md |
+| Stage 2 reconciliation match (amount score) | 0.10 USD | AGENTS.md, [reconciliation.md](../reconciliation/reconciliation.md) |
 | Reconciliation statistics comparison | 1% | AGENTS.md |
 
 These tolerances are intentionally separate policies. Stage 1 document approval
@@ -144,7 +146,7 @@ AC18.12), not the per-node badge.
 ### Promotion Gate (makes confidence load-bearing)
 
 The single deterministic contract that decides whether a versioned fact (see
-[schema.md → Append-Only Fact Versioning](schema.md)) may become authoritative.
+[schema.md → Append-Only Fact Versioning](../meta/schema.md)) may become authoritative.
 Owned by `src.audit.promotion` (EPIC-018 AC18.13, issue #930; relocated from
 `services/promotion_gate.py` by #1667):
 
@@ -184,9 +186,7 @@ corpus, and the dispatch runtime are follow-ups.
 
 ---
 
-## 6. API Contract
-
-### Stage 1 Endpoints (in `routers/statements.py`)
+## 6. API Contract — Stage 1 Endpoints (in `routers/statements.py`)
 
 | Endpoint | Input | Side Effect |
 |----------|-------|-------------|
@@ -194,20 +194,13 @@ corpus, and the dispatch runtime are follow-ups.
 | `POST /api/statements/{id}/review/reject` | `statement_id`, `reason`, bearer token | stage1_status → rejected; triggers re-parse |
 | `POST /api/statements/{id}/review/edit` | `statement_id`, edits, bearer token | Unsupported — returns HTTP 400. In-place edit-and-approve is removed; reject and re-parse to change extracted data |
 | `GET /api/statements/pending-review` | bearer token | Returns `[StatementSummary]` where `status=PARSED` and either `stage1_status=PENDING_REVIEW` or `stage1_status` is null for legacy parsed rows |
-### Stage 2 Endpoints (reconciliation + statements routers)
 
-| Endpoint | Input | Side Effect |
-|----------|-------|-------------|
-| `POST /api/reconciliation/matches/{id}/accept` | `match_id`, bearer token | status → accepted; creates journal entry |
-| `POST /api/reconciliation/matches/{id}/reject` | `match_id`, bearer token | status → rejected |
-| `POST /api/reconciliation/batch-accept` | `[match_id]`, bearer token | Accepts all provided matches; blocked if any related consistency check is unresolved; creates journal entries |
-| `GET /api/statements/stage2/queue` | optional `run_id`, bearer token | Returns pending matches and the full unresolved consistency-check set for the user or requested run scope |
-| `POST /api/statements/batch-approve-matches` | `[match_id]`, optional `run_id`, bearer token | Stage 2 batch acceptance scoped to the requested run when provided; routes each pending match through `accept_match()`, creates missing journal entries or reconciles referenced entries, and returns accepted/created/reconciled counts |
-| `GET /api/reconciliation/pending` | bearer token | Returns `[ReconciliationMatch]` with `status=pending_review` |
+Stage 2 endpoints live in the reconciliation half:
+[common/reconciliation/confirmation-workflow.md §API Contract](../reconciliation/confirmation-workflow.md#6-api-contract--stage-2-endpoints-reconciliation--statements-routers).
 
 ---
 
-## 7. Verification (The Proof)
+## 7. Verification (The Proof) — Stage 1
 
 | Test | File | What It Verifies |
 |------|------|-----------------|
@@ -216,20 +209,18 @@ corpus, and the dispatch runtime are follow-ups.
 | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | Stage 1 and extraction/reconciliation tolerances remain intentionally separate |
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
 | `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts` | `api/test_statements_router.py` | Stage 1 approve blocked if duplicate/transfer candidates remain |
-| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `api/test_statements_router.py` | Stage 2 queue returns the complete unresolved blocker set |
-| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `api/test_statements_router.py` | Run-scoped Stage 2 queue and approval cannot affect another run |
-| `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
-| `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
-| `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_statements_router.py` | Stage 2 batch approval reconciles referenced journal entries |
-| `test_batch_approve_matches_creates_missing_entry_once` | `api/test_statements_router.py` | Stage 2 batch approval creates missing journal entries idempotently |
 | `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | Stage 1 approve raises source_type to user_confirmed (✅ Implemented) |
+
+Stage 2 verification lives in the reconciliation half:
+[common/reconciliation/confirmation-workflow.md §Verification](../reconciliation/confirmation-workflow.md#7-verification-the-proof--stage-2).
 
 ---
 
 ## 8. Related SSOT Documents
 
-- [reconciliation.md §7](./reconciliation.md) — Stage 1 and Stage 2 detailed state machines
-- [schema.md](./schema.md) — data-layer and migration guardrails
-- [Generated DB Schema Reference](../reference/db-schema.md) — current `StatementSummary`, `ReconciliationMatch`, and `ConsistencyCheck` table inventory
-- [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
-- [source-type-priority.md](./source-type-priority.md) — How `source_type` is promoted through the confirmation lifecycle
+- [common/reconciliation/confirmation-workflow.md](../reconciliation/confirmation-workflow.md) — the match-confirm (Stage 2) half
+- [reconciliation.md §7](../reconciliation/reconciliation.md) — Stage 1 and Stage 2 detailed state machines
+- [schema.md](../meta/schema.md) — data-layer and migration guardrails
+- [Generated DB Schema Reference](../../docs/reference/db-schema.md) — current `StatementSummary`, `ReconciliationMatch`, and `ConsistencyCheck` table inventory
+- [common/extraction/readme.md](./readme.md) — How parsed statements enter `pending_review` (Stage 1 entry point)
+- [common/audit/readme.md](../audit/readme.md#source-type-trust-hierarchy-provenance) — How `source_type` is promoted through the confirmation lifecycle

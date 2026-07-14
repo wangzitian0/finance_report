@@ -199,7 +199,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
-    # Indexes for performance-critical query paths (per docs/ssot/schema.md)
+    # Indexes for performance-critical query paths (per common/meta/schema.md)
     op.create_index("ix_accounts_user_id", "accounts", ["user_id"])
     op.create_index("ix_bank_statements_user_id", "bank_statements", ["user_id"])
     op.create_index("ix_bank_statements_status", "bank_statements", ["status"])

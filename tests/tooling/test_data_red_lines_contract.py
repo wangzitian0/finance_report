@@ -72,7 +72,7 @@ def _scan_text_files():
 
 def test_AC7_12_6_environments_define_data_axis_and_red_lines():
     """AC-meta.infra-boundary.6: AC7.12.6: environments.md defines the data-lane sources/defaults and the four data red lines."""
-    md = read("docs/ssot/environments.md")
+    md = read("common/runtime/environments.md")
     sources = _subsection(md, "### Data sources")
     assert sources, (
         "environments.md must have a '### Data sources' subsection (AC7.12.6, #877)."
@@ -94,7 +94,7 @@ def test_AC7_12_6_environments_define_data_axis_and_red_lines():
 
 def test_AC7_12_6_deploy_v2_data_lane_is_derived_not_public_axis():
     """AC-meta.infra-boundary.7: AC7.12.6: root SSOT must not drift back to the retired public primitive."""
-    md = read("docs/ssot/environments.md")
+    md = read("common/runtime/environments.md")
     env = md.lower()
 
     assert "deploy_v2(service, type, version_ref, iac_ref)" in md

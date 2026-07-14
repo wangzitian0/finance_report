@@ -940,7 +940,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-observability.17.1",
             statement=(
-                "docs/ssot/observability.md exists as the observability SSOT "
+                "common/observability/observability.md exists as the observability SSOT "
                 "page (declares an 'SSOT Key' section and covers "
                 "'observability'). Was EPIC-010 AC10.5.1."
             ),
@@ -954,7 +954,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-observability.17.2",
             statement=(
-                "docs/ssot/observability.md is linked from the SSOT index at "
+                "common/observability/observability.md is linked from the SSOT index at "
                 "docs/ssot/README.md. Was EPIC-010 AC10.5.2."
             ),
             test=(
@@ -982,7 +982,7 @@ CONTRACT = PackageContract(
             id="AC-observability.17.4",
             statement=(
                 "The three OTEL environment variables are documented in "
-                "docs/ssot/observability.md alongside the SSOT page. Was "
+                "common/observability/observability.md alongside the SSOT page. Was "
                 "EPIC-010 AC10.7.5."
             ),
             test=(

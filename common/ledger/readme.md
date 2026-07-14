@@ -717,8 +717,8 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 ## P10. Related Documents
 
 - **Vision**: [Project Vision](../../vision.md) decision 5
-- **Reconciliation**: [reconciliation.md](../../docs/ssot/reconciliation.md) - Matching algorithm
-- **Schema rationale**: [schema.md](../../docs/ssot/schema.md) - data-layer and migration guardrails
+- **Reconciliation**: [reconciliation.md](../../common/reconciliation/reconciliation.md) - Matching algorithm
+- **Schema rationale**: [schema.md](../../common/meta/schema.md) - data-layer and migration guardrails
 - **Generated schema inventory**: [Generated DB Schema Reference](../../docs/reference/db-schema.md) - current account and ledger table structure
 
 ---
@@ -757,6 +757,6 @@ Entry 2 (Fee):
 
 ## Used by
 
-- [schema.md](../../docs/ssot/schema.md)
-- [reconciliation.md](../../docs/ssot/reconciliation.md)
-- [confirmation-workflow.md](../../docs/ssot/confirmation-workflow.md)
+- [schema.md](../../common/meta/schema.md)
+- [reconciliation.md](../../common/reconciliation/reconciliation.md)
+- [confirmation-workflow.md](../extraction/confirmation-workflow.md)

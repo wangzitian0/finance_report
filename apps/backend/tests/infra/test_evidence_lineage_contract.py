@@ -7,7 +7,7 @@ import pytest
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 
 REPO_ROOT = Path(__file__).parents[4]
-SSOT_PATH = REPO_ROOT / "docs" / "ssot" / "evidence-lineage.md"
+SSOT_PATH = REPO_ROOT / "common" / "extraction" / "evidence-lineage.md"
 
 pytestmark = pytest.mark.no_db
 

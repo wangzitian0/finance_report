@@ -316,8 +316,8 @@ transfer/candidate-matching unit test — a reconciliation concern, not config).
 
 ## 🔗 Related Documents
 
-- [Observability SSOT](../ssot/observability.md)
-- [Development Guide](../ssot/development.md)
+- [Observability SSOT](../../common/observability/observability.md)
+- [Development Guide](../../common/meta/development.md)
 - [EPIC-010: Observability Logging](./EPIC-010.observability-logging.md)
 
 ---
@@ -334,7 +334,7 @@ consolidated here. The removed inventory is retained in
   issue #182.
 - Environment variable lifecycle is guarded by config sync tests and
   `tools/check_env_keys.py`; archive prose about config drift is superseded by
-  those checks and `docs/ssot/development.md`.
+  those checks and `common/meta/development.md`.
 - Frontend API base URL normalization, schema enum naming, Alembic filename
   guardrails, and Decimal safety are current guardrail topics owned by tests and
   SSOT references, not standalone QA reports.

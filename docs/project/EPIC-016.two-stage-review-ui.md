@@ -69,9 +69,9 @@ state rather than a duplicated phase checklist.
 
 | Fact | Owner |
 |---|---|
-| `pending_review` state machine and 0.001 USD Stage 1 tolerance | [confirmation-workflow.md](../ssot/confirmation-workflow.md) |
-| Reconciliation thresholds, Stage 2 checks, and match lifecycle | [reconciliation.md](../ssot/reconciliation.md) |
-| Statement, transaction, and match models | [schema.md](../ssot/schema.md) |
+| `pending_review` state machine and 0.001 USD Stage 1 tolerance | [confirmation-workflow.md](../../common/extraction/confirmation-workflow.md) |
+| Reconciliation thresholds, Stage 2 checks, and match lifecycle | [reconciliation.md](../../common/reconciliation/reconciliation.md) |
+| Statement, transaction, and match models | [schema.md](../../common/meta/schema.md) |
 | Parsing input contract for Stage 1 review | [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) |
 | Journal entry creation from accepted matches | [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) |
 | Backend behavior proof | `apps/backend/tests/review/`, `apps/backend/tests/api/` |
@@ -121,8 +121,8 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ## 📚 SSOT References
 
-- [reconciliation.md](../ssot/reconciliation.md) — Reconciliation workflow, confidence thresholds
-- [schema.md](../ssot/schema.md) — data-layer and migration guardrails
+- [reconciliation.md](../../common/reconciliation/reconciliation.md) — Reconciliation workflow, confidence thresholds
+- [schema.md](../../common/meta/schema.md) — data-layer and migration guardrails
 - [Generated DB Schema Reference](../reference/db-schema.md) — current statement, match, consistency-check, and atomic fact inventory
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Journal entry creation from approved matches
 - [common/extraction/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — Statement parsing logic (Stage 1 input)
@@ -399,7 +399,7 @@ balance validation, visual diff, keyboard shortcuts, and CSV export.
 
 ### AC16.22 — Confirmation Workflow (cross-cutting `pending_review` state machine)
 
-> See authoritative definition: [docs/ssot/confirmation-workflow.md](../ssot/confirmation-workflow.md)
+> See authoritative definition: [common/extraction/confirmation-workflow.md](../../common/extraction/confirmation-workflow.md)
 
 > **Partially migrated.** *(AC16.22.3 removed and AC16.22.4 removed — this
 > group's Stage-2 rows migrated to the `reconciliation` package roadmap as

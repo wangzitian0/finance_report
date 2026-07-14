@@ -5,7 +5,7 @@
 # Production release lives in release.yml (EPIC-008 AC8.13.154); it is not a
 # target here.
 # Staging no longer auto-follows main.
-# Per docs/ssot/environments.md, staging and prod are deployed manually;
+# Per common/runtime/environments.md, staging and prod are deployed manually;
 # CI is the quality gate for development, not an auto-deploy trigger.
 # Actions: promote release images or resolve release coordinate → deploy_v2 →
 # Smoke/E2E → AI/OCR regression record.

@@ -69,8 +69,8 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_runtime_ssot_internalized.py` | `common/runtime/readme.md` (guards that the env-smoke-test SSOT stays internalized in the runtime package — the retired central doc is not resurrected) |
 | `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
-| `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `docs/ssot/ai.md` |
-| `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `docs/ssot/assets.md` |
+| `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `common/llm/ai.md` |
+| `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `common/portfolio/assets.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
 | `apps/backend/tests/runtime/test_manifest.py` | `common/runtime/readme.md` |
 | `apps/backend/tests/extraction/test_account_last4_defense.py` | `common/extraction/readme.md` |
@@ -83,73 +83,73 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/extraction/test_pii_redaction.py` | `docs/agents/red-lines.md` |
 | `apps/backend/tests/extraction/test_statement_parsing_supervisor.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_statements_supervisor_errors.py` | `common/extraction/readme.md` |
-| `apps/backend/tests/infra/test_boot.py` | `docs/ssot/development.md` |
-| `apps/backend/tests/infra/test_config.py` | `docs/ssot/development.md` |
-| `apps/backend/tests/infra/test_database.py` | `docs/ssot/development.md` |
-| `apps/backend/tests/infra/test_migrations.py` | `docs/ssot/schema.md` |
+| `apps/backend/tests/infra/test_boot.py` | `common/meta/development.md` |
+| `apps/backend/tests/infra/test_config.py` | `common/meta/development.md` |
+| `apps/backend/tests/infra/test_database.py` | `common/meta/development.md` |
+| `apps/backend/tests/infra/test_migrations.py` | `common/meta/schema.md` |
 | `apps/backend/tests/infra/test_rate_limit.py` | `docs/agents/red-lines.md` |
-| `apps/backend/tests/infra/test_schema_drift.py` | `docs/ssot/schema.md` |
-| `apps/backend/tests/infra/test_schema_guardrails.py` | `docs/ssot/schema.md` |
+| `apps/backend/tests/infra/test_schema_drift.py` | `common/meta/schema.md` |
+| `apps/backend/tests/infra/test_schema_guardrails.py` | `common/meta/schema.md` |
 | `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
-| `apps/backend/tests/reconciliation/test_anomaly_service.py` | `docs/ssot/reconciliation.md` |
-| `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `docs/ssot/reconciliation.md` |
-| `apps/backend/tests/reporting/test_net_income_average_rates.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_helpers.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_layer3.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reporting_snapshot.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/reporting/test_reports_router_additional.py` | `docs/ssot/reporting.md` |
-| `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `docs/ssot/ai.md` |
-| `apps/backend/tests/schemas/test_audit_schema.py` | `docs/ssot/schema.md` |
+| `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reporting/test_net_income_average_rates.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reporting_helpers.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reporting_layer3.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reporting_snapshot.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_reports_router_additional.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/llm/ai.md` |
+| `apps/backend/tests/schemas/test_audit_schema.py` | `common/meta/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |
-| `apps/backend/tests/services/test_confidence_tier.py` | `docs/ssot/source-type-priority.md` |
-| `apps/backend/tests/unit/schemas/test_schemas.py` | `docs/ssot/schema.md` |
-| `apps/backend/tests/unit/services/test_source_type_priority.py` | `docs/ssot/source-type-priority.md` |
-| `apps/backend/tests/unit/platform/test_exceptions.py` | `docs/ssot/development.md` |
+| `apps/backend/tests/services/test_confidence_tier.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
+| `apps/backend/tests/unit/schemas/test_schemas.py` | `common/meta/schema.md` |
+| `apps/backend/tests/unit/services/test_source_type_priority.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
+| `apps/backend/tests/unit/platform/test_exceptions.py` | `common/meta/development.md` |
 | `apps/backend/tests/test_factories.py` | `apps/backend/tests/factories.py` |
 | `apps/frontend/src/__tests__/analytics.test.tsx` | Frontend analytics tracking (OpenPanel PV) — non-blocking infra, not product behavior |
-| `apps/frontend/src/__tests__/confidence.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/confidenceTrendPage.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/allocationChart.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/api-urls.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/api.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/auth_ssr.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/confidence.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/confidenceTrendPage.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/allocationChart.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/api-urls.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/api.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/auth_ssr.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `common/llm/readme.md` |
-| `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `docs/ssot/assets.md` |
+| `apps/frontend/src/__tests__/holdingsTable.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/llmApiFunctions.test.ts` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/llmSettingsPage.test.tsx` | `common/llm/readme.md` |
-| `apps/frontend/src/__tests__/performanceCard.test.tsx` | `docs/ssot/assets.md` |
-| `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `docs/ssot/assets.md` |
-| `apps/frontend/src/__tests__/reviewPages.test.tsx` | `docs/ssot/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `docs/ssot/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `docs/ssot/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | `docs/ssot/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/statusLabels.test.ts` | `docs/ssot/frontend-patterns.md` (#1609 colour-not-alone status labels) |
-| `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/theme.coverage.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/types.test.ts` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/openingBalanceWarningBanner.test.tsx` | `docs/ssot/frontend-patterns.md` (#1486 opening-balance warning surface) |
-| `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `docs/ssot/frontend-patterns.md` (#1487 base-currency hook) |
-| `apps/frontend/src/__tests__/useBodyScrollLock.test.tsx` | `docs/ssot/frontend-patterns.md` (#1608 modal/sheet body-scroll lock) |
+| `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/assets.md` |
+| `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/assets.md` |
+| `apps/frontend/src/__tests__/reviewPages.test.tsx` | `common/extraction/confirmation-workflow.md` |
+| `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
+| `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
+| `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | `common/extraction/confirmation-workflow.md` |
+| `apps/frontend/src/__tests__/statusLabels.test.ts` | `apps/frontend/frontend-patterns.md` (#1609 colour-not-alone status labels) |
+| `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/theme.coverage.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/types.test.ts` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/openingBalanceWarningBanner.test.tsx` | `apps/frontend/frontend-patterns.md` (#1486 opening-balance warning surface) |
+| `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `apps/frontend/frontend-patterns.md` (#1487 base-currency hook) |
+| `apps/frontend/src/__tests__/useBodyScrollLock.test.tsx` | `apps/frontend/frontend-patterns.md` (#1608 modal/sheet body-scroll lock) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
 | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `common/ledger/readme.md` |
-| `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `docs/ssot/frontend-patterns.md` |
-| `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `docs/ssot/frontend-patterns.md` |
+| `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
-| `tests/tooling/test_csp_script_src_contract.py` | `docs/ssot/ci-cd.md` (#1623 CSP script-src allowlist contract) |
-| `tests/tooling/test_required_env_keys_contract.py` | `docs/ssot/ci-cd.md` (#1623 manifest<->config env-key drift contract) |
-| `tests/tooling/test_critical_value_proof_ratchet.py` | `docs/ssot/ci-cd.md` (#1623 value-asserting ratchet for critical outcomes) |
-| `tests/tooling/test_cassette_replay_wired.py` | `docs/ssot/ci-cd.md` (#1623 lock: cassette-replay net cannot silently skip) |
-| `tests/tooling/test_browser_invariant_events_valid.py` | `docs/ssot/ci-cd.md` (#1623 lock: e2e browser-invariant events stay real, not vacuous) |
+| `tests/tooling/test_csp_script_src_contract.py` | `common/testing/ci-cd.md` (#1623 CSP script-src allowlist contract) |
+| `tests/tooling/test_required_env_keys_contract.py` | `common/testing/ci-cd.md` (#1623 manifest<->config env-key drift contract) |
+| `tests/tooling/test_critical_value_proof_ratchet.py` | `common/testing/ci-cd.md` (#1623 value-asserting ratchet for critical outcomes) |
+| `tests/tooling/test_cassette_replay_wired.py` | `common/testing/ci-cd.md` (#1623 lock: cassette-replay net cannot silently skip) |
+| `tests/tooling/test_browser_invariant_events_valid.py` | `common/testing/ci-cd.md` (#1623 lock: e2e browser-invariant events stay real, not vacuous) |
 | `tests/tooling/test_brokerage_prompt_contract.py` | `common/extraction/readme.md` |
-| `tests/tooling/test_check_env_keys.py` | `docs/ssot/development.md` |
+| `tests/tooling/test_check_env_keys.py` | `common/meta/development.md` |
 | `tests/tooling/test_check_manifest.py` | `docs/ssot/MANIFEST.yaml` |
 | `tests/tooling/test_check_package_contract.py` | `common/meta/readme.md` |
 | `tests/tooling/test_check_package_directory_coverage.py` | `common/meta/readme.md` |
@@ -177,16 +177,16 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/pricing/test_resolve.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/pricing/test_subject.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/pricing/market_data/__init__.py` | Package marker |
-| `tests/tooling/test_coverage_analyzer.py` | `docs/ssot/coverage.md` |
+| `tests/tooling/test_coverage_analyzer.py` | `common/testing/coverage.md` |
 | `tests/tooling/test_migration_safety_gates.py` | `common/meta/readme.md` |
 | `tests/tooling/test_delivery_gates_contract.py` | `common/meta/data/delivery-gates.yaml` |
-| `tests/tooling/test_env_contract_boundary.py` | `docs/ssot/observability.md`, `docs/ssot/environments.md` |
-| `tests/tooling/test_github_workflow_timing_summary.py` | `docs/ssot/ci-cd.md` |
-| `tests/tooling/test_infra2_pin_is_release_tag.py` | `docs/ssot/deployment.md` |
-| `tests/tooling/test_merge_lcov.py` | `docs/ssot/coverage.md` |
-| `tests/tooling/test_preflight.py` | `docs/ssot/ci-cd.md` |
-| `tests/tooling/test_seed_fx_rates.py` | `docs/ssot/market_data.md` |
-| `tests/tooling/test_validate_schemas.py` | `docs/ssot/schema.md` |
+| `tests/tooling/test_env_contract_boundary.py` | `common/observability/observability.md`, `common/runtime/environments.md` |
+| `tests/tooling/test_github_workflow_timing_summary.py` | `common/testing/ci-cd.md` |
+| `tests/tooling/test_infra2_pin_is_release_tag.py` | `common/runtime/deployment.md` |
+| `tests/tooling/test_merge_lcov.py` | `common/testing/coverage.md` |
+| `tests/tooling/test_preflight.py` | `common/testing/ci-cd.md` |
+| `tests/tooling/test_seed_fx_rates.py` | `common/pricing/market_data.md` |
+| `tests/tooling/test_validate_schemas.py` | `common/meta/schema.md` |
 | `tests/tooling/test_extraction_pii_mask.py` | `common/llm/readme.md#cassette-graded-eval` |
 | `tests/tooling/test_record_hf_cassettes.py` | `common/llm/readme.md#cassette-graded-eval` |
 

@@ -89,7 +89,7 @@ def test_epic_007_secret_and_health_contracts_are_documented() -> None:
     app_template = _read(FINANCE_REPORT_IAC / "10.app" / "secrets.ctmpl")
     postgres_template = _read(FINANCE_REPORT_IAC / "01.postgres" / "secrets.ctmpl")
     redis_template = _read(FINANCE_REPORT_IAC / "02.redis" / "secrets.ctmpl")
-    deployment_ssot = _read(REPO_ROOT / "docs" / "ssot" / "deployment.md")
+    deployment_ssot = _read(REPO_ROOT / "common" / "runtime" / "deployment.md")
     root_env = _read(REPO_ROOT / ".env.example")
 
     assert "DATABASE_URL" in app_template
@@ -165,8 +165,7 @@ def test_epic_009_generator_templates_and_cli_options() -> None:
 
 def test_epic_010_observability_docs_and_templates() -> None:
     """Observability SSOT, env docs, and app templates stay aligned."""
-    observability = _read(REPO_ROOT / "docs" / "ssot" / "observability.md")
-    ssot_index = _read(REPO_ROOT / "docs" / "ssot" / "README.md")
+    observability = _read(REPO_ROOT / "common" / "observability" / "observability.md")
     env_example = _read(REPO_ROOT / ".env.example")
     config_py = _read(REPO_ROOT / "apps" / "backend" / "src" / "config.py")
     app_template = _read(FINANCE_REPORT_IAC / "10.app" / "secrets.ctmpl")
@@ -179,7 +178,8 @@ def test_epic_010_observability_docs_and_templates() -> None:
         assert key.lower() in config_py.lower()
         assert key in app_template
     assert "observability" in observability.lower()
-    assert "ci-cd" in ssot_index.lower()
+    # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
+    # dissolution); it no longer indexes individual concepts like ci-cd by name.
     assert "otel" in app_readme.lower()
     assert "IAC_CONFIG_HASH" in app_compose
     assert "printf" in app_template

@@ -137,7 +137,7 @@ def _validate_policy_shape(
 def _validate_repo_contract_files(repo_root: Path) -> list[str]:
     errors: list[str] = []
     workflow = repo_root / ".github" / "workflows" / "ci.yml"
-    ci_cd = repo_root / "docs" / "ssot" / "ci-cd.md"
+    ci_cd = repo_root / "common" / "testing" / "ci-cd.md"
     traceability = repo_root / "common" / "ssot" / "build_ac_traceability.py"
 
     if workflow.exists():

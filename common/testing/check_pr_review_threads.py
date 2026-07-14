@@ -7,7 +7,7 @@ via the GitHub GraphQL API (`gh api graphql`), classifies each thread's
 severity from documented markers, and exits non-zero when any *unresolved*
 thread is classified blocking (P0/P1).
 
-Severity classification rule (documented in ``docs/ssot/ci-cd.md`` — keep both
+Severity classification rule (documented in ``common/testing/ci-cd.md`` — keep both
 in sync). A thread is **BLOCKING** (P0/P1) when the first comment body matches
 the marker regex ``\\b(P0|P1)\\b`` (case-insensitive) OR the first comment is
 Copilot-authored AND it is not explicitly marked a lower severity (its body

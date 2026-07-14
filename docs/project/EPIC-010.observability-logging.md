@@ -78,7 +78,7 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 - [x] Keep fallback to stdout when OTEL vars are absent.
 
 ### Documentation (SSOT)
-- [x] Add `docs/ssot/observability.md` and link in SSOT index.
+- [x] Add `common/observability/observability.md` and link in SSOT index.
 - [x] Document OTEL vars in `.env.example`.
 
 ### Infrastructure
@@ -93,7 +93,7 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 ## 🧪 Test Cases
 
 > **Test Organization**: Tests organized by feature blocks using ACx.y.z numbering.
-> **Coverage**: See `apps/backend/tests/infra/test_logger.py`, `apps/backend/tests/infra/test_observability_contract.py`, and `docs/ssot/observability.md`
+> **Coverage**: See `apps/backend/tests/infra/test_logger.py`, `apps/backend/tests/infra/test_observability_contract.py`, and `common/observability/observability.md`
 
 > **The backend observability runtime ACs of EPIC-010 are no longer defined
 > here.** The OTEL/logging/tracing/metrics/redaction/audit-log runtime ACs in
@@ -226,7 +226,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 ## 🔗 References
 
-- SSOT Observability: [../ssot/observability.md](../ssot/observability.md)
+- SSOT Observability: [../ssot/observability.md](../../common/observability/observability.md)
 - Platform Observability: `repo/docs/ssot/ops.observability.md`
 - Deployment EPIC: `docs/project/EPIC-007.deployment.md`
 
@@ -234,5 +234,5 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 
 These non-EPIC docs are part of this EPIC's maintained surface:
 
-- [../ssot/observability.md](../ssot/observability.md) — platform observability rationale.
-- [../ssot/observability-logging.md](../ssot/observability-logging.md) — structured logging and OTEL trace/log correlation.
+- [../ssot/observability.md](../../common/observability/observability.md) — platform observability rationale.
+- [../ssot/observability-logging.md](../../common/observability/observability-logging.md) — structured logging and OTEL trace/log correlation.

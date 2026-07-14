@@ -223,7 +223,7 @@ the shared rule can query.
 ## 8. Runtime Incident Routing
 
 Runtime failure triage is owned by
-[runtime-incident-response.md](./runtime-incident-response.md). This document
+[runtime-incident-response.md](../runtime/runtime-incident-response.md). This document
 owns the observability contract only: structured log shape, OTEL
 configuration, the redacted `/health.observability` fields, and app service
 metadata used by the shared alert rule.
@@ -346,5 +346,5 @@ After staging or production deploys, keep observability verification narrow:
    `deployment.environment` (query it directly in the backend UI; the app no
    longer emits pre-built pivot links — infra2 owns linking to its backend).
 3. If logs or alerts are missing during an incident, route through
-   [runtime-incident-response.md](./runtime-incident-response.md) instead of
+   [runtime-incident-response.md](../runtime/runtime-incident-response.md) instead of
    adding environment-specific debugging steps here.

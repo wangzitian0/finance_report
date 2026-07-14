@@ -32,10 +32,10 @@ Use these owners instead:
 | API shape | FastAPI OpenAPI and backend Pydantic schemas |
 | Static endpoint inventory | [Generated API Reference](api.md) |
 | DB schema inventory | [Generated DB Schema Reference](db-schema.md) |
-| DB model rationale and migration guardrails | [Schema SSOT](../ssot/schema.md) |
+| DB model rationale and migration guardrails | [Schema SSOT](../../common/meta/schema.md) |
 | Auth flow and token policy | [identity package](../../common/identity/readme.md) |
 | Monetary precision rule | [Ledger SSOT](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md#decimal-rule) |
-| Database enum naming rule | [Schema SSOT](../ssot/schema.md#enum-naming) |
+| Database enum naming rule | [Schema SSOT](../../common/meta/schema.md#enum-naming) |
 
 ## Authentication
 

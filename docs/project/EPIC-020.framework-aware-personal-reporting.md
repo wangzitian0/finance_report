@@ -209,8 +209,8 @@ holds final authority where a number becomes financial truth.
 
 ## Related
 
-- [framework-reporting.md](../ssot/framework-reporting.md)
-- [reporting.md](../ssot/reporting.md)
+- [framework-reporting.md](../../common/reporting/framework-reporting.md)
+- [reporting.md](../../common/reporting/reporting.md)
 - [common/ledger/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md)
 - [EPIC-005](./EPIC-005.reporting-visualization.md)
 - [EPIC-017](./EPIC-017.portfolio-management.md)

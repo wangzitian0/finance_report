@@ -9,7 +9,7 @@ This skill is a **pointer, not a mirror** (#1658): the hand-written snapshot it
 used to carry drifted from the owning contract, and models read the owner
 directly.
 
-**Read the owner**: [docs/ssot/reporting.md](../../../../docs/ssot/reporting.md)
+**Read the owner**: [common/reporting/reporting.md](../../../../common/reporting/reporting.md)
 
 Also honor the red lines in `docs/agents/red-lines.md` (Decimal for money,
 balanced entries, explicit `sa.Enum` names) and the work order in

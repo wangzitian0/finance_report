@@ -15,10 +15,10 @@ every document.
 
 | Area | Owner |
 |---|---|
-| App deployment model and release flow | `docs/ssot/deployment.md` |
-| CI, preview, staging, and production gate semantics | `docs/ssot/ci-cd.md` |
+| App deployment model and release flow | `common/runtime/deployment.md` |
+| CI, preview, staging, and production gate semantics | `common/testing/ci-cd.md` (CI pipeline), `common/runtime/ci-cd.md` (deploy) |
 | Boot/runtime health validation | `common/runtime/readme.md`, `apps/backend/src/boot.py`, `apps/backend/src/main.py` |
-| App observability runtime contract | `docs/ssot/observability.md`, `apps/backend/src/observability/runtime.py` |
+| App observability runtime contract | `common/observability/observability.md`, `apps/backend/src/observability/runtime.py` |
 | Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
 | Infra alerting, Lark delivery, watchdogs | `repo/docs/ssot/ops.alerting.md` |
@@ -86,7 +86,7 @@ Required app-side proof:
 - Required dependency checks in `/api/health.checks` are green.
 - Production release recovery runs `production_infra_smoke.py` or records why
   the production smoke result is not applicable.
-- App observability fields match `docs/ssot/observability.md`: service
+- App observability fields match `common/observability/observability.md`: service
   `finance-report-backend`, alert rule `FinanceReportBackendErrorLogs`, and
   no secret collector or webhook fields in health output.
 
@@ -138,7 +138,7 @@ instead of duplicating the procedure in app docs.
 ### Secret Startup Failure
 
 1. Confirm the failure is in protected runtime boot validation or secret render.
-2. Use `docs/ssot/deployment.md` for Finance Report's Vault token boundary.
+2. Use `common/runtime/deployment.md` for Finance Report's Vault token boundary.
 3. Use `repo/docs/ssot/ops.recovery.md` for infra recovery if Vault or backup
    state is degraded.
 
@@ -153,12 +153,12 @@ instead of duplicating the procedure in app docs.
 ## Caller Document Rules
 
 Other docs should link here instead of copying these playbooks:
-- `docs/ssot/deployment.md` owns deployment architecture, release flow, Vault
+- `common/runtime/deployment.md` owns deployment architecture, release flow, Vault
   token boundaries, and Dokploy safety rules.
-- `docs/ssot/observability.md` owns structured logging, OTEL config, and
+- `common/observability/observability.md` owns structured logging, OTEL config, and
   redacted app observability fields.
-- `docs/ssot/ci-cd.md` owns gate placement, workflow semantics, and required
-  checks.
+- `common/testing/ci-cd.md` (CI pipeline) and `common/runtime/ci-cd.md`
+  (deploy) own gate placement, workflow semantics, and required checks.
 - `common/runtime/readme.md` (the `runtime` package) owns Bootloader gate
   definitions and smoke-test rationale (the Three Gates).
 - `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` may record historical

@@ -147,7 +147,7 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
 - ❌ **NEVER** ship without updating the owning package's contract/readme (or
   SSOT docs for legacy modules)
 
-Reference: [docs/ssot/tdd.md](../ssot/tdd.md) ·
+Reference: [common/testing/tdd.md](../../common/testing/tdd.md) ·
 [package migration standard](../../common/meta/migration-standard.md)
 
 ---
@@ -216,7 +216,7 @@ encoded:
 [red-lines.md](./red-lines.md) §Engineering Integrity — listed here only as the
 work-order reminder): sync the `repo/` submodule (`infra2`) when a change adds
 env vars; every `sa.Enum` carries an explicit `name=`
-(See: [docs/ssot/schema.md#enum-naming](../ssot/schema.md#enum-naming));
+(See: [common/meta/schema.md#enum-naming](../../common/meta/schema.md#enum-naming));
 `NEXT_PUBLIC_` variables are baked as `ARG`/`ENV` in
 `apps/frontend/Dockerfile`.
 
@@ -285,4 +285,4 @@ Judgment, not config (vision.md, Good Taste 6):
 
 - [red-lines.md](./red-lines.md) — Security and integrity hard stops
 - [docs/contributing/branch-policy.md](../contributing/branch-policy.md) — Branch and PR rules
-- [docs/ssot/tdd.md](../ssot/tdd.md) — TDD workflow details
+- [common/testing/tdd.md](../../common/testing/tdd.md) — TDD workflow details

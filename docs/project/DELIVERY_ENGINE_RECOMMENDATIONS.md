@@ -1,7 +1,7 @@
 # Delivery Engine Recommendations
 
 > Owner: EPIC-008 testing strategy
-> See: docs/ssot/ci-cd.md
+> See: common/testing/ci-cd.md
 
 This note captures CI and post-merge optimization items that should stay
 separate from routine SSOT edits because they change workflow topology or
@@ -46,7 +46,7 @@ Observed on May 27, 2026:
 ### Structured matrix consumer migration
 
 The current sparse Env x Stage model is documented in
-`docs/ssot/ci-cd.md#env-x-stage-contract` and implemented in
+`common/testing/ci-cd.md#env-x-stage-contract` and implemented in
 `common/testing/change_classifier.py` through structured outputs:
 `env_stage_required`, `env_stage_reasons`, `env_stage_stages`,
 `env_stage_files`, and provider-gate JSON outputs. GitHub Actions jobs now
@@ -98,7 +98,7 @@ and three newest failed available logs for each active delivery lane. Cancelled
 runs were ignored because they prove supersession behavior, not a gate result.
 Runtime incident categories such as stale-version, route, dependency,
 observability, secrets, and flapping are owned by
-[runtime-incident-response.md](../ssot/runtime-incident-response.md). This note
+[runtime-incident-response.md](../../common/runtime/runtime-incident-response.md). This note
 records delivery-engine evidence and recommendations only.
 
 | Lane | Three newest successful samples | Three newest failed samples | Observed signal |
@@ -132,7 +132,7 @@ resource leak candidates:
   image build, redeploy, or failed rollout loops.
 - stale staging or production routes/images where health reports an older SHA or
   version, as seen in release failure logs. Classification and closure proof
-  stay in [runtime-incident-response.md](../ssot/runtime-incident-response.md).
+  stay in [runtime-incident-response.md](../../common/runtime/runtime-incident-response.md).
 - Provider-backed runs that retry externally visible OCR/LLM work without tight
   path gating or isolated users.
 
@@ -159,7 +159,7 @@ coupled but do not require a topology rewrite:
   outcome, smoke outcomes, and a production failure domain so stale version
   mismatches are diagnosable without turning production into the first
   correctness proof. Incident classification and stability proof stay in
-  [runtime-incident-response.md](../ssot/runtime-incident-response.md).
+  [runtime-incident-response.md](../../common/runtime/runtime-incident-response.md).
 - provider-backed external-state residue: staging AI/OCR remains gated by the
   structured provider relevance output and records
   `isolated-users-provider-gate-only`; the contract test rejects shared mutable
