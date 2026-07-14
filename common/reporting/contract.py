@@ -1916,7 +1916,8 @@ CONTRACT = PackageContract(
             id="AC-reporting.net-worth-timeseries.1",
             statement=(
                 "GET /api/reports/net-worth/timeseries?from=YYYY-MM-DD&to=YYYY-MM-DD"
-                "&granularity=monthly|daily returns "
+                "&granularity=monthly|daily (plus an optional 3-letter "
+                "currency parameter selecting the reporting currency) returns "
                 "[{date, total_assets, total_liabilities, net_worth}]."
             ),
             # was AC5.7.1

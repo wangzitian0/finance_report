@@ -518,8 +518,7 @@ class TestValidateBalanceChainEdgeCases:
         assert result["closing_match"] is True
 
     async def test_get_statement_for_update_wrong_user_raises(self, db, user_id, statement_with_transactions):
-        """AC-extraction.stage1-validation.7: AC16.3.6 AC16.22.6: _get_statement_for_update raises ValueError for a mismatched user_id."""
-        """AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership."""
+        """AC-extraction.stage1-validation.7: AC16.3.6 AC16.22.6: pending_review mutations enforce user_id ownership (_get_statement_for_update raises ValueError for a mismatched user_id)."""
         wrong_user_id = uuid4()
         with pytest.raises(ValueError, match="Statement not found or access denied"):
             await approve_statement(db, statement_with_transactions.id, wrong_user_id)
