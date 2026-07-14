@@ -9,6 +9,7 @@
 > required in-app events, and read trusted reports.
 > **Dependencies**: EPIC-003, EPIC-004, EPIC-005, EPIC-013, EPIC-016, EPIC-018
 > **Usable milestone**: 🎯 gating (G2). AC19.12 lightweight workflow derivation is required so a year of uploads reliably derives reports without hand-holding. Durable Prefect orchestration (AC19.13) stays deferred. See the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1).
+> **Platform availability vs. feature adoption** (#1654, decided 2026-07-07): AC19.13's deferral is a *feature* decision — it does not relax `DEPENDENCY_MANIFEST`'s declaration that `workflow_engine` is `required_in={STAGING, PRODUCTION}`. A prod-required dependency carries an SLA (continuous presence, watched out-of-band, see [`common/runtime/sla-manifest.generated.json`](../../common/runtime/sla-manifest.generated.json)) independent of whether the in-app feature consuming it has shipped. The 2026-07-06 incident (prod Prefect crash-looped 10 days, undetected) is what exposed this contradiction.
 
 ---
 
