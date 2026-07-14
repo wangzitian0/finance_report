@@ -52,7 +52,7 @@ from src.extraction.orm.layer1 import DocumentType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType
+from src.ledger import Account, AccountType, JournalLine
 from src.observability import record_financial_invariant_violation
 
 # Bound from the bare published root (config publishes no named symbols).
@@ -109,13 +109,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         institution: str,
         account_last4: str,
         currency: str,
-    ) -> Account:
+    ) -> tuple[Account, bool]:
         """Get-or-create the physical asset account for a bank statement (#1444).
 
         Keyed on (user_id, institution, account_last4, currency) via a stable
         display name so re-uploaded statements for the same account reuse one
         account. The account is a fact (the money lives here); category
         classification of each transaction is a separate, user-adjustable layer.
+
+        Returns ``(account, created)`` — ``created`` lets the caller clean up an
+        account it just created for a statement that goes on to fail the
+        LLM-LED invariant gate (#1832 QA finding: a rejected parse left a
+        balance-0.00, provenance-less zombie account on the balance sheet).
         """
         currency = normalize_currency_code(currency) or settings.base_currency
         name = f"{institution} ••{account_last4}"
@@ -129,7 +134,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             )
         ).scalar_one_or_none()
         if existing is not None:
-            return existing
+            return existing, False
         account = Account(
             user_id=user_id,
             name=name,
@@ -139,7 +144,33 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         )
         db.add(account)
         await db.flush()
-        return account
+        return account, True
+
+    async def _delete_orphan_bank_account_if_unused(self, db: Any, account: Account, user_id: UUID) -> None:
+        """Delete a just-created bank account left behind by a rejected parse (#1832).
+
+        Only ever called for an account this same call created (never a reused
+        one), but double-checks it is still unreferenced before deleting: a
+        concurrent statement could in principle have attached to it between
+        creation and this rejection.
+        """
+        other_statement = (
+            await db.execute(
+                select(StatementSummary.id)
+                .where(StatementSummary.account_id == account.id)
+                .where(StatementSummary.status != BankStatementStatus.REJECTED)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if other_statement is not None:
+            return
+        journal_line = (
+            await db.execute(select(JournalLine.id).where(JournalLine.account_id == account.id).limit(1))
+        ).scalar_one_or_none()
+        if journal_line is not None:
+            return
+        await db.delete(account)
+        await db.flush()
 
     async def parse_document(
         self,
@@ -241,6 +272,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # classification stays a separate, user-adjustable layer. Skipped for
             # brokerage payloads (they own a broker account at import) and when no
             # db, real institution, or last4 is available to key a stable account.
+            bank_account_created = False
             if (
                 account_id is None
                 and db is not None
@@ -249,7 +281,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 and final_institution != "Unknown"
                 and sanitized_account_last4
             ):
-                bank_account = await self._get_or_create_bank_account(
+                bank_account, bank_account_created = await self._get_or_create_bank_account(
                     db,
                     user_id=user_id,
                     institution=final_institution,
@@ -721,6 +753,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     # the quarantine with the upload without leaking PII.
                     file_hash=resolved_file_hash,
                 )
+                if bank_account_created:
+                    # This exact parse created the account moments ago; a
+                    # rejected extraction must not leave a balance-0.00,
+                    # provenance-less account cluttering the balance sheet (#1832).
+                    await self._delete_orphan_bank_account_if_unused(db, bank_account, user_id)
+                    statement.account_id = None
 
             # A statement that lands in review must carry an explicit pending_review marker so the
             # queue does not rely on a NULL fallback. The auto-approve path owns the approved/None
