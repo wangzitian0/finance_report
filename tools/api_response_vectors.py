@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -52,8 +52,8 @@ from src.schemas.reporting import BalanceSheetResponse, ReportLine  # noqa: E402
 
 # Fixed deterministic identifiers — placeholder UUIDs, never real ids.
 _USER_ID = UUID("00000000-0000-4000-8000-00000000000a")
-_TS_CREATED = datetime(2026, 1, 15, 8, 30, 0, tzinfo=timezone.utc)
-_TS_UPDATED = datetime(2026, 1, 31, 9, 0, 0, tzinfo=timezone.utc)
+_TS_CREATED = datetime(2026, 1, 15, 8, 30, 0, tzinfo=UTC)
+_TS_UPDATED = datetime(2026, 1, 31, 9, 0, 0, tzinfo=UTC)
 
 
 def _wire(model: Any) -> dict[str, Any]:
@@ -324,5 +324,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())

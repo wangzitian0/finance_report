@@ -77,8 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     if "--update" in args:
         if total > baseline:
             print(
-                f"REFUSED: current {total} > baseline {baseline}; the ratchet "
-                "only goes down.",
+                f"REFUSED: current {total} > baseline {baseline}; the ratchet only goes down.",
                 file=sys.stderr,
             )
             return 1
@@ -102,5 +101,5 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())
