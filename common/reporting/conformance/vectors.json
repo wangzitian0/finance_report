@@ -1,0 +1,75 @@
+{
+  "_comment": "Backend-owned API response conformance vectors (#1827, pattern from #1167). Regenerated ONLY by tools/api_response_vectors.py from fixed sanitized inputs; the backend drift test recomputes and compares, and the frontend fixture helper (apps/frontend/src/__tests__/fixtures/apiVectors.ts) loads this exact file as mock data. Hand-editing or committing real financial data here is forbidden.",
+  "endpoints": {
+    "balance_sheet": {
+      "method": "GET",
+      "fe_path": "/api/reports/balance-sheet",
+      "response_model": "src.schemas.reporting.BalanceSheetResponse",
+      "response": {
+        "as_of_date": "2026-01-31",
+        "currency": "SGD",
+        "assets": [
+          {
+            "account_id": "00000000-0000-4000-8000-000000000101",
+            "name": "Vector Bank Checking",
+            "type": "ASSET",
+            "parent_id": null,
+            "amount": "8100.25",
+            "confidence_tier": "HIGH",
+            "provenance": "imported"
+          },
+          {
+            "account_id": "00000000-0000-4000-8000-000000000102",
+            "name": "Vector Brokerage Cash",
+            "type": "ASSET",
+            "parent_id": null,
+            "amount": "1399.75",
+            "confidence_tier": null,
+            "provenance": "manual"
+          }
+        ],
+        "liabilities": [
+          {
+            "account_id": "00000000-0000-4000-8000-000000000201",
+            "name": "Vector Credit Card",
+            "type": "LIABILITY",
+            "parent_id": null,
+            "amount": "2500.00",
+            "confidence_tier": "MEDIUM",
+            "provenance": "imported"
+          }
+        ],
+        "equity": [
+          {
+            "account_id": "00000000-0000-4000-8000-000000000301",
+            "name": "Vector Opening Balances",
+            "type": "EQUITY",
+            "parent_id": null,
+            "amount": "6000.00",
+            "confidence_tier": null,
+            "provenance": "derived"
+          }
+        ],
+        "confidence_tier": "MEDIUM",
+        "total_assets": "9500.00",
+        "total_liabilities": "2500.00",
+        "total_equity": "6000.00",
+        "net_income": "1000.00",
+        "unrealized_fx_gain_loss": "0.00",
+        "net_worth_adjustment_gain_loss": "0.00",
+        "fx_warnings": [
+          {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": "USD",
+            "quote_currency": "SGD",
+            "rate_date": "2026-01-31"
+          }
+        ],
+        "portfolio_warnings": [],
+        "opening_balance_warnings": [],
+        "equation_delta": "0.00",
+        "is_balanced": true
+      }
+    }
+  }
+}

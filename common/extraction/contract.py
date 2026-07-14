@@ -3467,6 +3467,47 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group api-vectors: backend-owned API response conformance
+        # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
+        # shape of the POST /api/statements/upload 202 envelope and the
+        # parsed GET /api/statements/{id} envelope is committed as
+        # common/extraction/conformance/vectors.json; the backend drift test
+        # recomputes it and the frontend loads the same file as mock data. ──
+        ACRecord(
+            id="AC-extraction.api-vectors.1",
+            statement=(
+                "The serialized statement upload/status responses "
+                "(BankStatementResponse wire shape, decimal-string balances, "
+                "IN/OUT transaction directions, internally balance-consistent "
+                "parsed vector) recomputed from fixed deterministic inputs "
+                "equal the committed common/extraction/conformance/"
+                "vectors.json, so a serializer change without vector "
+                "regeneration reds CI (#1827)."
+            ),
+            test=(
+                "apps/backend/tests/schemas/test_api_response_vectors.py"
+                "::test_AC_extraction_api_vectors_1_statement_upload_matches_committed_vector"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.api-vectors.2",
+            statement=(
+                "The frontend statement uploader test consumes the committed "
+                "extraction conformance vector (202 upload envelope) verbatim "
+                "as its mock data via the shared fixture helper, so a "
+                "regenerated breaking wire shape reds the frontend suite "
+                "(#1827)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/StatementUploader.test.tsx"
+                "::AC8.4.1 requires a file and calls completion callback "
+                "after successful upload"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
         ACRecord(

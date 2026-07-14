@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
+import { ToastProvider } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
+import { createInvalidationProbe } from "./fixtures/invalidationProbe";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 const navigationState = vi.hoisted(() => ({
@@ -261,6 +264,52 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                 expect.objectContaining({ method: "POST" }),
             );
         });
+    });
+
+    it("AC-testing.fe-async.2 resolve-conflicts flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+        // #1827 G-async-seam: only apiFetch is mocked; react-query runs for
+        // real. The declared ["statement-conflicts"] prefix extends to the
+        // runtime ["statement-conflicts", statementId] key via fuzzy matching.
+        const duplicate = {
+            id: "t1",
+            txn_date: "2025-01-15",
+            description: "Duplicate deposit",
+            amount: "20.00",
+            direction: "IN",
+        };
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") return Promise.resolve(baseStatement);
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve({ duplicates: [duplicate, duplicate], transfer_pairs: [] });
+            }
+            if (path === "/api/review/conflicts/s1/resolve" && options?.method === "POST") {
+                return Promise.resolve({ resolved: true, resolved_at: "2026-06-14T00:00:00Z" });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        const probe = createInvalidationProbe("statements.review.resolve-conflicts", ["s1"]);
+        const ProbeWrapper = ({ children }: { children: ReactNode }) => (
+            <probe.wrapper>
+                <ToastProvider>{children}</ToastProvider>
+            </probe.wrapper>
+        );
+        render(<StatementReviewPage /> as never, { wrapper: ProbeWrapper });
+
+        const resolveButtons = await screen.findAllByRole("button", { name: "Resolve" });
+        probe.expectNothingInvalidated();
+        fireEvent.click(resolveButtons[0]);
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/review/conflicts/s1/resolve",
+                expect.objectContaining({ method: "POST" }),
+            );
+        });
+        await waitFor(() => probe.expectDeclaredInvalidated());
     });
 
     it("AC16.34.3 keeps approval unblocked when the server marks conflicts resolved", async () => {

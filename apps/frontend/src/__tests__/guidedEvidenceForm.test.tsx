@@ -16,6 +16,8 @@ import type {
   ManualValuationSnapshotListResponse,
 } from "@/lib/types"
 
+import { createInvalidationProbe } from "./fixtures/invalidationProbe"
+
 const showToastMock = vi.fn()
 const navigationState = vi.hoisted(() => ({
   sourceClass: null as string | null,
@@ -311,6 +313,35 @@ describe("GuidedEvidenceForm", () => {
       await waitFor(() =>
         expect(showToastMock).toHaveBeenCalledWith("Evidence saved", "success"),
       )
+    })
+
+    it("AC-testing.fe-async.2 guided-evidence create flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
+      // #1827 G-async-seam: only apiFetch is mocked; react-query runs for real.
+      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+          return Promise.resolve(emptyList) as never
+        }
+        if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+          return Promise.resolve(sampleSnapshot) as never
+        }
+        return Promise.reject(new Error(`Unexpected ${path}`)) as never
+      })
+
+      const probe = createInvalidationProbe("assets.guided-evidence-create")
+      render(<GuidedEvidenceForm initialSourceClass="esop_rsu_plan" />, {
+        wrapper: probe.wrapper,
+      })
+
+      fillValidForm()
+      probe.expectNothingInvalidated()
+      fireEvent.click(screen.getByRole("button", { name: "Save evidence" }))
+
+      await waitFor(() =>
+        expect(
+          mockedApiFetch.mock.calls.some(([, opts]) => opts?.method === "POST"),
+        ).toBe(true),
+      )
+      await waitFor(() => probe.expectDeclaredInvalidated())
     })
 
     it("AC11.9.7 switching source class maps to the right component type and basis", async () => {

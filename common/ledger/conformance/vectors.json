@@ -1,0 +1,60 @@
+{
+  "_comment": "Backend-owned API response conformance vectors (#1827, pattern from #1167). Regenerated ONLY by tools/api_response_vectors.py from fixed sanitized inputs; the backend drift test recomputes and compares, and the frontend fixture helper (apps/frontend/src/__tests__/fixtures/apiVectors.ts) loads this exact file as mock data. Hand-editing or committing real financial data here is forbidden.",
+  "endpoints": {
+    "accounts_list": {
+      "method": "GET",
+      "fe_path": "/api/accounts",
+      "response_model": "src.schemas.account.AccountListResponse",
+      "response": {
+        "items": [
+          {
+            "name": "Vector Checking",
+            "code": "CHK-001",
+            "type": "ASSET",
+            "currency": "SGD",
+            "parent_id": null,
+            "description": "Everyday checking account (vector fixture)",
+            "id": "00000000-0000-4000-8000-000000000401",
+            "user_id": "00000000-0000-4000-8000-00000000000a",
+            "is_active": true,
+            "is_system": false,
+            "balance": "8100.25",
+            "created_at": "2026-01-15T08:30:00Z",
+            "updated_at": "2026-01-31T09:00:00Z"
+          },
+          {
+            "name": "Vector Credit Card",
+            "code": null,
+            "type": "LIABILITY",
+            "currency": "SGD",
+            "parent_id": null,
+            "description": null,
+            "id": "00000000-0000-4000-8000-000000000402",
+            "user_id": "00000000-0000-4000-8000-00000000000a",
+            "is_active": true,
+            "is_system": false,
+            "balance": "2500.00",
+            "created_at": "2026-01-15T08:30:00Z",
+            "updated_at": "2026-01-31T09:00:00Z"
+          },
+          {
+            "name": "Vector Opening Balance Equity",
+            "code": "OBE",
+            "type": "EQUITY",
+            "currency": "SGD",
+            "parent_id": null,
+            "description": null,
+            "id": "00000000-0000-4000-8000-000000000403",
+            "user_id": "00000000-0000-4000-8000-00000000000a",
+            "is_active": true,
+            "is_system": true,
+            "balance": null,
+            "created_at": "2026-01-15T08:30:00Z",
+            "updated_at": "2026-01-31T09:00:00Z"
+          }
+        ],
+        "total": 3
+      }
+    }
+  }
+}

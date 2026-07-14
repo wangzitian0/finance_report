@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import BalanceSheetPage from "@/app/(main)/reports/balance-sheet/page"
 import { apiDownload, apiFetch } from "@/lib/api"
 
+import { balanceSheetVector } from "./fixtures/apiVectors"
+
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
@@ -60,22 +62,11 @@ describe("BalanceSheetPage", () => {
   // AC-reporting.fe-report-surfaces.11
   // AC-reporting.fe-viz-reports.8 / AC-reporting.fe-viz-reports.9
   it("AC16.14.2 / test_AC8_13_48 renders string totals and refetches by date", async () => {
-    mockedApiFetch.mockResolvedValue({
-      as_of_date: "2026-02-01",
-      currency: "SGD",
-      assets: [{ account_id: "a-root", name: "Cash", type: "ASSET", parent_id: null, amount: "1000", provenance: "manual" }],
-      liabilities: [{ account_id: "l-root", name: "Loan", type: "LIABILITY", parent_id: null, amount: "200", provenance: "derived" }],
-      equity: [{ account_id: "e-root", name: "Capital", type: "EQUITY", parent_id: null, amount: "800", provenance: "imported" }],
-      total_assets: "1000",
-      total_liabilities: "200",
-      total_equity: "800",
-      net_income: "300",
-      unrealized_fx_gain_loss: "12",
-      net_worth_adjustment_gain_loss: "5",
-      fx_warnings: [{ type: "missing_fx_rate_partial_skip", from_currency: "USD", to_currency: "SGD", date: "2026-02-01" }],
-      equation_delta: "0",
-      is_balanced: true,
-    })
+    // AC-reporting.api-vectors.2 (#1827): the mock is the committed
+    // backend-owned conformance vector, not hand-written JSON — a
+    // regenerated breaking shape reds this test (G-contract-reddens).
+    const vector = balanceSheetVector()
+    mockedApiFetch.mockResolvedValue(vector)
 
     const { container } = render(<BalanceSheetPage />)
 
@@ -83,12 +74,22 @@ describe("BalanceSheetPage", () => {
     expect(screen.getByRole("heading", { name: "Assets", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Liabilities", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Equity", level: 2 })).toBeInTheDocument()
+    // The vector carries the REAL served fx-warning keys
+    // (base_currency/quote_currency) — the pre-vector hand-mock's
+    // from_currency/to_currency had silently drifted from the backend.
     expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Balance Equation Detail")).toBeInTheDocument()
     expect(screen.getByText("Excluded by default")).toBeInTheDocument()
+    // Vector value assertions: the wire keeps decimal STRINGS end to end.
+    expect(vector.total_assets).toBe("9500.00")
+    expect(screen.getByText("Vector Bank Checking")).toBeInTheDocument()
+    expect(screen.getByText("Vector Credit Card")).toBeInTheDocument()
+    expect(screen.getByText("Vector Opening Balances")).toBeInTheDocument()
     expect(screen.getByText("Manual")).toHaveAccessibleName("Provenance: Manual")
     expect(screen.getByText("Derived")).toHaveAccessibleName("Provenance: Derived")
-    expect(screen.getByText("Imported")).toHaveAccessibleName("Provenance: Imported")
+    const imported = screen.getAllByText("Imported")
+    expect(imported).toHaveLength(2)
+    expect(imported[0]).toHaveAccessibleName("Provenance: Imported")
     expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=false"))
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
 

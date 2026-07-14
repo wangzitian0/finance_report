@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import ReconciliationWorkbench from "@/components/reconciliation/Workbench"
 import { apiFetch } from "@/lib/api"
 
+import { createInvalidationProbe } from "./fixtures/invalidationProbe"
+
 const navigationState = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }))
@@ -294,4 +296,98 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(screen.getByText("Select a match to review")).toBeInTheDocument())
   })
 
+})
+
+// #1827 G-async-seam: each mutating Workbench flow is exercised separately
+// against a real QueryClient so removing any single invalidateQueries call
+// reds exactly its own test. Only the network fn apiFetch is mocked.
+describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
+  const mockedApiFetch = vi.mocked(apiFetch)
+
+  beforeEach(() => {
+    mockedApiFetch.mockReset()
+    navigationState.searchParams = new URLSearchParams()
+    mockedApiFetch.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) {
+        return Promise.resolve({
+          total_transactions: 5,
+          matched_transactions: 2,
+          unmatched_transactions: 3,
+          pending_review: 2,
+          auto_accepted: 1,
+          match_rate: 40,
+          score_distribution: { high: 1, medium: 2, low: 2 },
+        })
+      }
+      if (url.includes("/api/reconciliation/pending")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "m1",
+              match_score: 85,
+              status: "pending_review",
+              transaction: { id: "t1", description: "Rent", txn_date: "2026-01-02", direction: "OUT", amount: 800 },
+              entries: [{ id: "e1", memo: "Rent", entry_date: "2026-01-02", total_amount: 800 }],
+              score_breakdown: { amount: 50, date: 20, description: 15 },
+            },
+          ],
+        })
+      }
+      if (url.includes("/api/reconciliation/transactions/t1/anomalies")) {
+        return Promise.resolve([])
+      }
+      return Promise.resolve({})
+    })
+  })
+
+  async function renderWithProbe(flow: string) {
+    const probe = createInvalidationProbe(flow)
+    render(<ReconciliationWorkbench />, { wrapper: probe.wrapper })
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument())
+    probe.expectNothingInvalidated()
+    return probe
+  }
+
+  it("AC-testing.fe-async.2 run-matching flow invalidates the matrix-declared query keys", async () => {
+    const probe = await renderWithProbe("reconciliation.run")
+    fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/runs", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    )
+    await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  it("AC-testing.fe-async.2 accept-match flow invalidates the matrix-declared query keys", async () => {
+    const probe = await renderWithProbe("reconciliation.accept-match")
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/accept", { method: "POST" }),
+    )
+    await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  it("AC-testing.fe-async.2 reject-match flow invalidates the matrix-declared query keys", async () => {
+    const probe = await renderWithProbe("reconciliation.reject-match")
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/reject", { method: "POST" }),
+    )
+    await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  it("AC-testing.fe-async.2 batch-accept flow invalidates the matrix-declared query keys", async () => {
+    const probe = await renderWithProbe("reconciliation.batch-accept")
+    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/batch-accept", {
+        method: "POST",
+        body: JSON.stringify({ match_ids: ["m1"] }),
+      }),
+    )
+    await waitFor(() => probe.expectDeclaredInvalidated())
+  })
 })

@@ -3738,6 +3738,99 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group fe-lane: mobile viewport lane inside the blocking
+        # Playwright job (#1827 G-mobile-lane). The EPIC-022 flagship IA is
+        # the mobile bottom-tab shell; a contract test locks the project
+        # list so the lane cannot silently disappear. ──
+        ACRecord(
+            id="AC-testing.fe-lane.1",
+            statement=(
+                "The frontend Playwright config declares a true mobile device "
+                "project (touch enabled, phone-width viewport) whose testMatch "
+                "covers every EPIC-022 shell journey spec, alongside the "
+                "desktop chromium project; deleting the project or dropping a "
+                "journey reds vitest (#1827 G-mobile-lane)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/playwrightMobileLane.test.ts"
+                "::AC-testing.fe-lane.1 the blocking Playwright config "
+                "declares a true mobile device project"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group fe-async: real-QueryClient async seam (#1827
+        # G-async-seam / G-core-hook-tested / G-no-undeclared-mutations). ──
+        ACRecord(
+            id="AC-testing.fe-async.1",
+            statement=(
+                "The shared data hook useApiQuery carries direct tests that "
+                "run real react-query with only the network fn mocked: path "
+                "fetching, error propagation, enabled=false, option "
+                "passthrough, and per-key caching (#1827 G-core-hook-tested)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/useApiQuery.test.tsx"
+                "::AC-testing.fe-async.1 fetches the given path through "
+                "apiFetch and exposes the data"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.fe-async.2",
+            statement=(
+                "Every mutating flow that declares cache invalidations in "
+                "MUTATION_INVALIDATION_MATRIX is exercised as the REAL "
+                "component flow against a real QueryClient (only apiFetch "
+                "mocked), asserting the declared query keys actually become "
+                "invalidated — removing an invalidateQueries call reds the "
+                "flow's test (#1827 G-async-seam)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/accountsPage.test.tsx"
+                "::AC-testing.fe-async.2 delete flow invalidates the "
+                "matrix-declared query keys against a real QueryClient"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.fe-async.3",
+            statement=(
+                "A structural lock enumerates every useMutation call site "
+                "under apps/frontend/src (node fs scan, tests excluded) and "
+                "reds on any call site absent from "
+                "MUTATION_INVALIDATION_MATRIX or any stale matrix row, so a "
+                "new mutation cannot skip the matrix by forgetfulness (#1827 "
+                "G-no-undeclared-mutations)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/mutationInvalidationLock.test.ts"
+                "::AC-testing.fe-async.3 every useMutation call site in src/ "
+                "has a matrix row"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group fe-handmock: decrease-only ratchet on frontend tests that
+        # still hand-mock a vectored endpoint (#1827 G-contract-reddens). ──
+        ACRecord(
+            id="AC-testing.fe-handmock.1",
+            statement=(
+                "The count of frontend test files that hand-mock a vectored "
+                "endpoint (instead of loading the shared conformance-vector "
+                "fixture) only decreases relative to the committed baseline; "
+                "growth reds CI and --update refuses to raise the baseline "
+                "(#1827)."
+            ),
+            test=(
+                "tests/tooling/test_fe_api_handmock_ratchet.py"
+                "::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(

@@ -1907,6 +1907,43 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group api-vectors: backend-owned API response conformance
+        # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
+        # shape of GET /api/accounts is committed as
+        # common/ledger/conformance/vectors.json; the backend drift test
+        # recomputes it and the frontend loads the same file as mock data. ──
+        ACRecord(
+            id="AC-ledger.api-vectors.1",
+            statement=(
+                "The serialized GET /api/accounts response "
+                "(ListResponse[AccountResponse] wire shape, decimal-string "
+                "balances) recomputed from fixed deterministic inputs equals "
+                "the committed common/ledger/conformance/vectors.json, so a "
+                "serializer change without vector regeneration reds CI "
+                "(#1827)."
+            ),
+            test=(
+                "apps/backend/tests/schemas/test_api_response_vectors.py"
+                "::test_AC_ledger_api_vectors_1_accounts_list_matches_committed_vector"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.api-vectors.2",
+            statement=(
+                "The frontend accounts page test consumes the committed "
+                "ledger conformance vector verbatim as its mock data (via "
+                "the shared fixture helper), so a regenerated breaking wire "
+                "shape reds the frontend suite (#1827)."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/accountsPage.test.tsx"
+                "::AC16.15.2 renders grouped accounts and supports type filters"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
         ACRecord(
