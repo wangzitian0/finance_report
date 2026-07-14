@@ -29,9 +29,15 @@ def test_AC_runtime_sla_manifest_1_committed_manifest_matches_live_dependency_ma
     """AC-runtime.sla-manifest.1: the committed SLA manifest equals the manifest
     rendered from the live DEPENDENCY_MANIFEST — exact equality kills both drift
     directions (a new required dependency missing from the artifact, and a
-    stale entry for a dependency that no longer requires that tier)."""
-    rendered = json.loads(gen.render_sla_manifest(gen.collect_sla_entries()))
-    committed = _committed_manifest()
+    stale entry for a dependency that no longer requires that tier).
+
+    Compares raw text, not just parsed JSON: infra2 consumes the committed
+    file's bytes (via ``--check`` / a raw fetch), so a whitespace/key-order
+    change that slipped past a parsed-JSON comparison could still desync the
+    artifact from what ``generate_sla_manifest.py`` would actually produce.
+    """
+    rendered = gen.render_sla_manifest(gen.collect_sla_entries())
+    committed = gen.SLA_MANIFEST_PATH.read_text(encoding="utf-8")
 
     assert committed == rendered, (
         "common/runtime/sla-manifest.generated.json is out of date with "

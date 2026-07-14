@@ -125,7 +125,11 @@ def main() -> int:
     new_manifest = render_sla_manifest(entries)
 
     if args.check:
-        current = SLA_MANIFEST_PATH.read_text() if SLA_MANIFEST_PATH.exists() else ""
+        current = (
+            SLA_MANIFEST_PATH.read_text(encoding="utf-8")
+            if SLA_MANIFEST_PATH.exists()
+            else ""
+        )
         if current != new_manifest:
             print(_diff(SLA_MANIFEST_PATH.name, current, new_manifest))
             print(
@@ -138,7 +142,7 @@ def main() -> int:
         return 0
 
     SLA_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SLA_MANIFEST_PATH.write_text(new_manifest)
+    SLA_MANIFEST_PATH.write_text(new_manifest, encoding="utf-8")
     print(f"Wrote {SLA_MANIFEST_PATH.relative_to(ROOT_DIR)}")
     return 0
 
