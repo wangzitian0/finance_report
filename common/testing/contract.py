@@ -1744,6 +1744,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: fixture contract pins exact Decimal expected outputs.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.9",
@@ -1758,6 +1760,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: e2e consumes the fixture contract, never inline constants.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.10",
@@ -1786,6 +1790,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: brokerage/dividend/market-price outputs pinned as Decimals.
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.12",
@@ -1800,6 +1806,8 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+            # #1826 G-value-oracle: e2e consumes the audit-grade expected outputs.
+            proof_kind="exact",
         ),
         # ── group preview: PR-preview lifecycle & Dokploy semantics
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
