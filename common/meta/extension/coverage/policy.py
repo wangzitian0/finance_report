@@ -244,6 +244,11 @@ COVERAGE_EXEMPT_PATTERNS: tuple[str, ...] = (
     "apps/frontend/vitest.setup.ts",
     # Alembic data migrations.
     "apps/backend/migrations/**",
+    # Container entrypoint/deployment glue (Prefect deployment registration,
+    # worker/API startup scripts) — ops plumbing, not product behavior. Still
+    # covered by structural tests (tests/tooling/test_prefect_deployment_registration.py),
+    # just not counted toward the line-coverage percentage.
+    "apps/backend/scripts/**",
     # Agent tooling / skills — not shipped product runtime.
     ".opencode/**",
     # Docs build tooling.
