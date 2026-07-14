@@ -39,7 +39,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.1
+  STAGING_E2E_PRIMARY_MODEL: glm-5.2
   STAGING_E2E_OCR_MODEL: glm-4.6v
   STAGING_E2E_VISION_MODEL: glm-4.6v
   PYTHON_VERSION: "3.12.12"
