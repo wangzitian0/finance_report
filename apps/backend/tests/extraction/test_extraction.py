@@ -81,7 +81,7 @@ class TestConfidenceScoring:
         assert score >= 85, f"Expected high confidence, got {score}"
 
     def test_medium_confidence(self):
-        """AC-extraction.102.2: Test that partial data gets medium confidence (Review)."""
+        """AC-extraction.3.2/AC-extraction.102.2: Test that partial data gets medium confidence (Review)."""
         extracted = {
             "institution": "DBS",
             "period_start": "2025-01-01",

@@ -592,7 +592,7 @@ class TestClassificationService:
         assert results[0].account_id == keyword_account.id
 
     async def test_same_type_rules_prefer_newer_version(self, db, test_user):
-        """AC11.12.2: Same-type matches choose the newest rule version deterministically."""
+        """AC-extraction.classification-priority.1/AC11.12.2: Same-type matches choose the newest rule version deterministically."""
         service = ClassificationService()
 
         old_account = Account(
