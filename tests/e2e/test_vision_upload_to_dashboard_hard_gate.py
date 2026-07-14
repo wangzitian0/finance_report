@@ -53,6 +53,17 @@ EXPECTED_TOTALS = {
     "beginning_cash": Decimal("0.00"),
     "ending_cash": Decimal("0.00"),
 }
+# Per-row ground truth, hand-derived from the fixture CSV's source rows (the
+# independent oracle for #1826 G-value-oracle) — NEVER from a prior run's
+# report output. Signed amounts: positive = income, negative = expense.
+EXPECTED_CATEGORY_AMOUNTS = {
+    "Salary": Decimal("5000.00"),
+    "Freelance": Decimal("600.00"),
+    "Rent": Decimal("-1500.00"),
+    "Groceries": Decimal("-250.00"),
+    "Utilities": Decimal("-120.00"),
+    "Travel": Decimal("-3730.00"),
+}
 
 
 def _get_url(path: str) -> str:
@@ -411,6 +422,25 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         EXPECTED_TOTALS,
         ("total_assets", "total_liabilities", "total_equity"),
     )
+    # Net worth by bucket (#1826 asset-distribution-net-worth value oracle):
+    # every balance-sheet bucket's line items must re-sum EXACTLY to the pinned
+    # bucket total, and the accounting equation must close to zero — bucket
+    # totals can never drift from their own line items unnoticed.
+    for bucket, total_key in (
+        ("assets", "total_assets"),
+        ("liabilities", "total_liabilities"),
+        ("equity", "total_equity"),
+    ):
+        bucket_line_sum = sum(
+            (money_amount(line["amount"]) for line in balance_sheet[bucket]),
+            Decimal("0.00"),
+        )
+        assert bucket_line_sum == EXPECTED_TOTALS[total_key], (
+            f"{bucket} line items sum to {bucket_line_sum}, "
+            f"expected {EXPECTED_TOTALS[total_key]}"
+        )
+    assert money_amount(balance_sheet["equation_delta"]) == Decimal("0.00")
+    assert balance_sheet["is_balanced"] is True
 
     income_statement = await _api_json(
         page,
@@ -421,6 +451,19 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         EXPECTED_TOTALS,
         ("total_income", "total_expenses", "net_income"),
     )
+    # Monthly income/spending by line (#1826 monthly-income-spending value
+    # oracle): the report's own line items must re-sum EXACTLY to the pinned
+    # fixture-derived totals (per-row ground truth: EXPECTED_CATEGORY_AMOUNTS).
+    income_line_sum = sum(
+        (money_amount(line["amount"]) for line in income_statement["income"]),
+        Decimal("0.00"),
+    )
+    expense_line_sum = sum(
+        (money_amount(line["amount"]) for line in income_statement["expenses"]),
+        Decimal("0.00"),
+    )
+    assert income_line_sum == EXPECTED_TOTALS["total_income"]
+    assert expense_line_sum == EXPECTED_TOTALS["total_expenses"]
 
     cash_flow = await _api_json(
         page,
@@ -541,6 +584,31 @@ def test_vision_fixture_totals_match_expected_values() -> None:
     assert income == EXPECTED_TOTALS["total_income"]
     assert expenses == EXPECTED_TOTALS["total_expenses"]
     assert net == EXPECTED_TOTALS["net_income"]
+
+
+def test_vision_fixture_category_amounts_stay_pinned() -> None:
+    """AC-testing.product-gates.6: EPIC-003 EPIC-005 EPIC-008 EPIC-016 EPIC-018.
+
+    Every fixture row's signed amount is pinned to a hand-derived ground-truth
+    constant (#1826 G-value-oracle): the per-category oracle is derived from
+    the source CSV, independent of any report output, and the pinned map must
+    re-sum to the exact report totals the browser journey asserts.
+    """
+    rows = _read_fixture_rows()
+    derived = {row["Description"]: money_amount(row["Amount"]) for row in rows}
+    assert derived == EXPECTED_CATEGORY_AMOUNTS
+
+    pinned_income = sum(
+        (v for v in EXPECTED_CATEGORY_AMOUNTS.values() if v > Decimal("0.00")),
+        Decimal("0.00"),
+    )
+    pinned_expenses = sum(
+        (-v for v in EXPECTED_CATEGORY_AMOUNTS.values() if v < Decimal("0.00")),
+        Decimal("0.00"),
+    )
+    assert pinned_income == EXPECTED_TOTALS["total_income"]
+    assert pinned_expenses == EXPECTED_TOTALS["total_expenses"]
+    assert pinned_income - pinned_expenses == EXPECTED_TOTALS["net_income"]
 
 
 def test_vision_fixture_balances_to_zero_for_stage1_approval() -> None:

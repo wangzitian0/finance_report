@@ -1,14 +1,11 @@
 {
   "non_value_proofs": [
     "annualized-income-long-term::personal-financial-report-package-post-merge",
-    "asset-distribution-net-worth::deterministic-upload-to-dashboard",
     "asset-distribution-net-worth::four-asset-as-of-net-worth",
     "investment-performance::brokerage-pdf-to-portfolio-value",
     "investment-performance::market-data-provider-price-path",
     "investment-performance::personal-financial-report-package-post-merge",
-    "monthly-income-spending::deterministic-upload-to-dashboard",
     "personal-financial-report-package::personal-financial-report-package-post-merge",
-    "source-ledger-report-traceability::dbs-pdf-full-journey",
-    "source-ledger-report-traceability::deterministic-upload-to-dashboard"
+    "source-ledger-report-traceability::dbs-pdf-full-journey"
   ]
 }
