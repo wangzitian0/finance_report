@@ -11,10 +11,9 @@ process) to durable Prefect flow runs. This module is the seam:
   submit a flow run to the Prefect server; an isolated worker (running this same
   backend image) executes ``parse_statement_flow``.
 
-``prefect`` is imported lazily here, so the fallback path never needs it. Any
-process that runs with ``PREFECT_API_URL`` set must install the ``prefect`` extra
-— both the API (to *submit* the run) and the worker (to *execute* it). The base
-image / CI / fallback do not.
+``prefect`` is imported lazily here even though it's a base dependency (not an
+optional extra — the repo's promote-not-rebuild release model ships one image
+everywhere), so the fallback path never pays an import cost it doesn't need.
 """
 
 from __future__ import annotations

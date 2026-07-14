@@ -1,9 +1,10 @@
 """Prefect flow for durable statement parsing (EPIC-019).
 
 This module imports ``prefect`` at load time, so it is imported ONLY by the
-Prefect worker (which runs this backend image with the ``prefect`` extra) and by
-the deployment-registration step — never by the API process in fallback mode.
-The config-gated dispatch lives in ``statement_pipeline.py``.
+Prefect worker (which runs this same backend image, per the
+promote-not-rebuild release model) and by ``scripts/register_prefect_deployment.py``
+— never by the API process in fallback mode. The config-gated dispatch lives
+in ``statement_pipeline.py``.
 """
 
 from __future__ import annotations

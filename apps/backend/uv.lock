@@ -975,6 +975,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-httpx" },
     { name = "opentelemetry-instrumentation-sqlalchemy" },
     { name = "opentelemetry-sdk" },
+    { name = "prefect" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -986,11 +987,6 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-prefect = [
-    { name = "prefect" },
 ]
 
 [package.dev-dependencies]
@@ -1030,7 +1026,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.45b0" },
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.45b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.24.0" },
-    { name = "prefect", marker = "extra == 'prefect'", specifier = ">=3.7.0" },
+    { name = "prefect", specifier = ">=3.7.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.7.0" },
     { name = "pydantic-settings", specifier = ">=2.2.0" },
@@ -1043,7 +1039,6 @@ requires-dist = [
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
-provides-extras = ["prefect"]
 
 [package.metadata.requires-dev]
 dev = [

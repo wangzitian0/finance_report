@@ -39,7 +39,7 @@ COPY scripts ./scripts
 
 # Ensure shell scripts are executable and normalize Windows line endings.
 RUN chmod +x scripts/*.sh && \
-    sed -i 's/\r$//' scripts/entrypoint.sh
+    sed -i 's/\r$//' scripts/entrypoint.sh scripts/prefect_worker_entrypoint.sh
 
 EXPOSE 8000
 
