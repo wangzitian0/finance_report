@@ -1162,6 +1162,43 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── group sla-manifest: prod-required = SLA-bearing, machine-readably
+        # exposed for infra2's periodic report (2026-07-07 decision, #1654,
+        # finance_report#1851 G2) ──
+        ACRecord(
+            id="AC-runtime.sla-manifest.1",
+            statement=(
+                "`tools/generate_sla_manifest.py` derives "
+                "`common/runtime/sla-manifest.generated.json` from "
+                "`DEPENDENCY_MANIFEST.required_for(tier)` for every tier; the "
+                "committed artifact is byte-identical to the live manifest "
+                "rendering — no second hand-maintained service list for infra2 "
+                "to drift against."
+            ),
+            test=(
+                "tests/tooling/test_sla_manifest.py"
+                "::test_AC_runtime_sla_manifest_1_committed_manifest_matches_live_dependency_manifest"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.sla-manifest.2",
+            statement=(
+                "Every dependency `required_in(production)` has exactly one "
+                "production SLA entry (name, testing kind, human-readable "
+                "summary) in the generated manifest — prod-required means "
+                "SLA-bearing regardless of whether the app feature consuming "
+                "it has shipped (resolves the manifest ↔ EPIC-019 AC19.13 "
+                "contradiction: platform availability != feature adoption)."
+            ),
+            test=(
+                "tests/tooling/test_sla_manifest.py"
+                "::test_AC_runtime_sla_manifest_2_production_entries_are_sla_bearing_and_complete"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )
 

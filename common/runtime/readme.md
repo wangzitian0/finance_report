@@ -66,6 +66,19 @@ test selection, execution, and reporting → `testing`.
 6. **Smoke ↔ declaration parity.** The smoke test asserts exactly the declared set
    for its tier (count == declared count); a release tag promotes only after the
    **staging** smoke (real backends, real LLM) passes.
+7. **Prod-required ⇒ SLA-bearing (#1654, decided 2026-07-07).** A dependency
+   listed in `DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)` is a
+   platform SLA commitment — its continuous presence is watched out-of-band
+   (finance_report#1653), independent of whether the app *feature* consuming
+   it has shipped. Declaring `required_in` and deferring the feature that uses
+   it (e.g. EPIC-019 AC19.13's durable-orchestration deferral) are two
+   different decisions; the manifest never silently "catches up" to a feature
+   deferral by relaxing SLA scope. `tools/generate_sla_manifest.py` renders
+   this declaration machine-readably
+   (`common/runtime/sla-manifest.generated.json`) so infra2's periodic report
+   consumes it directly instead of hand-maintaining a second service list —
+   the 2026-07-06 incident (prod Prefect crash-looped 10 days, undetected)
+   is the gap this invariant closes.
 
 ## Shape (port / adapter, per the `base`/`extension`/`data` model)
 

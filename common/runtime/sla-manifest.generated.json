@@ -1,0 +1,152 @@
+{
+  "generated_by": "tools/generate_sla_manifest.py — do not edit",
+  "source": "apps/backend/src/runtime/base/manifest.py::DEPENDENCY_MANIFEST",
+  "semantics": "required_in(tier) means the dependency's continuous presence in that tier is an SLA commitment, independent of whether the app feature consuming it has shipped (wangzitian0/finance_report#1654, decided 2026-07-07).",
+  "consumer": "infra2's periodic Lark report renders one SLA row per entry (wangzitian0/finance_report#1654) instead of hand-maintaining a second service list.",
+  "entries": [
+    {
+      "tier": "local_dev",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "local_dev",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "local_ci",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "local_ci",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "github_ci",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "github_ci",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "preview",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "preview",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "preview",
+      "dependency": "telemetry",
+      "kind": "code_dominant",
+      "summary": "OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT)."
+    },
+    {
+      "tier": "staging",
+      "dependency": "analytics",
+      "kind": "code_dominant",
+      "summary": "OpenPanel product analytics (OPENPANEL_API_URL)."
+    },
+    {
+      "tier": "staging",
+      "dependency": "cache",
+      "kind": "code_dominant",
+      "summary": "Redis (REDIS_URL) — optional in the app-owned tiers and preview."
+    },
+    {
+      "tier": "staging",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "staging",
+      "dependency": "llm",
+      "kind": "model_dominant",
+      "summary": "The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
+    },
+    {
+      "tier": "staging",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "staging",
+      "dependency": "telemetry",
+      "kind": "code_dominant",
+      "summary": "OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT)."
+    },
+    {
+      "tier": "staging",
+      "dependency": "workflow_engine",
+      "kind": "code_dominant",
+      "summary": "Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers."
+    },
+    {
+      "tier": "production",
+      "dependency": "analytics",
+      "kind": "code_dominant",
+      "summary": "OpenPanel product analytics (OPENPANEL_API_URL)."
+    },
+    {
+      "tier": "production",
+      "dependency": "cache",
+      "kind": "code_dominant",
+      "summary": "Redis (REDIS_URL) — optional in the app-owned tiers and preview."
+    },
+    {
+      "tier": "production",
+      "dependency": "database",
+      "kind": "code_dominant",
+      "summary": "Postgres — the system of record (DATABASE_URL)."
+    },
+    {
+      "tier": "production",
+      "dependency": "llm",
+      "kind": "model_dominant",
+      "summary": "The AI provider used for statement extraction (AI_*); recorded (cassette substitute) in CI/preview, real on staging/prod."
+    },
+    {
+      "tier": "production",
+      "dependency": "market_data",
+      "kind": "code_dominant",
+      "summary": "Yahoo Finance market-data fetch for report-side FX."
+    },
+    {
+      "tier": "production",
+      "dependency": "object_storage",
+      "kind": "code_dominant",
+      "summary": "S3-compatible object storage for uploaded statements (S3_*)."
+    },
+    {
+      "tier": "production",
+      "dependency": "telemetry",
+      "kind": "code_dominant",
+      "summary": "OTel exporter (OTEL_EXPORTER_OTLP_ENDPOINT)."
+    },
+    {
+      "tier": "production",
+      "dependency": "workflow_engine",
+      "kind": "code_dominant",
+      "summary": "Prefect (PREFECT_API_URL) — durable flows; in-process fallback in the app-owned tiers."
+    }
+  ]
+}
