@@ -53,6 +53,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     mock_info = MagicMock()
     mock_error = MagicMock()
     mock_warning = MagicMock()
+    mock_exception = MagicMock()
 
     async def fake_parse_document(*_args, **_kwargs):
         return _parsed_statement(user_id, "success-hash"), []
@@ -60,6 +61,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     monkeypatch.setattr(statement_parsing.logger, "info", mock_info)
     monkeypatch.setattr(statement_parsing.logger, "error", mock_error)
     monkeypatch.setattr(statement_parsing.logger, "warning", mock_warning)
+    monkeypatch.setattr(statement_parsing.logger, "exception", mock_exception)
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fake_parse_document)
     monkeypatch.setattr(
         statement_parsing.StorageService,
@@ -111,6 +113,7 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
 
     mock_error.reset_mock()
     mock_warning.reset_mock()
+    mock_exception.reset_mock()
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fail_parse_document)
 
     await parse_statement_background(
@@ -137,11 +140,13 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     assert failed["safe_error_message"] == "provider failed without raw document content"
     assert "secret source bytes" not in failed["safe_error_message"]
     # AC-observability.11.4 (#1655): the original #1652 regression — this expected,
-    # user-input parse failure must never ALSO log at ERROR. The assertion above
-    # only proved the WARNING fired; it did not prove ERROR stayed silent, so a
-    # future re-add of a logger.error() on this exact path would have passed
+    # user-input parse failure must never ALSO log at ERROR (or its equally-error-
+    # level sibling, .exception()). The assertion above only proved the WARNING
+    # fired; it did not prove ERROR/exception stayed silent, so a future re-add of
+    # a logger.error()/logger.exception() on this exact path would have passed
     # undetected.
     mock_error.assert_not_called()
+    mock_exception.assert_not_called()
 
 
 async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(db, test_user, monkeypatch):
@@ -159,12 +164,14 @@ async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(
     statement = await _create_statement(db, user_id, file_hash="contract-hash")
     mock_error = MagicMock()
     mock_warning = MagicMock()
+    mock_exception = MagicMock()
 
     async def fail_parse_document(*_args, **_kwargs):
         raise ExtractionError("could not read a bank statement from this document")
 
     monkeypatch.setattr(statement_parsing.logger, "error", mock_error)
     monkeypatch.setattr(statement_parsing.logger, "warning", mock_warning)
+    monkeypatch.setattr(statement_parsing.logger, "exception", mock_exception)
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fail_parse_document)
     monkeypatch.setattr(
         statement_parsing.StorageService,
@@ -187,6 +194,7 @@ async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(
     )
 
     mock_error.assert_not_called()
+    mock_exception.assert_not_called()
     assert any(call.args[0] == "statement.parse.failed" for call in mock_warning.call_args_list), (
         "expected the routine statement.parse.failed WARNING to fire"
     )

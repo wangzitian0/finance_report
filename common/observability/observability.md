@@ -211,7 +211,7 @@ the shared rule can query.
 
 #### 7.2.1 Log-level semantics (AC-observability.11.4, #1655)
 
-**打点是 app 的事情,要求准;告警是 infra 的事情,风格可以不同.** (2026-07-07
+**Instrumentation accuracy is this application's responsibility; alerting policy is infra2's, and the two may evolve independently.** (2026-07-07
 decision.) This application owns instrumentation *accuracy* — which level a
 given outcome logs at; infra2 owns alerting *policy* — rules, thresholds,
 dedup, routing, runbooks. Changing an alert must be an infra2-only deploy; it
@@ -252,7 +252,7 @@ metadata used by the shared alert rule.
 
 Use the runtime incident SSOT for missing logs, wrong environment labels,
 502/503 responses, route failures, stale deployed versions, and flapping
-recovery proof. Use `repo/docs/ssot/ops.observability.md` for shared the observability backend alert
+recovery proof. Use `repo/docs/ssot/ops.observability.md` for the shared observability-backend alert
 automation, bridge delivery, and Lark channel behavior.
 
 ---
