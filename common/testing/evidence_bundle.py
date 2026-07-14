@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -103,7 +104,9 @@ def ac_tier_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """The AC authority-tier untagged-debt ratchet (shrink-only)."""
     from common.meta.extension.check_ac_tier_baseline import load_baseline
 
-    untagged = load_baseline(repo_root / "common" / "meta" / "data" / "ac-tier-baseline.json")
+    untagged = load_baseline(
+        repo_root / "common" / "meta" / "data" / "ac-tier-baseline.json"
+    )
     return {"untagged_debt_count": len(untagged)}
 
 
@@ -111,7 +114,11 @@ def protection_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """The per-type protection count floor (has_real_ref/has_proof/has_score/has_mirror)."""
     from common.testing.protection import load_floor
 
-    return {"floor": load_floor(repo_root / "common" / "testing" / "data" / "protection-floor.json")}
+    return {
+        "floor": load_floor(
+            repo_root / "common" / "testing" / "data" / "protection-floor.json"
+        )
+    }
 
 
 def cassette_eval_water_line() -> dict[str, Any]:
@@ -136,6 +143,105 @@ def cassette_eval_water_line() -> dict[str, Any]:
         "regressions": len(findings.get("regressions", [])),
         "missing": len(findings.get("missing", [])),
     }
+
+
+# Ratchet-baseline discovery (#1826, G-no-silent-baseline-aging). GLOB, not a
+# hand-kept list: a NEW baseline/exceptions/floor file under common/ or docs/
+# automatically appears in the bundle with zero code changes, so frozen debt
+# that nobody is burning becomes visible instead of eternal.
+_BASELINE_GLOBS: tuple[str, ...] = (
+    "common/**/*baseline*.json",
+    "common/**/*baseline*.jsonl",
+    "common/**/*floor*.json",
+    "common/**/*exceptions*.md",
+    "docs/**/*baseline*.json",
+    "docs/**/*baseline*.jsonl",
+    "docs/**/*floor*.json",
+    "docs/**/*exceptions*.md",
+)
+
+
+def _baseline_entry_count(path: Path) -> int | None:
+    """Logical entry count of a ratchet baseline/exceptions file.
+
+    Format-aware but deliberately generic (the point is aging VISIBILITY, not
+    per-ratchet semantics): a JSON list counts its items; a JSON dict counts
+    the items of its sized values (lists/dicts, after dropping ``_``-prefixed
+    meta keys and ``version``), else sums scalar-int counters (e.g. a
+    ``{"total": N}`` mirror count), else counts its keys; JSONL counts
+    non-empty lines; markdown counts table body rows.
+    """
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".jsonl":
+        return sum(1 for line in text.splitlines() if line.strip())
+    if path.suffix == ".json":
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(data, list):
+            return len(data)
+        if isinstance(data, dict):
+            body = {
+                k: v
+                for k, v in data.items()
+                if not k.startswith("_") and k != "version"
+            }
+            sized = [len(v) for v in body.values() if isinstance(v, (list, dict))]
+            if sized:
+                return sum(sized)
+            if body and all(isinstance(v, int) for v in body.values()):
+                return sum(body.values())
+            return len(body)
+        return None
+    if path.suffix == ".md":
+        pipe_rows = [
+            line
+            for line in text.splitlines()
+            if line.lstrip().startswith("|") and line.rstrip().endswith("|")
+        ]
+        separators = [row for row in pipe_rows if set(row.strip()) <= set("|-: ")]
+        # Each table contributes one header row and one separator row.
+        return max(0, len(pipe_rows) - 2 * len(separators))
+    return None
+
+
+def _last_shrink_date(repo_root: Path, rel_path: str) -> str | None:
+    """ISO date of the file's last commit (a shrink-only file's last shrink)."""
+    try:
+        proc = subprocess.run(  # noqa: S603 - fixed argv, repo-local
+            ["git", "log", "-1", "--format=%cI", "--", rel_path],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def ratchet_baseline_inventory(repo_root: Path = REPO_ROOT) -> list[dict[str, Any]]:
+    """Every glob-discovered ratchet baseline: path, entry count, last shrink."""
+    found = {
+        path
+        for pattern in _BASELINE_GLOBS
+        for path in repo_root.glob(pattern)
+        if path.is_file()
+    }
+    inventory: list[dict[str, Any]] = []
+    for path in sorted(found):
+        rel = path.relative_to(repo_root).as_posix()
+        inventory.append(
+            {
+                "file": rel,
+                "entry_count": _baseline_entry_count(path),
+                "last_shrink": _last_shrink_date(repo_root, rel),
+            }
+        )
+    return inventory
 
 
 def build_evidence_bundle(
@@ -164,6 +270,7 @@ def build_evidence_bundle(
             "protection": protection_water_line(repo_root),
         },
         "cassette_eval": cassette_eval_water_line(),
+        "baseline_inventory": ratchet_baseline_inventory(repo_root),
         "provider_health": dict(provider_health) if provider_health else None,
     }
 
@@ -225,6 +332,21 @@ def render_markdown(bundle: dict[str, Any]) -> str:
         f"- Regressions: `{cassette_eval.get('regressions')}`, "
         f"Missing: `{cassette_eval.get('missing')}`"
     )
+
+    lines.append("")
+    lines.append("### Ratchet Baseline Inventory")
+    lines.append("")
+    inventory = bundle.get("baseline_inventory", [])
+    if inventory:
+        lines.append("| Baseline | Entries | Last shrink |")
+        lines.append("|---|---|---|")
+        for entry in inventory:
+            lines.append(
+                f"| `{entry['file']}` | `{entry['entry_count']}` "
+                f"| `{entry['last_shrink']}` |"
+            )
+    else:
+        lines.append("- No ratchet baseline files discovered")
 
     provider_health = bundle.get("provider_health")
     lines.append("")

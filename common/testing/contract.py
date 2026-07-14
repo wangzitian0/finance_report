@@ -2813,6 +2813,26 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # ── group evidence: shared CI/nightly evidence bundle (#1690) —
+        # baseline-aging meta-lock (#1826 G-no-silent-baseline-aging) ──
+        ACRecord(
+            id="AC-testing.evidence.1",
+            statement=(
+                "Every ratchet baseline/exceptions/floor file under common/ and "
+                "docs/ is glob-discovered into the evidence bundle with its entry "
+                "count and last-shrink date: a NEW baseline file appears with zero "
+                "code changes, and omitting a discovered one from the bundle reds "
+                "the tooling gate, so frozen debt stays visible instead of eternal "
+                "(#1826)."
+            ),
+            test=(
+                "tests/tooling/test_evidence_bundle.py"
+                "::test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group governance: governance & doc-consistency gates (was
         # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
         ACRecord(
