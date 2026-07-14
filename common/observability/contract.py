@@ -483,6 +483,30 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-observability.11.4",
+            statement=(
+                "Telemetry↔alerting ownership contract (#1655, generalizes #1652, "
+                "finance_report#1851 G3): an expected/user-input parse outcome "
+                "(a statement that fails extraction because the source document "
+                "itself is bad — not a system fault) logs at WARNING, never "
+                "ERROR. ERROR is reserved for actionable system faults; a "
+                "routine bad upload must never be indistinguishable, at the log "
+                "level, from an infra incident — that conflation is exactly what "
+                "let a single bad upload fire a zero-threshold critical alert "
+                "before #1652. Changing which outcomes are routine vs. faulty is "
+                "an infra alerting-policy question (thresholds/rules), never an "
+                "app log-level question — this contract is what makes that "
+                "boundary hold without requiring an app release to fix alert "
+                "noise."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_parsing_audit_logging.py"
+                "::test_AC_observability_11_4_expected_parse_failure_never_logs_at_error"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group 12: Async parse failure visibility (was EPIC-010 AC10.12.*) ──
         ACRecord(
             id="AC-observability.12.1",
