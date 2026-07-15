@@ -1241,6 +1241,15 @@ CONTRACT = PackageContract(
             status="done",
         ),
 
+    
+        ACRecord(
+            id="AC-runtime.26.9.1",
+            epic=26,
+            epic_name="ac-authority-tiers",
+            description="Authority tier capability",
+            mandatory=False,
+            status="dropped",
+        ),
     ],
     concepts=[
         ConceptRecord(
