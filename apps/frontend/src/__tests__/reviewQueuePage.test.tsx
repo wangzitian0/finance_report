@@ -23,6 +23,7 @@ const queueData = {
         {
             id: "m1",
             match_score: "88",
+            confidence_tier: "HIGH",
             status: "pending_review",
             created_at: "2024-01-03T00:00:00Z",
             description: "Transfer",
