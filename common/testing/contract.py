@@ -3881,6 +3881,28 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group fe-fetch: decrease-only ratchet on direct api-wrapper
+        # (apiFetch/apiStream/apiDelete/apiUpload) call sites under
+        # components/+app/, so the useApiQuery migration debt cannot
+        # silently grow back while it pays down incrementally (#1868 S5
+        # PR-C, G-fetch-ratchet). ──
+        ACRecord(
+            id="AC-testing.fe-fetch.1",
+            statement=(
+                "The count of direct api-wrapper call sites (apiFetch/"
+                "apiStream/apiDelete/apiUpload, generic-aware — "
+                "`apiFetch<T>(...)` counts too) under components/+app/ "
+                "(tests excluded) only decreases relative to the committed "
+                "baseline; growth reds CI and --update refuses to raise the "
+                "baseline (#1868)."
+            ),
+            test=(
+                "tests/tooling/test_fe_fetch_ratchet.py"
+                "::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(

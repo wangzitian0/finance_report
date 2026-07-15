@@ -235,10 +235,11 @@ export default function JournalPage() {
                 message="Are you sure you want to void this journal entry? A reversal entry will be created automatically."
                 confirmLabel="Void Entry"
                 confirmVariant="danger"
-                showInput
-                inputLabel="Void Reason"
-                inputPlaceholder="Enter reason for voiding this entry..."
-                inputRequired
+                input={{
+                    label: "Void Reason",
+                    placeholder: "Enter reason for voiding this entry...",
+                    required: true,
+                }}
                 loading={voidDialog.isLoading}
             />
 

@@ -33,14 +33,11 @@ import {
   packageTocLinks,
   type LineagePanelState,
 } from "@/components/reports/package/shared";
-import {
-  generatePackageSnapshot,
-  isValidReportDate,
-  usePersonalReportPackage,
-} from "@/hooks/usePersonalReportPackage";
+import { generatePackageSnapshot, usePersonalReportPackage } from "@/hooks/usePersonalReportPackage";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { formatDateInput } from "@/lib/date";
 import { lineageUrl } from "@/lib/lineage";
+import { isValidReportDate } from "@/lib/reportPackage";
 import type {
   EvidenceLineageResponse,
   PersonalReportPackageSnapshotSummary,

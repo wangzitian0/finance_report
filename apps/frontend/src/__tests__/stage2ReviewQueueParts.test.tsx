@@ -201,36 +201,39 @@ describe("Stage2 extracted parts", () => {
     });
 
     it("Stage2Filters fires every change/toggle callback", () => {
-        const onToggleSeverity = vi.fn();
-        const onCheckTypeChange = vi.fn();
-        const onStatusChange = vi.fn();
-        const onMinScoreChange = vi.fn();
+        const onChange = vi.fn();
 
         render(
             <Stage2Filters
-                checkTypeFilter=""
-                statusFilter=""
-                severityFilter={["high"]}
-                minScore={20}
-                onToggleSeverity={onToggleSeverity}
-                onCheckTypeChange={onCheckTypeChange}
-                onStatusChange={onStatusChange}
-                onMinScoreChange={onMinScoreChange}
+                filters={{ checkType: "", status: "", severity: ["high"], minScore: 20 }}
+                onChange={onChange}
             />,
         );
 
         expect(screen.getByText("Min Match Score: 20")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "HIGH" }));
-        expect(onToggleSeverity).toHaveBeenCalledWith("high");
+        expect(onChange).toHaveBeenCalledWith({ severity: [] });
 
         const [checkTypeSelect, statusSelect] = screen.getAllByRole("combobox");
         fireEvent.change(checkTypeSelect, { target: { value: "anomaly" } });
-        expect(onCheckTypeChange).toHaveBeenCalledWith("anomaly");
+        expect(onChange).toHaveBeenCalledWith({ checkType: "anomaly" });
         fireEvent.change(statusSelect, { target: { value: "resolved" } });
-        expect(onStatusChange).toHaveBeenCalledWith("resolved");
+        expect(onChange).toHaveBeenCalledWith({ status: "resolved" });
 
         fireEvent.change(screen.getByRole("slider"), { target: { value: "45" } });
-        expect(onMinScoreChange).toHaveBeenCalledWith(45);
+        expect(onChange).toHaveBeenCalledWith({ minScore: 45 });
+    });
+
+    it("Stage2Filters toggleSeverity adds a not-yet-selected severity", () => {
+        const onChange = vi.fn();
+        render(
+            <Stage2Filters
+                filters={{ checkType: "", status: "", severity: ["high"], minScore: 0 }}
+                onChange={onChange}
+            />,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "MEDIUM" }));
+        expect(onChange).toHaveBeenCalledWith({ severity: ["high", "medium"] });
     });
 
     it("RunSummaryPanel pluralizes counts and wires the approve action", () => {
@@ -238,14 +241,11 @@ describe("Stage2 extracted parts", () => {
         const { rerender } = render(
             <RunSummaryPanel
                 runId="run-1"
-                unresolvedTransferCount={1}
-                unresolvedDuplicateCount={1}
-                unresolvedAnomalyCount={1}
+                unresolvedCounts={{ transfer: 1, duplicate: 1, anomaly: 1 }}
                 processingPendingCount={0}
                 pendingMatchesCount={3}
                 actionLoading={false}
-                approveRunDisabled={false}
-                runApprovalTitle="Approve all pending matches in this run"
+                approval={{ disabled: false, reason: "Approve all pending matches in this run" }}
                 onApproveRun={onApproveRun}
             />,
         );
@@ -262,14 +262,11 @@ describe("Stage2 extracted parts", () => {
         rerender(
             <RunSummaryPanel
                 runId="run-1"
-                unresolvedTransferCount={2}
-                unresolvedDuplicateCount={0}
-                unresolvedAnomalyCount={2}
+                unresolvedCounts={{ transfer: 2, duplicate: 0, anomaly: 2 }}
                 processingPendingCount={4}
                 pendingMatchesCount={0}
                 actionLoading
-                approveRunDisabled
-                runApprovalTitle="Resolve consistency checks first"
+                approval={{ disabled: true, reason: "Resolve consistency checks first" }}
                 onApproveRun={onApproveRun}
             />,
         );

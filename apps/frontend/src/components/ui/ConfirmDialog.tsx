@@ -4,6 +4,12 @@ import { useCallback, useEffect, useId, useState, useRef } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
+interface ConfirmDialogInput {
+    label?: string;
+    placeholder?: string;
+    required?: boolean;
+}
+
 interface ConfirmDialogProps {
     isOpen: boolean;
     title: string;
@@ -11,10 +17,8 @@ interface ConfirmDialogProps {
     confirmLabel?: string;
     cancelLabel?: string;
     confirmVariant?: "danger" | "primary";
-    showInput?: boolean;
-    inputLabel?: string;
-    inputPlaceholder?: string;
-    inputRequired?: boolean;
+    /** Presence renders a text-input field; onConfirm then receives its value. */
+    input?: ConfirmDialogInput;
     loading?: boolean;
     onConfirm: (inputValue?: string) => void;
     onCancel: () => void;
@@ -28,10 +32,7 @@ export default function ConfirmDialog({
     confirmLabel = "Confirm",
     cancelLabel = "Cancel",
     confirmVariant = "primary",
-    showInput = false,
-    inputLabel,
-    inputPlaceholder,
-    inputRequired = false,
+    input,
     loading = false,
     onConfirm,
     onCancel,
@@ -74,10 +75,10 @@ export default function ConfirmDialog({
     if (!isOpen) return null;
 
     const handleConfirm = () => {
-        if (showInput && inputRequired && !inputValue.trim()) {
+        if (input && input.required && !inputValue.trim()) {
             return;
         }
-        onConfirm(showInput ? inputValue : undefined);
+        onConfirm(input ? inputValue : undefined);
         setInputValue("");
     };
 
@@ -90,7 +91,7 @@ export default function ConfirmDialog({
         ? "bg-[var(--error)] hover:bg-[var(--error)]/90 text-white"
         : "btn-primary";
 
-    const isConfirmDisabled = loading || (showInput && inputRequired && !inputValue.trim());
+    const isConfirmDisabled = loading || Boolean(input?.required && !inputValue.trim());
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -113,19 +114,19 @@ export default function ConfirmDialog({
                 <div className="p-6 space-y-4">
                     <p className="text-sm text-muted">{message}</p>
 
-                    {showInput && (
+                    {input && (
                         <div>
-                            {inputLabel && (
+                            {input.label && (
                                 <label htmlFor={inputId} className="block text-sm font-medium mb-1.5">
-                                    {inputLabel}
-                                    {inputRequired && <span className="text-[var(--error)]"> *</span>}
+                                    {input.label}
+                                    {input.required && <span className="text-[var(--error)]"> *</span>}
                                 </label>
                             )}
                             <textarea
                                 id={inputId}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
-                                placeholder={inputPlaceholder}
+                                placeholder={input.placeholder}
                                 rows={3}
                                 className="input resize-none w-full"
                                 autoFocus
