@@ -2169,18 +2169,23 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.fe-contract-types.4",
             statement=(
-                "`countLabel`/`pnlColorClass`/`formatPeriod`/`isActive` each "
-                "have at most one definition, at one canonical home "
-                "(`lib/statusLabels.ts`, `lib/date.ts`, "
+                "`countLabel`/`pnlColorClass`/`formatPeriod`/`isActive`/"
+                "`readinessVariant` each have at most one definition, at one "
+                "canonical home (`lib/statusLabels.ts`, `lib/date.ts`, "
                 "`components/navigation.ts`) — were 2-3 component-local copies "
                 'each, with `formatPeriod` already diverged (a "→" vs "to" '
-                "separator) before unification. The gate actively governs the "
-                "renamed name too (`pnlColorClass`, not just banning the old "
-                "`getPnlColor`), so a future duplicate of the CURRENT name is "
-                "caught, not only a regression to the old one. `formatCurrency` "
-                "is defined only in `lib/audit/money/format.ts` (amount "
-                "formatting) — no second definition colliding in name with a "
-                "currency-CODE formatter exists anywhere else (#1868 S5)."
+                "separator) and `readinessVariant` already diverged (its two "
+                'definitions\' "unhandled"/default branches assigned '
+                "conflicting Badge colors — the two source enums don't "
+                "actually overlap on which states hit that default) before "
+                "unification. The gate actively governs the renamed name too "
+                "(`pnlColorClass`, "
+                "not just banning the old `getPnlColor`), so a future duplicate "
+                "of the CURRENT name is caught, not only a regression to the "
+                "old one. `formatCurrency` is defined only in "
+                "`lib/audit/money/format.ts` (amount formatting) — no second "
+                "definition colliding in name with a currency-CODE formatter "
+                "exists anywhere else (#1868 S5)."
             ),
             test=(
                 "tests/tooling/test_fe_helper_ssot.py"
