@@ -20,9 +20,30 @@ from infra2_sdk.deploy import DeployOperation, DeployRequest, DeployType  # noqa
 SERVICE = "finance_report/app"
 SOURCE_REPOSITORY = "wangzitian0/finance_report"
 CONTRACT_VERSION = 1
+_REQUEST_FIELDS = frozenset(
+    {
+        "contract_version",
+        "request_id",
+        "operation",
+        "service",
+        "deploy_type",
+        "version_ref",
+        "source_repository",
+        "source_sha",
+        "evidence",
+    }
+)
+_EVIDENCE_FIELDS = frozenset(
+    {
+        "source_run_url",
+        "source_run_id",
+        "staging_run_url",
+        "reviewed_change_url",
+    }
+)
 _RELEASE_REF_RE = re.compile(r"\Av[0-9]+\.[0-9]+\.[0-9]+\Z")
 _SOURCE_RUN_PATH_RE = re.compile(
-    r"\A/wangzitian0/finance_report/actions/runs/([1-9][0-9]*)\Z"
+    rf"\A/{re.escape(SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
 )
 _SOURCE_SHA_RE = re.compile(r"\A[0-9a-f]{40}\Z")
 
@@ -78,6 +99,8 @@ def canonical_json(request: DeployRequest) -> str:
 
 
 def _validate_authority(raw: Mapping[str, Any]) -> None:
+    if set(raw) != _REQUEST_FIELDS:
+        raise ValueError("request fields must exactly match DeployRequest v1")
     contract_version = raw.get("contract_version")
     if isinstance(contract_version, bool) or contract_version != CONTRACT_VERSION:
         raise ValueError(f"contract_version must be {CONTRACT_VERSION}")
@@ -107,6 +130,11 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
     evidence = raw.get("evidence")
     if not isinstance(evidence, Mapping):
         raise ValueError("evidence must be an object")
+    if set(evidence) != _EVIDENCE_FIELDS:
+        raise ValueError("evidence fields must exactly match DeployEvidence v1")
+    for infra_owned_field in ("staging_run_url", "reviewed_change_url"):
+        if evidence.get(infra_owned_field) != "":
+            raise ValueError(f"evidence.{infra_owned_field} must be empty")
     source_run_url = evidence.get("source_run_url")
     if not isinstance(source_run_url, str) or not source_run_url:
         raise ValueError("evidence.source_run_url is required")

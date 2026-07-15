@@ -81,6 +81,28 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
             {
                 "evidence": {
                     **VALID_REQUEST["evidence"],
+                    "staging_run_url": "https://github.com/example/staging/runs/1",
+                }
+            },
+            "evidence.staging_run_url must be empty",
+        ),
+        (
+            {
+                "evidence": {
+                    **VALID_REQUEST["evidence"],
+                    "reviewed_change_url": "https://github.com/example/pull/1",
+                }
+            },
+            "evidence.reviewed_change_url must be empty",
+        ),
+        (
+            {"evidence": {**VALID_REQUEST["evidence"], "unexpected": "authority"}},
+            "evidence fields must exactly match DeployEvidence v1",
+        ),
+        (
+            {
+                "evidence": {
+                    **VALID_REQUEST["evidence"],
                     "source_run_url": "https://example.com/actions/runs/12345678",
                 }
             },
@@ -112,6 +134,15 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
         raw = {**VALID_REQUEST, **override}
         with pytest.raises(ValueError, match=re.escape(error)):
             renderer.request_from_mapping(raw)
+
+    with pytest.raises(
+        ValueError, match="request fields must exactly match DeployRequest v1"
+    ):
+        renderer.request_from_mapping({**VALID_REQUEST, "unexpected": "authority"})
+
+    assert renderer._SOURCE_RUN_PATH_RE.pattern == (
+        rf"\A/{re.escape(renderer.SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
+    )
 
     rendered = renderer.render_request(
         request_id=VALID_REQUEST["request_id"],
