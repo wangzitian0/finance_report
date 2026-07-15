@@ -962,3 +962,41 @@ async def test_AC17_4_14_brokerage_import_links_statement_to_broker_account(clie
     assert account is not None
     assert account.type == AccountType.ASSET
     assert account.name == "Moomoo"
+
+
+async def test_AC_brokerage_import_10_payload_rejects_json_floats(client):
+    """AC-portfolio.brokerage-import.10: JSON floats anywhere in the payload → 422 (#1864).
+
+    Amounts travel as decimal strings (money wire policy); a float would launder
+    IEEE-754 precision into position quantities/market values via str(value).
+    """
+    response = await client.post(
+        "/portfolio/brokerage/import",
+        json={
+            "filename": "ibkr.csv",
+            "payload": {
+                "institution": "Interactive Brokers",
+                "statement": {"period_end": "2026-05-18", "currency": "USD"},
+                "positions": [{"symbol": "MSFT", "quantity": 2.5, "market_value": 860.0, "currency": "USD"}],
+            },
+        },
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "float" in str(detail).lower()
+
+
+async def test_AC_brokerage_import_10_decimal_string_payload_still_accepted(client):
+    """AC-portfolio.brokerage-import.10 guard: the decimal-string wire shape keeps working."""
+    response = await client.post(
+        "/portfolio/brokerage/import",
+        json={
+            "filename": "ibkr.csv",
+            "payload": {
+                "institution": "Interactive Brokers",
+                "statement": {"period_end": "2026-05-18", "currency": "USD"},
+                "positions": [{"symbol": "MSFT", "quantity": "2", "market_value": "860.00", "currency": "USD"}],
+            },
+        },
+    )
+    assert response.status_code == 200

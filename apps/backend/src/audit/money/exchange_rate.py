@@ -5,21 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from src.audit.decimal_scalar import coerce_decimal
 from src.audit.money.currency import Currency
 from src.audit.money.errors import FloatNotAllowedError, InvalidExchangeRateError
 
 
 def _coerce_rate(value: object) -> Decimal:
-    if isinstance(value, bool):
-        raise FloatNotAllowedError("bool is not a valid FX rate")
-    if isinstance(value, float):
-        raise FloatNotAllowedError("float is not allowed for FX rates (IEEE-754 precision loss); use Decimal")
-    if isinstance(value, Decimal):
-        rate = value
-    elif isinstance(value, int):
-        rate = Decimal(value)
-    else:
-        raise FloatNotAllowedError(f"FX rate must be Decimal or int, got {type(value).__name__}")
+    """Coerce via the shared codec (AC-audit.36.2); positivity stays FX-specific."""
+    rate = coerce_decimal(value, "FX rate", float_error=FloatNotAllowedError)
     if not rate.is_finite() or rate <= 0:
         raise InvalidExchangeRateError("FX rate must be finite and positive")
     return rate

@@ -1321,6 +1321,22 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-reconciliation.review-hardening.2",
+            statement=(
+                "``accept_match`` validates journal-entry amounts against the "
+                "transaction unconditionally: the public signature carries no "
+                "bypass flag, and accepting a match whose entry total "
+                "mismatches the transaction amount raises (entry balance "
+                "validation is never skippable — red line, #1864 S1)."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_AC_review_hardening_2_accept_match_validation_unconditional"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group audit-anchors: reconciliation-to-ledger anchor referential
         # integrity (was EPIC-018 AC18.11.1, migration closeout continuation,
         # #1663 / #1711) ──
@@ -1407,6 +1423,21 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/review/test_consistency_checks.py"
                 "::test_detect_transfer_pairs"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.10",
+            statement=(
+                "``GET /statements/consistency-checks/list`` enforces a bounded "
+                "page size: ``limit`` is declared with ``ge=1, le=200`` and an "
+                "over-limit request is rejected with 422 instead of being "
+                "accepted unbounded (#1864 S1)."
+            ),
+            test=(
+                "apps/backend/tests/review/test_consistency_checks.py"
+                "::test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit"
             ),
             priority="P1",
             status="done",

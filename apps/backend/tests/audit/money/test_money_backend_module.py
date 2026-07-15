@@ -164,3 +164,20 @@ def test_AC2_22_1_statement_summary_typed_currency_balances():
     # NULL/empty -> empty typed container (scalar degenerate case lives elsewhere).
     empty = StatementSummary()
     assert len(empty.typed_currency_balances()) == 0
+
+
+def test_exchange_rate_coercion_routes_through_shared_codec_and_keeps_fx_invariants():
+    """AC-audit.36.2 (#1864 backfill): backend ``_coerce_rate`` delegates to the shared
+    codec (float/bool rejection) while the finite-and-positive rule stays FX-specific."""
+    from src.audit.money.errors import FloatNotAllowedError, InvalidExchangeRateError
+
+    with pytest.raises(FloatNotAllowedError):
+        ExchangeRate(Currency.of("USD"), Currency.of("SGD"), 1.35)
+    with pytest.raises(FloatNotAllowedError):
+        ExchangeRate(Currency.of("USD"), Currency.of("SGD"), True)
+    with pytest.raises(FloatNotAllowedError):
+        ExchangeRate(Currency.of("USD"), Currency.of("SGD"), "1.35")
+    for bad_rate in (Decimal("0"), Decimal("-1.35"), Decimal("NaN"), Decimal("Infinity")):
+        with pytest.raises(InvalidExchangeRateError):
+            ExchangeRate(Currency.of("USD"), Currency.of("SGD"), bad_rate)
+    assert ExchangeRate(Currency.of("USD"), Currency.of("SGD"), Decimal("1.35")).rate == Decimal("1.35")

@@ -1196,6 +1196,41 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group safe-error-ssot: one PII-redacting error-text sanitizer
+        # (naive `[:500]` copies in routers/extraction bypassed redaction,
+        # signature review 2026-07-15, #1864 S1) ──
+        ACRecord(
+            id="AC-observability.safe-error-ssot.1",
+            statement=(
+                "Exactly one error-text sanitizer exists: "
+                "``safe_error_message`` in ``src/observability/audit.py``. No "
+                "module under ``apps/backend/src/`` defines a local "
+                "``_safe_error_message`` — the naive truncate-only copies "
+                "bypassed PII redaction on parse/match failure paths."
+            ),
+            test=(
+                "tests/tooling/test_safe_error_message_ssot.py"
+                "::test_AC_safe_error_ssot_1_single_sanitizer_definition"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-observability.safe-error-ssot.2",
+            statement=(
+                "Parse-failure text is PII-redacted and bounded before it is "
+                "persisted or logged: a failure message carrying an email or "
+                "account number reaches neither ``validation_error`` nor the "
+                "failure-log fields raw — both go through "
+                "``safe_error_message``."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_parse_failure_redaction.py"
+                "::test_AC_safe_error_ssot_2_handle_parse_failure_redacts_pii"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

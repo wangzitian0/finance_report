@@ -13,6 +13,7 @@ review-queue services can resolve the owning statement. Matches are keyed on
 source of truth).
 """
 
+import inspect
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -174,7 +175,12 @@ async def test_accept_match_amount_mismatch_raises(db, test_user):
         await accept_match(db, str(match.id), user_id=test_user.id)
 
 
-async def test_accept_match_skip_amount_validation(db, test_user):
+async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, test_user):
+    """AC-reconciliation.review-hardening.2: amount validation cannot be bypassed (#1864)."""
+    # The public signature carries no bypass flag — entry balance validation
+    # is never skippable (red line).
+    assert "skip_amount_validation" not in inspect.signature(accept_match).parameters
+
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("500.00"))
     entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
@@ -186,8 +192,8 @@ async def test_accept_match_skip_amount_validation(db, test_user):
     )
     await db.commit()
 
-    result = await accept_match(db, str(match.id), user_id=test_user.id, skip_amount_validation=True)
-    assert result.status == ReconciliationStatus.ACCEPTED
+    with pytest.raises(ValueError, match="Amount mismatch"):
+        await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_accept_match_reconciles_journal_entries(db, test_user):
@@ -250,7 +256,7 @@ async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     )
     await db.commit()
 
-    await accept_match(db, str(match.id), user_id=test_user.id, skip_amount_validation=True)
+    await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.VOID
 

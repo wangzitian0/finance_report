@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
@@ -258,12 +258,36 @@ class CostBasisMethodUpdateRequest(BaseModel):
     cost_basis_method: CostBasisMethod
 
 
+def _reject_json_floats(value: object, path: str) -> None:
+    """Recursively reject JSON floats (money wire policy: decimal strings only).
+
+    ``bool``/``int`` stay allowed (exact); a float anywhere in the brokerage
+    payload would launder IEEE-754 precision into position quantities or
+    market values via the importer's ``str(value)`` coercion (#1864 S1,
+    AC-portfolio.brokerage-import.10).
+    """
+    if isinstance(value, float):
+        raise ValueError(f"{path}: JSON floats are not allowed; encode amounts as decimal strings")
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _reject_json_floats(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_json_floats(item, f"{path}[{index}]")
+
+
 class BrokerageImportRequest(BaseModel):
     """Request to import parsed brokerage positions."""
 
     payload: dict
     filename: str | None = None
     source_document_id: str | None = None
+
+    @field_validator("payload")
+    @classmethod
+    def _payload_carries_no_floats(cls, value: dict) -> dict:
+        _reject_json_floats(value, "payload")
+        return value
 
 
 class BrokerageImportResponse(BaseModel):

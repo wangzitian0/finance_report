@@ -1789,6 +1789,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-portfolio.brokerage-import.10",
+            statement=(
+                "``POST /portfolio/brokerage/import`` validates the payload "
+                "at the wire boundary: a JSON float anywhere in the payload "
+                "tree is rejected with 422 (amounts travel as decimal "
+                "strings per the money wire policy), so float-precision "
+                "values can never launder into position quantities or market "
+                "values (#1864 S1)."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_brokerage_position_parsing.py"
+                "::test_AC_brokerage_import_10_payload_rejects_json_floats"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
         ACRecord(
