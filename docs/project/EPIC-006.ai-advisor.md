@@ -1,4 +1,5 @@
 # EPIC-006: AI Financial Advisor
+<!-- epic-file: design-doc -->
 
 > **Status**: 🟢 Complete  
 > **Vision Anchor**: `non-goals-not-robo-advisor`  
@@ -473,14 +474,6 @@ before serialization. See `common/llm/ai.md` (chat) and `common/reporting/report
 
 ### AC6.34: Non-Goal Traceability Anchor
 
-This EPIC's `non-goals-not-robo-advisor` vision anchor (`vision.md`) is owned
-solely by EPIC-006, and the vision↔registry gate (`common/testing/check_ac_index.py`)
-only resolves EPIC-numbered AC ids from this table — it cannot see package-scoped
-`AC-<pkg>.*` ids. Every other AC6.x behavior above has migrated into
-`common/advisor/contract.py`'s roadmap (plus `llm`/`reporting` for AC6.11/AC6.33's
-export half); this single row keeps the non-goal traceable and cites the same
-guardrail test backing `AC-advisor.guardrail.1`.
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC6.34.1 | A write/mutation request (create/post/delete/void/modify a journal or ledger entry) is refused before any LLM call, so the advisor never auto-executes a trade or ledger action — it is a decision-support advisor, not a robo-advisor. {tier:CODE-ONLY} | `test_chat_stream_refusal_branches` | `ai/test_ai_advisor_service.py` | P0 | <!-- epic-owned: pending-package -->
+The former non-goal traceability criterion is canonical in
+`AC-advisor.guardrail.1`, whose package roadmap declaration directly backs the
+`non-goals-not-robo-advisor` vision anchor (#1858).

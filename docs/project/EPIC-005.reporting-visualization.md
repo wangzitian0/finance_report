@@ -1,11 +1,10 @@
 # EPIC-005: Financial Reports & Visualization
+<!-- epic-file: design-doc -->
 
-<!-- Nearly-0 AC rows by design (#1821 Wave B): the delivered financial-reports
+<!-- Zero AC rows by design (#1821 Wave B / #1858): the delivered financial-reports
      and visualization design record; all ACs migrated to the `reporting`
      package roadmap (fe-viz-reports group; one row -- the CSV-download-
-     wrapper AC -- to meta/fe-http-client as a generic HTTP-client capability)
-     except one row, kept as a documented `pending-package` exception to back
-     this EPIC's sole-owned `non-goals-not-budgeting-app` Vision Anchor. -->
+     wrapper AC -- to meta/fe-http-client as a generic HTTP-client capability). -->
 
 > **Status**: ✅ Complete (TDD Aligned)
 > **Vision Anchor**: `non-goals-not-budgeting-app`
@@ -561,15 +560,7 @@ trustworthy before it presents the report navigation cards. It consumes the
 existing package readiness/source-trust contract and does not duplicate
 readiness derivation or source-trust rules in the frontend.
 
-| AC ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-(AC5.37.1 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-viz-reports.32`, #1821 Wave B)
-> **Documented exception (#1821 Wave B):** AC5.37.2 stays EPIC-owned rather than
-> migrating. This EPIC's `non-goals-not-budgeting-app` Vision Anchor is owned
-> solely by EPIC-005 (`check_ac_index.py`'s `_vision_obligations` gate); the
-> vision→registry matrix (`generate_vision_proof_matrix.py`) only resolves
-> EPIC-numbered legacy ids from `docs/ac_registry.yaml`, not package-scoped
-> roadmap ids, so migrating every remaining row would orphan the anchor
-> ("backs no AC — dangling vision promise"). One row stays behind to keep it
-> backed — same pattern as EPIC-006's AC6.34.1 (#1821 Wave A).
-| AC5.37.2 | If readiness loading fails, the Reports cockpit shows a contained unavailable state while preserving report navigation | `AC5.37.2 preserves report navigation when readiness is unavailable` | `apps/frontend/src/__tests__/reportsCockpit.test.tsx` | P1 | <!-- epic-owned: pending-package -->
+The former trust-first cockpit criteria are canonical in the `reporting`
+package roadmap as `AC-reporting.fe-viz-reports.32` and `.33`. The latter
+directly backs the `non-goals-not-budgeting-app` vision anchor (#1821 Wave B,
+#1858).

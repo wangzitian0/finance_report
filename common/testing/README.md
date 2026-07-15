@@ -28,6 +28,14 @@ Each domain package declares its own unit/integration test roots in its
 ACRecord roadmaps feeding the AC registry). Unit/integration rows are
 package-owned and conflict-free by construction. Rollout: #1558.
 
+### Vision proof projection
+
+A package-roadmap AC that directly backs product direction declares
+`vision_anchor` in its owning `contract.py`. The vision proof matrix combines
+those declarations through `common.meta.ac_vision_index` with the EPIC-owned
+anchor declarations and real test references. An anchor absent from `vision.md`
+fails closed; there is no separate hand-maintained package-to-vision registry.
+
 ### E2E extension layer
 
 Root E2E specs cross packages, so no single package can declare them: their

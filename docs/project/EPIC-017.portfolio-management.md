@@ -1,4 +1,5 @@
 # EPIC-017: Investment Portfolio Management (100% Self-Developed)
+<!-- epic-file: design-doc -->
 
 > **Status ownership**: Scope owner only; live delivery status is tracked by
 > GitHub issues, AC registries, and executable tests.
@@ -354,20 +355,10 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current portfoli
 
 ### Acceptance Criteria
 
-(AC17.7.1 removed and AC17.7.2 removed and AC17.7.3 removed and AC17.7.4 removed and AC17.7.5 removed, canonical: migrated to the `portfolio` package roadmap as `AC-portfolio.fe-assets2.20` through `.24`, #1821 Wave B)
-
-> **Documented exception (#1821 Wave B):** AC17.7.6 stays EPIC-owned rather
-> than migrating. This EPIC's `decision-1-portfolio-self-developed` Vision
-> Anchor is owned solely by EPIC-017 (`check_ac_index.py`'s
-> `_vision_obligations` gate), and the vision→registry matrix only resolves
-> EPIC-numbered legacy ids, not package-scoped roadmap ids — migrating every
-> remaining row would orphan the anchor ("backs no AC — dangling vision
-> promise"). One row stays behind to keep it backed, mirroring EPIC-006's
-> `AC6.34.1` exception from Wave A and EPIC-005's `AC5.37.2` from Wave B-2.
-
-| AC ID | Description | Verification | Priority |
-|---|---|---|---|
-| AC17.7.6 | Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render | switches to Dividends tab and renders dividend row labels (shared test title also carries the now-migrated `AC-portfolio.fe-assets2.21`) | `apps/frontend/src/__tests__/holdingDetailPage.test.tsx` | P2 | <!-- epic-owned: pending-package -->
+All former dividends, cost-basis, and realized-P&L criteria are canonical in
+the `portfolio` package roadmap as `AC-portfolio.fe-assets2.20` through `.24`
+(#1821 Wave B / #1858). The dividends AC absorbs the row-label proof and
+directly backs the `decision-1-portfolio-self-developed` vision anchor.
 
 **Priority**: P1 — depends on backend portfolio API delivery; surfaces vision-critical metrics.
 **Estimated effort**: 5-7 days frontend (3 tabs + cost-basis selector + summary additions); backend dividend/realized endpoints tracked in core EPIC-017 scope.

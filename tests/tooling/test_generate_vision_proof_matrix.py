@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 from common.testing import generate_vision_proof_matrix as gvpm
 
@@ -39,13 +40,15 @@ def test_AC14_1_19_matrix_maps_vision_to_ac_to_test() -> None:
     matrix = _build()
     by_anchor = {node["anchor"]: node for node in matrix["vision_nodes"]}
 
-    # EPIC-017 anchors to decision-1 and owns AC17.* with real tests.
+    # EPIC-017 owns decision-1, while its package roadmap directly contributes
+    # the canonical AC that backs the node.
     node = by_anchor["decision-1-portfolio-self-developed"]
     assert "EPIC-017" in node["owner_epics"]
-    ac_ids = {ac["id"] for ac in node["acs"]}
-    assert any(ac_id.startswith("AC17.") for ac_id in ac_ids)
-    # At least one AC under this vision node has a real test reference.
-    assert any(ac["tests"] for ac in node["acs"])
+    acs = {ac["id"]: ac for ac in node["acs"]}
+    migrated = acs["AC-portfolio.fe-assets2.21"]
+    assert migrated["epic"] == "pkg-portfolio"
+    expected_tests = {"apps/frontend/src/__tests__/holdingDetailPage.test.tsx"}
+    assert expected_tests.issubset(migrated["tests"])
 
 
 def test_AC14_1_19_rendered_yaml_is_parseable_and_deterministic() -> None:
@@ -157,6 +160,83 @@ def _write_temp_vision_repo(root: Path) -> str:
     )
     (docs / "infra_registry.yaml").write_text("version: 1\nacs: []\n", encoding="utf-8")
     return anchor
+
+
+def _write_temp_package_vision_contract(root: Path, anchor: str) -> None:
+    package = root / "common" / "demo"
+    package.mkdir(parents=True, exist_ok=True)
+    (package / "contract.py").write_text(
+        "from common.meta.base.package_contract import ACRecord, PackageContract\n"
+        "\n"
+        "CONTRACT = PackageContract(\n"
+        "    name='demo',\n"
+        "    klass='infra',\n"
+        "    tier='CODE-ONLY',\n"
+        "    depends_on=[],\n"
+        "    interface=[],\n"
+        "    events=[],\n"
+        "    invariants=[],\n"
+        "    roadmap=[\n"
+        "        ACRecord(\n"
+        "            id='AC-demo.vision.1',\n"
+        "            statement='A package AC backs the temp vision node.',\n"
+        "            test='tests/demo/test_vision.py::test_anchor',\n"
+        "            priority='P0',\n"
+        "            status='done',\n"
+        f"            vision_anchor={anchor!r},\n"
+        "        ),\n"
+        "    ],\n"
+        "    units=[],\n"
+        ")\n",
+        encoding="utf-8",
+    )
+
+
+def test_AC_meta_vision_anchor_2_package_ac_backs_vision_node(tmp_path: Path) -> None:
+    """AC-meta.vision-anchor.2: package roadmap ACs directly back vision nodes."""
+    anchor = _write_temp_vision_repo(tmp_path)
+    _write_temp_package_vision_contract(tmp_path, anchor)
+    gvpm.build_matrix.cache_clear()
+    try:
+        matrix = gvpm.build_matrix(tmp_path)
+    finally:
+        gvpm.build_matrix.cache_clear()
+
+    node = next(item for item in matrix["vision_nodes"] if item["anchor"] == anchor)
+    package_ac = next(ac for ac in node["acs"] if ac["id"] == "AC-demo.vision.1")
+    assert package_ac["epic"] == "pkg-demo"
+    assert package_ac["description"] == "A package AC backs the temp vision node."
+
+
+def test_AC_meta_vision_anchor_2_unknown_package_anchor_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.vision-anchor.2: package declarations must resolve in vision.md."""
+    _write_temp_vision_repo(tmp_path)
+    _write_temp_package_vision_contract(tmp_path, "missing-vision-anchor")
+    gvpm.build_matrix.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="missing-vision-anchor.*vision.md"):
+            gvpm.build_matrix(tmp_path)
+    finally:
+        gvpm.build_matrix.cache_clear()
+
+
+def test_AC_meta_vision_anchor_2_migrated_package_acs_back_all_four_nodes() -> None:
+    """AC-meta.vision-anchor.2: #1858's four residue rows stay vision-backed."""
+    matrix = _build()
+    by_anchor = {node["anchor"]: node for node in matrix["vision_nodes"]}
+    expected = {
+        "non-goals-not-robo-advisor": "AC-advisor.guardrail.1",
+        "non-goals-not-budgeting-app": "AC-reporting.fe-viz-reports.33",
+        "decision-5-processing-account": "AC-ledger.fe-processing.1",
+        "decision-1-portfolio-self-developed": "AC-portfolio.fe-assets2.21",
+    }
+
+    for anchor, ac_id in expected.items():
+        acs = {ac["id"]: ac for ac in by_anchor[anchor]["acs"]}
+        assert ac_id in acs
+        assert acs[ac_id]["tests"], f"{ac_id} must keep a real proof reference"
 
 
 def test_AC14_1_19_build_matrix_is_sourced_from_passed_repo_root(tmp_path) -> None:

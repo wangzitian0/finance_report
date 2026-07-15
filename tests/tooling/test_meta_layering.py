@@ -27,6 +27,7 @@ from common.meta import (
     Kind,
     PackageContract,
     Unit,
+    ac_vision_index,
     concept_index,
     contract_index,
 )
@@ -255,6 +256,46 @@ def test_contract_index_rejects_duplicate_ac_id():
     b = _contract("b", roadmap=[dup])
     with pytest.raises(ValueError, match="claimed by two packages"):
         contract_index([a, b])
+
+
+def test_AC_meta_vision_anchor_1_projection_is_pure():
+    """AC-meta.vision-anchor.1: AC vision declarations form a pure AC-keyed index."""
+    anchored = ACRecord(
+        id="AC-a.vision.1",
+        statement="Back the declared product decision.",
+        test="tests/a/test_vision.py::test_anchor",
+        priority="P0",
+        status="done",
+        vision_anchor="decision-a",
+    )
+    unanchored = ACRecord(
+        id="AC-b.other.1",
+        statement="No vision declaration.",
+        test="tests/b/test_other.py::test_other",
+        priority="P1",
+        status="done",
+        vision_anchor=None,
+    )
+    contracts = [
+        _contract("a", roadmap=[anchored]),
+        _contract("b", klass="middleware", roadmap=[unanchored]),
+    ]
+
+    assert ac_vision_index(contracts) == {"AC-a.vision.1": "decision-a"}
+    assert ac_vision_index(contracts) == ac_vision_index(contracts)
+
+
+def test_AC_meta_vision_anchor_1_rejects_blank_anchor():
+    """AC-meta.vision-anchor.1: an anchor declaration cannot be blank."""
+    with pytest.raises(ValueError, match="vision_anchor"):
+        ACRecord(
+            id="AC-a.vision.1",
+            statement="Broken declaration.",
+            test="tests/a/test_vision.py::test_anchor",
+            priority="P0",
+            status="done",
+            vision_anchor="   ",
+        )
 
 
 def test_AC_meta_concept_1_concept_index_is_pure(tmp_path: Path):

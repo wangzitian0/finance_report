@@ -13,8 +13,8 @@ The meta package now follows the very layout it governs (the Layout-3 exemplar):
   building-block taxonomy (pure model);
 * ``extension`` — :mod:`common.meta.extension.check_package_contract`: the
   governance gate (the impure edge that walks the tree and validates);
-* ``data``      — :mod:`common.meta.data.projection`: ``contract_index``, the
-  computed meta-index (the read-model / projection).
+* ``data``      — :mod:`common.meta.data.projection`: ``contract_index`` and
+  ``ac_vision_index``, computed read-model projections.
 
 Governance is *computed from contracts*, not hand-maintained: every package
 declares a :class:`PackageContract` in ``common/<pkg>/contract.py`` and
@@ -36,6 +36,7 @@ __all__ = [
     "Kind",
     "PackageContract",
     "Unit",
+    "ac_vision_index",
     "concept_index",
     "contract_index",
 ]
@@ -47,7 +48,8 @@ __all__ = [
 # of the pydantic-backed base/data layers here would drag pydantic into every
 # one of those lightweight gates. __getattr__ defers the import until a caller
 # actually reaches for ACRecord/ConceptRecord/Invariant/Kind/PackageContract/
-# Unit/contract_index/concept_index, so check_package_contract.py (which does
+# Unit/contract_index/concept_index/ac_vision_index, so check_package_contract.py
+# (which does
 # need the model) still gets it, while the stdlib-only gates never pay the
 # cost. (check_manifest.py itself now needs the model too — #1799 — but reaches
 # it via a direct `common.meta.extension.check_package_contract` import rather
@@ -69,4 +71,8 @@ def __getattr__(name: str):
         from common.meta.data.projection import concept_index
 
         return concept_index
+    if name == "ac_vision_index":
+        from common.meta.data.projection import ac_vision_index
+
+        return ac_vision_index
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

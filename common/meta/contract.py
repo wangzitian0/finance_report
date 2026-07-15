@@ -60,6 +60,7 @@ CONTRACT = PackageContract(
         ),
         # data — the read-model: the computed meta-index over all contracts.
         Unit(name="contract_index", kind=Kind.PROJECTION, module="data/projection.py"),
+        Unit(name="ac_vision_index", kind=Kind.PROJECTION, module="data/projection.py"),
     ],
     implementations={"be": "common/meta", "fe": None},
     interface=[
@@ -69,6 +70,7 @@ CONTRACT = PackageContract(
         "Kind",
         "PackageContract",
         "Unit",
+        "ac_vision_index",
         "concept_index",
         "contract_index",
     ],
@@ -162,18 +164,21 @@ CONTRACT = PackageContract(
             id="every-common-directory-is-governed-or-excepted",
             statement=(
                 "check_package_contract discovers packages additively (globs "
-                "common/*/contract.py), so a directory with no contract.py is "
-                "invisible to it -- how common/ci, common/shell, and common/ssot "
-                "accumulated as undeclared junk drawers (#1564-#1568). "
+                "common/*/contract.py for a module-level "
+                "CONTRACT = PackageContract(...)), so a directory with no "
+                "discoverable contract is invisible to it -- how common/ci, "
+                "common/shell, and common/ssot accumulated as undeclared junk "
+                "drawers (#1564-#1568). "
                 "check_package_directory_coverage closes that gap from the other "
                 "direction: every directory directly under common/ must ship a "
-                "contract.py or be a documented, reasoned entry in "
-                "UNGOVERNED_EXCEPTIONS, so a new junk drawer cannot silently "
-                "recur."
+                "contract.py with a module-level "
+                "CONTRACT = PackageContract(...) or be a documented, reasoned "
+                "entry in UNGOVERNED_EXCEPTIONS, so a missing, lowercase, "
+                "wrong-type, or unloadable declaration cannot silently recur."
             ),
             test=(
                 "tests/tooling/test_check_package_directory_coverage.py"
-                "::test_bare_directory_with_no_exception_is_rejected"
+                "::test_contract_file_without_exported_contract_is_rejected"
             ),
         ),
         # ── authority-tier vocabulary + gates folded in (was the `authority` package) ──
@@ -260,6 +265,34 @@ CONTRACT = PackageContract(
                 "::test_AC_meta_projection_1_contract_index_is_pure"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.vision-anchor.1",
+            statement=(
+                "A package-roadmap AC may declare one vision.md anchor, and "
+                "ac_vision_index purely projects every declared AC id to that "
+                "anchor without assigning anchor ownership centrally."
+            ),
+            test=(
+                "tests/tooling/test_meta_layering.py"
+                "::test_AC_meta_vision_anchor_1_projection_is_pure"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.vision-anchor.2",
+            statement=(
+                "The vision proof matrix includes package-roadmap ACs under "
+                "their declared vision anchors and rejects any anchor absent "
+                "from vision.md."
+            ),
+            test=(
+                "tests/tooling/test_generate_vision_proof_matrix.py"
+                "::test_AC_meta_vision_anchor_2_package_ac_backs_vision_node"
+            ),
+            priority="P0",
             status="done",
         ),
         ACRecord(
@@ -718,7 +751,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-meta.generated-refs.2",
-            statement="A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC Vision Anchor declarations, the AC registries, and test references, and --check fails on drift. Was AC14.1.19.",
+            statement="A single parseable vision-to-proof matrix is mechanically generated from vision.md anchors, EPIC ownership declarations, package-roadmap vision_anchor declarations, the AC registries, and test references, and --check fails on drift. Was AC14.1.19.",
             test="tests/tooling/test_generate_vision_proof_matrix.py::test_AC14_1_19_matrix_maps_vision_to_ac_to_test",
             priority="P1",
             status="done",

@@ -142,6 +142,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     expect(bodyText.indexOf("Report readiness")).toBeLessThan(bodyText.indexOf("Balance Sheet"))
   })
 
+  // AC-reporting.fe-viz-reports.33
   it("AC5.37.2 preserves report navigation when readiness is unavailable", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/income/annualized") {

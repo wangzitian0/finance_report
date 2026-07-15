@@ -1780,7 +1780,10 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
         "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
     )
     # The single, fail-closed index gate (folds in the former traceability gate).
-    assert "uv run --with pyyaml python tools/check_ac_index.py" in workflow
+    assert (
+        "uv run --with pyyaml --with pydantic python tools/check_ac_index.py"
+        in workflow
+    )
     # The retired standalone steps are gone.
     assert "tools/check_ac_traceability.py" not in workflow
     assert "tools/check_critical_proof_matrix.py" not in workflow

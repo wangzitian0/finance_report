@@ -1,4 +1,5 @@
 # EPIC-015: Processing Account Integration
+<!-- epic-file: design-doc -->
 
 > **Status**: ✅ Complete (TDD Aligned)
 > **Vision Anchor**: `decision-5-processing-account`
@@ -308,20 +309,13 @@ assert abs(assets - liabilities_equity) < Decimal("0.01")  # ✅ PASSED
 
 *(AC15.7.1 removed, canonical: migrated to the `ledger` package roadmap as
 `AC-ledger.processing.1`, #1821 Wave A)*
-(AC15.7.2 removed and AC15.7.3 removed and AC15.7.4 removed and AC15.7.5 removed and AC15.7.6 removed and AC15.7.7 removed, canonical: migrated to the `ledger` package roadmap as `AC-ledger.fe-processing.1` through `.6`, #1821 Wave B — AC15.7.6/AC15.7.7 were superseded-in-place by EPIC-022's bottom-tab Audit hub before migration: Processing discoverability moved to `/audit` and its balance warning is carried by the Home Processing card (AC15.7.8) and the attention inbox)
-
-> **Documented exception (#1821 Wave B):** AC15.7.8 stays EPIC-owned rather
-> than migrating. This EPIC's `decision-5-processing-account` Vision Anchor
-> is owned solely by EPIC-015 (`check_ac_index.py`'s `_vision_obligations`
-> gate), and the vision→registry matrix only resolves EPIC-numbered legacy
-> ids, not package-scoped roadmap ids — migrating every remaining row would
-> orphan the anchor ("backs no AC — dangling vision promise"). One row stays
-> behind to keep it backed, mirroring EPIC-006's `AC6.34.1` exception from
-> Wave A and EPIC-005's `AC5.37.2` from Wave B-2.
-
-| AC ID | Description | Test | Path | Priority |
-|-------|-------------|------|------|----------|
-| AC15.7.8 | Dashboard Processing card shows the signed current balance and a non-zero balance warning | `shows the current Processing Account balance when transfers are unresolved` | `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | P1 | <!-- epic-owned: pending-package -->
+All former processing-visibility criteria are canonical in the `ledger`
+package roadmap as `AC-ledger.fe-processing.1` through `.6` (#1821 Wave B /
+#1858). The first AC absorbs the balance-warning proof and directly backs the
+`decision-5-processing-account` vision anchor. The final two navigation
+criteria were superseded-in-place by EPIC-022's bottom-tab Audit hub before
+migration: Processing discoverability moved to `/audit`, and its balance
+warning is carried by the Home Processing card and the attention inbox.
 
 **Priority**: P0-quick-win — small UI surface; backend already exposes processing-account state.
 **Estimated effort**: 1-2 days backend (summary endpoint) + 2-3 days frontend (card + listing).

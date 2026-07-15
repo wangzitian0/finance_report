@@ -10,12 +10,8 @@
     "EPIC-004.reconciliation-engine.md": {
       "horizontal": 2
     },
-    "EPIC-005.reporting-visualization.md": {
-      "pending-package": 1
-    },
-    "EPIC-006.ai-advisor.md": {
-      "pending-package": 1
-    },
+    "EPIC-005.reporting-visualization.md": {},
+    "EPIC-006.ai-advisor.md": {},
     "EPIC-007.deployment.md": {
       "horizontal": 31
     },
@@ -29,16 +25,12 @@
     },
     "EPIC-013.statement-parsing-v2.md": {},
     "EPIC-014.ttd-transformation.md": {},
-    "EPIC-015.processing-account.md": {
-      "pending-package": 1
-    },
+    "EPIC-015.processing-account.md": {},
     "EPIC-016.two-stage-review-ui.md": {
       "fe-only": 4,
       "horizontal": 1
     },
-    "EPIC-017.portfolio-management.md": {
-      "pending-package": 1
-    },
+    "EPIC-017.portfolio-management.md": {},
     "EPIC-018.ai-driven-pipeline.md": {},
     "EPIC-019.event-driven-upload-to-report-ux.md": {
       "fe-half": 1
