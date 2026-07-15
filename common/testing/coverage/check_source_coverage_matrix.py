@@ -18,7 +18,15 @@ DEFAULT_MATRIX = (
 )
 VALID_PROOF_LEVELS = {"pr_deterministic", "post_merge_llm_ocr", "manual_trusted", "gap"}
 ISSUE_RE = re.compile(r"^#\d+$")
-EPIC_RE = re.compile(r"^EPIC-\d{3}$")
+EPIC_RE = re.compile(r"^(?:EPIC-\d{3}|pkg-[a-z0-9_-]+)$")
+
+def _epic_path(repo_root: Path, epic_id: str) -> Path | None:
+    if epic_id.startswith("pkg-"):
+        pkg_name = epic_id.split("-", 1)[1]
+        path = repo_root / "common" / pkg_name / "readme.md"
+        return path if path.exists() else None
+    matches = sorted((repo_root / "docs" / "project").glob(f"{epic_id}.*.md"))
+    return matches[0] if matches else None
 
 
 @dataclass
@@ -71,7 +79,7 @@ def _validate_source(source: dict[str, Any], repo_root: Path) -> SourceCoverageR
         for epic in owner_epics:
             if not EPIC_RE.fullmatch(str(epic)):
                 errors.append(f"{source_id}: invalid owner EPIC {epic!r}")
-            elif not sorted((repo_root / "docs" / "project").glob(f"{epic}.*.md")):
+            elif not _epic_path(repo_root, str(epic)):
                 errors.append(f"{source_id}: owner EPIC does not exist: {epic}")
 
     if "proof_levels" in source and not isinstance(raw_proof_levels, list):

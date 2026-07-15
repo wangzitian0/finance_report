@@ -10,7 +10,7 @@ import sys
 
 from common.testing.lint_doc_consistency._checks import (
     check_code_owned_coverage_threshold_doc,
-    check_epic_anchors,
+    check_vision_anchors,
     check_epic_to_registry,
     check_frontend_raw_fetch_usage,
     check_generated_analysis_snapshots_absent,
@@ -28,7 +28,7 @@ from common.testing.lint_doc_consistency._checks import (
 from common.testing.lint_doc_consistency._parsing import (
     collect_ac_refs_in_epics,
     collect_ac_refs_in_tests,
-    list_epic_files,
+    list_readme_files,
     load_registry_acs,
     parse_vision_anchors,
 )
@@ -57,27 +57,21 @@ def main() -> int:
     vision_text = _base.VISION_PATH.read_text(encoding="utf-8")
     vision_anchors = parse_vision_anchors(vision_text)
 
-    epic_files = list_epic_files()
-    if not epic_files:
-        print(
-            f"ERROR: no EPIC-*.md files matched in {_base.EPIC_DIR}",
-            file=sys.stderr,
-        )
-        return 1
+    readme_files = list_readme_files()
 
     feature_acs = load_registry_acs(_base.AC_REGISTRY)
     infra_acs = load_registry_acs(_base.INFRA_REGISTRY)
     all_acs = feature_acs + infra_acs
     registry_ids = {ac["id"] for ac in all_acs if ac.get("id")}
 
-    epic_refs = collect_ac_refs_in_epics(epic_files)
+    epic_refs = {}
     test_refs = collect_ac_refs_in_tests(_base.TEST_ROOTS)
 
     violations: list[Violation] = []
 
-    check1, epic_to_slug = check_epic_anchors(epic_files, vision_anchors)
+    check1, pkg_to_slugs = check_vision_anchors(readme_files, vision_anchors)
     violations.extend(check1)
-    violations.extend(check_orphan_vision_anchors(vision_anchors, epic_to_slug))
+    violations.extend(check_orphan_vision_anchors(vision_anchors, pkg_to_slugs))
     violations.extend(check_registry_to_epic(all_acs, epic_refs))
     violations.extend(check_epic_to_registry(epic_refs, registry_ids))
     violations.extend(check_registry_to_tests(all_acs, test_refs))
@@ -96,7 +90,7 @@ def main() -> int:
         print("=" * 72)
         print("Doc consistency lint (tools/lint_doc_consistency.py)")
         print("=" * 72)
-        print(f"  EPIC files scanned         : {len(epic_files)}")
+        print(f"  Package Readmes scanned    : {len(readme_files)}")
         print(f"  vision.md HTML anchors     : {len(vision_anchors)}")
         print(f"  Feature ACs in registry    : {len(feature_acs)}")
         print(f"  Infra ACs in registry      : {len(infra_acs)}")

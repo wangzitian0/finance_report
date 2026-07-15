@@ -45,7 +45,7 @@ REQUIRED_OUTCOME_IDS = {
     "source-ledger-report-traceability",
 }
 ISSUE_RE = re.compile(r"^#\d+$")
-EPIC_RE = re.compile(r"^EPIC-\d{3}$")
+EPIC_RE = re.compile(r"^(?:EPIC-\d{3}|pkg-[a-z0-9_-]+)$")
 BEHAVIORAL_ROOTS = (
     "apps/backend/tests/",
     "apps/frontend/src/",
@@ -131,6 +131,15 @@ def _load_matrix(path: Path) -> dict[str, Any]:
 
 
 def _epic_path(repo_root: Path, epic_id: str) -> Path | None:
+    """Return the absolute path to the EPIC's markdown file, or None if not found.
+    
+    If epic_id is pkg-{name}, returns common/{name}/readme.md.
+    """
+    if epic_id.startswith("pkg-"):
+        pkg_name = epic_id.split("-", 1)[1]
+        path = repo_root / "common" / pkg_name / "readme.md"
+        return path if path.exists() else None
+
     matches = sorted((repo_root / "docs" / "project").glob(f"{epic_id}.*.md"))
     return matches[0] if matches else None
 
