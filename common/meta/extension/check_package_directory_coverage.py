@@ -69,7 +69,7 @@ def discover_common_dirs(repo_root: Path) -> list[str]:
 
 
 def _is_package_contract_call(value: ast.expr) -> bool:
-    """Whether ``value`` is a direct ``PackageContract(...)`` constructor call."""
+    """Whether ``value`` matches the repo-standard direct ``PackageContract(...)`` call."""
     if not isinstance(value, ast.Call):
         return False
     func = value.func
@@ -77,7 +77,7 @@ def _is_package_contract_call(value: ast.expr) -> bool:
 
 
 def _declares_discoverable_contract(contract_path: Path) -> bool:
-    """Whether package discovery can see a module-level package contract export."""
+    """Whether package discovery can see a repo-conventional package contract export."""
     try:
         tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     except SyntaxError:
