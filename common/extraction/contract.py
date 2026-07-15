@@ -283,12 +283,12 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # The EPIC-003 + EPIC-013 ACs, migrated per Decision A. Three EPIC-003
-    # rows stay behind in the EPIC (AC3.3.2 / AC3.5.10 / AC3.6.4): they are
-    # human-authority rows ({tier:HU}{proof:evidence}), and the tier->proof
-    # matrix forbids evidence proofs under this LLM-LED package — a different
-    # authority tier is a different owner, same as frontend rows in ledger's
-    # cutover. (standard-preserving
+    # The EPIC-003 + EPIC-013 ACs, migrated per Decision A. AC3.3.2/AC3.5.10/
+    # AC3.6.4 (groups 3/5/6) were the last 3 EPIC-003 rows migrated (2026-07-14):
+    # their legacy {tier:HU}{proof:evidence} marker predates the tier->proof
+    # matrix and was never revisited; the underlying tests are ordinary
+    # deterministic assertions, so proof_kind="property" applies cleanly under
+    # this package's LLM-LED tier — no authority-tier conflict. (standard-preserving
     # move; the EPIC table rows were deleted in the same commit). Numeric
     # AC-<pkg>.<group>.<seq> grammar with reserved group blocks (the ledger
     # precedent): **1–12 = EPIC-003** (leading epic number dropped) and
@@ -382,6 +382,16 @@ CONTRACT = PackageContract(
             id="AC-extraction.3.1",
             statement="High Confidence (Auto-Accept)",  # was AC3.3.1
             test="apps/backend/tests/api/test_statements_router.py::test_auto_approve_high_confidence_statement_creates_posted_entries",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.3.2",
+            # was AC3.3.2; consolidated with duplicate AC13.2.2 (EPIC-013 lineage,
+            # same test) per Copilot review on PR #1859 — one canonical id per proof.
+            statement="Medium Confidence (Review)",
+            test="apps/backend/tests/extraction/test_extraction.py::test_medium_confidence",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -486,6 +496,14 @@ CONTRACT = PackageContract(
             id="AC-extraction.5.9",
             statement="Upload then list statements and transactions.",  # was AC3.5.9
             test="apps/backend/tests/api/test_statements_router.py::test_list_and_transactions_flow",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.5.10",
+            statement="Review queue includes reviewable parsed statements and supports approve/reject.",  # was AC3.5.10
+            test="apps/backend/tests/api/test_statements_router.py::test_pending_review_and_decisions",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -630,6 +648,14 @@ CONTRACT = PackageContract(
             id="AC-extraction.6.3",
             statement="Ambiguous Mapping Blocked",  # was AC3.6.3
             test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_blocks_ambiguous_account_mapping",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.6.4",
+            statement="Explicit First-Upload Account Creation",  # was AC3.6.4
+            test="apps/backend/tests/api/test_statements_router.py::test_approve_statement_stage1_creates_account_with_explicit_confirmation",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -886,14 +912,6 @@ CONTRACT = PackageContract(
             id="AC-extraction.102.1",
             statement="Test that complete data gets high confidence (Auto-Accept)",  # was AC13.2.1
             test="apps/backend/tests/extraction/test_extraction.py::test_high_confidence",
-            priority="P0",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
-            id="AC-extraction.102.2",
-            statement="Test that partial data gets medium confidence (Review)",  # was AC13.2.2
-            test="apps/backend/tests/extraction/test_extraction.py::test_medium_confidence",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -2778,8 +2796,10 @@ CONTRACT = PackageContract(
         # ── group 1801: classification retirement — the pre-classify-node
         # rule matching path (was EPIC-018 AC18.1.3-4, migration closeout
         # continuation, #1663 / #1715). AC18.1.1 is already proven by
-        # AC-extraction.104.1 (was AC13.4.1); AC18.1.2/.5/.6 are not
-        # verified in this pass — see the EPIC-018 doc note. ──
+        # AC-extraction.104.1 (was AC13.4.1); AC18.1.2 stays dead/unverified
+        # — the columns it describes were dropped by migration 0029
+        # (bank_statement_transactions table removed), see the EPIC-018 doc
+        # note. AC18.1.5/.6 are proven below (1801.3-5). ──
         ACRecord(
             id="AC-extraction.1801.1",
             statement=(
@@ -2808,6 +2828,65 @@ CONTRACT = PackageContract(
                 "::test_classification_priority_keyword_over_regex"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1801.3",
+            statement=(
+                "create_entry_from_txn reads the Layer-3 classification and "
+                "debits/credits its account before falling back to Uncategorized."
+            ),  # was EPIC-018 AC18.1.5
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_create_entry_from_txn_uses_layer3_classification_account"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1801.4",
+            statement=(
+                "Without a Layer-3 classification, an outflow debits the "
+                "auto-created Expense - Uncategorized account, scoped to the "
+                "transaction's user."
+            ),  # was EPIC-018 AC18.1.6 (outflow half)
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.1801.5",
+            statement=(
+                "Without a Layer-3 classification, an inflow credits the "
+                "auto-created Income - Uncategorized account, scoped to the "
+                "transaction's user."
+            ),  # was EPIC-018 AC18.1.6 (inflow half)
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_create_entry_from_txn_inflow_defaults_to_uncategorized_income"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── group classification-priority: descending rule-version priority
+        # within the same rule type (was EPIC-011 AC11.12.2, second half —
+        # the keyword>regex half of that row already lives at
+        # AC-extraction.1801.2). Distinct from group 1801 since its legacy
+        # home is EPIC-011, not EPIC-018. ──
+        ACRecord(
+            id="AC-extraction.classification-priority.1",
+            statement=(
+                "Among same-type rule matches, the newest rule version wins "
+                "deterministically."
+            ),  # was EPIC-011 AC11.12.2 (version-ordering half)
+            test=(
+                "apps/backend/tests/extraction/test_classification_service.py"
+                "::test_same_type_rules_prefer_newer_version"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── group 1802: correction feedback substrate — CorrectionLog,

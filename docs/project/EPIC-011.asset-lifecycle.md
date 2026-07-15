@@ -1,5 +1,11 @@
 # EPIC-011: Asset Lifecycle Management
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (2026-07-14): the last resident row's version-ordering
+     half migrated to the `extraction` package roadmap as
+     `AC-extraction.classification-priority.1`; this file stays the delivered
+     asset-lifecycle design record. -->
+
 **Status**: 🟡 In Progress (P0 Complete)  
 **Vision Anchor**: `decision-3-record-layer`  
 **Phase**: 5  
@@ -375,13 +381,14 @@ representative fixture expansion needed before the overall
 
 ### Acceptance Criteria — Layer 3 Classification Service
 
-> **Partially migrated.** The idempotency row (was AC11.12.* row .1) is homed in the
-> `extraction` package roadmap as `AC-extraction.212.1`
-> ([`common/extraction/contract.py`](../../common/extraction/contract.py));
-> AC11.12.2 stays here for now — its row-level `{tier:CODE-LED}` is stricter
-> than the extraction package tier (LLM-LED), so moving it would downgrade its
-> proof authority (a package-boundary decision, not a mechanical move).
-
-| ID | Test Case | Test Function | File | Priority |
-|----|-----------|---------------|------|----------|
-| AC11.12.2 | Classification priority is deterministic across rule type and descending rule version {tier:CODE-LED} {proof:property} | `test_classification_priority_keyword_over_regex`, `test_same_type_rules_prefer_newer_version` | `extraction/test_classification_service.py` | P0 | <!-- epic-owned: pending-package -->
+> **Fully migrated (2026-07-14).** The idempotency row (was AC11.12.* row .1)
+> is homed in the `extraction` package roadmap as `AC-extraction.212.1`. Row
+> .2 ("Classification priority is deterministic across rule type and
+> descending rule version") had two halves proven by two different tests: the
+> keyword>regex half was already proven by the already-migrated
+> `AC-extraction.1801.2` (identical test, docstring already names both ids);
+> the newest-rule-version half had no package home and is now
+> `AC-extraction.classification-priority.1`
+> ([`common/extraction/contract.py`](../../common/extraction/contract.py)),
+> `proof_kind="property"` — valid under the package's LLM-LED tier, so the
+> earlier "downgrades proof authority" concern did not apply once re-checked.

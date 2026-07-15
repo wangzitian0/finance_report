@@ -607,6 +607,7 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
 
 
 async def test_create_entry_from_txn_uses_layer3_classification_account(db, test_user):
+    """AC-extraction.1801.3: create_entry_from_txn reads the Layer-3 classification before defaulting to Uncategorized."""
     classified_account = await AccountFactory.create_async(
         db,
         user_id=test_user.id,
@@ -661,7 +662,7 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
 
 
 async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(db, test_user):
-    """Without a Layer-3 classification, an outflow debits Expense - Uncategorized."""
+    """AC-extraction.1801.4: Without a Layer-3 classification, an outflow debits Expense - Uncategorized."""
     stmt = await _make_statement(db, test_user.id, currency="SGD")
     txn = await _make_txn(
         db,
@@ -685,7 +686,7 @@ async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(d
 
 
 async def test_create_entry_from_txn_inflow_defaults_to_uncategorized_income(db, test_user):
-    """Without a Layer-3 classification, an inflow credits Income - Uncategorized."""
+    """AC-extraction.1801.5: Without a Layer-3 classification, an inflow credits Income - Uncategorized."""
     stmt = await _make_statement(db, test_user.id, currency="SGD")
     txn = await _make_txn(
         db,

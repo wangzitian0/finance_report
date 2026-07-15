@@ -254,18 +254,28 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 > *(AC18.1.1 removed — duplicate, not migrated; it was already proven by
 > `AC-extraction.104.1` (`test_get_parsing_prompt_default`), which is the
 > canonical copy. One criterion, one home — final cleanup, #1719.)*
-> **AC18.1.2** ("BankStatementTransaction has suggested_category/
-> category_confidence columns"), **AC18.1.5** ("create_entry_from_txn reads
-> classification before defaulting to Uncategorized"), and **AC18.1.6**
-> ("auto-created category accounts are user-scoped") are **not verified in
-> this migration pass** — no ORM column or dedicated test was found for
-> AC18.1.2 specifically (the extraction prompt still asks for these fields,
-> but nothing appears to consume/store them post-#1483 cleanup); AC18.1.5/.6
-> need a dedicated look. Flagged during migration closeout, #1663 / #1715.
+>
+> *(AC18.1.2 removed — not migrated: dead. The `suggested_category`/
+> `category_confidence` columns it describes don't exist on the current
+> schema; `bank_statement_transactions` (which briefly had them, migration
+> `0010_add_ai_category_fields.py`) was dropped entirely by migration
+> `0029_drop_bank_statement_tables.py`, and its replacement,
+> `AtomicTransaction`, never carried them. The extraction prompt still
+> requests these fields but nothing consumes/stores them. Flagged unverified
+> during migration closeout (#1663/#1715); confirmed dead on re-investigation,
+> 2026-07-14.)*
 >
 > *(AC18.1.3 removed and AC18.1.4 removed — migrated to the `extraction`
 > package roadmap as `AC-extraction.1801.1-2`, migration closeout
 > continuation, #1663 / #1715)*
+>
+> *(AC18.1.5 removed and AC18.1.6 removed — migrated to the `extraction`
+> package roadmap as `AC-extraction.1801.3-5`; both were already implemented
+> and tested (`test_review_queue.py`'s `test_create_entry_from_txn_uses_
+> layer3_classification_account`, `..._outflow_defaults_to_uncategorized_
+> expense`, `..._inflow_defaults_to_uncategorized_income`) — the "needs a
+> dedicated look" flag from #1663/#1715 was stale, confirmed on
+> re-investigation, 2026-07-14.)*
 >
 > *(AC18.2.1 removed and AC18.2.2 removed and AC18.2.3 removed and AC18.2.4 removed and AC18.2.5 removed — migrated to the `extraction` package roadmap as `AC-extraction.1802.1-5`, migration closeout continuation, #1663 / #1715)*
 >
@@ -273,18 +283,16 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
-| AC18.1.2 | 1 | `BankStatementTransaction` has `suggested_category` and `category_confidence` columns | <!-- epic-owned: pending-package -->
-| AC18.1.5 | 1 | `create_entry_from_txn` reads classification before defaulting to Uncategorized | <!-- epic-owned: pending-package -->
-| AC18.1.6 | 1 | Auto-created category accounts are user-scoped and correctly typed | <!-- epic-owned: pending-package -->
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 | AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 | AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 > (AC18.4.3 removed, canonical: migrated to the `extraction` package roadmap
-> as `AC-extraction.1804.1`, #1821 Wave A. AC18.1.2/AC18.1.5/AC18.1.6/
-> AC18.3.1/AC18.3.2/AC18.3.3 above stay pending-package — each already has a
-> documented blocker [missing test / undecided package-boundary tier
-> conflict] from the #1663/#1711/#1715 migration verification passes; #1821
-> Wave A only moves mechanically-provable rows, not open investigations.)
+> as `AC-extraction.1804.1`, #1821 Wave A. AC18.3.1/AC18.3.2/AC18.3.3 above
+> stay pending-package — each already has a documented blocker [missing test
+> / undecided package-boundary tier conflict] from the #1663/#1711/#1715
+> migration verification passes; #1821 Wave A only moves
+> mechanically-provable rows, not open investigations — see the notes above
+> this table for the three rows resolved on 2026-07-14.)
 
 ### AC18.7: Evidence Graph Foundation
 

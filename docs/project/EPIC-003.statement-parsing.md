@@ -1,5 +1,10 @@
 # EPIC-003: Smart Statement Parsing
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (2026-07-14): the delivered statement-parsing design
+     record; all ACs migrated to the `extraction` package contract.py roadmap
+     (reserved groups 1-12), completing the #1421 Stage-2 cutover. -->
+
 > **Status**: ✅ Complete (TDD Aligned)
 > **Vision Anchor**: `decision-2-event-middle-layer`
 > **Phase**: 2
@@ -120,30 +125,20 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 ## 🧪 Test Cases / Acceptance Criteria
 
-> **Migrated (2026-07-03, #1421 Stage-2 cutover):** all 73 ACs moved to
-> the `extraction` package roadmap in
+> **Migrated (2026-07-03, #1421 Stage-2 cutover; completed 2026-07-14):** all
+> 76 ACs moved to the `extraction` package roadmap in
 > [`common/extraction/contract.py`](../../common/extraction/contract.py) as
 > `AC-extraction.<group>.<seq>` — this EPIC's rows occupy the reserved
 > groups 1–12 (leading epic number dropped), per Decision A (standard-preserving move — every AC kept its
 > statement, anchored test, and priority; the package tier is LLM-LED with
-> per-AC `proof_kind`). This section intentionally holds no rows; the contract
-> roadmap is the single source.
-
-
-
-### Retained rows (human-authority: not migratable into the LLM-LED package roadmap)
-
-The tier→proof matrix forbids `evidence` proofs under an LLM-LED package, so
-these {tier:HU} rows keep their EPIC home (the ledger cutover's frontend-row
-precedent). Extraction's failed-case audit trail (`AC-extraction.9.1` in the contract
-roadmap) stays registered in
-[`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml).
-
-| AC ID | Description | Test Function | Test File | Priority |
-|-------|-------------|---------------|-----------|----------|
-| AC3.3.2 | Medium Confidence (Review) {tier:HU} {proof:evidence} | `test_medium_confidence` | `extraction/test_extraction.py` | P0 | <!-- epic-owned: pending-package -->
-| AC3.5.10 | Review queue includes reviewable parsed statements and supports approve/reject. {tier:HU} {proof:evidence} | `test_pending_review_and_decisions` | `api/test_statements_router.py` | P1 | <!-- epic-owned: pending-package -->
-| AC3.6.4 | Explicit First-Upload Account Creation {tier:HU} {proof:evidence} | `test_approve_statement_stage1_creates_account_with_explicit_confirmation` | `api/test_statements_router.py` | P0 | <!-- epic-owned: pending-package -->
+> per-AC `proof_kind`). This section intentionally holds no rows; the
+> contract roadmap is the single source.
+>
+> *(AC3.3.2 removed, AC3.5.10 removed, and AC3.6.4 removed — the last 3 legacy `{tier:HU} {proof:evidence}` "Retained rows"; re-investigation found the tests already deterministic (a human decision is a runtime input to a CODE-LED assertion, not a proof-kind requirement — see `common/meta/readme.md`'s HU-is-not-a-tier section) and filled the `AC-extraction.3.2`/`5.10`/`6.4` gaps with `proof_kind="property"`, valid under the package's already-declared LLM-LED tier, 2026-07-14.)*
+>
+> Extraction's failed-case audit trail (`AC-extraction.9.1` in the contract
+> roadmap) stays registered in
+> [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml).
 
 ## 📚 SSOT References
 
