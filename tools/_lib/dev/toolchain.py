@@ -51,6 +51,7 @@ def get_compose_cmd() -> list[str]:
     """Return the env-aware container runtime's compose command."""
     runtime = get_container_runtime()
     if runtime is None:
-        print("ERROR: Neither podman nor docker found in PATH", file=sys.stderr)
+        if not os.environ.get("CONTAINER_RUNTIME", "").strip():
+            print("ERROR: Neither podman nor docker found in PATH", file=sys.stderr)
         raise SystemExit(1)
     return [runtime, "compose"]

@@ -16,13 +16,12 @@ MAX_TOOL_LINES = 40
 
 def _fat_tools(repo_root: Path) -> dict[str, int]:
     tools_dir = repo_root / "tools"
-    return {
-        path.relative_to(repo_root).as_posix(): len(
-            path.read_text(encoding="utf-8").splitlines()
-        )
-        for path in sorted(tools_dir.glob("*.py"))
-        if len(path.read_text(encoding="utf-8").splitlines()) > MAX_TOOL_LINES
-    }
+    fat_tools: dict[str, int] = {}
+    for path in sorted(tools_dir.glob("*.py")):
+        line_count = len(path.read_text(encoding="utf-8").splitlines())
+        if line_count > MAX_TOOL_LINES:
+            fat_tools[path.relative_to(repo_root).as_posix()] = line_count
+    return fat_tools
 
 
 def _load_baseline(path: Path) -> set[str]:

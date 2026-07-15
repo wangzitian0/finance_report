@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = ROOT / "apps/backend"
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 
 def test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives() -> (
@@ -26,11 +32,7 @@ def test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives(
 
 def test_AC_runtime_extension_tools_1_backend_gates_share_project_root() -> None:
     """AC-runtime.extension-tools.1: backend runtime gates share root lookup."""
-    from apps.backend.src.runtime.extension import (
-        env_keys,
-        project_root,
-        schema_validation,
-    )
+    from src.runtime.extension import env_keys, project_root, schema_validation
 
     assert env_keys.get_project_root is project_root.get_project_root
     assert schema_validation.get_project_root is project_root.get_project_root
@@ -52,7 +54,7 @@ def test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned() -> No
 
 
 def test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt(
-    tmp_path: Path, capsys
+    tmp_path: Path, capsys, monkeypatch
 ) -> None:
     """AC-testing.governance.20: the fat-tool baseline only shrinks."""
     from common.testing import tool_shim_contract
@@ -65,10 +67,21 @@ def test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt(
     baseline_path = tmp_path / "baseline.json"
     baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
 
+    original_read_text = Path.read_text
+    tool_reads: dict[Path, int] = {}
+
+    def counting_read_text(path: Path, *args, **kwargs) -> str:
+        if path.parent == tools_dir:
+            tool_reads[path] = tool_reads.get(path, 0) + 1
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counting_read_text)
+
     new, stale = tool_shim_contract.findings(tmp_path, baseline_path)
 
     assert new == ["new fat tool: tools/new_fat.py (41 lines; maximum 40)"]
     assert stale == ["resolved fat tool still baselined: tools/resolved.py"]
+    assert set(tool_reads.values()) == {1}
 
     assert (
         tool_shim_contract.main(
@@ -130,7 +143,7 @@ def test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt(
 
 
 def test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain(
-    monkeypatch,
+    monkeypatch, capsys
 ) -> None:
     """AC-testing.toolchain.13: dev commands share one toolchain implementation."""
     from tools._lib.dev import cli, dev_backend, test_lifecycle, toolchain
@@ -149,7 +162,12 @@ def test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain(
     assert dev_backend.get_compose_cmd() == ["docker", "compose"]
 
     monkeypatch.setenv("CONTAINER_RUNTIME", "invalid")
-    assert toolchain.get_container_runtime() is None
+    with pytest.raises(SystemExit) as exc:
+        dev_backend.get_compose_cmd()
+    assert exc.value.code == 1
+    error = capsys.readouterr().err
+    assert "must be either 'podman' or 'docker'" in error
+    assert "Neither podman nor docker" not in error
 
 
 def test_homed_cli_argument_errors_return_status_codes() -> None:
