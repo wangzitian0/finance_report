@@ -3937,6 +3937,35 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        # ── Shared gate infrastructure (#1867 S4 PR-A) ──
+        ACRecord(
+            id="AC-testing.governance.14",
+            statement=(
+                "The AC-score and cassette-eval JSONL ratchets use one "
+                "parameterized baseline implementation with a shared raise-only "
+                "merge, preserving their distinct identifier and collection keys."
+            ),
+            test=(
+                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "::test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.15",
+            statement=(
+                "AC coverage analysis, traceability report generation, and "
+                "traceability checking share one scanner and canonical AC ordering, "
+                "so package-qualified IDs with identical numeric suffixes remain distinct."
+            ),
+            test=(
+                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "::test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

@@ -25,7 +25,12 @@ parity — see ``todo.md``.
 
 from __future__ import annotations
 
-from common.meta.package_contract import ACRecord, ConceptRecord, Invariant, PackageContract
+from common.meta.package_contract import (
+    ACRecord,
+    ConceptRecord,
+    Invariant,
+    PackageContract,
+)
 
 CONTRACT = PackageContract(
     name="runtime",
@@ -1224,6 +1229,21 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_sla_manifest.py"
                 "::test_AC_runtime_sla_manifest_2_production_entries_are_sla_bearing_and_complete"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        # ── Shared GitHub Actions transport (#1867 S4 PR-A) ──
+        ACRecord(
+            id="AC-runtime.github-api.1",
+            statement=(
+                "Runtime release checks and testing CI waits use one GitHub Actions "
+                "client, UTC timestamp parser, and GITHUB_OUTPUT writer, preserving "
+                "the API request and output-file behavior at every existing entry point."
+            ),
+            test=(
+                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "::test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers"
             ),
             priority="P1",
             status="done",

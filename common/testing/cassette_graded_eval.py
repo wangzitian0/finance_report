@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from common.testing.jsonl_baseline import ratcheted_raise_only_merge
 from common.testing.cassette_eval_baseline import (
     CORPUS_COUNT_BASELINE,
     DEFAULT_BASELINE,
@@ -291,17 +292,12 @@ def ratcheted_baseline(
     baseline: dict[str, Any], current: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
     """Raise-only merge: new floor = max(old, current) per case, plus new cases."""
-    cases = dict(baseline.get("cases", {}))
-    for case_id, cur in current.items():
-        cur_score = float(cur.get("score", 0.0))
-        prev = cases.get(case_id)
-        if prev is None or cur_score >= float(prev.get("score", 0.0)):
-            cases[case_id] = {
-                "score": round(cur_score, 6),
-                "metric": cur.get("metric", "field-accuracy"),
-                "provenance": cur.get("provenance", ""),
-            }
-    return {"version": 1, "cases": dict(sorted(cases.items()))}
+    return ratcheted_raise_only_merge(
+        baseline,
+        {"version": 1, "cases": current},
+        collection_key="cases",
+        default_metric="field-accuracy",
+    )
 
 
 def evaluate(

@@ -27,23 +27,16 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
-from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
+from common.testing import ac_scan
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
-
-try:
-    from common.meta.extension.ac_registry_format import load_registry_entries
-except ImportError:  # pragma: no cover - import guard
-    print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +50,7 @@ DEFAULT_INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 DEFAULT_TEST_DIRS = default_ac_test_dirs(REPO_ROOT)
 DEFAULT_OUTPUT = REPO_ROOT / "tmp" / "AC-TEST-TRACEABILITY-AUDIT.md"
 
-EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
-
 _DATE_LINE_RE = re.compile(r"^> \*\*Generated\*\*: \d{4}-\d{2}-\d{2}")
-TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 # Heuristic: treat ACs whose description mentions any of these tokens as
 # "manual verification" so the executive summary can surface them.
@@ -82,22 +72,10 @@ class AC(NamedTuple):
     mandatory: bool
 
 
-@dataclass
-class ACReferenceStats:
-    real_files: set[Path] = field(default_factory=set)
-    placeholder_files: set[Path] = field(default_factory=set)
-    stub_files: set[Path] = field(default_factory=set)
-
-    @property
-    def all_files(self) -> set[Path]:
-        return self.real_files | self.placeholder_files | self.stub_files
-
-    def files_for_report(self) -> list[tuple[str, Path]]:
-        rows: list[tuple[str, Path]] = []
-        rows.extend(("real", path) for path in sorted(self.real_files))
-        rows.extend(("placeholder", path) for path in sorted(self.placeholder_files))
-        rows.extend(("stub", path) for path in sorted(self.stub_files))
-        return rows
+ACReferenceStats = ac_scan.ACReferenceStats
+find_test_files = ac_scan.find_test_files
+collect_references = ac_scan.collect_references
+_ac_sort_key = sort_key
 
 
 # ---------------------------------------------------------------------------
@@ -137,54 +115,8 @@ def load_all_acs(feature_registry: Path, infra_registry: Path) -> list[AC]:
 
 
 # ---------------------------------------------------------------------------
-# Test discovery
-# ---------------------------------------------------------------------------
-
-
-def find_test_files(test_dirs: list[Path]) -> list[Path]:
-    found: list[Path] = []
-    for base in test_dirs:
-        if not base.exists():
-            continue
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
-            for fname in files:
-                if fname.startswith("test_") or fname.endswith(TEST_FILE_SUFFIXES):
-                    found.append(Path(root) / fname)
-    return sorted(found)
-
-
-def collect_references(test_files: list[Path]) -> dict[str, ACReferenceStats]:
-    """Return reference stats keyed by AC ID."""
-    refs: dict[str, ACReferenceStats] = defaultdict(ACReferenceStats)
-    for fpath in test_files:
-        try:
-            content = fpath.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        kind = classify_reference_file(fpath, content)
-        for m in AC_PATTERN.finditer(content):
-            stats = refs[m.group(0)]
-            if kind == "stub":
-                stats.stub_files.add(fpath)
-            elif kind == "placeholder":
-                stats.placeholder_files.add(fpath)
-            else:
-                stats.real_files.add(fpath)
-    return dict(refs)
-
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _ac_sort_key(ac_id: str) -> tuple:
-    """Sort ACs over both id grammars (AC1.2.10 after AC1.2.9; package ids last)."""
-    from common.meta.extension.ac_registry_format import sort_key
-
-    return sort_key(ac_id)
-
 
 _DEPRECATED_PATTERN = re.compile(r"^~~.+~~$", re.DOTALL)
 

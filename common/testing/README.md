@@ -44,6 +44,16 @@ because its enforcement point must be pre-merge at lint speed: code is
 import-checked and contract-tested on every PR, while any other home can only
 be reconciled after the fact.
 
+### Shared gate primitives
+
+`jsonl_baseline.py` owns canonical line-oriented baseline serialization and
+the raise-only per-record merge. The AC-score and cassette-eval modules keep
+their existing public bindings, parameterizing only their identifier and
+collection keys. `ac_scan.py` likewise owns AC test-file discovery, reference
+classification, and the shared stats record used by coverage analysis and both
+traceability consumers. This prevents gate-specific copies from drifting while
+leaving each gate's policy in its own module.
+
 ### Responsibility table
 
 | Failure class | Owner |

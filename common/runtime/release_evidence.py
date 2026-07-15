@@ -10,21 +10,14 @@ import subprocess
 import sys
 from collections.abc import Callable
 
+from common.runtime.github_api import write_github_output as _write_github_output
+
 JsonValue = object
 GhJson = Callable[[list[str]], JsonValue]
 
 
 def _default_gh_json(args: list[str]) -> JsonValue:
     return json.loads(subprocess.check_output(args, text=True))
-
-
-def _write_github_output(values: dict[str, str]) -> None:
-    output_path = os.getenv("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    with open(output_path, "a", encoding="utf-8") as fh:
-        for key, value in values.items():
-            print(f"{key}={value}", file=fh)
 
 
 def _require_list(value: JsonValue, label: str) -> list[dict[str, object]]:

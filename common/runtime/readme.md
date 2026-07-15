@@ -55,6 +55,10 @@ controlled staging proof; Production requests stay disabled.
 - **Declared vs present** — each env *declares* its required dependencies (via env
   vars, owned with `config`); a dependency is either **present** or **absent** —
   there is no `skipped`.
+- **GitHub Actions transport** — `github_api.py` owns the small authenticated
+  Actions client, UTC timestamp parsing, and `GITHUB_OUTPUT` writing used by
+  release evidence and CI waiters. It is shared infrastructure, not a second
+  runtime backend or a testing-owned API.
 
 ## Invariants (the contract)
 
