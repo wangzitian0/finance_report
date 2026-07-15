@@ -73,6 +73,17 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
+    sdk_hash_hex = SDK_HASH.removeprefix("sha256:")
+    for workflow_path in (
+        ROOT / ".github/workflows/deploy.yml",
+        ROOT / ".github/workflows/release.yml",
+    ):
+        workflow_source = workflow_path.read_text(encoding="utf-8")
+        assert f'sdk_url="{SDK_URL}"' in workflow_source
+        assert f'sdk_sha256="{sdk_hash_hex}"' in workflow_source
+        assert "sha256sum --check --status" in workflow_source
+        assert 'python -m pip install "$sdk_wheel"' in workflow_source
+
     workflow = yaml.safe_load(
         (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     )
@@ -544,16 +555,19 @@ def test_AC_runtime_deploy_request_3_transport_cli_contract(
     output_path = tmp_path / "github-output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     monkeypatch.setattr(transport.httpx, "Client", DummyClient)
-    monkeypatch.setattr(
-        transport,
-        "dispatch_and_wait",
-        lambda *args, **kwargs: transport.ReceiverRun(
+    dispatch_options: dict[str, object] = {}
+
+    def successful_dispatch(*args: object, **kwargs: object) -> object:
+        dispatch_options.update(kwargs)
+        return transport.ReceiverRun(
             run_id=101,
             url="https://github.com/wangzitian0/infra2/actions/runs/101",
-        ),
-    )
+        )
+
+    monkeypatch.setattr(transport, "dispatch_and_wait", successful_dispatch)
     monkeypatch.setattr(transport.sys, "stdin", io.StringIO(json.dumps(VALID_REQUEST)))
-    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 0
+    assert transport.main(["--timeout", "6", "--poll-interval", "5"]) == 0
+    assert dispatch_options["max_attempts"] == 2
     assert json.loads(capsys.readouterr().out) == {
         "receiver_run_id": 101,
         "receiver_run_url": "https://github.com/wangzitian0/infra2/actions/runs/101",

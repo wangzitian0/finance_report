@@ -206,7 +206,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 fetch_logs=lambda run_id: _github_logs(client, run_id),
                 poll_interval=float(args.poll_interval),
-                max_attempts=max(1, args.timeout // args.poll_interval),
+                max_attempts=max(
+                    1,
+                    (args.timeout + args.poll_interval - 1) // args.poll_interval,
+                ),
             )
     except (ValueError, RuntimeError, httpx.HTTPError, json.JSONDecodeError) as exc:
         print(f"app deploy transport failed: {exc}", file=sys.stderr)

@@ -226,14 +226,25 @@ jobs:
           attempts="${TOOLCHAIN_DOWNLOAD_RETRIES:-3}"
           delay="${TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS:-10}"
           log="$(mktemp)"
+          sdk_dir="$(mktemp -d)"
+          sdk_wheel="${sdk_dir}/infra2_sdk-0.1.0-py3-none-any.whl"
+          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl"
+          sdk_sha256="94bfdc8b13c5bdcef9ee9150eda0ec794d3b3a0b4b11d529c29d6a2a1ba32a55"
           rc=1
           for n in $(seq 1 "$attempts"); do
             echo "::group::Install App deploy request dependencies (attempt ${n}/${attempts})"
             set +e
-            python -m pip install \
-              "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl" \
-              "httpx>=0.27.0" 2>&1 | tee "$log"
+            curl --fail --location --silent --show-error \
+              "$sdk_url" --output "$sdk_wheel" 2>&1 | tee "$log"
             rc="${PIPESTATUS[0]}"
+            if [ "$rc" -eq 0 ] && ! echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status; then
+              echo "infra2-sdk wheel checksum mismatch" | tee -a "$log"
+              rc=1
+            fi
+            if [ "$rc" -eq 0 ]; then
+              python -m pip install "$sdk_wheel" "httpx>=0.27.0" 2>&1 | tee -a "$log"
+              rc="${PIPESTATUS[0]}"
+            fi
             set -e
             echo "::endgroup::"
             if [ "$rc" -eq 0 ]; then
