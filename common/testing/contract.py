@@ -3940,6 +3940,23 @@ CONTRACT = PackageContract(
     ],
     concepts=[
         ConceptRecord(
+            key="api_surface_ratchet",
+            owner="common/testing/api_surface_ratchet.py",
+            description=(
+                "Shrink-only structural lock for the transitional flat router "
+                "directory and package-to-src.schemas dependency count during "
+                "the API-surface migration (#1865 S2)."
+            ),
+            cross_refs=[
+                "common/testing/data/api-surface-ratchet-baseline.json",
+                "common/meta/contract.py",
+                "tests/tooling/test_api_surface_ratchet.py",
+            ],
+            proofs=["tests/tooling/test_api_surface_ratchet.py"],
+            family="platform",
+            kind="baseline",
+        ),
+        ConceptRecord(
             key="ac_graph",
             owner="common/testing/ac_graph.py",
             description=(
