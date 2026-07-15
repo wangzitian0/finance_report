@@ -15,8 +15,13 @@ import os
 import signal
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
+
+from tools._lib.dev.toolchain import (  # noqa: F401
+    get_compose_cmd,
+    get_runtime_version,
+    uv_run,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_FILE = os.environ.get("COMPOSE_FILE", str(REPO_ROOT / "docker-compose.yml"))
@@ -26,36 +31,6 @@ _started_resources: dict = {
     "uvicorn_proc": None,
     "stack_started": False,
 }
-
-
-def get_runtime_version(name: str) -> str:
-    """Read a runtime version from the repository toolchain contract."""
-    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
-        toolchain = tomllib.load(fh)
-    return str(toolchain["runtime"][name])
-
-
-def uv_run(*args: str) -> list[str]:
-    """Build a uv run command pinned to the SSOT Python runtime."""
-    return ["uv", "run", "--python", get_runtime_version("python"), *args]
-
-
-def get_compose_cmd() -> list[str]:
-    """Detect available compose command."""
-    for cmd in [
-        ["podman", "compose"],
-        ["docker", "compose"],
-    ]:
-        try:
-            subprocess.run(
-                [*cmd, "version"],
-                capture_output=True,
-                check=True,
-            )
-            return cmd
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-    return []
 
 
 def check_database_ready() -> bool:

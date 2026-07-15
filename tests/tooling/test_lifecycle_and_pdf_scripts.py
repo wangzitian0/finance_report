@@ -14,6 +14,7 @@ from types import ModuleType
 import pytest
 
 from tools._lib.dev import test_lifecycle as tl  # noqa: E402
+from tools._lib.dev import toolchain  # noqa: E402
 
 GENERATE_TEST_PDFS_MODULE = "tools._lib.fixtures.generate_test_pdfs"
 
@@ -105,18 +106,14 @@ def test_AC16_13_6_register_unregister_namespace(monkeypatch, tmp_path):
 
 def test_AC16_13_7_get_container_runtime(monkeypatch):
     """AC-testing.lifecycle.8: test_lifecycle — get_container_runtime honors CONTAINER_RUNTIME, otherwise detects podman/docker and returns None when absent"""
-    def podman_first(cmd, capture_output=True):
-        if cmd == ["which", "podman"]:
-            return SimpleNamespace(returncode=0)
-        return SimpleNamespace(returncode=1)
-
-    monkeypatch.setattr(tl.subprocess, "run", podman_first)
+    monkeypatch.setattr(
+        toolchain.shutil,
+        "which",
+        lambda name: "/usr/bin/podman" if name == "podman" else None,
+    )
     assert tl.get_container_runtime() == "podman"
 
-    def none_found(cmd, capture_output=True):
-        return SimpleNamespace(returncode=1)
-
-    monkeypatch.setattr(tl.subprocess, "run", none_found)
+    monkeypatch.setattr(toolchain.shutil, "which", lambda name: None)
     assert tl.get_container_runtime() is None
 
 
@@ -125,12 +122,11 @@ def test_AC16_13_7_get_container_runtime_honors_container_runtime_override(
 ):
     monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
 
-    def both_found(cmd, capture_output=True):
-        if cmd in (["which", "docker"], ["which", "podman"]):
-            return SimpleNamespace(returncode=0)
-        return SimpleNamespace(returncode=1)
-
-    monkeypatch.setattr(tl.subprocess, "run", both_found)
+    monkeypatch.setattr(
+        toolchain.shutil,
+        "which",
+        lambda name: f"/usr/bin/{name}" if name in {"docker", "podman"} else None,
+    )
     assert tl.get_container_runtime() == "docker"
 
 
@@ -170,6 +166,7 @@ def test_AC8_13_69_resolve_postgres_host_port_uses_runtime_fallback(monkeypatch)
 
 def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
     """AC-testing.lifecycle.9: test_lifecycle — is_db_ready returns false on pg_isready subprocess failure"""
+
     def raise_called(*args, **kwargs):
         raise tl.subprocess.CalledProcessError(1, "pg_isready")
 
@@ -444,15 +441,11 @@ class TestSaveActiveNamespacesError:
 class TestGetContainerRuntimeDocker:
     def test_docker_found_when_podman_missing(self, monkeypatch):
         """Line 236: docker path when podman is missing."""
-
-        def fake_run(cmd, capture_output=True):
-            if cmd == ["which", "podman"]:
-                return SimpleNamespace(returncode=1)
-            if cmd == ["which", "docker"]:
-                return SimpleNamespace(returncode=0)
-            return SimpleNamespace(returncode=1)
-
-        monkeypatch.setattr(tl.subprocess, "run", fake_run)
+        monkeypatch.setattr(
+            toolchain.shutil,
+            "which",
+            lambda name: "/usr/bin/docker" if name == "docker" else None,
+        )
         assert tl.get_container_runtime() == "docker"
 
 

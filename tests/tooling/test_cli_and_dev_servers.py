@@ -10,13 +10,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools._lib.dev import cli, dev_backend, dev_frontend  # noqa: E402
+from tools._lib.dev import cli, dev_backend, dev_frontend, toolchain  # noqa: E402
 
 
 def test_AC16_11_16_get_compose_cmd_prefers_podman(monkeypatch):
     """AC-runtime.24.16: cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker, and exits when neither is available."""
     monkeypatch.setattr(
-        cli.shutil,
+        toolchain.shutil,
         "which",
         lambda name: "/usr/bin/podman" if name == "podman" else None,
     )
@@ -25,7 +25,7 @@ def test_AC16_11_16_get_compose_cmd_prefers_podman(monkeypatch):
 
 def test_AC16_11_16_get_compose_cmd_falls_back_to_docker(monkeypatch):
     monkeypatch.setattr(
-        cli.shutil,
+        toolchain.shutil,
         "which",
         lambda name: "/usr/bin/docker" if name == "docker" else None,
     )
@@ -35,7 +35,7 @@ def test_AC16_11_16_get_compose_cmd_falls_back_to_docker(monkeypatch):
 def test_AC16_11_16_get_compose_cmd_honors_container_runtime_override(monkeypatch):
     monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
     monkeypatch.setattr(
-        cli.shutil,
+        toolchain.shutil,
         "which",
         lambda name: f"/usr/bin/{name}" if name in {"docker", "podman"} else None,
     )
@@ -43,7 +43,7 @@ def test_AC16_11_16_get_compose_cmd_honors_container_runtime_override(monkeypatc
 
 
 def test_AC16_11_16_get_compose_cmd_exits_when_none(monkeypatch):
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(toolchain.shutil, "which", lambda name: None)
     with pytest.raises(SystemExit) as exc:
         cli.get_compose_cmd()
     assert exc.value.code == 1
@@ -213,7 +213,10 @@ def test_AC16_11_17_cmd_test_backend_path_route_honors_fast_mode(monkeypatch):
     )
 
     cmd = calls[0][0]
-    assert cmd[:2] == [sys.executable, str(cli.REPO_ROOT / "tools" / "test_lifecycle.py")]
+    assert cmd[:2] == [
+        sys.executable,
+        str(cli.REPO_ROOT / "tools" / "test_lifecycle.py"),
+    ]
     assert "--fast" in cmd
     assert "tests/infra/test_boot.py" in cmd
     assert calls[0][1] == cli.BACKEND_DIR
@@ -239,7 +242,10 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
         ["-k", "foo"],
     )
     cmd = calls[0][0]
-    assert cmd[0:2] == [sys.executable, str(cli.REPO_ROOT / "tools" / "test_lifecycle.py")]
+    assert cmd[0:2] == [
+        sys.executable,
+        str(cli.REPO_ROOT / "tools" / "test_lifecycle.py"),
+    ]
     assert "--fast" in cmd
     assert "--ephemeral" in cmd
     assert "-k" in cmd
@@ -273,6 +279,7 @@ def test_AC16_11_18_cmd_clean_routes(monkeypatch):
 
 def test_AC16_11_19_check_database_ready_failure(monkeypatch):
     """AC-runtime.24.19: dev_backend.check_database_ready returns false on migration subprocess errors."""
+
     def raise_called(*args, **kwargs):
         raise dev_backend.subprocess.CalledProcessError(1, "uv")
 
@@ -718,26 +725,21 @@ class TestDevBackendMain:
         assert exc.value.code == 0
 
     def test_get_compose_cmd_returns_podman(self, monkeypatch):
-        """get_compose_cmd() in dev_backend tries podman then docker."""
-
-        def fake_run(cmd, capture_output=False, check=False):
-            if cmd[0] == "podman":
-                return SimpleNamespace(returncode=0)
-            raise dev_backend.subprocess.CalledProcessError(1, cmd)
-
-        monkeypatch.setattr(dev_backend.subprocess, "run", fake_run)
+        """get_compose_cmd() in dev_backend delegates to the shared detector."""
+        monkeypatch.setattr(
+            toolchain.shutil,
+            "which",
+            lambda name: "/usr/bin/podman" if name == "podman" else None,
+        )
         result = dev_backend.get_compose_cmd()
         assert result == ["podman", "compose"]
 
     def test_get_compose_cmd_returns_empty_when_none(self, monkeypatch):
-        """get_compose_cmd() returns [] when neither podman nor docker found."""
-
-        def raise_fnf(*a, **k):
-            raise FileNotFoundError()
-
-        monkeypatch.setattr(dev_backend.subprocess, "run", raise_fnf)
-        result = dev_backend.get_compose_cmd()
-        assert result == []
+        """get_compose_cmd() exits when neither podman nor docker is found."""
+        monkeypatch.setattr(toolchain.shutil, "which", lambda name: None)
+        with pytest.raises(SystemExit) as exc:
+            dev_backend.get_compose_cmd()
+        assert exc.value.code == 1
 
     def test_cleanup_timeout_kills_process(self, monkeypatch):
         """When proc.wait() times out, cleanup() should kill the process."""

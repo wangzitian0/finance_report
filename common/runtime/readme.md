@@ -59,6 +59,10 @@ prove the correlated infra2 workflow run before App health gates begin.
   Actions client, UTC timestamp parsing, and `GITHUB_OUTPUT` writing used by
   release evidence and CI waiters. It is shared infrastructure, not a second
   runtime backend or a testing-owned API.
+- **Deployed HTTP probe** — `http_probe.py` owns the response shape, URL fetch,
+  report rendering, and empty-safe abbreviated-SHA match used by both
+  `tier2_http_e2e.py` and `production_infra_smoke.py`. Workflow-facing files in
+  `tools/` only delegate to these package-owned commands.
 
 ## Invariants (the contract)
 
@@ -104,6 +108,10 @@ prove the correlated infra2 workflow run before App health gates begin.
   smoke test — the deployed-environment verification that every declared
   dependency is present (invariants 2 and 6), plus the version-integrity /
   routing / functional checks it composes. See *Environment verification* below.
+- **tooling adapters** — backend-only schema/env gates remain under
+  `apps/backend/src/runtime/extension/` because they import backend models, but
+  share `project_root.py` rather than calculating the repository location in
+  each command.
 
 ## Environment verification (the Three Gates)
 

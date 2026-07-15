@@ -232,6 +232,10 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
             "common.testing.github_workflow_timing_summary"
         ),
         "tools.production_infra_smoke": "common.runtime.production_infra_smoke",
+        "tools.staging_ai_ocr_gate_contract": (
+            "common.testing.staging_ai_ocr_gate_contract"
+        ),
+        "tools.tier2_http_e2e": "common.runtime.tier2_http_e2e",
         "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
         "tools.verify_release_evidence": "common.runtime.release_evidence",
         "tools.verify_release_images": "common.runtime.release_images",

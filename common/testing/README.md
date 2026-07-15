@@ -76,6 +76,16 @@ Baseline mutation is explicit and machine-checked by
 declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
 `--rewrite-baseline` flag.
 
+Top-level `tools/*.py` files are command boundaries, not implementation homes.
+`tool_shim_contract.py` rejects a new entry point over 40 lines and requires
+`data/fat-tool-baseline.json` to shrink whenever historical debt is re-homed.
+The staging AI-OCR implementation now lives in
+`staging_ai_ocr_gate_contract.py`, with replay-count data in
+`data/staging-ai-ocr-replay-counters.json`; its workflow-facing tools file is a
+thin compatibility shim. Local developer commands likewise share runtime and
+container selection through `tools/_lib/dev/toolchain.py`, including consistent
+`CONTAINER_RUNTIME` handling.
+
 ### Responsibility table
 
 | Failure class | Owner |

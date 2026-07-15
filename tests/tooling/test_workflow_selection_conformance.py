@@ -111,14 +111,7 @@ def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
     """AC-testing.conformance.3: AC8.23.3: the staging AI/OCR corpus (derived from @ac_proof metadata)
     and the matrix llm rows describe the same set of provider-dependent
     specs — the two derivations cannot drift apart silently."""
-    import sys
-
-    tools_dir = str(ROOT / "tools")
-    sys.path.insert(0, tools_dir)
-    try:
-        from staging_ai_ocr_gate_contract import gate_files
-    finally:
-        sys.path.remove(tools_dir)
+    from common.testing.staging_ai_ocr_gate_contract import gate_files
 
     corpus = set(gate_files())
     llm_rows = {

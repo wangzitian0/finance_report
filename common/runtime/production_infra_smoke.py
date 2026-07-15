@@ -9,10 +9,10 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import urlopen
+
+from common.runtime.http_probe import HttpResponse, request_http, sha_matches
 
 # The public-runtime checks run right after deploy_v2, while the frontend container
 # and its Traefik route may still be rolling over. Poll the route until it is ready
@@ -23,14 +23,6 @@ DEFAULT_READY_INTERVAL = 5.0
 
 class SmokeFailure(AssertionError):
     """Raised when a production infrastructure smoke check fails."""
-
-
-@dataclass(frozen=True)
-class HttpResponse:
-    """Minimal HTTP response data used by smoke checks."""
-
-    status: int
-    body: str
 
 
 Fetcher = Callable[[str, float], HttpResponse]
@@ -47,16 +39,15 @@ def _join_url(base_url: str, path: str) -> str:
 
 def fetch_url(url: str, timeout: float) -> HttpResponse:
     """Fetch a URL with a small user agent and return status plus body."""
-    request = Request(url, headers={"User-Agent": "finance-report-prod-smoke/1.0"})
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            body = response.read().decode("utf-8", errors="replace")
-            return HttpResponse(status=response.status, body=body)
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        return HttpResponse(status=exc.code, body=body)
-    except URLError as exc:
-        raise SmokeFailure(f"Cannot reach {url}: {exc}") from exc
+    response = request_http(
+        url,
+        timeout,
+        user_agent="finance-report-prod-smoke/1.0",
+        opener=urlopen,
+    )
+    if response.status_code == 0:
+        raise SmokeFailure(f"Cannot reach {url}: {response.error}")
+    return HttpResponse(response.status_code, response.body)
 
 
 def _require_success(name: str, response: HttpResponse) -> None:
@@ -78,12 +69,6 @@ def _parse_json(name: str, response: HttpResponse) -> dict[str, Any]:
     return payload
 
 
-def _sha_matches(actual: str, expected: str) -> bool:
-    return (
-        actual == expected or actual.startswith(expected) or expected.startswith(actual)
-    )
-
-
 def verify_health(
     base_url: str,
     *,
@@ -102,7 +87,7 @@ def verify_health(
     git_sha = str(payload.get("git_sha") or payload.get("version") or "")
     if not git_sha:
         raise SmokeFailure("Production health payload is missing git_sha/version")
-    if expected_sha and not _sha_matches(git_sha, expected_sha):
+    if expected_sha and not sha_matches(git_sha, expected_sha):
         raise SmokeFailure(
             f"Production version mismatch: expected {expected_sha}, got {git_sha}"
         )

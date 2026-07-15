@@ -289,6 +289,8 @@ jobs:
           # Baseline mutation flags state whether updates are monotonic or a
           # deliberate full rewrite; generic --update may never adopt debt.
           uv run python tools/check_baseline_update_contract.py
+          # Top-level tools stay thin; historical fat entry points may only shrink.
+          uv run python tools/check_tool_shim_contract.py
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule

@@ -1,0 +1,38 @@
+{
+  "tests/e2e/test_brokerage_upload_to_portfolio_value.py": {
+    "brokerage_imports": 2,
+    "parse_completions": 2,
+    "report_verifications": 0,
+    "uploads": 2
+  },
+  "tests/e2e/test_four_asset_net_worth_golden_path.py": {
+    "brokerage_imports": 1,
+    "parse_completions": 2,
+    "report_verifications": 1,
+    "uploads": 2
+  },
+  "tests/e2e/test_institution_statement_journeys.py": {
+    "brokerage_imports": 0,
+    "parse_completions": 4,
+    "report_verifications": 0,
+    "uploads": 4
+  },
+  "tests/e2e/test_personal_financial_report_package.py": {
+    "brokerage_imports": 1,
+    "parse_completions": 2,
+    "report_verifications": 1,
+    "uploads": 2
+  },
+  "tests/e2e/test_statement_full_journey.py": {
+    "brokerage_imports": 0,
+    "parse_completions": 1,
+    "report_verifications": 0,
+    "uploads": 1
+  },
+  "tests/e2e/test_statement_upload_e2e.py": {
+    "brokerage_imports": 0,
+    "parse_completions": 2,
+    "report_verifications": 0,
+    "uploads": 2
+  }
+}
