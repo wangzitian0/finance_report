@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from tools import staging_ai_ocr_gate_contract as contract
+from common.testing import staging_ai_ocr_gate_contract as contract
 
 ROOT = Path(__file__).resolve().parents[2]
 

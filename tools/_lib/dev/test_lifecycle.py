@@ -21,7 +21,6 @@ import signal
 import subprocess
 import sys
 import time
-import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -31,6 +30,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from common.testing import test_isolation  # noqa: E402
+from tools._lib.dev.toolchain import (  # noqa: E402,F401
+    get_container_runtime,
+    get_runtime_version,
+    uv_run,
+)
 
 COMPOSE_FILE = REPO_ROOT / "docker-compose.yml"
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
@@ -48,18 +52,6 @@ GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
-
-
-def get_runtime_version(name: str) -> str:
-    """Read a runtime version from the repository toolchain contract."""
-    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
-        toolchain = tomllib.load(fh)
-    return str(toolchain["runtime"][name])
-
-
-def uv_run(*args: str) -> list[str]:
-    """Build a uv run command pinned to the SSOT Python runtime."""
-    return ["uv", "run", "--python", get_runtime_version("python"), *args]
 
 
 # === Isolation Utilities ===
@@ -220,25 +212,6 @@ def cleanup_orphan_databases(runtime, container_name):
 
     except subprocess.CalledProcessError as e:
         log(f"   Warning: Failed to check orphaned databases: {e}", YELLOW)
-
-
-def get_container_runtime():
-    """Detect podman or docker."""
-    requested = os.environ.get("CONTAINER_RUNTIME", "").strip().lower()
-    if requested:
-        if requested not in {"podman", "docker"}:
-            log("❌ CONTAINER_RUNTIME must be either 'podman' or 'docker'.", RED)
-            return None
-        if subprocess.run(["which", requested], capture_output=True).returncode == 0:
-            return requested
-        log(f"❌ CONTAINER_RUNTIME={requested} not found in PATH.", RED)
-        return None
-
-    if subprocess.run(["which", "podman"], capture_output=True).returncode == 0:
-        return "podman"
-    if subprocess.run(["which", "docker"], capture_output=True).returncode == 0:
-        return "docker"
-    return None
 
 
 def is_db_ready(runtime, container_name):

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from tools import staging_ai_ocr_gate_contract as contract
+from common.testing import staging_ai_ocr_gate_contract as contract
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -162,7 +162,7 @@ def test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys() -> None:
 
     # A hypothetical newly-added llm post-merge proof defaults to audit-replay
     # (subtraction), so a new heavy journey can never silently block production.
-    import tools.staging_ai_ocr_gate_contract as live
+    from common.testing import staging_ai_ocr_gate_contract as live
 
     # Use a genuinely NEW path (absent from both the real gate corpus and the
     # canary list) so the subtraction is actually exercised — unioning in an

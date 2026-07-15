@@ -4009,8 +4009,100 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.governance.19",
+            statement=(
+                "The staging AI-OCR gate implementation lives in common/testing, "
+                "its replay counters live in common/testing/data, and the tools "
+                "entry point remains a thin compatibility shim."
+            ),
+            test=(
+                "tests/tooling/test_s4_tool_homing.py"
+                "::test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.20",
+            statement=(
+                "A shrink-only tools-file baseline rejects every new top-level "
+                "Python entry point over 40 lines and requires resolved fat-tool "
+                "paths to be removed from the baseline."
+            ),
+            test=(
+                "tests/tooling/test_s4_tool_homing.py"
+                "::test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.toolchain.13",
+            statement=(
+                "Developer CLI, backend server, and backend test lifecycle share "
+                "one runtime-version and uv command implementation; compose "
+                "detection consistently honors CONTAINER_RUNTIME."
+            ),
+            test=(
+                "tests/tooling/test_s4_tool_homing.py"
+                "::test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="tool_shim_contract",
+            owner="common/testing/tool_shim_contract.py",
+            description=(
+                "Shrink-only line-count ratchet that prevents new top-level "
+                "tools/*.py implementations over 40 lines."
+            ),
+            cross_refs=[
+                "common/testing/data/fat-tool-baseline.json",
+                "common/testing/README.md",
+                "tools/check_tool_shim_contract.py",
+            ],
+            proofs=["tests/tooling/test_s4_tool_homing.py"],
+            family="delivery",
+            kind="baseline",
+        ),
+        ConceptRecord(
+            key="staging_ai_ocr_gate_contract",
+            owner="common/testing/staging_ai_ocr_gate_contract.py",
+            description=(
+                "Package-owned staging AI-OCR corpus, replay accounting, "
+                "preflight, and JUnit classification contract."
+            ),
+            cross_refs=[
+                "common/testing/data/staging-ai-ocr-replay-counters.json",
+                ".github/workflows/staging-ai-ocr-gate.yml",
+            ],
+            proofs=[
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py",
+                "tests/tooling/test_s4_tool_homing.py",
+            ],
+            family="delivery",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="developer_toolchain",
+            owner="tools/_lib/dev/toolchain.py",
+            description=(
+                "Shared runtime-version, uv command, and env-aware container "
+                "runtime selection for local developer commands."
+            ),
+            cross_refs=[
+                "tools/_lib/dev/cli.py",
+                "tools/_lib/dev/dev_backend.py",
+                "tools/_lib/dev/test_lifecycle.py",
+            ],
+            proofs=["tests/tooling/test_s4_tool_homing.py"],
+            family="development",
+            kind="concept",
+        ),
         ConceptRecord(
             key="baseline_update_contract",
             owner="common/testing/baseline_update_contract.py",

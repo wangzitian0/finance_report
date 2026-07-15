@@ -28,15 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-
-def get_project_root() -> Path:
-    """Get project root directory.
-
-    Moved here from common/config/env_keys.py (#1669): the file now lives at
-    apps/backend/src/runtime/extension/, five levels below repo root
-    (extension -> runtime -> src -> backend -> apps -> root), not two.
-    """
-    return Path(__file__).resolve().parents[5]
+from .project_root import get_project_root
 
 
 def parse_secrets_ctmpl(path: Path) -> set[str]:

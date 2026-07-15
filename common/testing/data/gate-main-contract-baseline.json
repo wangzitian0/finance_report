@@ -101,7 +101,6 @@
     "tools/migrate_proof_index_storage.py",
     "tools/purge_test_accounts.py",
     "tools/reverify_real_corpus.py",
-    "tools/staging_ai_ocr_gate_contract.py",
     "tools/test_selection.py"
   ]
 }

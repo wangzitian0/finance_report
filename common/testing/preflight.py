@@ -112,7 +112,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="schema-validate",
-        globs=("apps/backend/*schema*.py", "apps/backend/*schemas*.py"),
+        globs=("apps/backend/src/schemas/*.py",),
         commands=((PY, "tools/validate_schemas.py"),),
         why="Pydantic schema changed: validate schema contracts",
     ),
@@ -202,8 +202,9 @@ CHECKS: tuple[Check, ...] = (
         commands=(
             (PY, "tools/check_gate_main_contract.py"),
             (PY, "tools/check_baseline_update_contract.py"),
+            (PY, "tools/check_tool_shim_contract.py"),
         ),
-        why="common or tool source changed: prevent new gate entry-point debt and ambiguous baseline mutation semantics",
+        why="common or tool source changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
     ),
     Check(
         name="tooling",

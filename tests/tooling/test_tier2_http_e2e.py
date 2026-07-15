@@ -6,12 +6,14 @@ import json
 from pathlib import Path
 from xml.etree import ElementTree
 
-from tools import tier2_http_e2e
+from common.runtime import tier2_http_e2e
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(capsys) -> None:
+def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(
+    capsys,
+) -> None:
     """AC-testing.tier2.1: AC8.18.1: Tier 2 HTTP E2E requires deployed URL and expected version inputs."""
     status = tier2_http_e2e.main([], environ={})
 
@@ -19,7 +21,9 @@ def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(capsys
     assert "base_url" in capsys.readouterr().err
 
 
-def test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible(tmp_path: Path) -> None:
+def test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible(
+    tmp_path: Path,
+) -> None:
     """AC-testing.tier2.2: AC8.18.2: Advisory/env-gated reports are explicit non-proof, not green proof."""
     report_path = tmp_path / "tier2.json"
     junit_path = tmp_path / "tier2.xml"
@@ -56,7 +60,9 @@ def test_AC8_18_2_tier2_http_success_report_requires_real_http_checks() -> None:
 
     def requester(url: str, _timeout_seconds: float) -> tier2_http_e2e.HttpResponse:
         if url.endswith("/api/health"):
-            return tier2_http_e2e.HttpResponse(200, '{"status":"healthy","git_sha":"abc123"}')
+            return tier2_http_e2e.HttpResponse(
+                200, '{"status":"healthy","git_sha":"abc123"}'
+            )
         if url.endswith("/api/ping"):
             return tier2_http_e2e.HttpResponse(200, '{"ok":true}')
         if url.endswith("/api/statements"):
@@ -103,7 +109,11 @@ def test_AC8_18_2_tier2_http_handles_non_object_health_json() -> None:
         requester=requester,
     )
 
-    version_check = next(check for check in report["checks"] if check["name"] == "deployed_version_matches_expected")
+    version_check = next(
+        check
+        for check in report["checks"]
+        if check["name"] == "deployed_version_matches_expected"
+    )
     assert report["status"] == "failed"
     assert version_check["passed"] is False
 
@@ -113,7 +123,9 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
 
     def requester(url: str, _timeout_seconds: float) -> tier2_http_e2e.HttpResponse:
         if url.endswith("/api/health"):
-            return tier2_http_e2e.HttpResponse(200, '{"status":"healthy","git_sha":"abc123456789"}')
+            return tier2_http_e2e.HttpResponse(
+                200, '{"status":"healthy","git_sha":"abc123456789"}'
+            )
         if url.endswith("/api/ping"):
             return tier2_http_e2e.HttpResponse(200, '{"ok":true}')
         if url.endswith("/api/statements"):
@@ -134,7 +146,9 @@ def test_AC8_18_2_tier2_http_accepts_short_and_full_sha_match() -> None:
 def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() -> None:
     """AC-testing.tier2.3: AC8.18.3: Staging runs Tier 2 HTTP proof before broader deployed E2E."""
     workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
-    e2e_step = workflow.split("id: staging_e2e_tests", 1)[1].split("- name: Classify staging", 1)[0]
+    e2e_step = workflow.split("id: staging_e2e_tests", 1)[1].split(
+        "- name: Classify staging", 1
+    )[0]
 
     tier2_index = e2e_step.index("tools/tier2_http_e2e.py")
     tier3_index = e2e_step.index("pytest tests/e2e")
@@ -146,7 +160,9 @@ def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() ->
 
 def test_AC8_18_3_test_execution_matrix_names_tier2_http_stage() -> None:
     """AC8.18.3: The matrix distinguishes Tier 2 from Tier 1 and Tier 3 proof."""
-    matrix = (ROOT / "common/testing/data/test-execution-matrix.yaml").read_text(encoding="utf-8")
+    matrix = (ROOT / "common/testing/data/test-execution-matrix.yaml").read_text(
+        encoding="utf-8"
+    )
 
     assert "path: tools/tier2_http_e2e.py" in matrix
     assert "stage: deployment_tier2_http_e2e" in matrix

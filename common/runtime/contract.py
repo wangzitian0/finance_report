@@ -1277,8 +1277,68 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── Runtime tool homing (#1867 S4 PR-C) ──
+        ACRecord(
+            id="AC-runtime.http-probes.1",
+            statement=(
+                "Tier-2 deployed HTTP E2E and production infrastructure smoke "
+                "checks share one HTTP response, fetch, report, and hardened SHA "
+                "matching implementation; the tier-2 tools entry point is a thin "
+                "shim over common/runtime."
+            ),
+            test=(
+                "tests/tooling/test_s4_tool_homing.py"
+                "::test_AC_runtime_http_probes_1_runtime_checks_share_hardened_http_primitives"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.extension-tools.1",
+            statement=(
+                "Backend runtime extension gates resolve the repository root "
+                "through one helper, preserving their existing five-level path "
+                "contract without duplicate implementations."
+            ),
+            test=(
+                "tests/tooling/test_s4_tool_homing.py"
+                "::test_AC_runtime_extension_tools_1_backend_gates_share_project_root"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="runtime_http_probe",
+            owner="common/runtime/http_probe.py",
+            description=(
+                "Shared deployed-runtime HTTP response, fetch, report, and "
+                "empty-safe abbreviated-SHA matching primitives."
+            ),
+            cross_refs=[
+                "common/runtime/tier2_http_e2e.py",
+                "common/runtime/production_infra_smoke.py",
+                "common/runtime/readme.md",
+            ],
+            proofs=["tests/tooling/test_s4_tool_homing.py"],
+            family="runtime",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="runtime_extension_project_root",
+            owner="apps/backend/src/runtime/extension/project_root.py",
+            description=(
+                "Repository-root lookup shared by backend-owned runtime extension gates."
+            ),
+            cross_refs=[
+                "apps/backend/src/runtime/extension/env_keys.py",
+                "apps/backend/src/runtime/extension/schema_validation.py",
+            ],
+            proofs=["tests/tooling/test_s4_tool_homing.py"],
+            family="development",
+            kind="concept",
+        ),
         ConceptRecord(
             key="container_naming",
             owner="common/runtime/environments.md#container-naming-patterns",

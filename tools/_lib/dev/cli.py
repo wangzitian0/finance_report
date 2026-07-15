@@ -16,50 +16,15 @@ Commands:
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
+
+from tools._lib.dev.toolchain import get_compose_cmd, get_runtime_version, uv_run
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_DIR = REPO_ROOT / "apps" / "backend"
 FRONTEND_DIR = REPO_ROOT / "apps" / "frontend"
-
-
-def get_runtime_version(name: str) -> str:
-    """Read a runtime version from the repository toolchain contract."""
-    with (REPO_ROOT / "toolchain.toml").open("rb") as fh:
-        toolchain = tomllib.load(fh)
-    return str(toolchain["runtime"][name])
-
-
-def uv_run(*args: str) -> list[str]:
-    """Build a uv run command pinned to the SSOT Python runtime."""
-    return ["uv", "run", "--python", get_runtime_version("python"), *args]
-
-
-def get_compose_cmd() -> list[str]:
-    """Detect container runtime (podman or docker) and return compose command."""
-    requested = os.environ.get("CONTAINER_RUNTIME", "").strip().lower()
-    if requested:
-        if requested not in {"podman", "docker"}:
-            print(
-                "ERROR: CONTAINER_RUNTIME must be either 'podman' or 'docker'",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if shutil.which(requested):
-            return [requested, "compose"]
-        print(f"ERROR: CONTAINER_RUNTIME={requested} not found in PATH")
-        sys.exit(1)
-
-    if shutil.which("podman"):
-        return ["podman", "compose"]
-    if shutil.which("docker"):
-        return ["docker", "compose"]
-    print("ERROR: Neither podman nor docker found in PATH")
-    sys.exit(1)
 
 
 def run(cmd: list[str], cwd: Path = REPO_ROOT, env: dict = None, check: bool = True):
@@ -174,7 +139,8 @@ def cmd_test(args, extra_args: list[str]):
         lifecycle_args.append("--ephemeral")
     lifecycle_args.extend(extra_args)
     run(
-        [sys.executable, str(REPO_ROOT / "tools" / "test_lifecycle.py")] + lifecycle_args,
+        [sys.executable, str(REPO_ROOT / "tools" / "test_lifecycle.py")]
+        + lifecycle_args,
         cwd=BACKEND_DIR,
     )
 
@@ -254,7 +220,9 @@ def main():
     # test - use parse_known_args for transparent pass-through
     p_test = subparsers.add_parser("test", help="Run tests")
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
-    p_test.add_argument("--smart", action="store_true", help="Coverage on changed files")
+    p_test.add_argument(
+        "--smart", action="store_true", help="Coverage on changed files"
+    )
     p_test.add_argument(
         "--ephemeral",
         action="store_true",
@@ -287,8 +255,12 @@ def main():
     p_clean = subparsers.add_parser("clean", help="Clean up resources")
     p_clean.add_argument("--db", action="store_true", help="Clean test databases")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
-    p_clean.add_argument("--force", action="store_true", help="Force clean processes/leaked containers")
-    p_clean.add_argument("--all", action="store_true", help="Deep clean (including volumes)")
+    p_clean.add_argument(
+        "--force", action="store_true", help="Force clean processes/leaked containers"
+    )
+    p_clean.add_argument(
+        "--all", action="store_true", help="Deep clean (including volumes)"
+    )
 
     # Use parse_known_args for test command to allow pass-through of pytest args
     args, extra = parser.parse_known_args()
