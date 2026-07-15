@@ -223,6 +223,7 @@ CONTRACT = PackageContract(
         "record_correction",
         "register_fx_rate_provider",
         "register_position_reconciler",
+        "reject_json_floats",
         "reject_statement_workflow",
         "resolve_custody_account_id",
         "resolve_ingest_currency",

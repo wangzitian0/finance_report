@@ -10,6 +10,7 @@ telemetry — none redacted PII, so parse/match failure text reached logs and th
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from common.testing.ac_proof import ac_proof
@@ -17,6 +18,12 @@ from common.testing.ac_proof import ac_proof
 REPO = Path(__file__).resolve().parents[2]
 BACKEND_SRC = REPO / "apps" / "backend" / "src"
 CANONICAL = BACKEND_SRC / "observability" / "audit.py"
+
+# Line-anchored so comments/strings can't false-positive, and async-aware so a
+# coroutine copy can't slip through (Copilot review, PR #1871).
+_LOCAL_SANITIZER_DEF = re.compile(
+    r"^\s*(?:async\s+)?def _safe_error_message\(", re.MULTILINE
+)
 
 
 def _backend_source_files() -> list[Path]:
@@ -35,7 +42,7 @@ def test_AC_safe_error_ssot_1_single_sanitizer_definition():
     offenders = [
         str(path.relative_to(REPO))
         for path in _backend_source_files()
-        if "def _safe_error_message(" in path.read_text(encoding="utf-8")
+        if _LOCAL_SANITIZER_DEF.search(path.read_text(encoding="utf-8"))
     ]
     assert not offenders, (
         "local _safe_error_message copies bypass PII redaction; import "

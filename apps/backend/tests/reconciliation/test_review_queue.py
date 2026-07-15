@@ -132,14 +132,14 @@ async def test_accept_match_updates_status(db, test_user):
     )
     await db.commit()
 
-    result = await accept_match(db, str(match.id), user_id=test_user.id)
+    result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 2
 
 
 async def test_accept_match_not_found_raises(db, test_user):
     with pytest.raises(ValueError, match="Match not found"):
-        await accept_match(db, str(uuid4()), user_id=test_user.id)
+        await accept_match(db, uuid4(), user_id=test_user.id)
 
 
 async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
@@ -154,7 +154,7 @@ async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
     )
     await db.commit()
 
-    result = await accept_match(db, str(match.id), user_id=test_user.id)
+    result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 1
 
@@ -172,7 +172,7 @@ async def test_accept_match_amount_mismatch_raises(db, test_user):
     await db.commit()
 
     with pytest.raises(ValueError, match="Amount mismatch"):
-        await accept_match(db, str(match.id), user_id=test_user.id)
+        await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, test_user):
@@ -208,7 +208,7 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
     )
     await db.commit()
 
-    await accept_match(db, str(match.id), user_id=test_user.id)
+    await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
 
@@ -232,7 +232,7 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
     )
     await db.commit()
 
-    result = await accept_match(db, str(match.id), user_id=test_user.id)
+    result = await accept_match(db, match.id, user_id=test_user.id)
 
     assert result.status == ReconciliationStatus.ACCEPTED
     assert len(result.journal_entry_ids) == 1

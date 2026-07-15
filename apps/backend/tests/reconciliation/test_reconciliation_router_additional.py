@@ -473,7 +473,7 @@ async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, tes
     await db.commit()
 
     # Second accept should be idempotent
-    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    result = await accept_match_service(db, match.id, user_id=test_user.id)
 
     assert result.status == ReconciliationStatus.ACCEPTED
 
@@ -566,7 +566,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     await db.commit()
 
     with pytest.raises(ValueError, match="Amount mismatch"):
-        await accept_match_service(db, str(match.id), user_id=test_user.id)
+        await accept_match_service(db, match.id, user_id=test_user.id)
 
 
 async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user) -> None:
@@ -612,7 +612,7 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
     db.add(match)
     await db.commit()
 
-    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    result = await accept_match_service(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
 
 
