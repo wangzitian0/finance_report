@@ -38,6 +38,7 @@ from common.meta.extension.generate_ac_registry import build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = REPO_ROOT / "common" / "meta" / "data" / "ac-tier-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 
 def current_untagged(repo_root: Path) -> set[str]:

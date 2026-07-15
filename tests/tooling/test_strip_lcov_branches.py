@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -55,17 +53,10 @@ def test_AC8_13_66_strip_lcov_branches_reports_missing_input(tmp_path, capsys):
     assert "LCOV input not found" in capsys.readouterr().err
 
 
-def test_AC8_13_66_strip_lcov_branches_cli_exits_zero(tmp_path, monkeypatch):
+def test_AC8_13_66_strip_lcov_branches_cli_exits_zero(tmp_path):
     """AC-testing.coverage.3: AC8.13.66: The command wrapper can be used directly by CI."""
     source = tmp_path / "input.lcov"
     output = tmp_path / "output.lcov"
     source.write_text("SF:src/example.py\nBRF:1\nDA:1,1\nLH:1\nLF:1\n")
-    monkeypatch.setattr(
-        "sys.argv", ["strip_lcov_branches.py", str(source), str(output)]
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        slb.main()
-
-    assert exc.value.code == 0
+    assert slb.main([str(source), str(output)]) == 0
     assert "BRF:" not in output.read_text()

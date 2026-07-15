@@ -5,8 +5,6 @@ LCOV merge correctly unions coverage across test shards.
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.testing.coverage import merge_lcov as ml  # noqa: E402
@@ -199,36 +197,25 @@ class TestWriteLcov:
 class TestMain:
     """main() CLI: merges files and writes output."""
 
-    def test_main_merges_two_files(self, tmp_path, monkeypatch):
+    def test_main_merges_two_files(self, tmp_path):
         f_a = tmp_path / "a.lcov"
         f_a.write_text(LCOV_A)
         f_b = tmp_path / "b.lcov"
         f_b.write_text(LCOV_B)
         out = tmp_path / "merged.lcov"
-        monkeypatch.setattr(
-            "sys.argv",
-            ["merge_lcov.py", str(out), str(f_a), str(f_b)],
-        )
-        ml.main()
+        assert ml.main([str(out), str(f_a), str(f_b)]) == 0
         assert out.exists()
         records = ml.parse_lcov_to_records(out)
         assert len(records) == 3
 
-    def test_main_warns_on_missing_input(self, tmp_path, monkeypatch, capsys):
+    def test_main_warns_on_missing_input(self, tmp_path, capsys):
         out = tmp_path / "merged.lcov"
         missing = tmp_path / "nonexistent.lcov"
-        monkeypatch.setattr(
-            "sys.argv",
-            ["merge_lcov.py", str(out), str(missing)],
-        )
-        ml.main()
+        assert ml.main([str(out), str(missing)]) == 0
         captured = capsys.readouterr()
         assert "not found" in captured.out or "Warning" in captured.out
         assert out.exists()
         assert ml.parse_lcov_to_records(out) == {}
 
-    def test_main_exits_on_no_args(self, monkeypatch):
-        monkeypatch.setattr("sys.argv", ["merge_lcov.py"])
-        with pytest.raises(SystemExit) as exc:
-            ml.main()
-        assert exc.value.code == 1
+    def test_main_exits_on_no_args(self):
+        assert ml.main([]) == 2

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 
@@ -36,17 +37,20 @@ def strip_lcov_branches(input_path: Path, output_path: Path) -> int:
     return 0
 
 
-def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Strip branch records from LCOV.")
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | tuple[str, ...] | None = None) -> None:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
-    sys.exit(strip_lcov_branches(args.input, args.output))
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    return strip_lcov_branches(args.input, args.output)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -14,4 +14,4 @@ from common.testing.coverage.strip_lcov_branches import main  # noqa: E402
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

@@ -283,6 +283,12 @@ jobs:
           # CODE/LLM band at the enforceable ends (CODE-ONLY ⟹ no LLM test;
           # LLM-ONLY ⟹ no deterministic test). Makes the declared tier checkable.
           uv run --with pyyaml python tools/check_authority_reconcile.py
+          # #1867 S4: every new gate uses the shared CLI/main contract, while
+          # legacy entry-point debt is locked behind a shrink-only baseline.
+          uv run python tools/check_gate_main_contract.py
+          # Baseline mutation flags state whether updates are monotonic or a
+          # deliberate full rewrite; generic --update may never adopt debt.
+          uv run python tools/check_baseline_update_contract.py
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule

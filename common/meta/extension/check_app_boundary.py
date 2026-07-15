@@ -29,6 +29,7 @@ from common.meta.extension.app_boundary import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+BASELINE_UPDATE_MODE = "shrink-only"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

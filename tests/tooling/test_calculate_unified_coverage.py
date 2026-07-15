@@ -476,9 +476,7 @@ class TestMain:
             cuc, "get_tools_coverage", lambda: self._fake_coverage(100, 50)
         )
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
         assert (tmp_path / "unified-coverage.json").exists()
 
     def test_main_exits_one_when_below_threshold(self, tmp_path, monkeypatch):
@@ -494,9 +492,7 @@ class TestMain:
             cuc, "get_tools_coverage", lambda: self._fake_coverage(100, 10)
         )
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_main_writes_valid_json(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
@@ -511,8 +507,7 @@ class TestMain:
             cuc, "get_tools_coverage", lambda: self._fake_coverage(50, 40)
         )
 
-        with pytest.raises(SystemExit):
-            cuc.main()
+        cuc.main([])
 
         data = json.loads((tmp_path / "unified-coverage.json").read_text())
         assert "total_lines" in data
@@ -546,10 +541,7 @@ class TestMain:
             ],
         )
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--list-low-files", "--threshold", "90"])
-
-        assert exc.value.code == 0
+        assert cuc.main(["--list-low-files", "--threshold", "90"]) == 0
         out = capfd.readouterr().out
         assert "LOW COVERAGE FILES (< 90%)" in out
         assert "apps/frontend/src/app/page.tsx" in out
@@ -609,9 +601,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
 
         # Should exit 0 (no regression)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
 
     def test_within_epsilon_jitter_is_not_a_regression(self, tmp_path, monkeypatch):
         """A sub-epsilon dip (one covered line of run-to-run jitter) must NOT red
@@ -669,9 +659,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: current["frontend"])
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
 
     def test_fails_when_unified_drops_below_baseline(
         self, tmp_path, monkeypatch, capfd
@@ -744,9 +732,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
 
         # Should exit 1 with message containing both values
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
         # Check stderr contains both baseline and current values
         captured = capfd.readouterr()
         assert "82.0" in captured.err
@@ -796,10 +782,7 @@ class TestBaselineComparison:
             lambda: {"total_lines": 100, "covered_lines": 75, "coverage_percent": 75.0},
         )
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
         err = capfd.readouterr().err
         assert "Coverage regression detected by local deterministic gate" in err
         assert "baseline.json" in err
@@ -867,9 +850,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
 
         # Should exit 1 due to backend regression
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_fails_when_frontend_drops(self, tmp_path, monkeypatch):
         """When frontend drops significantly, expect exit 1."""
@@ -928,9 +909,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
         monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_fails_when_tools_drops(self, tmp_path, monkeypatch):
         """When tools drops significantly, expect exit 1."""
@@ -989,9 +968,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
         monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_passes_when_all_components_improve(self, tmp_path, monkeypatch):
         """When all components improve, expect exit 0 (no regression)."""
@@ -1050,9 +1027,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
         monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
 
     def test_skips_baseline_check_when_file_missing(self, tmp_path, monkeypatch):
         """When baseline file doesn't exist, should fall through to threshold check only."""
@@ -1075,9 +1050,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
 
         # Should exit 0 (threshold check passes, baseline check is skipped)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
 
     def test_baseline_file_path_configurable(self, tmp_path, monkeypatch):
         """Verify BASELINE_FILE env var controls which file is read."""
@@ -1159,9 +1132,7 @@ class TestBaselineComparison:
         )
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0  # Passes since current matches baseline_file1
+        assert cuc.main([]) == 0  # Passes since current matches baseline_file1
 
         # Now use baseline_file2
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file2))
@@ -1173,9 +1144,7 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "get_frontend_coverage", mock_coverage2)
         monkeypatch.setattr(cuc, "get_tools_coverage", mock_coverage2)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0  # New run is better than old baseline
+        assert cuc.main([]) == 0  # New run is better than old baseline
 
 
 # ---------------------------------------------------------------------------
@@ -1304,9 +1273,7 @@ class TestMainBaselineExceptionPaths:
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
         self._mock_coverage(monkeypatch)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0  # Falls through to threshold check
+        assert cuc.main([]) == 0  # Falls through to threshold check
         captured = capsys.readouterr()
         assert "Invalid baseline" in captured.err
 
@@ -1327,9 +1294,7 @@ class TestMainBaselineExceptionPaths:
 
         monkeypatch.setattr(_json, "load", raiser)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
         captured = capsys.readouterr()
         assert "Error reading baseline" in captured.err
 
@@ -1340,9 +1305,7 @@ class TestMainBaselineExceptionPaths:
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
         self._mock_coverage(monkeypatch)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
         captured = capsys.readouterr()
         assert "Baseline file not found" in captured.err
 
@@ -1407,10 +1370,7 @@ class TestRatchetMode:
         _re = self._regressing_setup(tmp_path, monkeypatch)
         monkeypatch.setenv("COVERAGE_RATCHET_MODE", "report")
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
         err = capfd.readouterr().err
         # The regression is still fully reported, marked report-only.
         assert _re.search(r"(?i)report-only", err)
@@ -1421,27 +1381,18 @@ class TestRatchetMode:
     def test_ratchet_block_mode_flag_blocks_regression(self, tmp_path, monkeypatch):
         self._regressing_setup(tmp_path, monkeypatch)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--ratchet-mode", "block"])
-
-        assert exc.value.code == 1
+        assert cuc.main(["--ratchet-mode", "block"]) == 1
 
     def test_ratchet_default_mode_is_block(self, tmp_path, monkeypatch):
         self._regressing_setup(tmp_path, monkeypatch)
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_ratchet_mode_flag_overrides_env(self, tmp_path, monkeypatch):
         self._regressing_setup(tmp_path, monkeypatch)
         monkeypatch.setenv("COVERAGE_RATCHET_MODE", "block")
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--ratchet-mode", "report"])
-
-        assert exc.value.code == 0
+        assert cuc.main(["--ratchet-mode", "report"]) == 0
 
     def test_report_mode_keeps_threshold_safety_net(self, tmp_path, monkeypatch):
         self._regressing_setup(tmp_path, monkeypatch)
@@ -1450,19 +1401,13 @@ class TestRatchetMode:
         # the run even though the ratchet itself is report-only.
         monkeypatch.setenv("COVERAGE_THRESHOLD", "90")
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
 
     def test_invalid_ratchet_mode_env_fails_loudly(self, tmp_path, monkeypatch):
         self._regressing_setup(tmp_path, monkeypatch)
         monkeypatch.setenv("COVERAGE_RATCHET_MODE", "sometimes")
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 2
+        assert cuc.main([]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -1481,6 +1426,4 @@ def test_module_main_entry_point(tmp_path, monkeypatch):
     monkeypatch.setattr(cuc, "get_tools_coverage", lambda: cov)
 
     # Simulate 'if __name__ == "__main__"' by calling main() directly
-    with pytest.raises(SystemExit) as exc:
-        cuc.main()
-    assert exc.value.code == 0
+    assert cuc.main([]) == 0

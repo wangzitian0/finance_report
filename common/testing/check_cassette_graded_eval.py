@@ -34,6 +34,8 @@ from common.testing.cassette_graded_eval import (
     ratcheted_baseline,
 )
 
+BASELINE_UPDATE_MODE = "raise-only"
+
 
 def render(findings: dict[str, list[str]]) -> str:
     lines = ["Cassette graded eval ratchet"]

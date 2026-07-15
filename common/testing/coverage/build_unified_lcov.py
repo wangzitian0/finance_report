@@ -5,9 +5,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.extension.coverage.policy import COMPONENTS, ROOT_DIR, CoverageComponent
+from common.meta.extension.coverage.policy import (
+    COMPONENTS,
+    ROOT_DIR,
+    CoverageComponent,
+)
 from common.testing.coverage.strip_lcov_branches import is_branch_record
 
 
@@ -69,7 +74,7 @@ def build_unified_lcov(
     return 0
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build repository-root-relative unified LCOV."
     )
@@ -82,13 +87,14 @@ def main() -> None:
         action="store_true",
         help="Omit BRDA/BRF/BRH records so reporting uses line coverage only.",
     )
-    args = parser.parse_args()
-    sys.exit(
-        build_unified_lcov(
-            args.output, args.repo_root.resolve(), strip_branches=args.strip_branches
-        )
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    return build_unified_lcov(
+        args.output, args.repo_root.resolve(), strip_branches=args.strip_branches
     )
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

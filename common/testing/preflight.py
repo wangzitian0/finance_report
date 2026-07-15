@@ -197,6 +197,15 @@ CHECKS: tuple[Check, ...] = (
         why="router/schema changed: the committed apps/frontend/openapi.json (source for the generated FE api-types) must be regenerated — enforces the FE↔BE contract (#1004)",
     ),
     Check(
+        name="gate-contracts",
+        globs=("common/*", "tools/*"),
+        commands=(
+            (PY, "tools/check_gate_main_contract.py"),
+            (PY, "tools/check_baseline_update_contract.py"),
+        ),
+        why="common or tool source changed: prevent new gate entry-point debt and ambiguous baseline mutation semantics",
+    ),
+    Check(
         name="tooling",
         globs=("tools/*", "common/*"),
         commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),

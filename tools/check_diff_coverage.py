@@ -14,4 +14,4 @@ from common.testing.coverage.diff_coverage import main  # noqa: E402
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(sys.argv[1:])
+    raise SystemExit(main(sys.argv[1:]))

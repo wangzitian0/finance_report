@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.extension.coverage.policy import (
@@ -512,7 +513,7 @@ def write_unified_coverage(unified: dict, output_path: Path) -> None:
     print(f"\n📄 Report saved to: {output_path}")
 
 
-def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Calculate unified LCOV coverage.")
     parser.add_argument(
         "--list-low-files",
@@ -570,9 +571,12 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | tuple[str, ...] = ()) -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point."""
-    args = parse_args(argv)
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
 
     print("=" * 60)
     print("Unified Coverage Calculator")
@@ -596,7 +600,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
                 f"\n❌ Invalid --require-artifacts/{REQUIRED_COMPONENTS_ENV}: {exc}",
                 file=sys.stderr,
             )
-            sys.exit(2)
+            return 2
     else:
         preflight_components = PREFLIGHT_COMPONENTS
 
@@ -618,7 +622,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
                 f"\n❌ Invalid --gate-components/{GATE_COMPONENTS_ENV}: {exc}",
                 file=sys.stderr,
             )
-            sys.exit(2)
+            return 2
     else:
         gate_component_names = None
 
@@ -632,7 +636,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             f"valid modes: {', '.join(RATCHET_MODES)}",
             file=sys.stderr,
         )
-        sys.exit(2)
+        return 2
 
     preflight_errors = required_artifacts_preflight(preflight_components, ROOT_DIR)
     if preflight_errors:
@@ -643,7 +647,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         )
         for error in preflight_errors:
             print(f"   - {error}", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     # Get coverage for each component
     print("\n📊 Backend Coverage...")
@@ -806,7 +810,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             print(regression_error, file=sys.stderr)
         else:
             print(regression_error, file=sys.stderr)
-            sys.exit(1)
+            return 1
 
     # Exit with appropriate code (safety net after baseline check)
     threshold = int(os.environ.get("COVERAGE_THRESHOLD", "0"))
@@ -814,13 +818,13 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         print(
             f"✅ Coverage ({unified['coverage_percent']}%) meets threshold ({threshold}%)"
         )
-        sys.exit(0)
+        return 0
     else:
         print(
             f"❌ Coverage ({unified['coverage_percent']}%) below threshold ({threshold}%)"
         )
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    raise SystemExit(main())

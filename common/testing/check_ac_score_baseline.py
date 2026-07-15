@@ -33,6 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # is a STORAGE change only — the baseline is still a persisted ratchet floor and
 # is never regenerated from current scores.
 DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
+BASELINE_UPDATE_MODE = "raise-only"
 
 # Floating-point slack so an identical re-measurement never trips the gate.
 EPSILON = 1e-6
