@@ -40,10 +40,11 @@ Projection          data                  read-model, leaf sink
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 # The tier vocabulary + matrix and the five-layer topology each live in one
 # stdlib-only sibling source. Import only what this model uses.
@@ -219,6 +220,23 @@ class ACRecord(BaseModel):
     #: package tier per :data:`TIER_VALID_PROOF_KINDS` (e.g. under an LLM-LED/LLM-ONLY package
     #: an AC can never be ``exact``). Enforced by the owning ``PackageContract``.
     proof_kind: ACProofKind | None = None
+    #: Optional direct edge from this package-owned AC to one ``vision.md``
+    #: anchor. The pure data-layer projection exposes these declarations to
+    #: cross-cutting proof tooling; the vision matrix validates that the anchor
+    #: exists in the checkout it is building.
+    vision_anchor: str | None = None
+
+    @field_validator("vision_anchor")
+    @classmethod
+    def _validate_vision_anchor(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", normalized):
+            raise ValueError(
+                "vision_anchor must be a non-empty lowercase vision.md anchor id"
+            )
+        return normalized
 
 
 class ConceptRecord(BaseModel):

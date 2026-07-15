@@ -143,6 +143,10 @@ about a package is *derived from its contract*:
   `common/meta/extension/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
   and are **never mirrored** into an EPIC table.
+- The vision proof matrix sources direct package backing from each roadmap AC's
+  optional `vision_anchor` via the pure `ac_vision_index` projection. EPIC docs
+  still declare which historical goal owns an anchor; no central AC-to-vision
+  mapping is hand-maintained.
 
 Because governance reads the contract, adding a package adds no central index to
 edit: a new package is governed when `common/<pkg>/contract.py` exports its
@@ -166,9 +170,9 @@ gate instead of silently bypassing package governance.
   live example of a project-level shared (meta-model) package — the building-block
   layering it governs, applied to itself. Its
   [`contract.py`](./contract.py) publishes `PackageContract` / `ACRecord` /
-  `Invariant` / `Kind` / `Unit` / `contract_index`, declares its `units` (the
+  `Invariant` / `Kind` / `Unit` / `contract_index` / `ac_vision_index`, declares its `units` (the
   `PackageContract` aggregate + value objects in `base/`, the gate as a
-  `domain-service` in `extension/`, `contract_index` as a `projection` in
+  `domain-service` in `extension/`, both indexes as projections in
   `data/`), and its invariants + `AC-meta.*` roadmap pin to the governance-gate
   tests, so the model proves itself.
 - **`counter`** (`platform`) — the first full worked example: per-(user, key)
@@ -213,7 +217,10 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    status)` with a **package-scoped id `AC-{package}.{group}.{seq}`** (e.g.
    `AC-counter.1.1`). The AC inherits the package tier; `proof_kind` defaults to
    the tier's canonical kind — set it explicitly only when different, and it MUST
-   satisfy the tier→proof matrix (LLM-LED/LLM-ONLY may never be `exact`).
+   satisfy the tier→proof matrix (LLM-LED/LLM-ONLY may never be `exact`). When
+   an AC directly backs product direction, set its optional `vision_anchor` to
+   an actual lowercase anchor id from `vision.md`; `ac_vision_index` computes
+   the AC-to-anchor projection, and the vision proof gate rejects unknown ids.
 
 4. **Structural guarantees → `invariants`, NOT `roadmap`.** interface==`__all__`,
    converges-by-layer (base/extension/data), layer purity, "passes its own gate"

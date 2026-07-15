@@ -2809,6 +2809,18 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-reporting.fe-viz-reports.33",
+            statement=(
+                "If readiness loading fails, the Reports cockpit shows a "
+                "contained unavailable state while preserving report navigation."
+            ),
+            # was AC5.37.2
+            test="apps/frontend/src/__tests__/reportsCockpit.test.tsx::AC5.37.2 preserves report navigation when readiness is unavailable",
+            priority="P1",
+            status="done",
+            vision_anchor="non-goals-not-budgeting-app",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(

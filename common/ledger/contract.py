@@ -2103,11 +2103,16 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-ledger.fe-processing.1",
-            statement='Dashboard "Processing / In-Transit" card renders the four fields with currency code',
-            # was AC15.7.2
+            statement=(
+                'Dashboard "Processing / In-Transit" card renders the four fields '
+                "with currency code, the signed current balance, and a warning "
+                "when that balance is non-zero."
+            ),
+            # was AC15.7.2 + AC15.7.8
             test="apps/frontend/src/__tests__/uiGapAudit.processingVisibility.test.tsx::AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning",
             priority="P2",
             status="done",
+            vision_anchor="decision-5-processing-account",
         ),
         ACRecord(
             id="AC-ledger.fe-accounts2.2",

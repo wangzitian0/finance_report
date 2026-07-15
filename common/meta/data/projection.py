@@ -19,10 +19,10 @@ The index answers the questions the standard's ``data`` layer is meant to:
   metric: a package whose ``extension`` count balloons is drifting toward a mud
   ball).
 
-A sibling projection, :func:`concept_index`, answers the same question for
-SSOT concepts (#1799) that :func:`contract_index`'s ``ac_index`` answers for
-ACs: every package-declared concept key -> its owner/description/cross_refs,
-computed instead of hand-copied into ``common/meta/data/MANIFEST.yaml``.
+Sibling projections answer the same computed-registry question for package
+declarations: :func:`concept_index` maps SSOT concepts to their metadata, while
+:func:`ac_vision_index` maps roadmap AC ids to their declared ``vision.md``
+anchors.
 """
 
 from __future__ import annotations
@@ -87,6 +87,21 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
         "ac_index": ac_index,
         "consumers": consumers,
         "units_by_layer": units_by_layer,
+    }
+
+
+def ac_vision_index(contracts: list[PackageContract]) -> dict[str, str]:
+    """Project roadmap vision declarations into ``{ac_id: vision_anchor}``.
+
+    Pure and intentionally AC-keyed: several ACs may back the same vision node,
+    so anchors are not ownership keys and need no double-claim check here.
+    Duplicate AC ownership is already rejected by :func:`contract_index`.
+    """
+    return {
+        ac.id: ac.vision_anchor
+        for contract in contracts
+        for ac in contract.roadmap
+        if ac.vision_anchor is not None
     }
 
 

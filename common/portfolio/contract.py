@@ -2031,10 +2031,11 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-portfolio.fe-assets2.21",
             statement="Dividends tab lists historical dividend events `{ex_date, pay_date, amount, currency, reinvested}` from `GET /api/portfolio/{ticker}/dividends`",
-            # was AC17.7.2
+            # was AC17.7.2 + AC17.7.6
             test="apps/frontend/src/__tests__/holdingDetailPage.test.tsx::AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels",
             priority="P2",
             status="done",
+            vision_anchor="decision-1-portfolio-self-developed",
         ),
         ACRecord(
             id="AC-portfolio.fe-assets2.22",

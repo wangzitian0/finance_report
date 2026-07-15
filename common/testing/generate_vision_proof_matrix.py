@@ -237,6 +237,33 @@ def _epic_num(epic_id: str) -> int:
     return int(epic_id.split("-")[1])
 
 
+def _package_vision_acs(repo_root: Path) -> dict[str, dict[str, str]]:
+    """Return package ACs that directly declare a ``vision.md`` anchor.
+
+    Package discovery is rooted in the checkout being rendered, matching the
+    EPIC and registry scans. The projection remains pure; this caller owns the
+    filesystem discovery and enriches each indexed AC with its package and
+    statement for the rendered matrix.
+    """
+    from common.meta.data.projection import ac_vision_index
+    from common.meta.extension.check_package_contract import discover_packages
+
+    packages = discover_packages(repo_root)
+    index = ac_vision_index([package.contract for package in packages])
+    records: dict[str, dict[str, str]] = {}
+    for package in packages:
+        for ac in package.contract.roadmap:
+            anchor = index.get(ac.id)
+            if anchor is None:
+                continue
+            records[ac.id] = {
+                "anchor": anchor,
+                "package": package.name,
+                "description": ac.statement,
+            }
+    return records
+
+
 @functools.lru_cache(maxsize=4)
 def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Build the vision -> AC -> test matrix as a plain, serializable mapping.
@@ -256,6 +283,24 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     epic_map = load_epic_anchor_map(_epic_dir(repo_root))
     acs = _load_registry_acs(_registry_paths(repo_root))
     test_refs = collect_real_test_refs(repo_root)
+    package_acs = _package_vision_acs(repo_root)
+
+    unknown_package_anchors = sorted(
+        (ac_id, record["anchor"])
+        for ac_id, record in package_acs.items()
+        if record["anchor"] not in anchors
+    )
+    if unknown_package_anchors:
+        details = ", ".join(
+            f"{ac_id} -> {anchor}" for ac_id, anchor in unknown_package_anchors
+        )
+        raise ValueError(
+            f"package roadmap vision declarations {details} do not resolve in vision.md"
+        )
+
+    package_acs_by_anchor: dict[str, list[str]] = defaultdict(list)
+    for ac_id, record in package_acs.items():
+        package_acs_by_anchor[record["anchor"]].append(ac_id)
 
     # Index ACs by EPIC number for fast EPIC -> AC lookup.
     acs_by_epic: dict[int, list[str]] = defaultdict(list)
@@ -278,6 +323,17 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                         "tests": test_refs.get(ac_id, []),
                     }
                 )
+        for ac_id in sorted(package_acs_by_anchor.get(anchor, []), key=sort_key):
+            record = package_acs[ac_id]
+            node_acs.append(
+                {
+                    "id": ac_id,
+                    "epic": f"pkg-{record['package']}",
+                    "description": record["description"],
+                    "mandatory": True,
+                    "tests": test_refs.get(ac_id, []),
+                }
+            )
         proven = sum(1 for ac in node_acs if ac["tests"])
         nodes.append(
             {

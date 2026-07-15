@@ -200,7 +200,7 @@ CONTRACT = PackageContract(
                 "and refused before any LLM call; the advisor never writes a "
                 "ledger number."
             ),
-            # was AC6.1.1 (partial) + AC6.7.7
+            # was AC6.1.1 (partial) + AC6.7.7 + AC6.34.1
             test=(
                 "apps/backend/tests/ai/test_ai_advisor_service.py"
                 "::test_chat_stream_refusal_branches"
@@ -208,6 +208,7 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
             proof_kind="property",
+            vision_anchor="non-goals-not-robo-advisor",
         ),
         ACRecord(
             id="AC-advisor.guardrail.2",
