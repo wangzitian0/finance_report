@@ -382,7 +382,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point: exit 0 on pass (or nothing to gate), 1 below threshold,
     2 on usage/environment errors."""
-    args = parse_args(argv)
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     repo_root = Path(args.repo_root).resolve() if args.repo_root else ROOT_DIR
 
     threshold = args.threshold

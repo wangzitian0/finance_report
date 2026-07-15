@@ -573,7 +573,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point."""
-    args = parse_args(argv)
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
 
     print("=" * 60)
     print("Unified Coverage Calculator")

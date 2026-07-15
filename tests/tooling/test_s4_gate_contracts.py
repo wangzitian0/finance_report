@@ -9,6 +9,32 @@ import pytest
 
 from common.meta.extension import check_draft_packages
 from common.testing import baseline_update_contract, gate_cli, gate_main_contract
+from common.testing.coverage import (
+    build_unified_lcov,
+    calculate_unified_coverage,
+    check_policy,
+    diff_coverage,
+    merge_lcov,
+    strip_lcov_branches,
+)
+
+
+@pytest.mark.parametrize(
+    "main_fn",
+    [
+        build_unified_lcov.main,
+        calculate_unified_coverage.main,
+        check_policy.main,
+        diff_coverage.main,
+        merge_lcov.main,
+        strip_lcov_branches.main,
+        gate_main_contract.main,
+    ],
+)
+def test_gate_and_coverage_mains_return_argparse_status(main_fn) -> None:
+    """Composable main functions return argparse usage errors as status codes."""
+
+    assert main_fn(["--definitely-invalid"]) == 2
 
 
 def test_AC_testing_governance_16_gate_cli_escapes_workflow_commands(
@@ -28,14 +54,14 @@ def test_AC_testing_governance_16_gate_cli_escapes_workflow_commands(
             "SYNTHETIC",
             violations,
             ["--repo-root", str(tmp_path)],
-            annotation_title="Gate contract",
+            annotation_title="Gate%\n::warning title=injected",
         )
         == 1
     )
     assert seen_roots == [tmp_path.resolve()]
     stderr = capsys.readouterr().err.splitlines()
     assert stderr == [
-        "::error title=Gate contract::"
+        "::error title=Gate%25%0A::warning title=injected::"
         "percent%25%0A::warning title=injected::payload%0Dfinal",
         "[SYNTHETIC] FAILED: 1 violation(s).",
     ]
@@ -49,6 +75,7 @@ def test_AC_testing_governance_16_gate_cli_escapes_workflow_commands(
         == 0
     )
     assert capsys.readouterr().out == "[SYNTHETIC] PASSED.\n"
+    assert gate_cli.run_gate("SYNTHETIC", lambda _repo_root: [], ["--bad"]) == 2
 
 
 def test_AC_testing_governance_17_main_contract_ratchet_rejects_new_debt(

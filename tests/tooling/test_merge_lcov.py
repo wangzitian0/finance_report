@@ -5,8 +5,6 @@ LCOV merge correctly unions coverage across test shards.
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.testing.coverage import merge_lcov as ml  # noqa: E402
@@ -220,6 +218,4 @@ class TestMain:
         assert ml.parse_lcov_to_records(out) == {}
 
     def test_main_exits_on_no_args(self):
-        with pytest.raises(SystemExit) as exc:
-            ml.main([])
-        assert exc.value.code == 2
+        assert ml.main([]) == 2

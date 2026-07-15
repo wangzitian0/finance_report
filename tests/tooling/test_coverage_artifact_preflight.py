@@ -140,10 +140,7 @@ class TestRequiredArtifactsPreflight:
         monkeypatch.setattr(cuc, "PREFLIGHT_COMPONENTS", (critical,))
         # backend.lcov absent -> preflight must fail
 
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
         captured = capsys.readouterr()
         combined = captured.out + captured.err
         assert "backend" in combined
@@ -197,9 +194,7 @@ class TestPreflightOptIn:
         self, tmp_path, monkeypatch
     ):
         self._lenient_main_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()  # no --require-artifacts, no env
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0  # no --require-artifacts, no env
         # lenient path still produces the report (does not abort the always-run step)
         assert (tmp_path / "unified-coverage.json").exists()
 
@@ -207,9 +202,7 @@ class TestPreflightOptIn:
         self, tmp_path, monkeypatch, capsys
     ):
         self._lenient_main_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--require-artifacts", "backend"])
-        assert exc.value.code == 1
+        assert cuc.main(["--require-artifacts", "backend"]) == 1
         combined = "".join(capsys.readouterr())
         assert "backend" in combined
         assert "coverage/backend.lcov" in combined
@@ -220,9 +213,7 @@ class TestPreflightOptIn:
     ):
         self._lenient_main_env(tmp_path, monkeypatch)
         monkeypatch.setenv(cuc.REQUIRED_COMPONENTS_ENV, "common")
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1
         assert not (tmp_path / "unified-coverage.json").exists()
 
 
@@ -260,9 +251,7 @@ class TestGateComponentsScoping:
         self, tmp_path, monkeypatch, capsys
     ):
         self._scoped_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()  # no --gate-components -> "all" (unchanged, strict)
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1  # no --gate-components -> "all" (unchanged, strict)
         combined = "".join(capsys.readouterr())
         for regressed_name in ("backend", "unified"):
             marker = f"- {regressed_name}:"
@@ -281,9 +270,7 @@ class TestGateComponentsScoping:
         AC8.13.163).
         """
         self._scoped_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--gate-components", "backend"])
-        assert exc.value.code == 1
+        assert cuc.main(["--gate-components", "backend"]) == 1
         combined = "".join(capsys.readouterr())
         backend_marker = "- backend:"
         assert backend_marker in combined
@@ -295,11 +282,10 @@ class TestGateComponentsScoping:
         self, tmp_path, monkeypatch
     ):
         self._scoped_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--gate-components", "frontend"])
+        result = cuc.main(["--gate-components", "frontend"])
         # backend's regression is out of scope -> informational only, not
         # gate-failing; frontend itself has no regression -> the job passes.
-        assert exc.value.code == 0
+        assert result == 0
         assert (tmp_path / "unified-coverage.json").exists()
 
     def test_AC8_13_163_env_var_fallback_matches_the_cli_flag(
@@ -307,17 +293,13 @@ class TestGateComponentsScoping:
     ):
         self._scoped_env(tmp_path, monkeypatch)
         monkeypatch.setenv(cuc.GATE_COMPONENTS_ENV, "frontend")
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 0
+        assert cuc.main([]) == 0
 
     def test_AC8_13_163_unknown_gate_component_name_fails_loudly(
         self, tmp_path, monkeypatch
     ):
         self._scoped_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main(["--gate-components", "nope"])
-        assert exc.value.code == 2
+        assert cuc.main(["--gate-components", "nope"]) == 2
 
     def test_AC8_13_163_main_branch_push_omits_the_flag_and_stays_strict(
         self, tmp_path, monkeypatch
@@ -327,6 +309,4 @@ class TestGateComponentsScoping:
         # a regression anywhere still fails the run, matching today's
         # main-branch push behavior exactly.
         self._scoped_env(tmp_path, monkeypatch)
-        with pytest.raises(SystemExit) as exc:
-            cuc.main()
-        assert exc.value.code == 1
+        assert cuc.main([]) == 1

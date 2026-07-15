@@ -108,7 +108,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Check source tree vs LCOV coverage policy."
     )
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     repo_root = args.repo_root.resolve()
     result = run_audit(repo_root)
     if result == 0:

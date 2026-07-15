@@ -150,7 +150,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     repo_root = args.repo_root.resolve()
     baseline_path = args.baseline or (
         repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)

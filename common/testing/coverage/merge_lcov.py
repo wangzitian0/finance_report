@@ -104,7 +104,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Merge LCOV files.")
     parser.add_argument("output", type=Path)
     parser.add_argument("inputs", nargs="+", type=Path)
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     output_path = args.output
     input_paths = args.inputs
 

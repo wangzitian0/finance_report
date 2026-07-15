@@ -87,7 +87,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Omit BRDA/BRF/BRH records so reporting uses line coverage only.",
     )
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     return build_unified_lcov(
         args.output, args.repo_root.resolve(), strip_branches=args.strip_branches
     )

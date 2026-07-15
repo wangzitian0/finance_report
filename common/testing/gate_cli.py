@@ -29,11 +29,14 @@ def run_gate(
 
     parser = argparse.ArgumentParser(description=f"Run the {name} repository gate.")
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
 
     findings = list(violations_fn(args.repo_root.resolve()))
     if findings:
-        title = annotation_title or name
+        title = escape_workflow_command(annotation_title or name)
         for finding in findings:
             print(
                 f"::error title={title}::{escape_workflow_command(finding)}",
