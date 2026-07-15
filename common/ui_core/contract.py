@@ -9,7 +9,7 @@ contract = PackageContract(
     tier="CODE-ONLY",
     depends_on=[],
     events=[],
-    interface=["api_client_pattern", "app_config_router"],
+    interface=["app_config_router"],
     concepts=[
         ConceptRecord(
             key="api_client_pattern",
@@ -121,29 +121,14 @@ contract = PackageContract(
             statement="Two-stage review UI capability (DROPPED)",
             test="TODO",
             priority="P0",
-            status="done",
+            status="open",
         ),
         ACRecord(
             id="AC-ui_core.19.11.1",
             statement="Event-driven upload to report UX (DROPPED)",
             test="TODO",
             priority="P0",
-            status="done",
+            status="open",
         ),
-        ACRecord(
-            id="AC-ui_core.16.23.1",
-            statement="Two-stage review UI capability (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-ui_core.19.11.1",
-            statement="Event-driven upload to report UX (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="done",
-        ),
-
     ],
 )

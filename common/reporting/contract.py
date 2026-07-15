@@ -55,6 +55,7 @@ CONTRACT = PackageContract(
         "portfolio",
         "pricing",
         "reconciliation",
+        "platform",
     ],
     roles=["base", "extension", "data"],
     units=[
@@ -134,12 +135,20 @@ CONTRACT = PackageContract(
         Unit(name="AccountLineageTreeProjection", kind=Kind.PROJECTION),
         Unit(name="ConfidenceTierAggregationProjection", kind=Kind.PROJECTION),
         Unit(name="FrameworkPolicyDecisionProjection", kind=Kind.PROJECTION),
+        Unit(name="income_router", kind=Kind.DOMAIN_SERVICE),
+        Unit(name="reports_router", kind=Kind.DOMAIN_SERVICE),
+        Unit(name="metrics_router", kind=Kind.DOMAIN_SERVICE),
+        Unit(name="register_annualized_income_provider", kind=Kind.DOMAIN_SERVICE),
     ],
     implementations={"be": "apps/backend/src/reporting", "fe": None},
     interface=[
         "MAX_NET_WORTH_DAILY_POINTS",
         "PERSONAL_REPORT_PACKAGE_CONTRACT",
         "PERSONAL_REPORT_PACKAGE_NOTES",
+        "AnnualizedIncomeScheduleHolding",
+        "AnnualizedIncomeScheduleIncome",
+        "AnnualizedIncomeScheduleNetWorthTreatment",
+        "AnnualizedIncomeScheduleResponse",
         "AnnualizedIncomeTotals",
         "ConfidenceMetricService",
         "ReportError",
@@ -186,6 +195,10 @@ CONTRACT = PackageContract(
         "register_fx_gateway",
         "register_manual_valuation_lines_provider",
         "resolve_line_currency",
+        "income_router",
+        "reports_router",
+        "metrics_router",
+        "register_annualized_income_provider",
     ],
     events=[],
     invariants=[
@@ -2928,9 +2941,8 @@ CONTRACT = PackageContract(
             statement="Reporting visualization capability (DROPPED)",
             test="TODO",
             priority="P0",
-            status="done",
+            status="open",
         ),
-
     ],
     concepts=[
         ConceptRecord(
