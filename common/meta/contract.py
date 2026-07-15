@@ -2166,6 +2166,26 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.4",
+            statement=(
+                "`countLabel`/`getPnlColor`(renamed `pnlColorClass`)/`formatPeriod`/"
+                "`isActive` each have at most one definition, at one canonical "
+                "home (`lib/statusLabels.ts`, `lib/date.ts`, "
+                "`components/navigation.ts`) — were 2-3 component-local copies "
+                'each, with `formatPeriod` already diverged (a "→" vs "to" '
+                "separator) before unification. `formatCurrency` is defined "
+                "only in `lib/audit/money/format.ts` (amount formatting) — no "
+                "second definition colliding in name with a currency-CODE "
+                "formatter exists anywhere else (#1868 S5)."
+            ),
+            test=(
+                "tests/tooling/test_fe_helper_ssot.py"
+                "::test_AC_fe_helper_ssot_1_each_helper_defined_at_most_once"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

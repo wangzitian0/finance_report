@@ -2,21 +2,16 @@
 
 import Link from "next/link";
 import { PortfolioHolding } from "@/lib/types";
-import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import { pnlColorClass } from "@/lib/statusLabels";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 
 interface HoldingsTableProps {
   holdings: PortfolioHolding[];
   showDisposed?: boolean;
-}
-
-function getPnlColor(value: string): string {
-  const comparison = compareAmounts(value, "0");
-  if (comparison === 0) return "";
-  return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
 export function HoldingsTable({
@@ -132,12 +127,12 @@ export function HoldingsTable({
                       {formatCurrencyLocale(h.market_value, h.currency)}
                     </td>
                     <td
-                      className={`px-4 py-2 text-right font-medium ${getPnlColor(h.unrealized_pnl)}`}
+                      className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}
                     >
                       {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
                     </td>
                     <td
-                      className={`px-4 py-2 text-right ${getPnlColor(h.unrealized_pnl_percent)}`}
+                      className={`px-4 py-2 text-right ${pnlColorClass(h.unrealized_pnl_percent)}`}
                     >
                       {formatSignedPercentFromPercentValue(
                         h.unrealized_pnl_percent,

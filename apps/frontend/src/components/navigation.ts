@@ -116,6 +116,12 @@ export const DEFAULT_ROUTE_ICON = UploadCloud;
 // Re-exported so the `/more` page can render the genuine power escape hatch.
 export { FolderOpen };
 
+/** Whether a nav item's href matches the current pathname (exact, or a path prefix). */
+export function isActive(pathname: string, href: string): boolean {
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
+}
+
 export function getRouteConfig(pathname: string): RouteConfig {
     if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];
     const segments = pathname.split("/").filter(Boolean);

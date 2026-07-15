@@ -17,9 +17,10 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import Sheet from "@/components/ui/Sheet";
-import { Alert, Badge, EmptyState, type BadgeVariant } from "@/components/ui";
+import { Alert, Badge, EmptyState } from "@/components/ui";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { updateWorkflowEventStatus } from "@/lib/api";
+import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type {
   WorkflowEventListResponse,
   WorkflowEventResponse,
@@ -58,10 +59,6 @@ function sentenceFromSnake(value: string) {
   return value.replace(/_/g, " ");
 }
 
-function countLabel(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
 function formatEventTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -95,13 +92,6 @@ function workflowStateCopy(status: WorkflowStatusResponse) {
   if (status.primary_state === "processing") return "Automation is processing uploaded source files.";
   if (status.primary_state === "ready") return "Reports are ready to inspect.";
   return "Upload files to start the automated reporting workflow.";
-}
-
-function readinessVariant(state: WorkflowStatusResponse["report_readiness"]["state"]): BadgeVariant {
-  if (state === "blocked" || state === "stale") return "error";
-  if (state === "processing") return "warning";
-  if (state === "ready") return "success";
-  return "info";
 }
 
 function isWorkflowStatusResponse(value: unknown): value is WorkflowStatusResponse {

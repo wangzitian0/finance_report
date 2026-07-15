@@ -4,14 +4,9 @@ import type {
   FrameworkPolicyResult,
   PersonalReportPackageReadinessResponse,
 } from "@/lib/types";
+import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
 
-import {
-  countLabel,
-  FRAMEWORK_LABELS,
-  humanizeIdentifier,
-  renderCsv,
-  renderSourceClasses,
-} from "./shared";
+import { FRAMEWORK_LABELS, renderCsv, renderSourceClasses } from "./shared";
 
 type SourceTrustSummary = NonNullable<
   PersonalReportPackageReadinessResponse["source_trust_summary"]

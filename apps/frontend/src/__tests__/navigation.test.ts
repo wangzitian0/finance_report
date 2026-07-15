@@ -8,6 +8,7 @@ import {
   auditHubItems,
   bottomTabItems,
   getRouteConfig,
+  isActive,
   moreItems,
 } from "@/components/navigation";
 
@@ -108,5 +109,15 @@ describe("navigation metadata", () => {
     expect(ROUTE_CONFIG["/events"]).toBeUndefined();
     expect(getRouteConfig("/events").label).toBe("Events");
     expect(getRouteConfig("/notifications").label).toBe("Notifications");
+  });
+
+  // Single-homed from Sidebar.tsx/BottomTabBar.tsx byte-identical duplicates (#1868 S5).
+  it("isActive matches home exactly and other routes exactly or by path prefix", () => {
+    expect(isActive("/", "/")).toBe(true);
+    expect(isActive("/reports", "/")).toBe(false);
+    expect(isActive("/reports", "/reports")).toBe(true);
+    expect(isActive("/reports/balance-sheet", "/reports")).toBe(true);
+    expect(isActive("/reportsomething", "/reports")).toBe(false);
+    expect(isActive("/journal", "/reports")).toBe(false);
   });
 });

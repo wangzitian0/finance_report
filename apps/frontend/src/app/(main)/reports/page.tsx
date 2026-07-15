@@ -15,9 +15,10 @@ import {
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
-import { Badge, type BadgeVariant } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
+import { countLabel, readinessVariant, sourceClassLabel } from "@/lib/statusLabels";
 import type {
   AnnualizedIncomeResponse,
   PersonalReportPackageReadinessResponse,
@@ -47,17 +48,6 @@ const MORE_REPORTS = [
 
 type ReadinessLoadState = "loading" | "loaded" | "error";
 
-const SOURCE_CLASS_LABELS: Record<string, string> = {
-  bank_statement: "Bank statements",
-  brokerage_statement: "Brokerage statements",
-  settlement_note: "Settlement notes",
-  esop_rsu_plan: "ESOP / RSU plans",
-  property_statement: "Property statements",
-  liability_statement: "Liability statements",
-  csv_export: "CSV exports",
-  manual_record: "Manual records",
-};
-
 function packageReadinessQuery(): string {
   const reportDate = new Date().toISOString().slice(0, 10);
   const params = new URLSearchParams({
@@ -66,32 +56,6 @@ function packageReadinessQuery(): string {
     as_of_date: reportDate,
   });
   return `?${params.toString()}`;
-}
-
-function countLabel(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function sourceClassLabel(sourceClass: string): string {
-  return SOURCE_CLASS_LABELS[sourceClass] ?? sourceClass.replaceAll("_", " ");
-}
-
-function readinessVariant(
-  state?: PersonalReportPackageReadinessResponse["state"],
-): BadgeVariant {
-  switch (state) {
-    case "ready":
-    case "generated":
-      return "success";
-    case "blocked":
-    case "stale":
-      return "error";
-    case "processing":
-      return "warning";
-    case "draft":
-    default:
-      return "muted";
-  }
 }
 
 function isPackageReadiness(

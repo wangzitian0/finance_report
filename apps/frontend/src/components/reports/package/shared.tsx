@@ -8,23 +8,11 @@ import type {
   PersonalReportPackageSnapshotSummary,
   PersonalReportPackageTraceabilityLine,
 } from "@/lib/types";
+import { sourceClassLabel } from "@/lib/statusLabels";
 
 export const FRAMEWORK_LABELS: Record<string, string> = {
   personal_us_gaap_like: "US-like",
   personal_hkfrs_like: "HK-like",
-};
-
-const SOURCE_CLASS_LABELS: Record<string, string> = {
-  bank_statement: "Bank statements",
-  brokerage_statement: "Brokerage statements",
-  settlement_note: "Settlement notes",
-  esop_rsu_plan: "ESOP / RSU plans",
-  property_statement: "Property statements",
-  liability_statement: "Liability statements",
-  csv_export: "CSV exports",
-  manual_record: "Manual records",
-  manual_valuation_snapshot: "Manual valuation snapshots",
-  package_contract: "Package contract",
 };
 
 export type LineagePanelState = {
@@ -85,30 +73,6 @@ export function formatScheduleCurrency(
 
 export function renderCsv(values?: string[]): string {
   return values && values.length ? values.join(", ") : "none";
-}
-
-export function countLabel(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-export function humanizeIdentifier(value?: string | null): string {
-  if (!value) return "Not recorded";
-  const spaced = value.replace(/[._-]+/g, " ").trim();
-  if (!spaced) return "Not recorded";
-  return spaced
-    .split(/\s+/)
-    .map((word) => {
-      const upper = word.toUpperCase();
-      if (["AI", "CSV", "ESOP", "FX", "GAAP", "HK", "LLM", "OCR", "PR", "RSU", "US"].includes(upper)) {
-        return upper;
-      }
-      return `${word.slice(0, 1).toUpperCase()}${word.slice(1).toLowerCase()}`;
-    })
-    .join(" ");
-}
-
-export function sourceClassLabel(sourceClass: string): string {
-  return SOURCE_CLASS_LABELS[sourceClass] ?? humanizeIdentifier(sourceClass);
 }
 
 export function renderSourceClasses(values?: string[]): string {

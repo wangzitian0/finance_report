@@ -11,16 +11,11 @@ import {
   HoldingsListResponse,
   RealizedLot,
 } from "@/lib/types";
-import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
+import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
-
-function getPnlColor(value: string): string {
-  const comparison = compareAmounts(value, "0");
-  if (comparison === 0) return "";
-  return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
-}
+import { pnlColorClass } from "@/lib/statusLabels";
 
 export default function HoldingDetailPage() {
   const params = useParams();
@@ -258,12 +253,12 @@ export default function HoldingDetailPage() {
                 Unrealized P&L
               </p>
               <p
-                className={`text-2xl font-semibold mt-1 ${getPnlColor(primary.unrealized_pnl)}`}
+                className={`text-2xl font-semibold mt-1 ${pnlColorClass(primary.unrealized_pnl)}`}
               >
                 {formatCurrencyLocale(primary.unrealized_pnl, primary.currency)}
               </p>
               <p
-                className={`text-sm mt-0.5 ${getPnlColor(primary.unrealized_pnl_percent)}`}
+                className={`text-sm mt-0.5 ${pnlColorClass(primary.unrealized_pnl_percent)}`}
               >
                 {formatSignedPercentFromPercentValue(
                   primary.unrealized_pnl_percent,
@@ -327,7 +322,7 @@ export default function HoldingDetailPage() {
                           {formatCurrencyLocale(h.market_value, h.currency)}
                         </td>
                         <td
-                          className={`px-4 py-2 text-right font-medium ${getPnlColor(h.unrealized_pnl)}`}
+                          className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}
                         >
                           {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
                         </td>
@@ -500,7 +495,7 @@ export default function HoldingDetailPage() {
                         {formatCurrencyLocale(lot.proceeds, lot.currency)}
                       </td>
                       <td
-                        className={`px-4 py-2 text-right font-medium ${getPnlColor(lot.gain_loss)}`}
+                        className={`px-4 py-2 text-right font-medium ${pnlColorClass(lot.gain_loss)}`}
                       >
                         {formatCurrencyLocale(lot.gain_loss, lot.currency)}
                       </td>

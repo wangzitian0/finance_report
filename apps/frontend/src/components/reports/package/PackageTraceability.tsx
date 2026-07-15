@@ -5,13 +5,9 @@ import type {
   PersonalReportPackageTraceabilityLine,
   PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
+import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
 
-import {
-  countLabel,
-  humanizeIdentifier,
-  renderAnchorDetail,
-  type LineagePanelState,
-} from "./shared";
+import { renderAnchorDetail, type LineagePanelState } from "./shared";
 
 export function PackageTraceabilitySection({
   appendix,

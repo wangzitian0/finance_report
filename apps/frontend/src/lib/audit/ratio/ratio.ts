@@ -5,6 +5,8 @@
 
 import Decimal from "decimal.js";
 
+import { decimalStringFromWire as sharedDecimalStringFromWire, decimalToWire } from "@/lib/audit/wire";
+
 import { FloatNotAllowedError, InvalidRatioPayloadError, UndefinedRatioError } from "./errors";
 
 export const PERCENT_DP = 2;
@@ -23,25 +25,8 @@ function coerce(value: RatioInput, what = "ratio value"): Decimal {
   throw new FloatNotAllowedError(`${what} must be a Decimal or decimal string, not a number`);
 }
 
-function decimalToWire(value: Decimal): string {
-  return value.isZero() ? "0" : value.toFixed().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-}
-
 function decimalStringFromWire(value: unknown, what = "ratio value"): string {
-  if (typeof value === "number") {
-    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string, not a number`);
-  }
-  if (typeof value !== "string") {
-    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string`);
-  }
-  try {
-    const parsed = new Decimal(value);
-    if (!parsed.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
-  } catch (error) {
-    if (error instanceof FloatNotAllowedError) throw error;
-    throw new InvalidRatioPayloadError(`${what} is not a valid decimal string`);
-  }
-  return value;
+  return sharedDecimalStringFromWire(value, what, FloatNotAllowedError, InvalidRatioPayloadError);
 }
 
 /** An immutable dimensionless ratio (`0.125` == 12.5%). */

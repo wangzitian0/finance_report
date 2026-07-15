@@ -4,14 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { ADD_ACTION, bottomTabItems, type NavItem } from "@/components/navigation";
+import { ADD_ACTION, bottomTabItems, isActive, type NavItem } from "@/components/navigation";
 import { isAuthenticated } from "@/lib/auth";
 import AddSheet from "@/components/shell/AddSheet";
-
-function isActive(pathname: string, href: string): boolean {
-    if (href === "/") return pathname === "/";
-    return pathname === href || pathname.startsWith(href + "/");
-}
 
 // EPIC-022 AC22.21.2: the mobile/PWA-first bottom tab bar. Home · Chat · ⊕ Add ·
 // Audit · More, with the center Add as an action (opens AddSheet), not a route.
