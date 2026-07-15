@@ -12,8 +12,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
-from src.platform.base.types.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
-from src.platform.base.types.provenance import DataProvenance
+from src.platform import BaseResponse, DataProvenance, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
 
 
 class ManagedPositionResponse(BaseResponse):

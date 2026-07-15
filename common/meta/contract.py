@@ -552,7 +552,6 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
-
         # ── migrated from EPIC-014 (TTD transformation), migration closeout
         # wave 2 (#1663): foundational dev-tooling gates. Was AC14.1.1-.5. ──
         ACRecord(

@@ -22,5 +22,7 @@ def on_config(config, **kwargs):
             "MkDocs DB schema reference generation requires uv on PATH."
         ) from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError("Failed to generate DB schema reference for MkDocs.") from exc
+        raise RuntimeError(
+            "Failed to generate DB schema reference for MkDocs."
+        ) from exc
     return config

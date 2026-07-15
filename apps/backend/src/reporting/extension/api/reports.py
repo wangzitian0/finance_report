@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
@@ -16,42 +17,19 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
-from src.advisor import generate_annualized_income_schedule
 from src.composition import observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction.orm.layer4 import ReportSnapshot, ReportType as SnapshotReportType
 from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
-from src.platform import raise_bad_request, raise_not_found
-from src.platform.base.types.streaming import ExportStreamEnvelope, ExportStreamMediaType
+from src.platform import ExportStreamEnvelope, ExportStreamMediaType, raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols, build_investment_performance_report_schedule
 from src.pricing import ensure_market_data_fresh
 from src.pricing.orm.market_data import FxRate
-from src.reporting import (
+from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,
-    ConfidenceMetricService,
-    ReportError,
-    ReportingSnapshotService,
-    build_personal_report_package_traceability_payload,
-    derive_user_framework_policy_result,
-    generate_balance_sheet,
-    generate_cash_flow,
-    generate_income_statement,
-    get_account_lineage,
-    get_account_trend,
-    get_category_breakdown,
-    get_net_worth_allocation_schedule,
-    get_net_worth_timeseries,
-    get_personal_report_package_readiness,
-    jsonable as _jsonable,
-    package_currency as _package_currency,
-    package_dates as _package_dates,
-    package_snapshot_csv as _package_snapshot_csv,
-    package_snapshot_response as _package_snapshot_response,
-    package_snapshot_status as _package_snapshot_status,
-    package_snapshot_summary as _package_snapshot_summary,
 )
 from src.reporting.base.types.reporting import (
     AccountLineageResponse,
@@ -78,6 +56,41 @@ from src.reporting.base.types.reporting import (
     ReportSnapshotSummary,
     TrendPeriod,
 )
+from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.reporting.extension.cash_flow import generate_cash_flow
+from src.reporting.extension.confidence_metric import ConfidenceMetricService
+from src.reporting.extension.framework_policy import derive_user_framework_policy_result
+from src.reporting.extension.income_statement import generate_income_statement
+from src.reporting.extension.lineage import get_account_lineage
+from src.reporting.extension.net_worth import (
+    get_account_trend,
+    get_category_breakdown,
+    get_net_worth_allocation_schedule,
+    get_net_worth_timeseries,
+)
+from src.reporting.extension.report_package import (
+    jsonable as _jsonable,
+    package_currency as _package_currency,
+    package_dates as _package_dates,
+    package_snapshot_csv as _package_snapshot_csv,
+    package_snapshot_response as _package_snapshot_response,
+    package_snapshot_status as _package_snapshot_status,
+    package_snapshot_summary as _package_snapshot_summary,
+)
+from src.reporting.extension.report_readiness import get_personal_report_package_readiness
+from src.reporting.extension.report_traceability import (
+    build_personal_report_package_traceability_payload,
+)
+from src.reporting.extension.reporting_calc import ReportError
+from src.reporting.extension.reporting_snapshot import ReportingSnapshotService
+
+_ANNUALIZED_INCOME_PROVIDER: Callable[[Any, Any, Any], Awaitable[Any]] | None = None
+
+
+def register_annualized_income_provider(provider: Callable[[Any, Any, Any], Awaitable[Any]]) -> None:
+    global _ANNUALIZED_INCOME_PROVIDER
+    _ANNUALIZED_INCOME_PROVIDER = provider
+
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
@@ -262,8 +275,9 @@ async def annualized_income_schedule(
     db: DbSession = None,
     user_id: CurrentUserId = None,
 ) -> AnnualizedIncomeScheduleResponse:
-    """Return report-ready annualized income and restricted compensation schedule."""
-    return await generate_annualized_income_schedule(db, user_id, as_of_date=as_of_date)
+    if _ANNUALIZED_INCOME_PROVIDER is None:
+        raise RuntimeError("Annualized income provider not registered")
+    return await _ANNUALIZED_INCOME_PROVIDER(db, user_id, as_of_date)
 
 
 async def _personal_report_package_section_payloads(
@@ -278,7 +292,7 @@ async def _personal_report_package_section_payloads(
     include_restricted: bool = False,
     decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from src.reporting import (
+    from src.reporting.extension.framework_report import (
         assemble_framework_balance_sheet,
         assemble_framework_income_statement,
     )

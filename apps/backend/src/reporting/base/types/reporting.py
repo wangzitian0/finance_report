@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.extraction.orm.layer4 import ReportType
 from src.ledger import AccountType, Direction
-from src.platform.base.types.provenance import DataProvenance
+from src.platform import DataProvenance
 
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
 
@@ -525,7 +525,7 @@ class FrameworkPolicyMatrix(BaseModel):
 
     @model_validator(mode="after")
     def validate_rules_line_mappings(self) -> "FrameworkPolicyMatrix":
-        from src.reporting import is_valid_line_for_framework
+        from src.reporting.base.l1_registry import is_valid_line_for_framework
 
         for rule in self.rules:
             for target, line_id in rule.line_mappings.items():
@@ -565,7 +565,7 @@ class FrameworkPolicyResult(BaseModel):
         if incomplete:
             raise ValueError(f"missing required policy dimensions: {', '.join(sorted(set(incomplete)))}")
 
-        from src.reporting import is_valid_line_for_framework
+        from src.reporting.base.l1_registry import is_valid_line_for_framework
 
         for decision in self.decisions:
             for target, line_id in decision.line_mappings.items():

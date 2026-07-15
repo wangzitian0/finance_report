@@ -38,6 +38,7 @@ from src.extraction.base.types.extraction import (
     BankStatementListResponse,
     BankStatementResponse,
     BankStatementTransactionListResponse,
+    BrokerageImportResponse,
     RetryParsingRequest,
     StatementDecisionRequest,
     compose_statement_response,
@@ -63,7 +64,6 @@ from src.platform import (
     raise_service_unavailable,
     raise_too_large,
 )
-from src.portfolio.base.types.portfolio import BrokerageImportResponse
 from src.runtime import StorageError, StorageService
 
 router = APIRouter(prefix="/statements", tags=["statements"])

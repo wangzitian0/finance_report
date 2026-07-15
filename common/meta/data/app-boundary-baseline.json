@@ -1,22 +1,12 @@
 [
   "in::apps/backend/src/main.py::src.advisor.extension.api::chat",
-  "in::apps/backend/src/main.py::src.audit.extension.api::audit",
   "in::apps/backend/src/main.py::src.extraction.extension.api::classifications",
   "in::apps/backend/src/main.py::src.extraction.extension.api::corrections",
   "in::apps/backend/src/main.py::src.extraction.extension.api::evidence",
-  "in::apps/backend/src/main.py::src.extraction.extension.api::review",
   "in::apps/backend/src/main.py::src.extraction.extension.api::statements",
   "in::apps/backend/src/main.py::src.identity.extension.api::ai_feedback",
   "in::apps/backend/src/main.py::src.identity.extension.api::user_settings",
-  "in::apps/backend/src/main.py::src.ledger.extension.api::accounts",
-  "in::apps/backend/src/main.py::src.ledger.extension.api::journal",
-  "in::apps/backend/src/main.py::src.llm.extension.api::llm",
-  "in::apps/backend/src/main.py::src.observability.extension.api::metrics",
   "in::apps/backend/src/main.py::src.platform.extension.api::workflow",
   "in::apps/backend/src/main.py::src.portfolio.extension.api::assets",
-  "in::apps/backend/src/main.py::src.portfolio.extension.api::portfolio",
-  "in::apps/backend/src/main.py::src.pricing.extension.api::market_data",
-  "in::apps/backend/src/main.py::src.reconciliation.extension.api.reconciliation::router",
-  "in::apps/backend/src/main.py::src.reporting.extension.api::income",
-  "in::apps/backend/src/main.py::src.reporting.extension.api::reports"
+  "in::apps/backend/src/main.py::src.portfolio.extension.api::portfolio"
 ]

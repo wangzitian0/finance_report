@@ -10,29 +10,17 @@ from sqlalchemy import select
 from src.audit.money import to_money
 from src.audit.ratio import Ratio
 from src.deps import CurrentUserId, DbSession
-from src.extraction import BrokeragePositionImportService
+from src.extraction import BrokerageImportResponse, BrokeragePositionImportService
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.observability import get_logger
-from src.portfolio import (
+from src.portfolio.base.errors import (
     AssetNotFoundError,
-    DividendIncome,
     InsufficientDataError,
-    InvestmentTransaction,
-    InvestmentTransactionType,
     PerformanceError,
     PortfolioNotFoundError,
-    build_investment_performance_report_schedule,
-    calculate_money_weighted_return,
-    calculate_time_weighted_return,
-    calculate_xirr,
-    get_asset_class_allocation as asset_class_allocation_breakdowns,
-    get_geography_allocation as geography_allocation_breakdowns,
-    get_sector_allocation as sector_allocation_breakdowns,
-    portfolio_service,
 )
 from src.portfolio.base.types.portfolio import (
     BrokerageImportRequest,
-    BrokerageImportResponse,
     CostBasisMethodUpdateRequest,
     CostBasisMethodUpdateResponse,
     DividendEventResponse,
@@ -42,6 +30,25 @@ from src.portfolio.base.types.portfolio import (
     PriceUpdateBatchResponse,
     PriceUpdateRequest as SchemaPriceUpdateRequest,
     RealizedLotResponse,
+)
+from src.portfolio.extension.allocation import (
+    get_asset_class_allocation as asset_class_allocation_breakdowns,
+    get_geography_allocation as geography_allocation_breakdowns,
+    get_sector_allocation as sector_allocation_breakdowns,
+)
+from src.portfolio.extension.holdings import portfolio_service
+from src.portfolio.extension.performance import (
+    calculate_money_weighted_return,
+    calculate_time_weighted_return,
+    calculate_xirr,
+)
+from src.portfolio.extension.performance_report import (
+    build_investment_performance_report_schedule,
+)
+from src.portfolio.orm.portfolio import (
+    DividendIncome,
+    InvestmentTransaction,
+    InvestmentTransactionType,
 )
 from src.pricing import PricingError
 

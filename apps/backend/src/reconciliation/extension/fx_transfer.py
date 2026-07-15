@@ -34,7 +34,7 @@ from uuid import UUID
 
 from src.audit import JournalEntrySourceType
 from src.audit.money import Money, to_money
-from src.platform.base.types.base import normalize_currency_code
+from src.platform import normalize_currency_code
 from src.pricing import FxConversion
 
 # Default implied-rate tolerance: the implied rate (amount_from / amount_to) may

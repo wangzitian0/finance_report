@@ -41,7 +41,9 @@ VALID_REQUEST = {
 
 def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() -> None:
     """AC-runtime.deploy-request.1: the SDK release and canonical v1 wire shape are immutable."""
-    pyproject = tomllib.loads((ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads(
+        (ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8")
+    )
     sdk_dependencies = [
         dependency
         for dependency in pyproject["dependency-groups"]["dev"]
@@ -56,7 +58,9 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
-    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
     tooling_step = next(
         step
         for step in workflow["jobs"]["tooling-coverage"]["steps"]
@@ -82,7 +86,9 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST
     assert renderer.canonical_json(request) == (
-        json.dumps(VALID_REQUEST, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        json.dumps(
+            VALID_REQUEST, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
         + "\n"
     )
 
@@ -201,8 +207,10 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     invalid_cli_args[3] = "main"
     with pytest.raises(SystemExit, match="2"):
         renderer.main(invalid_cli_args)
-    assert capsys.readouterr().err.rstrip().endswith(
-        "error: version_ref must be a release tag like vX.Y.Z"
+    assert (
+        capsys.readouterr()
+        .err.rstrip()
+        .endswith("error: version_ref must be a release tag like vX.Y.Z")
     )
 
     source = MODULE_PATH.read_text(encoding="utf-8")

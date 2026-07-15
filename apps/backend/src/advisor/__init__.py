@@ -34,6 +34,7 @@ from src.advisor.base.guardrails import (
     redact_sensitive,
 )
 from src.advisor.base.prompt import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
+from src.advisor.base.types.chat import ChatStreamEnvelope
 from src.advisor.extension.annualized_income import generate_annualized_income_schedule
 from src.advisor.extension.app_reads import register_fx_conversion, register_fx_pairs_read
 from src.advisor.extension.cache import ResponseCache
@@ -48,6 +49,7 @@ __all__ = [
     "ChatSession",
     "ChatSessionStatus",
     "ChatStream",
+    "ChatStreamEnvelope",
     "DISCLAIMER_EN",
     "DISCLAIMER_ZH",
     "ResponseCache",
@@ -66,5 +68,4 @@ __all__ = [
     "redact_sensitive",
     "register_fx_conversion",
     "register_fx_pairs_read",
-    "chat_router",
 ]

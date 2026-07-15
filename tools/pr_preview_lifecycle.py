@@ -12,4 +12,3 @@ from tools._lib.dev.pr_preview_lifecycle import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

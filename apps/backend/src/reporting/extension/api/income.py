@@ -10,11 +10,14 @@ from src.audit.money import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.platform import raise_bad_request
-from src.platform.base.types.base import normalize_currency_code
+from src.platform import normalize_currency_code, raise_bad_request
 from src.pricing import PricingError, convert_amount
-from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.reporting.base.types.income import AnnualizedIncomeResponse, FxConversionErrorResponse
+from src.reporting.extension.reporting_calc import (
+    AnnualizedIncomeTotals,
+    income_bucket,
+    resolve_line_currency,
+)
 
 router = APIRouter(prefix="/income", tags=["income"])
 

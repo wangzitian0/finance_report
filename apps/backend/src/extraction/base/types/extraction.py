@@ -10,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.extraction.orm.statement_enums import BankStatementStatus
-from src.platform.base.types.base import ListResponse
+from src.platform import ListResponse
 
 if TYPE_CHECKING:
     from src.extraction import UploadedDocument
@@ -201,3 +201,17 @@ class ParsedStatementPreview(BaseModel):
     confidence_score: int
     balance_validated: bool
     validation_error: str | None
+
+
+class BrokerageImportResponse(BaseModel):
+    """Response for brokerage position import."""
+
+    broker: str
+    parsed_positions: int = Field(ge=0)
+    created_atomic_positions: int = Field(ge=0)
+    existing_atomic_positions: int = Field(ge=0)
+    reconcile_created: int = Field(ge=0)
+    reconcile_updated: int = Field(ge=0)
+    reconcile_disposed: int = Field(ge=0)
+    skipped: int = Field(ge=0)
+    account_id: UUID | None = None

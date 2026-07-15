@@ -4,7 +4,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from src.platform.base.types.base import CurrencyCode, MoneyAmount
+from src.platform import CurrencyCode, MoneyAmount
 
 
 class AnnualizedIncomeResponse(BaseModel):

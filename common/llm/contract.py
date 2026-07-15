@@ -146,6 +146,7 @@ CONTRACT = PackageContract(
         Unit(name="UsageRepository", kind=Kind.REPOSITORY),
         Unit(name="UsageRecorded", kind=Kind.DOMAIN_EVENT),
         Unit(name="UsageRollup", kind=Kind.PROJECTION),
+        Unit(name="llm_router", kind=Kind.DOMAIN_SERVICE),
     ],
     implementations={"be": "apps/backend/src/llm", "fe": None},
     interface=[
@@ -202,6 +203,7 @@ CONTRACT = PackageContract(
         "resolve_provider_and_model",
         "stream_ai_chat",
         "stream_ai_json",
+        "llm_router",
     ],
     # UsageRecorded is reserved above but not published yet; events lists only
     # what the package actually emits.

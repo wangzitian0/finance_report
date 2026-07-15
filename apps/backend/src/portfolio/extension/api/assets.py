@@ -21,7 +21,6 @@ from src.extraction.orm.layer3 import (
 from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
-from src.portfolio import PositionService, PositionServiceError
 from src.portfolio.base.types.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -35,6 +34,7 @@ from src.portfolio.base.types.assets import (
     ValuationComponentResponse,
     ValuationComponentsResponse,
 )
+from src.portfolio.extension.positions import PositionService, PositionServiceError
 from src.pricing import PricingError, ValuationService, ValuationServiceError, convert_money
 
 router = APIRouter(prefix="/assets", tags=["assets"])

@@ -1238,9 +1238,8 @@ CONTRACT = PackageContract(
             statement="Authority tier capability (DROPPED)",
             test="TODO",
             priority="P0",
-            status="done",
+            status="open",
         ),
-
     ],
     concepts=[
         ConceptRecord(

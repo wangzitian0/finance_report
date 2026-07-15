@@ -1,14 +1,14 @@
 """Base schema classes and generic types."""
 
 from decimal import Decimal
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
-# Canonical currency normalizer lives in the money layer; re-exported here so
-# existing ``from src.platform.base.types.base import normalize_currency_code`` callers and the
-# ``CurrencyCode`` BeforeValidator keep working off the single source of truth.
-from src.audit.money.currency import normalize_currency_code
+
+def normalize_currency_code(value: Any) -> Any:
+    return value.strip().upper() if isinstance(value, str) else value
+
 
 T = TypeVar("T")
 

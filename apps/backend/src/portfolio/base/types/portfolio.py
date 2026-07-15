@@ -9,15 +9,15 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 
 from src.extraction import reject_json_floats
 from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
-from src.platform.base.types.base import (
+from src.platform import (
     BaseResponse,
+    DataProvenance,
     ListResponse,
     MoneyAmount,
     NonNegativeMoneyAmount,
     Percent,
     Quantity,
 )
-from src.platform.base.types.provenance import DataProvenance
 
 
 class HoldingResponse(BaseResponse):
@@ -278,25 +278,6 @@ class BrokerageImportRequest(BaseModel):
     def _payload_carries_no_floats(cls, value: dict) -> dict:
         reject_json_floats(value, "payload")
         return value
-
-
-class BrokerageImportResponse(BaseModel):
-    """Response for brokerage position import."""
-
-    broker: str
-    parsed_positions: int = Field(ge=0)
-    created_atomic_positions: int = Field(ge=0)
-    existing_atomic_positions: int = Field(ge=0)
-    reconcile_created: int = Field(ge=0)
-    reconcile_updated: int = Field(ge=0)
-    reconcile_disposed: int = Field(ge=0)
-    skipped: int = Field(ge=0)
-    # #1484: the broker ASSET account these positions reconciled into (null when
-    # no single broker account applies, e.g. zero positions or a mixed-broker
-    # payload). The statements import handler also uses it to anchor the source
-    # statement (statement.account_id); the user-scoped /portfolio import has no
-    # statement context and just reports the reconciled account.
-    account_id: UUID | None = None
 
 
 HoldingListResponse = ListResponse[HoldingResponse]
