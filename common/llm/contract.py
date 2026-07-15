@@ -1076,7 +1076,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/extraction/readme.md",
                 "docs/project/EPIC-023.llm-provider-abstraction.md",
-                "apps/backend/src/llm/base/types.py",
+                "apps/backend/src/llm/base/types/llm.py",
                 "apps/backend/src/llm/base/secrets.py",
                 "apps/backend/src/llm/extension/cassette.py",
             ],
