@@ -13,12 +13,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
-from src.extraction.extension.statement_parsing import parse_statement_background
-from src.extraction.extension.statement_parsing_supervisor import (
-    run_parsing_supervisor,
-)
-from src.extraction.orm.statement_enums import BankStatementStatus
-from src.extraction.orm.statement_summary import StatementSummary
 from src.extraction.extension.api.statements import (
     delete_statement,
     get_statement,
@@ -26,6 +20,12 @@ from src.extraction.extension.api.statements import (
     retry_statement_parsing,
     upload_statement,
 )
+from src.extraction.extension.statement_parsing import parse_statement_background
+from src.extraction.extension.statement_parsing_supervisor import (
+    run_parsing_supervisor,
+)
+from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.statement_summary import StatementSummary
 from src.runtime import StorageError, StorageService
 from tests.factories import StatementSummaryFactory
 
@@ -368,6 +368,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
     """Test HTTPException wrappers for ReportError in reports router."""
     from src.reporting import ReportError
+    from src.reporting.base.types.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
     from src.reporting.extension.api.reports import (
         account_trend,
         balance_sheet,
@@ -375,7 +376,6 @@ async def test_report_router_error_handlers(db, test_user, monkeypatch):
         category_breakdown,
         income_statement,
     )
-    from src.schemas.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
 
     uid = test_user.id
 

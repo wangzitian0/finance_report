@@ -552,23 +552,7 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-meta.router.1",
-            statement=(
-                "No backend router module imports a symbol from another "
-                "router (`from src.routers.<x> import ...` is absent across "
-                "apps/backend/src/routers, excluding the package "
-                "aggregator's legitimate `from src.routers import ...`); "
-                "router-to-router coupling that hides the real logic owner "
-                "is rejected. Was EPIC-025 AC25.5.1."
-            ),
-            test=(
-                "apps/backend/tests/api/test_router_boundary.py"
-                "::test_AC25_5_1_no_router_imports_another_router"
-            ),
-            priority="P1",
-            status="done",
-        ),
+
         # ── migrated from EPIC-014 (TTD transformation), migration closeout
         # wave 2 (#1663): foundational dev-tooling gates. Was AC14.1.1-.5. ──
         ACRecord(

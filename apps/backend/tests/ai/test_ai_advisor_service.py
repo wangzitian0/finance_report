@@ -42,9 +42,7 @@ from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.llm import AIStreamError
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.reporting import ReportError
-from src.schemas.workflow import (
+from src.platform.base.types.workflow import (
     WorkflowEventCountsResponse,
     WorkflowNextActionResponse,
     WorkflowNextActionType,
@@ -53,6 +51,8 @@ from src.schemas.workflow import (
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
 )
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reporting import ReportError
 from tests.factories import UserFactory
 
 

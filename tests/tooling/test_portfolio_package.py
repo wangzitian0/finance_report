@@ -72,7 +72,9 @@ def test_AC_portfolio_1_3_base_layer_is_pure():
 def test_AC_portfolio_1_4_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: the gate validates portfolio with no violations."""
     packages = discover_packages(REPO)
-    assert any(p.contract.name == "portfolio" for p in packages), "portfolio not discovered"
+    assert any(p.contract.name == "portfolio" for p in packages), (
+        "portfolio not discovered"
+    )
     ok, messages = run(REPO)
     portfolio_errors = [m for m in messages if "[portfolio]" in m]
     assert not portfolio_errors, f"gate violations for portfolio: {portfolio_errors}"

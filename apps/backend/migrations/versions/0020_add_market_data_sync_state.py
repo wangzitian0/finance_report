@@ -28,10 +28,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
             sa.UniqueConstraint("kind", "scope", name="uq_market_data_sync_state_kind_scope"),
         )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_market_data_sync_state_lookup "
-        "ON market_data_sync_state (kind, scope)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_market_data_sync_state_lookup ON market_data_sync_state (kind, scope)")
 
 
 def downgrade() -> None:

@@ -17,8 +17,7 @@ REPORT_IMPACT_VALUES = ("none", "processing", "ready", "blocked", "stale")
 def _create_enum_if_missing(name: str, values: tuple[str, ...]) -> None:
     quoted_values = ", ".join(f"'{value}'" for value in values)
     op.execute(
-        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); "
-        "EXCEPTION WHEN duplicate_object THEN null; END $$;"
+        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); EXCEPTION WHEN duplicate_object THEN null; END $$;"
     )
 
 
@@ -50,9 +49,5 @@ def downgrade() -> None:
         return
 
     op.execute("ALTER TABLE workflow_events DROP CONSTRAINT IF EXISTS ck_workflow_events_action_href_internal")
-    op.execute(
-        "ALTER TABLE workflow_events "
-        "ALTER COLUMN report_impact TYPE VARCHAR(50) "
-        "USING report_impact::text"
-    )
+    op.execute("ALTER TABLE workflow_events ALTER COLUMN report_impact TYPE VARCHAR(50) USING report_impact::text")
     op.execute("DROP TYPE IF EXISTS workflow_report_impact_enum")

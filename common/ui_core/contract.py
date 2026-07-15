@@ -144,27 +144,6 @@ contract = PackageContract(
             priority="P0",
             status="done",
         ),
-    
-        
 
-        
-    
-        ACRecord(
-            id="AC-ui_core.16.23.1",
-            epic=16,
-            epic_name="two-stage-review-ui",
-            description="Two-stage review UI capability",
-            mandatory=False,
-            status="dropped",
-        ),
-
-        ACRecord(
-            id="AC-ui_core.19.11.1",
-            epic=19,
-            epic_name="event-driven-upload-to-report-ux",
-            description="Event-driven upload to report UX",
-            mandatory=False,
-            status="dropped",
-        ),
     ],
 )

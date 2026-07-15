@@ -10,20 +10,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentStatus, DocumentType, UploadedDocument
-from src.extraction.extension.deduplication import DeduplicationService
-from src.extraction.extension.evidence_lineage import EvidenceLineageService
-from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.identity import User
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.extraction.extension.api.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
-from src.schemas.evidence import (
+from src.extraction.base.types.evidence import (
     EvidenceLineageBlocker,
     LedgerLineProperties,
     MaterializationEdgeProperties,
     build_edge_properties,
     build_node_properties,
 )
+from src.extraction.extension.api.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
+from src.extraction.extension.deduplication import DeduplicationService
+from src.extraction.extension.evidence_lineage import EvidenceLineageService
+from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.identity import User
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory
 
 

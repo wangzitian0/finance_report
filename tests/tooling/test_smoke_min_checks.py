@@ -5,6 +5,7 @@ CF-B tail ("checks deleted/commented down to nothing"). Business-correctness bel
 e2e, not here (see finance_report#1505) — this only ensures the smoke can't *silently
 pass while empty*.
 """
+
 from __future__ import annotations
 
 import os
@@ -22,7 +23,7 @@ def _real_check_calls() -> int:
     # A call is the command name followed by whitespace + an argument (any quote style /
     # variable). The definition line `name() {` has `(` immediately after the name (no
     # whitespace), so it's excluded — no dependence on the first arg being double-quoted.
-    return len(re.findall(r'^\s*(?:check_endpoint|wait_for_endpoint)\s+\S', text, re.M))
+    return len(re.findall(r"^\s*(?:check_endpoint|wait_for_endpoint)\s+\S", text, re.M))
 
 
 def test_smoke_has_at_least_the_default_minimum_checks() -> None:
@@ -42,7 +43,12 @@ def test_undersized_smoke_refuses_to_report_green() -> None:
     # not just that an unreachable URL fails).
     result = subprocess.run(
         ["bash", str(SMOKE), "http://127.0.0.1:1", "staging"],
-        env={**os.environ, "MIN_CHECKS": "999", "SMOKE_READY_ATTEMPTS": "1", "SMOKE_READY_SLEEP_SECONDS": "0"},
+        env={
+            **os.environ,
+            "MIN_CHECKS": "999",
+            "SMOKE_READY_ATTEMPTS": "1",
+            "SMOKE_READY_SLEEP_SECONDS": "0",
+        },
         capture_output=True,
         text=True,
         timeout=60,

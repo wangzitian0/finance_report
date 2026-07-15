@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.reconciliation.extension.api.reconciliation as reconciliation_router
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
 from src.extraction import DocumentType, UploadedDocument
@@ -16,8 +17,7 @@ from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-import src.reconciliation.extension.api.reconciliation as reconciliation_router
-from src.schemas.reconciliation import (
+from src.reconciliation.base.types.reconciliation import (
     BatchAcceptRequest,
     ReconciliationRunRequest,
     ReconciliationStatusEnum,

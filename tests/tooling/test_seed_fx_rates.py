@@ -161,7 +161,9 @@ class TestSeedFxRates:
         mock_rate.quote_currency = "SGD"
         mock_rate.rate = Decimal("1.28")
 
-        mock_engine, mock_session_maker, mock_session = self._make_mock_session(existing_rates=[mock_rate])
+        mock_engine, mock_session_maker, mock_session = self._make_mock_session(
+            existing_rates=[mock_rate]
+        )
 
         monkeypatch.setattr("builtins.input", lambda _: "y")
 
@@ -197,7 +199,9 @@ class TestSeedFxRates:
         mock_rate.quote_currency = "SGD"
         mock_rate.rate = Decimal("1.28")
 
-        mock_engine, mock_session_maker, mock_session = self._make_mock_session(existing_rates=[mock_rate])
+        mock_engine, mock_session_maker, mock_session = self._make_mock_session(
+            existing_rates=[mock_rate]
+        )
 
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
@@ -254,7 +258,9 @@ class TestSeedFxRates:
         mock_engine, mock_session_maker, _ = self._make_mock_session()
 
         with (
-            patch.object(seed_fx_rates, "get_database_url", return_value="sqlite:///test.db"),
+            patch.object(
+                seed_fx_rates, "get_database_url", return_value="sqlite:///test.db"
+            ),
             patch(
                 "tools._lib.market_data.seed_fx_rates.create_async_engine",
                 return_value=mock_engine,
@@ -299,7 +305,9 @@ class TestSeedFxRates:
 class TestMain:
     def test_main_success(self, capsys, monkeypatch):
         """Given successful seeding, should print success message."""
-        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"])
+        monkeypatch.setattr(
+            "sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"]
+        )
 
         with patch(
             "tools._lib.market_data.seed_fx_rates.seed_fx_rates",
@@ -314,7 +322,9 @@ class TestMain:
 
     def test_main_error_exits_1(self, capsys, monkeypatch):
         """Given seed_fx_rates raises, should print error and sys.exit(1)."""
-        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"])
+        monkeypatch.setattr(
+            "sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "local"]
+        )
 
         with (
             patch(
@@ -350,7 +360,9 @@ class TestMain:
 
     def test_main_staging_env(self, capsys, monkeypatch):
         """Given --env staging, should pass 'staging' to seed_fx_rates."""
-        monkeypatch.setattr("sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "staging"])
+        monkeypatch.setattr(
+            "sys.argv", ["tools._lib.market_data.seed_fx_rates.py", "--env", "staging"]
+        )
 
         with (
             patch(

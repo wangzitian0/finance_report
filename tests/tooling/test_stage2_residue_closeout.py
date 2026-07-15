@@ -9,16 +9,19 @@ SERVICES = SRC / "services"
 
 RESIDUE_MOVES = {
     "statement_parsing.py": SRC / "extraction/extension/statement_parsing.py",
-    "statement_parsing_supervisor.py": SRC / "extraction/extension/statement_parsing_supervisor.py",
+    "statement_parsing_supervisor.py": SRC
+    / "extraction/extension/statement_parsing_supervisor.py",
     "statement_pipeline.py": SRC / "extraction/extension/statement_pipeline.py",
     "statement_flow.py": SRC / "extraction/extension/statement_flow.py",
     "statement_validation.py": SRC / "extraction/extension/statement_validation.py",
     "statement_posting.py": SRC / "extraction/extension/statement_posting.py",
     "statement_workflow.py": SRC / "extraction/extension/statement_workflow.py",
-    "brokerage_statement_payload.py": SRC / "extraction/extension/brokerage_statement_payload.py",
+    "brokerage_statement_payload.py": SRC
+    / "extraction/extension/brokerage_statement_payload.py",
     "chain_repair.py": SRC / "extraction/extension/chain_repair.py",
     "classification.py": SRC / "extraction/extension/classification.py",
-    "transaction_classification.py": SRC / "extraction/extension/transaction_classification.py",
+    "transaction_classification.py": SRC
+    / "extraction/extension/transaction_classification.py",
     "correction_loop.py": SRC / "extraction/extension/correction_loop.py",
     "correction_service.py": SRC / "extraction/extension/correction_service.py",
     "review_queue.py": SRC / "extraction/extension/review_queue.py",
@@ -72,8 +75,12 @@ OLD_IMPORT_PATHS = {
 
 def test_stage2_residue_modules_left_services() -> None:
     for old_name, new_path in RESIDUE_MOVES.items():
-        assert new_path.exists(), f"missing migrated module: {new_path.relative_to(REPO)}"
-        assert not (SERVICES / old_name).exists(), f"legacy services residue remains: {old_name}"
+        assert new_path.exists(), (
+            f"missing migrated module: {new_path.relative_to(REPO)}"
+        )
+        assert not (SERVICES / old_name).exists(), (
+            f"legacy services residue remains: {old_name}"
+        )
 
 
 def test_stage2_residue_old_service_imports_are_gone() -> None:
@@ -104,7 +111,9 @@ def test_stage2_residue_old_service_imports_are_gone() -> None:
 def test_stage2_residue_docs_and_comments_use_current_paths() -> None:
     stale_extraction_path = "apps/backend/src/services/extraction/"
     current_extraction_path = "apps/backend/src/extraction/"
-    extraction_readme = (REPO / "common/extraction/readme.md").read_text(encoding="utf-8")
+    extraction_readme = (REPO / "common/extraction/readme.md").read_text(
+        encoding="utf-8"
+    )
     assert stale_extraction_path not in extraction_readme
     assert current_extraction_path in extraction_readme
 

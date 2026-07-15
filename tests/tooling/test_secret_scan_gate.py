@@ -24,13 +24,9 @@ def test_AC8_13_136_gitleaks_runs_in_precommit_and_ci() -> None:
     # 1. pre-commit: a gitleaks repo with the gitleaks hook id.
     precommit = yaml.safe_load(_read(".pre-commit-config.yaml"))
     repos = precommit.get("repos", [])
-    gitleaks_repos = [
-        r for r in repos if "gitleaks" in str(r.get("repo", "")).lower()
-    ]
+    gitleaks_repos = [r for r in repos if "gitleaks" in str(r.get("repo", "")).lower()]
     assert gitleaks_repos, "no gitleaks repo in .pre-commit-config.yaml"
-    hook_ids = {
-        h.get("id") for repo in gitleaks_repos for h in repo.get("hooks", [])
-    }
+    hook_ids = {h.get("id") for repo in gitleaks_repos for h in repo.get("hooks", [])}
     assert "gitleaks" in hook_ids, "gitleaks hook id missing from pre-commit"
 
     # 2. CI: the lint job runs a gitleaks-backed secret scan step.

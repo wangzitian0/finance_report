@@ -28,8 +28,7 @@ from src.platform import (
     WorkflowReportImpact,
     WorkflowSession,
 )
-from src.platform.extension.workflow_events import upsert_workflow_event
-from src.schemas.workflow import (
+from src.platform.base.types.workflow import (
     WorkflowEventCreate,
     WorkflowEventListResponse,
     WorkflowNextActionType,
@@ -37,6 +36,7 @@ from src.schemas.workflow import (
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
 )
+from src.platform.extension.workflow_events import upsert_workflow_event
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 pytestmark = pytest.mark.asyncio

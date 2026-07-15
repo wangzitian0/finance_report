@@ -12,7 +12,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from src.ledger import Direction
-from src.schemas.journal import JournalLineCreate
+from src.ledger.base.types.journal import JournalLineCreate
 
 # Tests for Data Integrity (Float vs Decimal)
 # Ref: common/ledger/readme.md (Anti-pattern A)

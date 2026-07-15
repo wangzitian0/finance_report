@@ -117,7 +117,7 @@ verifiable.
 
 ### AC25.5 — Router boundary: no router imports another router (#1097)
 
-> Migrated (migration closeout wave 2, #1663) to [`common/meta/contract.py`](../../common/meta/contract.py)'s `roadmap`: `AC-meta.router.1`.
+> Migrated (migration closeout wave 2, #1663) to `common/meta/contract.py`'s `roadmap`: Retired_meta_router_1 (since deleted).
 
 ### AC-counter — Package model: the `counter` worked example (a package = DDD bounded context)
 

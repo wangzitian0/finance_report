@@ -13,9 +13,8 @@ import pytest
 from pydantic import ValidationError
 
 from src.ledger import AccountType, Direction
-from src.schemas import (
-    AccountCreate,
-    AccountUpdate,
+from src.ledger.base.types.account import AccountCreate, AccountUpdate
+from src.ledger.base.types.journal import (
     JournalEntryCreate,
     JournalLineCreate,
     VoidJournalEntryRequest,

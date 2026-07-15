@@ -49,7 +49,9 @@ def test_AC7_19_1_retention_selects_only_stale_sha_tags() -> None:
             _version("fresh-sha", tags=["def5678"], created_at="2026-06-10T00:00:00Z"),
             _version("release", tags=["9876543", "v1.2.3"]),
             _version("live", tags=["facefeed"]),
-            _version("pr-tag", tags=["pr-123-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]),
+            _version(
+                "pr-tag", tags=["pr-123-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+            ),
         ],
         retention_days=28,
         live_shas=["facefeedcafebeefcafebeefcafebeefcafebeef"],
@@ -171,7 +173,7 @@ def test_AC7_19_1_workflow_schedules_28_day_sha_retention_with_live_exemption() 
 
     prune = _run_text(workflow, "Prune GHCR SHA images older than 28 days")
     assert "tools/ghcr_retention.py" in prune
-    assert "--retention-days \"${GHCR_SHA_RETENTION_DAYS}\"" in prune
+    assert '--retention-days "${GHCR_SHA_RETENTION_DAYS}"' in prune
     assert "--live-shas-file live-shas.txt" in prune
     assert "--image-name finance_report-backend" in prune
     assert "--image-name finance_report-frontend" in prune

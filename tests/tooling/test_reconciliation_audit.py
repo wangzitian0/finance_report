@@ -95,7 +95,9 @@ def test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive() -> N
 def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
     """AC4.10.3: CI gates reconciliation audit target thresholds."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
+    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text() + (
+        ROOT / "common/runtime/ci-cd.md"
+    ).read_text()
     epic = (ROOT / "docs/project/EPIC-004.reconciliation-engine.md").read_text()
 
     assert "tools/reconciliation_audit.py" in workflow

@@ -267,7 +267,12 @@ def test_update_refuses_to_cement_a_broken_run(tmp_path):
     baseline_path = tmp_path / "baseline.jsonl"
     baseline_format.write_jsonl(
         baseline_path,
-        {"version": 1, "acs": {"AC4.1.4": {"score": 0.9, "metric": "m", "provenance": "deterministic"}}},
+        {
+            "version": 1,
+            "acs": {
+                "AC4.1.4": {"score": 0.9, "metric": "m", "provenance": "deterministic"}
+            },
+        },
     )
     current_path = tmp_path / "current.json"
     current_path.write_text(json.dumps(_payload("AC4.1.4", 0.5)), encoding="utf-8")

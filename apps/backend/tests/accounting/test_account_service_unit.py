@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType
+from src.ledger.base.types.account import AccountCreate, AccountUpdate
 from src.ledger.extension import account_service
 from src.ledger.extension.account_service import AccountNotFoundError
-from src.schemas.account import AccountCreate, AccountUpdate
 
 
 @pytest.fixture

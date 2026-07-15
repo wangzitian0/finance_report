@@ -36,7 +36,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.schemas.reconciliation import ReconciliationStatusEnum
+from src.reconciliation.base.types.reconciliation import ReconciliationStatusEnum
 
 
 async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:

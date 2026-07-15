@@ -159,21 +159,21 @@ class TestSchemas:
 
     def test_review_decision_approved(self):
         """Test ReviewDecision with approved."""
-        from src.schemas.extraction import StatementDecisionRequest
+        from src.extraction.base.types.extraction import StatementDecisionRequest
 
         decision = StatementDecisionRequest()
         assert decision.notes is None
 
     def test_review_decision_rejected_with_notes(self):
         """Test ReviewDecision rejected with notes."""
-        from src.schemas.extraction import StatementDecisionRequest
+        from src.extraction.base.types.extraction import StatementDecisionRequest
 
         decision = StatementDecisionRequest(notes="Incorrect amount")
         assert decision.notes == "Incorrect amount"
 
     def test_statement_status_enum(self):
         """Test StatementStatusEnum values."""
-        from src.schemas.extraction import BankStatementStatusEnum
+        from src.extraction.base.types.extraction import BankStatementStatusEnum
 
         assert BankStatementStatusEnum.UPLOADED.value == "uploaded"
         assert BankStatementStatusEnum.PARSED.value == "parsed"

@@ -41,13 +41,7 @@ from src.pricing import MarketDataOverride, PriceSource, PricingError
 from src.pricing.orm.market_data import FxRate
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-from src.reporting.extension.report_traceability import (
-    _add_anchor_details,
-    _append_blocker,
-    _journal_source_anchor_detail,
-    _ledger_anchor_detail,
-    _source_document_details,
-)
+from src.reporting.base.types.reporting import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
 from src.reporting.extension.api.reports import (
     ExportFormat,
     ExportReportType,
@@ -62,7 +56,13 @@ from src.reporting.extension.api.reports import (
     personal_report_package_readiness,
     personal_report_package_traceability,
 )
-from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
+from src.reporting.extension.report_traceability import (
+    _add_anchor_details,
+    _append_blocker,
+    _journal_source_anchor_detail,
+    _ledger_anchor_detail,
+    _source_document_details,
+)
 from tests.factories import UserFactory
 
 

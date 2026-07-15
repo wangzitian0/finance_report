@@ -42,9 +42,15 @@ def _read_pdf_text_and_tables(
 
 
 def _get_generator_classes() -> tuple[type, type, type]:
-    dbs_cls = import_module("common.testing.fixtures.pdf.generators.dbs_generator").DBSGenerator
-    cmb_cls = import_module("common.testing.fixtures.pdf.generators.cmb_generator").CMBGenerator
-    mari_cls = import_module("common.testing.fixtures.pdf.generators.mari_generator").MariGenerator
+    dbs_cls = import_module(
+        "common.testing.fixtures.pdf.generators.dbs_generator"
+    ).DBSGenerator
+    cmb_cls = import_module(
+        "common.testing.fixtures.pdf.generators.cmb_generator"
+    ).CMBGenerator
+    mari_cls = import_module(
+        "common.testing.fixtures.pdf.generators.mari_generator"
+    ).MariGenerator
     return dbs_cls, cmb_cls, mari_cls
 
 
@@ -148,14 +154,13 @@ def _extract_mari_summary_balances(
 
 
 def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
-    futu_generator = import_module("common.testing.fixtures.pdf.generators.futu_generator").FutuGenerator
+    futu_generator = import_module(
+        "common.testing.fixtures.pdf.generators.futu_generator"
+    ).FutuGenerator
     output_path = tmp_path / "futu" / "test_futu.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = futu_generator(
-        PDF_FIXTURES / "templates"
-        / "futu_template.yaml"
-    )
+    generator = futu_generator(PDF_FIXTURES / "templates" / "futu_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -173,14 +178,13 @@ def test_ac8_13_10_futu_generated_pdf_parseable(tmp_path: Path) -> None:
 
 
 def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
-    moomoo_generator = import_module("common.testing.fixtures.pdf.generators.moomoo_generator").MoomooGenerator
+    moomoo_generator = import_module(
+        "common.testing.fixtures.pdf.generators.moomoo_generator"
+    ).MoomooGenerator
     output_path = tmp_path / "moomoo" / "test_moomoo.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = moomoo_generator(
-        PDF_FIXTURES / "templates"
-        / "moomoo_template.yaml"
-    )
+    generator = moomoo_generator(PDF_FIXTURES / "templates" / "moomoo_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -196,14 +200,13 @@ def test_ac8_13_10_moomoo_generated_pdf_parseable(tmp_path: Path) -> None:
 
 def test_ac9_3_6_pingan_generated_pdf_dates_and_balances(tmp_path: Path) -> None:
     """AC9.3.6: Pingan PDFs remain parseable with source-specific dates and balances."""
-    pingan_generator = import_module("common.testing.fixtures.pdf.generators.pingan_generator").PinganGenerator
+    pingan_generator = import_module(
+        "common.testing.fixtures.pdf.generators.pingan_generator"
+    ).PinganGenerator
     output_path = tmp_path / "pingan" / "test_pingan.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = pingan_generator(
-        PDF_FIXTURES / "templates"
-        / "pingan_template.yaml"
-    )
+    generator = pingan_generator(PDF_FIXTURES / "templates" / "pingan_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -248,10 +251,7 @@ def test_ac9_3_2_dbs_generated_pdf_parseable(tmp_path: Path) -> None:
     output_path = tmp_path / "dbs" / "test_dbs.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = dbs_generator(
-        PDF_FIXTURES / "templates"
-        / "dbs_template.yaml"
-    )
+    generator = dbs_generator(PDF_FIXTURES / "templates" / "dbs_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -277,10 +277,7 @@ def test_ac9_3_3_cmb_generated_pdf_parseable(tmp_path: Path) -> None:
     output_path = tmp_path / "cmb" / "test_cmb.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = cmb_generator(
-        PDF_FIXTURES / "templates"
-        / "cmb_template.yaml"
-    )
+    generator = cmb_generator(PDF_FIXTURES / "templates" / "cmb_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -304,10 +301,7 @@ def test_ac9_3_4_mari_generated_pdf_parseable(tmp_path: Path) -> None:
     output_path = tmp_path / "mari" / "test_mari.pdf"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generator = mari_generator(
-        PDF_FIXTURES / "templates"
-        / "mari_template.yaml"
-    )
+    generator = mari_generator(PDF_FIXTURES / "templates" / "mari_template.yaml")
     generator.generate(output_path, datetime(2025, 1, 1), datetime(2025, 1, 31))
 
     _assert_valid_pdf(output_path)
@@ -337,26 +331,17 @@ def test_ac9_3_5_balance_calculations_correct(tmp_path: Path) -> None:
     cmb_path = fixtures_root / "cmb.pdf"
     mari_path = fixtures_root / "mari.pdf"
 
-    dbs_generator(
-        PDF_FIXTURES / "templates"
-        / "dbs_template.yaml"
-    ).generate(
+    dbs_generator(PDF_FIXTURES / "templates" / "dbs_template.yaml").generate(
         dbs_path,
         datetime(2025, 1, 1),
         datetime(2025, 1, 31),
     )
-    cmb_generator(
-        PDF_FIXTURES / "templates"
-        / "cmb_template.yaml"
-    ).generate(
+    cmb_generator(PDF_FIXTURES / "templates" / "cmb_template.yaml").generate(
         cmb_path,
         datetime(2025, 1, 1),
         datetime(2025, 1, 31),
     )
-    mari_generator(
-        PDF_FIXTURES / "templates"
-        / "mari_template.yaml"
-    ).generate(
+    mari_generator(PDF_FIXTURES / "templates" / "mari_template.yaml").generate(
         mari_path,
         datetime(2025, 1, 1),
         datetime(2025, 1, 31),
@@ -411,26 +396,17 @@ def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
     cmb_path = tmp_path / "cmb.pdf"
     mari_path = tmp_path / "mari.pdf"
 
-    dbs_generator(
-        PDF_FIXTURES / "templates"
-        / "dbs_template.yaml"
-    ).generate(
+    dbs_generator(PDF_FIXTURES / "templates" / "dbs_template.yaml").generate(
         dbs_path,
         period_start,
         period_end,
     )
-    cmb_generator(
-        PDF_FIXTURES / "templates"
-        / "cmb_template.yaml"
-    ).generate(
+    cmb_generator(PDF_FIXTURES / "templates" / "cmb_template.yaml").generate(
         cmb_path,
         period_start,
         period_end,
     )
-    mari_generator(
-        PDF_FIXTURES / "templates"
-        / "mari_template.yaml"
-    ).generate(
+    mari_generator(PDF_FIXTURES / "templates" / "mari_template.yaml").generate(
         mari_path,
         period_start,
         period_end,
@@ -449,7 +425,9 @@ def test_ac9_3_6_date_formats_correct_per_source(tmp_path: Path) -> None:
 
 
 def _get_template_extractor():
-    cls = import_module("common.testing.fixtures.pdf.analyzers.template_extractor").TemplateExtractor
+    cls = import_module(
+        "common.testing.fixtures.pdf.analyzers.template_extractor"
+    ).TemplateExtractor
     return cls()
 
 

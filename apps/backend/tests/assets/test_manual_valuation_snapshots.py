@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.platform.base.types.provenance import DataProvenance
+from src.portfolio.base.types.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.pricing import ValuationComponentItem, ValuationService, ValuationServiceError
-from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
-from src.schemas.provenance import DataProvenance
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):

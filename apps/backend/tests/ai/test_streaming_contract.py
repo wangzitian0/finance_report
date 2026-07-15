@@ -14,8 +14,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.schemas.chat import ChatActionChip, ChatCitation, ChatResponseMetadata
-from src.schemas.streaming import (
+from src.advisor.base.types.chat import ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.platform.base.types.streaming import (
     ADVISOR_METADATA_HEADER,
     EXPOSE_HEADERS_HEADER,
     ChatStreamEnvelope,

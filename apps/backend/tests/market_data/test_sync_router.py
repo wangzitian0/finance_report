@@ -9,10 +9,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.pricing.extension import market_data
-from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 import src.pricing.extension.api.market_data as market_data_router
 import src.reporting.extension.api.reports as reports_router
+from src.pricing.extension import market_data
+from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 
 async def test_market_data_sync_endpoints_return_counts(

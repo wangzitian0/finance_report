@@ -16,13 +16,13 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
+from src.ledger.base.types.account import AccountCreate, AccountUpdate
 from src.ledger.extension.api.accounts import (
     create_account,
     get_account,
     list_accounts,
     update_account,
 )
-from src.schemas.account import AccountCreate, AccountUpdate
 
 
 async def test_account_router_direct(db: AsyncSession, test_user) -> None:

@@ -27,7 +27,7 @@ from httpx import AsyncClient
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
 
-_SRC_DIR = Path(__file__).resolve().parent.parent.parent / 'src'
+_SRC_DIR = Path(__file__).resolve().parent.parent.parent / "src"
 _RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
 
 # The list endpoints #1099 named as unbounded; each must now accept bounded

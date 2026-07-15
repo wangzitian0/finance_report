@@ -14,7 +14,10 @@ from types import SimpleNamespace
 import pytest
 
 from common.testing.fixtures.pdf.analyzers import analyze_pdf as analyze_pdf_cli
-from common.testing.fixtures.pdf.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
+from common.testing.fixtures.pdf.analyzers.pdf_analyzer import (
+    PDFAnalyzer,
+    TemplateExtractor,
+)
 from common.testing.fixtures.pdf.data.fake_data import (
     generate_cmb_transactions,
     generate_dbs_transactions,

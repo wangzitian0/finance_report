@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from src.schemas.audit import AuditTrailItem, AuditTrailResponse
+from src.audit.base.types.audit import AuditTrailItem, AuditTrailResponse
 
 
 def test_audit_trail_item_alias_created_at_to_timestamp():

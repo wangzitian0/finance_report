@@ -18,17 +18,17 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, Direction, JournalEntryStatus
+from src.ledger.base.types.journal import (
+    JournalEntryCreate,
+    JournalLineCreate,
+    VoidJournalEntryRequest,
+)
 from src.ledger.extension.api.journal import (
     create_entry,
     get_journal_entry,
     list_journal_entries,
     post_entry,
     void_entry,
-)
-from src.schemas.journal import (
-    JournalEntryCreate,
-    JournalLineCreate,
-    VoidJournalEntryRequest,
 )
 
 

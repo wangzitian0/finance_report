@@ -5,16 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.extraction.orm.layer3 import PositionStatus
-from src.schemas.assets import (
-    DepreciationResponse,
-    ManagedPositionResponse,
-    ManualValuationSnapshotCreate,
-    ManualValuationSnapshotUpdate,
-    ReconcilePositionsResponse,
-)
-from src.schemas.base import BaseResponse, ListResponse
-from src.schemas.chat import (
+from src.advisor.base.types.chat import (
     ChatHistoryResponse,
     ChatMessagePreview,
     ChatMessageResponse,
@@ -24,7 +15,16 @@ from src.schemas.chat import (
     ChatSessionStatusEnum,
     ChatSuggestionsResponse,
 )
-from src.schemas.ping import PingStateResponse
+from src.extraction.orm.layer3 import PositionStatus
+from src.platform.base.types.base import BaseResponse, ListResponse
+from src.platform.base.types.ping import PingStateResponse
+from src.portfolio.base.types.assets import (
+    DepreciationResponse,
+    ManagedPositionResponse,
+    ManualValuationSnapshotCreate,
+    ManualValuationSnapshotUpdate,
+    ReconcilePositionsResponse,
+)
 
 
 class TestBaseSchemas:

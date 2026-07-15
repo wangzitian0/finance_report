@@ -58,8 +58,12 @@ def generated_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
-    pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+        pytest.skip(
+            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    pdfs = (
+        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    )
     if not pdfs:
         pytest.fail(
             f"PDF generation for {source} exited 0 but produced no files in "

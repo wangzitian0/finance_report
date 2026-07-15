@@ -23,7 +23,9 @@ exit 0
     docker.chmod(0o755)
 
 
-def _run_script(tmp_path: Path, inspect_status: int) -> tuple[subprocess.CompletedProcess[str], str, str]:
+def _run_script(
+    tmp_path: Path, inspect_status: int
+) -> tuple[subprocess.CompletedProcess[str], str, str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     calls = tmp_path / "docker-calls.txt"

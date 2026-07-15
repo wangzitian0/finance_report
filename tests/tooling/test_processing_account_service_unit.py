@@ -24,7 +24,7 @@ import src.ledger.extension.processing as processing_account_module  # noqa: E40
 import src.orm_registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
 from src.audit.money import Money  # noqa: E402
 from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
-from src.ledger import (
+from src.ledger import (  # noqa: E402
     Account,
     AccountType,
     Direction,

@@ -1964,28 +1964,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-    
-        
-
-        
-    
-        ACRecord(
-            id="AC-reconciliation.15.7.8",
-            epic=15,
-            epic_name="processing-account",
-            description="Reconciliation processing account check",
-            mandatory=False,
-            status="dropped",
-        ),
-
-        ACRecord(
-            id="AC-reconciliation.4.10.3",
-            epic=4,
-            epic_name="reconciliation-engine",
-            description="CI treats reconciliation audit JSON/Markdown as a hard gate",
-            mandatory=False,
-            status="dropped",
-        ),
     ],
     concepts=[
         ConceptRecord(

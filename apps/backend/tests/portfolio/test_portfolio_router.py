@@ -9,14 +9,14 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.portfolio.extension.api.portfolio as portfolio_router
 from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
 from src.portfolio import AssetNotFoundError, DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.portfolio.base.types.portfolio import HoldingResponse
 from src.pricing.orm.market_data import FxRate
-import src.portfolio.extension.api.portfolio as portfolio_router
-from src.schemas.portfolio import HoldingResponse
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 

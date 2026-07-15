@@ -1251,9 +1251,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-    
-        
-    
         ACRecord(
             id="AC-advisor.6.34.1",
             statement="AI advisor capability (DROPPED)",

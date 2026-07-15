@@ -73,13 +73,17 @@ def test_AC8_13_123_schema_guardrails_scan_real_migration_directory() -> None:
     assert not (ROOT / "apps/backend/tests/migrations/versions").exists()
 
 
-def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift() -> None:
+def test_retire_bank_statement_migration_normalizes_uppercase_source_type_drift() -> (
+    None
+):
     """Enum rebuild tolerates prod rows written with legacy uppercase labels."""
 
     source = read("apps/backend/migrations/versions/0040_retire_bank_stmt_source.py")
 
     assert "lower(source_type::text) = 'bank_statement'" in source
-    assert "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
+    assert (
+        "WHEN lower(source_type::text) = 'bank_statement' THEN 'auto_parsed'" in source
+    )
     assert "ELSE lower(source_type::text)" in source
 
 

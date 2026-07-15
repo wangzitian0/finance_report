@@ -14,11 +14,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+import src.reporting.extension.api.reports as reports_router
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import StockPrice
 from src.reporting import ReportError
-import src.reporting.extension.api.reports as reports_router
 
 
 @pytest.fixture
@@ -342,7 +342,7 @@ async def test_export_endpoint(client, test_data_setup_reports):
 
 async def test_AC6_33_8_export_response_matches_typed_envelope(client, test_data_setup_reports):
     """AC-reporting.export-envelope.3: AC6.33.8: /reports/export emits the media type + attachment header declared by the typed envelope."""
-    from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
+    from src.platform.base.types.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
     await test_data_setup_reports()
 

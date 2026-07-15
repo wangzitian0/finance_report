@@ -24,12 +24,17 @@ from src.reporting.base.l1_registry import (
     get_registered_line,
     is_valid_line_for_framework,
 )
+from src.reporting.base.types.reporting import (
+    FrameworkPolicyDecision,
+    PersonalReportingFrameworkId,
+    PolicyFactDomain,
+    ReportLineId,
+)
 from src.reporting.extension.framework_report import (
     assemble_framework_balance_sheet,
     assemble_framework_income_statement,
 )
 from src.reporting.extension.reporting_calc import ReportError
-from src.schemas.reporting import FrameworkPolicyDecision, PersonalReportingFrameworkId, PolicyFactDomain, ReportLineId
 
 
 @pytest.mark.no_db

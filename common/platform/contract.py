@@ -1143,15 +1143,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-    
-        
-
-        
-
-        
-
-        
-    
         ACRecord(
             id="AC-platform.12.24.1",
             statement="metrics endpoint returns 200 OK (deferred) (DROPPED)",

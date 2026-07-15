@@ -30,14 +30,20 @@ def test_AC23_7_1_balance_violation_detects_a_drifted_cassette() -> None:
     good = {
         "opening_balance": "100.00",
         "closing_balance": "130.00",
-        "transactions": [{"amount": "-5.00"}, {"amount": "+50.00"}, {"amount": "-15.00"}],
+        "transactions": [
+            {"amount": "-5.00"},
+            {"amount": "+50.00"},
+            {"amount": "-15.00"},
+        ],
     }
     assert balance_violation(good) is None
 
     drifted = {
         "opening_balance": "100.00",
         "closing_balance": "130.00",
-        "transactions": [{"amount": "-5.00"}],  # net -5 -> closing should be 95, not 130
+        "transactions": [
+            {"amount": "-5.00"}
+        ],  # net -5 -> closing should be 95, not 130
     }
     assert balance_violation(drifted) is not None
 
@@ -93,7 +99,11 @@ def _write_statement_cassette(cassette_dir: Path, fp: str, *, reconciles: bool) 
                 "role": "text",
                 "response": {
                     "stream_text": json.dumps(
-                        {"opening_balance": "100.00", "closing_balance": "130.00", "transactions": [{"amount": "-5.00"}]}
+                        {
+                            "opening_balance": "100.00",
+                            "closing_balance": "130.00",
+                            "transactions": [{"amount": "-5.00"}],
+                        }
                     )
                 },
             }
@@ -103,7 +113,10 @@ def _write_statement_cassette(cassette_dir: Path, fp: str, *, reconciles: bool) 
     if reconciles is False:
         gt = cassette_dir / "ground_truth"
         gt.mkdir(exist_ok=True)
-        (gt / f"{fp}.truth.json").write_text(json.dumps({"synthetic": True, "balance_reconciles": False}), encoding="utf-8")
+        (gt / f"{fp}.truth.json").write_text(
+            json.dumps({"synthetic": True, "balance_reconciles": False}),
+            encoding="utf-8",
+        )
 
 
 def test_AC23_7_1_non_reconciling_source_is_balance_exempt(tmp_path: Path) -> None:

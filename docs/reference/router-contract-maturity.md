@@ -8,4 +8,3 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 
 | Method | Route (router-relative) | Handler | File:line |
 |--------|-------------------------|---------|-----------|
-

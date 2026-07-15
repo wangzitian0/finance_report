@@ -38,7 +38,10 @@ def test_AC14_1_17_render_db_schema_reference_uses_sqlalchemy_metadata() -> None
     assert "Enum type count: `1`" in rendered
     assert "| `journal_entries` | 3 | `id` | 1 | 1 |" in rendered
     assert "| `status` | `entry_status` | no | no | - | - |" in rendered
-    assert "| `entry_status` | yes | `draft`, `posted` | `journal_entries.status` |" in rendered
+    assert (
+        "| `entry_status` | yes | `draft`, `posted` | `journal_entries.status` |"
+        in rendered
+    )
     assert "| `journal_entries.user_id` | `users.id` |" in rendered
     assert "ck_journal_entries_status_non_empty" in rendered
 
@@ -86,7 +89,9 @@ def test_main_writes_generated_db_schema_output(monkeypatch, tmp_path) -> None:
     assert output.read_text(encoding="utf-8") == "# DB\n"
 
 
-def test_main_check_passes_when_db_schema_output_is_current(monkeypatch, tmp_path) -> None:
+def test_main_check_passes_when_db_schema_output_is_current(
+    monkeypatch, tmp_path
+) -> None:
     """AC14.1.17: --check passes when generated DB docs are current."""
     output = tmp_path / "db-schema.md"
     output.write_text("# DB\n", encoding="utf-8")
@@ -95,7 +100,9 @@ def test_main_check_passes_when_db_schema_output_is_current(monkeypatch, tmp_pat
     assert gdsr.main(["--output", str(output), "--check"]) == 0
 
 
-def test_main_check_fails_when_db_schema_output_is_missing(monkeypatch, tmp_path, capsys) -> None:
+def test_main_check_fails_when_db_schema_output_is_missing(
+    monkeypatch, tmp_path, capsys
+) -> None:
     """AC14.1.17: --check fails closed when generated DB docs are missing."""
     output = tmp_path / "missing.md"
     monkeypatch.setattr(gdsr, "generate", lambda: "# DB\n")
@@ -106,7 +113,9 @@ def test_main_check_fails_when_db_schema_output_is_missing(monkeypatch, tmp_path
     assert "generated DB schema reference is missing" in captured.err
 
 
-def test_main_check_fails_when_db_schema_output_is_stale(monkeypatch, tmp_path, capsys) -> None:
+def test_main_check_fails_when_db_schema_output_is_stale(
+    monkeypatch, tmp_path, capsys
+) -> None:
     """AC14.1.17: --check reports a diff when generated DB docs are stale."""
     output = tmp_path / "db-schema.md"
     output.write_text("# Old\n", encoding="utf-8")

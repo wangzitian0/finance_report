@@ -27,8 +27,18 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+import src.extraction.extension.api.review as review_router
+import src.extraction.extension.api.statements as statements_router
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import DocumentType, ExtractionError, UploadedDocument
+from src.extraction.base.types.extraction import StatementDecisionRequest
+from src.extraction.base.types.review import (
+    BatchApproveRequest,
+    BatchRejectRequest,
+    ResolveCheckRequest,
+    ResolveConflictsRequest,
+    Stage1ApprovalRequest,
+)
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -50,17 +60,7 @@ from src.llm.base import Modality, ModelSpec
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-import src.extraction.extension.api.review as review_router
-import src.extraction.extension.api.statements as statements_router
 from src.runtime import StorageError
-from src.schemas import StatementDecisionRequest
-from src.schemas.review import (
-    BatchApproveRequest,
-    BatchRejectRequest,
-    ResolveCheckRequest,
-    ResolveConflictsRequest,
-    Stage1ApprovalRequest,
-)
 from tests.factories import AccountFactory, UserFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
@@ -890,7 +890,7 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
 
 async def test_retry_statement_not_found(db, test_user):
     """AC-extraction.5.14: Retry on missing statement returns 404."""
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -904,7 +904,7 @@ async def test_retry_statement_not_found(db, test_user):
 
 async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
     """AC-extraction.5.15: Retry rejects models without image modalities."""
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
@@ -930,7 +930,7 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
 
 async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
     """AC-extraction.5.16: Retry returns 503 if storage fetch fails."""
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
     statement.status = BankStatementStatus.REJECTED
@@ -957,7 +957,7 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
 
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC-extraction.5.17: Retry on statement not in parsed/rejected status returns 400."""
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     content = b"statement"
 
@@ -1019,7 +1019,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
     from unittest.mock import patch
     from uuid import uuid4
 
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     sid = uuid4()
     statement = StatementSummary(
@@ -1057,7 +1057,7 @@ async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, te
     from unittest.mock import patch
     from uuid import uuid4
 
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     sid = uuid4()
     statement = StatementSummary(
@@ -1115,8 +1115,8 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub,
 
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC-extraction.5.19: Retry parsing with stronger model succeeds."""
+    from src.extraction.base.types.extraction import RetryParsingRequest
     from src.extraction.extension.deduplication import dual_write_layer2
-    from src.schemas import RetryParsingRequest
 
     content = b"statement"
 
@@ -1182,8 +1182,8 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC-extraction.5.20: Retry extraction failure returns 422."""
+    from src.extraction.base.types.extraction import RetryParsingRequest
     from src.extraction.extension.deduplication import dual_write_layer2
-    from src.schemas import RetryParsingRequest
 
     content = b"statement"
 
@@ -1319,7 +1319,7 @@ async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch,
 
     monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -1410,7 +1410,7 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
 
     monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     await statements_router.retry_statement_parsing(
         statement_id=statement.id,
@@ -2603,7 +2603,7 @@ async def test_edit_and_approve_statement_is_unsupported(db, test_user):
 
     Reviewers must reject and re-parse instead, so the endpoint now returns 400.
     """
-    from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+    from src.extraction.base.types.review import EditAndApproveRequest, TransactionEditRequest
 
     account = await create_statement_account(db, test_user.id, "DBS Edit Approve")
     statement = build_statement(test_user.id, "hash_edit_approve", 80)
@@ -2646,7 +2646,7 @@ async def test_edit_and_approve_statement_balance_invalid(db, test_user):
     When edit_and_approve_statement is called,
     Then it raises 400 (lines 807-808).
     """
-    from src.schemas.review import EditAndApproveRequest, TransactionEditRequest
+    from src.extraction.base.types.review import EditAndApproveRequest, TransactionEditRequest
 
     statement = build_statement(test_user.id, "hash_edit_bad", 80)
     db.add(statement)
@@ -2687,7 +2687,7 @@ async def test_set_opening_balance_success(db, test_user):
     When set_statement_opening_balance is called,
     Then it sets the manual opening balance (lines 825-835).
     """
-    from src.schemas.review import SetOpeningBalanceRequest
+    from src.extraction.base.types.review import SetOpeningBalanceRequest
 
     statement = build_statement(test_user.id, "hash_ob", 80)
     db.add(statement)
@@ -2709,7 +2709,7 @@ async def test_set_opening_balance_not_found(db, test_user):
     When set_statement_opening_balance is called,
     Then it raises 400.
     """
-    from src.schemas.review import SetOpeningBalanceRequest
+    from src.extraction.base.types.review import SetOpeningBalanceRequest
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.set_statement_opening_balance(
@@ -3770,7 +3770,7 @@ async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test
     When retry is called with that model,
     Then it raises 400 (line 457).
     """
-    from src.schemas import RetryParsingRequest
+    from src.extraction.base.types.extraction import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash_retry_inv", 80)
     statement.status = BankStatementStatus.REJECTED

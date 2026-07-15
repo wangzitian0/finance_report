@@ -352,8 +352,8 @@ async def test_delete_session_success() -> None:
     """AC-advisor.session.5: AC6.4.5: Delete session marks session as deleted."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from src.advisor.orm.chat import ChatSession, ChatSessionStatus
     from src.advisor.extension.api.chat import delete_session
+    from src.advisor.orm.chat import ChatSession, ChatSessionStatus
 
     mock_session = MagicMock(spec=ChatSession)
     mock_db = MagicMock(spec=AsyncSession)
@@ -369,8 +369,8 @@ async def test_delete_session_success() -> None:
 
 async def test_chat_history_with_session_id() -> None:
     """AC6.4.3: Chat history returns messages for specific session."""
-    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.advisor.extension.api.chat import chat_history
+    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 
     mock_session = MagicMock(spec=ChatSession)
     mock_session.id = uuid4()
@@ -419,8 +419,8 @@ async def test_chat_history_empty() -> None:
 
 async def test_chat_history_lists_sessions() -> None:
     """AC6.4.3: Chat history lists active sessions with message counts."""
-    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
     from src.advisor.extension.api.chat import chat_history
+    from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 
     mock_session = MagicMock(spec=ChatSession)
     mock_session.id = uuid4()

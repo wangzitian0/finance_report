@@ -75,9 +75,7 @@ class _IgnoreUnknownTagsLoader(yaml.SafeLoader):
     """
 
 
-def _ignore_unknown(
-    loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node
-) -> None:
+def _ignore_unknown(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> None:
     return None
 
 

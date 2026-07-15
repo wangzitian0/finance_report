@@ -93,7 +93,9 @@ def test_AC8_13_26_current_source_roots_are_fully_governed_by_metrics_contract()
 def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics():
     """AC-testing.ci-structure.2: AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text(encoding="utf-8") + (ROOT / "common/runtime/ci-cd.md").read_text(encoding="utf-8"))
+    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text(encoding="utf-8") + (
+        ROOT / "common/runtime/ci-cd.md"
+    ).read_text(encoding="utf-8")
     traceability = (ROOT / "common/testing/build_ac_traceability.py").read_text(
         encoding="utf-8"
     )

@@ -85,7 +85,9 @@ class TestReportsRouterErrors:
         WHEN requesting breakdown
         THEN it should return 400 with error message
         """
-        with patch("src.reporting.extension.api.reports.get_category_breakdown", new_callable=AsyncMock) as mock_breakdown:
+        with patch(
+            "src.reporting.extension.api.reports.get_category_breakdown", new_callable=AsyncMock
+        ) as mock_breakdown:
             mock_breakdown.side_effect = ReportError("No data available for period")
 
             response = await client.get(

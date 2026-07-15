@@ -97,7 +97,9 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
     ledger_imports = [
         line for line in src.splitlines() if line.startswith("from src.ledger import ")
     ]
-    assert ledger_imports, "accounting.py must import from the published src.ledger root"
+    assert ledger_imports, (
+        "accounting.py must import from the published src.ledger root"
+    )
     for name in ("Entry", "Leg", "post_entry"):
         assert any(name in line for line in ledger_imports), (
             f"accounting.py must import {name} from src.ledger"

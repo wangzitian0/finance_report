@@ -35,8 +35,7 @@ STATUS_VALUES = ("unread", "read", "archived")
 def _create_enum_if_missing(name: str, values: tuple[str, ...]) -> None:
     quoted_values = ", ".join(f"'{value}'" for value in values)
     op.execute(
-        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); "
-        "EXCEPTION WHEN duplicate_object THEN null; END $$;"
+        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); EXCEPTION WHEN duplicate_object THEN null; END $$;"
     )
 
 
@@ -83,10 +82,7 @@ def upgrade() -> None:
             sa.UniqueConstraint("user_id", "dedupe_key", name="uq_workflow_events_user_dedupe_key"),
         )
 
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_workflow_events_user_id "
-        "ON workflow_events (user_id)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_workflow_events_user_id ON workflow_events (user_id)")
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_workflow_events_user_status_occurred "
         "ON workflow_events (user_id, status, occurred_at)"
