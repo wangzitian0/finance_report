@@ -145,20 +145,22 @@ about a package is *derived from its contract*:
   and are **never mirrored** into an EPIC table.
 
 Because governance reads the contract, adding a package adds no central index to
-edit: a new package is governed when `common/<pkg>/contract.py` exports its
-module-level `CONTRACT`.
+edit: a new package is governed when `common/<pkg>/contract.py` exports a
+module-level `CONTRACT = PackageContract(...)`.
 
 That additive discovery has a blind spot: a directory with no discoverable
-`CONTRACT` is invisible to `check_package_contract`, not rejected — exactly how
-`common/ci`, `common/shell`, and `common/ssot` accumulated as undeclared junk
-drawers before being dissolved back into real packages (#1564-#1568, #1430).
+`CONTRACT = PackageContract(...)` export is invisible to
+`check_package_contract`, not rejected — exactly how `common/ci`,
+`common/shell`, and `common/ssot` accumulated as undeclared junk drawers before
+being dissolved back into real packages (#1564-#1568, #1430).
 `tools/check_package_directory_coverage.py` (logic in
 [`extension/check_package_directory_coverage.py`](./extension/check_package_directory_coverage.py))
 closes that gap from the other direction: every directory directly under
-`common/` must ship a `contract.py` with a module-level `CONTRACT` **or** be a
-documented, reasoned entry in `UNGOVERNED_EXCEPTIONS` (now empty after the
-migration cleanup) — so a lowercase or unloadable pseudo-contract fails the
-gate instead of silently bypassing package governance.
+`common/` must ship a `contract.py` with a module-level
+`CONTRACT = PackageContract(...)` **or** be a documented, reasoned entry in
+`UNGOVERNED_EXCEPTIONS` (now empty after the migration cleanup) — so a
+lowercase, wrong-type, or unloadable pseudo-contract fails the gate instead of
+silently bypassing package governance.
 
 ## Examples
 
