@@ -995,6 +995,7 @@ dev = [
     { name = "faker" },
     { name = "freezegun" },
     { name = "httpx" },
+    { name = "infra2-sdk" },
     { name = "locust" },
     { name = "moto", extra = ["s3"] },
     { name = "pdfplumber" },
@@ -1046,6 +1047,7 @@ dev = [
     { name = "faker", specifier = ">=33.0.0" },
     { name = "freezegun", specifier = ">=1.2.0" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "infra2-sdk", url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl" },
     { name = "locust", specifier = ">=2.20.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
     { name = "pdfplumber", specifier = ">=0.11.0" },
@@ -1587,6 +1589,27 @@ sdist = { url = "https://files.pythonhosted.org/packages/f3/49/3b30cad09e7771a49
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/5e/f8e9a1d23b9c20a551a8a02ea3637b4642e22c2626e3a13a9a29cdea99eb/importlib_metadata-8.7.1-py3-none-any.whl", hash = "sha256:5a1f80bf1daa489495071efbb095d75a634cf28a8bc299581244063b53176151", size = 27865, upload-time = "2025-12-21T10:00:18.329Z" },
 ]
+
+[[package]]
+name = "infra2-sdk"
+version = "0.1.0"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl" }
+dependencies = [
+    { name = "pyyaml" },
+]
+wheels = [
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl", hash = "sha256:94bfdc8b13c5bdcef9ee9150eda0ec794d3b3a0b4b11d529c29d6a2a1ba32a55" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "build", marker = "extra == 'dev'", specifier = ">=1.2,<2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5,<8" },
+    { name = "pyyaml", specifier = ">=6.0,<7" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12,<1" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "iniconfig"

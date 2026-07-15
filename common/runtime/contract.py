@@ -691,6 +691,35 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── deploy-request: versioned App -> Infra boundary (#876) ──
+        ACRecord(
+            id="AC-runtime.deploy-request.1",
+            statement=(
+                "Finance Report pins an immutable infra2-sdk release and renders a canonical "
+                "DeployRequest v1 for its exact release tag, commit SHA, and GitHub Actions "
+                "evidence without importing or reading infra2 source."
+            ),
+            test=(
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.deploy-request.2",
+            statement=(
+                "The app-side renderer is side-effect-free and fail-closed: it can emit only "
+                "a staging deploy request for finance_report/app from this repository; "
+                "production, alternate services, repositories, refs, SHAs, or evidence are rejected."
+            ),
+            test=(
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group snapshot-anonymizer (#893, RL-DATA-2) — the data boundary of
         # deploy(env, code, data): a prod snapshot is rewritten on a scratch
         # copy (money scaled by one secret integer, identities pseudonymized,

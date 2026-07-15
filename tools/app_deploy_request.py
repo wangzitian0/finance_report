@@ -1,0 +1,189 @@
+"""Render a validated Finance Report staging DeployRequest without side effects."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from infra2_sdk.deploy import DeployOperation, DeployRequest, DeployType  # noqa: E402
+
+SERVICE = "finance_report/app"
+SOURCE_REPOSITORY = "wangzitian0/finance_report"
+CONTRACT_VERSION = 1
+_REQUEST_FIELDS = frozenset(
+    {
+        "contract_version",
+        "request_id",
+        "operation",
+        "service",
+        "deploy_type",
+        "version_ref",
+        "source_repository",
+        "source_sha",
+        "evidence",
+    }
+)
+_EVIDENCE_FIELDS = frozenset(
+    {
+        "source_run_url",
+        "source_run_id",
+        "staging_run_url",
+        "reviewed_change_url",
+    }
+)
+_RELEASE_REF_RE = re.compile(r"\Av[0-9]+\.[0-9]+\.[0-9]+\Z")
+_SOURCE_RUN_PATH_RE = re.compile(
+    rf"\A/{re.escape(SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
+)
+_SOURCE_SHA_RE = re.compile(r"\A[0-9a-f]{40}\Z")
+
+
+def request_from_mapping(raw: Mapping[str, Any]) -> DeployRequest:
+    """Deserialize and enforce Finance Report's narrower sender authority."""
+    _validate_authority(raw)
+    request = DeployRequest.from_dict(raw)
+    _validate_authority(request.to_dict())
+    return request
+
+
+def render_request(
+    *,
+    request_id: str,
+    version_ref: str,
+    source_sha: str,
+    source_run_url: str,
+    source_run_id: str,
+) -> DeployRequest:
+    """Build the only request shape this repository is allowed to emit."""
+    return request_from_mapping(
+        {
+            "contract_version": CONTRACT_VERSION,
+            "request_id": request_id,
+            "operation": DeployOperation.DEPLOY.value,
+            "service": SERVICE,
+            "deploy_type": DeployType.STAGING.value,
+            "version_ref": version_ref,
+            "source_repository": SOURCE_REPOSITORY,
+            "source_sha": source_sha,
+            "evidence": {
+                "source_run_url": source_run_url,
+                "source_run_id": source_run_id,
+                "staging_run_url": "",
+                "reviewed_change_url": "",
+            },
+        }
+    )
+
+
+def canonical_json(request: DeployRequest) -> str:
+    """Return stable wire bytes for a separately authorized transport."""
+    return (
+        json.dumps(
+            request.to_dict(),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        + "\n"
+    )
+
+
+def _validate_authority(raw: Mapping[str, Any]) -> None:
+    if set(raw) != _REQUEST_FIELDS:
+        raise ValueError("request fields must exactly match DeployRequest v1")
+    contract_version = raw.get("contract_version")
+    if isinstance(contract_version, bool) or contract_version != CONTRACT_VERSION:
+        raise ValueError(f"contract_version must be {CONTRACT_VERSION}")
+    if raw.get("service") != SERVICE:
+        raise ValueError(f"service must be {SERVICE}")
+    if raw.get("source_repository") != SOURCE_REPOSITORY:
+        raise ValueError(f"source_repository must be {SOURCE_REPOSITORY}")
+    if raw.get("operation") != DeployOperation.DEPLOY.value:
+        raise ValueError("operation must be deploy")
+
+    deploy_type = raw.get("deploy_type")
+    if deploy_type == DeployType.PRODUCTION.value:
+        raise ValueError(
+            "production requests are disabled until infra2 remotely verifies evidence"
+        )
+    if deploy_type != DeployType.STAGING.value:
+        raise ValueError("deploy_type must be staging")
+
+    version_ref = raw.get("version_ref")
+    if not isinstance(version_ref, str) or _RELEASE_REF_RE.fullmatch(version_ref) is None:
+        raise ValueError("version_ref must be a release tag like vX.Y.Z")
+
+    source_sha = raw.get("source_sha")
+    if not isinstance(source_sha, str) or _SOURCE_SHA_RE.fullmatch(source_sha) is None:
+        raise ValueError("source_sha must be a lowercase 40-hex commit sha")
+
+    evidence = raw.get("evidence")
+    if not isinstance(evidence, Mapping):
+        raise ValueError("evidence must be an object")
+    if set(evidence) != _EVIDENCE_FIELDS:
+        raise ValueError("evidence fields must exactly match DeployEvidence v1")
+    for infra_owned_field in ("staging_run_url", "reviewed_change_url"):
+        if evidence.get(infra_owned_field) != "":
+            raise ValueError(f"evidence.{infra_owned_field} must be empty")
+    source_run_url = evidence.get("source_run_url")
+    if not isinstance(source_run_url, str) or not source_run_url:
+        raise ValueError("evidence.source_run_url is required")
+    parsed = urlparse(source_run_url)
+    path_match = _SOURCE_RUN_PATH_RE.fullmatch(parsed.path)
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+        or path_match is None
+    ):
+        raise ValueError(
+            "evidence.source_run_url must point to the Finance Report GitHub Actions run"
+        )
+    source_run_id = evidence.get("source_run_id")
+    if not isinstance(source_run_id, str) or not source_run_id:
+        raise ValueError("evidence.source_run_id is required")
+    if source_run_id != path_match.group(1):
+        raise ValueError("evidence.source_run_id must match source_run_url")
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--request-id", required=True)
+    parser.add_argument("--version-ref", required=True)
+    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--source-run-url", required=True)
+    parser.add_argument("--source-run-id", required=True)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _parser()
+    args = parser.parse_args(argv)
+    try:
+        request = render_request(
+            request_id=args.request_id,
+            version_ref=args.version_ref,
+            source_sha=args.source_sha,
+            source_run_url=args.source_run_url,
+            source_run_id=args.source_run_id,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(canonical_json(request), end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

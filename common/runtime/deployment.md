@@ -19,6 +19,22 @@ Finance Report uses **two git repositories** for configuration:
 
 The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
 
+### Versioned App-to-Infra Request Boundary
+
+The target repository boundary is one-way: Finance Report owns application
+artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
+credentials, and every deployment side effect. The application pins
+[`infra2-sdk v0.1.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.1.0)
+as the wire-contract authority and `tools/app_deploy_request.py` renders only a
+canonical staging request for `finance_report/app`. The renderer performs no
+network or subprocess operations and cannot request Production.
+
+The repository is currently in a deliberate transition state: the existing
+staging and Production workflows still execute the pinned `/repo/` deployment
+implementation. The submodule remains the rollback path until a controlled
+staging request has passed through infra2's receiver. Only the follow-up cutover
+may change the workflow transport and remove this source dependency.
+
 **Key implications**:
 - Workflows build images and trigger deployments
 - Actual deployment config managed in `infra2`

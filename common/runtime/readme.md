@@ -30,6 +30,13 @@ in that package's charter. In the failure-attribution table there: dependency
 missing / env wrong / config drift → this package's contract; everything about
 test selection, execution, and reporting → `testing`.
 
+The cross-repository CD seam is a versioned data contract, not an infra2 source
+import. Finance Report pins `infra2-sdk`, and its side-effect-free renderer emits
+only a staging `DeployRequest` for an immutable app release. infra2 remains the
+sole authority for IaC selection, credentials, and deployment execution. During
+the migration, the legacy `repo/` path remains only until the receiver passes a
+controlled staging proof; Production requests stay disabled.
+
 ## Ubiquitous language
 
 - **Dependency** — an external backend the app talks to across a process edge.
