@@ -47,7 +47,8 @@ def test_AC14_1_19_matrix_maps_vision_to_ac_to_test() -> None:
     acs = {ac["id"]: ac for ac in node["acs"]}
     migrated = acs["AC-portfolio.fe-assets2.21"]
     assert migrated["epic"] == "pkg-portfolio"
-    assert "apps/frontend/src/__tests__/holdingDetailPage.test.tsx" in migrated["tests"]
+    expected_tests = {"apps/frontend/src/__tests__/holdingDetailPage.test.tsx"}
+    assert expected_tests.issubset(migrated["tests"])
 
 
 def test_AC14_1_19_rendered_yaml_is_parseable_and_deterministic() -> None:
