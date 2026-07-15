@@ -47,12 +47,19 @@ def _frontend_source_files() -> list[Path]:
 )
 def test_AC_fe_no_godfile_1_workflow_files_stay_under_300_lines():
     """AC-meta.fe-contract-types.5: no file under components/workflow/ exceeds 300 lines."""
-    offenders = []
-    for pattern in ("*.ts", "*.tsx"):
-        for path in WORKFLOW_DIR.rglob(pattern):
-            line_count = sum(1 for _ in path.read_text(encoding="utf-8").splitlines())
-            if line_count > _MAX_LINES:
-                offenders.append(f"{path.relative_to(REPO)}: {line_count} lines")
+    scanned = [
+        path for pattern in ("*.ts", "*.tsx") for path in WORKFLOW_DIR.rglob(pattern)
+    ]
+    # A moved/renamed/deleted directory must fail loudly, not pass vacuously
+    # via an empty rglob() result (the review comment this addresses).
+    assert scanned, f"{WORKFLOW_DIR} has no *.ts(x) files — was it moved or deleted?"
+
+    offenders = [
+        f"{path.relative_to(REPO)}: {line_count} lines"
+        for path in scanned
+        if (line_count := sum(1 for _ in path.read_text(encoding="utf-8").splitlines()))
+        > _MAX_LINES
+    ]
 
     assert not offenders, "components/workflow/ god-file regressed:\n" + "\n".join(
         offenders
