@@ -922,10 +922,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-llm.semantic-scoring.1",
             statement=(
-                "ai_semantic_score returns an AI-computed semantic similarity "
-                "score (0-100) between a bank transaction description and a "
-                "journal entry memo, falling back to a neutral 50 on any "
-                "provider error."
+                "ai_semantic_score streams a caller-built prompt through the "
+                "configured AI provider and returns the parsed 0-100 "
+                "similarity_score, falling back to a neutral 50 on any "
+                "provider error. Generic prompt-in/score-out: callers (e.g. "
+                "reconciliation's transaction/memo matching) build their own "
+                "domain-specific prompt text; this function has no opinion "
+                "on what the prompt is about."
             ),
             # was AC18.3.1
             test="apps/backend/tests/llm/test_semantic_scoring.py::test_ai_semantic_score_returns_score",

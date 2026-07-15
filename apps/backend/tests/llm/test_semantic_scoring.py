@@ -91,8 +91,26 @@ async def test_ai_semantic_score_fallback_on_error():
 
 
 async def test_ai_semantic_score_no_api_key_returns_50():
-    """When no API key is configured, fall back to neutral score."""
-    with patch("src.llm.extension.semantic_scoring.settings") as mock_settings:
+    """When no provider is configured, the stream call fails and we fall back to neutral.
+
+    ``ai_semantic_score`` has no explicit API-key precheck — it always calls
+    ``stream_ai_json`` and only falls back on the caught exception types.
+    ``stream_ai_json`` resolves providers via
+    ``src.llm.extension.streaming.get_config_source(...).list_providers()``
+    (env/DB-backed), not directly off ``settings.ai_api_key``, so patching
+    ``settings`` alone does not stop this test from reaching the real
+    provider-resolution path — it must mock ``stream_ai_json`` itself to stay
+    deterministic and never risk a real network call (flagged in review on
+    PR #1861).
+    """
+    from src.llm import AIStreamError
+
+    mock_stream = MagicMock(side_effect=AIStreamError("no provider configured"))
+
+    with (
+        patch("src.llm.extension.semantic_scoring.settings") as mock_settings,
+        patch("src.llm.extension.semantic_scoring.stream_ai_json", mock_stream),
+    ):
         mock_settings.ai_api_key = ""
 
         score = await ai_semantic_score("test prompt")
