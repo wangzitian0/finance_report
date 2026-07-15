@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import ast
 import importlib
+import io
 import json
 import re
 import shlex
 import subprocess
 import tomllib
+import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 import yaml
 from tools import app_deploy_request as renderer
@@ -218,6 +221,19 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
                 {**VALID_PRODUCTION_REQUEST, "evidence": evidence}
             )
 
+    for invalid_url in (
+        "https://example.com/wangzitian0/finance_report/pull/1878",
+        "https://github.com/wangzitian0/finance_report/pull/1878?authority=forged",
+    ):
+        evidence = {
+            **VALID_PRODUCTION_REQUEST["evidence"],
+            "reviewed_change_url": invalid_url,
+        }
+        with pytest.raises(ValueError, match="must be a canonical Finance Report"):
+            renderer.request_from_mapping(
+                {**VALID_PRODUCTION_REQUEST, "evidence": evidence}
+            )
+
     cli_args = [
         "--request-id",
         VALID_REQUEST["request_id"],
@@ -386,6 +402,175 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
             sleep=lambda _: None,
             max_attempts=1,
         )
+
+
+def test_AC_runtime_deploy_request_3_transport_fail_closed_edges() -> None:
+    """AC-runtime.deploy-request.3: polling and GitHub response edges cannot pass."""
+    transport = importlib.import_module("tools.app_deploy_transport")
+
+    responses = iter(
+        [
+            {"workflow_runs": [{"id": 100}]},
+            {"workflow_runs": [{"id": 100}]},
+            {"workflow_runs": [{"id": 100}]},
+        ]
+    )
+    sleeps: list[float] = []
+    with pytest.raises(RuntimeError, match="timed out"):
+        transport.dispatch_and_wait(
+            VALID_REQUEST,
+            api=lambda method, path, body=None: (
+                next(responses) if method == "GET" else None
+            ),
+            fetch_logs=lambda run_id: b"",
+            sleep=sleeps.append,
+            poll_interval=0.25,
+            max_attempts=2,
+        )
+    assert sleeps == [0.25]
+
+    def run_failure(conclusion: str, url: object) -> object:
+        responses = iter(
+            [
+                {"workflow_runs": [{"id": 100}]},
+                {
+                    "workflow_runs": [
+                        {
+                            "id": 101,
+                            "status": "completed",
+                            "conclusion": conclusion,
+                            "html_url": url,
+                        }
+                    ]
+                },
+            ]
+        )
+        return transport.dispatch_and_wait(
+            VALID_REQUEST,
+            api=lambda method, path, body=None: (
+                next(responses) if method == "GET" else None
+            ),
+            fetch_logs=lambda run_id: VALID_REQUEST["request_id"].encode(),
+            sleep=lambda _: None,
+            max_attempts=1,
+        )
+
+    with pytest.raises(RuntimeError, match="concluded 'failure'"):
+        run_failure("failure", "https://github.com/wangzitian0/infra2/actions/runs/101")
+    with pytest.raises(RuntimeError, match="has no canonical URL"):
+        run_failure("success", "https://example.com/actions/runs/101")
+
+    for payload in ([], {}, {"workflow_runs": ["not-a-run"]}):
+        with pytest.raises(RuntimeError, match="workflow-runs response"):
+            transport._workflow_runs(payload)
+    for run_id in (True, 0, "101"):
+        with pytest.raises(RuntimeError, match="positive integer"):
+            transport._run_id({"id": run_id})
+
+
+def test_AC_runtime_deploy_request_3_github_transport_adapters_fail_closed() -> None:
+    """AC-runtime.deploy-request.3: GitHub API and log adapters validate responses."""
+    transport = importlib.import_module("tools.app_deploy_transport")
+
+    def client_for(response: httpx.Response) -> httpx.Client:
+        return httpx.Client(
+            base_url="https://api.github.test",
+            transport=httpx.MockTransport(lambda _request: response),
+        )
+
+    with client_for(httpx.Response(200, json={"workflow_runs": []})) as client:
+        assert transport._github_api(client, "GET", "/runs", None) == {
+            "workflow_runs": []
+        }
+    with client_for(httpx.Response(204)) as client:
+        assert transport._github_api(client, "POST", "/dispatches", {}) is None
+    with client_for(httpx.Response(403, text="secret response body")) as client:
+        with pytest.raises(RuntimeError, match="HTTP 403") as exc_info:
+            transport._github_api(client, "GET", "/runs?token=hidden", None)
+        assert "secret response body" not in str(exc_info.value)
+        assert "token=hidden" not in str(exc_info.value)
+    with client_for(httpx.Response(200)) as client:
+        with pytest.raises(RuntimeError, match="expected HTTP 204"):
+            transport._github_api(client, "POST", "/dispatches", {})
+    with client_for(httpx.Response(200, text="{")) as client:
+        with pytest.raises(RuntimeError, match="not valid JSON"):
+            transport._github_api(client, "GET", "/runs", None)
+
+    archive_bytes = io.BytesIO()
+    with zipfile.ZipFile(archive_bytes, "w") as archive:
+        archive.writestr("receiver/1.txt", b"first")
+        archive.writestr("receiver/2.txt", b"second")
+    with client_for(httpx.Response(200, content=archive_bytes.getvalue())) as client:
+        assert transport._github_logs(client, 101) == b"first\nsecond"
+    with client_for(httpx.Response(404, text="private logs")) as client:
+        with pytest.raises(RuntimeError, match="HTTP 404") as exc_info:
+            transport._github_logs(client, 101)
+        assert "private logs" not in str(exc_info.value)
+    with client_for(httpx.Response(200, content=b"not-a-zip")) as client:
+        with pytest.raises(RuntimeError, match="not a zip archive"):
+            transport._github_logs(client, 101)
+
+
+def test_AC_runtime_deploy_request_3_transport_cli_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC-runtime.deploy-request.3: the CLI uses env auth and writes run evidence."""
+    transport = importlib.import_module("tools.app_deploy_transport")
+
+    monkeypatch.delenv("INFRA2_PAT", raising=False)
+    assert transport.main([]) == 1
+    assert "INFRA2_PAT is required" in capsys.readouterr().err
+
+    monkeypatch.setenv("INFRA2_PAT", "test-token")
+    assert transport.main(["--timeout", "0"]) == 1
+    assert "must be positive" in capsys.readouterr().err
+
+    monkeypatch.setattr(transport.sys, "stdin", io.StringIO("[]"))
+    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
+    assert "must be a JSON object" in capsys.readouterr().err
+
+    class DummyClient:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        def __enter__(self) -> DummyClient:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    output_path = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(transport.httpx, "Client", DummyClient)
+    monkeypatch.setattr(
+        transport,
+        "dispatch_and_wait",
+        lambda *args, **kwargs: transport.ReceiverRun(
+            run_id=101,
+            url="https://github.com/wangzitian0/infra2/actions/runs/101",
+        ),
+    )
+    monkeypatch.setattr(transport.sys, "stdin", io.StringIO(json.dumps(VALID_REQUEST)))
+    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "receiver_run_id": 101,
+        "receiver_run_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
+    }
+    assert output_path.read_text(encoding="utf-8") == (
+        "receiver_run_id=101\n"
+        "receiver_run_url=https://github.com/wangzitian0/infra2/actions/runs/101\n"
+    )
+
+    monkeypatch.setattr(
+        transport,
+        "dispatch_and_wait",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("receiver failed")),
+    )
+    monkeypatch.setattr(transport.sys, "stdin", io.StringIO(json.dumps(VALID_REQUEST)))
+    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
+    assert "receiver failed" in capsys.readouterr().err
 
 
 def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:

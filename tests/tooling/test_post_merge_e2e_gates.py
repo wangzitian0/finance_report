@@ -1524,6 +1524,93 @@ def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> No
         == "https://github.com/owner/repo/pull/42"
     )
 
+    with pytest.raises(RuntimeError, match="No merged main-branch pull request"):
+        release_evidence.verify_reviewed_change(
+            repository="owner/repo",
+            release_sha="c" * 40,
+            gh_json=reviewed_changes_json,
+        )
+
+
+def test_AC8_13_52_release_evidence_cli_writes_exact_outputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC8.13.52: Each CLI evidence mode emits only its canonical output."""
+    from common.runtime import release_evidence
+
+    output_path = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(
+        release_evidence,
+        "verify_staging",
+        lambda **kwargs: "51",
+    )
+    assert (
+        release_evidence.main(
+            [
+                "--check",
+                "staging",
+                "--repository",
+                "owner/repo",
+                "--version-ref",
+                "v1.2.3",
+                "--release-sha",
+                "a" * 40,
+            ]
+        )
+        == 0
+    )
+    assert "check=staging run_id=51" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        release_evidence,
+        "verify_reviewed_change",
+        lambda **kwargs: "https://github.com/owner/repo/pull/42",
+    )
+    assert (
+        release_evidence.main(
+            [
+                "--check",
+                "reviewed-change",
+                "--repository",
+                "owner/repo",
+                "--release-sha",
+                "a" * 40,
+            ]
+        )
+        == 0
+    )
+    assert "reviewed_change_url=https://github.com/owner/repo/pull/42" in (
+        capsys.readouterr().out
+    )
+
+    monkeypatch.setattr(
+        release_evidence,
+        "verify_release_images_run",
+        lambda **kwargs: "61",
+    )
+    assert (
+        release_evidence.main(
+            [
+                "--check",
+                "release-images-run",
+                "--repository",
+                "owner/repo",
+                "--release-sha",
+                "a" * 40,
+            ]
+        )
+        == 0
+    )
+    assert "check=release-images-run run_id=61" in capsys.readouterr().out
+    assert output_path.read_text(encoding="utf-8").splitlines() == [
+        "run_id=51",
+        "reviewed_change_url=https://github.com/owner/repo/pull/42",
+        "run_id=61",
+    ]
+
 
 def test_AC8_13_52_release_evidence_tool_fails_without_staging_jobs() -> None:
     """AC8.13.52: Shared release evidence fails when staging jobs are missing."""
