@@ -8,7 +8,8 @@
 > (`contract.implementations["be"]`), physically folded out of `services/`
 > by #1666:
 >
-> - `base/` — the pure core: the L1 report-line registry (`l1_registry.py`)
+> - `base/` — the pure core: framework/line vocabulary (`types.py`), the L1
+>   report-line registry (`l1_registry.py`),
 >   and the static package contract/notes/traceability data
 >   (`report_package_contract.py`).
 > - `extension/` — statement generation (`_core.py`, `balance_sheet.py`,
@@ -59,6 +60,9 @@ boundary so it cannot silently drift back.
 - **`FrameworkPolicyMatrix` / `FrameworkPolicyDecision` / `FrameworkPolicyGap`**
   — the framework-anchoring language (which accounting framework a line maps
   to, and what's missing for a 1:1 mapping).
+- **`PersonalReportingFrameworkId` / `ReportLineId` / `PolicyDimension`** —
+  reporting-owned base vocabulary. `src.schemas.reporting` re-exports these
+  exact definitions for delivery compatibility and never defines a second copy.
 - **`get_net_worth_timeseries` / `get_net_worth_allocation_schedule` /
   `get_category_breakdown` / `get_account_trend`** — the net-worth reporting
   lane, separate from the three core statements.

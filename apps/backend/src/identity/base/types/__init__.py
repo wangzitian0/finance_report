@@ -20,6 +20,14 @@ from src.identity.base.types.auth import (
     RegisterRequest,
     normalize_email,
 )
+from src.identity.base.types.user import (
+    UserAiSettingsResponse,
+    UserAiSettingsUpdate,
+    UserBase,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+)
 
 __all__ = [
     "AUTH_COOKIE_NAME",
@@ -30,5 +38,11 @@ __all__ = [
     "AuthResponse",
     "LoginRequest",
     "RegisterRequest",
+    "UserAiSettingsResponse",
+    "UserAiSettingsUpdate",
+    "UserBase",
+    "UserCreate",
+    "UserResponse",
+    "UserUpdate",
     "normalize_email",
 ]

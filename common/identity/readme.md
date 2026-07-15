@@ -98,9 +98,16 @@ statement parse is in flight, or while posted/reconciled ledger entries exist).
 
 ## Internal layering (`base` / `extension`)
 
+### Wire vocabulary ownership
+
+Identity owns the auth, user CRUD, AI-settings, and feedback request/response
+value objects in `base/types/`. `src.schemas.user` retains compatibility
+re-exports and the generic `ListResponse[UserResponse]` wire envelope; identity
+implementation code imports its owned base vocabulary directly.
+
 | layer | what lives here |
 |-------|-----------------|
-| `base/types/` | the pure value objects: `RegisterRequest`/`LoginRequest`/`AuthResponse`, the `AiFeedback*` request/response shapes, `normalize_email`, `AUTH_COOKIE_NAME` (no ORM, no transport) |
+| `base/types/` | the pure value objects: `RegisterRequest`/`LoginRequest`/`AuthResponse`, owned `User*` CRUD and AI-settings DTOs (the generic list envelope remains in `src.schemas.user`), the `AiFeedback*` request/response shapes, `normalize_email`, `AUTH_COOKIE_NAME` (no ORM, no transport) |
 | `base/repository.py` | the `UserRepository` **port** (a `typing.Protocol`) the pure core depends on |
 | `extension/sql.py` | the `User` aggregate + `AiFeedback` entity ORM models **and** `SqlUserRepository` (the only role that touches the ORM) — the port's adapter (mechanism B) |
 | `extension/security.py` | `create_access_token`/`decode_access_token` (JWT) + `hash_password`/`verify_password` (bcrypt) domain services |

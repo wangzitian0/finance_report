@@ -78,6 +78,18 @@ def package_schema_import_file_count() -> int:
     )
 
 
+def base_schema_import_files() -> list[str]:
+    """Return forbidden package-base dependencies on delivery schemas."""
+    return sorted(
+        _relative_to_root(path)
+        for package_dir in _package_dirs()
+        for path in (package_dir / "base").rglob("*.py")
+        if (package_dir / "base").is_dir()
+        and "__pycache__" not in path.parts
+        and _imports_schemas(path)
+    )
+
+
 def _load_baseline() -> dict[str, object]:
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     router_files = baseline.get("router_files")
@@ -115,13 +127,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     baseline = _load_baseline()
     current_routers = router_files()
     current_import_files = package_schema_import_file_count()
+    forbidden_base_imports = base_schema_import_files()
     baseline_routers = set(baseline["router_files"])
     baseline_import_files = baseline["package_schema_import_files"]
     assert isinstance(baseline_import_files, int)
 
     new_routers = sorted(current_routers - baseline_routers)
     import_growth = current_import_files > baseline_import_files
-    if new_routers or import_growth:
+    if new_routers or import_growth or forbidden_base_imports:
         errors = []
         if new_routers:
             errors.append(f"new flat router files: {', '.join(new_routers)}")
@@ -129,6 +142,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             errors.append(
                 "package files importing src.schemas grew "
                 f"({baseline_import_files} -> {current_import_files})"
+            )
+        if forbidden_base_imports:
+            errors.append(
+                "base layers import src.schemas: " + ", ".join(forbidden_base_imports)
             )
         prefix = "REFUSED" if "--update" in args else "ERROR"
         print(f"{prefix}: {'; '.join(errors)}", file=sys.stderr)
@@ -146,7 +163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "api-surface-ratchet: "
         f"routers {len(current_routers)} <= {len(baseline_routers)}, "
         "package files importing schemas "
-        f"{current_import_files} <= {baseline_import_files}"
+        f"{current_import_files} <= {baseline_import_files}, base imports 0"
     )
     return 0
 

@@ -46,6 +46,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ConceptRecord,
     Invariant,
     Kind,
     PackageContract,
@@ -74,6 +75,20 @@ CONTRACT = PackageContract(
         ),
         Unit(name="LoginRequest", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
         Unit(name="AuthResponse", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
+        Unit(name="UserBase", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
+        Unit(name="UserCreate", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
+        Unit(name="UserUpdate", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
+        Unit(name="UserResponse", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
+        Unit(
+            name="UserAiSettingsUpdate",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types/user.py",
+        ),
+        Unit(
+            name="UserAiSettingsResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types/user.py",
+        ),
         # base — the AI-feedback value objects (the AiFeedback entity's wire language).
         Unit(
             name="AiFeedbackRequest",
@@ -164,7 +179,13 @@ CONTRACT = PackageContract(
         "PurgeReport",
         "RegisterRequest",
         "User",
+        "UserAiSettingsResponse",
+        "UserAiSettingsUpdate",
+        "UserBase",
+        "UserCreate",
         "UserRepository",
+        "UserResponse",
+        "UserUpdate",
         "auth_rate_limiter",
         "auth_router",
         "bind_authenticated_user_context",
@@ -249,6 +270,20 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-identity.vocabulary-ownership.1",
+            statement=(
+                "User CRUD and AI-settings request/response DTOs are "
+                "identity-owned base value objects; src.schemas.user retains "
+                "only compatibility re-exports and its generic list envelope."
+            ),
+            test=(
+                "tests/tooling/test_vocabulary_ownership.py"
+                "::test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos"
+            ),
+            priority="P1",
+            status="done",
+        ),
         ACRecord(
             id="AC-identity.1.1",
             statement=(
@@ -644,6 +679,16 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
+        ),
+    ],
+    concepts=[
+        ConceptRecord(
+            key="identity_wire_vocabulary",
+            owner="common/identity/readme.md#wire-vocabulary-ownership",
+            description=(
+                "Identity-owned auth, user CRUD, AI settings, and feedback "
+                "request/response value objects."
+            ),
         ),
     ],
 )

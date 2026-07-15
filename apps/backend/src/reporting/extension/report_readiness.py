@@ -22,13 +22,12 @@ from src.pricing import MarketDataOverride
 from src.pricing.orm.market_data import StockPrice
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.orm.consistency_check import CheckStatus, ConsistencyCheck
+from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension
 from src.reporting.extension import fx_gateway
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.fx_gateway import convert_amount
 from src.schemas.reporting import (
     FrameworkPolicyResult,
-    PersonalReportingFrameworkId,
-    PolicyDimension,
     PolicyProvenance,
     PolicyReviewState,
 )
