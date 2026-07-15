@@ -1,7 +1,6 @@
 """ExtractionService: core LLM parse path + mixin composition."""
 
 import asyncio
-import hashlib
 import json
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -10,10 +9,12 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
+from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
     bank_currency_balances,
     compute_confidence_score,
@@ -49,7 +50,7 @@ from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.orm.layer1 import DocumentType
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalLine
@@ -177,62 +178,107 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         await db.delete(account)
         await db.flush()
 
+    async def _extract_csv_source(
+        self,
+        source: DocumentSource,
+        *,
+        institution: str | None,
+    ) -> dict[str, Any]:
+        if not source.content:
+            raise ExtractionError("File content is required for CSV parsing")
+        if not institution:
+            raise ExtractionError("Institution is required for CSV parsing")
+        return await self._parse_csv_content(source.content, institution)
+
+    async def _extract_vision_source(
+        self,
+        source: DocumentSource,
+        *,
+        institution: str | None,
+        file_type: str,
+        force_model: str | None,
+        user_id: UUID,
+    ) -> dict[str, Any]:
+        extracted = await self._extract_with_balance_retry(
+            file_content=source.content,
+            institution=institution,
+            file_type=file_type,
+            file_url=source.url,
+            force_model=force_model,
+            filename=source.filename,
+            user_id=user_id,
+        )
+        return self._backfill_generated_brokerage_positions(
+            extracted,
+            file_content=source.content,
+            file_type=file_type,
+            filename=source.filename,
+            institution=institution,
+        )
+
     async def parse_document(
         self,
-        file_path: Path,
-        institution: str | None,
+        source: DocumentSource | Path | None = None,
+        institution: str | None = None,
+        *,
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
-        file_content: bytes | None = None,
-        file_hash: str | None = None,
-        file_url: str | None = None,
-        original_filename: str | None = None,
         force_model: str | None = None,
-        db: Any | None = None,
-    ) -> tuple[StatementSummary, list[AtomicTransaction]]:
+        db: AsyncSession | None = None,
+        **legacy_source: object,
+    ) -> tuple[StatementSummary, list[ExtractedTransactionRow]]:
         """Parse document using AI vision models or CSV parser.
 
         Builds a DWD ``StatementSummary`` envelope and a list of Layer-2
-        ``AtomicTransaction`` rows. The atomic rows carry a precomputed
+        typed extracted transaction rows. The rows carry a precomputed
         ``dedup_hash`` (with the extracted running ``balance_after`` threaded in so
-        otherwise-identical transactions stay distinct) and an empty
-        ``source_documents`` placeholder; ``dual_write_layer2`` creates the
-        ``UploadedDocument``, fills ``source_documents``/upserts the rows, links the
-        summary's ``uploaded_document_id`` and persists the summary.
+        otherwise-identical transactions stay distinct). ``dual_write_layer2``
+        creates the ``UploadedDocument``, upserts the rows with their source link,
+        links the summary's ``uploaded_document_id``, and persists the summary.
         """
+        legacy_path = legacy_source.pop("file_path", None)
+        if source is None:
+            source = legacy_path if isinstance(legacy_path, Path) else None
+        if isinstance(source, Path):
+            content = legacy_source.pop("file_content", None)
+            file_url = legacy_source.pop("file_url", None)
+            file_hash = legacy_source.pop("file_hash", None)
+            original_filename = legacy_source.pop("original_filename", None)
+            source = DocumentSource.resolve(
+                path=source,
+                content=content if isinstance(content, bytes) else None,
+                url=file_url if isinstance(file_url, str) else None,
+                content_hash=file_hash if isinstance(file_hash, str) else None,
+                filename=original_filename if isinstance(original_filename, str) else None,
+            )
+        if not isinstance(source, DocumentSource):
+            raise TypeError("parse_document requires a DocumentSource or Path")
+        if legacy_source:
+            names = ", ".join(sorted(legacy_source))
+            raise TypeError(f"Unexpected document source arguments: {names}")
+
+        file_path = source.path
+        original_filename = source.filename
         model = force_model or self.ocr_model
         logger.info(
             "Parsing document",
             institution=institution or "(auto-detect)",
             file_type=file_type,
             model=model,
-            filename=original_filename or (file_path.name if file_path else "unknown"),
+            filename=source.filename,
         )
 
         try:
             if file_type == "csv":
-                if not file_content:
-                    raise ExtractionError("File content is required for CSV parsing")
-                if not institution:
-                    raise ExtractionError("Institution is required for CSV parsing")
-                extracted = await self._parse_csv_content(file_content, institution)
+                extracted = await self._extract_csv_source(source, institution=institution)
             elif file_type in ("pdf", "png", "jpg", "jpeg"):
-                extracted = await self._extract_with_balance_retry(
-                    file_content=file_content,
+                extracted = await self._extract_vision_source(
+                    source,
                     institution=institution,
                     file_type=file_type,
-                    file_url=file_url,
                     force_model=force_model,
-                    filename=original_filename or (file_path.name if file_path else None),
                     user_id=user_id,
-                )
-                extracted = self._backfill_generated_brokerage_positions(
-                    extracted,
-                    file_content=file_content,
-                    file_type=file_type,
-                    filename=original_filename or (file_path.name if file_path else None),
-                    institution=institution,
                 )
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
@@ -245,7 +291,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 institution=final_institution,
             )
 
-            resolved_file_hash = file_hash or hashlib.sha256(file_content or b"").hexdigest()
+            resolved_file_hash = source.content_hash
             # Raw extracted statement currency (no fallback) — feeds the per-transaction
             # ingest-boundary resolution (AC12.40) so a genuinely-missing currency is
             # flagged for review rather than masked by the StatementSummary default.
@@ -427,7 +473,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         )
                     statement.currency_balances = bank_balances
 
-            transactions: list[AtomicTransaction] = []
+            transactions: list[ExtractedTransactionRow] = []
             net_transactions = Decimal("0.00")
             # Per-document occurrence ordinal among rows that would otherwise hash
             # identically (same date/amount/direction/description/reference/balance): lets
@@ -541,21 +587,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     occurrence_index=occurrence_index,
                 )
 
-                transaction = AtomicTransaction(
+                transaction = ExtractedTransactionRow(
                     user_id=user_id,
                     txn_date=parsed_date,
                     amount=amount,
-                    direction=txn_direction,
+                    direction=txn_direction.value,
                     description=txn_description,
                     reference=txn_reference,
                     currency=txn_currency,
+                    currency_unresolved=resolved_currency.unresolved,
+                    balance_after=txn_balance_after,
+                    occurrence_index=occurrence_index,
                     dedup_hash=dedup_hash,
-                    source_documents=[],
                 )
-                transaction._extracted_balance_after = txn_balance_after
-                transaction._occurrence_index = occurrence_index
-                # AC12.40.2: carry the ingest-boundary resolution decision to dual_write_layer2.
-                transaction._currency_unresolved = resolved_currency.unresolved
                 transactions.append(transaction)
 
             # Within-document dedup-collapse signal (EPIC-026 AC26.8.1; #1254 class).

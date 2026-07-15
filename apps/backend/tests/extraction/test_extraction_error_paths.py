@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from src.extraction import DocumentStatus, UploadedDocument
+from src.extraction import DocumentStatus, ParseJob, UploadedDocument
 from src.extraction.extension.deduplication import dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
@@ -34,10 +34,17 @@ async def test_handle_parse_failure_persists_failed_document_lineage(db, test_us
     await handle_parse_failure(
         statement,
         db,
+        job=ParseJob(
+            statement_id=statement.id,
+            filename="futu-2506.pdf",
+            institution=statement.institution,
+            user_id=test_user.id,
+            account_id=statement.account_id,
+            file_hash=statement.file_hash,
+            storage_key=f"statements/{statement.id}/abc123.pdf",
+            model=None,
+        ),
         message="All 1 models failed. Breakdown: 1 json_parse.",
-        file_hash=statement.file_hash,
-        storage_key=f"statements/{statement.id}/abc123.pdf",
-        original_filename="futu-2506.pdf",
     )
 
     doc = (
@@ -728,15 +735,17 @@ async def test_parse_statement_background_storage_error(db, test_user, monkeypat
     monkeypatch.setattr("src.extraction.extension.service.ExtractionService.parse_document", mock_parse)
 
     await parse_statement_background(
-        statement_id=sid,
-        filename="f.pdf",
-        institution="DBS",
-        user_id=uid,
-        account_id=None,
-        file_hash="h_storage_err",
-        storage_key="p",
+        job=ParseJob(
+            statement_id=sid,
+            filename="f.pdf",
+            institution="DBS",
+            user_id=uid,
+            account_id=None,
+            file_hash="h_storage_err",
+            storage_key="p",
+            model=None,
+        ),
         content=b"content",
-        model=None,
         session_maker=create_session_maker_from_db(db),
     )
 

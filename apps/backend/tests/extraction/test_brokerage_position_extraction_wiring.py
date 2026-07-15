@@ -23,7 +23,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import DocumentType, ParseJob, UploadedDocument
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     brokerage_currency_balances,
@@ -291,15 +291,17 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
     )
 
     await parse_statement_background(
-        statement_id=statement_id,
-        filename="moomoo-positions-2506.pdf",
-        institution="Moomoo",
-        user_id=user_id,
-        account_id=None,
-        file_hash=file_hash,
-        storage_key="statements/moomoo-positions.pdf",
+        job=ParseJob(
+            statement_id=statement_id,
+            filename="moomoo-positions-2506.pdf",
+            institution="Moomoo",
+            user_id=user_id,
+            account_id=None,
+            file_hash=file_hash,
+            storage_key="statements/moomoo-positions.pdf",
+            model=None,
+        ),
         content=b"%PDF-1.7",
-        model=None,
         session_maker=create_session_maker_from_db(db),
     )
 

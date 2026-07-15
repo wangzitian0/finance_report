@@ -15,24 +15,27 @@ from uuid import uuid4
 
 import pytest
 
-from src.extraction.extension import statement_pipeline
+from src.extraction import ParseJob
+from src.extraction.extension import statement_flow, statement_pipeline
 
 pytestmark = pytest.mark.no_db
 
 
 def _dispatch_kwargs() -> dict:
     return {
-        "statement_id": uuid4(),
-        "filename": "stmt.pdf",
-        "institution": None,
-        "user_id": uuid4(),
-        "account_id": None,
-        "file_hash": "hash",
-        "storage_key": "uploads/stmt.pdf",
+        "job": ParseJob(
+            statement_id=uuid4(),
+            filename="stmt.pdf",
+            institution=None,
+            user_id=uuid4(),
+            account_id=None,
+            file_hash="hash",
+            storage_key="uploads/stmt.pdf",
+            model=None,
+            request_id="req-1",
+        ),
         "content": b"file-bytes",
-        "model": None,
         "db": object(),
-        "request_id": "req-1",
     }
 
 
@@ -52,7 +55,7 @@ async def test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset(monke
     assert isinstance(task, asyncio.Task)
     await task
     # In-process path keeps the raw content + a session maker.
-    assert seen["filename"] == "stmt.pdf"
+    assert seen["job"].filename == "stmt.pdf"
     assert seen["content"] == b"file-bytes"
     assert seen["session_maker"] == "session-maker"
 
@@ -116,8 +119,8 @@ async def test_AC19_13_2_dispatch_submits_serializable_params_to_prefect(monkeyp
     assert "content" not in params
     assert "db" not in params
     assert "session_maker" not in params
-    assert params["statement_id"] == str(kwargs["statement_id"])
-    assert params["storage_key"] == "uploads/stmt.pdf"
+    assert params["job"] == kwargs["job"].to_prefect_params()
+    assert params["job"]["storage_key"] == "uploads/stmt.pdf"
 
 
 async def test_AC19_13_1_dispatch_falls_back_when_prefect_client_absent(monkeypatch):
@@ -165,3 +168,29 @@ async def test_AC19_13_1_dispatch_falls_back_when_prefect_submit_fails(monkeypat
     await task
     run_deployment.assert_awaited_once()  # it tried Prefect first, then fell back
     assert seen["content"] == b"file-bytes"
+
+
+async def test_AC_extraction_signature_seams_1_prefect_worker_rehydrates_parse_job(monkeypatch):
+    """AC-extraction.signature-seams.1: the worker reconstructs the same typed job."""
+    job = _dispatch_kwargs()["job"]
+    seen: dict = {}
+
+    async def fake_background(**kwargs):
+        seen.update(kwargs)
+
+    async def fake_run_in_threadpool(function, *args, **kwargs):
+        return b"stored-content"
+
+    monkeypatch.setattr(statement_flow, "parse_statement_background", fake_background)
+    monkeypatch.setattr(statement_flow, "run_in_threadpool", fake_run_in_threadpool)
+    monkeypatch.setattr(
+        statement_flow,
+        "run_with_async_parse_tracking",
+        lambda awaitable, **_context: awaitable,
+    )
+
+    await statement_flow.parse_statement_flow.fn(job=job.to_prefect_params())
+
+    assert seen["job"] == job
+    assert seen["content"] == b"stored-content"
+    assert seen["session_maker"] is statement_flow.async_session_maker

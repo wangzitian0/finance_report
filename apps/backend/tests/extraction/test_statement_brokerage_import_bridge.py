@@ -9,13 +9,12 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import DocumentType, ParseJob, UploadedDocument
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import (
     _count_brokerage_positions,
-    _filter_failure_handler_kwargs,
     parse_statement_background,
     route_brokerage_for_review_if_present,
 )
@@ -110,42 +109,6 @@ def test_count_brokerage_positions_handles_empty_and_nested_payloads():
     assert _count_brokerage_positions({"statement": {"positions": [{}, {}, {}]}}) == 3
     assert _count_brokerage_positions({}) is None
     assert _count_brokerage_positions({"statement": {"holdings": "unstructured"}}) is None
-
-
-def test_filter_failure_handler_kwargs_returns_original_when_signature_unavailable(monkeypatch):
-    """AC-extraction.304.7: Parse failure compatibility shim tolerates opaque handlers."""
-    payload = {"message": "parse failed", "future_arg": "preserved"}
-
-    def raise_value_error(_callable):
-        raise ValueError("opaque callable")
-
-    monkeypatch.setattr(statement_parsing, "signature", raise_value_error)
-
-    assert _filter_failure_handler_kwargs(payload) is payload
-
-
-def test_filter_failure_handler_kwargs_keeps_payload_for_var_keyword_handler(monkeypatch):
-    """AC-extraction.304.7: Parse failure compatibility shim preserves kwargs-capable handlers."""
-    payload = {"message": "parse failed", "future_arg": "preserved"}
-
-    async def accepts_kwargs(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(statement_parsing, "handle_parse_failure", accepts_kwargs)
-
-    assert _filter_failure_handler_kwargs(payload) is payload
-
-
-def test_filter_failure_handler_kwargs_drops_unknown_keys_for_fixed_handler(monkeypatch):
-    """AC-extraction.304.7: Parse failure compatibility shim filters unknown kwargs."""
-    payload = {"message": "parse failed", "future_arg": "dropped"}
-
-    async def fixed_handler(_statement, _db, *, message):
-        return message
-
-    monkeypatch.setattr(statement_parsing, "handle_parse_failure", fixed_handler)
-
-    assert _filter_failure_handler_kwargs(payload) == {"message": "parse failed"}
 
 
 def test_parse_brokerage_positions_skips_malformed_moomoo_subscription_row():
@@ -533,15 +496,17 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     )
 
     await parse_statement_background(
-        statement_id=statement_id,
-        filename="moomoo-positions.pdf",
-        institution="Moomoo",
-        user_id=user_id,
-        account_id=None,
-        file_hash=file_hash,
-        storage_key="statements/moomoo.pdf",
+        job=ParseJob(
+            statement_id=statement_id,
+            filename="moomoo-positions.pdf",
+            institution="Moomoo",
+            user_id=user_id,
+            account_id=None,
+            file_hash=file_hash,
+            storage_key="statements/moomoo.pdf",
+            model=None,
+        ),
         content=b"%PDF-1.7",
-        model=None,
         session_maker=create_session_maker_from_db(db),
     )
 
@@ -643,15 +608,17 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
     )
 
     await parse_statement_background(
-        statement_id=statement_id,
-        filename="moomoo-review.pdf",
-        institution="Moomoo",
-        user_id=user_id,
-        account_id=None,
-        file_hash=file_hash,
-        storage_key="statements/moomoo-review.pdf",
+        job=ParseJob(
+            statement_id=statement_id,
+            filename="moomoo-review.pdf",
+            institution="Moomoo",
+            user_id=user_id,
+            account_id=None,
+            file_hash=file_hash,
+            storage_key="statements/moomoo-review.pdf",
+            model=None,
+        ),
         content=b"%PDF-1.7",
-        model=None,
         session_maker=create_session_maker_from_db(db),
     )
 

@@ -2,13 +2,13 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.extension.currency_resolution import resolve_ingest_currency
+from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import (
     AtomicPosition,
@@ -122,33 +122,80 @@ class DeduplicationService:
 
     async def upsert_atomic_transaction(
         self,
+        *,
         db: AsyncSession,
-        user_id: UUID,
-        txn_date: date,
-        amount: Decimal,
-        direction: TransactionDirection,
-        description: str,
-        currency: str,
+        row: ExtractedTransactionRow | None = None,
         source_doc_id: UUID,
         source_doc_type: DocumentType,
-        reference: str | None = None,
-        balance_after: Decimal | None = None,
-        occurrence_index: int = 0,
-        currency_unresolved: bool = False,
+        **legacy_fields: object,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
         If dedup_hash exists -> Append to source_documents array
         If dedup_hash new -> Insert new record
 
-        ``currency_unresolved`` (EPIC-012 AC12.40.2) flags a new row whose currency
+        ``row.currency_unresolved`` (EPIC-012 AC12.40.2) flags a new row whose currency
         could not be determined at the ingest boundary; ``currency`` then holds a
         non-authoritative placeholder and the row is blocked from promotion until a
         reviewer specifies the currency.
         """
+        if row is None:
+            user_id = cast(UUID, legacy_fields.pop("user_id"))
+            txn_date = cast(date, legacy_fields.pop("txn_date"))
+            amount = cast(Decimal, legacy_fields.pop("amount"))
+            direction = TransactionDirection(cast(str, legacy_fields.pop("direction")))
+            description = str(legacy_fields.pop("description"))
+            reference = cast(str | None, legacy_fields.pop("reference", None))
+            balance_after = cast(Decimal | None, legacy_fields.pop("balance_after", None))
+            occurrence_index = int(legacy_fields.pop("occurrence_index", 0))
+            currency = str(legacy_fields.pop("currency"))
+            row = ExtractedTransactionRow(
+                user_id=user_id,
+                txn_date=txn_date,
+                amount=amount,
+                direction=direction.value,
+                description=description,
+                reference=reference,
+                currency=currency,
+                currency_unresolved=bool(legacy_fields.pop("currency_unresolved", False)),
+                balance_after=balance_after,
+                occurrence_index=occurrence_index,
+                dedup_hash=self.calculate_transaction_hash(
+                    user_id,
+                    txn_date,
+                    amount,
+                    direction,
+                    description,
+                    reference=reference,
+                    balance_after=balance_after,
+                    occurrence_index=occurrence_index,
+                ),
+            )
+        if legacy_fields:
+            names = ", ".join(sorted(legacy_fields))
+            raise TypeError(f"Unexpected atomic transaction fields: {names}")
+
+        user_id = row.user_id
+        txn_date = row.txn_date
+        amount = row.amount
+        direction = TransactionDirection(row.direction)
+        description = row.description
+        reference = row.reference
+        currency = row.currency
+        currency_unresolved = row.currency_unresolved
+        balance_after = row.balance_after
         dedup_hash = self.calculate_transaction_hash(
-            user_id, txn_date, amount, direction, description, reference, balance_after, occurrence_index
+            user_id,
+            txn_date,
+            amount,
+            direction,
+            description,
+            reference,
+            balance_after,
+            row.occurrence_index,
         )
+        if dedup_hash != row.dedup_hash:
+            raise ValueError("Extracted transaction dedup hash does not match its typed fields")
 
         stmt = select(AtomicTransaction).where(
             AtomicTransaction.user_id == user_id,
@@ -420,7 +467,7 @@ class DeduplicationService:
         return doc
 
 
-async def _detach_document_from_atomic_transactions(db: Any, user_id: UUID, doc_id: UUID) -> None:
+async def _detach_document_from_atomic_transactions(db: AsyncSession, user_id: UUID, doc_id: UUID) -> None:
     """Remove a document's contribution to Layer 2 before a reparse re-ingests it.
 
     Atomic transactions sourced *solely* from this document are deleted (the reparse
@@ -458,10 +505,11 @@ async def _detach_document_from_atomic_transactions(db: Any, user_id: UUID, doc_
 
 
 async def dual_write_layer2(
-    db: Any,
+    db: AsyncSession,
     user_id: UUID,
     statement: StatementSummary,
-    transactions: list[AtomicTransaction],
+    transactions: list[ExtractedTransactionRow],
+    *,
     file_path: Path | None = None,
     original_filename: str | None = None,
     document_type: DocumentType | None = None,
@@ -471,18 +519,18 @@ async def dual_write_layer2(
     """Persist the DWD ingestion result: ODS document, Layer-2 facts, conform summary.
 
     Single source of truth for an ingested statement. Given the parsed
-    ``StatementSummary`` envelope and its ``AtomicTransaction`` rows (produced by
+    ``StatementSummary`` envelope and its typed extracted rows (produced by
     ``ExtractionService.parse_document``), this:
 
     1. creates the Layer-1 ``UploadedDocument`` (ODS),
-    2. upserts each ``AtomicTransaction`` (dedup by hash; the extracted running
-       ``balance_after`` stashed on ``txn._extracted_balance_after`` is threaded back
-       into the upsert hash so it matches the precomputed ``dedup_hash``),
+    2. upserts each ``AtomicTransaction`` using the DTO's explicit running
+       ``balance_after`` and occurrence index so its hash matches the precomputed
+       ``dedup_hash``,
     3. links ``StatementSummary.uploaded_document_id`` to the ODS document and
        persists the summary (DWD conform).
 
-    Precondition: each transaction carries a precomputed ``dedup_hash`` and an
-    optional transient ``_extracted_balance_after`` attribute.
+    Precondition: each immutable row carries its precomputed ``dedup_hash`` and
+    every value needed by persistence; no transient ORM attributes are accepted.
 
     Raises RuntimeError on non-IntegrityError failures. IntegrityError (duplicate
     upload) is silently ignored.
@@ -545,33 +593,25 @@ async def dual_write_layer2(
 
         layer2_count = 0
         for txn in transactions:
-            # EPIC-012 AC12.40.1/.2: the currency is decided once at the ingest boundary
-            # in ``ExtractionService.parse_document`` via ``resolve_ingest_currency`` and
-            # stashed on ``txn._currency_unresolved`` (alongside the resolved/placeholder
-            # code already on ``txn.currency``). Callers that build transactions outside
-            # that path fall back to a fresh resolution over the model + statement fields
-            # so this stays the single DB-write boundary and never silent-defaults.
-            if hasattr(txn, "_currency_unresolved"):
-                resolved_code = txn.currency
-                currency_unresolved = bool(txn._currency_unresolved)
-            else:
-                resolved = resolve_ingest_currency(txn.currency, statement.currency)
-                resolved_code = resolved.code
-                currency_unresolved = resolved.unresolved
+            if not isinstance(txn, ExtractedTransactionRow):
+                txn = ExtractedTransactionRow(
+                    user_id=txn.user_id,
+                    txn_date=txn.txn_date,
+                    amount=txn.amount,
+                    direction=TransactionDirection(txn.direction).value,
+                    description=txn.description,
+                    reference=txn.reference,
+                    currency=txn.currency,
+                    currency_unresolved=bool(txn.currency_unresolved),
+                    balance_after=txn.balance_after,
+                    occurrence_index=0,
+                    dedup_hash=txn.dedup_hash,
+                )
             upserted_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
-                user_id=user_id,
-                txn_date=txn.txn_date,
-                amount=txn.amount,
-                direction=txn.direction,
-                description=txn.description,
-                currency=resolved_code,
-                currency_unresolved=currency_unresolved,
+                row=txn,
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
-                reference=txn.reference,
-                balance_after=getattr(txn, "_extracted_balance_after", None),
-                occurrence_index=getattr(txn, "_occurrence_index", 0),
             )
             layer2_count += 1
 

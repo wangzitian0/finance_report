@@ -41,6 +41,7 @@ from __future__ import annotations
 # monkeypatch its functions (``validation.validate_balance = …``) and need one
 # canonical module object to patch.
 from src.extraction.base import validation
+from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, ParseJob
 from src.extraction.base.validation import (
     compute_confidence_score,
     detect_balance_chain_break,
@@ -173,6 +174,7 @@ __all__ = [
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
+    "DocumentSource",
     "DocumentStatus",
     "DocumentType",
     "EvidenceEdge",
@@ -183,12 +185,14 @@ __all__ = [
     "EvidenceTraversalStep",
     "ExtractionError",
     "ExtractionService",
+    "ExtractedTransactionRow",
     "ManagedPosition",
     "ManualValuationBasis",
     "ManualValuationComponentType",
     "ManualValuationLiquidityClass",
     "ManualValuationSnapshot",
     "PositionStatus",
+    "ParseJob",
     "ReportSnapshot",
     "ReportType",
     "SYSTEM_PROMPT",

@@ -23,7 +23,7 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.exc import PendingRollbackError
 
-from src.extraction import UploadedDocument
+from src.extraction import ParseJob, UploadedDocument
 from src.extraction.extension.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
@@ -115,8 +115,17 @@ async def test_AC13_23_3_failure_handler_rolls_back_before_reading_orm(db, test_
         await handle_parse_failure(
             _PoisonedStatement(),
             db,
+            job=ParseJob(
+                statement_id=real_id,
+                filename="statement.pdf",
+                institution=statement.institution,
+                user_id=statement.user_id,
+                account_id=statement.account_id,
+                file_hash=statement.file_hash,
+                storage_key=f"statements/{real_id}/statement.pdf",
+                model=None,
+            ),
             message="Finalize failed: original boom",
-            statement_id=real_id,
         )
 
     assert order == ["rollback"]

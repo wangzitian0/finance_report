@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from src.database import create_session_maker_from_db
+from src.extraction import ParseJob
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.service import ExtractionError
 from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
@@ -70,17 +71,19 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     )
 
     await parse_statement_background(
-        statement_id=success.id,
-        filename="audit.pdf",
-        institution="DBS",
-        user_id=user_id,
-        account_id=None,
-        file_hash="success-hash",
-        storage_key="statements/audit.pdf",
+        job=ParseJob(
+            statement_id=success.id,
+            filename="audit.pdf",
+            institution="DBS",
+            user_id=user_id,
+            account_id=None,
+            file_hash="success-hash",
+            storage_key="statements/audit.pdf",
+            model="glm-5.1",
+            request_id="req-success",
+        ),
         content=b"%PDF-1.7",
-        model="glm-5.1",
         session_maker=create_session_maker_from_db(db),
-        request_id="req-success",
     )
 
     info_calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
@@ -117,17 +120,19 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", fail_parse_document)
 
     await parse_statement_background(
-        statement_id=failure.id,
-        filename="audit.pdf",
-        institution="DBS",
-        user_id=user_id,
-        account_id=None,
-        file_hash="failure-hash",
-        storage_key="statements/audit.pdf",
+        job=ParseJob(
+            statement_id=failure.id,
+            filename="audit.pdf",
+            institution="DBS",
+            user_id=user_id,
+            account_id=None,
+            file_hash="failure-hash",
+            storage_key="statements/audit.pdf",
+            model="glm-5.1",
+            request_id="req-failure",
+        ),
         content=b"%PDF-1.7 secret source bytes",
-        model="glm-5.1",
         session_maker=create_session_maker_from_db(db),
-        request_id="req-failure",
     )
 
     failed = next(call.kwargs for call in mock_warning.call_args_list if call.args[0] == "statement.parse.failed")
@@ -180,17 +185,19 @@ async def test_AC_observability_11_4_expected_parse_failure_never_logs_at_error(
     )
 
     await parse_statement_background(
-        statement_id=statement.id,
-        filename="contract.pdf",
-        institution="DBS",
-        user_id=user_id,
-        account_id=None,
-        file_hash="contract-hash",
-        storage_key="statements/contract.pdf",
+        job=ParseJob(
+            statement_id=statement.id,
+            filename="contract.pdf",
+            institution="DBS",
+            user_id=user_id,
+            account_id=None,
+            file_hash="contract-hash",
+            storage_key="statements/contract.pdf",
+            model="glm-5.1",
+            request_id="req-contract",
+        ),
         content=b"%PDF-1.7",
-        model="glm-5.1",
         session_maker=create_session_maker_from_db(db),
-        request_id="req-contract",
     )
 
     mock_error.assert_not_called()
@@ -318,17 +325,19 @@ async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch
 
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", ok_parse_document)
     await parse_statement_background(
-        statement_id=success.id,
-        filename="audit.pdf",
-        institution="DBS",
-        user_id=user_id,
-        account_id=None,
-        file_hash="metric-success",
-        storage_key="statements/audit.pdf",
+        job=ParseJob(
+            statement_id=success.id,
+            filename="audit.pdf",
+            institution="DBS",
+            user_id=user_id,
+            account_id=None,
+            file_hash="metric-success",
+            storage_key="statements/audit.pdf",
+            model="glm-5.1",
+            request_id="req-metric-ok",
+        ),
         content=b"%PDF-1.7",
-        model="glm-5.1",
         session_maker=create_session_maker_from_db(db),
-        request_id="req-metric-ok",
     )
 
     failure = await _create_statement(db, user_id, file_hash="metric-failure")
@@ -338,17 +347,19 @@ async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch
 
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", bad_parse_document)
     await parse_statement_background(
-        statement_id=failure.id,
-        filename="audit.pdf",
-        institution="DBS",
-        user_id=user_id,
-        account_id=None,
-        file_hash="metric-failure",
-        storage_key="statements/audit.pdf",
+        job=ParseJob(
+            statement_id=failure.id,
+            filename="audit.pdf",
+            institution="DBS",
+            user_id=user_id,
+            account_id=None,
+            file_hash="metric-failure",
+            storage_key="statements/audit.pdf",
+            model="glm-5.1",
+            request_id="req-metric-fail",
+        ),
         content=b"%PDF-1.7",
-        model="glm-5.1",
         session_maker=create_session_maker_from_db(db),
-        request_id="req-metric-fail",
     )
 
     assert outcomes == ["success", "failure"]

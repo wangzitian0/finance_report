@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
+from src.extraction import ParseJob
 from src.extraction.extension.statement_parsing import parse_statement_background
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
@@ -176,15 +177,17 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
     # Background parsing not found
     session_maker = create_session_maker_from_db(db)
     await parse_statement_background(
-        statement_id=uuid4(),
-        filename="f",
-        institution="i",
-        user_id=uid,
-        account_id=None,
-        file_hash="h",
-        storage_key="k",
+        job=ParseJob(
+            statement_id=uuid4(),
+            filename="f",
+            institution="i",
+            user_id=uid,
+            account_id=None,
+            file_hash="h",
+            storage_key="k",
+            model=None,
+        ),
         content=b"",
-        model=None,
         session_maker=session_maker,
     )
 
@@ -247,15 +250,17 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
 
         await parse_statement_background(
-            statement_id=sid,
-            filename="f",
-            institution="i",
-            user_id=uid,
-            account_id=None,
-            file_hash="h2",
-            storage_key="k",
+            job=ParseJob(
+                statement_id=sid,
+                filename="f",
+                institution="i",
+                user_id=uid,
+                account_id=None,
+                file_hash="h2",
+                storage_key="k",
+                model=None,
+            ),
             content=b"",
-            model=None,
             session_maker=session_maker,
         )
 
@@ -276,15 +281,17 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", mock_parse)
 
         await parse_statement_background(
-            statement_id=sid,
-            filename="f",
-            institution="i",
-            user_id=uid,
-            account_id=None,
-            file_hash="h2",
-            storage_key="k",
+            job=ParseJob(
+                statement_id=sid,
+                filename="f",
+                institution="i",
+                user_id=uid,
+                account_id=None,
+                file_hash="h2",
+                storage_key="k",
+                model=None,
+            ),
             content=b"",
-            model=None,
             session_maker=session_maker,
         )
 
@@ -303,15 +310,17 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", mock_parse)
 
         await parse_statement_background(
-            statement_id=sid,
-            filename="f",
-            institution="i",
-            user_id=uid,
-            account_id=None,
-            file_hash="h2",
-            storage_key="k",
+            job=ParseJob(
+                statement_id=sid,
+                filename="f",
+                institution="i",
+                user_id=uid,
+                account_id=None,
+                file_hash="h2",
+                storage_key="k",
+                model=None,
+            ),
             content=b"",
-            model=None,
             session_maker=session_maker,
         )
 
