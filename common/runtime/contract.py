@@ -715,12 +715,41 @@ CONTRACT = PackageContract(
             id="AC-runtime.deploy-request.2",
             statement=(
                 "The app-side renderer is side-effect-free and fail-closed: it can emit only "
-                "a staging deploy request for finance_report/app from this repository; "
-                "production, alternate services, repositories, refs, SHAs, or evidence are rejected."
+                "staging or Production deploy requests for finance_report/app from this repository; "
+                "Production requires canonical source-run, staging-run, and merged-review evidence, "
+                "while alternate services, repositories, refs, SHAs, or evidence are rejected."
             ),
             test=(
                 "tests/tooling/test_app_deploy_request.py"
                 "::test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.deploy-request.3",
+            statement=(
+                "The authorized transport dispatches one canonical request to infra2, waits for "
+                "the unique receiver run created after its watermark, requires that run to succeed, "
+                "and confirms the receiver logs contain the exact request_id before App health gates run."
+            ),
+            test=(
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.deploy-request.4",
+            statement=(
+                "Finance Report has no infra2 git submodule, recursive checkout, source-reading gate, "
+                "or direct deploy_v2 execution; staging, Production, and rollback all cross only the "
+                "versioned request boundary."
+            ),
+            test=(
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge"
             ),
             priority="P0",
             status="done",
@@ -1312,7 +1341,6 @@ CONTRACT = PackageContract(
                 "apps/backend/src/config.py",
                 "tools/generate_env_reference.py",
                 ".env.example",
-                "repo/finance_report/finance_report/10.app/secrets.ctmpl",
             ],
             proofs=["tests/tooling/test_required_env_manifest.py"],
             family="development",
@@ -1329,9 +1357,6 @@ CONTRACT = PackageContract(
                 "common/runtime/ci-cd.md",
                 "common/runtime/readme.md",
                 "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
-                "repo/docs/ssot/ops.alerting.md",
-                "repo/docs/ssot/ops.availability-ledger.md",
-                "repo/docs/ssot/ops.recovery.md",
             ],
             proofs=["tests/tooling/test_runtime_incident_response_ssot.py"],
             family="runtime",

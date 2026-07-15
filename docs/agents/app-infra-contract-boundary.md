@@ -31,10 +31,10 @@ observability contract**.
   `openpanel_clients` map in `config.py` (that map lives in infra2's deploy
   tooling).
 
-## Canonical contract (infra2, vendored at `repo/`)
+## Canonical contract (infra2)
 
-- [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
-- [`repo/docs/ssot/core.environments.md`](../../repo/docs/ssot/core.environments.md) — see the *Telemetry identity* section.
+- [Observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)
+- [Environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md) — see the *Telemetry identity* section.
 
 ## App-side consumption docs (pointers only, not the contract)
 

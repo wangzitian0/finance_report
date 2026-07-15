@@ -5,8 +5,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from tests.tooling._infra2_source import deploy_primitive_source
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -62,54 +60,3 @@ JSON
     assert "pw-secret" not in combined
     assert "key-secret" not in combined
     assert "api-secret" not in combined
-
-
-def test_AC8_13_72_deploy_v2_updates_allowlisted_env_only() -> None:
-    primitive = deploy_primitive_source(ROOT)
-    common_shell = (ROOT / "common/runtime/shell/common.sh").read_text()
-
-    assert "env_vars = {" in primitive
-    for key in (
-        "IMAGE_TAG",
-        "GIT_COMMIT_SHA",
-        "IAC_CONFIG_HASH",
-        "ENV_SUFFIX",
-        "COMPOSE_PROFILES",
-        "TRAEFIK_ENABLE",
-        "INTERNAL_DOMAIN",
-    ):
-        assert f'"{key}"' in primitive
-    assert "client.update_compose_env(cfg.compose_id, env_vars=env_vars)" in primitive
-    assert "print(env_vars)" not in primitive
-    assert "client.get_compose_env" in primitive
-    assert "print(client.get_compose_env" not in primitive
-    assert '-H "x-api-key: $DOKPLOY_API_KEY"' not in common_shell
-    assert '-d "$data"' not in common_shell
-    assert "--connect-timeout" in common_shell
-    assert "--max-time" in common_shell
-    assert "--config \"$curl_config_file\"" in common_shell
-    assert "--data-binary \"@$data_file\"" in common_shell
-
-
-def test_AC8_13_72_deploy_v2_dokploy_client_does_not_log_raw_response_bodies() -> None:
-    dokploy_client = (ROOT / "repo/libs/dokploy.py").read_text()
-    primitive = deploy_primitive_source(ROOT)
-
-    request_block = dokploy_client.split("def _request(", 1)[1].split(
-        "    # Project endpoints", 1
-    )[0]
-
-    assert "resp.raise_for_status()" in request_block
-    assert "status code {exc.response.status_code}" in request_block
-    assert "{exc.response.reason_phrase}" in request_block
-    error_block = request_block.split("except httpx.HTTPStatusError", 1)[1]
-    assert "exc.response.text" not in error_block
-    assert "resp.text" not in error_block
-    assert "resp.content" not in error_block
-    assert "headers" not in request_block.split("raise httpx.HTTPStatusError", 1)[1]
-    assert "x-api-key" not in request_block.split("raise httpx.HTTPStatusError", 1)[1]
-
-    assert "deploy rollout entered error" in primitive
-    assert "deploy rollout did not finish" in primitive
-    assert "client.get_compose_env" in primitive
-    assert "print(client.get_compose_env" not in primitive

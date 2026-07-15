@@ -48,18 +48,6 @@ def test_AC8_13_44_readme_documents_one_command_and_host_prerequisite() -> None:
     assert "Podman" in content
 
 
-def test_AC8_13_44_submodule_hook_accepts_standard_gitfile_checkout() -> None:
-    """AC8.13.44: The pre-commit submodule hook supports normal gitfile submodules."""
-    wrapper = (ROOT / "tools" / "check_repo_submodule.sh").read_text(encoding="utf-8")
-    content = (ROOT / "tools" / "_lib" / "shell" / "check_repo_submodule.sh").read_text(
-        encoding="utf-8"
-    )
-
-    assert "tools/_lib/shell/$(basename" in wrapper
-    assert '[ ! -e "repo/.git" ]' in content
-    assert 'if [ "$CURRENT_SHA" != "$LATEST_SHA" ]; then' in content
-
-
 def test_AC8_13_44_root_moon_tasks_use_python3_entrypoint() -> None:
     """AC8.13.44: Moon tasks avoid relying on a nonstandard `python` command."""
     content = (ROOT / "moon.yml").read_text(encoding="utf-8")

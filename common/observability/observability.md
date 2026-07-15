@@ -15,11 +15,11 @@
       `service.version` + surface `deployment.environment`),
     - the environment **taxonomy**.
 
-    Canonical sources (infra2, vendored at `repo/`):
+    Canonical sources (infra2):
 
-    - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+    - [infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)
       — OTLP single no-suffix collector, signal types, OTLP env vars.
-    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
+    - [infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity)
       — telemetry identity (`service.version` / `deployment.environment`) and
       environment taxonomy.
 
@@ -39,7 +39,7 @@
 | Runtime contract | `apps/backend/src/observability/runtime.py` | Redacted observability status for health checks, startup logs, and alert triage |
 | Env settings | `apps/backend/src/config.py` | OTEL environment variables |
 | Env documentation | `.env.example` | Developer guidance for OTEL variables |
-| Infra reference | `repo/docs/ssot/ops.observability.md` | the observability backend platform, collector, alert rule, and Lark delivery details |
+| Infra reference | [infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md) | the observability backend platform, collector, alert rule, and Lark delivery details |
 
 ---
 
@@ -70,10 +70,10 @@ filtering**, and the allowed `deployment.environment` values are part of the
 **infra2-owned contract**. Do not restate the endpoints or per-env values here.
 
 - Platform, collector, single-instance model, OTLP env vars →
-  [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md).
+  [infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md).
 - Environment taxonomy + telemetry identity (`deployment.environment` values,
   `service.version`) →
-  [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
+  [infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity).
 
 Credentials for the observability backend UI are stored in 1Password (`Infra2` vault), item
 `platform/signoz/admin`. To view App logs, filter the observability backend UI by the
@@ -103,7 +103,7 @@ Credentials for the observability backend UI are stored in 1Password (`Infra2` v
 The App does **not** define collector endpoints or per-environment
 `deployment.environment` values — those are **issued by infra2** (see the banner
 at the top of this doc and
-[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)).
+[infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)).
 The App only *reads* the values infra2 injects.
 
 `apps/backend/src/config.py` reads these `OTEL_*` env vars (via pydantic
@@ -143,9 +143,9 @@ opentelemetry-exporter-otlp-proto-http
 The `OTEL_*` values are **issued by infra2** into Vault per environment. The
 concrete endpoint, `service.version`, and `deployment.environment` values, plus
 the `invoke env.set` procedure, live in the infra2 contract — see
-[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+[infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)
 and
-[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
+[infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity).
 The App must not hardcode or restate these per-environment values; it consumes
 whatever infra2 injects and fast-fails if a required value is absent.
 
@@ -205,7 +205,7 @@ uv run python -m invoke alerting.shared.ensure-log-error-rule \
 ```
 
 The shared owner for the observability backend channels, bridge deployment, and Lark delivery is
-`repo/docs/ssot/ops.observability.md`. This application must not duplicate that
+[infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md). This application must not duplicate that
 automation; it only declares the service metadata and emits structured logs that
 the shared rule can query.
 
@@ -252,7 +252,7 @@ metadata used by the shared alert rule.
 
 Use the runtime incident SSOT for missing logs, wrong environment labels,
 502/503 responses, route failures, stale deployed versions, and flapping
-recovery proof. Use `repo/docs/ssot/ops.observability.md` for the shared observability-backend alert
+recovery proof. Use the [infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md) for the shared observability-backend alert
 automation, bridge delivery, and Lark channel behavior.
 
 ---
@@ -327,12 +327,12 @@ To rotate an API key:
 
 ### 10.1 Architecture
 
-This application depends on infrastructure managed in the `infra2` repository (mounted as `repo/` submodule):
+This application depends on infrastructure managed independently in the `infra2` repository:
 
 ```
 finance_report (this repo)
     ↓ runtime depends on
-infra2/platform (repo submodule)
+infra2 platform
     ├── Vault (secrets injection)
     ├── OTLP collector (log shipping)
     └── MinIO (file storage)
@@ -354,8 +354,8 @@ infra2/platform (repo submodule)
 |-----|------|------------|
 | **OTEL ingestion not fully verified at deploy** | Logs can be configured but absent from the observability backend if collector ingestion or rule automation drifts | Closed app-side: the app emits OTLP and no longer claims to verify ingestion. Proving the deployed version actually ingested (and linking to the backend) is infra2's job — see the deploy-time ingestion smoke in infra2 |
 | **Vault availability not checked by App** | N/A - vault-agent handles this before app starts | Vault HA in infra2 |
-| **secrets.ctmpl ↔ config.py drift** | Missing env vars cause 500s | `tools/check_env_keys.py` + pre-commit |
-| **infra2 submodule version lag** | New secrets not deployed | Manual sync required after adding vars |
+| **required-env artifact ↔ infra template drift** | Missing env vars cause startup failure | App generates `required-env.generated.json`; infra2 validates it against its template |
+| **infra2 rollout lag** | New secrets not deployed | Merge and apply the independent infra2 PR before enabling the app requirement |
 
 ### 10.4 Post-Deployment Verification
 

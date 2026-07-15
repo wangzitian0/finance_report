@@ -86,8 +86,8 @@ EXCLUDED = (
     "docs/infra_registry.yaml",
 )
 
-#: Tracked-path prefixes that are out of scope (vendored/generated/submodule).
-EXCLUDED_PREFIXES = ("repo/", "site/", "docs/reference/")
+#: Tracked-path prefixes that are out of scope (generated/reference output).
+EXCLUDED_PREFIXES = ("site/", "docs/reference/")
 
 
 def _in_scope(path: str) -> bool:

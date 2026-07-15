@@ -55,8 +55,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### Phase 1: Infrastructure Setup
 
-- [x] Add infra2 as submodule at `repo/`
-- [x] Create `repo/finance_report/finance_report/` directory structure
+- [x] Move Finance Report IaC ownership to the independent infra2 repository
+- [x] Create `finance_report/finance_report/` in infra2
 - [x] Create README.md for finance_report layer
 
 ### Phase 2: Database Layer (01.postgres)
@@ -128,40 +128,40 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.1.1 | Infra2 submodule exists | Manual verification | Git | P0 | <!-- epic-owned: horizontal -->
-| AC7.1.2 | Finance_report directory structure | Manual verification | `repo/finance_report/` | P0 | <!-- epic-owned: horizontal -->
-| AC7.1.3 | README documentation exists | Manual verification | `repo/finance_report/finance_report/README.md` | P0 | <!-- epic-owned: horizontal -->
+| AC7.1.1 | Infra2 owns deployment source independently | Receiver-boundary verification | Git | P0 | <!-- epic-owned: horizontal -->
+| AC7.1.2 | Finance_report directory structure | Infra2 verification | `finance_report/` in infra2 | P0 | <!-- epic-owned: horizontal -->
+| AC7.1.3 | README documentation exists | Infra2 verification | `finance_report/finance_report/README.md` in infra2 | P0 | <!-- epic-owned: horizontal -->
 
 ### AC7.2: Database Layer (PostgreSQL)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.2.1 | PostgreSQL container configured | Manual verification | `repo/finance_report/finance_report/01.postgres/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.2.2 | Vault-agent sidecar present | Manual verification | `repo/finance_report/finance_report/01.postgres/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.2.3 | Vault policy for postgres | Manual verification | `repo/finance_report/finance_report/01.postgres/vault-policy.hcl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.2.4 | Secrets template for postgres | Manual verification | `repo/finance_report/finance_report/01.postgres/secrets.ctmpl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.2.5 | PostgresDeployer class exists | Manual verification | `repo/finance_report/finance_report/01.postgres/deploy.py` | P0 | <!-- epic-owned: horizontal -->
+| AC7.2.1 | PostgreSQL container configured | Infra2 verification | `finance_report/finance_report/01.postgres/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
+| AC7.2.2 | Vault-agent sidecar present | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.2.3 | Vault policy for postgres | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.2.4 | Secrets template for postgres | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.2.5 | PostgresDeployer class exists | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
 
 ### AC7.3: Cache Layer (Redis)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.3.1 | Redis container configured | Manual verification | `repo/finance_report/finance_report/02.redis/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.3.2 | Vault-agent sidecar present | Manual verification | `repo/finance_report/finance_report/02.redis/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.3.3 | Vault policy for redis | Manual verification | `repo/finance_report/finance_report/02.redis/vault-policy.hcl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.3.4 | Secrets template for redis | Manual verification | `repo/finance_report/finance_report/02.redis/secrets.ctmpl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.3.5 | RedisDeployer class exists | Manual verification | `repo/finance_report/finance_report/02.redis/deploy.py` | P0 | <!-- epic-owned: horizontal -->
+| AC7.3.1 | Redis container configured | Infra2 verification | `finance_report/finance_report/02.redis/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
+| AC7.3.2 | Vault-agent sidecar present | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.3.3 | Vault policy for redis | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.3.4 | Secrets template for redis | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.3.5 | RedisDeployer class exists | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
 
 ### AC7.4: Application Layer (Backend + Frontend)
 
 | ID | Requirement | Test Function | File | Priority |
 |----|-------------|---------------|------|----------|
-| AC7.4.1 | App container configured | Manual verification | `repo/finance_report/finance_report/10.app/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.4.2 | Vault-agent sidecar present | Manual verification | `repo/finance_report/finance_report/10.app/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.4.3 | Vault policy for app | Manual verification | `repo/finance_report/finance_report/10.app/vault-policy.hcl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.4.4 | Secrets template for app | Manual verification | `repo/finance_report/finance_report/10.app/secrets.ctmpl` | P0 | <!-- epic-owned: horizontal -->
-| AC7.4.5 | Traefik labels for domain | Manual verification | `repo/finance_report/finance_report/10.app/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
-| AC7.4.6 | AppDeployer class exists | Manual verification | `repo/finance_report/finance_report/10.app/deploy.py` | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.1 | App container configured | Infra2 verification | `finance_report/finance_report/10.app/compose.yaml` | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.2 | Vault-agent sidecar present | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.3 | Vault policy for app | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.4 | Secrets template for app | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.5 | Traefik labels for domain | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
+| AC7.4.6 | AppDeployer class exists | Infra2 verification | same infra2 component | P0 | <!-- epic-owned: horizontal -->
 
 ### AC7.5: Vault Secrets Configuration
 
@@ -276,7 +276,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 > **Relocated out of this app EPIC (#1518 / #1435).** Effective-config verification is infra2
 > `deploy_primitive` *behavior*, owned and behaviorally self-tested by infra2
-> (`repo/libs/tests/test_deploy_primitive.py`: `test_verify_effective_config_hash_*`,
+> (infra2 `libs/tests/test_deploy_primitive.py`: `test_verify_effective_config_hash_*`,
 > `test_wait_for_rollout_*`, `test_preflight_vault_token_*`, `test_deploy_with_wait_snapshots_*`).
 > These were app ACs only because app tests mirrored infra2 source to prove them; the boundary
 > fix (App emits / Infra consumes) is that infra owns and tests this, app does not. Infra2
@@ -389,11 +389,11 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ## 🔗 Deliverables
 
-- [x] `repo/finance_report/finance_report/README.md`
-- [x] `repo/finance_report/finance_report/01.postgres/` (full deploy structure)
-- [x] `repo/finance_report/finance_report/02.redis/` (full deploy structure)
-- [x] `repo/finance_report/finance_report/10.app/` (full deploy structure)
-- [x] Update `repo/finance_report/README.md` (if exists)
+- [x] infra2 `finance_report/finance_report/README.md`
+- [x] infra2 `finance_report/finance_report/01.postgres/` (full deploy structure)
+- [x] infra2 `finance_report/finance_report/02.redis/` (full deploy structure)
+- [x] infra2 `finance_report/finance_report/10.app/` (full deploy structure)
+- [x] Update infra2 `finance_report/README.md` (if exists)
 - [x] Link to Infra-009 in infra2 docs
 
 ---
@@ -432,5 +432,5 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 | Date | Change |
 |------|--------|
-| 2026-01-10 | Project created, submodule added |
+| 2026-01-10 | Project created; deployment source later moved behind the receiver boundary |
 | 2026-01-27 | All phases completed, production deployment verified |

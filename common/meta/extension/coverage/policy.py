@@ -253,8 +253,6 @@ COVERAGE_EXEMPT_PATTERNS: tuple[str, ...] = (
     ".opencode/**",
     # Docs build tooling.
     "docs/**",
-    # Vendored submodule — owns its own coverage in its own repo.
-    "repo/**",
 )
 
 

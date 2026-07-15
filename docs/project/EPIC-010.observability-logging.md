@@ -86,10 +86,10 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 - [x] Document OTEL vars in `.env.example`.
 
 ### Infrastructure
-- [x] Add OTEL keys to `repo/finance_report/finance_report/10.app/secrets.ctmpl`.
-- [x] Document OTEL keys in `repo/finance_report/finance_report/10.app/README.md`.
+- [x] Add OTEL keys to infra2's app secret template.
+- [x] Document OTEL keys in infra2's app README.
 - [x] Provide Vault values for staging/production.
-- [x] Add `IAC_CONFIG_HASH` to `repo/finance_report/finance_report/10.app/compose.yaml` for restart-safe updates.
+- [x] Add `IAC_CONFIG_HASH` to infra2's app compose for restart-safe updates.
 - [x] Replace unsupported template helpers (`default`) with `printf`.
 
 ---
@@ -117,7 +117,7 @@ Enable production-grade log observability via OpenTelemetry/OTLP, while keeping 
 > wave 2, #1663) into the same package roadmap as `AC-observability.17.1`
 > through `.4`. The remaining infra2 deploy-template and deploy-tooling rows
 > migrated too (#1821 Wave A): the AC10.6.* group (Vault `secrets.ctmpl` /
-> `compose.yaml` / app README under the `repo/` infra2 submodule) is now
+> `compose.yaml` / app README in the independent infra2 repository) is now
 > `AC-observability.6.1` through `.4` (its AC10.7 deploy-template row removed
 > as a duplicate of `.1`), and the Dokploy deploy-failure-snapshot tooling
 > row (AC10.9's retired row) is now `AC-observability.9.4`.
@@ -228,7 +228,7 @@ Migrated `AC-observability.<g>.<s>` ids (homed in the package roadmap):
 ## 🔗 References
 
 - SSOT Observability: [../ssot/observability.md](../../common/observability/observability.md)
-- Platform Observability: `repo/docs/ssot/ops.observability.md`
+- Platform Observability: https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md
 - Deployment EPIC: `docs/project/EPIC-007.deployment.md`
 
 ## 📄 Owned Documentation Surfaces

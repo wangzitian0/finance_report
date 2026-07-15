@@ -18,7 +18,7 @@ def test_AC7_10_1_short_sha_is_seven_char_prefix_of_full_sha() -> None:
     """AC7.10.1: the release coordinate's short_sha is full_sha's first 7 chars."""
     full_sha = "abcdef0123456789abcdef0123456789abcdef01"
 
-    coordinate = build_release_coordinate("v1.2.3", full_sha, "v0.9.1")
+    coordinate = build_release_coordinate("v1.2.3", full_sha)
 
     assert coordinate["short_sha"] == full_sha[:7]
     assert coordinate["short_sha"] == "abcdef0"
@@ -26,14 +26,13 @@ def test_AC7_10_1_short_sha_is_seven_char_prefix_of_full_sha() -> None:
 
 
 def test_AC7_10_1_release_coordinate_carries_exactly_the_deploy_inputs() -> None:
-    """AC7.10.1: the coordinate dict is exactly {version_ref, full_sha, short_sha, iac_ref} — the fields deploy_v2 consumes to promote (not rebuild) a release."""
+    """AC7.10.1: the app coordinate excludes infra-owned IaC selection."""
     coordinate = build_release_coordinate(
-        "v2.0.0", "1111111111111111111111111111111111111a", "v3.4.5"
+        "v2.0.0", "1111111111111111111111111111111111111a"
     )
 
     assert coordinate == {
         "version_ref": "v2.0.0",
         "full_sha": "1111111111111111111111111111111111111a",
         "short_sha": "1111111",
-        "iac_ref": "v3.4.5",
     }

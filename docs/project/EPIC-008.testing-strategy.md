@@ -107,7 +107,7 @@ function. The CI traceability gate enforces this with
 `tools/check_e2e_epic_traceability.py` before generating traceability artifacts.
 The same gate validates the root README EPIC map against the project EPIC file
 set, and scans E2E-like test assets so files outside product E2E roots are
-either explicitly classified as non-product infra/submodule assets or fail CI.
+either explicitly classified as non-product infrastructure assets or fail CI.
 
 ### 2.4 Synthetic Test Data (PDF Generation)
 
@@ -742,8 +742,8 @@ Product E2E files under `tests/e2e/test_*.py` and
 `apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are
 not eligible for `docs/project/traceability-exceptions.md`; only fixtures and
 shared harness files may use that exception path. The `repo/e2e_regressions/`
-tree belongs to the `repo/` infra2 submodule and is managed by the infrastructure
-submodule sync process.
+tree belongs to the independent infra2 repository and is managed by its own
+review and release process.
 
 ### 5.2 CI Simplification Decision Log
 

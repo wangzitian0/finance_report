@@ -7,7 +7,7 @@
 
 ---
 
-## Dual-Repository Model
+## One-Way Repository Model
 
 Finance Report uses **two git repositories** for configuration:
 
@@ -15,9 +15,11 @@ Finance Report uses **two git repositories** for configuration:
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
 | **PR preview** | in-runner: `/docker-compose.yml` + `/docker-compose.ci-e2e.yml`; persistent: `/docker-compose.pr-preview.yml` | After successful PR CI: in-runner smoke/E2E (merge authority), then a non-blocking persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>` |
-| **Staging/Production** | `/repo/finance_report/.../compose.yaml` | Production with Vault secrets |
+| **Staging/Production** | infra2-owned IaC selected by a versioned `DeployRequest` | Production with Vault secrets |
 
-The `/repo/` directory is a git submodule pointing to [`infra2`](https://github.com/wangzitian0/infra2).
+Finance Report does not check out infra2 source. It pins the
+[`infra2-sdk`](https://github.com/wangzitian0/infra2-sdk) wire contract and
+dispatches canonical requests to the infra2 receiver.
 
 ### Versioned App-to-Infra Request Boundary
 
@@ -25,15 +27,12 @@ The target repository boundary is one-way: Finance Report owns application
 artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
 credentials, and every deployment side effect. The application pins
 [`infra2-sdk v0.1.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.1.0)
-as the wire-contract authority and `tools/app_deploy_request.py` renders only a
-canonical staging request for `finance_report/app`. The renderer performs no
-network or subprocess operations and cannot request Production.
-
-The repository is currently in a deliberate transition state: the existing
-staging and Production workflows still execute the pinned `/repo/` deployment
-implementation. The submodule remains the rollback path until a controlled
-staging request has passed through infra2's receiver. Only the follow-up cutover
-may change the workflow transport and remove this source dependency.
+as the wire-contract authority and `tools/app_deploy_request.py` renders only
+canonical staging or Production requests for `finance_report/app`. The renderer
+performs no network or subprocess operations. Production requires exact source,
+staging, and merged-review evidence. `tools/app_deploy_transport.py` dispatches
+the request, correlates exactly one receiver workflow run, waits for success,
+and verifies the exact request id in receiver logs.
 
 **Key implications**:
 - Workflows build images and trigger deployments
@@ -79,7 +78,7 @@ One contract ties the three repos together; each owns only its part:
 |------|------|--------------------|
 | **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. |
 | **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
-| **infra2** (`repo/`) | Vault `secrets.ctmpl` — supplies the deployed values. | The env vars a deployed app requires. |
+| **infra2** | Vault `secrets.ctmpl` supplies deployed values. | The versioned `common/runtime/required-env.generated.json` artifact. |
 
 Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
 matters: the app **fails loudly at boot** in a *protected* runtime.
@@ -141,16 +140,11 @@ release tag keeps the exact same image digest from main CI through production,
 eliminating drift from base images, build-time dependencies, or workflow changes.
 
 The staging deploy gate separates platform rollout from application readiness.
-`.github/workflows/deploy.yml` invokes `repo/tools/deploy_v2.py`, which
-routes fixed staging/prod deploys through `repo/tools/deploy_primitive.py`.
-The primitive updates the allowlisted Dokploy environment, snapshots deployment
-ids before mutation, triggers `compose.deploy`, and waits up to 600 seconds for
-a new Dokploy deployment record to reach a terminal-good status (`done`,
-`success`, or `successful`) before `tools/health_check.sh` starts polling
-`/api/health` for the target release tag. `running` only proves Dokploy's worker
-has started; it does not prove Docker containers and Traefik routes have
-materialized the target tag. No terminal new deployment record means a platform
-rollout failure, not an application health timeout.
+`.github/workflows/deploy.yml` renders a canonical request and dispatches it to
+infra2. The app waits for one correlated receiver run to succeed before
+`tools/health_check.sh` polls `/api/health` for the target release tag. infra2
+owns Dokploy mutation, effective-config validation, and terminal rollout proof;
+Finance Report owns evidence selection and public application readiness.
 
 Production release eligibility depends on the staging run's release-critical
 jobs: `Deploy Staging` and `Staging Provider Gate` must succeed for the exact
@@ -386,14 +380,15 @@ runtime deployment record). For database sidecars use `--service=postgres` or
 
 ---
 
-## Cross-Repo Synchronization
+## Cross-Repo Changes
 
 If a change requires new environment variables or changes to `docker-compose.yml` labels/configs for production:
 
-1. Create a branch in `repo/` submodule
-2. Commit changes to `repo/finance_report/finance_report/10.app/`
-3. Push and create a PR in `infra2`
-4. Once merged, update the submodule pointer in the main repo PR
+1. Add the app requirement to `apps/backend/src/config.py` and regenerate
+   `.env.example` plus `common/runtime/required-env.generated.json`.
+2. Create a separate PR in [`infra2`](https://github.com/wangzitian0/infra2)
+   for Vault/Compose changes.
+3. Merge independently. No Finance Report git pointer update is required.
 
 ---
 

@@ -594,8 +594,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-meta.foundation-tooling.4",
-            statement="check_env_keys.py exits non-zero on a secret/config/env three-way drift. Was AC14.1.4.",
-            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_4_check_env_keys_exits_nonzero_for_secret_config_drift",
+            statement="check_env_keys.py exits non-zero on config/.env.example drift. Was AC14.1.4.",
+            test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_4_check_env_keys_exits_nonzero_for_config_documentation_drift",
             priority="P0",
             status="done",
         ),
@@ -650,8 +650,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-meta.ssot-governance.2",
-            statement="SSOT governance metrics report finance_report and infra2 manifest shape, proof coverage, and future gate candidates without blocking CI. Was AC14.1.12.",
-            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes",
+            statement="SSOT governance metrics report Finance Report manifest shape, proof coverage, and future gate candidates without blocking CI. Was AC14.1.12.",
+            test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_12_report_covers_finance_manifest_shape",
             priority="P1",
             status="done",
         ),
@@ -848,13 +848,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.infra-boundary.1",
             statement=(
-                "The staging/prod deploy compose (infra2 10.app/compose.yaml) "
-                "cannot local-build the app services (no build:, "
-                "pull_policy: always)."
+                "Finance Report staging/prod workflows render canonical deploy requests and "
+                "do not read or execute infra2 source."
             ),
             test=(
-                "tests/tooling/test_deploy_compose_contract.py"
-                "::test_AC7_12_3_deploy_compose_pull_not_build"
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge"
             ),
             priority="P0",
             status="done",
@@ -862,12 +861,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.infra-boundary.2",
             statement=(
-                "The postgres/redis data dirs are bind-mounted via "
-                "${DATA_PATH} (not a named volume Dokploy wipes on redeploy)."
+                "infra2 owns compose, data persistence, Vault injection, and Dokploy behavior; "
+                "the app crosses the boundary only through the versioned request contract."
             ),
             test=(
-                "tests/tooling/test_deploy_compose_contract.py"
-                "::test_AC7_12_3_data_dirs_survive_redeploy"
+                "tests/tooling/test_app_deploy_request.py"
+                "::test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge"
             ),
             priority="P0",
             status="done",
@@ -2474,13 +2473,13 @@ CONTRACT = PackageContract(
         ConceptRecord(
             key="environment_variables",
             owner="common/meta/development.md#environment-variables",
-            description="Three-layer SSOT for env vars (secrets.ctmpl / config.py / .env.example).",
+            description="App env SSOT generated from config.py into .env.example and required-env manifest.",
             cross_refs=[
                 "docs/agents/red-lines.md",
                 "common/runtime/deployment.md",
                 ".env.example",
                 "apps/backend/src/config.py",
-                "repo/finance_report/finance_report/10.app/secrets.ctmpl",
+                "common/runtime/required-env.generated.json",
                 "apps/backend/src/runtime/extension/env_keys.py",
                 "apps/backend/src/runtime/extension/schema_validation.py",
                 "tools/check_env_keys.py",

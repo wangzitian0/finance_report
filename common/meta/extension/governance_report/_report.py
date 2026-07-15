@@ -175,7 +175,10 @@ def build_report(repo_root: Path, include_infra2: bool = True) -> dict[str, obje
 def _manifest_sources(
     repo_root: Path, include_infra2: bool = True
 ) -> list[ManifestSource]:
-    sources = [
+    # Kept as a compatibility argument for existing callers. Cross-repository
+    # manifests are no longer read from a checkout in this application repo.
+    del include_infra2
+    return [
         ManifestSource(
             system="finance_report",
             source_root=repo_root,
@@ -183,17 +186,6 @@ def _manifest_sources(
             entry_key="concepts",
         )
     ]
-    infra_manifest = repo_root / "repo" / "docs" / "ssot" / "MANIFEST.yaml"
-    if include_infra2:
-        sources.append(
-            ManifestSource(
-                system="infra2",
-                source_root=repo_root / "repo",
-                manifest_path=infra_manifest,
-                entry_key="entries",
-            )
-        )
-    return sources
 
 
 def _contains_high_risk_terms(*values: str) -> bool:

@@ -32,12 +32,6 @@ DATA_SOURCES = ["empty", "staging", "anonymized prod snapshot"]
 DEPLOY_DRIFT_SCAN_ROOTS = [
     "docs",
     ".opencode/skills/domain",
-    "repo/docs",
-    "repo/tools",
-    "repo/libs/tests",
-    "repo/README.md",
-    "repo/finance_report",
-    "repo/platform",
 ]
 TEXT_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".txt", ".toml"}
 

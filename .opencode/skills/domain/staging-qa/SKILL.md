@@ -18,7 +18,7 @@ gates passed.
   their local archive). NEVER copy real documents into the repo, issues, or
   scratch dirs that outlive the session.
 - **Backend logs**: SSH to the VPS (address + credentials via local direnv /
-  1Password; see `repo/docs/ssot/ops.pipeline.md` — `repo/` is the infra2
+  1Password; see the [infra2 pipeline SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.pipeline.md) — infra2 is the
   submodule, initialize with `git submodule update --init repo` if absent),
   then `docker logs finance_report-backend-staging --tail 200`. Read-only —
   never modify via SSH (orchestration.md operational guideline #1).

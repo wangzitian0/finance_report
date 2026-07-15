@@ -1047,44 +1047,44 @@ CONTRACT = PackageContract(
         # `.1` with no separate entry, #1821 Wave A horizontal move) ──
         ACRecord(
             id="AC-observability.6.1",
-            statement="OTEL keys are present in the app secrets template (Vault).",
+            statement="OTEL keys are present in the versioned required-env artifact.",
             # was AC10.6.1 (+ duplicate AC10.7.6)
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"
-                "::test_vault_template_exposes_otel_keys_with_safe_quoting"
+                "::test_required_env_manifest_exports_observability_contract"
             ),
             priority="P1",
             status="done",
         ),
         ACRecord(
             id="AC-observability.6.2",
-            statement="OTEL keys are documented in the app README.",
+            statement="OTEL keys are documented in the generated app env reference.",
             # was AC10.6.2
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"
-                "::test_app_readme_and_compose_document_observability_rollout"
+                "::test_required_env_manifest_exports_observability_contract"
             ),
             priority="P1",
             status="done",
         ),
         ACRecord(
             id="AC-observability.6.3",
-            statement="IAC_CONFIG_HASH is present in compose.yaml.",
+            statement="The app publishes its deploy-time env requirements without reading compose.",
             # was AC10.6.3
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"
-                "::test_app_readme_and_compose_document_observability_rollout"
+                "::test_required_env_manifest_exports_observability_contract"
             ),
             priority="P1",
             status="done",
         ),
         ACRecord(
             id="AC-observability.6.4",
-            statement="Vault template helpers use printf, not a default value fallback.",
+            statement="Vault-owned observability fields are marked explicitly in required-env.",
             # was AC10.6.4
             test=(
                 "apps/backend/tests/infra/test_observability_contract.py"
-                "::test_vault_template_exposes_otel_keys_with_safe_quoting"
+                "::test_required_env_manifest_exports_observability_contract"
             ),
             priority="P1",
             status="done",

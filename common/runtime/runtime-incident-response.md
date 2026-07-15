@@ -21,9 +21,9 @@ every document.
 | App observability runtime contract | `common/observability/observability.md`, `apps/backend/src/observability/runtime.py` |
 | Staging/production health and version smoke | `tools/health_check.sh`, `tools/production_infra_smoke.py`, `common/runtime/production_infra_smoke.py` |
 | Delivery-engine evidence and optimization recommendations | `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` |
-| Infra alerting, Lark delivery, watchdogs | `repo/docs/ssot/ops.alerting.md` |
-| Availability history and stability windows | `repo/docs/ssot/ops.availability-ledger.md` |
-| Infra recovery and backup restoration | `repo/docs/ssot/ops.recovery.md` |
+| Infra alerting, Lark delivery, watchdogs | [infra2 alerting SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.alerting.md) |
+| Availability history and stability windows | [infra2 availability ledger](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.availability-ledger.md) |
+| Infra recovery and backup restoration | [infra2 recovery SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.recovery.md) |
 
 ## Ownership Boundary
 
@@ -132,14 +132,14 @@ instead of duplicating the procedure in app docs.
 1. Check `/health.observability` or `/api/health.observability` for the redacted
    app contract.
 2. Confirm observability backend health/version through production smoke or the observability backend UI.
-3. Use `repo/docs/ssot/ops.alerting.md` for shared alert rule, bridge, and Lark
+3. Use the [infra2 alerting SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.alerting.md) for shared alert rule, bridge, and Lark
    delivery automation. The app doc owns only service metadata and log shape.
 
 ### Secret Startup Failure
 
 1. Confirm the failure is in protected runtime boot validation or secret render.
 2. Use `common/runtime/deployment.md` for Finance Report's Vault token boundary.
-3. Use `repo/docs/ssot/ops.recovery.md` for infra recovery if Vault or backup
+3. Use the [infra2 recovery SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.recovery.md) for infra recovery if Vault or backup
    state is degraded.
 
 ### Flapping
@@ -164,8 +164,7 @@ Other docs should link here instead of copying these playbooks:
 - `docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md` may record historical
   delivery evidence, but runtime incident categories and closure proof still
   link back here.
-- `repo/docs/ssot/ops.alerting.md`, `repo/docs/ssot/ops.availability-ledger.md`,
-  and `repo/docs/ssot/ops.recovery.md` own platform-side alerting, availability,
+- The infra2 alerting, availability-ledger, and recovery SSOT documents own platform-side alerting, availability,
   and recovery facts.
 
 ## Proof

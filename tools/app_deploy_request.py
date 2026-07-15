@@ -1,4 +1,4 @@
-"""Render a validated Finance Report staging DeployRequest without side effects."""
+"""Render a validated Finance Report fixed-environment request without side effects."""
 
 from __future__ import annotations
 
@@ -45,6 +45,9 @@ _RELEASE_REF_RE = re.compile(r"\Av[0-9]+\.[0-9]+\.[0-9]+\Z")
 _SOURCE_RUN_PATH_RE = re.compile(
     rf"\A/{re.escape(SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
 )
+_REVIEWED_CHANGE_PATH_RE = re.compile(
+    rf"\A/{re.escape(SOURCE_REPOSITORY)}/pull/([1-9][0-9]*)\Z"
+)
 _SOURCE_SHA_RE = re.compile(r"\A[0-9a-f]{40}\Z")
 
 
@@ -59,10 +62,13 @@ def request_from_mapping(raw: Mapping[str, Any]) -> DeployRequest:
 def render_request(
     *,
     request_id: str,
+    deploy_type: str = DeployType.STAGING.value,
     version_ref: str,
     source_sha: str,
     source_run_url: str,
     source_run_id: str,
+    staging_run_url: str = "",
+    reviewed_change_url: str = "",
 ) -> DeployRequest:
     """Build the only request shape this repository is allowed to emit."""
     return request_from_mapping(
@@ -71,15 +77,15 @@ def render_request(
             "request_id": request_id,
             "operation": DeployOperation.DEPLOY.value,
             "service": SERVICE,
-            "deploy_type": DeployType.STAGING.value,
+            "deploy_type": deploy_type,
             "version_ref": version_ref,
             "source_repository": SOURCE_REPOSITORY,
             "source_sha": source_sha,
             "evidence": {
                 "source_run_url": source_run_url,
                 "source_run_id": source_run_id,
-                "staging_run_url": "",
-                "reviewed_change_url": "",
+                "staging_run_url": staging_run_url,
+                "reviewed_change_url": reviewed_change_url,
             },
         }
     )
@@ -112,15 +118,14 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
         raise ValueError("operation must be deploy")
 
     deploy_type = raw.get("deploy_type")
-    if deploy_type == DeployType.PRODUCTION.value:
-        raise ValueError(
-            "production requests are disabled until infra2 remotely verifies evidence"
-        )
-    if deploy_type != DeployType.STAGING.value:
-        raise ValueError("deploy_type must be staging")
+    if deploy_type not in (DeployType.STAGING.value, DeployType.PRODUCTION.value):
+        raise ValueError("deploy_type must be staging or prod")
 
     version_ref = raw.get("version_ref")
-    if not isinstance(version_ref, str) or _RELEASE_REF_RE.fullmatch(version_ref) is None:
+    if (
+        not isinstance(version_ref, str)
+        or _RELEASE_REF_RE.fullmatch(version_ref) is None
+    ):
         raise ValueError("version_ref must be a release tag like vX.Y.Z")
 
     source_sha = raw.get("source_sha")
@@ -132,9 +137,6 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
         raise ValueError("evidence must be an object")
     if set(evidence) != _EVIDENCE_FIELDS:
         raise ValueError("evidence fields must exactly match DeployEvidence v1")
-    for infra_owned_field in ("staging_run_url", "reviewed_change_url"):
-        if evidence.get(infra_owned_field) != "":
-            raise ValueError(f"evidence.{infra_owned_field} must be empty")
     source_run_url = evidence.get("source_run_url")
     if not isinstance(source_run_url, str) or not source_run_url:
         raise ValueError("evidence.source_run_url is required")
@@ -157,14 +159,62 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
     if source_run_id != path_match.group(1):
         raise ValueError("evidence.source_run_id must match source_run_url")
 
+    staging_run_url = evidence.get("staging_run_url")
+    reviewed_change_url = evidence.get("reviewed_change_url")
+    if deploy_type == DeployType.STAGING.value:
+        for field, value in (
+            ("staging_run_url", staging_run_url),
+            ("reviewed_change_url", reviewed_change_url),
+        ):
+            if value != "":
+                raise ValueError(f"evidence.{field} must be empty for staging")
+        return
+
+    _require_canonical_evidence_url(
+        staging_run_url,
+        field="staging_run_url",
+        path_pattern=_SOURCE_RUN_PATH_RE,
+    )
+    _require_canonical_evidence_url(
+        reviewed_change_url,
+        field="reviewed_change_url",
+        path_pattern=_REVIEWED_CHANGE_PATH_RE,
+    )
+
+
+def _require_canonical_evidence_url(
+    value: object, *, field: str, path_pattern: re.Pattern[str]
+) -> None:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"evidence.{field} is required for prod")
+    parsed = urlparse(value)
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+        or path_pattern.fullmatch(parsed.path) is None
+    ):
+        raise ValueError(
+            f"evidence.{field} must be a canonical Finance Report GitHub URL"
+        )
+
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--request-id", required=True)
+    parser.add_argument(
+        "--deploy-type",
+        choices=(DeployType.STAGING.value, DeployType.PRODUCTION.value),
+        default=DeployType.STAGING.value,
+    )
     parser.add_argument("--version-ref", required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--source-run-url", required=True)
     parser.add_argument("--source-run-id", required=True)
+    parser.add_argument("--staging-run-url", default="")
+    parser.add_argument("--reviewed-change-url", default="")
     return parser
 
 
@@ -174,10 +224,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         request = render_request(
             request_id=args.request_id,
+            deploy_type=args.deploy_type,
             version_ref=args.version_ref,
             source_sha=args.source_sha,
             source_run_url=args.source_run_url,
             source_run_id=args.source_run_id,
+            staging_run_url=args.staging_run_url,
+            reviewed_change_url=args.reviewed_change_url,
         )
     except ValueError as exc:
         parser.error(str(exc))

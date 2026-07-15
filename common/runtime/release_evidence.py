@@ -105,7 +105,11 @@ def verify_release_images_run(
 
 
 def verify_staging(
-    *, repository: str, version_ref: str, gh_json: GhJson = _default_gh_json
+    *,
+    repository: str,
+    version_ref: str,
+    release_sha: str,
+    gh_json: GhJson = _default_gh_json,
 ) -> str:
     runs = _require_list(
         gh_json(
@@ -120,7 +124,7 @@ def verify_staging(
                 "--limit",
                 "50",
                 "--json",
-                "databaseId,status,displayTitle,url",
+                "databaseId,status,displayTitle,url,headSha",
             ]
         ),
         "staging runs",
@@ -131,6 +135,7 @@ def verify_staging(
         for run in runs
         if run.get("status") == "completed"
         and run.get("displayTitle") == expected_title
+        and run.get("headSha") == release_sha
     ]
     if not candidate_run_ids:
         raise RuntimeError(
@@ -183,6 +188,43 @@ def verify_staging(
         "No completed Deploy Staging run found for "
         f"{version_ref} with successful release-critical jobs. "
         "Rerun deploy.yml for this version_ref first."
+    )
+
+
+def verify_reviewed_change(
+    *, repository: str, release_sha: str, gh_json: GhJson = _default_gh_json
+) -> str:
+    pulls = _require_list(
+        gh_json(
+            [
+                "gh",
+                "api",
+                f"repos/{repository}/commits/{release_sha}/pulls",
+                "--header",
+                "Accept: application/vnd.github+json",
+            ]
+        ),
+        "reviewed changes",
+    )
+    for pull in pulls:
+        base = pull.get("base")
+        base_repo = base.get("repo") if isinstance(base, dict) else None
+        if (
+            pull.get("state") == "closed"
+            and pull.get("merged_at")
+            and pull.get("merge_commit_sha") == release_sha
+            and isinstance(base, dict)
+            and base.get("ref") == "main"
+            and isinstance(base_repo, dict)
+            and base_repo.get("full_name") == repository
+        ):
+            url = pull.get("html_url")
+            if isinstance(url, str) and url == (
+                f"https://github.com/{repository}/pull/{pull.get('number')}"
+            ):
+                return url
+    raise RuntimeError(
+        f"No merged main-branch pull request found for release SHA {release_sha}"
     )
 
 
@@ -304,7 +346,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
-        choices=("source-ci", "release-images-run", "staging", "real-corpus-eval"),
+        choices=(
+            "source-ci",
+            "release-images-run",
+            "staging",
+            "reviewed-change",
+            "real-corpus-eval",
+        ),
         required=True,
     )
     parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY", ""))
@@ -335,15 +383,27 @@ def main(argv: list[str] | None = None) -> int:
                 repository=repository,
                 max_age_hours=args.max_age_hours,
             )
-        else:
+            outputs = {"run_id": run_id}
+        elif args.check == "staging":
             run_id = verify_staging(
                 repository=repository,
                 version_ref=_required(args.version_ref, "version-ref"),
+                release_sha=_required(args.release_sha, "release-sha"),
             )
+            outputs = {"run_id": run_id}
+        else:
+            reviewed_change_url = verify_reviewed_change(
+                repository=repository,
+                release_sha=_required(args.release_sha, "release-sha"),
+            )
+            outputs = {"reviewed_change_url": reviewed_change_url}
     except (ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"verify_release_evidence failed: {exc}", file=sys.stderr)
         return 1
 
-    _write_github_output({"run_id": run_id})
-    print(f"Release evidence OK: check={args.check} run_id={run_id}")
+    if args.check in ("source-ci", "release-images-run"):
+        outputs = {"run_id": run_id}
+    _write_github_output(outputs)
+    rendered = " ".join(f"{key}={value}" for key, value in outputs.items())
+    print(f"Release evidence OK: check={args.check} {rendered}")
     return 0

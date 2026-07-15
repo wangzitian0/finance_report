@@ -518,19 +518,6 @@ class TestMainFunction:
         """main() exits 0 when all sources are consistent (lines 260-290)."""
         from src.runtime.extension.env_keys import main
 
-        ctmpl_file = (
-            tmp_path
-            / "repo"
-            / "finance_report"
-            / "finance_report"
-            / "10.app"
-            / "secrets.ctmpl"
-        )
-        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
-        ctmpl_file.write_text(
-            'DATABASE_URL={{ with secret "..." }}{{ .Data.data.url }}{{ end }}\n'
-        )
-
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
@@ -556,17 +543,6 @@ class Settings(BaseSettings):
         """main() exits 1 when inconsistency found."""
         from src.runtime.extension.env_keys import main
 
-        ctmpl_file = (
-            tmp_path
-            / "repo"
-            / "finance_report"
-            / "finance_report"
-            / "10.app"
-            / "secrets.ctmpl"
-        )
-        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
-        ctmpl_file.write_text("DATABASE_URL=val\nMISSING_KEY=val\n")
-
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
@@ -577,7 +553,7 @@ class Settings(BaseSettings):
 """)
 
         env_file = tmp_path / ".env.example"
-        env_file.write_text("DATABASE_URL=default\n")
+        env_file.write_text("")
 
         monkeypatch.setattr(
             "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
@@ -591,17 +567,6 @@ class Settings(BaseSettings):
     def test_main_with_diff_flag(self, monkeypatch, tmp_path):
         """main() with --diff flag shows verbose output."""
         from src.runtime.extension.env_keys import main
-
-        ctmpl_file = (
-            tmp_path
-            / "repo"
-            / "finance_report"
-            / "finance_report"
-            / "10.app"
-            / "secrets.ctmpl"
-        )
-        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
-        ctmpl_file.write_text("DATABASE_URL=val\n")
 
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -628,17 +593,6 @@ class Settings(BaseSettings):
         """main() with --fix flag generates suggestions."""
         from src.runtime.extension.env_keys import main
 
-        ctmpl_file = (
-            tmp_path
-            / "repo"
-            / "finance_report"
-            / "finance_report"
-            / "10.app"
-            / "secrets.ctmpl"
-        )
-        ctmpl_file.parent.mkdir(parents=True, exist_ok=True)
-        ctmpl_file.write_text("DATABASE_URL=val\nMISSING_KEY=val\n")
-
         config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
@@ -649,7 +603,7 @@ class Settings(BaseSettings):
 """)
 
         env_file = tmp_path / ".env.example"
-        env_file.write_text("DATABASE_URL=default\n")
+        env_file.write_text("")
 
         monkeypatch.setattr(
             "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path

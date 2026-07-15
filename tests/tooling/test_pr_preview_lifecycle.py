@@ -1958,21 +1958,6 @@ def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> N
     assert "pr-preview-readiness-context.json" not in workflow
 
 
-def test_AC8_13_100_infra2_route_canary_is_available() -> None:
-    """AC8.13.100: The infra2 submodule exposes the platform route canary."""
-    canary_tool = ROOT / "repo/tools/dokploy_route_canary.py"
-    canary_tests = ROOT / "repo/libs/tests/test_dokploy_route_canary.py"
-
-    assert canary_tool.exists()
-    assert canary_tests.exists()
-    # infra2 consolidated alerting/observability into one owner (infra2 #425/#426):
-    # the route-canary SOP now lives in ops.observability.md (ops.alerting.md is a stub).
-    assert (
-        "Dokploy route canary"
-        in (ROOT / "repo/docs/ssot/ops.observability.md").read_text()
-    )
-
-
 def test_AC8_13_71_deploy_action_writes_github_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

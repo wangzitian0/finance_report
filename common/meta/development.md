@@ -170,9 +170,8 @@ migration proof. Alembic `upgrade head` plus `alembic check` against Postgres is
 the schema contract for both local escalation and PR CI.
 
 Root Moon tasks are uncached wrappers with explicit workspace inputs, so local
-verification runs fresh and never treats the `repo` infra submodule gitlink as a
-file input. The `repo/` submodule is verified separately by the agent
-orchestration infra sync check.
+verification runs fresh. Infrastructure source is not part of this repository;
+the versioned SDK and request boundary are verified separately.
 
 ---
 

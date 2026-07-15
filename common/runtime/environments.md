@@ -13,9 +13,9 @@
     telemetry identity) are **owned and issued by infra2** (runtime), not by this
     App doc (software):
 
-    - [`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity)
+    - [infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity)
       — environment taxonomy + telemetry identity.
-    - [`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+    - [infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)
       — single no-suffix OTLP collector and OTLP env vars.
 
     This App doc describes only how the App **consumes** those environments
@@ -160,8 +160,7 @@ PR validation is split into two independent things (issue #839):
 **Note**: Two distinct conventions — do not conflate them.
 - **Local Dev / CI** use the local `docker-compose.yml` pattern
   `finance-report-{service}${ENV_SUFFIX:-}` (**hyphen**, DB service `db`).
-- **Staging / Production** are deployed by the infra2 IaC compose files
-  (`repo/finance_report/finance_report/{01.postgres,02.redis,10.app}/compose.yaml`),
+- **Staging / Production** are deployed by infra2-owned IaC compose files,
   whose `container_name` is `finance_report-{service}${ENV_SUFFIX}` (**underscore**,
   DB service `postgres`). The backend connects to these underscore hostnames — see
   `10.app/secrets.ctmpl` (`DATABASE_URL` → `finance_report-postgres${suffix}`,
@@ -199,9 +198,9 @@ The production Platform layer (the observability backend, MinIO, Traefik) runs a
 The observability backend is a single global instance shared across environments; how App logs are
 separated (the `deployment.environment` surface alias and its allowed values) is
 part of the **infra2-owned** observability contract —
-[`repo/docs/ssot/ops.observability.md`](../../repo/docs/ssot/ops.observability.md)
+[infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)
 and
-[`repo/docs/ssot/core.environments.md#telemetry-identity`](../../repo/docs/ssot/core.environments.md#telemetry-identity).
+[infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity).
 This App doc does not enumerate those values.
 
 **Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared the observability backend.

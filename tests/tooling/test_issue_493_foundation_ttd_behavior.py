@@ -184,27 +184,20 @@ def test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions(
     assert exc_info.value.code == 1
 
 
-def test_AC14_1_4_check_env_keys_exits_nonzero_for_secret_config_drift(
+def test_AC14_1_4_check_env_keys_exits_nonzero_for_config_documentation_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC-meta.foundation-tooling.4: check_env_keys.py detects mismatched secrets/config/env keys."""
+    """AC-meta.foundation-tooling.4: check_env_keys.py detects config/documentation drift."""
     root = tmp_path
-    ctmpl_path = (
-        root / "repo" / "finance_report" / "finance_report" / "10.app" / "secrets.ctmpl"
-    )
     config_path = root / "apps" / "backend" / "src" / "config.py"
     env_path = root / ".env.example"
-    ctmpl_path.parent.mkdir(parents=True)
     config_path.parent.mkdir(parents=True)
-    ctmpl_path.write_text(
-        "DATABASE_URL={{ .Data.data.DATABASE_URL }}\n", encoding="utf-8"
-    )
     config_path.write_text(
         'class Settings:\n    redis_url: str = Field(validation_alias="REDIS_URL")\n',
         encoding="utf-8",
     )
-    env_path.write_text("REDIS_URL=redis://localhost:6379/0\n", encoding="utf-8")
+    env_path.write_text("DATABASE_URL=postgres://localhost/db\n", encoding="utf-8")
 
     monkeypatch.setattr(check_env_keys, "get_project_root", lambda: root)
     monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])

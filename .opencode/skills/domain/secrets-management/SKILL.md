@@ -8,8 +8,8 @@ description: Environment variables, secrets management, multi-environment strate
 Operational how-to only. The **contracts live elsewhere** — read the owner, do
 not restate it here (#1658):
 
-- Three-layer secret contract (Vault `secrets.ctmpl` → `config.py` →
-  `.env.example`), vault-agent injection flow, and cross-repo seam →
+- App secret contract (`config.py` → generated `.env.example` and
+  `required-env.generated.json`), vault-agent injection flow, and cross-repo seam →
   [`common/runtime/deployment.md`](../../../../common/runtime/deployment.md)
 - Environment taxonomy (names, suffixes, isolation) →
   [`common/runtime/environments.md`](../../../../common/runtime/environments.md)
@@ -42,15 +42,12 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
 
 ## Workflow: adding a new variable
 
-1. Required in production? → add to the service's `secrets.ctmpl` (in `repo/`,
-   requires an infra2 PR). Optional? → skip the template.
-2. Add to `apps/backend/src/config.py` with type + default
+1. Add to `apps/backend/src/config.py` with type + default
    (`Field(validation_alias=...)`).
-3. Add to `.env.example` with a comment (`[VAULT]` marker if
-   production-managed).
-4. Validate: `python tools/check_env_keys.py --diff` (the CI gate).
-5. Production secret? → `vault kv put secret/data/finance_report/{env}/app ...`
-   and sync the `repo/` submodule pointer in the same PR.
+2. Regenerate `.env.example` and `common/runtime/required-env.generated.json`.
+3. Validate: `python tools/check_env_keys.py --diff` (the CI gate).
+4. Required in production? Open a separate infra2 PR for `secrets.ctmpl`, then
+   update Vault through the infra2-owned automation. No git pointer is updated here.
 
 Frontend: `NEXT_PUBLIC_*` values are frozen at build time — they must be
 `ARG`+`ENV` in `apps/frontend/Dockerfile` (red line).

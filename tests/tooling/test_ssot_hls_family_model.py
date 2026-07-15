@@ -1,9 +1,9 @@
-"""AC14.1.18: FR + infra2 SSOT HLS family model is documented and consistent.
+"""AC14.1.18: Finance Report's SSOT HLS family model is documented and consistent.
 
 This is a documentation-governance test for issue #821. It does NOT move or
 re-own any SSOT concept; it only asserts that:
 
-1. EPIC-014 (FR) and Infra-006 (infra2) each declare an SSOT HLS family model
+1. EPIC-014 declares an SSOT HLS family model
    with 6-8 families plus explicit concept/clause boundary rules.
 2. The declared family map is machine-parseable from the doc and is consistent
    with the existing MANIFEST.yaml groupings (every manifest entry's inferred
@@ -19,17 +19,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 from common.meta.extension import governance_report
 from common.meta.extension.check_manifest import load_computed_concepts
 
 ROOT = Path(__file__).resolve().parents[2]
 
 FR_EPIC = ROOT / "docs/project/EPIC-014.ttd-transformation.md"
-INFRA_EPIC = ROOT / "repo/docs/project/Infra-006.documentation_engineering.md"
 FR_MANIFEST = ROOT / "common/meta/data/MANIFEST.yaml"
-INFRA_MANIFEST = ROOT / "repo/docs/ssot/MANIFEST.yaml"
 
 ISSUE_LINKS = (
     "/issues/821",
@@ -44,11 +40,7 @@ FAMILY_ROW = re.compile(r"^\|\s*`(?P<family>[a-z0-9_]+)`\s*\|")
 
 def _read(path: Path) -> str:
     if not path.exists():
-        raise FileNotFoundError(
-            f"Required SSOT file not found: {path}. If this is an infra2 path "
-            f"under the 'repo/' submodule, the submodule is likely not "
-            f"initialized — run `git submodule update --init --recursive`."
-        )
+        raise FileNotFoundError(f"Required SSOT file not found: {path}.")
     return path.read_text(encoding="utf-8")
 
 
@@ -67,12 +59,6 @@ def _declared_families(text: str) -> list[str]:
         if match:
             families.append(match.group("family"))
     return families
-
-
-def _manifest_inferred_families(manifest_path: Path, entry_key: str) -> set[str]:
-    data = yaml.safe_load(_read(manifest_path)) or {}
-    raw_entries = data.get(entry_key) or {}
-    return _entries_inferred_families(raw_entries)
 
 
 def _entries_inferred_families(raw_entries: dict) -> set[str]:
@@ -154,47 +140,12 @@ def test_AC14_1_18_fr_hls_family_model_is_documented_and_consistent() -> None:
     )
 
 
-def test_AC14_1_18_infra2_hls_family_model_is_documented_and_consistent() -> None:
-    """AC14.1.18: Infra-006 declares 6-8 infra2 families consistent with MANIFEST."""
-
-    text = _read(INFRA_EPIC)
-    if FAMILY_SECTION_HEADING not in text:
-        import pytest
-
-        pytest.skip(
-            "infra2 Infra-006 has no SSOT HLS Family Model section on main: the #821 "
-            "infra2 family-model work was never merged to infra2 main (it lived only on the "
-            "fork that repo/ previously pinned). Parked here, not deleted — re-enables "
-            "automatically once #821 lands on main. The FR-side variant above stays strict."
-        )
-    families = _declared_families(text)
-
-    assert 6 <= len(families) <= 8, (
-        f"infra2 HLS model must declare 6-8 families, found {len(families)}: {families}"
-    )
-    assert len(families) == len(set(families)), "infra2 families must be unique"
-
-    section = _family_section(text)
-    assert "concept" in section.lower(), "family model must state concept boundary"
-    assert "clause" in section.lower(), "family model must state clause boundary"
-    assert "MANIFEST.yaml" in section, "family model must reference MANIFEST.yaml"
-
-    inferred = _manifest_inferred_families(INFRA_MANIFEST, "entries")
-    uncovered = _family_map_coverage(section, inferred)
-    assert not uncovered, (
-        "infra2 family map must bind each manifest-inferred family to exactly "
-        f"one declared family; offending (missing or duplicated): "
-        f"{sorted(uncovered)}"
-    )
-
-
 def test_AC14_1_18_hls_checklist_links_governance_loop_issues() -> None:
-    """AC14.1.18: Both HLS checklists link #821 and follow-up #822/#823/#824."""
+    """AC14.1.18: The HLS checklist links #821 and follow-up #822/#823/#824."""
 
-    for path in (FR_EPIC, INFRA_EPIC):
-        text = _read(path)
-        for link in ISSUE_LINKS:
-            assert link in text, f"{path.name} must link {link}"
+    text = _read(FR_EPIC)
+    for link in ISSUE_LINKS:
+        assert link in text, f"{FR_EPIC.name} must link {link}"
 
 
 def test_AC14_1_18_documentation_only_does_not_re_own_concepts() -> None:
@@ -205,5 +156,5 @@ def test_AC14_1_18_documentation_only_does_not_re_own_concepts() -> None:
     land.
     """
 
-    report = governance_report.build_report(ROOT, include_infra2=True)
+    report = governance_report.build_report(ROOT, include_infra2=False)
     assert report["overall"]["errors"] == []
