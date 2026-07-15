@@ -1,5 +1,7 @@
 """AI suggestion feedback endpoints."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
@@ -41,8 +43,8 @@ async def create_ai_feedback(
 async def list_ai_suggestions(
     db: DbSession,
     user_id: CurrentUserId,
-    limit: int = Query(50, ge=1, le=200, description="Maximum items to return"),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AiSuggestionListResponse:
     """List pending AI classification and reconciliation suggestions in the 60-84 review band."""
     items: list[AiSuggestionResponse] = []

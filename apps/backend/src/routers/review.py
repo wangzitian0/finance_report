@@ -1,5 +1,6 @@
 """Stage 2 review endpoints for bank statement reconciliation."""
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -258,8 +259,8 @@ async def list_consistency_checks(
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
     run_id: str | None = None,
-    limit: int = Query(50, ge=1, le=200, description="Maximum items to return"),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
     checks, total = await list_checks(
