@@ -37,6 +37,11 @@
 | **Model Definition** | `apps/backend/src/ledger/orm/journal.py` | ORM |
 | **Validation Rules** | `apps/backend/src/schemas/journal.py` | Pydantic |
 
+`ConfidenceTier` and `worst_confidence_tier` are co-owned here with journal
+provenance. The rollup fails closed: unknown tier strings rank below every known
+tier, while callers choose their explicit empty-input default (`None` for a
+report aggregation or `DETERMINISTIC` for advisor context).
+
 ---
 
 ## 2. Architecture Model

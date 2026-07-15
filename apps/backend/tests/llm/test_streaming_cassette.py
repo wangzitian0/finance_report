@@ -29,7 +29,7 @@ import pytest
 
 import src.llm.extension.client as client_mod
 from src.llm import accumulate_stream
-from src.llm.base import LLMError, ProtocolFamily, ProviderRef
+from src.llm.base import DecodeParams, LLMError, ProtocolFamily, ProviderRef
 from src.llm.extension.cassette import (
     CassetteMiss,
     CassetteMode,
@@ -37,9 +37,37 @@ from src.llm.extension.cassette import (
     CassetteTag,
     fingerprint,
 )
-from src.llm.extension.client import litellm_stream
+from src.llm.extension.client import CassetteOptions, litellm_stream as _typed_litellm_stream
 
 FIXTURE_CASSETTE_DIR = Path(__file__).resolve().parents[4] / "common" / "testing" / "fixtures" / "llm_cassettes"
+
+
+def litellm_stream(
+    messages,
+    *,
+    provider,
+    model_id,
+    max_tokens=None,
+    temperature=None,
+    cassette_store=None,
+    cassette_mode=None,
+    cassette_tag=CassetteTag.FLOW_ONLY,
+    cassette_validator=None,
+):
+    """Build typed transport values for the cassette behavior matrix."""
+    return _typed_litellm_stream(
+        messages,
+        provider=provider,
+        model_id=model_id,
+        decode=DecodeParams(max_tokens=max_tokens, temperature=temperature),
+        cassette=CassetteOptions(
+            store=cassette_store,
+            mode=cassette_mode,
+            tag=cassette_tag,
+            validator=cassette_validator,
+        ),
+    )
+
 
 # Mirror the committed synthetic cassettes (authored under FIXTURE_CASSETTE_DIR);
 # the fingerprint of these inputs resolves those frozen-text files in replay.

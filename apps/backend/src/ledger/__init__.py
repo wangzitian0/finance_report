@@ -84,6 +84,7 @@ from src.ledger.orm.journal import (
     JournalEntryStatus,
     JournalLine,
     derive_confidence_tier,
+    worst_confidence_tier,
 )
 
 __all__ = [
@@ -132,6 +133,7 @@ __all__ = [
     "register_fx_revaluation_provider",
     "register_statement_coverage_reader",
     "used_currencies",
+    "worst_confidence_tier",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",

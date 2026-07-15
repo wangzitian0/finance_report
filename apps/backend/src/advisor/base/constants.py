@@ -65,14 +65,6 @@ CHAT_METADATA_SAFE_HREFS = (
     "/statements/upload",
 )
 
-CONFIDENCE_WORST_ORDER = {
-    "LOW": 0,
-    "MEDIUM": 1,
-    "HIGH": 2,
-    "TRUSTED": 3,
-    "DETERMINISTIC": 3,
-}
-
 # SECURITY: Match long number sequences but avoid common date/time patterns
 # (YYYY-MM-DD, DD/MM/YYYY, etc.)
 # Generic branch: 12+ consecutive digits (no separators) to reduce accidental date matches

@@ -1,5 +1,6 @@
 """AC17.5/AC17.6: Investment transaction accounting tests."""
 
+import inspect
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
@@ -12,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
 from src.ledger import Account, AccountType, Direction, JournalEntryStatus
 from src.portfolio import (
+    DividendEvent,
     DividendIncome,
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
     InvestmentLot,
     InvestmentTransaction,
+    TradeAccounts,
+    TradeOrder,
 )
 
 
@@ -60,8 +64,85 @@ async def chart(db: AsyncSession, test_user):
 
 
 @pytest.fixture
-def svc() -> InvestmentAccountingService:
-    return InvestmentAccountingService()
+def svc() -> "_AccountingTestDriver":
+    return _AccountingTestDriver(InvestmentAccountingService())
+
+
+class _AccountingTestDriver:
+    """Translate existing scenario fixtures at the API/import edge."""
+
+    def __init__(self, service: InvestmentAccountingService) -> None:
+        self._service = service
+
+    async def post_buy(self, db: AsyncSession, *, user_id, **payload):
+        return await self._service.post_buy(
+            db,
+            user_id=user_id,
+            order=TradeOrder.create(
+                transaction_date=payload["transaction_date"],
+                asset_identifier=payload["asset_identifier"],
+                quantity=payload["quantity"],
+                unit_price=payload["unit_price"],
+                currency=payload["currency"],
+                fees=payload.get("fees", Decimal("0.00")),
+                fx_rate=payload.get("fx_rate"),
+                source_id=payload.get("source_id"),
+                cost_basis_method=payload.get("cost_basis_method", CostBasisMethod.FIFO).value,
+            ),
+            accounts=TradeAccounts(
+                cash=payload["cash_account_id"],
+                investment=payload["investment_account_id"],
+            ),
+        )
+
+    async def post_sell(self, db: AsyncSession, *, user_id, **payload):
+        return await self._service.post_sell(
+            db,
+            user_id=user_id,
+            order=TradeOrder.create(
+                transaction_date=payload["transaction_date"],
+                asset_identifier=payload["asset_identifier"],
+                quantity=payload["quantity"],
+                unit_price=payload["unit_price"],
+                currency=payload["currency"],
+                fees=payload.get("fees", Decimal("0.00")),
+                fx_rate=payload.get("fx_rate"),
+                source_id=payload.get("source_id"),
+                cost_basis_method=payload.get("cost_basis_method", CostBasisMethod.FIFO).value,
+            ),
+            accounts=TradeAccounts(
+                cash=payload["cash_account_id"],
+                investment=payload["investment_account_id"],
+                realized_pnl=payload["realized_pnl_account_id"],
+            ),
+        )
+
+    async def post_dividend(self, db: AsyncSession, *, user_id, **payload):
+        return await self._service.post_dividend(
+            db,
+            user_id=user_id,
+            event=DividendEvent.create(
+                payment_date=payload["payment_date"],
+                asset_identifier=payload["asset_identifier"],
+                gross_amount=payload["gross_amount"],
+                currency=payload["currency"],
+                withholding_tax=payload.get("withholding_tax", Decimal("0.00")),
+                fx_rate=payload.get("fx_rate"),
+                source_id=payload.get("source_id"),
+                dividend_type=payload.get("dividend_type", "ordinary").value
+                if hasattr(payload.get("dividend_type", "ordinary"), "value")
+                else payload.get("dividend_type", "ordinary"),
+            ),
+            accounts=TradeAccounts(
+                cash=payload["cash_account_id"],
+                investment=payload["investment_account_id"],
+                dividend_income=payload["dividend_income_account_id"],
+                withholding_tax=payload.get("withholding_tax_account_id"),
+            ),
+        )
+
+    def __getattr__(self, name: str):
+        return getattr(self._service, name)
 
 
 def _line_amount(entry, account_id, direction):
@@ -74,6 +155,42 @@ class _ScalarStub:
 
     async def scalar(self, _query):
         return self.value
+
+
+async def test_AC_portfolio_posting_inputs_1_value_objects_bound_the_write_signature(chart) -> None:
+    """AC-portfolio.posting-inputs.1: posting takes typed clusters, not primitive lists."""
+    order = TradeOrder.create(
+        transaction_date=date(2026, 1, 5),
+        asset_identifier="VWRA",
+        quantity=Decimal("10"),
+        unit_price=Decimal("100.00"),
+        currency="SGD",
+    )
+    accounts = TradeAccounts(
+        cash=chart["cash"].id,
+        investment=chart["investment"].id,
+        realized_pnl=chart["realized_pnl"].id,
+    )
+    dividend = DividendEvent.create(
+        payment_date=date(2026, 4, 5),
+        asset_identifier="VWRA",
+        gross_amount=Decimal("25.00"),
+        currency="SGD",
+    )
+
+    assert order.quantity.value == Decimal("10")
+    assert order.unit_price.rate == Decimal("100.00")
+    assert accounts.investment == chart["investment"].id
+    assert dividend.gross_amount.amount == Decimal("25.00")
+    assert list(inspect.signature(InvestmentAccountingService.post_buy).parameters) == [
+        "self",
+        "db",
+        "user_id",
+        "order",
+        "accounts",
+    ]
+    service_source = inspect.getsource(InvestmentAccountingService)
+    assert service_source.count("fees=order.fees.quantize().amount") == 2
 
 
 async def test_buy_transaction_creates_balanced_journal_entry_and_lot(

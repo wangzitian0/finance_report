@@ -2,9 +2,10 @@
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 from src import reporting as reporting_service
-from src.ledger import AccountType, Direction
+from src.ledger import AccountType, Direction, worst_confidence_tier
 from src.reporting.extension import reporting_calc
 
 
@@ -20,7 +21,6 @@ def test_reporting_calc_extraction():
         "_signed_amount",
         "_quantize_money",
         "_combine_provenance",
-        "_worst_confidence_tier",
         "_iter_periods",
         "_month_start",
         "_month_end",
@@ -47,8 +47,8 @@ def test_reporting_calc_extraction():
     assert reporting_calc.income_bucket("Groceries") is None
 
     # Confidence-tier worst-input rollup and provenance combination.
-    assert reporting_calc._worst_confidence_tier(["HIGH", "LOW", "TRUSTED"]) == "LOW"
-    assert reporting_calc._worst_confidence_tier([None, None]) is None
+    assert worst_confidence_tier(["HIGH", "LOW", "TRUSTED"]) == "LOW"
+    assert worst_confidence_tier([None, None]) is None
     assert reporting_calc._combine_provenance(["imported", "imported"]) == "imported"
     assert reporting_calc._combine_provenance(["imported", "manual"]) == "derived"
 
@@ -62,3 +62,13 @@ def test_reporting_calc_extraction():
         (date(2026, 1, 2), date(2026, 1, 2)),
         (date(2026, 1, 3), date(2026, 1, 3)),
     ]
+
+
+def test_AC_reporting_single_owner_1_has_no_valuation_line_name_copy() -> None:
+    """AC-reporting.single-owner.1: pricing alone owns manual-valuation line naming."""
+    backend_src = Path(__file__).resolve().parents[2] / "src"
+    reporting_core = (backend_src / "reporting" / "extension" / "_core.py").read_text(encoding="utf-8")
+    pricing_valuation = (backend_src / "pricing" / "extension" / "valuation.py").read_text(encoding="utf-8")
+
+    assert "def _valuation_line_name" not in reporting_core
+    assert pricing_valuation.count("def _valuation_line_name") == 1

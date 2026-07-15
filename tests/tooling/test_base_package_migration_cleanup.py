@@ -243,10 +243,7 @@ def test_AC12_31_7_backend_quantity_business_code_uses_value_type():
             )
 
     investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
-    assert (
-        "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
-        in investment
-    )
+    assert "trade_quantity = order.quantity.quantize()" in investment
     assert "trade_quantity.is_zero()" in investment
     assert "quantity=trade_quantity.value" in investment
     # unit price now flows through the UnitPrice value type (#1253 / AC12.32),

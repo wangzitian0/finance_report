@@ -36,11 +36,6 @@ def normalize_question(message: str) -> str:
     return hashlib.sha1(message.encode("utf-8")).hexdigest()
 
 
-def estimate_tokens(text: str) -> int:
-    """Estimate token count for usage tracking."""
-    return max(1, len(text) // 4)
-
-
 def _matches_any(message: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, message, re.IGNORECASE) for pattern in patterns)
 

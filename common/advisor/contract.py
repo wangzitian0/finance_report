@@ -168,7 +168,6 @@ CONTRACT = PackageContract(
         "build_refusal",
         "detect_language",
         "ensure_disclaimer",
-        "estimate_tokens",
         "generate_annualized_income_schedule",
         "get_ai_advisor_prompt",
         "is_non_financial",
@@ -786,19 +785,6 @@ CONTRACT = PackageContract(
             ),
             # was AC6.10.1
             test="apps/backend/tests/ai/test_ai_advisor_service.py::test_normalize_question",
-            priority="P1",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
-            id="AC-advisor.textutil.2",
-            statement=(
-                "``estimate_tokens`` approximates a token count from "
-                "character length (roughly 4 characters per token) and "
-                "never returns less than 1, even for an empty string."
-            ),
-            # was AC6.10.2
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_estimate_tokens",
             priority="P1",
             status="done",
             proof_kind="property",

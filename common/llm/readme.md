@@ -39,6 +39,13 @@ runtime. The code-level contract is `apps/backend/src/llm/base`.
 | **Provider instances + scene bindings** | DB tables `llm_provider`, `llm_scene_binding` (EPIC B) | Runtime-editable configuration values |
 | **Client / catalogue / usage impl** | `apps/backend/src/llm/` (EPIC A) | litellm-backed implementations of the protocols (usage meter counts requests/tokens, no cost) |
 
+`LitellmClient` is the production implementation of the scene-keyed
+`LLMClient` protocol. Domain consumers pass typed `Message` values and a
+`Scene`; the client owns binding/provider/model resolution. Provider decode
+knobs travel together as the immutable `DecodeParams` value. The rough
+`estimate_tokens` helper is also owned here; downstream packages consume it
+through the `llm` facade rather than redefining or re-exporting it.
+
 ---
 
 ## 2. <a id="axes"></a>The Three Orthogonal Axes
@@ -129,6 +136,11 @@ LLM calls are made **deterministic in CI** via a record/replay cassette layer
 is a committed JSON file under `common/testing/fixtures/llm_cassettes/`
 (the `testing` package's fixture home) holding the semantic request fingerprint
 and the frozen provider response — reviewed in the diff.
+
+The streaming cassette mechanism is a decorator around the live transport.
+Its in-layer record/replay controls are grouped in `CassetteOptions`, so neither
+cassette concerns nor individual decode knobs expand the provider transport
+signature.
 
 ### Modes — `LLM_CASSETTE_MODE`
 

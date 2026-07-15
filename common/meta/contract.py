@@ -89,6 +89,18 @@ CONTRACT = PackageContract(
             ),
         ),
         Invariant(
+            id="public-function-has-single-package-owner",
+            statement=(
+                "A snake_case public function name may be exported by exactly one "
+                "package contract; duplicate exports are rejected so package "
+                "ownership cannot silently diverge."
+            ),
+            test=(
+                "tests/tooling/test_check_package_contract.py"
+                "::test_duplicate_public_function_exports_are_rejected"
+            ),
+        ),
+        Invariant(
             id="unproven-reference-is-rejected",
             statement=(
                 "Every invariants[].test and roadmap[].test must resolve to a real "

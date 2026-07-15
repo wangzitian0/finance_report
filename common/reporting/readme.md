@@ -49,6 +49,8 @@ reporting keeps confidence-tier mapping and report assembly; `pricing` owns
 valuation-observation staleness facts. This contract's
 `manual-valuation-excluded-from-reporting-language` invariant pins that
 boundary so it cannot silently drift back.
+Pricing also owns manual-valuation line naming. Reporting consumes the produced
+lines and the ledger-owned `worst_confidence_tier`; it defines neither helper.
 
 ## Ubiquitous language
 

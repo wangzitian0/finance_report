@@ -29,7 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.advisor.base.constants import (
     CHAT_METADATA_SAFE_HREFS,
-    CONFIDENCE_WORST_ORDER,
     MAX_CONTEXT_MESSAGES,
 )
 from src.advisor.base.guardrails import (
@@ -37,7 +36,6 @@ from src.advisor.base.guardrails import (
     build_refusal,
     detect_language,
     ensure_disclaimer,
-    estimate_tokens,
     is_non_financial,
     is_prompt_injection,
     is_sensitive_request,
@@ -50,8 +48,16 @@ from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import to_money
-from src.ledger import AccountType
-from src.llm import ReasoningEffort, Scene, SceneBinding, get_config_source, stream_ai_chat
+from src.ledger import AccountType, worst_confidence_tier
+from src.llm import (
+    ReasoningEffort,
+    Scene,
+    SceneBinding,
+    estimate_tokens,
+    get_config_source,
+    get_llm_client,
+    stream_ai_chat,
+)
 from src.observability import get_logger
 from src.platform import get_workflow_status
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
@@ -234,7 +240,7 @@ class AIAdvisorService:
             )
             monthly_income = Decimal(str(income_statement["total_income"]))
             monthly_expenses = Decimal(str(income_statement["total_expenses"]))
-            income_statement_confidence_tier = self._worst_confidence_tier(
+            income_statement_confidence_tier = worst_confidence_tier(
                 [
                     line.get("confidence_tier")
                     for line in [
@@ -242,7 +248,8 @@ class AIAdvisorService:
                         *(income_statement.get("expenses") or []),
                     ]
                     if isinstance(line, dict)
-                ]
+                ],
+                default="DETERMINISTIC",
             )
         except ReportError:
             monthly_income = Decimal("0")
@@ -581,12 +588,6 @@ class AIAdvisorService:
             actions=actions[:3],
         )
 
-    def _worst_confidence_tier(self, values: list[str | None]) -> str:
-        tiers = [str(value).upper() for value in values if value]
-        if not tiers:
-            return "DETERMINISTIC"
-        return min(tiers, key=lambda tier: CONFIDENCE_WORST_ORDER.get(tier, -1))
-
     def _display_confidence_tier(self, value: str | None) -> str:
         if not value:
             return "DETERMINISTIC"
@@ -802,6 +803,20 @@ class AIAdvisorService:
         from src.observability import ErrorIds
 
         models = [self.primary_model, *self.fallback_models]
+        if preferred_model is None and bound is not None:
+            try:
+                client = get_llm_client(user_id)
+                async for chunk in client.stream(Scene.ADVISOR_CHAT, messages):
+                    yield chunk, bound.model_id
+                return
+            except AIStreamError as exc:
+                logger.warning(
+                    "Bound advisor scene failed, trying environment fallbacks",
+                    error_id=ErrorIds.AI_STREAMING_FAILED,
+                    model=bound.model_id,
+                    error=str(exc),
+                    retryable=exc.retryable,
+                )
         # The binding's reasoning/max_tokens apply only when its model is used (no
         # per-message override). They're hints/caps, harmless if a fallback ignores them.
         reasoning = bound.reasoning if bound else None
@@ -809,12 +824,6 @@ class AIAdvisorService:
         if preferred_model:
             models = [preferred_model, *models]
             reasoning = max_tokens = None  # explicit per-message model: env defaults
-        elif bound is not None:
-            # No per-message override: prefer the user's configured advisor.chat
-            # model (EPIC-023 AC23.4.5) so /settings/llm actually takes effect. The
-            # bound model is qualified (provider_id/model); the llm streaming
-            # transport resolves the exact provider from the qualifier.
-            models = [bound.model_id, *models]
         last_error: Exception | None = None
 
         for i, model in enumerate(models):

@@ -48,10 +48,7 @@ def test_AC12_30_4_backend_quantity_hot_paths_use_quantity_type():
     """AC-audit.30.4: targeted backend quantity paths use Quantity for quantity semantics."""
     investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
     assert "from src.audit.quantity import Quantity" in investment
-    assert (
-        "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
-        in investment
-    )
+    assert "trade_quantity = order.quantity.quantize()" in investment
     assert "trade_quantity.is_zero()" in investment
     assert "QUANTITY = Decimal(" not in investment
     assert "def _quantity(" not in investment

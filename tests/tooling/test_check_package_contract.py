@@ -193,6 +193,45 @@ def test_interface_mismatch_is_reported(synthetic_repo: Path) -> None:
     assert any("interface != __all__" in e for e in errors)
 
 
+def test_duplicate_public_function_exports_are_rejected(
+    synthetic_repo: Path,
+) -> None:
+    """The contract gate rejects two packages claiming one function name."""
+    for name in ("first", "second"):
+        _write_package(
+            _src(synthetic_repo),
+            name,
+            klass="infra",
+            all_names=["shared_function"],
+            interface=["shared_function"],
+        )
+
+    ok, messages = run(synthetic_repo)
+
+    assert not ok
+    assert any(
+        "public function 'shared_function' is exported by multiple packages" in message
+        for message in messages
+    )
+
+
+def test_repeated_public_function_in_one_package_is_not_multi_owner(
+    synthetic_repo: Path,
+) -> None:
+    """Repeated declarations do not invent a second package owner."""
+    _write_package(
+        _src(synthetic_repo),
+        "single",
+        klass="infra",
+        all_names=["one_function", "one_function"],
+        interface=["one_function", "one_function"],
+    )
+
+    ok, messages = run(synthetic_repo)
+
+    assert ok, messages
+
+
 # --- (b) invariant / roadmap test refs ---------------------------------------
 
 

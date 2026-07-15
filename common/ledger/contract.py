@@ -214,6 +214,7 @@ CONTRACT = PackageContract(
         "register_fx_revaluation_provider",
         "register_statement_coverage_reader",
         "used_currencies",
+        "worst_confidence_tier",
         "validate_fx_rates",
         "validate_journal_balance",
         "validate_journal_posting_invariants",
@@ -292,6 +293,20 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-ledger.78.1",
+            statement=(
+                "ConfidenceTier owns the one worst_confidence_tier rank function; reporting and "
+                "advisor consume it with explicit empty-input defaults, and unknown tiers fail "
+                "closed as less trusted than every known tier."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_confidence_tier_owner.py"
+                "::test_AC_ledger_78_1_worst_confidence_tier_is_single_homed"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── EPIC-002 double-entry core (slice 3c-ii of #1420): groups 1–12 ──
         # (was AC2.1.* … AC2.12.*; AC2.13.* … AC2.23.* land in slice 3c-iii.)
         # ── group 1: Account management (was EPIC-002 AC2.1.*) ──

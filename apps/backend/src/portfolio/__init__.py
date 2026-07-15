@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from src.portfolio.base import (
     AssetNotFoundError,
+    DividendEvent,
     InsufficientDataError,
     InvalidDateRangeError,
     InvestmentAccountingError,
@@ -26,6 +27,8 @@ from src.portfolio.base import (
     PerformanceError,
     PortfolioError,
     PortfolioNotFoundError,
+    TradeAccounts,
+    TradeOrder,
     XIRRCalculationError,
 )
 from src.portfolio.extension import (
@@ -62,6 +65,7 @@ __all__ = [
     "AssetNotFoundError",
     "DepreciationResult",
     "DividendIncome",
+    "DividendEvent",
     "DividendType",
     "InsufficientDataError",
     "InvalidDateRangeError",
@@ -79,6 +83,8 @@ __all__ = [
     "PositionService",
     "PositionServiceError",
     "ReconcileResult",
+    "TradeAccounts",
+    "TradeOrder",
     "XIRRCalculationError",
     "active_stock_symbols",
     "build_investment_performance_report_schedule",

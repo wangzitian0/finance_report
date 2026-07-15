@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.llm.base import ConfigSource, ProviderRef, Scene, SceneBinding
+from src.llm.base import ConfigSource, LLMClient, ProviderRef, Scene, SceneBinding
 from src.llm.base.usage import LlmUsageMeter
 from src.llm.extension.db_config import DbConfigSource
 from src.llm.extension.env_config import EnvConfigSource
@@ -72,3 +72,10 @@ def get_config_source(user_id: UUID | None = None) -> ConfigSource:
     against the DB (see :class:`LayeredConfigSource`).
     """
     return LayeredConfigSource(DbConfigSource(user_id=user_id), EnvConfigSource())
+
+
+def get_llm_client(user_id: UUID | None = None) -> LLMClient:
+    """Return the production implementation of the scene-keyed LLMClient port."""
+    from src.llm.extension.scene_client import LitellmClient
+
+    return LitellmClient(user_id=user_id)

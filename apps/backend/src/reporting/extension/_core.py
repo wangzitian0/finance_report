@@ -12,7 +12,15 @@ from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer3 import ManualValuationLiquidityClass
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    worst_confidence_tier,
+)
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension.confidence_tier import derive_confidence_tier
@@ -27,7 +35,6 @@ from src.reporting.extension.reporting_calc import (
     _combine_provenance,
     _provenance_from_source_type,
     _quantize_money,
-    _worst_confidence_tier,
 )
 from src.schemas.provenance import DataProvenance
 
@@ -115,7 +122,7 @@ async def _aggregate_account_confidence_tiers(
     tiers: dict[UUID, str] = {}
     for account_id, source_type in result.all():
         tier = derive_confidence_tier(source_type)
-        tiers[account_id] = _worst_confidence_tier([tiers.get(account_id), tier]) or tier
+        tiers[account_id] = worst_confidence_tier([tiers.get(account_id), tier]) or tier
     return tiers
 
 
@@ -125,11 +132,6 @@ def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:
 
 def _strip_allocation_metadata(lines: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{key: value for key, value in line.items() if key not in _ALLOCATION_METADATA_KEYS} for line in lines]
-
-
-def _valuation_line_name(component_name: str, component_type: str) -> str:
-    label = component_type.replace("_", " ")
-    return f"Valuation: {component_name} ({label})"
 
 
 def _ledger_allocation_asset_class(account: Account) -> str:

@@ -10,7 +10,7 @@ from uuid import UUID, uuid5
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import AccountType
+from src.ledger import AccountType, worst_confidence_tier
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.reporting.base.types import PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -21,7 +21,6 @@ from src.reporting.extension.reporting_calc import (
     ReportError,
     _combine_provenance,
     _quantize_money,
-    _worst_confidence_tier,
 )
 
 logger = structlog.get_logger(__name__)
@@ -219,7 +218,7 @@ async def assemble_framework_balance_sheet(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = _worst_confidence_tier([c.get("confidence_tier") for c in contributors])
+        confidence_tier = worst_confidence_tier([c.get("confidence_tier") for c in contributors])
         provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {
@@ -323,7 +322,7 @@ async def assemble_framework_income_statement(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = _worst_confidence_tier([c.get("confidence_tier") for c in contributors])
+        confidence_tier = worst_confidence_tier([c.get("confidence_tier") for c in contributors])
         provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {

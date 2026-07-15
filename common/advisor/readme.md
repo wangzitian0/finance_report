@@ -64,6 +64,9 @@ invariant is P0 across all delivery tiers.
   `SceneBinding` from the `llm` config source (DB providers first, env
   fallback).  Best-effort: a broken per-user config falls back to the env
   model list rather than breaking the chat session.
+- **LLM consumption** — bound advisor calls use `llm.LLMClient` with
+  `Scene.ADVISOR_CHAT`; token estimation and worst-confidence ranking are
+  consumed from their `llm` and `ledger` owners, never redefined here.
 - **`ChatSessionRepository`** — the repository port (base) + SQL adapter
   (extension); currently raw `AsyncSession` — port/adapter split is a
   follow-up ([`todo.md`](./todo.md)).

@@ -48,6 +48,11 @@ balanced `Entry` and update the position's own aggregate in the same
 transaction — portfolio writes its own aggregate, ledger posts on receipt, no
 shared FK (Decision B). `post_sell` supports FIFO, LIFO, and AVGCOST lot
 consumption and never drives an open position's quantity below zero.
+The write boundary accepts three immutable input clusters: `TradeOrder`
+(quantity, unit price, fees, date and execution options), `TradeAccounts`
+(the participating ledger accounts), and `DividendEvent` (gross and withholding
+money in one currency). API/import adapters construct those values once before
+calling the service; the service no longer re-wraps a dozen primitive arguments.
 
 ## Read side (real — #1643)
 
