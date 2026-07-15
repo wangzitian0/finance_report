@@ -125,6 +125,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/llmSettingsPage.test.tsx` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/assets.md` |
+| `apps/frontend/src/__tests__/reportPackage.test.ts` | `apps/frontend/frontend-patterns.md` (#1868 S5 PR-C — pure helpers extracted from usePersonalReportPackage.ts) |
 | `apps/frontend/src/__tests__/reviewPages.test.tsx` | `common/extraction/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
