@@ -1898,7 +1898,7 @@ CONTRACT = PackageContract(
             statement="Hybrid scoring: calculate_match_score blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.",
             # was AC18.3.2
             test=(
-                "apps/backend/tests/reconciliation/test_ai_reconciliation.py"
+                "apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py"
                 "::test_calculate_match_score_applies_hybrid_ai_scoring"
             ),
             priority="P1",
@@ -1909,7 +1909,7 @@ CONTRACT = PackageContract(
             statement="Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, calculate_match_score never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.",
             # was AC18.3.3
             test=(
-                "apps/backend/tests/reconciliation/test_ai_reconciliation.py"
+                "apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py"
                 "::test_calculate_match_score_flag_off_skips_ai_scoring"
             ),
             priority="P1",

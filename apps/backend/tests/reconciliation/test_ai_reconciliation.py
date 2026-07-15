@@ -1,25 +1,17 @@
 """EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring.
 
-AC-reconciliation.1803.1 AC-reconciliation.1803.2 (formerly AC18.3.2/AC18.3.3):
-hybrid and feature-flagged AI scoring behavior, exercised end-to-end through
-``calculate_match_score`` (not just the lower-level ``ai_semantic_score``/
-``weighted_total`` helpers below).
+The ``calculate_match_score``-level hybrid/feature-flag behavior
+(AC-reconciliation.1803.1/.2, formerly AC18.3.2/AC18.3.3) lives in
+``test_reconciliation_hybrid_scoring.py`` instead of here — kept out of this
+file specifically so a package-wide LLM-test-marker scan (this file mocks
+``stream_ai_json`` directly) doesn't misclassify those two deterministic
+gating/formula ACs as LLM tests.
 """
 
-from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
-from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import Direction, JournalEntry, JournalLine
-from src.reconciliation import (
-    DEFAULT_CONFIG,
-    ReconciliationConfig,
-    ai_semantic_score,
-    calculate_match_score,
-    weighted_total,
-)
+from src.reconciliation import ReconciliationConfig, ai_semantic_score, weighted_total
 
 
 def _default_config() -> ReconciliationConfig:
@@ -229,99 +221,3 @@ def test_weighted_total_all_zeros():
     }
     total = weighted_total(scores, config)
     assert total == 0
-
-
-def _hybrid_band_txn_and_entry() -> tuple[AtomicTransaction, JournalEntry]:
-    """Build a transaction/entry pair whose pre-AI weighted total lands in [60, 84].
-
-    With ``DEFAULT_CONFIG`` weights (amount=0.40, date=0.25, description=0.20,
-    business=0.10, history=0.05) and ``history_score_override=0.0``:
-    - amount: exact match (100.00 == 100.00) -> ``score_amount`` = 100.0
-    - date: same day -> ``score_date`` = 100.0
-    - description: entry memo is empty -> ``score_description`` short-circuits to 0.0
-    - business: no account on the journal line -> ``score_business_logic`` falls
-      through to its neutral 40.0 branch for an "IN" transaction
-    - history: overridden to 0.0 (skips the DB-backed ``score_pattern`` call)
-
-    total = 100*0.40 + 100*0.25 + 0*0.20 + 40*0.10 + 0*0.05 = 40+25+0+4+0 = 69
-    """
-    txn = AtomicTransaction(
-        description="ZQXW MERCHANT PURCHASE",
-        amount=Decimal("100.00"),
-        txn_date=date(2024, 1, 1),
-        direction="IN",
-    )
-    entry = JournalEntry(
-        memo="",
-        entry_date=date(2024, 1, 1),
-        lines=[JournalLine(amount=Decimal("100.00"), direction=Direction.DEBIT)],
-    )
-    return txn, entry
-
-
-async def test_calculate_match_score_applies_hybrid_ai_scoring(monkeypatch, db) -> None:
-    """AC-reconciliation.1803.1: with ENABLE_AI_RECONCILIATION on and a pre-AI
-    weighted total in the 60-84 review band, calculate_match_score blends
-    70% algorithmic + 30% AI semantic score (also proves EPIC-018 AC18.3.2).
-    """
-    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "true")
-    txn, entry = _hybrid_band_txn_and_entry()
-
-    pre_ai_total = weighted_total(
-        {"amount": 100.0, "date": 100.0, "description": 0.0, "business": 40.0, "history": 0.0},
-        DEFAULT_CONFIG,
-    )
-    assert pre_ai_total == 69
-    assert 60 <= pre_ai_total <= 84, "fixture must land in the hybrid review band"
-
-    mock_response = '{"similarity_score": 90, "reasoning": "close enough"}'
-    mock_accumulate = AsyncMock(return_value=mock_response)
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch("src.llm.stream_ai_json", return_value=mock_stream),
-        patch("src.llm.accumulate_stream", mock_accumulate),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        candidate = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score_override=0.0)
-
-    expected_score = int(round(Decimal("0.7") * pre_ai_total + Decimal("0.3") * 90, 0))
-    assert expected_score == 75
-    assert candidate.score == expected_score
-    assert candidate.breakdown["hybrid_applied"] == 1.0
-    assert candidate.breakdown["ai_semantic"] == 90.0
-
-
-async def test_calculate_match_score_flag_off_skips_ai_scoring(monkeypatch, db) -> None:
-    """AC-reconciliation.1803.2: with ENABLE_AI_RECONCILIATION off, the hybrid
-    branch never runs — even when the pre-AI weighted total is in the 60-84
-    band that would otherwise trigger it — and the LLM is never called (also
-    proves EPIC-018 AC18.3.3).
-    """
-    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "false")
-    txn, entry = _hybrid_band_txn_and_entry()
-
-    mock_accumulate = AsyncMock(return_value='{"similarity_score": 90, "reasoning": "unused"}')
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch("src.llm.stream_ai_json", return_value=mock_stream) as mock_stream_ai_json,
-        patch("src.llm.accumulate_stream", mock_accumulate),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        candidate = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score_override=0.0)
-
-        mock_stream_ai_json.assert_not_called()
-        mock_accumulate.assert_not_called()
-
-    assert candidate.score == 69
-    assert "hybrid_applied" not in candidate.breakdown
-    assert "ai_semantic" not in candidate.breakdown
