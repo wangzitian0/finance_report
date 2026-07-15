@@ -499,12 +499,3 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-2-event-middle-layer`
-> **Vision Anchor**: `decision-filter-accuracy-auditability`
-
-## Macro Proof Ownership
-
-- `source-ledger-report-traceability`

@@ -150,21 +150,21 @@ def is_stub(ac: dict) -> bool:
     return str(ac.get("status", "")).lower() == "stub"
 
 
-def list_readme_files() -> list[Path]:
-    return sorted((_base.REPO_ROOT / "common").glob("*/readme.md"))
+def list_epic_files() -> list[Path]:
+    return sorted(
+        path
+        for path in _base.EPIC_DIR.glob("EPIC-*.md")
+        if EPIC_FILE_PATTERN.match(path.name)
+    )
 
 
 def parse_vision_anchors(vision_text: str) -> set[str]:
     return {m.group("slug") for m in HTML_ANCHOR_PATTERN.finditer(vision_text)}
 
 
-def parse_vision_anchors_from_readme(text: str) -> list[str]:
-    import re
-
-    return re.findall(
-        r"(?i)(?:>\s*)?(?:\*\*Vision Anchor\*\*|Vision Anchor)\s*:\s*`?([a-z0-9-]+)`?",
-        text,
-    )
+def parse_epic_anchor(epic_text: str) -> str | None:
+    match = VISION_ANCHOR_PATTERN.search(epic_text)
+    return match.group("slug") if match else None
 
 
 def collect_ac_refs_in_epics(epic_files: list[Path]) -> dict[str, set[str]]:

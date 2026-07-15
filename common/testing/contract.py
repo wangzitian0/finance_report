@@ -3958,30 +3958,7 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        ACRecord(
-            id="AC-testing.8.13.61",
-            epic=8,
-            epic_name="testing-strategy",
-            description="Future observability, visual regression, and performance gates",
-            mandatory=False,
-            status="dropped",
-        ),
-        ACRecord(
-            id="AC-testing.8.13.62",
-            epic=8,
-            epic_name="testing-strategy",
-            description="Test observability",
-            mandatory=False,
-            status="dropped",
-        ),
-        ACRecord(
-            id="AC-testing.8.13.63",
-            epic=8,
-            epic_name="testing-strategy",
-            description="Performance testing",
-            mandatory=False,
-            status="dropped",
-        ),
+
     ],
     concepts=[
         ConceptRecord(
@@ -4021,6 +3998,7 @@ CONTRACT = PackageContract(
                 "common/testing/ac_proof_execution.py",
                 "common/testing/ac_proof.py",
                 "common/testing/ac_graph.py",
+                "docs/project/EPIC-008.testing-strategy.md",
             ],
             proofs=["tests/tooling/test_ac_proof_execution_model.py"],
             family="delivery",
@@ -4149,6 +4127,7 @@ CONTRACT = PackageContract(
                 "review threads, and the documented severity classification rule."
             ),
             cross_refs=[
+                "docs/project/EPIC-008.testing-strategy.md",
                 ".github/workflows/ci.yml",
             ],
             proofs=["tests/tooling/test_check_pr_review_threads.py"],
@@ -4188,6 +4167,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "vision.md",
                 "common/extraction/readme.md",
+                "docs/project/EPIC-013.statement-parsing-v2.md",
             ],
             proofs=[
                 "tests/tooling/test_source_coverage_matrix.py",
@@ -4204,6 +4184,7 @@ CONTRACT = PackageContract(
                 "manifest entries."
             ),
             cross_refs=[
+                "docs/project/EPIC-014.ttd-transformation.md",
                 "common/meta/data/governance-exceptions.yaml",
                 "common/meta/extension/governance_report/_gate.py",
                 "tools/report_ssot_governance.py",
@@ -4221,6 +4202,7 @@ CONTRACT = PackageContract(
                 "and future gate candidates."
             ),
             cross_refs=[
+                "docs/project/EPIC-014.ttd-transformation.md",
                 "common/meta/extension/governance_report/_metrics.py",
                 "tools/report_ssot_governance.py",
                 "tests/tooling/test_ssot_governance_report.py",
@@ -4305,6 +4287,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "vision.md",
                 "common/testing/ac_graph.py",
+                "docs/project/EPIC-014.ttd-transformation.md",
                 ".github/workflows/ci.yml",
             ],
             proofs=[

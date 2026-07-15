@@ -1,4 +1,5 @@
 """The ``advisor`` package's machine-checkable :class:`PackageContract`.
+
 This is the authoritative spec the governance gate
 (``tools/check_package_contract.py``) validates the BE implementation against.
 The implementation physically lives at ``apps/backend/src/advisor`` (#1671
@@ -8,13 +9,17 @@ Wave B moved it out of ``apps/backend/src/services/ai_advisor``, absorbing
 applies. Every ``invariants[].test`` and ``roadmap[].test`` must resolve to a
 real test function; ``depends_on`` must not introduce a forbidden
 upward/sideways edge.
+
 ## What this package is
+
 The application-layer AI financial advisor (EPIC-006 / EPIC-021): a
 read-only conversational interface over the user's financial state.  The
 advisor **never writes a ledger number** — it only reads from the user's
 bounded context (reconciliation readiness, reporting summaries, portfolio
 positions) and streams a grounded, cited, disclaimer-tagged response.
+
 ## Boundaries (confirmed at cutover, 2026-07-06; physical move 2026-07-12)
+
 * **read-only guardrail** — every write/mutation request (`is_write_request`),
   every prompt-injection attempt (`is_prompt_injection`), and every
   sensitive-data request (`is_sensitive_request`) is refused before any LLM
@@ -35,7 +40,9 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
 * **session ownership** — a `ChatSession` is owned by exactly one user;
   once a session is closed it is immutable (the ARCHIVED lifecycle is a
   planned addition — `AC-advisor.session.1`).
+
 ## Cross-domain read edges
+
 ``depends_on`` mirrors the real import set: ``audit`` (money formatting),
 ``ledger`` (Account/AccountType/journal-line reads for the annualized-income
 schedule and category context — registered as advisor's dependency once
@@ -54,7 +61,9 @@ through the ``app_reads`` injection port; the edge gets declared when the
 fold lands and the port collapses into a published-root import.  ``config``
 was folded into ``runtime`` (#1669) — the flat ``src.config`` module is
 shared infra, imported as the bare root.
+
 ## God-file → phase split (follow-up scope)
+
 ``extension/service.py`` (~860 lines) is still to be split into
 ``phases/{context_aggregation,prompt_construction,response_streaming}.py``;
 ``base/guardrails.py`` is already separate.  Until then the units are
@@ -63,6 +72,7 @@ placement checks for units without a module path, per the package model.
 """
 
 from __future__ import annotations
+
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
@@ -1243,11 +1253,10 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-advisor.6.34.1",
-            epic=6,
-            epic_name="ai-advisor",
-            description="AI advisor capability",
-            mandatory=False,
-            status="dropped",
+            statement="AI advisor capability (DROPPED)",
+            test="TODO",
+            priority="P0",
+            status="done",
         ),
     ],
     concepts=[
@@ -1264,6 +1273,7 @@ CONTRACT = PackageContract(
                 "common/platform/workflow-events.md",
                 "common/testing/data/source-coverage-matrix.yaml",
                 "common/pricing/market_data.md",
+                "docs/project/EPIC-021.application-ai-advisor.md",
             ],
         ),
     ],

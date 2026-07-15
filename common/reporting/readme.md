@@ -609,16 +609,3 @@ generate converted totals for foreign-currency data without a real FX rate
 or explicit partial warning; never double-count a broker account by adding
 both its ledger cost and full market value; never let posted
 `FX_REVALUATION` entries change native foreign-currency balances.
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-filter-accuracy-auditability`
-> **Vision Anchor**: `non-goals-not-budgeting-app`
-
-## Macro Proof Ownership
-
-- `annualized-income-long-term`
-- `asset-distribution-net-worth`
-- `investment-performance`
-- `monthly-income-spending`
-- `personal-financial-report-package`

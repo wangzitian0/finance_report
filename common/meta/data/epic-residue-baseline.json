@@ -1,0 +1,59 @@
+{
+  "_comment": "EPIC residue ratchet baseline (tests/tooling/test_epic_residue_ratchet.py, AC-meta.residue.1, #1719). Per docs/project/EPIC-*.md file: the count of AC definition lines per residue category (<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->). CI enforces census == baseline and a shrink-only EPIC file set: adding residue or a new EPIC file requires editing this file in the same PR (reviewable consent); migrating or deleting rows must prune it so the burndown stays visible.",
+  "version": 1,
+  "files": {
+    "EPIC-001.phase0-setup.md": {
+      "horizontal": 1
+    },
+    "EPIC-002.double-entry-core.md": {},
+    "EPIC-003.statement-parsing.md": {},
+    "EPIC-004.reconciliation-engine.md": {
+      "horizontal": 2
+    },
+    "EPIC-005.reporting-visualization.md": {
+      "pending-package": 1
+    },
+    "EPIC-006.ai-advisor.md": {
+      "pending-package": 1
+    },
+    "EPIC-007.deployment.md": {
+      "horizontal": 31
+    },
+    "EPIC-008.testing-strategy.md": {
+      "horizontal": 3
+    },
+    "EPIC-010.observability-logging.md": {},
+    "EPIC-011.asset-lifecycle.md": {},
+    "EPIC-012.foundation-libs.md": {
+      "horizontal": 6
+    },
+    "EPIC-013.statement-parsing-v2.md": {},
+    "EPIC-014.ttd-transformation.md": {},
+    "EPIC-015.processing-account.md": {
+      "pending-package": 1
+    },
+    "EPIC-016.two-stage-review-ui.md": {
+      "fe-only": 4,
+      "horizontal": 1
+    },
+    "EPIC-017.portfolio-management.md": {
+      "pending-package": 1
+    },
+    "EPIC-018.ai-driven-pipeline.md": {},
+    "EPIC-019.event-driven-upload-to-report-ux.md": {
+      "fe-half": 1
+    },
+    "EPIC-020.framework-aware-personal-reporting.md": {},
+    "EPIC-021.application-ai-advisor.md": {
+      "horizontal": 1
+    },
+    "EPIC-022.everyday-user-ia.md": {},
+    "EPIC-022.pwa-bottom-tab-ia.design.md": {},
+    "EPIC-023.llm-provider-abstraction.md": {},
+    "EPIC-024.frontend-observability.md": {},
+    "EPIC-025.dry-ssot-simplification.md": {},
+    "EPIC-026.ac-authority-tiers.md": {
+      "horizontal": 1
+    }
+  }
+}

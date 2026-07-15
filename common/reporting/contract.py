@@ -2930,14 +2930,7 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        ACRecord(
-            id="AC-reporting.5.37.2",
-            epic=5,
-            epic_name="reporting-visualization",
-            description="Reporting visualization capability",
-            mandatory=False,
-            status="dropped",
-        ),
+
     ],
     concepts=[
         ConceptRecord(
@@ -2950,6 +2943,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/reporting/reporting.md",
                 "common/ledger/readme.md",
+                "docs/project/EPIC-020.framework-aware-personal-reporting.md",
             ],
         ),
         ConceptRecord(

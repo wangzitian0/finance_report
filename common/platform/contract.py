@@ -1188,38 +1188,6 @@ CONTRACT = PackageContract(
             priority="P1",
             status="open",
         ),
-        ACRecord(
-            id="AC-platform.12.24.1",
-            epic=12,
-            epic_name="foundation-libs",
-            description="metrics endpoint returns 200 OK (deferred)",
-            mandatory=False,
-            status="dropped",
-        ),
-        ACRecord(
-            id="AC-platform.12.24.2",
-            epic=12,
-            epic_name="foundation-libs",
-            description="metrics endpoint returns text/plain (deferred)",
-            mandatory=False,
-            status="dropped",
-        ),
-        ACRecord(
-            id="AC-platform.12.24.3",
-            epic=12,
-            epic_name="foundation-libs",
-            description="metrics response contains Prometheus data (deferred)",
-            mandatory=False,
-            status="dropped",
-        ),
-        ACRecord(
-            id="AC-platform.12.25.1",
-            epic=12,
-            epic_name="foundation-libs",
-            description="UUID logging formatting (doc-governance self-check)",
-            mandatory=False,
-            status="dropped",
-        ),
     ],
     concepts=[
         ConceptRecord(
@@ -1227,6 +1195,7 @@ CONTRACT = PackageContract(
             owner="common/platform/workflow-events.md",
             description="User-facing upload-to-report workflow event read model.",
             cross_refs=[
+                "docs/project/EPIC-019.event-driven-upload-to-report-ux.md",
                 "common/extraction/confirmation-workflow.md",
                 "common/reporting/reporting.md",
             ],

@@ -608,7 +608,3 @@ matrix + the classifier's `band` / `classify_repo` / `BANDS`.
   `PackageTier` and the proof matrix (`PackageContract` imports it).
 - [`../extraction/readme.md`](../extraction/readme.md) — a domain
   where LLM-LED/LLM-ONLY behaviors concentrate.
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-7-tech-stack`

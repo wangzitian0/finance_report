@@ -273,15 +273,3 @@ the platform must use fallback text.
 | Sanitized real-format contracts and generated-PDF parity checks | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
 | CLI branches and validator behavior | `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 | E2E consumers | `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, `tests/e2e/test_personal_financial_report_package.py` |
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-filter-accuracy-auditability`
-
-## Macro Proof Ownership
-
-- `asset-distribution-net-worth`
-- `investment-performance`
-- `monthly-income-spending`
-- `personal-financial-report-package`
-- `source-ledger-report-traceability`

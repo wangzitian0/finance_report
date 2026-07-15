@@ -220,14 +220,3 @@ proxy for position-snapshot-only imports; always record `position_metadata`
 (JSONB) for the source-data audit trail; never delete positions — mark
 `DISPOSED` instead; never assume a `managed_position.py` module — the
 model lives in `layer3.py`.
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-1-portfolio-self-developed`
-
-## Macro Proof Ownership
-
-- `annualized-income-long-term`
-- `asset-distribution-net-worth`
-- `investment-performance`
-- `personal-financial-report-package`

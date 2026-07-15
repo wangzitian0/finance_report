@@ -270,15 +270,3 @@ disclaimer.
 - **Cached common Q&A**: normalize the user question and language → check
   the cache before calling the LLM → store responses with a TTL to reduce
   cost (see [Cache](#cache) above).
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-2-event-middle-layer`
-> **Vision Anchor**: `decision-4-two-stage-review`
-> **Vision Anchor**: `decision-filter-accuracy-auditability`
-> **Vision Anchor**: `non-goals-not-robo-advisor`
-
-## Macro Proof Ownership
-
-- `personal-financial-report-package`
-- `source-ledger-report-traceability`

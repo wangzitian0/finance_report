@@ -150,7 +150,3 @@ The package publishes (`contract.interface`) the `base` value language + manifes
 `ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
 `boot.Bootloader` delegates its checks to the adapters. See [`todo.md`](./todo.md)
 for the remaining enforcement work.
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-7-tech-stack`

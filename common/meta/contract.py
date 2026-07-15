@@ -1,9 +1,11 @@
 """The ``meta`` package's own :class:`PackageContract`.
+
 The package model self-hosts: the meta package that *defines* what a package is
 (``PackageContract`` / ``ACRecord`` / ``Invariant`` / ``Unit`` / ``Kind`` and the
 ``check_package_contract`` gate) is itself a package, with a ``readme.md`` (the
 package-model spec), this ``contract.py``, and a ``todo.md``. It is discovered
 and validated by the very gate it ships, so the model proves itself.
+
 meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension``
 / ``data`` layers it governs, and declares its DDD building-block ``units`` (the
 ``PackageContract`` aggregate root + its value objects in ``base``, the gate as a
@@ -13,6 +15,7 @@ published language is ``common/meta/__init__.py``'s ``__all__``.
 """
 
 from __future__ import annotations
+
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
@@ -549,6 +552,7 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+
         # ── migrated from EPIC-014 (TTD transformation), migration closeout
         # wave 2 (#1663): foundational dev-tooling gates. Was AC14.1.1-.5. ──
         ACRecord(
@@ -1342,6 +1346,14 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.fe-http-client.1",
+            statement="`apiFetch` returns JSON on `200` response",
+            # was AC16.10.1
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.1 returns JSON on 200 response",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.fe-app-shell.1",
             statement="Ping-pong page loads initial state and displays current ping/pong value",
             # was AC16.12.8
@@ -1355,6 +1367,14 @@ CONTRACT = PackageContract(
             # was AC16.6.2
             test="apps/frontend/src/__tests__/date.test.ts::AC16.6.2 formats a Date object to en-US short date",
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.fe-http-client.2",
+            statement="`apiFetch` returns `undefined` on `204 No Content`",
+            # was AC16.10.2
+            test="apps/frontend/src/__tests__/apiFunctions.test.ts::AC16.10.2 returns undefined on 204 No Content",
+            priority="P2",
             status="done",
         ),
         ACRecord(
@@ -2176,330 +2196,6 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
-        ACRecord(
-            id="AC-meta.17.7.6",
-            statement="Frontend test mounts HoldingDetailPage, switches to Dividends tab, and asserts dividend row labels render",
-            test="TODO",
-            epic=17,
-            epic_name="portfolio-management",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.21.1.1",
-            statement="EPIC-021 and AI SSOT define AI Advisor as a read-only application layer that consumes deterministic application facts and is not the source of record {tier:CODE-ONLY}",
-            test="TODO",
-            epic=21,
-            epic_name="application-ai-advisor",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.1.1",
-            statement="Infra2 submodule exists",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.1.2",
-            statement="Finance_report directory structure",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.1.3",
-            statement="README documentation exists",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.2.1",
-            statement="PostgreSQL container configured",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.2.2",
-            statement="Vault-agent sidecar present",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.2.3",
-            statement="Vault policy for postgres",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.2.4",
-            statement="Secrets template for postgres",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.2.5",
-            statement="PostgresDeployer class exists",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.3.1",
-            statement="Redis container configured",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.3.2",
-            statement="Vault-agent sidecar present",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.3.3",
-            statement="Vault policy for redis",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.3.4",
-            statement="Secrets template for redis",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.3.5",
-            statement="RedisDeployer class exists",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.1",
-            statement="App container configured",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.2",
-            statement="Vault-agent sidecar present",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.3",
-            statement="Vault policy for app",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.4",
-            statement="Secrets template for app",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.5",
-            statement="Traefik labels for domain",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.4.6",
-            statement="AppDeployer class exists",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.5.1",
-            statement="DATABASE_URL in Vault",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.5.2",
-            statement="REDIS_URL in Vault",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.5.3",
-            statement="S3_* keys in Vault",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.5.4",
-            statement="ZAI_API_KEY in Vault",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.5.5",
-            statement="Vault AppRole creds provisioned",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.6.2",
-            statement="Required secrets documented",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.1",
-            statement="PostgreSQL healthy (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.2",
-            statement="Redis healthy (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.3",
-            statement="App healthy (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.4",
-            statement="Domain accessible (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.5",
-            statement="API functional (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.7.9.6",
-            statement="Secrets in Vault (manual)",
-            test="TODO",
-            epic=7,
-            epic_name="deployment",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.4.8.1",
-            statement="Archive baseline benchmark residual is explicitly owned by EPIC-004 until synthetic accuracy and performance proof exists",
-            test="TODO",
-            epic=4,
-            epic_name="reconciliation-engine",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.12.22.1",
-            statement="Move 6 inline schemas from statements router to review module",
-            test="TODO",
-            epic=12,
-            epic_name="foundation-libs",
-            priority="P1",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-meta.12.22.2",
-            statement="Extract background task schemas from inline/background definitions into dedicated modules",
-            test="TODO",
-            epic=12,
-            epic_name="foundation-libs",
-            priority="P1",
-            status="open",
-        ),
     ],
     concepts=[
         ConceptRecord(
@@ -2560,6 +2256,7 @@ CONTRACT = PackageContract(
                 "common/testing/tdd.md",
                 "common/llm/ai.md",
                 "common/extraction/readme.md",
+                "docs/project/EPIC-026.ac-authority-tiers.md",
                 "common/meta/data/ac-tier-baseline.json",
                 "common/meta/extension/generate_ac_registry.py",
                 "common/meta/base/authority_matrix.py",
@@ -2587,6 +2284,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/ci-cd.md",
+                "docs/project/EPIC-008.testing-strategy.md",
                 ".github/workflows/ci.yml",
             ],
             proofs=["tests/tooling/test_ci_gate_inventory.py"],
@@ -2605,6 +2303,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/extraction/readme.md",
                 "common/reconciliation/reconciliation.md",
+                "docs/project/EPIC-011.asset-lifecycle.md",
             ],
             family="schema",
         ),
@@ -2642,6 +2341,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/testing/ci-cd.md",
                 "common/runtime/environments.md",
+                "docs/project/EPIC-008.testing-strategy.md",
                 ".github/workflows/preview.yml",
                 ".github/workflows/deploy.yml",
                 ".github/workflows/deploy.yml",
@@ -2722,6 +2422,30 @@ CONTRACT = PackageContract(
                 ".pre-commit-config.yaml",
             ],
             family="development",
+        ),
+        ConceptRecord(
+            key="epic_residue_baseline",
+            owner="common/meta/data/epic-residue-baseline.json",
+            description=(
+                "Ratchet census of the post-migration EPIC residue (#1719) - per "
+                "docs/project/EPIC-*.md file, the count of AC definition lines per explicit "
+                "residue category (fe-only / fe-half / horizontal / pending-package, single "
+                "vocabulary source common/meta/extension/generate_ac_registry.py "
+                "EPIC_RESIDUE_CATEGORIES); CI enforces unmarked EPIC AC rows == 0 (the "
+                "umbrella scoreboard metric), census == baseline so residue growth is a "
+                "same-PR reviewable baseline edit, a shrink-only EPIC file set, and an "
+                "explicit design-doc/goal-stub justification on every zero-row EPIC file "
+                "(AC-meta.residue.1)."
+            ),
+            cross_refs=[
+                "tests/tooling/test_epic_residue_ratchet.py",
+                "common/meta/extension/generate_ac_registry.py",
+                "common/meta/migration-standard.md",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
         ),
         ConceptRecord(
             key="fk_cascade_baseline",
@@ -2815,6 +2539,7 @@ CONTRACT = PackageContract(
                 "common/identity/contract.py",
                 "apps/backend/src/identity/__init__.py",
                 "common/ledger/contract.py",
+                "docs/project/EPIC-025.dry-ssot-simplification.md",
             ],
             proofs=["tests/tooling/test_counter_package.py"],
             family="platform",

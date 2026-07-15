@@ -173,6 +173,8 @@ def load_epic_anchor_map(epic_dir: Path = EPIC_DIR) -> dict[str, list[str]]:
             if not _EPIC_ANCHOR_LABEL_RE.search(line):
                 idx += 1
                 continue
+            # Capture anchors from the label line plus any wrapped continuation
+            # blockquote lines that do not start a new labelled field.
             for anchor in _BACKTICK_ANCHOR_RE.findall(line):
                 mapping[anchor].add(epic_id)
             follow = idx + 1
@@ -185,31 +187,6 @@ def load_epic_anchor_map(epic_dir: Path = EPIC_DIR) -> dict[str, list[str]]:
                     mapping[anchor].add(epic_id)
                 follow += 1
             idx = follow
-
-    repo_root = epic_dir.parent.parent
-    for readme_path in repo_root.glob("common/*/readme.md"):
-        pkg_name = readme_path.parent.name
-        epic_id = f"pkg-{pkg_name}"
-        lines = readme_path.read_text(encoding="utf-8").splitlines()
-        idx = 0
-        while idx < len(lines):
-            line = lines[idx]
-            if not _EPIC_ANCHOR_LABEL_RE.search(line):
-                idx += 1
-                continue
-            for anchor in _BACKTICK_ANCHOR_RE.findall(line):
-                mapping[anchor].add(epic_id)
-            follow = idx + 1
-            while (
-                follow < len(lines)
-                and _BLOCKQUOTE_LINE_RE.match(lines[follow])
-                and not _NEW_LABEL_LINE_RE.match(lines[follow])
-            ):
-                for anchor in _BACKTICK_ANCHOR_RE.findall(lines[follow]):
-                    mapping[anchor].add(epic_id)
-                follow += 1
-            idx = follow
-
     return {anchor: sorted(epics) for anchor, epics in mapping.items()}
 
 
@@ -286,10 +263,10 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     acs = _load_registry_acs(_registry_paths(repo_root))
     test_refs = collect_real_test_refs(repo_root)
 
-    # Index ACs by EPIC name for fast lookup.
-    acs_by_epic: dict[str, list[str]] = defaultdict(list)
+    # Index ACs by EPIC number for fast EPIC -> AC lookup.
+    acs_by_epic: dict[int, list[str]] = defaultdict(list)
     for ac_id, meta in acs.items():
-        acs_by_epic[str(meta.get("epic_name", ""))].append(ac_id)
+        acs_by_epic[int(meta["epic"])].append(ac_id)
 
     nodes: list[dict[str, Any]] = []
     # Only emit nodes for anchors that exist in vision.md (the source of truth).
@@ -297,7 +274,7 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         owner_epics = epic_map.get(anchor, [])
         node_acs: list[dict[str, Any]] = []
         for epic_id in owner_epics:
-            for ac_id in sorted(acs_by_epic.get(epic_id, []), key=sort_key):
+            for ac_id in sorted(acs_by_epic.get(_epic_num(epic_id), []), key=sort_key):
                 node_acs.append(
                     {
                         "id": ac_id,

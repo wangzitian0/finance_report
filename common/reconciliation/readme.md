@@ -317,11 +317,3 @@ pending --> flagged: Needs manual review
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
-
-## Vision Anchors
-
-> **Vision Anchor**: `decision-4-two-stage-review`
-
-## Macro Proof Ownership
-
-- `source-ledger-report-traceability`
