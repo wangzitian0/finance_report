@@ -73,11 +73,7 @@ def _is_package_contract_call(value: ast.expr) -> bool:
     if not isinstance(value, ast.Call):
         return False
     func = value.func
-    if isinstance(func, ast.Name):
-        return func.id == "PackageContract"
-    if isinstance(func, ast.Attribute):
-        return func.attr == "PackageContract"
-    return False
+    return isinstance(func, ast.Name) and func.id == "PackageContract"
 
 
 def _declares_discoverable_contract(contract_path: Path) -> bool:

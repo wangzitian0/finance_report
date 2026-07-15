@@ -110,7 +110,7 @@ def test_contract_file_with_wrong_contract_type_is_rejected(tmp_path: Path) -> N
     ]
 
 
-def test_annotated_contract_export_passes(tmp_path: Path) -> None:
+def test_annotated_contract_export_is_discoverable(tmp_path: Path) -> None:
     """An annotated module-level package contract remains discoverable."""
     pkg = tmp_path / "common" / "widgets"
     pkg.mkdir(parents=True)
