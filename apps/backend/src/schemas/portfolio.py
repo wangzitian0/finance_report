@@ -5,8 +5,9 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
+from src.extraction import reject_json_floats
 from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
 from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
 from src.schemas.provenance import DataProvenance
@@ -264,6 +265,12 @@ class BrokerageImportRequest(BaseModel):
     payload: dict
     filename: str | None = None
     source_document_id: str | None = None
+
+    @field_validator("payload")
+    @classmethod
+    def _payload_carries_no_floats(cls, value: dict) -> dict:
+        reject_json_floats(value, "payload")
+        return value
 
 
 class BrokerageImportResponse(BaseModel):

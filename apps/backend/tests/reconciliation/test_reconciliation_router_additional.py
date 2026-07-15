@@ -473,7 +473,7 @@ async def test_accept_match_already_accepted_is_idempotent(db: AsyncSession, tes
     await db.commit()
 
     # Second accept should be idempotent
-    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    result = await accept_match_service(db, match.id, user_id=test_user.id)
 
     assert result.status == ReconciliationStatus.ACCEPTED
 
@@ -566,7 +566,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     await db.commit()
 
     with pytest.raises(ValueError, match="Amount mismatch"):
-        await accept_match_service(db, str(match.id), user_id=test_user.id)
+        await accept_match_service(db, match.id, user_id=test_user.id)
 
 
 async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user) -> None:
@@ -612,12 +612,12 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
     db.add(match)
     await db.commit()
 
-    result = await accept_match_service(db, str(match.id), user_id=test_user.id)
+    result = await accept_match_service(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
 
 
-async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, test_user) -> None:
-    """Accept match with skip_amount_validation=True should bypass validation."""
+async def test_accept_match_amount_check_cannot_be_bypassed(db: AsyncSession, test_user) -> None:
+    """AC-reconciliation.review-hardening.2: mismatched amounts always raise (#1864)."""
     from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 
     statement = await _create_statement(db, test_user.id)
@@ -637,7 +637,7 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
     db.add(entry)
     await db.flush()
 
-    # Entry amount is $50, but we skip validation
+    # Entry amount is $50 vs a $100 transaction — a real mismatch
     db.add(
         JournalLine(
             journal_entry_id=entry.id,
@@ -659,9 +659,9 @@ async def test_accept_match_skip_validation_bypasses_check(db: AsyncSession, tes
     db.add(match)
     await db.commit()
 
-    # Should succeed with skip_amount_validation=True
-    result = await accept_match_service(db, str(match.id), user_id=test_user.id, skip_amount_validation=True)
-    assert result.status == ReconciliationStatus.ACCEPTED
+    # $50 entry vs $100 transaction: validation is unconditional, so this raises.
+    with pytest.raises(ValueError, match="Amount mismatch"):
+        await accept_match_service(db, match.id, user_id=test_user.id)
 
 
 async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user) -> None:

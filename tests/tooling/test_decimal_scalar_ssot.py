@@ -42,6 +42,10 @@ def _assert_layer_shares_one_codec(layer_root: str, import_prefix: str) -> None:
     }
     core_modules = {
         "money": f"{layer_root}/audit/money/money.py",
+        # exchange_rate escaped the original list and re-inlined the _coerce
+        # body (#1864 S1 backfill) — every construction-time coercion in the
+        # money package routes through the shared codec.
+        "money.exchange_rate": f"{layer_root}/audit/money/exchange_rate.py",
         "quantity": f"{layer_root}/audit/quantity/quantity.py",
         "ratio": f"{layer_root}/audit/ratio/ratio.py",
         "unit_price": f"{layer_root}/audit/unit_price/unit_price.py",

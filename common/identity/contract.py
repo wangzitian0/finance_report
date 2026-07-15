@@ -629,5 +629,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── group ai-suggestions: the AiFeedback review surface (#1864 S1) ──
+        ACRecord(
+            id="AC-identity.ai-suggestions.1",
+            statement=(
+                "``GET /ai/suggestions`` enforces a bounded page "
+                "size: ``limit`` is declared with ``ge=1, le=200`` and an "
+                "over-limit request is rejected with 422 instead of being "
+                "accepted unbounded (#1864 S1)."
+            ),
+            test=(
+                "apps/backend/tests/api/test_ai_feedback_router.py"
+                "::test_AC_ai_suggestions_1_list_rejects_unbounded_limit"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
 )

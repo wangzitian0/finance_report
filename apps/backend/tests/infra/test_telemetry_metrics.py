@@ -390,7 +390,9 @@ def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:
 
     assert "refreshed.status = BankStatementStatus.REJECTED" in source
     assert '"statement.parse.failed"' in source
-    assert "safe_error_message=_safe_error_message(message)" in source
+    # #1864 S1: the failure log's safe_error_message field routes through the
+    # PII-redacting sanitizer (None-preserving wrapper around safe_error_message).
+    assert "safe_error_message=_redacted(message, limit=300)" in source
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:

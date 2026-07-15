@@ -15,6 +15,26 @@ from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 
 
+def reject_json_floats(value: object, path: str) -> None:
+    """Reject JSON floats anywhere in an import payload (money wire policy).
+
+    ``bool``/``int`` stay allowed (exact); a float anywhere in the brokerage
+    payload would launder IEEE-754 precision into position quantities or
+    market values via the importer's ``str(value)`` coercion (#1864 S1,
+    AC-portfolio.brokerage-import.10). Iterative (explicit stack) so a deeply
+    nested payload cannot trigger ``RecursionError``.
+    """
+    stack: list[tuple[object, str]] = [(value, path)]
+    while stack:
+        current, at = stack.pop()
+        if isinstance(current, float):
+            raise ValueError(f"{at}: JSON floats are not allowed; encode amounts as decimal strings")
+        if isinstance(current, dict):
+            stack.extend((item, f"{at}.{key}") for key, item in current.items())
+        elif isinstance(current, list):
+            stack.extend((item, f"{at}[{index}]") for index, item in enumerate(current))
+
+
 def _brokerage_payload_from_statement(
     statement: StatementSummary,
     transactions: list[AtomicTransaction],

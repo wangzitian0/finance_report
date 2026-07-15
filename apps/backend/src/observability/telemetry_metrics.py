@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import src.config
+from src.observability.audit import safe_error_message
 from src.observability.logger import get_logger
 
 # Bound from the bare published root (see logger.py; config publishes no names).
@@ -196,15 +197,6 @@ def increment_async_parse_in_flight(delta: int = 1) -> None:
     set_async_parse_in_flight(_async_parse_in_flight + delta)
 
 
-def _safe_error_message(message: str | None, *, limit: int = 300) -> str | None:
-    if not message:
-        return message
-    compact = " ".join(str(message).split())
-    if len(compact) <= limit:
-        return compact
-    return f"{compact[:limit]}..."
-
-
 def record_async_parse_failure(*, error_type: str, task_name: str = "statement_parse") -> None:
     counter = _instruments.get("async_parse_failure")
     if counter is not None:
@@ -232,7 +224,7 @@ async def run_with_async_parse_tracking(
             request_id=request_id,
             task_name=task_name,
             error_type=error_type,
-            safe_error_message=_safe_error_message(str(exc)),
+            safe_error_message=safe_error_message(str(exc)),
         )
         raise
     finally:

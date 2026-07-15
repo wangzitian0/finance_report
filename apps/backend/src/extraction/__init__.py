@@ -58,6 +58,7 @@ from src.extraction.extension.brokerage_statement_payload import (
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
+    reject_json_floats,
 )
 from src.extraction.extension.correction_loop import CorrectionLoopService
 from src.extraction.extension.correction_service import (
@@ -197,6 +198,7 @@ __all__ = [
     "TransactionDirection",
     "UploadedDocument",
     "_brokerage_import_not_ready_reason",
+    "reject_json_floats",
     "_brokerage_payload_from_persisted_extraction",
     "_brokerage_payload_from_statement",
     "approve_statement_workflow",

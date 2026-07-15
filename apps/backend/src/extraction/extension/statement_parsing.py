@@ -19,7 +19,7 @@ from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocu
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.observability import get_logger, record_statement_parse_outcome
+from src.observability import get_logger, record_statement_parse_outcome, safe_error_message
 from src.runtime import StorageError, StorageService
 
 if TYPE_CHECKING:
@@ -28,8 +28,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _safe_error_message(message: str | None) -> str | None:
-    return message[:500] if message else message
+def _redacted(message: str | None, *, limit: int = 500) -> str | None:
+    """PII-redact and bound failure text, preserving ``None`` (no error)."""
+    return safe_error_message(message, limit=limit) if message else None
 
 
 def _count_brokerage_positions(payload: dict[str, Any] | None) -> int | None:
@@ -134,7 +135,7 @@ async def route_brokerage_for_review_if_present(
             phase="brokerage_review_routing_failed",
             model_to_use=model_to_use,
             error_type=type(exc).__name__,
-            safe_error_message=_safe_error_message(str(exc)),
+            safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
         refreshed = await db.get(StatementSummary, summary.id)
@@ -268,7 +269,7 @@ async def handle_parse_failure(
         except Exception as id_exc:
             logger.warning(
                 "Could not read statement id before rollback; will retry after rollback",
-                original_error=message,
+                original_error=_redacted(message),
                 id_error=str(id_exc),
             )
     try:
@@ -287,7 +288,7 @@ async def handle_parse_failure(
         except Exception as id_exc:
             logger.error(
                 "Could not resolve statement id in parse failure handler",
-                original_error=message,
+                original_error=_redacted(message),
                 id_error=str(id_exc),
             )
             return
@@ -297,11 +298,11 @@ async def handle_parse_failure(
             logger.error(
                 "Statement not found after rollback",
                 statement_id=str(statement_id),
-                reason=message,
+                reason=_redacted(message),
             )
             return
         refreshed.status = BankStatementStatus.REJECTED
-        refreshed.validation_error = message[:500] if message else message
+        refreshed.validation_error = _redacted(message)
         refreshed.confidence_score = 0
         refreshed.balance_validated = False
         if file_hash and storage_key:
@@ -322,7 +323,7 @@ async def handle_parse_failure(
             progress=progress,
             model_to_use=model_to_use,
             error_type=error_type,
-            safe_error_message=_safe_error_message(message),
+            safe_error_message=_redacted(message, limit=300),
         )
         # AC-observability.10.4: business metric for the parse outcome (failure path).
         record_statement_parse_outcome(outcome="failure")
@@ -330,7 +331,7 @@ async def handle_parse_failure(
         logger.exception(
             "Failed to mark statement as rejected",
             statement_id=str(statement_id),
-            original_error=message,
+            original_error=_redacted(message),
             inner_error=str(inner_exc),
         )
 

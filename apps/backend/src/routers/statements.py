@@ -37,7 +37,7 @@ from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.llm import LitellmCatalog, Modality
-from src.observability import ErrorIds, get_logger
+from src.observability import ErrorIds, get_logger, safe_error_message
 from src.platform import (
     get_owned_or_404,
     raise_bad_request,
@@ -88,10 +88,6 @@ def _current_request_id() -> str | None:
     generated = str(uuid4())
     structlog.contextvars.bind_contextvars(request_id=generated)
     return generated
-
-
-def _safe_error_message(message: str | None) -> str | None:
-    return message[:500] if message else message
 
 
 async def _resolve_uploaded_document(
@@ -351,7 +347,7 @@ async def upload_statement(
             file_size_bytes=len(content),
             file_hash_prefix=file_hash_prefix,
             error_type=type(exc).__name__,
-            safe_error_message=_safe_error_message(str(exc)),
+            safe_error_message=safe_error_message(str(exc)),
         )
         raise_service_unavailable(str(exc), cause=exc)
     logger.info(
@@ -658,7 +654,7 @@ async def import_brokerage_statement_positions(
             phase="brokerage_import_failed",
             model_to_use=None,
             error_type=type(exc).__name__,
-            safe_error_message=_safe_error_message(str(exc)),
+            safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
         raise

@@ -15,7 +15,7 @@ from src.extraction import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Direction, JournalEntry
-from src.observability import get_logger, log_financial_mutation
+from src.observability import get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
     ReconciliationMatch,
@@ -55,10 +55,6 @@ def _current_request_id() -> str:
     generated = str(uuid4())
     structlog.contextvars.bind_contextvars(request_id=generated)
     return generated
-
-
-def _safe_error_message(message: str | None) -> str | None:
-    return message[:500] if message else message
 
 
 def _unmatched_atomic_txn_query():
@@ -220,7 +216,7 @@ async def run_reconciliation(
             model_to_use=None,
             limit=payload.limit,
             error_type=type(exc).__name__,
-            safe_error_message=_safe_error_message(str(exc)),
+            safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
         raise
@@ -346,7 +342,7 @@ async def accept_match(
     user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
-        match = await accept_match_service(db, str(match_id), user_id=user_id)
+        match = await accept_match_service(db, match_id, user_id=user_id)
         await db.commit()
     except ValueError as exc:
         if "not found" in str(exc).lower():

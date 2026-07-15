@@ -47,18 +47,20 @@ async def get_pending_items(
 
 async def accept_match(
     db: AsyncSession,
-    match_id: str,
+    match_id: UUID,
     *,
     user_id: UUID,
-    skip_amount_validation: bool = False,
 ) -> ReconciliationMatch:
     """Accept a pending reconciliation match.
+
+    Amount validation is unconditional: entry balance validation is never
+    skippable (red line; the former ``skip_amount_validation`` flag had zero
+    production callers and existed only to bypass it — removed in #1864).
 
     Args:
         db: Database session
         match_id: ID of the match to accept
         user_id: User ID for authorization
-        skip_amount_validation: If True, skip amount sum validation (for edge cases)
 
     Raises:
         ValueError: If match not found or amount validation fails
@@ -97,7 +99,7 @@ async def accept_match(
             match.journal_entry_ids = [str(created_entry.id)]
 
     # Validate that journal entry amounts match transaction amount
-    if match.journal_entry_ids and txn and not skip_amount_validation:
+    if match.journal_entry_ids and txn:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
         entries_result = await db.execute(
             select(JournalEntry)
@@ -199,7 +201,7 @@ async def batch_accept(
 
     accepted: list[ReconciliationMatch] = []
     for match in matches:
-        accepted.append(await accept_match(db, str(match.id), user_id=user_id))
+        accepted.append(await accept_match(db, match.id, user_id=user_id))
 
     await db.flush()
     return accepted

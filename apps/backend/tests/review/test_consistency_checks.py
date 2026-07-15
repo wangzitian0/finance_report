@@ -629,3 +629,12 @@ class TestGetPendingChecksEdgeCases:
         result = await get_pending_checks(db, user_id, severity="high")
         assert len(result) == 1
         assert result[0].id == high_check.id
+
+
+async def test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit(client):
+    """AC-reconciliation.consistency-checks.10: over-limit page size → 422 (#1864)."""
+    response = await client.get("/statements/consistency-checks/list", params={"limit": 10_000})
+    assert response.status_code == 422
+
+    response = await client.get("/statements/consistency-checks/list", params={"limit": 0})
+    assert response.status_code == 422

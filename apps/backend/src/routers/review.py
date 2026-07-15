@@ -1,8 +1,9 @@
 """Stage 2 review endpoints for bank statement reconciliation."""
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from src.audit import STATEMENT_SOURCE_TYPES
@@ -258,8 +259,8 @@ async def list_consistency_checks(
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
     run_id: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""
     checks, total = await list_checks(
@@ -331,7 +332,7 @@ async def batch_approve_matches(
             had_source_entry = existing_entry_result.scalar_one_or_none() is not None
 
         try:
-            accepted_match = await accept_match_service(db, str(match.id), user_id=user_id)
+            accepted_match = await accept_match_service(db, match.id, user_id=user_id)
         except ValueError as exc:
             await db.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

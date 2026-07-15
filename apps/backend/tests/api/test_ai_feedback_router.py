@@ -326,3 +326,14 @@ async def test_ac18_5_6_get_ai_suggestions_scopes_to_current_user(
     body = response.json()
     assert body["items"] == []
     assert body["total"] == 0
+
+
+async def test_AC_ai_suggestions_1_list_rejects_unbounded_limit(
+    client: AsyncClient,
+) -> None:
+    """AC-identity.ai-suggestions.1: over-limit page size is rejected with 422 (#1864)."""
+    response = await client.get("/ai/suggestions", params={"limit": 10_000})
+    assert response.status_code == 422
+
+    response = await client.get("/ai/suggestions", params={"limit": 0})
+    assert response.status_code == 422
