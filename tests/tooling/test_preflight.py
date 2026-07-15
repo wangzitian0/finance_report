@@ -79,6 +79,15 @@ class TestSelectChecks:
         ]
         assert "schema-validate" in names
 
+    def test_AC_testing_preflight_1_validator_edit_does_not_scan_schema_debt(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["apps/backend/src/runtime/extension/schema_validation.py"]
+            )
+        ]
+        assert "schema-validate" not in names
+
     def test_router_edit_selects_api_reference_and_router_contract(self):
         # A router change shifts the OpenAPI surface AND the router-contract
         # maturity scan; both generated docs are CI-gated, so preflight must

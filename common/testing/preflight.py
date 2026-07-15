@@ -112,7 +112,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="schema-validate",
-        globs=("apps/backend/*schema*.py", "apps/backend/*schemas*.py"),
+        globs=("apps/backend/src/schemas/*.py",),
         commands=((PY, "tools/validate_schemas.py"),),
         why="Pydantic schema changed: validate schema contracts",
     ),
