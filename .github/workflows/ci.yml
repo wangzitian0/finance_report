@@ -1230,7 +1230,7 @@ jobs:
           # auto produced identical common.lcov/tools.lcov content to a serial
           # run, just ~3.5x faster: 2022 tests in ~58s vs ~205s). This was the
           # critical-path job (~451s of the ~510s main-push pipeline).
-          uv run --with pytest --with pytest-cov --with pytest-xdist --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 pytest tests/tooling/ \
+          uv run --with pytest --with pytest-cov --with pytest-xdist --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 --with "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl" pytest tests/tooling/ \
             --cov=common \
             --cov=tools \
             --cov=apps/backend/src \
