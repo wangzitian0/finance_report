@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from tools import app_deploy_request as renderer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,7 +42,13 @@ VALID_REQUEST = {
 def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() -> None:
     """AC-runtime.deploy-request.1: the SDK release and canonical v1 wire shape are immutable."""
     pyproject = tomllib.loads((ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8"))
-    assert f"infra2-sdk @ {SDK_URL}" in pyproject["dependency-groups"]["dev"]
+    sdk_dependencies = [
+        dependency
+        for dependency in pyproject["dependency-groups"]["dev"]
+        if dependency.partition(" @ ")[0] == "infra2-sdk"
+    ]
+    expected_sdk_dependency = f"infra2-sdk @ {SDK_URL}"
+    assert sdk_dependencies == [expected_sdk_dependency]
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
@@ -47,8 +56,28 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
-    ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    assert f'--with "infra2-sdk @ {SDK_URL}" pytest tests/tooling/' in ci_workflow
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    tooling_step = next(
+        step
+        for step in workflow["jobs"]["tooling-coverage"]["steps"]
+        if step.get("name") == "Run tooling tests with coverage"
+    )
+    command_line = next(
+        line.strip().removesuffix("\\").strip()
+        for line in tooling_step["run"].splitlines()
+        if line.strip().startswith("uv run ")
+    )
+    command_tokens = shlex.split(command_line)
+    with_dependencies = [
+        command_tokens[index + 1]
+        for index, token in enumerate(command_tokens[:-1])
+        if token == "--with"
+    ]
+    assert with_dependencies.count(expected_sdk_dependency) == 1
+    pytest_index = max(
+        index for index, token in enumerate(command_tokens) if token == "pytest"
+    )
+    assert command_tokens[pytest_index + 1] == "tests/tooling/"
 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST
@@ -172,9 +201,24 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     invalid_cli_args[3] = "main"
     with pytest.raises(SystemExit, match="2"):
         renderer.main(invalid_cli_args)
-    assert "version_ref must be a release tag" in capsys.readouterr().err
+    assert capsys.readouterr().err.rstrip().endswith(
+        "error: version_ref must be a release tag like vX.Y.Z"
+    )
 
     source = MODULE_PATH.read_text(encoding="utf-8")
-    assert "repository_dispatch" not in source
-    assert "subprocess" not in source
-    assert "urllib.request" not in source
+    tree = ast.parse(source)
+    imported_modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            imported_modules.add(node.module)
+    string_literals = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    forbidden_imports = {"httpx", "requests", "subprocess", "urllib.request", "urllib3"}
+    forbidden_transport_literals = {"repository_dispatch"}
+    assert imported_modules.isdisjoint(forbidden_imports)
+    assert string_literals.isdisjoint(forbidden_transport_literals)
