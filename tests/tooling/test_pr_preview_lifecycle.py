@@ -954,6 +954,12 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
         )
 
 
+
+
+
+
+
+
 def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2208,11 +2214,19 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" not in workflow
 
 
+
+
+
+
+
+
 def test_AC8_13_71_main_rejects_unsupported_action() -> None:
     lifecycle = lifecycle_module()
 
     with pytest.raises(ValueError, match="Unsupported action"):
         lifecycle.main_from_args(SimpleNamespace(action="unsupported"))
+
+
 
 
 def test_AC8_13_71_deploy_still_uses_lifecycle_tool() -> None:
@@ -2299,6 +2313,8 @@ def test_AC8_13_102_api_call_retries_transient_failures_on_get(
     assert calls == 1
 
 
+
+
 def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2372,6 +2388,8 @@ def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
         )
     # Should fail immediately on 1st attempt, not retrying up to 4 times
     assert calls == 1
+
+
 
 
 def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2837,9 +2855,7 @@ def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
 def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
     """AC-testing.preview.20: AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
     and the half-update rollback / safe-to-reconcile recovery path."""
-    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text() + (
-        ROOT / "common/runtime/ci-cd.md"
-    ).read_text()
+    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
     assert "dokploy-worker-or-deployment-record" in ci_cd
     assert "safe-to-reconcile" in ci_cd
     lowered = ci_cd.lower()

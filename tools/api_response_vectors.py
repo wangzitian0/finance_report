@@ -42,13 +42,13 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(1, str(BACKEND_ROOT))
 
 from src.ledger import AccountType  # noqa: E402
-from src.ledger.base.types.account import AccountListResponse, AccountResponse  # noqa: E402
-from src.extraction.base.types.extraction import (  # noqa: E402
+from src.schemas.account import AccountListResponse, AccountResponse  # noqa: E402
+from src.schemas.extraction import (  # noqa: E402
     AtomicTransactionResponse,
     BankStatementResponse,
+    BankStatementStatusEnum,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus  # noqa: E402
-from src.reporting.base.types.reporting import BalanceSheetResponse, ReportLine  # noqa: E402
+from src.schemas.reporting import BalanceSheetResponse, ReportLine  # noqa: E402
 
 # Fixed deterministic identifiers — placeholder UUIDs, never real ids.
 _USER_ID = UUID("00000000-0000-4000-8000-00000000000a")
@@ -134,7 +134,7 @@ def build_balance_sheet_vector() -> dict[str, Any]:
     return {
         "method": "GET",
         "fe_path": "/api/reports/balance-sheet",
-        "response_model": "src.reporting.base.types.reporting.BalanceSheetResponse",
+        "response_model": "src.schemas.reporting.BalanceSheetResponse",
         "response": _wire(response),
     }
 
@@ -192,7 +192,7 @@ def build_accounts_list_vector() -> dict[str, Any]:
     return {
         "method": "GET",
         "fe_path": "/api/accounts",
-        "response_model": "src.ledger.base.types.account.AccountListResponse",
+        "response_model": "src.schemas.account.AccountListResponse",
         "response": _wire(response),
     }
 
@@ -212,7 +212,7 @@ def build_statement_upload_accepted_vector() -> dict[str, Any]:
         period_end=None,
         opening_balance=None,
         closing_balance=None,
-        status=BankStatementStatus.PARSING,
+        status=BankStatementStatusEnum.PARSING,
         confidence_score=None,
         balance_validated=None,
         validation_error=None,
@@ -223,7 +223,7 @@ def build_statement_upload_accepted_vector() -> dict[str, Any]:
     return {
         "method": "POST",
         "fe_path": "/api/statements/upload",
-        "response_model": "src.extraction.base.types.extraction.BankStatementResponse",
+        "response_model": "src.schemas.extraction.BankStatementResponse",
         "response": _wire(response),
     }
 
@@ -244,7 +244,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
         period_end=date(2026, 1, 31),
         opening_balance=Decimal("1000.00"),
         closing_balance=Decimal("1150.50"),
-        status=BankStatementStatus.PARSED,
+        status=BankStatementStatusEnum.PARSED,
         confidence_score=92,
         balance_validated=True,
         validation_error=None,
@@ -280,7 +280,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
     return {
         "method": "GET",
         "fe_path": "/api/statements/{id}",
-        "response_model": "src.extraction.base.types.extraction.BankStatementResponse",
+        "response_model": "src.schemas.extraction.BankStatementResponse",
         "response": _wire(response),
     }
 

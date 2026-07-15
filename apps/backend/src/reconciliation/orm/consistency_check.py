@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SQLEnum, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -9,13 +9,13 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class CheckType(StrEnum):
+class CheckType(str, Enum):
     DUPLICATE = "duplicate"
     TRANSFER_PAIR = "transfer_pair"
     ANOMALY = "anomaly"
 
 
-class CheckStatus(StrEnum):
+class CheckStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"

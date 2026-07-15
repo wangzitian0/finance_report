@@ -81,9 +81,7 @@ def test_raw_text_and_reference_are_masked() -> None:
     assert txn["cheque_no"] == "**"
     assert txn["branch_code"] == "**"
     assert txn["amount"] == "165870.21"  # flow value kept
-    assert "CITI BANK" not in str(
-        txn
-    )  # no counterparty name survives anywhere in the row
+    assert "CITI BANK" not in str(txn)  # no counterparty name survives anywhere in the row
 
 
 def test_real_name_description_is_pseudonymised_not_leaked() -> None:
@@ -93,22 +91,13 @@ def test_real_name_description_is_pseudonymised_not_leaked() -> None:
         {
             "institution": "DBS Bank",
             "transactions": [
-                {
-                    "description": "FROM: JOHN DOE PAYNOW",
-                    "amount": "190.00",
-                    "direction": "IN",
-                    "balance_after": "42869.09",
-                }
+                {"description": "FROM: JOHN DOE PAYNOW", "amount": "190.00", "direction": "IN", "balance_after": "42869.09"}
             ],
-            "positions": [
-                {"symbol": "AAPL", "quantity": "10", "market_value": "1900.25"}
-            ],
+            "positions": [{"symbol": "AAPL", "quantity": "10", "market_value": "1900.25"}],
         }
     )
     txn = masked["transactions"][0]
-    assert "JOHN" not in str(masked) and "DOE" not in str(
-        masked
-    )  # no real name survives
+    assert "JOHN" not in str(masked) and "DOE" not in str(masked)  # no real name survives
     assert len(txn["description"]) == len("FROM: JOHN DOE PAYNOW")  # length preserved
     assert txn["amount"] == "190.00" and txn["balance_after"] == "42869.09"  # flow kept
     assert masked["positions"][0]["symbol"] == "AAPL"  # public symbol kept
@@ -118,32 +107,18 @@ def test_real_name_description_is_pseudonymised_not_leaked() -> None:
 def test_flow_values_are_kept() -> None:
     """date / amount / direction / balance carry no identity PII and are preserved."""
     masked = mask_extraction(
-        {
-            "transactions": [
-                {
-                    "date": "2024-01-01",
-                    "description": "ACME PTE LTD",
-                    "amount": "10.00",
-                    "direction": "OUT",
-                    "balance_after": "90.00",
-                }
-            ]
-        }
+        {"transactions": [{"date": "2024-01-01", "description": "ACME PTE LTD", "amount": "10.00", "direction": "OUT", "balance_after": "90.00"}]}
     )
     txn = masked["transactions"][0]
     assert txn["date"] == "2024-01-01"
     assert txn["amount"] == "10.00"
     assert txn["direction"] == "OUT"
     assert txn["balance_after"] == "90.00"
-    assert txn["description"] != "ACME PTE LTD" and len(txn["description"]) == len(
-        "ACME PTE LTD"
-    )  # pseudonymised, length kept
+    assert txn["description"] != "ACME PTE LTD" and len(txn["description"]) == len("ACME PTE LTD")  # pseudonymised, length kept
 
 
 def test_mask_response_text_handles_fenced_json() -> None:
-    out = mask_response_text(
-        '```json\n{"account_holder": "Jane Doe", "transactions": []}\n```'
-    )
+    out = mask_response_text('```json\n{"account_holder": "Jane Doe", "transactions": []}\n```')
     assert "Jane Doe" not in out
     assert "**" in out
     # non-JSON passes through unchanged
@@ -151,9 +126,6 @@ def test_mask_response_text_handles_fenced_json() -> None:
 
 
 def test_source_ref_url_vs_hash() -> None:
-    assert source_ref(hf_url="https://hf/x.pdf") == {
-        "origin": "huggingface",
-        "url": "https://hf/x.pdf",
-    }
+    assert source_ref(hf_url="https://hf/x.pdf") == {"origin": "huggingface", "url": "https://hf/x.pdf"}
     ref = source_ref(file_bytes=b"abc")
     assert ref["origin"] == "local" and len(ref["sha256"]) == 64

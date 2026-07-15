@@ -36,12 +36,8 @@ def test_AC26_7_1_real_tree_has_no_llm_imports_in_protected_modules() -> None:
 def test_AC26_7_1_synthetic_llm_import_is_detected() -> None:
     """AC-authority.7.1 (b): a synthetic CODE-ONLY-style module importing the LLM layer fails."""
     # from-import of the project LLM layer
-    src_from = (
-        "from src.llm.extension.client import LLMClient\n\ndef calc():\n    return 1\n"
-    )
-    assert gate.forbidden_imports_in_source(src_from) == [
-        ("src.llm.extension.client", "src.llm")
-    ]
+    src_from = "from src.llm.extension.client import LLMClient\n\ndef calc():\n    return 1\n"
+    assert gate.forbidden_imports_in_source(src_from) == [("src.llm.extension.client", "src.llm")]
 
     # plain import of a raw provider SDK
     src_import = "import anthropic\n"
@@ -101,11 +97,7 @@ def test_AC26_7_1_gate_fails_on_synthetic_violating_tree(tmp_path: Path) -> None
 
     assert gate.missing_protected_globs(tmp_path) == []
     found = gate.violations(tmp_path)
-    assert (
-        "apps/backend/src/audit/money/money.py",
-        "src.llm.extension.client",
-        "src.llm",
-    ) in found
+    assert ("apps/backend/src/audit/money/money.py", "src.llm.extension.client", "src.llm") in found
     assert gate.main(["--repo-root", str(tmp_path)]) == 1
 
 

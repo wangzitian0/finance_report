@@ -90,7 +90,7 @@ class TestJournalRouterErrors:
         await db.refresh(entry)
 
         # Mock the post_journal_entry service to raise ValidationError
-        with patch("src.ledger.extension.api.journal.post_journal_entry", new_callable=AsyncMock) as mock_post:
+        with patch("src.routers.journal.post_journal_entry", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = ValidationError("Entry has no lines")
 
             response = await client.post(f"/journal-entries/{entry.id}/postings")
@@ -115,7 +115,7 @@ class TestJournalRouterErrors:
         await db.refresh(entry)
 
         # Mock the void_journal_entry service to raise ValidationError
-        with patch("src.ledger.extension.api.journal.void_journal_entry", new_callable=AsyncMock) as mock_void:
+        with patch("src.routers.journal.void_journal_entry", new_callable=AsyncMock) as mock_void:
             mock_void.side_effect = ValidationError("Cannot void draft entry")
 
             response = await client.post(

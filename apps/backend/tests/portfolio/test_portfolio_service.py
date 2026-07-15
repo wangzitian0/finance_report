@@ -15,9 +15,9 @@ from src.portfolio import (
     PortfolioNotFoundError,
     PortfolioService,
 )
-from src.portfolio.base.types.portfolio import PriceUpdateRequest
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import FxRate
+from src.schemas.portfolio import PriceUpdateRequest
 from tests.factories import UserFactory
 
 

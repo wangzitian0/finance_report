@@ -27,11 +27,7 @@ GITATTRIBUTES = REPO_ROOT / ".gitattributes"
 
 def test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge() -> None:
     """AC-testing.acgates.15: Baseline is sorted, one-AC-per-line JSONL guarded by merge=union."""
-    lines = [
-        line
-        for line in BASELINE.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    lines = [line for line in BASELINE.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines, "baseline must not be empty"
     ac_ids = []
     for line in lines:
@@ -75,9 +71,7 @@ def test_AC8_13_138_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -
         baseline,
         {
             "version": 1,
-            "acs": {
-                "AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}
-            },
+            "acs": {"AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}},
         },
     )
 
@@ -93,9 +87,7 @@ def test_AC8_13_138_ratchet_still_fails_on_regression_and_missing_ac(tmp_path) -
 
     # Non-pass code cannot be bought back by a high score -> fail.
     non_pass = tmp_path / "nonpass.json"
-    non_pass.write_text(
-        json.dumps(_current("AC1.1.1", 0.99, code="fail")), encoding="utf-8"
-    )
+    non_pass.write_text(json.dumps(_current("AC1.1.1", 0.99, code="fail")), encoding="utf-8")
     assert ratchet.main([str(non_pass), "--baseline", str(baseline)]) == 1
 
     # Meeting the floor with a passing code -> ok.
@@ -111,9 +103,7 @@ def test_AC8_13_138_update_refuses_to_cement_a_regression(tmp_path) -> None:
         baseline,
         {
             "version": 1,
-            "acs": {
-                "AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}
-            },
+            "acs": {"AC1.1.1": {"score": 0.8, "metric": "m", "provenance": "deterministic"}},
         },
     )
     regress = tmp_path / "regress.json"

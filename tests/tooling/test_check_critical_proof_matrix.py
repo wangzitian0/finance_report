@@ -438,14 +438,8 @@ proofs:
 
     [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
     assert result.status == "fail"
-    assert any(
-        "broad contract tests cannot satisfy critical proof" in error
-        for error in result.errors
-    )
-    assert any(
-        "behavioral proof must live under product test roots" in error
-        for error in result.errors
-    )
+    assert any("broad contract tests cannot satisfy critical proof" in error for error in result.errors)
+    assert any("behavioral proof must live under product test roots" in error for error in result.errors)
 
 
 def test_unknown_ac_missing_file_and_missing_marker_fail(tmp_path: Path) -> None:
@@ -535,9 +529,7 @@ proofs:
     assert valid.status == "behavioral"
     assert not valid.errors
     assert invalid.status == "fail"
-    assert invalid.errors == [
-        "missing-anchor: test anchor not found: AC8.13.1 missing title"
-    ]
+    assert invalid.errors == ["missing-anchor: test anchor not found: AC8.13.1 missing title"]
 
 
 def test_shape_errors_are_reported_before_file_validation(tmp_path: Path) -> None:
@@ -596,9 +588,7 @@ def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() ->
     """AC8.13.54: README macro table parsing handles empty and interrupted tables."""
     ids, errors = matrix._readme_outcome_ids("no table here")
     assert ids == []
-    assert errors == [
-        "README.md missing parseable macro outcome table with `Outcome ID` header"
-    ]
+    assert errors == ["README.md missing parseable macro outcome table with `Outcome ID` header"]
 
     ids, errors = matrix._readme_outcome_ids(
         """
@@ -672,9 +662,7 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
         proof_by_id={},
         index=0,
     )
-    assert "shape-only: missing required outcome keys: owner_epics, status" in (
-        missing_shape.errors
-    )
+    assert "shape-only: missing required outcome keys: owner_epics, status" in (missing_shape.errors)
     assert "shape-only: owner_epics must be a non-empty list" in missing_shape.errors
 
     malformed = matrix._validate_outcome(
@@ -690,15 +678,10 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
     )
 
     assert "bad-outcome: invalid owner EPIC id 'NOT-AN-EPIC'" in malformed.errors
-    assert (
-        "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section"
-        in malformed.errors
-    )
+    assert "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section" in malformed.errors
     assert "bad-outcome: unknown proof_id missing-proof" in malformed.errors
     assert "bad-outcome: proof broken-proof has validation errors" in malformed.errors
-    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (
-        malformed.errors
-    )
+    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (malformed.errors)
 
     bad_shape = matrix._validate_outcome(
         {
@@ -866,19 +849,12 @@ outcomes:
     errors = validation.errors
     assert "macro outcomes include unknown ids: surprise-outcome" in errors
     assert any("owner EPIC does not exist: EPIC-999" in error for error in errors)
-    assert any(
-        "covered outcome requires at least one proof_id" in error for error in errors
-    )
-    assert any(
-        "proof contract-proof must be behavioral E2E" in error for error in errors
-    )
+    assert any("covered outcome requires at least one proof_id" in error for error in errors)
+    assert any("proof contract-proof must be behavioral E2E" in error for error in errors)
     assert any("gap outcome requires issue like #521" in error for error in errors)
     assert any("invalid status 'unknown'" in error for error in errors)
     assert any("outcome[7] must be a mapping" in error for error in errors)
-    assert any(
-        "README.md missing macro outcome id `monthly-income-spending`" in error
-        for error in errors
-    )
+    assert any("README.md missing macro outcome id `monthly-income-spending`" in error for error in errors)
 
 
 def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
@@ -960,9 +936,7 @@ proofs:
     validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
     errors = validation.errors
     assert any(
-        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration"
-        in error
-        for error in errors
+        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration" in error for error in errors
     )
 
 
@@ -1026,16 +1000,9 @@ Checker: tools/check_ac_index.py
         ],
     )
 
-    assert (
-        "README macro outcomes duplicate ids: asset-distribution-net-worth"
-        in drift.errors
-    )
-    assert "README macro outcomes missing ids: monthly-income-spending" in (
-        drift.errors
-    )
-    assert "README macro outcomes include unknown ids: surprise-outcome" in (
-        drift.errors
-    )
+    assert "README macro outcomes duplicate ids: asset-distribution-net-worth" in drift.errors
+    assert "README macro outcomes missing ids: monthly-income-spending" in (drift.errors)
+    assert "README macro outcomes include unknown ids: surprise-outcome" in (drift.errors)
 
 
 def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
@@ -1045,9 +1012,7 @@ def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
     _write_registry(tmp_path)
 
     empty = matrix.validate_outcomes(tmp_path, {"outcomes": []}, [])
-    assert empty[0].errors == [
-        "critical proof matrix must define a non-empty outcomes list"
-    ]
+    assert empty[0].errors == ["critical proof matrix must define a non-empty outcomes list"]
 
     outcomes = matrix.validate_outcomes(
         tmp_path,

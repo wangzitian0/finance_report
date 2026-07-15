@@ -20,7 +20,7 @@ import json
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import date
-from enum import StrEnum
+from enum import Enum
 from typing import Literal
 from uuid import UUID
 
@@ -41,7 +41,7 @@ settings = src.config.settings
 POLICY_RULE_NAME = "llm-category-policy"
 
 
-class TransactionCategory(StrEnum):
+class TransactionCategory(str, Enum):
     """The fixed, closed category catalog (v1). The model may only propose these."""
 
     # income

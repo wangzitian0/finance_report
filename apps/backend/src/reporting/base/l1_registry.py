@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.reporting.base.types.reporting import PersonalReportingFrameworkId, ReportLineId
+from src.schemas.reporting import PersonalReportingFrameworkId, ReportLineId
 
 
 @dataclass(frozen=True)

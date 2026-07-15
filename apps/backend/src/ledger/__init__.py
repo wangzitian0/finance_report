@@ -138,9 +138,6 @@ __all__ = [
     "validate_line_account_ownership",
     "verify_accounting_equation",
     "void_journal_entry",
-    "accounts_router",
-    "journal_router",
-    "transactions_router",
 ]
 
 # Which submodule owns each published name (lazy import map).
@@ -194,35 +191,16 @@ _DATA_NAMES = {
 }
 
 
-_ROUTER_NAMES = {
-    "accounts_router",
-    "journal_router",
-    "transactions_router",
-}
-
-
 def __getattr__(name: str):
     if name in _BASE_NAMES:
         from src.ledger import base as _mod
-
-        value = getattr(_mod, name)
     elif name in _EXTENSION_NAMES:
         from src.ledger import extension as _mod
-
-        value = getattr(_mod, name)
     elif name in _DATA_NAMES:
         from src.ledger import data as _mod
-
-        value = getattr(_mod, name)
-    elif name in _ROUTER_NAMES:
-        if name == "accounts_router":
-            from src.ledger.extension.api.accounts import router as value
-        elif name == "journal_router":
-            from src.ledger.extension.api.journal import router as value
-        elif name == "transactions_router":
-            from src.ledger.extension.api.transactions import router as value
     else:
         raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
+    value = getattr(_mod, name)
     # Cache so subsequent attribute access skips the re-import.
     globals()[name] = value
     return value

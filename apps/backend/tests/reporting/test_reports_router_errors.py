@@ -16,7 +16,7 @@ class TestReportsRouterErrors:
         WHEN requesting balance sheet
         THEN it should return 400 with error message
         """
-        with patch("src.reporting.extension.api.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
+        with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
             mock_gen.side_effect = ReportError("Currency not supported")
 
             response = await client.get("/reports/balance-sheet?currency=XXX")
@@ -29,7 +29,7 @@ class TestReportsRouterErrors:
         WHEN requesting income statement
         THEN it should return 400 with error message
         """
-        with patch("src.reporting.extension.api.reports.generate_income_statement", new_callable=AsyncMock) as mock_gen:
+        with patch("src.routers.reports.generate_income_statement", new_callable=AsyncMock) as mock_gen:
             mock_gen.side_effect = ReportError("Invalid date range")
 
             response = await client.get(
@@ -48,7 +48,7 @@ class TestReportsRouterErrors:
         WHEN requesting cash flow statement
         THEN it should return 400 with error message
         """
-        with patch("src.reporting.extension.api.reports.generate_cash_flow", new_callable=AsyncMock) as mock_gen:
+        with patch("src.routers.reports.generate_cash_flow", new_callable=AsyncMock) as mock_gen:
             mock_gen.side_effect = ReportError("No cash accounts found")
 
             response = await client.get(
@@ -69,7 +69,7 @@ class TestReportsRouterErrors:
         """
         account_id = uuid4()
 
-        with patch("src.reporting.extension.api.reports.get_account_trend", new_callable=AsyncMock) as mock_trend:
+        with patch("src.routers.reports.get_account_trend", new_callable=AsyncMock) as mock_trend:
             mock_trend.side_effect = ReportError("Account not found")
 
             response = await client.get(
@@ -85,9 +85,7 @@ class TestReportsRouterErrors:
         WHEN requesting breakdown
         THEN it should return 400 with error message
         """
-        with patch(
-            "src.reporting.extension.api.reports.get_category_breakdown", new_callable=AsyncMock
-        ) as mock_breakdown:
+        with patch("src.routers.reports.get_category_breakdown", new_callable=AsyncMock) as mock_breakdown:
             mock_breakdown.side_effect = ReportError("No data available for period")
 
             response = await client.get(
@@ -103,7 +101,7 @@ class TestReportsRouterErrors:
         WHEN exporting balance sheet
         THEN it should return 400 with error message
         """
-        with patch("src.reporting.extension.api.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
+        with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_gen:
             mock_gen.side_effect = ReportError("Export failed")
 
             response = await client.get(
@@ -139,7 +137,7 @@ class TestReportsRouterErrors:
         THEN it should return 400 error
         """
         # This would need to bypass validation, so we'll test via the mock
-        with patch("src.reporting.extension.api.reports.ExportFormat", "csv"):
+        with patch("src.routers.reports.ExportFormat", "csv"):
             # The actual validation happens at FastAPI level, so this tests the service layer
             pass
         # Note: This path (line 274) might be unreachable due to FastAPI validation

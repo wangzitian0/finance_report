@@ -30,16 +30,16 @@ from src.portfolio.base.errors import (
     PerformanceError,
     PortfolioNotFoundError,
 )
-from src.portfolio.base.types.portfolio import (
+from src.portfolio.extension import allocation, performance
+from src.portfolio.extension.holdings import portfolio_service
+from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_money
+from src.schemas.portfolio import (
     HoldingResponse,
     InvestmentPerformanceAllocationRow,
     InvestmentPerformanceDataFreshness,
     InvestmentPerformanceHoldingRow,
     InvestmentPerformanceReportScheduleResponse,
 )
-from src.portfolio.extension import allocation, performance
-from src.portfolio.extension.holdings import portfolio_service
-from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_money
 
 
 def _percent(value: Decimal | None) -> Decimal | None:

@@ -9,7 +9,6 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.reconciliation.extension.api.reconciliation as reconciliation_router
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
 from src.extraction import DocumentType, UploadedDocument
@@ -17,7 +16,8 @@ from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.reconciliation.base.types.reconciliation import (
+from src.routers import reconciliation as reconciliation_router
+from src.schemas.reconciliation import (
     BatchAcceptRequest,
     ReconciliationRunRequest,
     ReconciliationStatusEnum,
@@ -292,7 +292,7 @@ async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> No
     )
     await db.commit()
 
-    import src.reconciliation.extension.api.reconciliation as reconciliation_router
+    from src.routers import reconciliation as reconciliation_router
 
     response = await reconciliation_router.list_matches(
         status_filter=ReconciliationStatusEnum.PENDING_REVIEW,
@@ -308,7 +308,7 @@ async def test_list_matches_filters_by_status(db: AsyncSession, test_user) -> No
 
 async def test_load_entry_summaries_empty(db: AsyncSession, test_user) -> None:
     """Test _load_entry_summaries with empty input."""
-    from src.reconciliation.extension.api.reconciliation import _load_entry_summaries
+    from src.routers.reconciliation import _load_entry_summaries
 
     result = await _load_entry_summaries(db, [], test_user.id)
     assert result == {}
@@ -317,7 +317,7 @@ async def test_load_entry_summaries_empty(db: AsyncSession, test_user) -> None:
 async def test_load_entry_summaries_invalid_uuid(db: AsyncSession, test_user) -> None:
     """Test _load_entry_summaries with invalid UUID strings."""
     from src.reconciliation import ReconciliationMatch
-    from src.reconciliation.extension.api.reconciliation import _load_entry_summaries
+    from src.routers.reconciliation import _load_entry_summaries
 
     match = ReconciliationMatch(
         atomic_txn_id=uuid4(),

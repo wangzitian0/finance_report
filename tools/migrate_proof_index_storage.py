@@ -41,9 +41,7 @@ LEGACY_BASELINE = REPO_ROOT / "docs" / "ssot" / "ac-score-baseline.json"
 JSONL_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 
 
-def _raise_only_merge(
-    existing: dict[str, dict], incoming: dict[str, dict]
-) -> dict[str, dict]:
+def _raise_only_merge(existing: dict[str, dict], incoming: dict[str, dict]) -> dict[str, dict]:
     """Keep the higher per-AC floor; never lower a baseline that already exists.
 
     On a tie the EXISTING record wins: an equal incoming score must not churn

@@ -13,19 +13,19 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
-from src.extraction.extension.api.statements import (
-    delete_statement,
-    get_statement,
-    list_statement_transactions,
-    retry_statement_parsing,
-    upload_statement,
-)
 from src.extraction.extension.statement_parsing import parse_statement_background
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
+from src.routers.statements import (
+    delete_statement,
+    get_statement,
+    list_statement_transactions,
+    retry_statement_parsing,
+    upload_statement,
+)
 from src.runtime import StorageError, StorageService
 from tests.factories import StatementSummaryFactory
 
@@ -166,7 +166,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
     db.add(statement)
     await db.commit()
 
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.return_value = b"content"
         with pytest.raises(HTTPException) as exc:
@@ -190,7 +190,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
 
     # Delete statement storage error (should continue to DB delete)
     # Already created sid in DB above
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.delete_object.side_effect = StorageError("Failed")
         await delete_statement(sid, db, uid)
@@ -205,7 +205,7 @@ async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
     monkeypatch.setattr(db, "commit", AsyncMock(side_effect=Exception("DB Fail")))
 
     # Mock storage cleanup to also fail (to cover line 243)
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.delete_object.side_effect = StorageError("Storage Fail")
 
@@ -242,7 +242,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
 
     # 1. StorageError in background (presigned URL failure)
     # With base64 fallback, extraction proceeds but may fail for other reasons (e.g., no API key)
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.side_effect = StorageError("S3 Fail")
 
@@ -266,7 +266,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
     # 2. ExtractionError in background
     statement.status = BankStatementStatus.PARSING
     await db.commit()
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.return_value = "http://url"
 
@@ -295,7 +295,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
     # 3. Generic Exception in background
     statement.status = BankStatementStatus.PARSING
     await db.commit()
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.generate_presigned_url.return_value = "http://url"
 
@@ -341,7 +341,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
     await db.commit()
 
     # 1. StorageError in retry
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.side_effect = StorageError("S3 Fail")
 
@@ -352,7 +352,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         assert exc.value.status_code == 503
 
     # 2. ExtractionError in retry
-    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
+    with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.return_value = b"content"
 
@@ -368,14 +368,14 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
 async def test_report_router_error_handlers(db, test_user, monkeypatch):
     """Test HTTPException wrappers for ReportError in reports router."""
     from src.reporting import ReportError
-    from src.reporting.base.types.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
-    from src.reporting.extension.api.reports import (
+    from src.routers.reports import (
         account_trend,
         balance_sheet,
         cash_flow,
         category_breakdown,
         income_statement,
     )
+    from src.schemas.reporting import BreakdownPeriod, BreakdownType, TrendPeriod
 
     uid = test_user.id
 
@@ -383,11 +383,11 @@ async def test_report_router_error_handlers(db, test_user, monkeypatch):
     async def mock_fail(*args, **kwargs):
         raise ReportError("Report Fail")
 
-    monkeypatch.setattr("src.reporting.extension.api.reports.generate_balance_sheet", mock_fail)
-    monkeypatch.setattr("src.reporting.extension.api.reports.generate_income_statement", mock_fail)
-    monkeypatch.setattr("src.reporting.extension.api.reports.generate_cash_flow", mock_fail)
-    monkeypatch.setattr("src.reporting.extension.api.reports.get_account_trend", mock_fail)
-    monkeypatch.setattr("src.reporting.extension.api.reports.get_category_breakdown", mock_fail)
+    monkeypatch.setattr("src.routers.reports.generate_balance_sheet", mock_fail)
+    monkeypatch.setattr("src.routers.reports.generate_income_statement", mock_fail)
+    monkeypatch.setattr("src.routers.reports.generate_cash_flow", mock_fail)
+    monkeypatch.setattr("src.routers.reports.get_account_trend", mock_fail)
+    monkeypatch.setattr("src.routers.reports.get_category_breakdown", mock_fail)
 
     with pytest.raises(HTTPException) as exc:
         await balance_sheet(db=db, user_id=uid)

@@ -23,12 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # can resolve cross-module string relationships (replaces the former
 # ``from src.models import ...`` hub side effect; issue #1461).
 import src.orm_registry  # noqa: E402, F401
-from src.advisor import (
-    generate_annualized_income_schedule,
-    register_fx_conversion,
-    register_fx_pairs_read,
-)
-from src.advisor.extension.api import chat
+from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
@@ -46,17 +41,8 @@ from src.extraction import (
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
-from src.extraction.extension.api import classifications, corrections, evidence, statements
 from src.identity import auth_router, register_in_flight_parse_checker, users_router
-from src.identity.extension.api import ai_feedback, user_settings
-from src.ledger import (
-    accounts_router,
-    journal_router,
-    register_fx_revaluation_provider,
-    register_statement_coverage_reader,
-    transactions_router,
-)
-from src.llm import llm_router
+from src.ledger import register_fx_revaluation_provider, register_statement_coverage_reader
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -80,17 +66,8 @@ from src.platform import (
     register_statement_reader,
     register_uploaded_document_readers,
 )
-from src.platform.base.types.errors import (
-    COMMON_ERROR_RESPONSES,
-    ErrorCode,
-    ErrorResponse,
-    error_code_for_status,
-)
-from src.platform.base.types.ping import PingStateResponse
-from src.platform.extension.api import workflow
 from src.platform.orm.ping_state import PingState
-from src.portfolio import PositionService, active_stock_symbols
-from src.portfolio.extension.api import assets, portfolio
+from src.portfolio import PositionService
 from src.pricing import (
     PrefetchedFxRates,
     PricingError,
@@ -99,28 +76,46 @@ from src.pricing import (
     convert_money,
     get_average_rate,
     get_exchange_rate,
-    market_data_router,
-    register_active_stock_symbols_provider,
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
-from src.reconciliation import (
-    accepted_transfer_txn_ids,
-    conflicts_router,
-    reconciliation_router,
-    review_router,
-)
+from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import (
     get_personal_report_package_readiness,
-    income_router,
-    metrics_router,
-    register_annualized_income_provider,
     register_fx_gateway,
     register_manual_valuation_lines_provider,
-    reports_router,
 )
+from src.routers import (
+    accounts,
+    ai_feedback,
+    app_config,
+    assets,
+    audit,
+    chat,
+    classifications,
+    corrections,
+    evidence,
+    income,
+    journal,
+    llm,
+    market_data,
+    metrics,
+    portfolio,
+    reports,
+    review,
+    statements,
+    user_settings,
+    workflow,
+)
+from src.routers.reconciliation import router as reconciliation_router
 from src.runtime import register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
-from src.ui_core import app_config_router
+from src.schemas import PingStateResponse
+from src.schemas.errors import (
+    COMMON_ERROR_RESPONSES,
+    ErrorCode,
+    ErrorResponse,
+    error_code_for_status,
+)
 
 # Initialize logging early
 configure_logging()
@@ -162,8 +157,6 @@ register_fx_gateway(
     fx_rate_error=PricingError,
 )
 register_manual_valuation_lines_provider(build_manual_valuation_lines)
-register_active_stock_symbols_provider(active_stock_symbols)
-register_annualized_income_provider(generate_annualized_income_schedule)
 
 # Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
 # journal-entry creation needs a currency-conversion rate, but a module-level
@@ -550,27 +543,27 @@ app.add_middleware(
 # generated frontend client.
 _router_kwargs = {"responses": COMMON_ERROR_RESPONSES}
 app.include_router(auth_router, **_router_kwargs)
-app.include_router(accounts_router, **_router_kwargs)
-app.include_router(app_config_router, **_router_kwargs)
+app.include_router(accounts.router, **_router_kwargs)
+app.include_router(app_config.router, **_router_kwargs)
 app.include_router(ai_feedback.router, **_router_kwargs)
-app.include_router(transactions_router, **_router_kwargs)
+app.include_router(audit.router, **_router_kwargs)
 app.include_router(assets.router, **_router_kwargs)
 app.include_router(chat.router, **_router_kwargs)
 app.include_router(classifications.router, **_router_kwargs)
 app.include_router(corrections.router, **_router_kwargs)
 app.include_router(evidence.router, **_router_kwargs)
-app.include_router(journal_router, **_router_kwargs)
-app.include_router(market_data_router, **_router_kwargs)
-app.include_router(metrics_router, **_router_kwargs)
-app.include_router(income_router, **_router_kwargs)
-app.include_router(reports_router, **_router_kwargs)
+app.include_router(journal.router, **_router_kwargs)
+app.include_router(market_data.router, **_router_kwargs)
+app.include_router(metrics.router, **_router_kwargs)
+app.include_router(income.router, **_router_kwargs)
+app.include_router(reports.router, **_router_kwargs)
 app.include_router(statements.router, **_router_kwargs)
-app.include_router(review_router, **_router_kwargs)
-app.include_router(conflicts_router, **_router_kwargs)
+app.include_router(review.router, **_router_kwargs)
+app.include_router(review.conflicts_router, **_router_kwargs)
 app.include_router(reconciliation_router, **_router_kwargs)
 app.include_router(users_router, **_router_kwargs)
 app.include_router(user_settings.router, **_router_kwargs)
-app.include_router(llm_router, **_router_kwargs)
+app.include_router(llm.router, **_router_kwargs)
 app.include_router(portfolio.router, **_router_kwargs)
 app.include_router(workflow.router, **_router_kwargs)
 

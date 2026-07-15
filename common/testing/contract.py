@@ -3937,27 +3937,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        ACRecord(
-            id="AC-testing.8.13.61",
-            statement="Future observability, visual regression, and performance gates (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-testing.8.13.62",
-            statement="Test observability (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="open",
-        ),
-        ACRecord(
-            id="AC-testing.8.13.63",
-            statement="Performance testing (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="open",
-        ),
     ],
     concepts=[
         ConceptRecord(

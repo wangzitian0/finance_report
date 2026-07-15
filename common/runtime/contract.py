@@ -25,12 +25,7 @@ parity — see ``todo.md``.
 
 from __future__ import annotations
 
-from common.meta.package_contract import (
-    ACRecord,
-    ConceptRecord,
-    Invariant,
-    PackageContract,
-)
+from common.meta.package_contract import ACRecord, ConceptRecord, Invariant, PackageContract
 
 CONTRACT = PackageContract(
     name="runtime",
@@ -1232,13 +1227,6 @@ CONTRACT = PackageContract(
             ),
             priority="P1",
             status="done",
-        ),
-        ACRecord(
-            id="AC-runtime.26.9.1",
-            statement="Authority tier capability (DROPPED)",
-            test="TODO",
-            priority="P0",
-            status="open",
         ),
     ],
     concepts=[

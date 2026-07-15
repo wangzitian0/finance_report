@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from src.llm.base.types.core import ProviderRef, Scene, SceneBinding
+from src.llm.base.types import ProviderRef, Scene, SceneBinding
 
 
 @runtime_checkable

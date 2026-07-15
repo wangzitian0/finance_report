@@ -46,9 +46,7 @@ def _load_template(name: str = "dbs_template.yaml") -> dict:
         "pingan_template.yaml",
     ],
 )
-def test_AC9_8_1_templates_define_sanitized_real_format_contract(
-    template_name: str,
-) -> None:
+def test_AC9_8_1_templates_define_sanitized_real_format_contract(template_name: str) -> None:
     """AC9.8.1: Templates carry sanitized source-format contracts without real statement payloads."""
     template = yaml.safe_load((TEMPLATE_DIR / template_name).read_text())
     contract = template["real_format_contract"]
@@ -58,17 +56,13 @@ def test_AC9_8_1_templates_define_sanitized_real_format_contract(
     assert contract["tolerances"]["page_size_points"] > 0
     assert contract["tolerances"]["column_width_points"] > 0
     assert contract["source_formats"]["date_regex"]
-    assert (
-        contract["source_formats"]["currency"] == template["text_elements"]["currency"]
-    )
+    assert contract["source_formats"]["currency"] == template["text_elements"]["currency"]
     assert "transaction_details" in contract["tables"]
 
     table_contract = contract["tables"]["transaction_details"]
     template_columns = template["tables"]["transaction_details"]["columns"]
     assert table_contract["columns"] == [column["name"] for column in template_columns]
-    assert table_contract["column_widths"] == [
-        column["width"] for column in template_columns
-    ]
+    assert table_contract["column_widths"] == [column["width"] for column in template_columns]
     assert table_contract["min_rows"] > 0
 
 
@@ -88,9 +82,7 @@ def test_AC9_8_2_validator_rejects_missing_or_drifting_real_format_contract() ->
     assert "real_format_contract is required" in missing["errors"]
 
     drifting = yaml.safe_load(yaml.safe_dump(template))
-    drifting["real_format_contract"]["tables"]["transaction_details"]["columns"][0] = (
-        "Posting Date"
-    )
+    drifting["real_format_contract"]["tables"]["transaction_details"]["columns"][0] = "Posting Date"
     drift_result = validator.validate_real_format_contract(drifting)
     assert drift_result["success"] is False
     assert any("column names drift" in error for error in drift_result["errors"])
@@ -143,9 +135,7 @@ def test_AC9_8_2_validator_rejects_missing_required_contract_sections() -> None:
     ]
 
 
-def test_AC9_8_3_generated_pdf_matches_template_real_format_contract(
-    tmp_path: Path,
-) -> None:
+def test_AC9_8_3_generated_pdf_matches_template_real_format_contract(tmp_path: Path) -> None:
     """AC9.8.3: Generated PDFs satisfy page, table, date, currency, and key-text contract checks."""
     output_path = tmp_path / "dbs.pdf"
     template = yaml.safe_load((TEMPLATE_DIR / "dbs_template.yaml").read_text())
@@ -156,9 +146,7 @@ def test_AC9_8_3_generated_pdf_matches_template_real_format_contract(
         datetime(2025, 1, 31),
     )
 
-    result = PDFValidator().validate_generated_pdf_against_real_format_contract(
-        output_path, template
-    )
+    result = PDFValidator().validate_generated_pdf_against_real_format_contract(output_path, template)
 
     assert result["success"] is True
     assert result["errors"] == []
@@ -247,10 +235,7 @@ def test_AC9_8_3_real_format_header_matching_and_table_errors() -> None:
     """AC9.8.3: Validator helpers reject mismatched headers and empty tables."""
     validator = PDFValidator()
 
-    assert (
-        validator._header_matches(["Date"], ["Transaction Date", "Description"])
-        is False
-    )
+    assert validator._header_matches(["Date"], ["Transaction Date", "Description"]) is False
     assert (
         validator._header_matches(["Posting", "Narrative"], ["Date", "Description"])
         is False

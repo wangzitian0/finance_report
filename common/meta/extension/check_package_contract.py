@@ -922,8 +922,6 @@ def check_package(
         if err:
             errors.append(f"[{pkg.name}] invariant '{inv.id}': {err}")
     for ac in pkg.contract.roadmap:
-        if ac.status == "open" and ac.test == "TODO":
-            continue
         err = _resolve_test(ac.test, repo_root)
         if err:
             errors.append(f"[{pkg.name}] roadmap '{ac.id}': {err}")

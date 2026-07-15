@@ -17,9 +17,6 @@ from src.reconciliation.base import (
 )
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
 from src.reconciliation.extension.anomaly import detect_anomalies
-from src.reconciliation.extension.api.reconciliation import router as reconciliation_router
-from src.reconciliation.extension.api.review import conflicts_router, router as review_router
-from src.reconciliation.extension.confidence import derive_reconciliation_score_tier
 from src.reconciliation.extension.consistency_checks import (
     get_pending_checks,
     has_unresolved_checks,
@@ -141,8 +138,4 @@ __all__ = [
     "score_pattern",
     "sync_reconciliation_match_journal_entry_links",
     "weighted_total",
-    "derive_reconciliation_score_tier",
-    "reconciliation_router",
-    "review_router",
-    "conflicts_router",
 ]

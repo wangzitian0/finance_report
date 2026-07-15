@@ -11,7 +11,8 @@ depends_on = None
 def upgrade() -> None:
     op.execute("ALTER TYPE manual_valuation_component_type_enum ADD VALUE IF NOT EXISTS 'retirement_account'")
     op.execute(
-        "ALTER TYPE manual_valuation_component_type_enum ADD VALUE IF NOT EXISTS 'social_security_personal_account'"
+        "ALTER TYPE manual_valuation_component_type_enum "
+        "ADD VALUE IF NOT EXISTS 'social_security_personal_account'"
     )
     op.execute("ALTER TYPE manual_valuation_component_type_enum ADD VALUE IF NOT EXISTS 'long_term_benefit_asset'")
 

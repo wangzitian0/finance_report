@@ -1,5 +1,3 @@
-from enum import StrEnum
-
 """Statement lifecycle enums.
 
 These outlive the legacy ``bank_statements`` table (EPIC-011 Stage 3): they are
@@ -7,8 +5,10 @@ reused by ``StatementSummary`` (the DWD conform) and many consumers, so they liv
 in their own module that does not depend on the soon-to-be-removed ORM model.
 """
 
+from enum import Enum
 
-class BankStatementStatus(StrEnum):
+
+class BankStatementStatus(str, Enum):
     """Statement processing status."""
 
     UPLOADED = "uploaded"
@@ -18,7 +18,7 @@ class BankStatementStatus(StrEnum):
     REJECTED = "rejected"
 
 
-class Stage1Status(StrEnum):
+class Stage1Status(str, Enum):
     """Stage 1 review status for statements."""
 
     PENDING_REVIEW = "pending_review"

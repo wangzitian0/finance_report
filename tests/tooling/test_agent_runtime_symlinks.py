@@ -243,6 +243,4 @@ def test_skill_docs_reference_existing_tools() -> None:
         for name in _BARE_PY_REF.findall(text):
             if name not in repo_basenames:
                 missing.append(f"{rel} -> {name} (no such file in repo)")
-    assert not missing, (
-        f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"
-    )
+    assert not missing, f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"

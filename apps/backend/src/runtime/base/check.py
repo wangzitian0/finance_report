@@ -11,11 +11,11 @@ port + its result value language.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 from typing import Protocol, runtime_checkable
 
 
-class DependencyStatus(StrEnum):
+class DependencyStatus(str, Enum):
     """The outcome of probing a dependency. Deliberately binary — no `skipped`."""
 
     PRESENT = "present"

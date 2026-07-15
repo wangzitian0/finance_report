@@ -13,9 +13,9 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 from httpx import AsyncClient
 
-import src.extraction.extension.api.review as review_router
-from src.extraction.base.types.review import BatchApproveRequest
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.routers import review as review_router
+from src.schemas.review import BatchApproveRequest
 
 # --- AC12.27: structured error contract (#1005) --------------------------------
 

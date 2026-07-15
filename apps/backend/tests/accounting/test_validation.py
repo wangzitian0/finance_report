@@ -379,7 +379,7 @@ def test_AC1_single_currency_degenerate_path_detects_mismatch():
 
 def test_AC1_currency_balance_schema_round_trips_decimals():
     """AC-reconciliation.per-currency-balance.5: AC4.13.5 (#1123 AC1): ``CurrencyBalance`` carries (currency, opening, closing) as Decimal."""
-    from src.extraction.base.types.extraction import CurrencyBalance
+    from src.schemas.extraction import CurrencyBalance
 
     bal = CurrencyBalance(currency="usd", opening="1000.00", closing="1200.50")
 

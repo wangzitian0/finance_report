@@ -36,7 +36,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.reconciliation.base.types.reconciliation import ReconciliationStatusEnum
+from src.schemas.reconciliation import ReconciliationStatusEnum
 
 
 async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:
@@ -476,7 +476,7 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User, monkeypatch
     ):
         """all=True batch create should reject oversized unmatched sets."""
-        import src.reconciliation.extension.api.reconciliation as reconciliation_router
+        from src.routers import reconciliation as reconciliation_router
 
         with monkeypatch.context() as local_monkeypatch:
             local_monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)

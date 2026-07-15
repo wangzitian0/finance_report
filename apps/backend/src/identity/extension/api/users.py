@@ -4,7 +4,7 @@ Authenticated current-user compatibility routes for the legacy ``/users`` surfac
 (public registration is owned by ``/auth/register``). Moved verbatim (imports
 repointed) from the pre-migration ``src/routers/users.py`` into the package's
 single home. The ``User`` aggregate is now imported from the identity package's
-own SQL adapter; the user-CRUD wire schemas remain general ``src.identity.base.types.user``
+own SQL adapter; the user-CRUD wire schemas remain general ``src.schemas.user``
 types, and the in-flight-parse guard reads a registered port (see below) —
 never ``extraction``'s ``StatementSummary`` ORM directly.
 """
@@ -20,9 +20,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import CurrentUserId, DbSession
-from src.identity.base.types.user import UserCreate, UserListResponse, UserResponse, UserUpdate
 from src.identity.extension.sql import User
 from src.platform import raise_bad_request, raise_conflict, raise_not_found
+from src.schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

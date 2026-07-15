@@ -53,9 +53,7 @@ _META_PII_KEYS = frozenset(
     }
 )
 # Per-transaction free-text keys whose value may carry a counterparty name.
-_DESC_KEYS = frozenset(
-    {"description", "desc", "narrative", "remarks", "counterparty", "payee", "merchant"}
-)
+_DESC_KEYS = frozenset({"description", "desc", "narrative", "remarks", "counterparty", "payee", "merchant"})
 _META_MARK = "**"
 # A masked description token: 2 hex + stars + 2 hex (e.g. ``a3**************9f``), or all
 # stars for a <=4-char source. The leading/trailing hex are sha256-derived (NOT the real
@@ -126,9 +124,7 @@ def mask_response_text(text: str) -> str:
     return f"```json\n{out}\n```" if fenced else out
 
 
-def source_ref(
-    *, hf_url: str | None = None, file_bytes: bytes | None = None
-) -> dict[str, str]:
+def source_ref(*, hf_url: str | None = None, file_bytes: bytes | None = None) -> dict[str, str]:
     """Build the committed source REFERENCE — never the document itself.
 
     HF statements reference their public dataset URL; a local/own statement records
@@ -144,21 +140,15 @@ def source_ref(
 
 if __name__ == "__main__":
     # meta -> '**'; flow kept; descriptions -> irreversible distinguishable pseudonym.
-    m = mask_extraction(
-        {"account_holder": "John Tan", "institution": "DBS", "account_last4": "1234"}
-    )
+    m = mask_extraction({"account_holder": "John Tan", "institution": "DBS", "account_last4": "1234"})
     assert m == {"account_holder": "**", "institution": "DBS", "account_last4": "**"}, m
     src = "ACME TRADING PTE LTD"
     a = mask_extraction({"transactions": [{"description": src, "amount": "10.00"}]})
-    c = mask_extraction(
-        {"transactions": [{"description": "PHO KITCHEN", "amount": "10.00"}]}
-    )
+    c = mask_extraction({"transactions": [{"description": "PHO KITCHEN", "amount": "10.00"}]})
     da = a["transactions"][0]["description"]
     assert _PSEUDONYM_RE.fullmatch(da), da
     assert len(da) == len(src)  # length preserved
     assert "ACME" not in da and "LTD" not in da  # not recoverable
-    assert (
-        da != c["transactions"][0]["description"]
-    )  # distinct -> distinct token (distinguishability)
+    assert da != c["transactions"][0]["description"]  # distinct -> distinct token (distinguishability)
     assert a["transactions"][0]["amount"] == "10.00"  # flow kept
     print("extraction_pii_mask self-check OK")

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import enum
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from src.ledger.orm.account import Account
 
 
-class JournalEntryStatus(StrEnum):
+class JournalEntryStatus(str, enum.Enum):
     """Status of a journal entry."""
 
     DRAFT = "draft"
@@ -61,7 +61,7 @@ def derive_confidence_tier(
     return _SOURCE_TYPE_TIERS.get(value, "LOW")
 
 
-class Direction(StrEnum):
+class Direction(str, enum.Enum):
     """Debit or credit direction."""
 
     DEBIT = "DEBIT"

@@ -58,7 +58,7 @@ async def test_review_pdf_url_requests_public_endpoint(client: AsyncClient, db: 
             calls.append({"key": key, "public": public})
             return f"https://public.example.test/{key}"
 
-    monkeypatch.setattr("src.extraction.extension.api.statements.StorageService", _RecordingStorage)
+    monkeypatch.setattr("src.routers.statements.StorageService", _RecordingStorage)
 
     resp = await client.get(f"/statements/{statement.id}/review")
     assert resp.status_code == 200, resp.text

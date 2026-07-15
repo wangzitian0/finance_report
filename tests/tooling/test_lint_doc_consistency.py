@@ -167,12 +167,8 @@ def test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper(tmp_path) -> Non
     api.parent.mkdir(parents=True)
     page.parent.mkdir(parents=True)
     test_file.parent.mkdir(parents=True)
-    api.write_text(
-        "export const apiFetch = () => fetch('/api/test')\n", encoding="utf-8"
-    )
-    page.write_text(
-        "export const load = () => fetch('/api/accounts')\n", encoding="utf-8"
-    )
+    api.write_text("export const apiFetch = () => fetch('/api/test')\n", encoding="utf-8")
+    page.write_text("export const load = () => fetch('/api/accounts')\n", encoding="utf-8")
     test_file.write_text("expect(fetch).toBeDefined()\n", encoding="utf-8")
 
     violations = ldc.check_frontend_raw_fetch_usage(src, {api})
@@ -476,9 +472,7 @@ class TestNoAcTestExceptions:
         tests = tmp_path / "tests"
         test_file = tests / "test_unreadable.py"
         test_file.parent.mkdir(parents=True)
-        test_file.write_text(
-            "def test_unreadable():\n    assert True\n", encoding="utf-8"
-        )
+        test_file.write_text("def test_unreadable():\n    assert True\n", encoding="utf-8")
 
         with mock.patch.object(Path, "read_text", side_effect=OSError("blocked")):
             result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))

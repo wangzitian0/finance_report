@@ -146,7 +146,6 @@ CONTRACT = PackageContract(
         Unit(name="UsageRepository", kind=Kind.REPOSITORY),
         Unit(name="UsageRecorded", kind=Kind.DOMAIN_EVENT),
         Unit(name="UsageRollup", kind=Kind.PROJECTION),
-        Unit(name="llm_router", kind=Kind.DOMAIN_SERVICE),
     ],
     implementations={"be": "apps/backend/src/llm", "fe": None},
     interface=[
@@ -203,7 +202,6 @@ CONTRACT = PackageContract(
         "resolve_provider_and_model",
         "stream_ai_chat",
         "stream_ai_json",
-        "llm_router",
     ],
     # UsageRecorded is reserved above but not published yet; events lists only
     # what the package actually emits.
@@ -1078,7 +1076,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/extraction/readme.md",
                 "docs/project/EPIC-023.llm-provider-abstraction.md",
-                "apps/backend/src/llm/base/types/llm.py",
+                "apps/backend/src/llm/base/types.py",
                 "apps/backend/src/llm/base/secrets.py",
                 "apps/backend/src/llm/extension/cassette.py",
             ],

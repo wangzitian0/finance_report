@@ -26,13 +26,14 @@ from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account
 from src.observability import get_logger
-from src.platform import DataProvenance
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InvalidDateRangeError,
     PortfolioNotFoundError,
 )
-from src.portfolio.base.types.portfolio import (
+from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
+from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
+from src.schemas.portfolio import (
     HoldingResponse,
     PortfolioSummaryResponse,
     PriceUpdateRequest,
@@ -40,8 +41,7 @@ from src.portfolio.base.types.portfolio import (
     RealizedPnLResponse,
     UnrealizedPnLResponse,
 )
-from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_amount, convert_money
+from src.schemas.provenance import DataProvenance
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings

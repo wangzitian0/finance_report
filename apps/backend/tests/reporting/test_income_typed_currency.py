@@ -15,9 +15,9 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.platform.base.types.base import normalize_currency_code
-from src.reporting.base.types.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 from src.reporting.extension.reporting_calc import AnnualizedIncomeTotals, resolve_line_currency
+from src.schemas.base import normalize_currency_code
+from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 
 
 def test_AC5_32_1_currency_code_type_validates_and_normalizes():

@@ -26,7 +26,7 @@ from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.portfolio import PositionService
-from src.portfolio.base.types.portfolio import BrokerageImportRequest, BrokerageImportResponse
+from src.schemas.portfolio import BrokerageImportRequest, BrokerageImportResponse
 
 
 async def _seed_statement(

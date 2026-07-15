@@ -24,7 +24,19 @@ from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import StockPrice
-from src.reporting.base.types.reporting import (
+from src.reporting.extension.framework_policy import (
+    _account_domain_and_instrument,
+    _manual_domain_and_instrument,
+    _position_domain_and_instrument,
+    framework_policy_facts_for_user,
+)
+from src.reporting.extension.report_readiness import framework_policy_readiness_blockers
+from src.routers.reports import (
+    personal_report_package_contract,
+    personal_report_package_framework_policy,
+    personal_report_package_readiness,
+)
+from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyGap,
     FrameworkPolicyResult,
@@ -33,18 +45,6 @@ from src.reporting.base.types.reporting import (
     PolicyProvenance,
     PolicyReviewState,
 )
-from src.reporting.extension.api.reports import (
-    personal_report_package_contract,
-    personal_report_package_framework_policy,
-    personal_report_package_readiness,
-)
-from src.reporting.extension.framework_policy import (
-    _account_domain_and_instrument,
-    _manual_domain_and_instrument,
-    _position_domain_and_instrument,
-    framework_policy_facts_for_user,
-)
-from src.reporting.extension.report_readiness import framework_policy_readiness_blockers
 
 
 @pytest.mark.no_db

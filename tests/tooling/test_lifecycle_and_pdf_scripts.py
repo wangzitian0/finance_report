@@ -105,7 +105,6 @@ def test_AC16_13_6_register_unregister_namespace(monkeypatch, tmp_path):
 
 def test_AC16_13_7_get_container_runtime(monkeypatch):
     """AC-testing.lifecycle.8: test_lifecycle — get_container_runtime honors CONTAINER_RUNTIME, otherwise detects podman/docker and returns None when absent"""
-
     def podman_first(cmd, capture_output=True):
         if cmd == ["which", "podman"]:
             return SimpleNamespace(returncode=0)
@@ -171,7 +170,6 @@ def test_AC8_13_69_resolve_postgres_host_port_uses_runtime_fallback(monkeypatch)
 
 def test_AC16_13_8_is_db_ready_handles_failure(monkeypatch):
     """AC-testing.lifecycle.9: test_lifecycle — is_db_ready returns false on pg_isready subprocess failure"""
-
     def raise_called(*args, **kwargs):
         raise tl.subprocess.CalledProcessError(1, "pg_isready")
 

@@ -29,22 +29,15 @@ from common.meta.extension.check_ssot_ownership import (
 class TestHasCrossReference:
     def test_contains_ssot_file_path(self) -> None:
         text = "See: common/reconciliation/reconciliation.md for details"
-        assert (
-            has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
-        )
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
 
     def test_contains_basename(self) -> None:
         text = "See reconciliation.md for the definition"
-        assert (
-            has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
-        )
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is True
 
     def test_absent_returns_false(self) -> None:
         text = "Nothing relevant here"
-        assert (
-            has_cross_reference(text, "common/reconciliation/reconciliation.md")
-            is False
-        )
+        assert has_cross_reference(text, "common/reconciliation/reconciliation.md") is False
 
 
 # ---------------------------------------------------------------------------
@@ -67,12 +60,9 @@ class TestCheckRetiredArchiveRoots:
     ) -> None:
         bad = tmp_path / "AC-AUDIT-2026-02-25.md"
         bad.write_text("old content")
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES",
-            [bad],
+            "common.meta.extension.check_ssot_ownership.RETIRED_ARCHIVE_ROOT_FILES", [bad]
         )
         violations = check_retired_archive_roots()
         assert len(violations) == 1
@@ -105,9 +95,7 @@ class TestCheckMustBeAbsent:
     ) -> None:
         present = tmp_path / "EPIC-016-IMPLEMENTATION-PLAN.md"
         present.write_text("leftover")
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
             "common.meta.extension.check_ssot_ownership.MUST_BE_ABSENT", [present]
         )
@@ -136,9 +124,7 @@ class TestCheckRuleCrossReferences:
         f = ssot_dir / "accounting.md"
         f.write_text("NEVER use FLOAT for monetary amounts.\n")
 
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         violations = check_rule_cross_references()
         assert violations == []
 
@@ -159,9 +145,7 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
             "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [
@@ -201,9 +185,7 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
             "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [
@@ -238,9 +220,7 @@ class TestCheckRuleCrossReferences:
 
         import re as _re
 
-        monkeypatch.setattr(
-            "common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path
-        )
+        monkeypatch.setattr("common.meta.extension.check_ssot_ownership.REPO_ROOT", tmp_path)
         monkeypatch.setattr(
             "common.meta.extension.check_ssot_ownership.RULE_KEYWORDS",
             [

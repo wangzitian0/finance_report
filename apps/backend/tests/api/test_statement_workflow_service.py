@@ -10,7 +10,7 @@ router delegates to it rather than inlining the sequence. The real PARSED→APPR
 from types import SimpleNamespace
 from uuid import uuid4
 
-import src.extraction.extension.api.statements as statements_router
+import src.routers.statements as statements_router
 from src.extraction.extension import statement_workflow
 
 

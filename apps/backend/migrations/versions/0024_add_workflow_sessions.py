@@ -18,7 +18,8 @@ SESSION_STATUS_VALUES = ("active", "generated", "archived")
 def _create_enum_if_missing(name: str, values: tuple[str, ...]) -> None:
     quoted_values = ", ".join(f"'{value}'" for value in values)
     op.execute(
-        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); EXCEPTION WHEN duplicate_object THEN null; END $$;"
+        f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({quoted_values}); "
+        "EXCEPTION WHEN duplicate_object THEN null; END $$;"
     )
 
 

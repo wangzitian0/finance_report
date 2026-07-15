@@ -105,7 +105,7 @@ def test_AC26_5_1_matrix_mirrors_ssot_and_real_repo_passes() -> None:
 
 def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
     """AC-authority.6.1: the retrofitted first-batch LLM-LED/HU/LLM-ONLY ACs declare valid kinds."""
-    gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
+    entries = gar.build_registry_entries(epic_source=ROOT / "docs" / "project")
 
     # The LLM-LED extraction ACs migrated into the package roadmap (#1421):
     # their proof kinds are asserted on the contract (the registry's source).

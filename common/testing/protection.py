@@ -146,17 +146,13 @@ def write_floor(path: Path, floor: dict[str, int]) -> None:
         "version": 1,
         "floor": {ptype: int(floor.get(ptype, 0)) for ptype in PROTECTION_TYPES},
     }
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
 def update_floor(graph: AcGraph, floor_path: Path = DEFAULT_FLOOR) -> dict[str, int]:
     """Raise each floor to the current count (never lowers). Returns the new floor."""
     counts = count_protection_types(graph)
     current_floor = load_floor(floor_path)
-    raised = {
-        ptype: max(current_floor[ptype], counts[ptype]) for ptype in PROTECTION_TYPES
-    }
+    raised = {ptype: max(current_floor[ptype], counts[ptype]) for ptype in PROTECTION_TYPES}
     write_floor(floor_path, raised)
     return raised

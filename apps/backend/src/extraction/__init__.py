@@ -41,21 +41,6 @@ from __future__ import annotations
 # monkeypatch its functions (``validation.validate_balance = …``) and need one
 # canonical module object to patch.
 from src.extraction.base import validation
-from src.extraction.base.types.extraction import (
-    AtomicTransactionResponse,
-    BankStatementResponse,
-    BrokerageImportResponse,
-)
-from src.extraction.base.types.review import (
-    BalanceValidationResult,
-    BankStatementWithStage1Response,
-    EditAndApproveRequest,
-    SetOpeningBalanceRequest,
-    Stage1ApprovalRequest,
-    Stage1ApprovalResponse,
-    StatementReviewListResponse,
-    StatementReviewResponse,
-)
 from src.extraction.base.validation import (
     compute_confidence_score,
     detect_balance_chain_break,
@@ -175,11 +160,6 @@ from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
-from src.extraction.extension.api.statements import router as statements_router  # ruff: isort: skip # noqa: E402
-from src.extraction.extension.api.classifications import router as classifications_router  # ruff: isort: skip # noqa: E402
-from src.extraction.extension.api.corrections import router as corrections_router  # ruff: isort: skip # noqa: E402
-from src.extraction.extension.api.evidence import router as evidence_router  # ruff: isort: skip # noqa: E402
-
 __all__ = [
     "AssetType",
     "AtomicPosition",
@@ -262,19 +242,4 @@ __all__ = [
     "validate_balance",
     "validate_balance_chain",
     "validation",
-    "classifications_router",
-    "corrections_router",
-    "evidence_router",
-    "statements_router",
-    "BrokerageImportResponse",
-    "AtomicTransactionResponse",
-    "BankStatementResponse",
-    "BalanceValidationResult",
-    "EditAndApproveRequest",
-    "SetOpeningBalanceRequest",
-    "Stage1ApprovalRequest",
-    "Stage1ApprovalResponse",
-    "StatementReviewResponse",
-    "StatementReviewListResponse",
-    "BankStatementWithStage1Response",
 ]

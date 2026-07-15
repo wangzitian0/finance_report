@@ -210,8 +210,6 @@ CONTRACT = PackageContract(
         Unit(name="RealizedPnLResponse", kind=Kind.PROJECTION),
         Unit(name="UnrealizedPnLResponse", kind=Kind.PROJECTION),
         Unit(name="PortfolioSummaryResponse", kind=Kind.PROJECTION),
-        Unit(name="assets_router", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="portfolio_router", kind=Kind.DOMAIN_SERVICE),
     ],
     implementations={"be": "apps/backend/src/portfolio", "fe": None},
     # The real, working surface: the plain-exception error families (base/),
@@ -251,8 +249,6 @@ CONTRACT = PackageContract(
         "get_sector_allocation",
         "portfolio_service",
         "position_currencies",
-        "assets_router",
-        "portfolio_router",
     ],
     events=[],
     invariants=[

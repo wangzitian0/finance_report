@@ -145,9 +145,9 @@ def test_AC8_13_141_unexecuted_only_is_caught(tmp_path: Path) -> None:
         ci_required=False,
     )
     errors = _consolidated_traceability_errors(tmp_path)
-    assert any("real references only in non-CI-required stages" in e for e in errors), (
-        errors
-    )
+    assert any(
+        "real references only in non-CI-required stages" in e for e in errors
+    ), errors
 
 
 def test_AC8_13_141_placeholder_only_is_caught(tmp_path: Path) -> None:
@@ -160,7 +160,9 @@ def test_AC8_13_141_placeholder_only_is_caught(tmp_path: Path) -> None:
         ci_required=True,
     )
     errors = _consolidated_traceability_errors(tmp_path)
-    assert any("covered only by placeholder assertions" in e for e in errors), errors
+    assert any(
+        "covered only by placeholder assertions" in e for e in errors
+    ), errors
 
 
 def test_AC8_13_141_stub_only_is_caught(tmp_path: Path) -> None:
@@ -168,7 +170,7 @@ def test_AC8_13_141_stub_only_is_caught(tmp_path: Path) -> None:
     _write_traceability_repo(
         tmp_path,
         test_rel="tests/tooling/_ac_stubs/test_fixture.py",
-        test_body="# AC8.13.500 generated stub\n",
+        test_body='# AC8.13.500 generated stub\n',
         ci_required=True,
     )
     errors = _consolidated_traceability_errors(tmp_path)
@@ -407,9 +409,7 @@ def test_AC8_13_141_single_ac_index_gate_runs_exactly_once_per_required_path() -
     ]
     # Exactly one invocation across CI (the lint job). The ratchet's own
     # --ratchet-current hook is enforced separately in ac-behavioral-ratchet.
-    assert len(invocations) == 1, (
-        f"check_ac_index.py invoked {len(invocations)} times, expected 1: {invocations}"
-    )
+    assert len(invocations) == 1, f"check_ac_index.py invoked {len(invocations)} times, expected 1: {invocations}"
 
 
 def test_AC8_13_141_ci_job_names_and_required_contexts_unchanged() -> None:

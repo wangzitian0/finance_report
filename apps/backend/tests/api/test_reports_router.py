@@ -119,7 +119,7 @@ class TestReportsEndpoints:
         # THEN returns 200 with filtered income statement data
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("src.reporting.extension.api.reports.generate_cash_flow")
+    @patch("src.routers.reports.generate_cash_flow")
     async def test_cash_flow_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC5.3.1: Test getting cash flow statement."""
         # GIVEN valid date range and mocked service
@@ -158,7 +158,7 @@ class TestReportsEndpoints:
         assert "end_date" in data
         assert mock_service.called
 
-    @patch("src.reporting.extension.api.reports.get_account_trend")
+    @patch("src.routers.reports.get_account_trend")
     async def test_account_trend_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC5.3.2: Test getting account trend data."""
         # GIVEN existing account and mocked service
@@ -207,7 +207,7 @@ class TestReportsEndpoints:
         # THEN returns 200 with trend data
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("src.reporting.extension.api.reports.get_category_breakdown")
+    @patch("src.routers.reports.get_category_breakdown")
     async def test_category_breakdown_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC-reporting.cash-flow.4: AC5.3.4: Test getting category breakdown."""
         # GIVEN mocked service
@@ -241,7 +241,7 @@ class TestReportsEndpoints:
         # THEN returns 200 with breakdown data
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("src.reporting.extension.api.reports.generate_balance_sheet")
+    @patch("src.routers.reports.generate_balance_sheet")
     async def test_export_balance_sheet_success(
         self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
     ):
@@ -267,7 +267,7 @@ class TestReportsEndpoints:
         assert "attachment" in response.headers["content-disposition"]
         assert mock_service.called
 
-    @patch("src.reporting.extension.api.reports.generate_income_statement")
+    @patch("src.routers.reports.generate_income_statement")
     async def test_export_income_statement_success(
         self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
     ):

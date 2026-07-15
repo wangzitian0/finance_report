@@ -93,7 +93,6 @@ __all__ = [
     "safe_error_message",
     "safe_log_fields",
     "track",
-    "metrics_router",
 ]
 
 

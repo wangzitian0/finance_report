@@ -13,8 +13,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "evidence_nodes",
+    op.create_table("evidence_nodes",
         sa.Column("node_kind", sa.String(length=50), nullable=False),
         sa.Column("entity_type", sa.String(length=100), nullable=False),
         sa.Column("entity_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -35,8 +34,7 @@ def upgrade() -> None:
     op.create_index("idx_evidence_nodes_user_entity", "evidence_nodes", ["user_id", "entity_type", "entity_id"])
     op.create_index("idx_evidence_nodes_user_kind", "evidence_nodes", ["user_id", "node_kind"])
 
-    op.create_table(
-        "evidence_edges",
+    op.create_table("evidence_edges",
         sa.Column("from_node_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("to_node_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("relation", sa.String(length=100), nullable=False),
@@ -54,9 +52,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["to_node_id"], ["evidence_nodes.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "user_id", "from_node_id", "to_node_id", "relation", name="uq_evidence_edges_user_relation"
-        ),
+        sa.UniqueConstraint("user_id", "from_node_id", "to_node_id", "relation", name="uq_evidence_edges_user_relation"),
     )
     op.create_index("idx_evidence_edges_user_from", "evidence_edges", ["user_id", "from_node_id"])
     op.create_index("idx_evidence_edges_user_to", "evidence_edges", ["user_id", "to_node_id"])

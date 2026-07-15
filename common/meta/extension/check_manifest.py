@@ -355,10 +355,7 @@ def main() -> int:
     concepts = load_computed_concepts(REPO_ROOT, MANIFEST_PATH)
 
     if not concepts:
-        print(
-            "ERROR: No concepts found (MANIFEST.yaml + package contracts).",
-            file=sys.stderr,
-        )
+        print("ERROR: No concepts found (MANIFEST.yaml + package contracts).", file=sys.stderr)
         return 1
 
     violations: list[Violation] = []

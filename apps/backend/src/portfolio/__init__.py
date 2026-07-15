@@ -44,8 +44,6 @@ from src.portfolio.extension import (
     portfolio_service,
     position_currencies,
 )
-from src.portfolio.extension.api.assets import router as assets_router
-from src.portfolio.extension.api.portfolio import router as portfolio_router
 from src.portfolio.extension.positions import DepreciationResult, PositionService, PositionServiceError, ReconcileResult
 
 # ORM models owned by this package (moved from src/models, #1675); imported
@@ -93,6 +91,4 @@ __all__ = [
     "get_sector_allocation",
     "portfolio_service",
     "position_currencies",
-    "assets_router",
-    "portfolio_router",
 ]

@@ -13,7 +13,6 @@ from pydantic import ValidationError as PydanticValidationError
 
 from src.audit import JournalEntrySourceType
 from src.ledger import Direction
-from src.ledger.base.types.journal import JournalEntryCreate, JournalLineCreate
 from src.portfolio import (
     InvestmentAccountingService,
     InvestmentAccountingValidationError,
@@ -23,6 +22,7 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
     income_bucket,
 )
+from src.schemas.journal import JournalEntryCreate, JournalLineCreate
 
 
 class TestReportingHelpers:

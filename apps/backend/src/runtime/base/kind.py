@@ -9,10 +9,10 @@ replays an input-keyed recording and the real behaviour is proven on staging).
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 
 
-class DependencyKind(StrEnum):
+class DependencyKind(str, Enum):
     """The testing character of an external dependency."""
 
     CODE_DOMINANT = "code_dominant"

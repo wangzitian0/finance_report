@@ -22,9 +22,9 @@ def test_AC8_24_1_seed_packages_declare_owned_test_roots() -> None:
     for root in ownership:
         assert (ROOT / root).exists(), f"declared test root missing on disk: {root}"
 
-    yaml_text = (
-        ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
-    ).read_text(encoding="utf-8")
+    yaml_text = (ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml").read_text(
+        encoding="utf-8"
+    )
     assert "ownership:" in yaml_text
     for root, pkg in ownership.items():
         assert f"  - path: {root}\n    package: {pkg}" in yaml_text

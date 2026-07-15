@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
-from src.platform import DataProvenance
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_confidence_tiers,
@@ -33,6 +32,7 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
     _worst_confidence_tier,
 )
+from src.schemas.provenance import DataProvenance
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
