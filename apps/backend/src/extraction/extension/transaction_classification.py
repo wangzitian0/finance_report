@@ -1,7 +1,6 @@
 """Transaction classify node (#1544 Construct, EPIC-018 AC18.15).
 
 LLM-LED with a strong-code spine (vision Axiom D): the model *proposes* a category
-from enum import Enum, StrEnum
 from the FIXED catalog below with a confidence score; deterministic code *disposes* —
 resolves category→account and writes the classification row. The model never touches
 money: proposals cannot express amounts, and posting stays with the ledger path.

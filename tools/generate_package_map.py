@@ -28,7 +28,8 @@ def main():
                 continue
                 
             # Get description from module docstring
-            desc = (mod.__doc__ or "").strip().split("\\n")[0]
+            doc = (mod.__doc__ or "").strip()
+            desc = doc.splitlines()[0] if doc else ""
             if not desc:
                 desc = pkg
                 
@@ -67,7 +68,7 @@ def main():
         pkg_items = []
         for pkg, desc in pkgs_in_layer:
             # handle multi-line desc
-            desc_inline = desc.replace('\\n', ' ').strip()
+            desc_inline = desc.replace('\n', ' ').strip()
             pkg_items.append(f"[`{pkg}/`](../{pkg}/readme.md): {desc_inline}")
             
         lines.append(f"- {layer_desc} — " + ", ".join(pkg_items))
