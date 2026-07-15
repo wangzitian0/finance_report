@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.advisor import AIAdvisorService, register_fx_pairs_read
 from src.advisor.base.constants import CHAT_METADATA_SAFE_HREFS
 from src.advisor.extension import service as advisor_service_module
-from src.platform.base.types.workflow import (
+from src.schemas.workflow import (
     WorkflowEventCountsResponse,
     WorkflowNextActionResponse,
     WorkflowNextActionType,

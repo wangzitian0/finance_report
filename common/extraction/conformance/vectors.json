@@ -4,7 +4,7 @@
     "statement_upload_accepted": {
       "method": "POST",
       "fe_path": "/api/statements/upload",
-      "response_model": "src.extraction.base.types.extraction.BankStatementResponse",
+      "response_model": "src.schemas.extraction.BankStatementResponse",
       "response": {
         "id": "00000000-0000-4000-8000-000000000601",
         "user_id": "00000000-0000-4000-8000-00000000000a",
@@ -30,7 +30,7 @@
     "statement_parsed": {
       "method": "GET",
       "fe_path": "/api/statements/{id}",
-      "response_model": "src.extraction.base.types.extraction.BankStatementResponse",
+      "response_model": "src.schemas.extraction.BankStatementResponse",
       "response": {
         "id": "00000000-0000-4000-8000-000000000602",
         "user_id": "00000000-0000-4000-8000-00000000000a",

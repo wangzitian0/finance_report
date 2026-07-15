@@ -33,7 +33,6 @@ def test_AC16_11_9_load_active_namespaces_corrupt(monkeypatch, tmp_path):
 
 def test_AC16_11_10_get_container_runtime_prefers_podman(monkeypatch):
     """AC-runtime.24.10: cleanup_orphaned_dbs.get_container_runtime returns the first available runtime."""
-
     def fake_run(cmd, capture_output=True):
         if cmd == ["which", "podman"]:
             return SimpleNamespace(returncode=0)
@@ -57,7 +56,6 @@ def test_AC16_11_10_get_container_runtime_falls_back_docker(monkeypatch):
 
 def test_AC16_11_11_list_test_databases_parses_rows(monkeypatch):
     """AC-runtime.24.11: cleanup_orphaned_dbs.list_test_databases parses psql output and handles subprocess errors."""
-
     def fake_run(cmd, capture_output=True, text=True, check=True):
         return SimpleNamespace(
             stdout=" finance_report_test_a\n finance_report_test_b\n"

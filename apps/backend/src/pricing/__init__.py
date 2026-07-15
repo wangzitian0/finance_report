@@ -76,10 +76,6 @@ from src.pricing.extension import (
     sync_fx_rates,
     sync_stock_prices,
 )
-from src.pricing.extension.api.market_data import (
-    register_active_stock_symbols_provider,
-    router as market_data_router,
-)
 from src.pricing.extension.valuation import (
     ValuationComponentItem,
     ValuationComponentsResult,
@@ -143,6 +139,4 @@ __all__ = [
     "subscribe_price_ingest",
     "sync_fx_rates",
     "sync_stock_prices",
-    "market_data_router",
-    "register_active_stock_symbols_provider",
 ]

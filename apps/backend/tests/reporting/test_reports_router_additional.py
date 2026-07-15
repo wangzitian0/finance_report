@@ -17,7 +17,7 @@ class TestReportsRouterAdditionalCoverage:
         WHEN generating income statement
         THEN it should return 400
         """
-        with patch("src.reporting.extension.api.reports.generate_income_statement") as mock_report:
+        with patch("src.routers.reports.generate_income_statement") as mock_report:
             mock_report.side_effect = ReportError("Test report error")
 
             response = await client.get(
@@ -32,7 +32,7 @@ class TestReportsRouterAdditionalCoverage:
         WHEN generating cash flow statement
         THEN it should return 400
         """
-        with patch("src.reporting.extension.api.reports.generate_cash_flow") as mock_report:
+        with patch("src.routers.reports.generate_cash_flow") as mock_report:
             mock_report.side_effect = ReportError("Cash flow error")
 
             response = await client.get(
@@ -46,7 +46,7 @@ class TestReportsRouterAdditionalCoverage:
         WHEN generating trend analysis
         THEN it should return 400
         """
-        with patch("src.reporting.extension.api.reports.get_account_trend") as mock_report:
+        with patch("src.routers.reports.get_account_trend") as mock_report:
             mock_report.side_effect = ReportError("Trend analysis error")
 
             response = await client.get("/reports/trend", params={"account_id": str(uuid4()), "period": "monthly"})
@@ -58,7 +58,7 @@ class TestReportsRouterAdditionalCoverage:
         WHEN generating breakdown analysis
         THEN it should return 400
         """
-        with patch("src.reporting.extension.api.reports.get_category_breakdown") as mock_report:
+        with patch("src.routers.reports.get_category_breakdown") as mock_report:
             mock_report.side_effect = ReportError("Breakdown error")
 
             response = await client.get(

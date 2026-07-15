@@ -213,10 +213,7 @@ def test_AC16_11_17_cmd_test_backend_path_route_honors_fast_mode(monkeypatch):
     )
 
     cmd = calls[0][0]
-    assert cmd[:2] == [
-        sys.executable,
-        str(cli.REPO_ROOT / "tools" / "test_lifecycle.py"),
-    ]
+    assert cmd[:2] == [sys.executable, str(cli.REPO_ROOT / "tools" / "test_lifecycle.py")]
     assert "--fast" in cmd
     assert "tests/infra/test_boot.py" in cmd
     assert calls[0][1] == cli.BACKEND_DIR
@@ -242,10 +239,7 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
         ["-k", "foo"],
     )
     cmd = calls[0][0]
-    assert cmd[0:2] == [
-        sys.executable,
-        str(cli.REPO_ROOT / "tools" / "test_lifecycle.py"),
-    ]
+    assert cmd[0:2] == [sys.executable, str(cli.REPO_ROOT / "tools" / "test_lifecycle.py")]
     assert "--fast" in cmd
     assert "--ephemeral" in cmd
     assert "-k" in cmd
@@ -279,7 +273,6 @@ def test_AC16_11_18_cmd_clean_routes(monkeypatch):
 
 def test_AC16_11_19_check_database_ready_failure(monkeypatch):
     """AC-runtime.24.19: dev_backend.check_database_ready returns false on migration subprocess errors."""
-
     def raise_called(*args, **kwargs):
         raise dev_backend.subprocess.CalledProcessError(1, "uv")
 

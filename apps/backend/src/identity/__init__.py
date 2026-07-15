@@ -61,8 +61,6 @@ _EXTENSION_EXPORTS = {
     "register_rate_limiter",
     "users_router",
     "verify_password",
-    "ai_feedback_router",
-    "user_settings_router",
 }
 
 __all__ = [
@@ -97,8 +95,6 @@ __all__ = [
     "register_rate_limiter",
     "users_router",
     "verify_password",
-    "ai_feedback_router",
-    "user_settings_router",
 ]
 
 

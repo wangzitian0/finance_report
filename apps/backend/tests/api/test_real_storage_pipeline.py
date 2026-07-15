@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from moto import mock_aws
 
-import src.extraction.extension.api.statements as statements_router
+import src.routers.statements as statements_router
 from src.config import settings
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.runtime import StorageService

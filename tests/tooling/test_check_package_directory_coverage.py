@@ -1,13 +1,13 @@
 """AC-meta.dircov.1: every common/ directory is governed or a documented exception.
 
 ``check_package_contract`` discovers packages additively (globs
-``common/*/contract.py``), so it never notices a directory with NO
-``contract.py`` -- exactly how ``common/ci``, ``common/shell``, and
-``common/ssot`` accumulated as undeclared junk drawers before the cleanup
-finished (#1564-#1568, #1430).
+``common/*/contract.py`` for a module-level ``CONTRACT``), so it never notices
+a directory with no discoverable contract -- exactly how ``common/ci``,
+``common/shell``, and ``common/ssot`` accumulated as undeclared junk drawers
+before the cleanup finished (#1564-#1568, #1430).
 ``check_package_directory_coverage`` closes that gap: it enumerates every
 directory directly under ``common/`` and fails on one that ships neither a
-``contract.py`` nor a documented entry in ``UNGOVERNED_EXCEPTIONS``.
+discoverable ``CONTRACT`` nor a documented entry in ``UNGOVERNED_EXCEPTIONS``.
 """
 
 from __future__ import annotations
@@ -47,6 +47,34 @@ def test_directory_with_contract_passes(tmp_path: Path) -> None:
     """A directory shipping a contract.py is governed -- no error."""
     _make_pkg_with_contract(tmp_path, "widgets")
     assert gate.check_directory_coverage(tmp_path) == []
+
+
+def test_contract_file_without_exported_contract_is_rejected(tmp_path: Path) -> None:
+    """A contract.py that discovery cannot see must not satisfy coverage."""
+    pkg = tmp_path / "common" / "widgets"
+    pkg.mkdir(parents=True)
+    (pkg / "contract.py").write_text("contract = object()\n", encoding="utf-8")
+
+    errors = gate.check_directory_coverage(tmp_path)
+
+    assert errors == [
+        "common/widgets/contract.py does not declare a module-level CONTRACT, "
+        "so package discovery and governance cannot see it."
+    ]
+
+
+def test_contract_file_with_invalid_syntax_is_rejected(tmp_path: Path) -> None:
+    """An unloadable contract cannot make a package appear governed."""
+    pkg = tmp_path / "common" / "widgets"
+    pkg.mkdir(parents=True)
+    (pkg / "contract.py").write_text("CONTRACT = (\n", encoding="utf-8")
+
+    errors = gate.check_directory_coverage(tmp_path)
+
+    assert errors == [
+        "common/widgets/contract.py does not declare a module-level CONTRACT, "
+        "so package discovery and governance cannot see it."
+    ]
 
 
 def test_documented_exception_passes_without_contract(

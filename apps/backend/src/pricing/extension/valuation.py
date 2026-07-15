@@ -24,7 +24,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationSnapshot,
 )
 from src.observability import get_logger
-from src.platform import DataProvenance
+from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 

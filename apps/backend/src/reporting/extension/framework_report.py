@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
-from src.reporting.base.types.reporting import PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.income_statement import generate_income_statement
@@ -23,6 +22,7 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
     _worst_confidence_tier,
 )
+from src.schemas.reporting import PersonalReportingFrameworkId, ReportLineId
 
 logger = structlog.get_logger(__name__)
 

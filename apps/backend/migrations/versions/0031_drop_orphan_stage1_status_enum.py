@@ -26,4 +26,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Recreate the type with its original 0012 definition so the migration is
     # fully reversible. Nothing references it, so no column rebind is needed.
-    op.execute("CREATE TYPE stage1_status_enum AS ENUM ('pending_review', 'approved', 'rejected', 'edited')")
+    op.execute(
+        "CREATE TYPE stage1_status_enum AS ENUM "
+        "('pending_review', 'approved', 'rejected', 'edited')"
+    )

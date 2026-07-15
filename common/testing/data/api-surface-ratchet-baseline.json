@@ -1,0 +1,26 @@
+{
+  "router_files": [
+    "apps/backend/src/routers/accounts.py",
+    "apps/backend/src/routers/ai_feedback.py",
+    "apps/backend/src/routers/app_config.py",
+    "apps/backend/src/routers/assets.py",
+    "apps/backend/src/routers/audit.py",
+    "apps/backend/src/routers/chat.py",
+    "apps/backend/src/routers/classifications.py",
+    "apps/backend/src/routers/corrections.py",
+    "apps/backend/src/routers/evidence.py",
+    "apps/backend/src/routers/income.py",
+    "apps/backend/src/routers/journal.py",
+    "apps/backend/src/routers/llm.py",
+    "apps/backend/src/routers/market_data.py",
+    "apps/backend/src/routers/metrics.py",
+    "apps/backend/src/routers/portfolio.py",
+    "apps/backend/src/routers/reconciliation.py",
+    "apps/backend/src/routers/reports.py",
+    "apps/backend/src/routers/review.py",
+    "apps/backend/src/routers/statements.py",
+    "apps/backend/src/routers/user_settings.py",
+    "apps/backend/src/routers/workflow.py"
+  ],
+  "package_schema_import_files": 20
+}

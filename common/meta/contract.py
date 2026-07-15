@@ -162,18 +162,19 @@ CONTRACT = PackageContract(
             id="every-common-directory-is-governed-or-excepted",
             statement=(
                 "check_package_contract discovers packages additively (globs "
-                "common/*/contract.py), so a directory with no contract.py is "
-                "invisible to it -- how common/ci, common/shell, and common/ssot "
-                "accumulated as undeclared junk drawers (#1564-#1568). "
+                "common/*/contract.py for a module-level CONTRACT), so a "
+                "directory with no discoverable contract is invisible to it -- "
+                "how common/ci, common/shell, and common/ssot accumulated as "
+                "undeclared junk drawers (#1564-#1568). "
                 "check_package_directory_coverage closes that gap from the other "
                 "direction: every directory directly under common/ must ship a "
-                "contract.py or be a documented, reasoned entry in "
-                "UNGOVERNED_EXCEPTIONS, so a new junk drawer cannot silently "
-                "recur."
+                "contract.py with a module-level CONTRACT or be a documented, "
+                "reasoned entry in UNGOVERNED_EXCEPTIONS, so a missing, "
+                "lowercase, or unloadable declaration cannot silently recur."
             ),
             test=(
                 "tests/tooling/test_check_package_directory_coverage.py"
-                "::test_bare_directory_with_no_exception_is_rejected"
+                "::test_contract_file_without_exported_contract_is_rejected"
             ),
         ),
         # ── authority-tier vocabulary + gates folded in (was the `authority` package) ──
@@ -551,6 +552,23 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
             proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-meta.router.1",
+            statement=(
+                "No backend router module imports a symbol from another "
+                "router (`from src.routers.<x> import ...` is absent across "
+                "apps/backend/src/routers, excluding the package "
+                "aggregator's legitimate `from src.routers import ...`); "
+                "router-to-router coupling that hides the real logic owner "
+                "is rejected. Was EPIC-025 AC25.5.1."
+            ),
+            test=(
+                "apps/backend/tests/api/test_router_boundary.py"
+                "::test_AC25_5_1_no_router_imports_another_router"
+            ),
+            priority="P1",
+            status="done",
         ),
         # ── migrated from EPIC-014 (TTD transformation), migration closeout
         # wave 2 (#1663): foundational dev-tooling gates. Was AC14.1.1-.5. ──
@@ -968,6 +986,38 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_delivery_layer_ratchet.py"
                 "::test_AC_meta_delivery_1_delivery_layer_only_thins"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.delivery.2",
+            statement=(
+                "The terminal HTTP API home is each owning package's "
+                "extension/api/ adapter. apps/backend/src/routers remains a "
+                "transitional delivery layer whose non-__init__.py file set "
+                "may only shrink relative to the committed baseline; a new "
+                "flat router fails CI and --update refuses to adopt it "
+                "(#1865 S2 G-one-home-decided)."
+            ),
+            test=(
+                "tests/tooling/test_api_surface_ratchet.py"
+                "::test_AC_meta_delivery_2_router_file_set_only_shrinks"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.delivery.3",
+            statement=(
+                "The count of package files importing src.schemas may only "
+                "shrink relative to the committed baseline; a new package "
+                "dependency fails CI and --update refuses to raise the "
+                "baseline (#1865 S2 G-dependency-direction)."
+            ),
+            test=(
+                "tests/tooling/test_api_surface_ratchet.py"
+                "::test_AC_meta_delivery_3_package_schema_import_count_only_shrinks"
             ),
             priority="P1",
             status="done",
@@ -2197,6 +2247,25 @@ CONTRACT = PackageContract(
         ),
     ],
     concepts=[
+        ConceptRecord(
+            key="api_surface_terminal_home",
+            owner="common/meta/contract.py",
+            description=(
+                "The terminal home for HTTP adapters is the owning package's "
+                "extension/api/ layer; src/routers is transitional and may only "
+                "shrink (#1865 S2)."
+            ),
+            cross_refs=[
+                "common/testing/api_surface_ratchet.py",
+                "common/testing/data/api-surface-ratchet-baseline.json",
+                "tests/tooling/test_api_surface_ratchet.py",
+            ],
+            proofs=["tests/tooling/test_api_surface_ratchet.py"],
+            family="platform",
+            kind="concept",
+            authority="documented_contract",
+            parent="package_model",
+        ),
         ConceptRecord(
             key="ac_tier_baseline",
             owner="common/meta/data/ac-tier-baseline.json",

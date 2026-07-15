@@ -18,7 +18,7 @@ import pytest
 from src.extraction.extension import brokerage_positions, review_queue
 from src.ledger.extension import fx_revaluation
 from src.portfolio.extension.holdings import _account_names_by_id
-from src.reconciliation.extension.api.reconciliation import _load_transactions
+from src.routers.reconciliation import _load_transactions
 
 
 class _ExplodingSession:

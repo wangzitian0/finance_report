@@ -53,9 +53,7 @@ from common.testing.ac_proof_execution import normalize_proof_execution
 from common.testing.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTCOMES = (
-    REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
-)
+DEFAULT_OUTCOMES = REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
 DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}

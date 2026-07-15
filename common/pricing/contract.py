@@ -256,8 +256,6 @@ CONTRACT = PackageContract(
         # ── data (reserved): read-models consumed by portfolio/reporting/reconciliation ──
         Unit(name="LatestPriceView", kind=Kind.PROJECTION),
         Unit(name="StalenessView", kind=Kind.PROJECTION),
-        Unit(name="market_data_router", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="register_active_stock_symbols_provider", kind=Kind.DOMAIN_SERVICE),
     ],
     implementations={"be": "apps/backend/src/pricing", "fe": None},
     # The real, working surface: the pure base/ model, resolve()
@@ -326,8 +324,6 @@ CONTRACT = PackageContract(
         "subscribe_price_ingest",
         "sync_fx_rates",
         "sync_stock_prices",
-        "market_data_router",
-        "register_active_stock_symbols_provider",
     ],
     events=["PriceObserved"],
     invariants=[

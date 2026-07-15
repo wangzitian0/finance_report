@@ -45,7 +45,7 @@ async def account_with_subject(db: AsyncSession, test_user):
 async def test_reports_do_not_500_when_market_data_sync_raises(
     client: AsyncClient, account_with_subject, monkeypatch, url: str
 ):
-    import src.reporting.extension.api.reports as reports_router
+    import src.routers.reports as reports_router
 
     async def _raise(*args, **kwargs):
         # Mirror a live freshness sync failing on an unresolvable ticker /

@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
 
-import src.extraction.extension.api.corrections as corrections
+from src.routers import corrections
 from tests.factories import AtomicTransactionFactory, UploadedDocumentFactory
 
 

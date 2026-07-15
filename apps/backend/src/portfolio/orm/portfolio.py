@@ -12,7 +12,7 @@ domain owner), not here.
 
 from datetime import date
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, ForeignKey, Numeric, String
@@ -21,10 +21,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.extraction.orm.layer3 import CostBasisMethod
-from src.platform import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class InvestmentTransactionType(StrEnum):
+class InvestmentTransactionType(str, Enum):
     """Brokerage investment transaction type."""
 
     BUY = "buy"
@@ -135,7 +135,7 @@ class InvestmentLot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     opening_transaction: Mapped[InvestmentTransaction] = relationship("InvestmentTransaction")
 
 
-class DividendType(StrEnum):
+class DividendType(str, Enum):
     """Dividend income tax classification."""
 
     ORDINARY = "ordinary"

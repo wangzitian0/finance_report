@@ -26,19 +26,10 @@ from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,
 )
-from src.reporting.base.types.reporting import (
-    AnnualizedIncomeScheduleHolding,
-    AnnualizedIncomeScheduleIncome,
-    AnnualizedIncomeScheduleNetWorthTreatment,
-    AnnualizedIncomeScheduleResponse,
-)
 from src.reporting.extension._core import (
     _aggregate_balances_sql,
     _aggregate_net_income_sql,
 )
-from src.reporting.extension.api.income import router as income_router
-from src.reporting.extension.api.metrics import router as metrics_router
-from src.reporting.extension.api.reports import register_annualized_income_provider, router as reports_router
 from src.reporting.extension.balance_sheet import (
     generate_balance_sheet,
     register_manual_valuation_lines_provider,
@@ -97,10 +88,6 @@ __all__ = [
     "MAX_NET_WORTH_DAILY_POINTS",
     "PERSONAL_REPORT_PACKAGE_CONTRACT",
     "PERSONAL_REPORT_PACKAGE_NOTES",
-    "AnnualizedIncomeScheduleHolding",
-    "AnnualizedIncomeScheduleIncome",
-    "AnnualizedIncomeScheduleNetWorthTreatment",
-    "AnnualizedIncomeScheduleResponse",
     "AnnualizedIncomeTotals",
     "ConfidenceMetricService",
     "ReportError",
@@ -143,9 +130,5 @@ __all__ = [
     "package_snapshot_summary",
     "register_fx_gateway",
     "register_manual_valuation_lines_provider",
-    "register_annualized_income_provider",
     "resolve_line_currency",
-    "income_router",
-    "reports_router",
-    "metrics_router",
 ]

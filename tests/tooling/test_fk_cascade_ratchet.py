@@ -50,16 +50,10 @@ def _cascade_census() -> Counter[str]:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            name = (
-                func.attr
-                if isinstance(func, ast.Attribute)
-                else getattr(func, "id", None)
-            )
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
             if name != "ForeignKey":
                 continue
-            ondelete = next(
-                (kw.value for kw in node.keywords if kw.arg == "ondelete"), None
-            )
+            ondelete = next((kw.value for kw in node.keywords if kw.arg == "ondelete"), None)
             if not (isinstance(ondelete, ast.Constant) and ondelete.value == "CASCADE"):
                 continue
             target = node.args[0] if node.args else None

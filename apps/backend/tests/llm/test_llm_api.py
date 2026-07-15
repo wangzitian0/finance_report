@@ -24,7 +24,7 @@ def cipher(monkeypatch) -> FernetCipher:
     """A configured cipher so POST /llm/providers can seal the key (default test
     env has no ``LLM_ENCRYPTION_KEYS``)."""
     instance = FernetCipher([Fernet.generate_key().decode("ascii")])
-    monkeypatch.setattr("src.llm.extension.api.llm.build_cipher", lambda: instance)
+    monkeypatch.setattr("src.routers.llm.build_cipher", lambda: instance)
     return instance
 
 
@@ -152,7 +152,7 @@ async def test_AC23_4_9_provider_rejects_ssrf_api_base(client: AsyncClient, ciph
 
 async def test_AC23_4_10_provider_count_capped(client: AsyncClient, cipher, monkeypatch) -> None:
     """AC-llm.4.10: creating providers beyond the per-user cap returns 409."""
-    monkeypatch.setattr("src.llm.extension.api.llm.MAX_PROVIDERS_PER_USER", 2)
+    monkeypatch.setattr("src.routers.llm.MAX_PROVIDERS_PER_USER", 2)
     await _create_provider(client, label="p1")
     await _create_provider(client, label="p2")
     resp = await client.post(

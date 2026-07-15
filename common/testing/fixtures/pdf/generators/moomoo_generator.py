@@ -66,9 +66,7 @@ class MoomooGenerator(BasePDFGenerator):
                     f"SGD {closing_balance:,.2f}",
                 ],
             ]
-            summary_table = Table(
-                summary_data, colWidths=self._get_column_widths(summary_config)
-            )
+            summary_table = Table(summary_data, colWidths=self._get_column_widths(summary_config))
             summary_table.setStyle(self._create_table_style(summary_config))
             elements.append(summary_table)
             elements.append(Spacer(1, 20))

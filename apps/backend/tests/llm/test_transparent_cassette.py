@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.llm.base.types.core import ProtocolFamily, ProviderRef
+from src.llm.base.types import ProtocolFamily, ProviderRef
 from src.llm.extension.cassette import CassetteMiss, CassetteStore, fingerprint
 from src.llm.extension.client import _stream_decode_params, litellm_stream
 

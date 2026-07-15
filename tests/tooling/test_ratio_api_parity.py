@@ -65,6 +65,4 @@ def test_AC12_9_2_backend_exposes_shared_ratio_api():
 def test_AC12_9_2_frontend_exposes_shared_ratio_api():
     """AC-audit.9.2: the frontend ratio module exports the full shared surface."""
     missing = SHARED_API - _frontend_exports()
-    assert not missing, (
-        f"frontend lib/audit/ratio missing shared API: {sorted(missing)}"
-    )
+    assert not missing, f"frontend lib/audit/ratio missing shared API: {sorted(missing)}"

@@ -9,9 +9,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationLiquidityClass
-from src.platform.base.types.provenance import DataProvenance
-from src.portfolio.base.types.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.pricing import ValuationComponentItem, ValuationService, ValuationServiceError
+from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
+from src.schemas.provenance import DataProvenance
 
 
 async def test_create_manual_valuation_snapshot_crud_api(client):
@@ -198,7 +198,7 @@ async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
     """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
-    import src.portfolio.extension.api.assets as assets_router
+    from src.routers import assets as assets_router
 
     async def raise_on_create(*args, **kwargs):
         raise RuntimeError("create failed")

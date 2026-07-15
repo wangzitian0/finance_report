@@ -174,8 +174,7 @@ def cmd_test(args, extra_args: list[str]):
         lifecycle_args.append("--ephemeral")
     lifecycle_args.extend(extra_args)
     run(
-        [sys.executable, str(REPO_ROOT / "tools" / "test_lifecycle.py")]
-        + lifecycle_args,
+        [sys.executable, str(REPO_ROOT / "tools" / "test_lifecycle.py")] + lifecycle_args,
         cwd=BACKEND_DIR,
     )
 
@@ -255,9 +254,7 @@ def main():
     # test - use parse_known_args for transparent pass-through
     p_test = subparsers.add_parser("test", help="Run tests")
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
-    p_test.add_argument(
-        "--smart", action="store_true", help="Coverage on changed files"
-    )
+    p_test.add_argument("--smart", action="store_true", help="Coverage on changed files")
     p_test.add_argument(
         "--ephemeral",
         action="store_true",
@@ -290,12 +287,8 @@ def main():
     p_clean = subparsers.add_parser("clean", help="Clean up resources")
     p_clean.add_argument("--db", action="store_true", help="Clean test databases")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
-    p_clean.add_argument(
-        "--force", action="store_true", help="Force clean processes/leaked containers"
-    )
-    p_clean.add_argument(
-        "--all", action="store_true", help="Deep clean (including volumes)"
-    )
+    p_clean.add_argument("--force", action="store_true", help="Force clean processes/leaked containers")
+    p_clean.add_argument("--all", action="store_true", help="Deep clean (including volumes)")
 
     # Use parse_known_args for test command to allow pass-through of pytest args
     args, extra = parser.parse_known_args()

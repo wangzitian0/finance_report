@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.identity.base.types.user import UserCreate, UserUpdate
+from src.schemas.user import UserCreate, UserUpdate
 
 
 class TestUserSchemas:

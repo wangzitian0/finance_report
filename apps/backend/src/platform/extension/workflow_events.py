@@ -8,19 +8,6 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.platform.base.types.workflow import (
-    WorkflowEventCountsResponse,
-    WorkflowEventCreate,
-    WorkflowEventListResponse,
-    WorkflowEventResponse,
-    WorkflowNextActionResponse,
-    WorkflowNextActionType,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessResponse,
-    WorkflowReportReadinessState,
-    WorkflowSessionSummaryResponse,
-    WorkflowStatusResponse,
-)
 from src.platform.extension.workflow_event_builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
     StatementEventSource,
@@ -40,6 +27,19 @@ from src.platform.orm.workflow import (
     WorkflowReportImpact,
     WorkflowSession,
     WorkflowSessionStatus,
+)
+from src.schemas.workflow import (
+    WorkflowEventCountsResponse,
+    WorkflowEventCreate,
+    WorkflowEventListResponse,
+    WorkflowEventResponse,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowSessionSummaryResponse,
+    WorkflowStatusResponse,
 )
 
 if TYPE_CHECKING:

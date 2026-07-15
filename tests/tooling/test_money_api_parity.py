@@ -67,6 +67,4 @@ def test_AC2_19_1_backend_exposes_shared_money_api():
 def test_AC2_19_1_frontend_exposes_shared_money_api():
     """AC-audit.19.1: the frontend money module exports the full shared value-type surface."""
     missing = SHARED_API - _frontend_exports()
-    assert not missing, (
-        f"frontend lib/audit/money missing shared API: {sorted(missing)}"
-    )
+    assert not missing, f"frontend lib/audit/money missing shared API: {sorted(missing)}"

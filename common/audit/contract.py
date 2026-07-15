@@ -113,11 +113,21 @@ CONTRACT = PackageContract(
         # this file's docstring flagged): the promotion gate (#930, relocated
         # from services/promotion_gate.py by #1667). Confidence/provenance/
         # trace records still arrive in a later fold (#1429).
-        Unit(name="InvariantResult", kind=Kind.VALUE_OBJECT),
-        Unit(name="PromotionDecision", kind=Kind.VALUE_OBJECT),
-        Unit(name="PromotionVerdict", kind=Kind.VALUE_OBJECT),
-        Unit(name="evaluate_promotion", kind=Kind.DOMAIN_SERVICE),
-        Unit(name="tier_rank", kind=Kind.DOMAIN_SERVICE),
+        Unit(
+            name="InvariantResult", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="PromotionDecision", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="PromotionVerdict", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+        ),
+        Unit(
+            name="evaluate_promotion",
+            kind=Kind.DOMAIN_SERVICE,
+            module="promotion/gate.py",
+        ),
+        Unit(name="tier_rank", kind=Kind.DOMAIN_SERVICE, module="promotion/gate.py"),
     ],
     implementations={
         "be": "apps/backend/src/audit",

@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import (
@@ -27,14 +27,14 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class TransactionDirection(StrEnum):
+class TransactionDirection(str, Enum):
     """Transaction flow direction."""
 
     IN = "IN"
     OUT = "OUT"
 
 
-class AssetType(StrEnum):
+class AssetType(str, Enum):
     """Type of financial asset."""
 
     STOCK = "stock"

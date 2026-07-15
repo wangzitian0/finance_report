@@ -12,7 +12,6 @@ from decimal import Decimal
 
 import importlib.util as _ilu
 from pathlib import Path as _P
-
 _REC_PATH = _P(__file__).resolve().parents[2] / "tools/_lib/record_hf_cassettes.py"
 assert _REC_PATH.is_file(), f"recorder script missing: {_REC_PATH}"
 _spec = _ilu.spec_from_file_location("record_hf_cassettes", _REC_PATH)
@@ -28,15 +27,9 @@ def test_iso_date_normalises_both_hf_schemas() -> None:
 
 
 def test_row_amount_across_schemas() -> None:
-    assert rec._row_amount({"transaction_amount": 475617.41}) == Decimal(
-        "475617.41"
-    )  # Type2
-    assert rec._row_amount({"credit": 6086.63, "debit": None}) == Decimal(
-        "6086.63"
-    )  # Type1 credit
-    assert rec._row_amount({"credit": None, "debit": 513.47}) == Decimal(
-        "513.47"
-    )  # Type1 debit
+    assert rec._row_amount({"transaction_amount": 475617.41}) == Decimal("475617.41")  # Type2
+    assert rec._row_amount({"credit": 6086.63, "debit": None}) == Decimal("6086.63")  # Type1 credit
+    assert rec._row_amount({"credit": None, "debit": 513.47}) == Decimal("513.47")  # Type1 debit
 
 
 def test_row_balance_across_schemas() -> None:
@@ -46,27 +39,15 @@ def test_row_balance_across_schemas() -> None:
 
 def test_hf_url_points_at_public_dataset() -> None:
     url = rec.hf_url("India_Bank_Statement_Digital_Type1/00001")
-    assert url.startswith(
-        "https://huggingface.co/datasets/Akashved/Indian-Bank-Statements/"
-    )
+    assert url.startswith("https://huggingface.co/datasets/Akashved/Indian-Bank-Statements/")
     assert url.endswith("train/India_Bank_Statement_Digital_Type1/00001.pdf")
 
 
 def test_build_truth_is_masked_and_balance_exempt() -> None:
     hf = {
         "transactions": [
-            {
-                "date": "2024-01-01 10:00:00",
-                "description": "NEFT Cr ACME LTD",
-                "credit": 100.0,
-                "balance": 1100.0,
-            },
-            {
-                "date": "2024-01-02 11:00:00",
-                "description": "UPI DR SHOP XYZ",
-                "debit": 50.0,
-                "balance": 1050.0,
-            },
+            {"date": "2024-01-01 10:00:00", "description": "NEFT Cr ACME LTD", "credit": 100.0, "balance": 1100.0},
+            {"date": "2024-01-02 11:00:00", "description": "UPI DR SHOP XYZ", "debit": 50.0, "balance": 1050.0},
         ]
     }
     truth = rec.build_truth(hf, modality="text")

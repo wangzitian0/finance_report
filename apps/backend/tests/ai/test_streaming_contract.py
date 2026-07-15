@@ -14,8 +14,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.advisor.base.types.chat import ChatActionChip, ChatCitation, ChatResponseMetadata
-from src.platform.base.types.streaming import (
+from src.schemas.chat import ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.schemas.streaming import (
     ADVISOR_METADATA_HEADER,
     EXPOSE_HEADERS_HEADER,
     ChatStreamEnvelope,
@@ -151,7 +151,7 @@ async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> No
     Wire output is unchanged: text/plain body, X-Session-Id header, and a
     dict-shaped advisor metadata payload is still coerced into the typed header.
     """
-    from src.advisor.extension.api.chat import chat_message
+    from src.routers.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -173,7 +173,7 @@ async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> No
         "actions": [],
     }
 
-    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
+    with patch("src.routers.chat.AIAdvisorService") as MockService:
         stream_obj = MagicMock()
         stream_obj.session_id = session_id
         stream_obj.stream = mock_stream()

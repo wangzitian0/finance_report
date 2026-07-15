@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+import enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from src.ledger.orm.journal import JournalLine
 
 
-class AccountType(StrEnum):
+class AccountType(str, enum.Enum):
     """Account type classification."""
 
     ASSET = "ASSET"

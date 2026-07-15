@@ -3,7 +3,7 @@
 Moved from ``src/models/chat.py`` (#1671 Wave B, the #1675 D5 slice for this
 package) — the advisor owns its aggregate's persistence.  Schema-neutral:
 table names, columns, and enum names are unchanged, so the Alembic diff is
-The only cross-domain coupling is the plain ``user_id`` FK column
+empty.  The only cross-domain coupling is the plain ``user_id`` FK column
 from ``UserOwnedMixin`` (no ``relationship()`` navigation), which the
 narrowed cross-domain-FK gate allows (#1756).
 """
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import enum
 from datetime import UTC, datetime
-from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
@@ -23,14 +22,14 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class ChatSessionStatus(StrEnum):
+class ChatSessionStatus(str, enum.Enum):
     """Lifecycle status for chat sessions."""
 
     ACTIVE = "active"
     DELETED = "deleted"
 
 
-class ChatMessageRole(StrEnum):
+class ChatMessageRole(str, enum.Enum):
     """Chat message role mapping to LLM roles."""
 
     USER = "user"

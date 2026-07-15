@@ -8,7 +8,7 @@ resolves over (see ``common/pricing/contract.py``), so ``pricing`` — not
 
 from datetime import date
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 
 from sqlalchemy import CheckConstraint, Date, Enum as SQLEnum, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -17,7 +17,7 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class PriceSource(StrEnum):
+class PriceSource(str, Enum):
     """Source of market price data."""
 
     MANUAL = "manual"

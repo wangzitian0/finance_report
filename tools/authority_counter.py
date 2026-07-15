@@ -32,9 +32,7 @@ def render_table(result: dict) -> str:
     lines.append(
         f"{'ALL':<10}{o['total']:>5}{o['code']:>6}{o['llm']:>5}{o['unknown']:>5}{o['llm_share']:>6}%"
     )
-    lines.append(
-        "\nclassified by test shape: cassette/replay -> LLM, else CODE. '?' = test file unresolved."
-    )
+    lines.append("\nclassified by test shape: cassette/replay -> LLM, else CODE. '?' = test file unresolved.")
     return "\n".join(lines)
 
 

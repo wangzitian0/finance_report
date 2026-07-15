@@ -109,11 +109,7 @@ def _persisted_construction_ids(scope: ast.AST) -> set[int]:
     # db.bulk_save_objects). A Name argument (or Name list element) records the
     # variable so rows collected into a list and bulk-added later are still persisted.
     for node in ast.walk(scope):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in _PERSIST_METHODS
-        ):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _PERSIST_METHODS:
             for arg in node.args:
                 _collect_added(arg)
 
@@ -153,9 +149,7 @@ def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
     # Judge persistence within each function so a var name added in one test
     # cannot mark a same-named transient construction in another test.
     scopes: list[ast.AST] = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
 
     findings: list[DetachedOwnerFinding] = []
@@ -166,11 +160,7 @@ def scan_file(path: Path, *, repo_root: Path) -> list[DetachedOwnerFinding]:
             if not isinstance(call, ast.Call) or id(call) not in persisted:
                 continue
             for keyword in call.keywords:
-                if (
-                    keyword.arg == OWNER_KEYWORD
-                    and _is_uuid4_call(keyword.value)
-                    and id(keyword) not in seen
-                ):
+                if keyword.arg == OWNER_KEYWORD and _is_uuid4_call(keyword.value) and id(keyword) not in seen:
                     seen.add(id(keyword))
                     source = ast.get_source_segment(source_text, call) or PATTERN
                     findings.append(
@@ -194,9 +184,7 @@ def scan_paths(paths: Sequence[Path], *, repo_root: Path) -> list[DetachedOwnerF
 
 def scan_default_paths(repo_root: Path) -> list[DetachedOwnerFinding]:
     """Scan the default backend test roots."""
-    return scan_paths(
-        [repo_root / path for path in DEFAULT_TEST_ROOTS], repo_root=repo_root
-    )
+    return scan_paths([repo_root / path for path in DEFAULT_TEST_ROOTS], repo_root=repo_root)
 
 
 def evaluate_budget(
@@ -223,10 +211,7 @@ def evaluate_budget(
 
 def _format_findings(findings: Sequence[DetachedOwnerFinding], *, limit: int) -> str:
     shown = findings[:limit]
-    lines = [
-        f"{finding.relative_path}:{finding.line}: {finding.pattern}: {finding.source}"
-        for finding in shown
-    ]
+    lines = [f"{finding.relative_path}:{finding.line}: {finding.pattern}: {finding.source}" for finding in shown]
     remaining = len(findings) - len(shown)
     if remaining > 0:
         lines.append(f"... {remaining} more")
@@ -264,9 +249,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = args.repo_root.resolve()
     paths = (
-        [repo_root / path for path in args.paths]
-        if args.paths
-        else [repo_root / path for path in DEFAULT_TEST_ROOTS]
+        [repo_root / path for path in args.paths] if args.paths else [repo_root / path for path in DEFAULT_TEST_ROOTS]
     )
     findings = scan_paths(paths, repo_root=repo_root)
     result = evaluate_budget(findings, max_allowed=args.max_allowed)

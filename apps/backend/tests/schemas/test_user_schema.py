@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.identity.base.types.user import (
+from src.schemas.user import (
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
     UserCreate,

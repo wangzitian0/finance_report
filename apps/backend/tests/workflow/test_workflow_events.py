@@ -33,12 +33,6 @@ from src.platform import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
-from src.platform.base.types.workflow import (
-    WorkflowEventCreate,
-    WorkflowEventResponse,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessState,
-)
 from src.platform.extension.workflow_events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
@@ -56,6 +50,12 @@ from src.platform.extension.workflow_events import (
     upsert_workflow_event,
 )
 from src.reporting.extension.report_readiness import get_personal_report_package_readiness
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessState,
+)
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
 

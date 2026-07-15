@@ -348,9 +348,7 @@ class TestMain:
             "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
             encoding="utf-8",
         )
-        (docs / "infra_registry.yaml").write_text(
-            "version: '1.0'\ngroups: {}\n", encoding="utf-8"
-        )
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
         backend = tmp_path / "apps" / "backend" / "tests"
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")
@@ -386,9 +384,7 @@ class TestMain:
             "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n        epic: 1\n        epic_name: phase0\n        description: demo\n        mandatory: true\n",
             encoding="utf-8",
         )
-        (docs / "infra_registry.yaml").write_text(
-            "version: '1.0'\ngroups: {}\n", encoding="utf-8"
-        )
+        (docs / "infra_registry.yaml").write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
         backend = tmp_path / "apps" / "backend" / "tests"
         backend.mkdir(parents=True, exist_ok=True)
         (backend / "test_demo.py").write_text("# AC1.1.1\n", encoding="utf-8")

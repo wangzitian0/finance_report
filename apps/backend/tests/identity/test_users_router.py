@@ -13,8 +13,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.identity import User
-from src.identity.base.types.user import UserUpdate
 from src.identity.extension.api.users import get_user, update_user
+from src.schemas.user import UserUpdate
 
 pytestmark = pytest.mark.asyncio
 

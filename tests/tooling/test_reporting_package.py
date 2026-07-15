@@ -30,11 +30,7 @@ def _static_all(path: Path) -> list[str]:
         else:
             continue
         for target in targets:
-            if (
-                isinstance(target, ast.Name)
-                and target.id == "__all__"
-                and node.value is not None
-            ):
+            if isinstance(target, ast.Name) and target.id == "__all__" and node.value is not None:
                 value = ast.literal_eval(node.value)
                 return [str(item) for item in value]
     raise AssertionError(f"missing __all__ in {path}")
@@ -85,25 +81,19 @@ def test_AC_reporting_1_3_manual_valuation_is_not_published_reporting_surface():
     # ``.exists()`` alone is fragile against a stale local ``__pycache__``
     # (a gitignored build artifact, not tracked source) surviving after the
     # tracked .py files are deleted; check for real source files instead.
-    legacy_py_files = (
-        list(LEGACY_REPORTING.rglob("*.py")) if LEGACY_REPORTING.exists() else []
-    )
+    legacy_py_files = list(LEGACY_REPORTING.rglob("*.py")) if LEGACY_REPORTING.exists() else []
     assert legacy_py_files == [], (
         "the pricing cutover (#1610 P2) absorbed manual_valuation.py into "
         "pricing/extension/valuation.py; the legacy services/reporting/ "
         f"directory must not carry tracked source again, found: {legacy_py_files}"
     )
-    assert {unit.name for unit in CONTRACT.units}.isdisjoint(
-        {"ManualValuationSnapshot"}
-    )
+    assert {unit.name for unit in CONTRACT.units}.isdisjoint({"ManualValuationSnapshot"})
 
 
 def test_AC_reporting_1_4_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: the gate validates reporting with no violations."""
     packages = discover_packages(REPO)
-    assert any(p.contract.name == "reporting" for p in packages), (
-        "reporting not discovered"
-    )
+    assert any(p.contract.name == "reporting" for p in packages), "reporting not discovered"
     ok, messages = run(REPO)
     reporting_errors = [m for m in messages if "[reporting]" in m]
     assert not reporting_errors, f"gate violations for reporting: {reporting_errors}"

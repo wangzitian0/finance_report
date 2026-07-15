@@ -18,7 +18,7 @@ from src.llm.base.errors import (
 )
 from src.llm.base.protocols import CatalogProvider, LLMClient
 from src.llm.base.secrets import FernetCipher, SecretCipher, build_cipher
-from src.llm.base.types.core import (
+from src.llm.base.types import (
     ChatResult,
     Encrypted,
     Message,

@@ -13,9 +13,7 @@ from typing import Any
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_MATRIX = (
-    REPO_ROOT / "common" / "testing" / "data" / "source-coverage-matrix.yaml"
-)
+DEFAULT_MATRIX = REPO_ROOT / "common" / "testing" / "data" / "source-coverage-matrix.yaml"
 VALID_PROOF_LEVELS = {"pr_deterministic", "post_merge_llm_ocr", "manual_trusted", "gap"}
 ISSUE_RE = re.compile(r"^#\d+$")
 EPIC_RE = re.compile(r"^EPIC-\d{3}$")

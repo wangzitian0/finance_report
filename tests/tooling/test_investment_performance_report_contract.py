@@ -42,9 +42,7 @@ def test_AC17_10_1_AC17_10_2_investment_performance_schedule_api_contract() -> N
         assert field in reporting
 
 
-def test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract() -> (
-    None
-):
+def test_AC5_8_1_personal_report_package_consumes_investment_schedule_contract() -> None:
     """AC-reporting.package-investment.1: AC5.8.1: package consumption of the investment performance schedule is reporting-package-owned and stays documented in EPIC-005."""
     epic = read("docs/project/EPIC-005.reporting-visualization.md")
     user_guide = read("docs/user-guide/reports.md")

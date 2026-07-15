@@ -32,9 +32,7 @@ async def untyped():
         encoding="utf-8",
     )
 
-    findings = audit.scan_dir(
-        tmp_path / "apps" / "backend" / "src" / "routers", repo_root=tmp_path
-    )
+    findings = audit.scan_dir(tmp_path / "apps" / "backend" / "src" / "routers", repo_root=tmp_path)
 
     assert len(findings) == 1
     assert findings[0].handler == "untyped"
@@ -90,24 +88,14 @@ async def a():
     )
 
     exit_code = audit.main(
-        [
-            "--repo-root",
-            str(tmp_path),
-            "--router-dir",
-            str(router.parent),
-            "--max-allowed",
-            "0",
-            "--check",
-        ]
+        ["--repo-root", str(tmp_path), "--router-dir", str(router.parent), "--max-allowed", "0", "--check"]
     )
     assert exit_code == 1
 
 
 def test_real_repo_within_budget() -> None:
     """The current untyped-endpoint count is a non-growth ceiling."""
-    findings = audit.scan_dir(
-        ROOT / "apps" / "backend" / "src" / "routers", repo_root=ROOT
-    )
+    findings = audit.scan_dir(ROOT / "apps" / "backend" / "src" / "routers", repo_root=ROOT)
     assert len(findings) <= audit.DEFAULT_MAX_UNTYPED_ENDPOINTS, [
         f"{f.relative_path}:{f.line} {f.method} {f.route}" for f in findings
     ]
@@ -115,13 +103,9 @@ def test_real_repo_within_budget() -> None:
 
 def test_findings_doc_is_in_sync() -> None:
     """The committed findings doc matches the current scan (regenerate on change)."""
-    findings = audit.scan_dir(
-        ROOT / "apps" / "backend" / "src" / "routers", repo_root=ROOT
-    )
+    findings = audit.scan_dir(ROOT / "apps" / "backend" / "src" / "routers", repo_root=ROOT)
     expected = audit.render_markdown(findings)
-    doc = (ROOT / "docs" / "reference" / "router-contract-maturity.md").read_text(
-        encoding="utf-8"
-    )
+    doc = (ROOT / "docs" / "reference" / "router-contract-maturity.md").read_text(encoding="utf-8")
     assert doc == expected, (
         "Run: python tools/audit_router_contracts.py --output docs/reference/router-contract-maturity.md"
     )
@@ -136,16 +120,7 @@ def test_cli_writes_output_and_reports_within_budget(tmp_path: Path, capsys) -> 
         encoding="utf-8",
     )
     out = tmp_path / "findings.md"
-    code = audit.main(
-        [
-            "--repo-root",
-            str(tmp_path),
-            "--router-dir",
-            str(routers),
-            "--output",
-            str(out),
-        ]
-    )
+    code = audit.main(["--repo-root", str(tmp_path), "--router-dir", str(routers), "--output", str(out)])
     assert code == 0
     assert out.exists() and "Untyped Endpoints" in out.read_text(encoding="utf-8")
     assert "Untyped endpoints: 0" in capsys.readouterr().out

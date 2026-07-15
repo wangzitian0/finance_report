@@ -66,11 +66,7 @@ def balance_violation(payload: dict) -> str | None:
         amount = _as_decimal(txn.get("amount")) if isinstance(txn, dict) else None
         if amount is None:
             return "transaction with unparseable amount"
-        direction = (
-            str(txn.get("direction") or "").strip().upper()
-            if isinstance(txn, dict)
-            else ""
-        )
+        direction = str(txn.get("direction") or "").strip().upper() if isinstance(txn, dict) else ""
         if direction in _IN_DIRECTIONS:
             net += abs(amount)
         elif direction in _OUT_DIRECTIONS:
@@ -116,9 +112,7 @@ def check(cassette_dir: Path = CASSETTE_DIR) -> list[str]:
             payload = json.loads(text)
         except json.JSONDecodeError:
             continue  # not a JSON extraction response — out of scope here
-        if not (
-            isinstance(payload, dict) and all(k in payload for k in _STATEMENT_KEYS)
-        ):
+        if not (isinstance(payload, dict) and all(k in payload for k in _STATEMENT_KEYS)):
             continue  # not a statement-shaped extraction
         if _balance_exempt(cassette_dir, path.stem):
             continue  # non-reconciling source by construction — field-graded only (AC23.8)
