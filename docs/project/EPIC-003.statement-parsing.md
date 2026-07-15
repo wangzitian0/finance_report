@@ -1,5 +1,10 @@
 # EPIC-003: Smart Statement Parsing
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (2026-07-14): the delivered statement-parsing design
+     record; all ACs migrated to the `extraction` package contract.py roadmap
+     (reserved groups 1-12), completing the #1421 Stage-2 cutover. -->
+
 > **Status**: ✅ Complete (TDD Aligned)
 > **Vision Anchor**: `decision-2-event-middle-layer`
 > **Phase**: 2
@@ -130,6 +135,10 @@ or HK-like report classification, measurement, presentation, or disclosure.
 > contract roadmap is the single source.
 >
 > *(AC3.3.2 removed, AC3.5.10 removed, and AC3.6.4 removed — the last 3 legacy `{tier:HU} {proof:evidence}` "Retained rows"; re-investigation found the tests already deterministic (a human decision is a runtime input to a CODE-LED assertion, not a proof-kind requirement — see `common/meta/readme.md`'s HU-is-not-a-tier section) and filled the `AC-extraction.3.2`/`5.10`/`6.4` gaps with `proof_kind="property"`, valid under the package's already-declared LLM-LED tier, 2026-07-14.)*
+>
+> Extraction's failed-case audit trail (`AC-extraction.9.1` in the contract
+> roadmap) stays registered in
+> [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml).
 
 ## 📚 SSOT References
 

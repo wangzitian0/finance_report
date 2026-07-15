@@ -115,10 +115,13 @@ def test_AC26_6_1_first_batch_lp_acs_carry_invariant_proof() -> None:
     assert roadmap["AC-extraction.1.1"].proof_kind == "invariant"
     assert roadmap["AC-extraction.5.7"].proof_kind == "invariant"
     assert roadmap["AC-extraction.5.19"].proof_kind == "property"
-    # HU review ACs stay in the EPIC (evidence is invalid under the LLM-LED
-    # package tier) and carry an evidence proof.
-    for ac_id in ("AC3.3.2", "AC3.5.10", "AC3.6.4"):
-        assert entries[ac_id]["proof_kind"] == "evidence", ac_id
+    # The legacy HU review ACs (AC3.3.2/AC3.5.10/AC3.6.4) migrated into this
+    # same roadmap 2026-07-14: their {tier:HU}{proof:evidence} marker predated
+    # the tier->proof matrix and was never revisited — the underlying tests
+    # are ordinary deterministic assertions, so they carry "property" under
+    # the package's LLM-LED tier, not "evidence".
+    for ac_id in ("AC-extraction.3.2", "AC-extraction.5.10", "AC-extraction.6.4"):
+        assert roadmap[ac_id].proof_kind == "property", ac_id
     # The old LLM-ONLY/smoke suggestion ACs (AC6.2.3/AC6.2.4) migrated into the
     # advisor package roadmap (#1663) as AC-advisor.suggestions.1/.2 — on
     # inspection both tests are pure static-copy assertions with no LLM call,

@@ -6,9 +6,7 @@
       "horizontal": 1
     },
     "EPIC-002.double-entry-core.md": {},
-    "EPIC-003.statement-parsing.md": {
-      "pending-package": 3
-    },
+    "EPIC-003.statement-parsing.md": {},
     "EPIC-004.reconciliation-engine.md": {
       "horizontal": 2
     },
@@ -25,9 +23,7 @@
       "horizontal": 3
     },
     "EPIC-010.observability-logging.md": {},
-    "EPIC-011.asset-lifecycle.md": {
-      "pending-package": 1
-    },
+    "EPIC-011.asset-lifecycle.md": {},
     "EPIC-012.foundation-libs.md": {
       "horizontal": 6
     },
@@ -44,7 +40,7 @@
       "pending-package": 1
     },
     "EPIC-018.ai-driven-pipeline.md": {
-      "pending-package": 6
+      "pending-package": 3
     },
     "EPIC-019.event-driven-upload-to-report-ux.md": {
       "fe-half": 1

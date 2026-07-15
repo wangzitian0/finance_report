@@ -283,12 +283,12 @@ CONTRACT = PackageContract(
             ),
         ),
     ],
-    # The EPIC-003 + EPIC-013 ACs, migrated per Decision A. Three EPIC-003
-    # rows stay behind in the EPIC (AC3.3.2 / AC3.5.10 / AC3.6.4): they are
-    # human-authority rows ({tier:HU}{proof:evidence}), and the tier->proof
-    # matrix forbids evidence proofs under this LLM-LED package — a different
-    # authority tier is a different owner, same as frontend rows in ledger's
-    # cutover. (standard-preserving
+    # The EPIC-003 + EPIC-013 ACs, migrated per Decision A. AC3.3.2/AC3.5.10/
+    # AC3.6.4 (groups 3/5/6) were the last 3 EPIC-003 rows migrated (2026-07-14):
+    # their legacy {tier:HU}{proof:evidence} marker predates the tier->proof
+    # matrix and was never revisited; the underlying tests are ordinary
+    # deterministic assertions, so proof_kind="property" applies cleanly under
+    # this package's LLM-LED tier — no authority-tier conflict. (standard-preserving
     # move; the EPIC table rows were deleted in the same commit). Numeric
     # AC-<pkg>.<group>.<seq> grammar with reserved group blocks (the ledger
     # precedent): **1–12 = EPIC-003** (leading epic number dropped) and
@@ -388,7 +388,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.3.2",
-            statement="Medium Confidence (Review)",  # was AC3.3.2
+            # was AC3.3.2; consolidated with duplicate AC13.2.2 (EPIC-013 lineage,
+            # same test) per Copilot review on PR #1859 — one canonical id per proof.
+            statement="Medium Confidence (Review)",
             test="apps/backend/tests/extraction/test_extraction.py::test_medium_confidence",
             priority="P0",
             status="done",
@@ -910,14 +912,6 @@ CONTRACT = PackageContract(
             id="AC-extraction.102.1",
             statement="Test that complete data gets high confidence (Auto-Accept)",  # was AC13.2.1
             test="apps/backend/tests/extraction/test_extraction.py::test_high_confidence",
-            priority="P0",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
-            id="AC-extraction.102.2",
-            statement="Test that partial data gets medium confidence (Review)",  # was AC13.2.2
-            test="apps/backend/tests/extraction/test_extraction.py::test_medium_confidence",
             priority="P0",
             status="done",
             proof_kind="property",

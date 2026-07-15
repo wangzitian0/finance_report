@@ -1,5 +1,11 @@
 # EPIC-011: Asset Lifecycle Management
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (2026-07-14): the last resident row's version-ordering
+     half migrated to the `extraction` package roadmap as
+     `AC-extraction.classification-priority.1`; this file stays the delivered
+     asset-lifecycle design record. -->
+
 **Status**: 🟡 In Progress (P0 Complete)  
 **Vision Anchor**: `decision-3-record-layer`  
 **Phase**: 5  
