@@ -57,7 +57,6 @@ from src.reconciliation.extension.review_queue import (
     reject_match,
 )
 from src.reconciliation.extension.scoring import (
-    ai_semantic_score,
     extract_merchant_tokens,
     is_cross_period,
     normalize_text,
@@ -104,7 +103,6 @@ __all__ = [
     "_within_combination_tolerance",
     "accept_match",
     "accepted_transfer_txn_ids",
-    "ai_semantic_score",
     "auto_accept",
     "batch_accept",
     "build_many_to_one_groups",

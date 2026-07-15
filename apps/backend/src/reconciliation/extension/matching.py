@@ -22,6 +22,7 @@ from src.ledger import (
     detect_transfer_pattern,
     find_transfer_pairs,
 )
+from src.llm import ai_semantic_score
 from src.observability import get_logger, record_reconciliation_match_outcome
 from src.reconciliation.base.config import (  # noqa: F401
     DEFAULT_CONFIG,
@@ -35,13 +36,13 @@ from src.reconciliation.base.config import (  # noqa: F401
     is_entry_balanced,
     load_reconciliation_config,
 )
+from src.reconciliation.base.prompts import build_reconciliation_prompt
 from src.reconciliation.extension.phases import (
     run_many_to_one_phase,
     run_normal_matching_phase,
     run_transfer_detection_phase,
 )
 from src.reconciliation.extension.scoring import (  # noqa: F401
-    ai_semantic_score,
     extract_merchant_tokens,
     is_cross_period,
     normalize_text,
@@ -166,12 +167,15 @@ async def calculate_match_score(
         if primary_entry:
             date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
             amount_pct = scores.get("amount", 0.0)
-            semantic = await ai_semantic_score(
+            # llm's ai_semantic_score is generic (prompt in, score out); the
+            # reconciliation-specific prompt is built here, package-side.
+            prompt = build_reconciliation_prompt(
                 txn_description=transaction.description,
                 entry_memo=primary_entry.memo or "",
                 date_diff_days=date_diff,
                 amount_match_pct=amount_pct,
             )
+            semantic = await ai_semantic_score(prompt)
             # Hybrid formula: 70% algorithmic + 30% AI semantic
             total = int(round(Decimal("0.7") * total + Decimal("0.3") * semantic, 0))
             scores["ai_semantic"] = float(semantic)

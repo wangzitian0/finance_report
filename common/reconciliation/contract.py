@@ -19,9 +19,14 @@ CONTRACT = PackageContract(
     # were declared but had zero real imports — removed. Re-add each with its
     # first real import, not before (a declared-but-unused edge now fails
     # check_package_contract).
-    # llm added #1670: extension/scoring.py's AI semantic-match scoring streams
-    # a prompt through src.llm (graceful None fallback on any error — advisory
-    # signal, not a hard dependency on model correctness).
+    # llm added #1670; ai_semantic_score itself relocated OUT of this package
+    # and into llm (AC-llm.semantic-scoring.1, #1859 flagged the CODE-ONLY
+    # violation — a genuine LLM call cannot live in a CODE-ONLY module per
+    # common/meta/readme.md's Cross-tier MUST rule 2). extension/matching.py's
+    # calculate_match_score still CONSUMES llm.ai_semantic_score as an
+    # external advisory signal over its own build_reconciliation_prompt()
+    # output (graceful fallback to a neutral 50 on any error — never a hard
+    # dependency on model correctness); the llm edge stays declared here.
     # pricing re-added #1675: extension/fx_transfer.py + fx_transfer_discovery.py
     # read the FxConversion model, now published on pricing's root.
     # platform re-added #1675 D6: orm/reconciliation.py + orm/consistency_check.py
@@ -176,7 +181,6 @@ CONTRACT = PackageContract(
         "_within_combination_tolerance",
         "accept_match",
         "accepted_transfer_txn_ids",
-        "ai_semantic_score",
         "auto_accept",
         "batch_accept",
         "build_many_to_one_groups",

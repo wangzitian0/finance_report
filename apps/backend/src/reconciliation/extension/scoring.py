@@ -11,15 +11,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import AccountType, JournalEntry
-from src.observability import get_logger
 from src.reconciliation.base.config import ReconciliationConfig
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
-
-logger = get_logger(__name__)
-settings = src.config.settings
 
 
 def normalize_text(value: str) -> str:
@@ -224,62 +219,3 @@ def weighted_total(scores: dict[str, float], config: ReconciliationConfig) -> in
         + Decimal(str(scores["history"])) * config.weight_history
     )
     return int(round(total, 0))
-
-
-async def ai_semantic_score(
-    txn_description: str,
-    entry_memo: str,
-    date_diff_days: int,
-    amount_match_pct: float,
-) -> int:
-    """EPIC-018 Phase 3: Compute AI semantic similarity score.
-
-    Calls the configured AI provider to assess semantic similarity between a bank transaction
-    description and a journal entry memo. Returns 0-100 score.
-
-    Falls back gracefully to 50 (neutral) on any error.
-    """
-    import json
-
-    from src.llm import AIStreamError, accumulate_stream, stream_ai_json
-    from src.reconciliation.base.prompts import build_reconciliation_prompt
-
-    prompt = build_reconciliation_prompt(
-        txn_description=txn_description,
-        entry_memo=entry_memo,
-        date_diff_days=date_diff_days,
-        amount_match_pct=amount_match_pct,
-    )
-
-    messages = [{"role": "user", "content": prompt}]
-
-    try:
-        stream = stream_ai_json(
-            messages=messages,
-            model=settings.primary_model,
-            timeout=30.0,
-        )
-        content = await accumulate_stream(stream)
-
-        if not content or not content.strip():
-            logger.warning("AI semantic score returned empty response")
-            return 50
-
-        parsed = json.loads(content)
-        score = int(parsed.get("similarity_score", 50))
-
-        logger.debug(
-            "AI semantic score computed",
-            score=score,
-            model=settings.primary_model,
-        )
-
-        return max(0, min(100, score))
-
-    except (AIStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
-        logger.warning(
-            "AI semantic score failed, using fallback",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
-        return 50

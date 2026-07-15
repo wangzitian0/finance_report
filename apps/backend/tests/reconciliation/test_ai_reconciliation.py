@@ -3,15 +3,19 @@
 The ``calculate_match_score``-level hybrid/feature-flag behavior
 (AC-reconciliation.1803.1/.2, formerly AC18.3.2/AC18.3.3) lives in
 ``test_reconciliation_hybrid_scoring.py`` instead of here — kept out of this
-file specifically so a package-wide LLM-test-marker scan (this file mocks
-``stream_ai_json`` directly) doesn't misclassify those two deterministic
+file specifically so a package-wide LLM-test-marker scan (this file used to
+mock ``stream_ai_json`` directly) doesn't misclassify those two deterministic
 gating/formula ACs as LLM tests.
+
+``ai_semantic_score`` itself (was AC18.3.1) moved to the ``llm`` package
+(a genuine LLM call cannot live in this CODE-ONLY package — see
+``common/meta/readme.md``'s Cross-tier MUST rule 2); its tests moved to
+``apps/backend/tests/llm/test_semantic_scoring.py``.
 """
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.reconciliation import ReconciliationConfig, ai_semantic_score, weighted_total
+from src.reconciliation import ReconciliationConfig, weighted_total
 
 
 def _default_config() -> ReconciliationConfig:
@@ -28,168 +32,6 @@ def _default_config() -> ReconciliationConfig:
         amount_absolute=Decimal("1.00"),
         date_days=3,
     )
-
-
-async def test_ai_semantic_score_returns_score():
-    """AC18.3.1: ai_semantic_score returns similarity score for matching descriptions."""
-    mock_response = '{"similarity_score": 92, "reasoning": "Both refer to salary"}'
-
-    mock_accumulate = AsyncMock(return_value=mock_response)
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch(
-            "src.llm.stream_ai_json",
-            return_value=mock_stream,
-        ),
-        patch(
-            "src.llm.accumulate_stream",
-            mock_accumulate,
-        ),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        score = await ai_semantic_score(
-            txn_description="SALARY ACME CORP",
-            entry_memo="Monthly salary payment",
-            date_diff_days=0,
-            amount_match_pct=100.0,
-        )
-        assert score == 92
-
-
-async def test_ai_semantic_score_returns_low_for_unrelated():
-    """ai_semantic_score returns low score for unrelated descriptions."""
-    mock_response = '{"similarity_score": 15, "reasoning": "Completely different"}'
-
-    mock_accumulate = AsyncMock(return_value=mock_response)
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch(
-            "src.llm.stream_ai_json",
-            return_value=mock_stream,
-        ),
-        patch(
-            "src.llm.accumulate_stream",
-            mock_accumulate,
-        ),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        score = await ai_semantic_score(
-            txn_description="COFFEE SHOP PURCHASE",
-            entry_memo="Car insurance premium",
-            date_diff_days=15,
-            amount_match_pct=30.0,
-        )
-        assert score == 15
-
-
-async def test_ai_semantic_score_fallback_on_error():
-    """ai_semantic_score falls back to 50 on any error."""
-    from src.llm import AIStreamError
-
-    mock_stream = MagicMock(side_effect=AIStreamError("API error"))
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch(
-            "src.llm.stream_ai_json",
-            mock_stream,
-        ),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        score = await ai_semantic_score(
-            txn_description="test",
-            entry_memo="test",
-            date_diff_days=0,
-            amount_match_pct=100.0,
-        )
-        assert score == 50
-
-
-async def test_ai_semantic_score_no_api_key_returns_50():
-    """When no API key is configured, fall back to neutral score."""
-    with patch("src.reconciliation.extension.scoring.settings") as mock_settings:
-        mock_settings.ai_api_key = ""
-
-        score = await ai_semantic_score(
-            txn_description="test",
-            entry_memo="test",
-            date_diff_days=0,
-            amount_match_pct=100.0,
-        )
-        assert score == 50
-
-
-async def test_ai_semantic_score_empty_response_returns_50():
-    """Empty AI responses fall back to neutral score."""
-    mock_accumulate = AsyncMock(return_value="  ")
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch(
-            "src.llm.stream_ai_json",
-            return_value=mock_stream,
-        ),
-        patch(
-            "src.llm.accumulate_stream",
-            mock_accumulate,
-        ),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        score = await ai_semantic_score(
-            txn_description="test",
-            entry_memo="test",
-            date_diff_days=0,
-            amount_match_pct=100.0,
-        )
-        assert score == 50
-
-
-async def test_ai_semantic_score_clamps_to_range():
-    """Score is clamped to 0-100 range."""
-    mock_response = '{"similarity_score": 150, "reasoning": "Over 100"}'
-
-    mock_accumulate = AsyncMock(return_value=mock_response)
-    mock_stream = MagicMock()
-
-    with (
-        patch("src.reconciliation.extension.scoring.settings") as mock_settings,
-        patch(
-            "src.llm.stream_ai_json",
-            return_value=mock_stream,
-        ),
-        patch(
-            "src.llm.accumulate_stream",
-            mock_accumulate,
-        ),
-    ):
-        mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
-        mock_settings.ai_base_url = "https://test.api"
-
-        score = await ai_semantic_score(
-            txn_description="test",
-            entry_memo="test",
-            date_diff_days=0,
-            amount_match_pct=100.0,
-        )
-        assert score == 100
 
 
 def test_weighted_total_computes_correctly():

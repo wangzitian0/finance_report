@@ -35,6 +35,7 @@ from src.llm.extension.factory import (
 )
 from src.llm.extension.ocr_client import ocr_layout_call
 from src.llm.extension.routing import LitellmCall, build_call
+from src.llm.extension.semantic_scoring import ai_semantic_score
 from src.llm.extension.streaming import (
     AIStreamError,
     accumulate_stream,
@@ -57,6 +58,7 @@ __all__ = [
     "LayeredConfigSource",
     "LitellmCall",
     "accumulate_stream",
+    "ai_semantic_score",
     "build_call",
     "fingerprint",
     "get_config_source",
