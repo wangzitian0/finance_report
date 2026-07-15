@@ -28,7 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
-from src.extraction import DocumentType, ExtractionError, UploadedDocument
+from src.extraction import DocumentSource, DocumentType, ExtractionError, ParseJob, UploadedDocument
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -272,19 +272,16 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         return statement, []
 
     monkeypatch.setattr(
@@ -416,8 +413,10 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage
     await wait_for_background_tasks()
 
     assert created.status == BankStatementStatus.PARSING
-    assert mock_parse.await_args.kwargs["model"] is None
-    storage_key = mock_parse.await_args.kwargs["storage_key"]
+    job = mock_parse.await_args.kwargs["job"]
+    assert isinstance(job, ParseJob)
+    assert job.model is None
+    storage_key = job.storage_key
     assert storage_key.startswith(f"statements/{created.id}/")
     assert "statement.pdf" not in storage_key
     assert str(test_user.id) not in storage_key
@@ -474,7 +473,9 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     assert enqueued["request_id"] == accepted["request_id"]
     assert enqueued["statement_id"] == str(created.id)
     assert enqueued["model_to_use"] == "google/gemini-3-flash-preview"
-    assert mock_parse.await_args.kwargs["statement_id"] == created.id
+    job = mock_parse.await_args.kwargs["job"]
+    assert isinstance(job, ParseJob)
+    assert job.statement_id == created.id
 
 
 async def test_AC10_8_1_upload_storage_failure_logs_safe_audit_context(db, monkeypatch, model_catalog_stub, test_user):
@@ -602,19 +603,16 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         transaction = AtomicTransaction(
             user_id=test_user.id,
             txn_date=date(2025, 1, 2),
@@ -631,7 +629,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
             test_user.id,
             statement,
             [transaction],
-            original_filename=original_filename,
+            original_filename=source.filename,
         )
         return statement, [transaction]
 
@@ -689,23 +687,20 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        score = score_by_hash[file_hash or ""]
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=score)
+        score = score_by_hash[source.content_hash]
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=score)
         statement.account_id = account_id
         statement.closing_balance = Decimal("100.00")
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
         return statement, []
 
     monkeypatch.setattr(
@@ -780,10 +775,12 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
 
     assert response.status == BankStatementStatus.REJECTED
     assert response.validation_error == "Needs re-parse"
-    assert queued["statement_id"] == statement.id
-    assert queued["filename"] == document.original_filename
-    assert queued["user_id"] == test_user.id
-    assert queued["storage_key"] == document.file_path
+    queued_job = queued["job"]
+    assert isinstance(queued_job, ParseJob)
+    assert queued_job.statement_id == statement.id
+    assert queued_job.filename == document.original_filename
+    assert queued_job.user_id == test_user.id
+    assert queued_job.storage_key == document.file_path
     assert queued["content"] == b"dummy content"
 
 
@@ -842,15 +839,12 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
@@ -962,19 +956,16 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         statement.status = BankStatementStatus.PARSING
         return statement, []
 
@@ -1121,22 +1112,19 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=95)
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=95)
         statement.status = BankStatementStatus.REJECTED
         statement.confidence_score = 60
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
         return statement, []
 
     monkeypatch.setattr(
@@ -1188,21 +1176,18 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
 
     async def fake_parse_document(
         self,
-        file_path,
+        source: DocumentSource,
         institution,
+        *,
         user_id,
         file_type="pdf",
         account_id=None,
-        file_content=None,
-        file_hash=None,
-        file_url=None,
-        original_filename=None,
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, file_hash or "", confidence_score=90)
+        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         statement.status = BankStatementStatus.REJECTED
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=original_filename)
+        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
         return statement, []
 
     monkeypatch.setattr(

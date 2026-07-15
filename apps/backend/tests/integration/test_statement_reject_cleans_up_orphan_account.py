@@ -9,11 +9,13 @@ chart of accounts and the balance sheet, with nothing pointing at it.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from sqlalchemy import select
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import Account, AccountType
@@ -82,11 +84,13 @@ async def test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_c
     service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("DBS", "9911"))
 
     statement, _txns = await service.parse_document(
-        file_path=None,
+        DocumentSource.resolve(
+            path=Path("ac-1832-4a.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="ac-1832-4a",
+        ),
         institution="DBS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1832-4a",
         db=db,
     )
     await db.flush()
@@ -105,11 +109,13 @@ async def test_AC_extraction_1832_4_rejected_parse_never_deletes_a_preexisting_a
         return_value=_balanced_payload("GXS", "7174", "500.00", "600.00", "100.00")
     )
     first, _txns = await service.parse_document(
-        file_path=None,
+        DocumentSource.resolve(
+            path=Path("ac-1832-4b-first.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="ac-1832-4b-first",
+        ),
         institution="GXS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1832-4b-first",
         db=db,
     )
     await db.flush()
@@ -118,11 +124,13 @@ async def test_AC_extraction_1832_4_rejected_parse_never_deletes_a_preexisting_a
 
     service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("GXS", "7174"))
     second, _txns = await service.parse_document(
-        file_path=None,
+        DocumentSource.resolve(
+            path=Path("ac-1832-4b-second.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="ac-1832-4b-second",
+        ),
         institution="GXS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1832-4b-second",
         db=db,
     )
     await db.flush()
@@ -145,11 +153,13 @@ async def test_AC_extraction_1832_4_no_db_session_skips_account_lifecycle_entire
     service.extract_financial_data = AsyncMock(return_value=_unreconciled_payload("DBS", "4242"))
 
     statement, _txns = await service.parse_document(
-        file_path=None,
+        DocumentSource.resolve(
+            path=Path("ac-1832-4c.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="ac-1832-4c",
+        ),
         institution="DBS",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1832-4c",
         db=None,
     )
 
