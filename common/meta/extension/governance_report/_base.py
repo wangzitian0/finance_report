@@ -50,6 +50,7 @@ SSOT_FILE_EXCLUDES = {
     "README.md",
     "MANIFEST.yaml",
     "template.md",
+    "package-map.md",
     # Pointer stubs left behind by migration closeout wave 3 (#1664): content
     # moved into the named package readme, but the file stays as a redirect
     # for old relative links. Not orphaned — intentionally unowned by design.
