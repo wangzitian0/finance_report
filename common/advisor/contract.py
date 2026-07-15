@@ -1254,7 +1254,7 @@ CONTRACT = PackageContract(
                 "common/platform/workflow-events.md",
                 "common/testing/data/source-coverage-matrix.yaml",
                 "common/pricing/market_data.md",
-                "docs/project/EPIC-021.application-ai-advisor.md",
+
             ],
         ),
     ],

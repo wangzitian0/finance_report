@@ -1056,7 +1056,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/llm/readme.md#cassettes",
-                "docs/project/EPIC-023.llm-provider-abstraction.md",
+
                 "common/testing/cassette_graded_eval.py",
                 "common/testing/check_cassette_graded_eval.py",
                 "common/testing/fixtures/cassette-eval-baseline.jsonl",
@@ -1075,7 +1075,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/extraction/readme.md",
-                "docs/project/EPIC-023.llm-provider-abstraction.md",
+
                 "apps/backend/src/llm/base/types/llm.py",
                 "apps/backend/src/llm/base/secrets.py",
                 "apps/backend/src/llm/extension/cassette.py",

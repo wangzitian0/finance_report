@@ -1178,7 +1178,7 @@ CONTRACT = PackageContract(
             owner="common/platform/workflow-events.md",
             description="User-facing upload-to-report workflow event read model.",
             cross_refs=[
-                "docs/project/EPIC-019.event-driven-upload-to-report-ux.md",
+
                 "common/extraction/confirmation-workflow.md",
                 "common/reporting/reporting.md",
             ],

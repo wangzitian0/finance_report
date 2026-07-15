@@ -2558,7 +2558,7 @@ CONTRACT = PackageContract(
                 "common/testing/tdd.md",
                 "common/llm/ai.md",
                 "common/extraction/readme.md",
-                "docs/project/EPIC-026.ac-authority-tiers.md",
+
                 "common/meta/data/ac-tier-baseline.json",
                 "common/meta/extension/generate_ac_registry.py",
                 "common/meta/base/authority_matrix.py",
@@ -2586,7 +2586,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/ci-cd.md",
-                "docs/project/EPIC-008.testing-strategy.md",
+
                 ".github/workflows/ci.yml",
             ],
             proofs=["tests/tooling/test_ci_gate_inventory.py"],
@@ -2605,7 +2605,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/extraction/readme.md",
                 "common/reconciliation/reconciliation.md",
-                "docs/project/EPIC-011.asset-lifecycle.md",
+
             ],
             family="schema",
         ),
@@ -2643,7 +2643,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/testing/ci-cd.md",
                 "common/runtime/environments.md",
-                "docs/project/EPIC-008.testing-strategy.md",
+
                 ".github/workflows/preview.yml",
                 ".github/workflows/deploy.yml",
                 ".github/workflows/deploy.yml",
@@ -2725,30 +2725,7 @@ CONTRACT = PackageContract(
             ],
             family="development",
         ),
-        ConceptRecord(
-            key="epic_residue_baseline",
-            owner="common/meta/data/epic-residue-baseline.json",
-            description=(
-                "Ratchet census of the post-migration EPIC residue (#1719) - per "
-                "docs/project/EPIC-*.md file, the count of AC definition lines per explicit "
-                "residue category (fe-only / fe-half / horizontal / pending-package, single "
-                "vocabulary source common/meta/extension/generate_ac_registry.py "
-                "EPIC_RESIDUE_CATEGORIES); CI enforces unmarked EPIC AC rows == 0 (the "
-                "umbrella scoreboard metric), census == baseline so residue growth is a "
-                "same-PR reviewable baseline edit, a shrink-only EPIC file set, and an "
-                "explicit design-doc/goal-stub justification on every zero-row EPIC file "
-                "(AC-meta.residue.1)."
-            ),
-            cross_refs=[
-                "tests/tooling/test_epic_residue_ratchet.py",
-                "common/meta/extension/generate_ac_registry.py",
-                "common/meta/migration-standard.md",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
-            parent="package_model",
-        ),
+
         ConceptRecord(
             key="fk_cascade_baseline",
             owner="common/meta/data/fk-cascade-baseline.json",
@@ -2841,7 +2818,7 @@ CONTRACT = PackageContract(
                 "common/identity/contract.py",
                 "apps/backend/src/identity/__init__.py",
                 "common/ledger/contract.py",
-                "docs/project/EPIC-025.dry-ssot-simplification.md",
+
             ],
             proofs=["tests/tooling/test_counter_package.py"],
             family="platform",

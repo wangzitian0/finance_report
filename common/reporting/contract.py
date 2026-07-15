@@ -2943,7 +2943,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/reporting/reporting.md",
                 "common/ledger/readme.md",
-                "docs/project/EPIC-020.framework-aware-personal-reporting.md",
+
             ],
         ),
         ConceptRecord(
