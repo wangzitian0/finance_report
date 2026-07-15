@@ -29,6 +29,14 @@ class TestSelectChecks:
         ]
         assert "ssot-ownership" in names
 
+    def test_AC_testing_preflight_1_package_contract_edit_selects_authority_reconcile(
+        self,
+    ):
+        names = [
+            c.name for c in preflight.select_checks(["common/testing/contract.py"])
+        ]
+        assert "authority-reconcile" in names
+
     def test_docs_edit_selects_doc_consistency(self):
         names = [c.name for c in preflight.select_checks(["docs/project/README.md"])]
         assert "doc-consistency" in names  # docs/* matches

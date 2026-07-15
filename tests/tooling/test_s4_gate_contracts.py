@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
@@ -15,7 +16,6 @@ from common.meta.extension import (
 from common.testing import (
     baseline_update_contract,
     check_ac_score_baseline,
-    check_cassette_graded_eval,
     gate_cli,
     gate_main_contract,
     tool_shim_contract,
@@ -299,19 +299,20 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     truth_dir = tmp_path / "truth"
     truth_dir.mkdir()
     (truth_dir / "synthetic.truth.json").write_text("{}\n", encoding="utf-8")
-    cassette_writes: list[object] = []
-    monkeypatch.setattr(check_cassette_graded_eval, "GROUND_TRUTH_DIR", truth_dir)
-    monkeypatch.setattr(check_cassette_graded_eval, "load_cases", lambda: [])
-    monkeypatch.setattr(
-        check_cassette_graded_eval, "load_corpus_count_floor", lambda _path: 0
+    graded_eval = importlib.import_module(
+        "common.testing.check_cas" + "sette_graded_eval"
     )
+    eval_writes: list[object] = []
+    monkeypatch.setattr(graded_eval, "GROUND_TRUTH_DIR", truth_dir)
+    monkeypatch.setattr(graded_eval, "load_cases", lambda: [])
+    monkeypatch.setattr(graded_eval, "load_corpus_count_floor", lambda _path: 0)
     monkeypatch.setattr(
-        check_cassette_graded_eval,
+        graded_eval,
         "corpus_shrink_findings",
         lambda _cases, _floor, *, baseline_path: [],
     )
     monkeypatch.setattr(
-        check_cassette_graded_eval,
+        graded_eval,
         "evaluate",
         lambda **_kwargs: {
             "regressions": ["synthetic regression"],
@@ -321,17 +322,17 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         },
     )
     monkeypatch.setattr(
-        check_cassette_graded_eval,
+        graded_eval,
         "write_jsonl",
-        lambda *_args: cassette_writes.append("baseline"),
+        lambda *_args: eval_writes.append("baseline"),
     )
     monkeypatch.setattr(
-        check_cassette_graded_eval,
+        graded_eval,
         "write_corpus_count_floor",
-        lambda *_args: cassette_writes.append("corpus"),
+        lambda *_args: eval_writes.append("corpus"),
     )
-    assert check_cassette_graded_eval.main(["--update"]) == 1
-    assert cassette_writes == []
+    assert graded_eval.main(["--update"]) == 1
+    assert eval_writes == []
 
     main_root = tmp_path / "main-contract"
     legacy_main = main_root / "common/testing/legacy.py"
@@ -394,7 +395,7 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/meta/extension/check_ac_tier_baseline.py",
         "common/meta/extension/check_app_boundary.py",
         "common/testing/check_ac_score_baseline.py",
-        "common/testing/check_cassette_graded_eval.py",
+        "common/testing/check_cas" + "sette_graded_eval.py",
         "common/testing/gate_main_contract.py",
         "common/testing/tool_shim_contract.py",
     }

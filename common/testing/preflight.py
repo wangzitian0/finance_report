@@ -93,6 +93,12 @@ CHECKS: tuple[Check, ...] = (
         why="Concept registry changed: enforce single-owner + manifest integrity",
     ),
     Check(
+        name="authority-reconcile",
+        globs=("common/*/contract.py",),
+        commands=((PY, "tools/check_authority_reconcile.py"),),
+        why="Package contract changed: declared authority tier must still match the CODE/LLM shape of its roadmap proofs",
+    ),
+    Check(
         name="doc-consistency",
         globs=("docs/*", "mkdocs.yml", "vision.md", "README.md"),
         commands=((PY, "tools/lint_doc_consistency.py"),),
