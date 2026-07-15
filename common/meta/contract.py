@@ -990,6 +990,38 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.delivery.2",
+            statement=(
+                "The terminal HTTP API home is each owning package's "
+                "extension/api/ adapter. apps/backend/src/routers remains a "
+                "transitional delivery layer whose non-__init__.py file set "
+                "may only shrink relative to the committed baseline; a new "
+                "flat router fails CI and --update refuses to adopt it "
+                "(#1865 S2 G-one-home-decided)."
+            ),
+            test=(
+                "tests/tooling/test_api_surface_ratchet.py"
+                "::test_AC_meta_delivery_2_router_file_set_only_shrinks"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.delivery.3",
+            statement=(
+                "The count of package files importing src.schemas may only "
+                "shrink relative to the committed baseline; a new package "
+                "dependency fails CI and --update refuses to raise the "
+                "baseline (#1865 S2 G-dependency-direction)."
+            ),
+            test=(
+                "tests/tooling/test_api_surface_ratchet.py"
+                "::test_AC_meta_delivery_3_package_schema_import_count_only_shrinks"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── residue: the post-migration EPIC tables hold only explicitly
         # marked residue (#1719 "retire the center"; #1416 DoD addition
         # 2026-07-11 makes "genuinely EPIC-owned" machine-checkable). ──
@@ -2215,6 +2247,25 @@ CONTRACT = PackageContract(
         ),
     ],
     concepts=[
+        ConceptRecord(
+            key="api_surface_terminal_home",
+            owner="common/meta/contract.py",
+            description=(
+                "The terminal home for HTTP adapters is the owning package's "
+                "extension/api/ layer; src/routers is transitional and may only "
+                "shrink (#1865 S2)."
+            ),
+            cross_refs=[
+                "common/testing/api_surface_ratchet.py",
+                "common/testing/data/api-surface-ratchet-baseline.json",
+                "tests/tooling/test_api_surface_ratchet.py",
+            ],
+            proofs=["tests/tooling/test_api_surface_ratchet.py"],
+            family="platform",
+            kind="concept",
+            authority="documented_contract",
+            parent="package_model",
+        ),
         ConceptRecord(
             key="ac_tier_baseline",
             owner="common/meta/data/ac-tier-baseline.json",
