@@ -9,11 +9,13 @@ from silently coming back. `formatCurrency` collided in name (not meaning)
 with `lib/audit/money/format.ts`'s amount formatter — the local copy is
 renamed `currencyCodeOrDash`, so a bare `formatCurrency` definition anywhere
 outside `lib/audit/money/format.ts` would be exactly that collision returning.
-`readinessVariant` (also unified in PR-B, from two conflicting definitions
-with different Badge colors for the same states) was covered by a
-color-pinning test but never by a single-definition gate — added here on
-#1868 root-issue closure review so G-one-readiness-language's "grep gate"
-half of its guarantee is actually locked, not just true by inspection.
+`readinessVariant` (also unified in PR-B, from two near-duplicate
+definitions whose "unhandled"/default branches assigned conflicting Badge
+colors — the two source enums don't actually overlap on which states hit
+that default, see `lib/statusLabels.ts`) was covered by a color-pinning
+test but never by a single-definition gate — added here on #1868
+root-issue closure review so G-one-readiness-language's "grep gate" half
+of its guarantee is actually locked, not just true by inspection.
 """
 
 from __future__ import annotations

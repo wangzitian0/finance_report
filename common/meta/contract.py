@@ -2174,9 +2174,12 @@ CONTRACT = PackageContract(
                 "canonical home (`lib/statusLabels.ts`, `lib/date.ts`, "
                 "`components/navigation.ts`) — were 2-3 component-local copies "
                 'each, with `formatPeriod` already diverged (a "→" vs "to" '
-                "separator) and `readinessVariant` already diverged (conflicting "
-                "Badge colors for overlapping states) before unification. The "
-                "gate actively governs the renamed name too (`pnlColorClass`, "
+                "separator) and `readinessVariant` already diverged (its two "
+                'definitions\' "unhandled"/default branches assigned '
+                "conflicting Badge colors — the two source enums don't "
+                "actually overlap on which states hit that default) before "
+                "unification. The gate actively governs the renamed name too "
+                "(`pnlColorClass`, "
                 "not just banning the old `getPnlColor`), so a future duplicate "
                 "of the CURRENT name is caught, not only a regression to the "
                 "old one. `formatCurrency` is defined only in "
