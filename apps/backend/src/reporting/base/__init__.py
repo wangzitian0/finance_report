@@ -2,8 +2,15 @@
 
 No ORM sessions, no network, no cross-package extension imports: the L1
 report-line registry (``l1_registry``) and the static personal report-package
-contract/notes/traceability data (``report_package_contract``). The declared
-value-object units (``ReportLine``, the three statement responses, the
-framework-policy shapes, …) remain typed in ``src/schemas/reporting.py`` —
-the contract declares them taxonomy-level without a module path.
+contract/notes/traceability data (``report_package_contract``), and the
+reporting-owned framework/line vocabulary (``types``). Endpoint-only response
+DTOs remain in ``src/schemas/reporting.py``.
 """
+
+from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension, ReportLineId
+
+__all__ = [
+    "PersonalReportingFrameworkId",
+    "PolicyDimension",
+    "ReportLineId",
+]

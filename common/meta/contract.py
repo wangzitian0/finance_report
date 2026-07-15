@@ -1041,10 +1041,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.delivery.3",
             statement=(
-                "The count of package files importing src.schemas may only "
-                "shrink relative to the committed baseline; a new package "
-                "dependency fails CI and --update refuses to raise the "
-                "baseline (#1865 S2 G-dependency-direction)."
+                "Package base layers never import src.schemas; that forbidden "
+                "edge has no baseline or exemption. Outside base/, the count "
+                "of package files importing src.schemas may only shrink "
+                "relative to the committed baseline; a new package dependency "
+                "fails CI and --update refuses to raise the baseline (#1865 "
+                "S2 G-dependency-direction)."
             ),
             test=(
                 "tests/tooling/test_api_surface_ratchet.py"

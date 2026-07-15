@@ -165,7 +165,7 @@ member column lists the current inferred manifest groupings (the
 | `extraction` | Statement parsing, AI advisor, LLM provider abstraction, and PDF fixtures | `extraction`, `ai`, `llm`, `pdf` |
 | `schema` | Database schema, data layering, enum naming, and migration risk | `schema`, `migration` |
 | `platform` | Dev workflow, environments, CI/CD, coverage, deployment, and observability | `platform`, `development`, `environments`, `ci`, `test`, `delivery`, `coverage`, `deployment`, `observability`, `runtime`, `env` |
-| `identity` | Auth identity and frontend integration contract | `auth`, `frontend` |
+| `identity` | Auth identity and frontend integration contract | `auth`, `frontend`, `identity` |
 | `governance` | TDD workflow, critical-proof matrix, agent governance, and branch policy | `tdd`, `critical`, `agents`, `contributing` |
 
 ## Simplification Acceleration Track

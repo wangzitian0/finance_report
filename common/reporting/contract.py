@@ -58,8 +58,22 @@ CONTRACT = PackageContract(
     ],
     roles=["base", "extension", "data"],
     units=[
-        # ── base (value objects typed in src/schemas/reporting.py; declared
-        # taxonomy-level without a module path) ──
+        # ── base (package-owned vocabulary plus delivery-only response DTOs) ──
+        Unit(
+            name="PersonalReportingFrameworkId",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="ReportLineId",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="PolicyDimension",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
         Unit(name="ReportLine", kind=Kind.VALUE_OBJECT),
         Unit(name="BalanceSheetResponse", kind=Kind.VALUE_OBJECT),
         Unit(name="IncomeStatementResponse", kind=Kind.VALUE_OBJECT),
@@ -142,7 +156,10 @@ CONTRACT = PackageContract(
         "PERSONAL_REPORT_PACKAGE_NOTES",
         "AnnualizedIncomeTotals",
         "ConfidenceMetricService",
+        "PersonalReportingFrameworkId",
+        "PolicyDimension",
         "ReportError",
+        "ReportLineId",
         "ReportingSnapshotService",
         "_add_months",
         "_aggregate_balances_sql",
@@ -233,6 +250,20 @@ CONTRACT = PackageContract(
     # old-path residue checks are green. Entity names are word-slugs (not
     # numeric groups) since this roadmap started empty in this migration wave.
     roadmap=[
+        ACRecord(
+            id="AC-reporting.vocabulary-ownership.1",
+            statement=(
+                "PersonalReportingFrameworkId, ReportLineId, and "
+                "PolicyDimension are reporting-owned base value objects; the "
+                "delivery schema may only re-export those exact definitions."
+            ),
+            test=(
+                "tests/tooling/test_vocabulary_ownership.py"
+                "::test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── opening-balance confidence-tier gate (was EPIC-002 AC2.16.4 —
         # EPIC-002 never owned this behavior; it's report assembly, not
         # double-entry posting) ──

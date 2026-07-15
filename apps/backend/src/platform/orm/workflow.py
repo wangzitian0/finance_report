@@ -1,7 +1,6 @@
 """User-facing workflow event read model."""
 
 from datetime import UTC, datetime
-from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import (
@@ -19,62 +18,14 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.platform.base.workflow import (
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+    WorkflowSessionStatus,
+)
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-
-
-class WorkflowEventFamily(str, Enum):
-    """Product-level workflow event families."""
-
-    SOURCE_UPLOADED = "source.uploaded"
-    SOURCE_PARSING_STARTED = "source.parsing.started"
-    SOURCE_PARSING_COMPLETED = "source.parsing.completed"
-    SOURCE_PARSING_FAILED = "source.parsing.failed"
-    RECORD_VALIDATION_PASSED = "record.validation.passed"
-    RECORD_VALIDATION_FAILED = "record.validation.failed"
-    LEDGER_AUTO_POSTED = "ledger.auto_posted"
-    REVIEW_REQUIRED = "review.required"
-    REVIEW_COMPLETED = "review.completed"
-    RECONCILIATION_BLOCKED = "reconciliation.blocked"
-    REPORT_PROCESSING = "report.processing"
-    REPORT_READY = "report.ready"
-    REPORT_BLOCKED = "report.blocked"
-    REPORT_GENERATED = "report.generated"
-
-
-class WorkflowEventSeverity(str, Enum):
-    """User-facing actionability level."""
-
-    INFO = "info"
-    SUCCESS = "success"
-    WARNING = "warning"
-    ACTION_REQUIRED = "action_required"
-    BLOCKED = "blocked"
-
-
-class WorkflowEventStatus(str, Enum):
-    """User-visible event lifecycle."""
-
-    UNREAD = "unread"
-    READ = "read"
-    ARCHIVED = "archived"
-
-
-class WorkflowReportImpact(str, Enum):
-    """Impact of the event on report readiness."""
-
-    NONE = "none"
-    PROCESSING = "processing"
-    READY = "ready"
-    BLOCKED = "blocked"
-    STALE = "stale"
-
-
-class WorkflowSessionStatus(str, Enum):
-    """Upload-to-report workflow session lifecycle."""
-
-    ACTIVE = "active"
-    GENERATED = "generated"
-    ARCHIVED = "archived"
 
 
 class WorkflowSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

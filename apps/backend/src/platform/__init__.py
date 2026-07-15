@@ -29,40 +29,33 @@ through its port).
 
 from __future__ import annotations
 
+from importlib import import_module
+from typing import TYPE_CHECKING
+
 from src.platform.base import (
     DomainEvent,
     EventBus,
     OutboxRepository,
     SubscriberRegistry,
+    WorkflowEventCountsResponse,
+    WorkflowEventCreate,
+    WorkflowEventFamily,
+    WorkflowEventListResponse,
+    WorkflowEventResponse,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowEventStatusUpdate,
+    WorkflowNextActionResponse,
+    WorkflowNextActionType,
+    WorkflowPrimaryState,
+    WorkflowReportImpact,
+    WorkflowReportReadinessResponse,
+    WorkflowReportReadinessState,
+    WorkflowSessionStatus,
+    WorkflowSessionSummaryResponse,
+    WorkflowStatusResponse,
 )
-from src.platform.extension import (
-    BaseAppException,
-    Outbox,
-    OutboxEventBus,
-    OutboxRelay,
-    RateLimitConfig,
-    RateLimiter,
-    RateLimitState,
-    RecordingEventBus,
-    StatementEventSource,
-    get_owned_or_404,
-    get_workflow_status,
-    list_workflow_events_response,
-    paginate,
-    raise_bad_request,
-    raise_conflict,
-    raise_gateway_timeout,
-    raise_internal_error,
-    raise_not_found,
-    raise_service_unavailable,
-    raise_too_large,
-    raise_too_many_requests,
-    raise_unauthorized,
-    register_readiness_provider,
-    register_statement_reader,
-    register_uploaded_document_readers,
-    update_workflow_event_status,
-)
+from src.platform.extension.sql import Outbox
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
@@ -71,13 +64,36 @@ from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 from src.platform.orm.ping_state import PingState
 from src.platform.orm.workflow import (
     WorkflowEvent,
-    WorkflowEventFamily,
-    WorkflowEventSeverity,
-    WorkflowEventStatus,
-    WorkflowReportImpact,
     WorkflowSession,
-    WorkflowSessionStatus,
 )
+
+_EXTENSION_EXPORTS = {
+    "BaseAppException",
+    "OutboxEventBus",
+    "OutboxRelay",
+    "RateLimitConfig",
+    "RateLimiter",
+    "RateLimitState",
+    "RecordingEventBus",
+    "StatementEventSource",
+    "get_owned_or_404",
+    "get_workflow_status",
+    "list_workflow_events_response",
+    "paginate",
+    "raise_bad_request",
+    "raise_conflict",
+    "raise_gateway_timeout",
+    "raise_internal_error",
+    "raise_not_found",
+    "raise_service_unavailable",
+    "raise_too_large",
+    "raise_too_many_requests",
+    "raise_unauthorized",
+    "register_readiness_provider",
+    "register_statement_reader",
+    "register_uploaded_document_readers",
+    "update_workflow_event_status",
+}
 
 __all__ = [
     "AppConfig",
@@ -100,12 +116,24 @@ __all__ = [
     "UUIDMixin",
     "UserOwnedMixin",
     "WorkflowEvent",
+    "WorkflowEventCountsResponse",
+    "WorkflowEventCreate",
     "WorkflowEventFamily",
+    "WorkflowEventListResponse",
+    "WorkflowEventResponse",
     "WorkflowEventSeverity",
     "WorkflowEventStatus",
+    "WorkflowEventStatusUpdate",
+    "WorkflowNextActionResponse",
+    "WorkflowNextActionType",
+    "WorkflowPrimaryState",
     "WorkflowReportImpact",
+    "WorkflowReportReadinessResponse",
+    "WorkflowReportReadinessState",
     "WorkflowSession",
+    "WorkflowSessionSummaryResponse",
     "WorkflowSessionStatus",
+    "WorkflowStatusResponse",
     "get_owned_or_404",
     "get_workflow_status",
     "list_workflow_events_response",
@@ -124,3 +152,43 @@ __all__ = [
     "register_uploaded_document_readers",
     "update_workflow_event_status",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Resolve extension exports lazily so base DTOs stay cycle-free."""
+    if name not in _EXTENSION_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module("src.platform.extension"), name)
+    globals()[name] = value
+    return value
+
+
+if TYPE_CHECKING:
+    from src.platform.extension import (
+        BaseAppException,
+        Outbox,
+        OutboxEventBus,
+        OutboxRelay,
+        RateLimitConfig,
+        RateLimiter,
+        RateLimitState,
+        RecordingEventBus,
+        StatementEventSource,
+        get_owned_or_404,
+        get_workflow_status,
+        list_workflow_events_response,
+        paginate,
+        raise_bad_request,
+        raise_conflict,
+        raise_gateway_timeout,
+        raise_internal_error,
+        raise_not_found,
+        raise_service_unavailable,
+        raise_too_large,
+        raise_too_many_requests,
+        raise_unauthorized,
+        register_readiness_provider,
+        register_statement_reader,
+        register_uploaded_document_readers,
+        update_workflow_event_status,
+    )

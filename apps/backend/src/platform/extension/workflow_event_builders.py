@@ -8,8 +8,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from src.platform.orm.workflow import WorkflowEventFamily, WorkflowEventSeverity, WorkflowReportImpact
-from src.schemas.workflow import WorkflowEventCreate
+from src.platform.base.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowReportImpact,
+)
 
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
 

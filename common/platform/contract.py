@@ -87,6 +87,91 @@ CONTRACT = PackageContract(
     units=[
         # base — the domain-event record (the textbook mechanism-C type).
         Unit(name="DomainEvent", kind=Kind.DOMAIN_EVENT, module="base/event.py"),
+        Unit(
+            name="WorkflowEventFamily",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventSeverity",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowReportImpact",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowSessionStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventCreate",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventStatusUpdate",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowPrimaryState",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowNextActionType",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowReportReadinessState",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowNextActionResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowReportReadinessResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventCountsResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowSessionSummaryResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowStatusResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
+        Unit(
+            name="WorkflowEventListResponse",
+            kind=Kind.VALUE_OBJECT,
+            module="base/workflow.py",
+        ),
         # the two split blocks (mechanism B): each port lives in base/, its
         # concrete adapter in extension/. The event bus has no dedicated "split"
         # kind in KIND_LAYER, so its port/adapter inversion is modelled the same
@@ -145,12 +230,24 @@ CONTRACT = PackageContract(
         "UUIDMixin",
         "UserOwnedMixin",
         "WorkflowEvent",
+        "WorkflowEventCountsResponse",
+        "WorkflowEventCreate",
         "WorkflowEventFamily",
+        "WorkflowEventListResponse",
+        "WorkflowEventResponse",
         "WorkflowEventSeverity",
         "WorkflowEventStatus",
+        "WorkflowEventStatusUpdate",
+        "WorkflowNextActionResponse",
+        "WorkflowNextActionType",
+        "WorkflowPrimaryState",
         "WorkflowReportImpact",
+        "WorkflowReportReadinessResponse",
+        "WorkflowReportReadinessState",
         "WorkflowSession",
+        "WorkflowSessionSummaryResponse",
         "WorkflowSessionStatus",
+        "WorkflowStatusResponse",
         "get_owned_or_404",
         "get_workflow_status",
         "list_workflow_events_response",
@@ -244,6 +341,20 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-platform.vocabulary-ownership.1",
+            statement=(
+                "Workflow event, lifecycle, status, and response payloads are "
+                "platform-owned base value objects; src.schemas.workflow "
+                "remains only a compatibility re-export surface."
+            ),
+            test=(
+                "tests/tooling/test_vocabulary_ownership.py"
+                "::test_AC_platform_vocabulary_ownership_1_platform_owns_workflow_payloads"
+            ),
+            priority="P1",
+            status="done",
+        ),
         ACRecord(
             id="AC-platform.1.1",
             statement=(
@@ -1148,7 +1259,10 @@ CONTRACT = PackageContract(
         ConceptRecord(
             key="workflow_events",
             owner="common/platform/workflow-events.md",
-            description="User-facing upload-to-report workflow event read model.",
+            description=(
+                "User-facing upload-to-report workflow event read model and "
+                "its package-owned request/response vocabulary."
+            ),
             cross_refs=[
                 "docs/project/EPIC-019.event-driven-upload-to-report-ux.md",
                 "common/extraction/confirmation-workflow.md",

@@ -83,6 +83,20 @@ def test_AC_meta_delivery_3_package_schema_import_count_only_shrinks(
 
     assert api_surface_ratchet.main([]) == 0
 
+    base_package_file = backend_src / "reporting" / "base" / "types.py"
+    base_package_file.parent.mkdir(parents=True)
+    base_package_file.write_text(
+        "from src.schemas.reporting import ReportLineId\n",
+        encoding="utf-8",
+    )
+    _write_baseline(baseline, routers=[], schema_import_files=3)
+
+    assert api_surface_ratchet.main([]) == 1
+    assert api_surface_ratchet.main(["--update"]) == 1
+
+    base_package_file.unlink()
+    _write_baseline(baseline, routers=[], schema_import_files=2)
+
     second_package_file = backend_src / "ledger" / "extension" / "service.py"
     second_package_file.parent.mkdir(parents=True)
     second_package_file.write_text(

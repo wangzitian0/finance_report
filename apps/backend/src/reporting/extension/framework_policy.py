@@ -18,6 +18,7 @@ from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride
 from src.pricing.orm.market_data import StockPrice
+from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
@@ -26,8 +27,6 @@ from src.schemas.reporting import (
     FrameworkPolicyMatrix,
     FrameworkPolicyMatrixRule,
     FrameworkPolicyResult,
-    PersonalReportingFrameworkId,
-    PolicyDimension,
     PolicyFactDomain,
 )
 
