@@ -3946,7 +3946,7 @@ CONTRACT = PackageContract(
                 "merge, preserving their distinct identifier and collection keys."
             ),
             test=(
-                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "tests/tooling/test_s4_testing_gate_infrastructure.py"
                 "::test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior"
             ),
             priority="P1",
@@ -3960,7 +3960,7 @@ CONTRACT = PackageContract(
                 "so package-qualified IDs with identical numeric suffixes remain distinct."
             ),
             test=(
-                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "tests/tooling/test_s4_testing_gate_infrastructure.py"
                 "::test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort"
             ),
             priority="P1",

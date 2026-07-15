@@ -1242,7 +1242,7 @@ CONTRACT = PackageContract(
                 "the API request and output-file behavior at every existing entry point."
             ),
             test=(
-                "tests/tooling/test_s4_shared_gate_infrastructure.py"
+                "tests/tooling/test_s4_runtime_github_api.py"
                 "::test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers"
             ),
             priority="P1",
