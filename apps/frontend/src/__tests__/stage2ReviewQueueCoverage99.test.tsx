@@ -25,17 +25,19 @@ const originalMatchMedia = window.matchMedia
 
 const pendingMatch = {
   id: "m1",
-  match_score: 88,
+  match_score: "88",
+  confidence_tier: "HIGH",
   status: "pending_review",
   created_at: "2026-01-01T00:00:00Z",
   description: "Salary transfer",
-  amount: 1200,
+  amount: "1200",
   txn_date: "2026-01-01",
 }
 
 const lowMatch = {
   id: "m2",
-  match_score: 55,
+  match_score: "55",
+  confidence_tier: "HIGH",
   status: "pending_review",
   created_at: "2026-01-02T00:00:00Z",
   description: "Low confidence transfer",

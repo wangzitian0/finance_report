@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-
-import { getCheckTypeLabel, type ConsistencyCheck } from "./types";
+import { checkTypeLabel } from "@/lib/statusLabels";
+import type { ConsistencyCheck } from "@/lib/types";
 
 interface ResolveCheckDialogProps {
     check: ConsistencyCheck;
@@ -38,7 +38,7 @@ export function ResolveCheckDialog({ check, actionLoading, onClose, onResolve }:
                 <div className="p-6 space-y-4">
                     <p className="text-sm text-muted">
                         <span className="font-medium text-[var(--foreground)]">{check.severity.toUpperCase()}</span>{" "}
-                        {getCheckTypeLabel(check.check_type)} —{" "}
+                        {checkTypeLabel(check.check_type)} —{" "}
                         {(check.details.message as string | undefined) || JSON.stringify(check.details)}
                     </p>
                     <div>

@@ -6,6 +6,7 @@ import { MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiFetch, apiStream, apiDelete } from "@/lib/api";
 import { fetchAiModels } from "@/lib/aiModels";
+import type { Schemas } from "@/lib/api-schema";
 import type {
   AdvisorSuggestion,
   ChatActionChip,
@@ -30,17 +31,8 @@ interface ChatMessage {
   citations?: ChatCitation[];
   actions?: ChatActionChip[];
 }
-interface ChatMessageResponse { id: string; role: ChatRole; content: string; }
-interface ChatSessionResponse {
-  id: string;
-  title?: string | null;
-  message_count?: number;
-  last_active_at?: string | null;
-  updated_at?: string;
-  last_message?: { role: ChatRole; content: string; created_at: string } | null;
-  messages: ChatMessageResponse[];
-}
-interface ChatHistoryResponse { sessions: ChatSessionResponse[]; }
+type ChatSessionResponse = Schemas["ChatSessionResponse"];
+type ChatHistoryResponse = Schemas["ChatHistoryResponse"];
 interface ChatPanelProps { variant?: "page" | "widget"; initialPrompt?: string | null; onClose?: () => void; }
 
 const getBrowserLanguage = () => typeof window === "undefined" ? "en" : navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
@@ -125,7 +117,13 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
       const session = data.sessions[0];
       if (session) {
         setSessionId(session.id);
-        setMessages(session.messages.map((m) => ({ id: m.id, role: m.role, content: m.content })));
+        // Persisted history may include a "system" role (prompt/context
+        // messages); only user/assistant turns render as chat bubbles.
+        setMessages(
+          (session.messages ?? [])
+            .filter((m): m is typeof m & { role: ChatRole } => m.role === "user" || m.role === "assistant")
+            .map((m) => ({ id: m.id, role: m.role, content: m.content })),
+        );
         localStorage.setItem(SESSION_KEY, session.id);
       }
     } catch {
@@ -355,7 +353,7 @@ export default function ChatPanel({ variant = "page", initialPrompt, onClose }: 
                 <span className="min-w-0 truncate font-medium">{sessionTitle(session)}</span>
               </div>
               <p className="mt-1 text-xs text-muted">
-                {session.message_count ?? session.messages.length} messages
+                {session.message_count ?? session.messages?.length ?? 0} messages
               </p>
             </button>
           ))}

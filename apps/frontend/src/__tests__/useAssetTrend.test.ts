@@ -21,6 +21,9 @@ function balanceWith(assets: BalanceSheetResponse["assets"]): BalanceSheetRespon
     total_assets: "0",
     total_liabilities: "0",
     total_equity: "0",
+    net_income: "0",
+    net_worth_adjustment_gain_loss: "0",
+    unrealized_fx_gain_loss: "0",
     equation_delta: "0",
     is_balanced: true,
   };

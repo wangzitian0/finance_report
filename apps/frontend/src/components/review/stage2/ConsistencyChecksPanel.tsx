@@ -1,7 +1,7 @@
 import { InfoHint } from "@/components/ui/InfoHint";
 import { formatDateTimeDisplay } from "@/lib/date";
-
-import { getCheckTypeLabel, getSeverityColor, type ConsistencyCheck } from "./types";
+import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
+import type { ConsistencyCheck } from "@/lib/types";
 
 interface ConsistencyChecksPanelProps {
     checks: ConsistencyCheck[];
@@ -27,10 +27,10 @@ export function ConsistencyChecksPanel({ checks, onResolve }: ConsistencyChecksP
                         <div key={check.id} className="p-4 flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={`font-medium text-xs ${getSeverityColor(check.severity)}`}>
+                                    <span className={`font-medium text-xs ${checkSeverityColor(check.severity)}`}>
                                         {check.severity.toUpperCase()}
                                     </span>
-                                    <span className="badge badge-muted text-[10px]">{getCheckTypeLabel(check.check_type)}</span>
+                                    <span className="badge badge-muted text-[10px]">{checkTypeLabel(check.check_type)}</span>
                                 </div>
                                 <p className="text-sm text-muted truncate">
                                     {(check.details.message as string | undefined) || JSON.stringify(check.details)}

@@ -5,14 +5,9 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { setUser } from "@/lib/auth";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
+import type { Schemas } from "@/lib/api-schema";
 
-interface AuthResponse {
-    id: string;
-    email: string;
-    name: string | null;
-    created_at: string;
-    access_token: string;
-}
+type AuthResponse = Schemas["AuthResponse"];
 
 export default function LoginPage() {
     const router = useRouter();

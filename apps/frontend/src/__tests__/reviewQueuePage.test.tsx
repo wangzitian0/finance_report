@@ -22,11 +22,12 @@ const queueData = {
     pending_matches: [
         {
             id: "m1",
-            match_score: 88,
+            match_score: "88",
+            confidence_tier: "HIGH",
             status: "pending_review",
             created_at: "2024-01-03T00:00:00Z",
             description: "Transfer",
-            amount: 20,
+            amount: "20",
             txn_date: "2024-01-03",
         },
     ],

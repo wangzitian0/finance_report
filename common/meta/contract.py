@@ -2149,6 +2149,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.3",
+            statement=(
+                "No component-local `interface FooResponse`/`interface FooRequest` "
+                "wire-shape declarations exist outside `lib/` — every wire type "
+                'either resolves to a generated `Schemas["..."]` alias or is a '
+                "justified hand type documented in `lib/types.ts` (#1868 S5: 7 "
+                "such interfaces across 6 component files silently duplicated, "
+                "and in one case drifted from, the generated contract)."
+            ),
+            test=(
+                "tests/tooling/test_fe_wire_type_ssot.py"
+                "::test_AC_fe_wire_ssot_1_no_hand_declared_response_request_outside_lib"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

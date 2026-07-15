@@ -6,12 +6,8 @@ import { PendingMatchesPanel } from "@/components/review/stage2/PendingMatchesPa
 import { ResolveCheckDialog } from "@/components/review/stage2/ResolveCheckDialog";
 import { RunSummaryPanel } from "@/components/review/stage2/RunSummaryPanel";
 import { Stage2Filters } from "@/components/review/stage2/Stage2Filters";
-import {
-    getCheckTypeLabel,
-    getSeverityColor,
-    type ConsistencyCheck,
-    type PendingMatch,
-} from "@/components/review/stage2/types";
+import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
+import type { ConsistencyCheck, PendingMatch } from "@/lib/types";
 
 // useFocusTrap touches DOM focus APIs; keep it a no-op for isolated unit tests.
 vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }));
@@ -19,7 +15,8 @@ vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }));
 function makeMatch(overrides: Partial<PendingMatch> = {}): PendingMatch {
     return {
         id: "m1",
-        match_score: 88,
+        match_score: "88",
+        confidence_tier: "HIGH",
         status: "pending_review",
         created_at: "2026-01-01T00:00:00Z",
         description: "Salary transfer",
@@ -108,9 +105,9 @@ describe("Stage2 extracted parts", () => {
         expect(screen.getByText("0 total")).toBeInTheDocument();
 
         const matches: PendingMatch[] = [
-            makeMatch({ id: "high", match_score: 90, amount: "10.00", description: "High score" }),
-            makeMatch({ id: "mid", match_score: 70, amount: undefined, txn_date: undefined, description: undefined }),
-            makeMatch({ id: "low", match_score: 30, amount: "5.00", description: "Low score" }),
+            makeMatch({ id: "high", match_score: "90", amount: "10.00", description: "High score" }),
+            makeMatch({ id: "mid", match_score: "70", amount: undefined, txn_date: undefined, description: undefined }),
+            makeMatch({ id: "low", match_score: "30", amount: "5.00", description: "Low score" }),
         ];
         const selected = new Set<string>(["high", "mid", "low"]);
         rerender(
@@ -174,7 +171,15 @@ describe("Stage2 extracted parts", () => {
         const onResolve = vi.fn();
         const checks: ConsistencyCheck[] = [
             makeCheck(),
-            makeCheck({ id: "c2", check_type: "manual_review", severity: "low", details: { reason: "needs eyes" } }),
+            // Forward-compat: an unrecognized check_type the backend might one
+            // day send — checkTypeLabel's fallback branch must still render it
+            // raw rather than crash, so this deliberately escapes the enum.
+            makeCheck({
+                id: "c2",
+                check_type: "manual_review" as ConsistencyCheck["check_type"],
+                severity: "low",
+                details: { reason: "needs eyes" },
+            }),
         ];
         render(<ConsistencyChecksPanel checks={checks} onResolve={onResolve} />);
 
@@ -329,12 +334,12 @@ describe("Stage2 extracted parts", () => {
     });
 
     it("severity color + check type label helpers cover all branches", () => {
-        expect(getSeverityColor("high")).toBe("text-[var(--error)]");
-        expect(getSeverityColor("medium")).toBe("text-[var(--warning)]");
-        expect(getSeverityColor("low")).toBe("text-muted");
-        expect(getCheckTypeLabel("duplicate")).toBe("Duplicate");
-        expect(getCheckTypeLabel("transfer_pair")).toBe("Transfer Pair");
-        expect(getCheckTypeLabel("anomaly")).toBe("Anomaly");
-        expect(getCheckTypeLabel("manual_review")).toBe("manual_review");
+        expect(checkSeverityColor("high")).toBe("text-[var(--error)]");
+        expect(checkSeverityColor("medium")).toBe("text-[var(--warning)]");
+        expect(checkSeverityColor("low")).toBe("text-muted");
+        expect(checkTypeLabel("duplicate")).toBe("Duplicate");
+        expect(checkTypeLabel("transfer_pair")).toBe("Transfer Pair");
+        expect(checkTypeLabel("anomaly")).toBe("Anomaly");
+        expect(checkTypeLabel("manual_review")).toBe("manual_review");
     });
 });
