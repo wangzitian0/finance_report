@@ -74,7 +74,9 @@ Baseline mutation is explicit and machine-checked by
 `baseline_update_contract.py`. `--update` is reserved for `raise-only` or
 `shrink-only` mutation. A command that can replace an entire baseline must
 declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
-`--rewrite-baseline` flag.
+`--rewrite-baseline` flag. Its monotonic-updater census is behaviorally driven
+against synthetic regression debt, so a newly added `--update` path cannot be
+covered by a declaration alone.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires

@@ -4038,6 +4038,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.governance.21",
+            statement=(
+                "Every real --update baseline mutation path is behaviorally driven "
+                "against synthetic regression debt and refuses to adopt it; the "
+                "contract census fails when a new monotonic updater lacks that proof."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.toolchain.13",
             statement=(
                 "Developer CLI, backend server, and backend test lifecycle share "

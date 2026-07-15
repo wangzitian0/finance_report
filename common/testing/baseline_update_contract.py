@@ -47,6 +47,24 @@ def _mutation_flags(tree: ast.Module) -> set[str]:
     return flags
 
 
+def monotonic_update_paths(repo_root: Path) -> set[str]:
+    """Return every module that exposes a monotonic ``--update`` path."""
+
+    paths: set[str] = set()
+    for root_name in ("common", "tools"):
+        root = repo_root / root_name
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            if (
+                "--update" in _mutation_flags(tree)
+                and _declared_mode(tree) in MONOTONIC_MODES
+            ):
+                paths.add(path.relative_to(repo_root).as_posix())
+    return paths
+
+
 def violations(repo_root: Path) -> list[str]:
     """Return baseline CLI declarations whose flag and mutation mode disagree."""
 

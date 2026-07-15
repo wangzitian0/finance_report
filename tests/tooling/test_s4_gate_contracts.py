@@ -7,8 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from common.meta.extension import check_draft_packages
-from common.testing import baseline_update_contract, gate_cli, gate_main_contract
+from common.meta.extension import (
+    check_ac_tier_baseline,
+    check_app_boundary,
+    check_draft_packages,
+)
+from common.testing import (
+    baseline_update_contract,
+    check_ac_score_baseline,
+    check_cassette_graded_eval,
+    gate_cli,
+    gate_main_contract,
+    tool_shim_contract,
+)
 from common.testing.coverage import (
     build_unified_lcov,
     calculate_unified_coverage,
@@ -17,6 +28,8 @@ from common.testing.coverage import (
     merge_lcov,
     strip_lcov_branches,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize(
@@ -212,3 +225,176 @@ def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
         == 0
     )
     assert check_draft_packages.load_baseline(baseline) == {"planned"}
+
+
+def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.governance.21: every real updater rejects synthetic debt."""
+
+    tier_baseline = tmp_path / "tier-baseline.json"
+    check_ac_tier_baseline.write_baseline(tier_baseline, {"AC1.1.1"})
+    monkeypatch.setattr(
+        check_ac_tier_baseline,
+        "current_untagged",
+        lambda _repo_root: {"AC1.1.1", "AC1.1.2"},
+    )
+    assert (
+        check_ac_tier_baseline.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tier_baseline),
+                "--update",
+            ]
+        )
+        == 0
+    )
+    assert check_ac_tier_baseline.load_baseline(tier_baseline) == {"AC1.1.1"}
+
+    app_root = tmp_path / "app-boundary"
+    app_baseline = app_root / "common/meta/data/app-boundary-baseline.json"
+    app_baseline.parent.mkdir(parents=True)
+    app_baseline.write_text("[]\n", encoding="utf-8")
+    dumped_edges: list[list[str]] = []
+    monkeypatch.setattr(
+        check_app_boundary,
+        "discover_and_compute_edges",
+        lambda _repo_root: ["legacy-edge", "new-edge"],
+    )
+    monkeypatch.setattr(
+        check_app_boundary, "load_baseline", lambda _path: {"legacy-edge"}
+    )
+    monkeypatch.setattr(
+        check_app_boundary,
+        "dump_baseline",
+        lambda _path, edges: dumped_edges.append(list(edges)),
+    )
+    assert check_app_boundary.main(["--repo-root", str(app_root), "--update"]) == 1
+    assert dumped_edges == []
+
+    score_baseline = tmp_path / "score-baseline.jsonl"
+    check_ac_score_baseline.write_jsonl(
+        score_baseline,
+        {"version": 1, "acs": {"AC-score.1": {"code": "pass", "score": 0.8}}},
+    )
+    current_scores = tmp_path / "current-scores.json"
+    current_scores.write_text(
+        json.dumps(
+            {"version": 1, "acs": {"AC-score.1": {"code": "pass", "score": 0.5}}}
+        ),
+        encoding="utf-8",
+    )
+    score_before = score_baseline.read_bytes()
+    assert (
+        check_ac_score_baseline.main(
+            [str(current_scores), "--baseline", str(score_baseline), "--update"]
+        )
+        == 1
+    )
+    assert score_baseline.read_bytes() == score_before
+
+    truth_dir = tmp_path / "truth"
+    truth_dir.mkdir()
+    (truth_dir / "synthetic.truth.json").write_text("{}\n", encoding="utf-8")
+    cassette_writes: list[object] = []
+    monkeypatch.setattr(check_cassette_graded_eval, "GROUND_TRUTH_DIR", truth_dir)
+    monkeypatch.setattr(check_cassette_graded_eval, "load_cases", lambda: [])
+    monkeypatch.setattr(
+        check_cassette_graded_eval, "load_corpus_count_floor", lambda _path: 0
+    )
+    monkeypatch.setattr(
+        check_cassette_graded_eval,
+        "corpus_shrink_findings",
+        lambda _cases, _floor, *, baseline_path: [],
+    )
+    monkeypatch.setattr(
+        check_cassette_graded_eval,
+        "evaluate",
+        lambda **_kwargs: {
+            "regressions": ["synthetic regression"],
+            "missing": [],
+            "new": [],
+            "_current": {"version": 1, "cases": {}},
+        },
+    )
+    monkeypatch.setattr(
+        check_cassette_graded_eval,
+        "write_jsonl",
+        lambda *_args: cassette_writes.append("baseline"),
+    )
+    monkeypatch.setattr(
+        check_cassette_graded_eval,
+        "write_corpus_count_floor",
+        lambda *_args: cassette_writes.append("corpus"),
+    )
+    assert check_cassette_graded_eval.main(["--update"]) == 1
+    assert cassette_writes == []
+
+    main_root = tmp_path / "main-contract"
+    legacy_main = main_root / "common/testing/legacy.py"
+    legacy_main.parent.mkdir(parents=True)
+    legacy_main.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
+    added_main = main_root / "tools/added.py"
+    added_main.parent.mkdir()
+    added_main.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
+    main_baseline = tmp_path / "main-baseline.json"
+    main_baseline.write_text(
+        json.dumps(
+            {
+                "legacy_main_contract": ["common/testing/legacy.py"],
+                "legacy_gate_cli": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    main_before = main_baseline.read_bytes()
+    assert (
+        gate_main_contract.main(
+            [
+                "--repo-root",
+                str(main_root),
+                "--baseline",
+                str(main_baseline),
+                "--update",
+            ]
+        )
+        == 1
+    )
+    assert main_baseline.read_bytes() == main_before
+
+    tool_root = tmp_path / "tool-contract"
+    tools_dir = tool_root / "tools"
+    tools_dir.mkdir(parents=True)
+    fat_source = "\n".join(f"line_{index} = {index}" for index in range(41)) + "\n"
+    (tools_dir / "legacy.py").write_text(fat_source, encoding="utf-8")
+    (tools_dir / "added.py").write_text(fat_source, encoding="utf-8")
+    tool_baseline = tmp_path / "tool-baseline.json"
+    tool_baseline.write_text(
+        json.dumps({"legacy_fat_tools": ["tools/legacy.py"]}), encoding="utf-8"
+    )
+    tool_before = tool_baseline.read_bytes()
+    assert (
+        tool_shim_contract.main(
+            [
+                "--repo-root",
+                str(tool_root),
+                "--baseline",
+                str(tool_baseline),
+                "--update",
+            ]
+        )
+        == 1
+    )
+    assert tool_baseline.read_bytes() == tool_before
+
+    assert baseline_update_contract.monotonic_update_paths(ROOT) == {
+        "common/meta/extension/check_ac_tier_baseline.py",
+        "common/meta/extension/check_app_boundary.py",
+        "common/testing/check_ac_score_baseline.py",
+        "common/testing/check_cassette_graded_eval.py",
+        "common/testing/gate_main_contract.py",
+        "common/testing/tool_shim_contract.py",
+    }
