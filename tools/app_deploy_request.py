@@ -5,11 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from infra2_sdk.deploy import DeployOperation, DeployRequest, DeployType
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from infra2_sdk.deploy import DeployOperation, DeployRequest, DeployType  # noqa: E402
 
 SERVICE = "finance_report/app"
 SOURCE_REPOSITORY = "wangzitian0/finance_report"
