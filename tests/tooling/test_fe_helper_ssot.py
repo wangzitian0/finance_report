@@ -9,6 +9,11 @@ from silently coming back. `formatCurrency` collided in name (not meaning)
 with `lib/audit/money/format.ts`'s amount formatter — the local copy is
 renamed `currencyCodeOrDash`, so a bare `formatCurrency` definition anywhere
 outside `lib/audit/money/format.ts` would be exactly that collision returning.
+`readinessVariant` (also unified in PR-B, from two conflicting definitions
+with different Badge colors for the same states) was covered by a
+color-pinning test but never by a single-definition gate — added here on
+#1868 root-issue closure review so G-one-readiness-language's "grep gate"
+half of its guarantee is actually locked, not just true by inspection.
 """
 
 from __future__ import annotations
@@ -49,6 +54,10 @@ _HELPER_DEFS = {
         r"^\s*(?:export\s+)?(?:function\s+formatCurrency\(|const\s+formatCurrency\s*=)",
         re.MULTILINE,
     ),
+    "readinessVariant": re.compile(
+        r"^\s*(?:export\s+)?(?:function\s+readinessVariant\(|const\s+readinessVariant\s*=)",
+        re.MULTILINE,
+    ),
 }
 
 # The one canonical home each helper is allowed to be defined in
@@ -60,6 +69,7 @@ _CANONICAL_HOME = {
     "formatPeriod": "apps/frontend/src/lib/date.ts",
     "isActive": "apps/frontend/src/components/navigation.ts",
     "formatCurrency": "apps/frontend/src/lib/audit/money/format.ts",
+    "readinessVariant": "apps/frontend/src/lib/statusLabels.ts",
 }
 
 
