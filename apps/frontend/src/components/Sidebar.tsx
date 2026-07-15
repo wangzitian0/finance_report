@@ -8,13 +8,8 @@ import { LogIn, LogOut } from "lucide-react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
-import { ADD_ACTION, bottomTabItems, type NavItem } from "@/components/navigation";
+import { ADD_ACTION, bottomTabItems, isActive, type NavItem } from "@/components/navigation";
 import AddSheet from "@/components/shell/AddSheet";
-
-function isActive(pathname: string, href: string): boolean {
-    if (href === "/") return pathname === "/";
-    return pathname === href || pathname.startsWith(href + "/");
-}
 
 // EPIC-022 AC22.21.2: the desktop sidebar mirrors the mobile bottom tab bar —
 // Home, Chat, a center-equivalent Add action, Audit, and More — so there is one

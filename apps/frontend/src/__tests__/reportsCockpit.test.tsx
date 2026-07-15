@@ -224,7 +224,10 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       await waitFor(() =>
         expect(cockpit).toHaveTextContent(`Current package state is ${label.toLowerCase()}.`),
       )
-      expect(cockpit).toHaveTextContent("unknown source")
+      // sourceClassLabel's fallback is now the shared lib/statusLabels
+      // humanizeIdentifier (title-cased, acronym-aware) — was a plain
+      // replaceAll("_"," ") local to this page, #1868 S5.
+      expect(cockpit).toHaveTextContent("Unknown Source")
       const statusBadge = Array.from(cockpit.querySelectorAll(".badge")).find(
         (badge) => badge.textContent === label,
       )

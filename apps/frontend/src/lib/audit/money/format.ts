@@ -1,5 +1,7 @@
 import Decimal from "decimal.js";
 
+import { getLocaleSeparators, groupIntegerPart } from "@/lib/audit/localeFormat";
+
 export type MonetaryInput = Decimal | string | number;
 
 export function parseAmount(value: string | number): Decimal {
@@ -69,21 +71,6 @@ export function formatCurrency(
 ): string {
   const amount = formatAmount(value, decimals);
   return `${currency} ${amount}`;
-}
-
-function getLocaleSeparators(locale: string) {
-  const group = new Intl.NumberFormat(locale, { useGrouping: true })
-    .formatToParts(1000)
-    .find((part) => part.type === "group")?.value ?? ",";
-  const decimal = new Intl.NumberFormat(locale)
-    .formatToParts(1.1)
-    .find((part) => part.type === "decimal")?.value ?? ".";
-  return { group, decimal };
-}
-
-function groupIntegerPart(value: string, groupSeparator: string, useGrouping: boolean): string {
-  if (!useGrouping) return value;
-  return value.replace(/\B(?=(\d{3})+(?!\d))/g, groupSeparator);
 }
 
 export function formatCurrencyLocale(

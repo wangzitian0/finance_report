@@ -19,3 +19,14 @@ export const formatMonthLabel = (value: string): string => {
   const safe = value.includes("T") ? value : value + "T00:00:00";
   return new Date(safe).toLocaleDateString("en-US", { month: "short" });
 };
+
+/**
+ * A statement/document period as "start to end", or "Parsing..." while
+ * either bound is still unknown. Was two near-duplicate local copies
+ * (upload/page.tsx used "→", statements/[id]/page.tsx used "to") that had
+ * already diverged (#1868 S5) — "to" is the single canonical separator.
+ */
+export const formatPeriod = (start?: string | null, end?: string | null): string => {
+  if (!start || !end) return "Parsing...";
+  return `${start} to ${end}`;
+};

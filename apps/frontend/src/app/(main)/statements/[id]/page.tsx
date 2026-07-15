@@ -9,6 +9,8 @@ import { LoadingState } from "@/components/ui";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BrokerageImportResponse } from "@/lib/types";
+import { currencyCodeOrDash } from "@/lib/statusLabels";
+import { formatPeriod } from "@/lib/date";
 import { StatementHeader } from "./_components/StatementHeader";
 import { BrokerageImportResultBanner } from "./_components/BrokerageImportResultBanner";
 import { StatementSummaryCards } from "./_components/StatementSummaryCards";
@@ -148,13 +150,6 @@ export default function StatementDetailPage() {
         }
     };
 
-    const formatCode = (currency?: string | null) => currency || "—";
-
-    const formatPeriod = (start?: string | null, end?: string | null) => {
-        if (!start || !end) return "Parsing...";
-        return `${start} to ${end}`;
-    };
-
     if (loading) {
         return (
             <div className="p-6">
@@ -226,7 +221,7 @@ export default function StatementDetailPage() {
                 retryLoading={retryLoading}
                 onBrokerageImport={handleBrokerageImport}
                 onRetry={handleRetry}
-                formatCode={formatCode}
+                formatCode={currencyCodeOrDash}
                 formatPeriod={formatPeriod}
             />
 

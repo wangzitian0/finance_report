@@ -6,6 +6,8 @@ import { StatementSummaryCards } from "@/app/(main)/statements/[id]/_components/
 import { StatementTransactionsTable } from "@/app/(main)/statements/[id]/_components/StatementTransactionsTable";
 import { BrokerageImportResultBanner } from "@/app/(main)/statements/[id]/_components/BrokerageImportResultBanner";
 import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
+import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
+import { formatPeriod } from "@/lib/date";
 
 vi.mock("next/link", () => ({
     default: ({ href, children, ...rest }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
@@ -47,12 +49,6 @@ const txn: BankStatementTransaction = {
     confidence: "high",
     created_at: "2026-01-02T00:00:00Z",
     updated_at: "2026-01-02T00:00:00Z",
-};
-
-const formatCode = (currency?: string | null) => currency || "—";
-const formatPeriod = (start?: string | null, end?: string | null) => {
-    if (!start || !end) return "Parsing...";
-    return `${start} to ${end}`;
 };
 
 function renderHeader(overrides: Partial<React.ComponentProps<typeof StatementHeader>> = {}) {

@@ -1,29 +1,10 @@
-import Decimal from "decimal.js";
-
-import { FloatNotAllowedError } from "./errors";
-import type { QuantityInput } from "./quantity";
-
-function coerce(value: QuantityInput, what = "quantity value"): Decimal {
-  if (value instanceof Decimal) return value;
-  if (typeof value === "string") return new Decimal(value);
-  throw new FloatNotAllowedError(`${what} must be a Decimal or decimal string, not a number`);
-}
-
-function getLocaleSeparators(locale: string) {
-  const group =
-    new Intl.NumberFormat(locale, { useGrouping: true })
-      .formatToParts(1000)
-      .find((part) => part.type === "group")?.value ?? ",";
-  return { group };
-}
-
-function groupIntegerPart(value: string, groupSeparator: string): string {
-  return value.replace(/\B(?=(\d{3})+(?!\d))/g, groupSeparator);
-}
+import { coerce, type QuantityInput } from "./quantity";
+import { getLocaleSeparators, groupIntegerPart } from "@/lib/audit/localeFormat";
 
 export function formatQuantity(value: QuantityInput): string {
+  // coerce() already rejects non-finite values (FloatNotAllowedError,
+  // "quantity value must be finite") — no separate isFinite() check needed.
   const amount = coerce(value);
-  if (!amount.isFinite()) throw new FloatNotAllowedError("quantity value must be finite");
 
   const { group } = getLocaleSeparators("en-US");
   const sign = amount.isNegative() ? "-" : "";

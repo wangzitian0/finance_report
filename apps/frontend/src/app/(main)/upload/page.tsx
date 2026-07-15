@@ -16,6 +16,8 @@ import type { BadgeVariant } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { BankStatement, BankStatementListResponse } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { currencyCodeOrDash } from "@/lib/statusLabels";
+import { formatPeriod } from "@/lib/date";
 
 // Plain-language status for everyday users. "parsed" means the AI finished and
 // it is the user's turn to review — surface that as an action, not a warning.
@@ -96,13 +98,6 @@ export default function UploadPage() {
         } finally {
             setDeleting(false);
         }
-    };
-
-    const formatCurrency = (currency?: string | null) => currency || "—";
-
-    const formatPeriod = (start?: string | null, end?: string | null) => {
-        if (!start || !end) return "Parsing...";
-        return `${start} → ${end}`;
     };
 
     return (
@@ -249,7 +244,7 @@ export default function UploadPage() {
                                             <span>•</span>
                                             <span>{formatPeriod(statement.period_start, statement.period_end)}</span>
                                             <span>•</span>
-                                            <span>{formatCurrency(statement.currency)}</span>
+                                            <span>{currencyCodeOrDash(statement.currency)}</span>
                                         </div>
                                     </div>
                                     <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">

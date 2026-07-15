@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 
 import { Ratio } from "@/lib/audit/ratio";
+import { decimalStringFromWire as sharedDecimalStringFromWire, decimalToWire } from "@/lib/audit/wire";
 
 import { FloatNotAllowedError, InvalidQuantityPayloadError, InvalidUnitError, UnitMismatchError } from "./errors";
 
@@ -13,7 +14,8 @@ export type QuantityWire = { value: string; unit: string };
 
 const UNIT_RE = /^[a-z][a-z0-9_-]*$/;
 
-function coerce(value: QuantityInput, what = "quantity value"): Decimal {
+/** Construction-time coercion to Decimal (exported for lib/audit/quantity/format.ts, #1868 S5). */
+export function coerce(value: QuantityInput, what = "quantity value"): Decimal {
   let d: Decimal;
   if (value instanceof Decimal) {
     d = value;
@@ -24,10 +26,6 @@ function coerce(value: QuantityInput, what = "quantity value"): Decimal {
   }
   if (!d.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
   return d;
-}
-
-function decimalToWire(value: Decimal): string {
-  return value.isZero() ? "0" : value.toFixed().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
 }
 
 function recordFromWire(payload: unknown): Record<string, unknown> {
@@ -46,20 +44,7 @@ function stringField(payload: Record<string, unknown>, key: string): string {
 }
 
 function decimalStringFromWire(value: unknown, what = "quantity value"): string {
-  if (typeof value === "number") {
-    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string, not a number`);
-  }
-  if (typeof value !== "string") {
-    throw new FloatNotAllowedError(`${what} must be encoded as a decimal string`);
-  }
-  try {
-    const parsed = new Decimal(value);
-    if (!parsed.isFinite()) throw new FloatNotAllowedError(`${what} must be finite`);
-  } catch (error) {
-    if (error instanceof FloatNotAllowedError) throw error;
-    throw new InvalidQuantityPayloadError(`${what} is not a valid decimal string`);
-  }
-  return value;
+  return sharedDecimalStringFromWire(value, what, FloatNotAllowedError, InvalidQuantityPayloadError);
 }
 
 export class Unit {
