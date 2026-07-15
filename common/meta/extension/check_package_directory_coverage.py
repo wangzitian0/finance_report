@@ -1,19 +1,19 @@
 """``check_package_directory_coverage`` — no directory under ``common/`` goes ungoverned.
 
 ``check_package_contract`` discovers packages *additively*: it globs
-``common/*/contract.py`` and validates whatever it finds. That makes it easy to
-add a package, but it means a directory dropped into ``common/`` WITHOUT a
-``contract.py`` is invisible to it -- exactly how ``common/ci``, ``common/shell``,
-and ``common/ssot`` accumulated as undeclared "junk drawers" before they were
-dissolved back into real packages (#1564-#1568, #1430).
+``common/*/contract.py`` and validates modules that export ``CONTRACT``. That
+makes it easy to add a package, but it means a directory dropped into ``common/``
+without a discoverable contract is invisible to it -- exactly how ``common/ci``,
+``common/shell``, and ``common/ssot`` accumulated as undeclared "junk drawers"
+before they were dissolved back into real packages (#1564-#1568, #1430).
 
 This gate closes that gap from the other direction: it enumerates every
 directory directly under ``common/`` and requires each one to either ship a
-``contract.py`` or be a documented, reasoned entry in
+``contract.py`` with a module-level ``CONTRACT`` or be a documented entry in
 :data:`UNGOVERNED_EXCEPTIONS`. The migration clean-up in #1430 retired the last
 residual exception (``common/ssot``), so the list is now empty and a
-shrink-only ratchet: a brand-new directory with neither a ``contract.py`` nor
-an exception entry is rejected, so the junk-drawer pattern cannot silently
+shrink-only ratchet: a brand-new directory with neither a discoverable contract
+nor an exception entry is rejected, so the junk-drawer pattern cannot silently
 recur, and the list may not silently regrow.
 
 stdlib only (no pyyaml/pydantic) so the gate runs anywhere, including the
@@ -23,6 +23,7 @@ lightweight CI lint environment.
 from __future__ import annotations
 
 import argparse
+import ast
 import sys
 from pathlib import Path
 
@@ -66,14 +67,36 @@ def discover_common_dirs(repo_root: Path) -> list[str]:
     )
 
 
+def _declares_discoverable_contract(contract_path: Path) -> bool:
+    """Whether package discovery can see a module-level ``CONTRACT``."""
+    try:
+        tree = ast.parse(contract_path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "CONTRACT"
+            for target in node.targets
+        )
+        for node in tree.body
+    )
+
+
 def check_directory_coverage(repo_root: Path) -> list[str]:
-    """Every common/<dir> ships a contract.py or is a documented exception."""
+    """Every common/<dir> ships a discoverable contract or is excepted."""
     errors: list[str] = []
     for name in discover_common_dirs(repo_root):
         contract_path = repo_root / "common" / name / "contract.py"
-        if contract_path.exists():
+        if contract_path.exists() and _declares_discoverable_contract(contract_path):
             continue
         if name in UNGOVERNED_EXCEPTIONS:
+            continue
+        if contract_path.exists():
+            errors.append(
+                f"common/{name}/contract.py does not declare a module-level "
+                "CONTRACT, so package discovery and governance cannot see it."
+            )
             continue
         errors.append(
             f"common/{name}/ has no contract.py and is not a documented "
