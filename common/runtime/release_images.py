@@ -10,6 +10,8 @@ import sys
 import time
 from collections.abc import Callable
 
+from common.runtime.github_api import write_github_output as _write_github_output
+
 InspectImage = Callable[[str], tuple[int, str]]
 Sleep = Callable[[float], None]
 
@@ -23,15 +25,6 @@ def _default_inspect_image(image: str) -> tuple[int, str]:
         text=True,
     )
     return result.returncode, result.stdout
-
-
-def _write_github_output(values: dict[str, str]) -> None:
-    output_path = os.getenv("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    with open(output_path, "a", encoding="utf-8") as fh:
-        for key, value in values.items():
-            print(f"{key}={value}", file=fh)
 
 
 def _extract_digest(output: str) -> str:

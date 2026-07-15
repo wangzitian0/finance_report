@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+from common.runtime.github_api import write_github_output
 
 _RELEASE_VERSION_REF_RE = re.compile(r"\Av[0-9]+\.[0-9]+\.[0-9]+\Z")
 
@@ -19,15 +20,6 @@ def _run(*args: str) -> None:
 
 def _out(*args: str) -> str:
     return subprocess.check_output(args, text=True).strip()
-
-
-def write_github_output(values: dict[str, str]) -> None:
-    output_path = os.getenv("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    with open(output_path, "a", encoding="utf-8") as fh:
-        for key, value in values.items():
-            print(f"{key}={value}", file=fh)
 
 
 def resolve_infra2_release_tag(repo_dir: str = "repo") -> str:

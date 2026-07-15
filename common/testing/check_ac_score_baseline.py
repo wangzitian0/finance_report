@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from common.testing.ac_score_baseline_format import load_jsonl, write_jsonl
+from common.testing.jsonl_baseline import ratcheted_raise_only_merge
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # The baseline is stored as conflict-free sorted JSONL (one AC per line) so two
@@ -97,17 +98,7 @@ def ratcheted_baseline(
     baseline: dict[str, Any], current: dict[str, Any]
 ) -> dict[str, Any]:
     """Raise-only merge: new baseline = max(old, current) per AC, plus new ACs."""
-    base_acs = dict(_acs(baseline))
-    for ac_id, cur in _acs(current).items():
-        prev = base_acs.get(ac_id)
-        cur_score = float(cur.get("score", 0.0))
-        if prev is None or cur_score >= float(prev.get("score", 0.0)):
-            base_acs[ac_id] = {
-                "score": round(cur_score, 6),
-                "metric": cur.get("metric", ""),
-                "provenance": cur.get("provenance", ""),
-            }
-    return {"version": 1, "acs": dict(sorted(base_acs.items()))}
+    return ratcheted_raise_only_merge(baseline, current, collection_key="acs")
 
 
 def render(findings: dict[str, list[str]]) -> str:

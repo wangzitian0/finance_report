@@ -10,13 +10,12 @@ printer here any more: the one gate entry point is ``tools/check_ac_index.py``.
 
 from __future__ import annotations
 
-import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.ac_scan import ACReferenceStats, collect_references, find_test_files
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS
 
 try:
@@ -42,18 +41,6 @@ class TraceabilityResult(NamedTuple):
     missing: list[str]
     total: int
     mandatory_total: int
-
-
-@dataclass
-class ACReferenceStats:
-    real_files: set[str] = field(default_factory=set)
-    ci_real_files: set[str] = field(default_factory=set)
-    placeholder_files: set[str] = field(default_factory=set)
-    stub_files: set[str] = field(default_factory=set)
-
-    @property
-    def all_files(self) -> set[str]:
-        return self.real_files | self.placeholder_files | self.stub_files
 
 
 @dataclass(frozen=True)
@@ -84,9 +71,6 @@ class ExecutionMatrix:
         return ExecutionRule(path_prefix="", stage="unclassified", ci_required=False)
 
 
-EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
-
-TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 DEFAULT_EXECUTION_MATRIX = Path("common/testing/data/test-execution-matrix.yaml")
 
 
@@ -155,47 +139,18 @@ def load_multiple_registries(registry_paths: list[Path]) -> list[AC]:
     return all_acs
 
 
-def find_test_files(test_dirs: list[Path]) -> list[Path]:
-    test_files: list[Path] = []
-    for base in test_dirs:
-        if not base.exists():
-            continue
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
-            for fname in files:
-                if fname.startswith("test_") or fname.endswith(TEST_FILE_SUFFIXES):
-                    test_files.append(Path(root) / fname)
-    return test_files
-
-
 def collect_referenced_acs(
     test_files: list[Path],
     execution_matrix: ExecutionMatrix | None = None,
     display_root: Path | None = None,
 ) -> dict[str, ACReferenceStats]:
-    references: dict[str, ACReferenceStats] = {}
     if execution_matrix is None:
         execution_matrix = load_execution_matrix()
-    for fpath in test_files:
-        try:
-            content = fpath.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        kind = classify_reference_file(fpath, content)
-        display_path = _display_path(fpath, display_root)
-        execution = execution_matrix.classify(display_path)
-        for m in AC_PATTERN.finditer(content):
-            ac_id = m.group(0)
-            stats = references.setdefault(ac_id, ACReferenceStats())
-            if kind == "stub":
-                stats.stub_files.add(display_path)
-            elif kind == "placeholder":
-                stats.placeholder_files.add(display_path)
-            else:
-                stats.real_files.add(display_path)
-                if execution.ci_required:
-                    stats.ci_real_files.add(display_path)
-    return references
+    return collect_references(
+        test_files,
+        display_path=lambda path: _display_path(path, display_root),
+        is_ci_file=lambda path: execution_matrix.classify(str(path)).ci_required,
+    )
 
 
 def is_deprecated(ac: AC) -> bool:

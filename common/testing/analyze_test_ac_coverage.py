@@ -23,12 +23,13 @@ from __future__ import annotations
 import argparse
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from common.meta.extension.ac_registry_format import load_registry_entries
-from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.meta.extension.ac_registry_format import sort_key
+from common.testing import ac_scan
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY_PATHS = (
@@ -67,20 +68,8 @@ class ACRecord:
     deprecated: bool = False
 
 
-@dataclass
-class ACReferenceStats:
-    real_files: set[str] = field(default_factory=set)
-    placeholder_files: set[str] = field(default_factory=set)
-    stub_files: set[str] = field(default_factory=set)
-    real_sources: set[str] = field(default_factory=set)
-    placeholder_sources: set[str] = field(default_factory=set)
-    stub_sources: set[str] = field(default_factory=set)
-
-
-@dataclass(frozen=True)
-class ScanFile:
-    source: str
-    path: Path
+ACReferenceStats = ac_scan.ACReferenceStats
+ScanFile = ac_scan.ScanFile
 
 
 @dataclass
@@ -113,9 +102,7 @@ class EpicStats:
     deprecated: int = 0
 
 
-def _ac_sort_key(ac_id: str) -> tuple[int, ...]:
-    parts = [int(value) for value in re.findall(r"\d+", ac_id)]
-    return tuple(parts) if parts else (999_999,)
+_ac_sort_key = sort_key
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -179,13 +166,9 @@ def discover_test_files(
             source_file_counts[source] = 0
             continue
 
-        source_paths: set[Path] = set()
-        for pattern in patterns:
-            source_paths.update(path for path in base.glob(pattern) if path.is_file())
-
-        ordered_paths = sorted(source_paths)
+        ordered_paths = ac_scan.discover_paths(base, patterns)
         source_file_counts[source] = len(ordered_paths)
-        scan_files.extend(ScanFile(source=source, path=path) for path in ordered_paths)
+        scan_files.extend(ScanFile(path=path, source=source) for path in ordered_paths)
 
     return scan_files, source_file_counts
 
@@ -199,35 +182,20 @@ def collect_references(
     dict[str, set[str]],
     dict[str, set[str]],
 ]:
-    references: dict[str, ACReferenceStats] = defaultdict(ACReferenceStats)
+    references = ac_scan.collect_references(
+        scan_files, display_path=lambda path: _relative(path, repo_root)
+    )
     source_real_refs: dict[str, set[str]] = defaultdict(set)
     source_placeholder_refs: dict[str, set[str]] = defaultdict(set)
     source_stub_refs: dict[str, set[str]] = defaultdict(set)
 
-    for scan_file in scan_files:
-        try:
-            content = scan_file.path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-
-        kind = classify_reference_file(scan_file.path, content)
-        rel_path = _relative(scan_file.path, repo_root)
-
-        for match in AC_PATTERN.finditer(content):
-            ac_id = match.group(0)
-            ref_stats = references[ac_id]
-            if kind == "stub":
-                ref_stats.stub_files.add(rel_path)
-                ref_stats.stub_sources.add(scan_file.source)
-                source_stub_refs[scan_file.source].add(ac_id)
-            elif kind == "placeholder":
-                ref_stats.placeholder_files.add(rel_path)
-                ref_stats.placeholder_sources.add(scan_file.source)
-                source_placeholder_refs[scan_file.source].add(ac_id)
-            else:
-                ref_stats.real_files.add(rel_path)
-                ref_stats.real_sources.add(scan_file.source)
-                source_real_refs[scan_file.source].add(ac_id)
+    for ac_id, stats in references.items():
+        for source in stats.real_sources:
+            source_real_refs[source].add(ac_id)
+        for source in stats.placeholder_sources:
+            source_placeholder_refs[source].add(ac_id)
+        for source in stats.stub_sources:
+            source_stub_refs[source].add(ac_id)
 
     return references, source_real_refs, source_placeholder_refs, source_stub_refs
 
