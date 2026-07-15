@@ -1,16 +1,17 @@
 """EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring.
 
-AC18.3.2 AC18.3.3: Hybrid and feature-flagged AI scoring behavior.
+The ``calculate_match_score``-level hybrid/feature-flag behavior
+(AC-reconciliation.1803.1/.2, formerly AC18.3.2/AC18.3.3) lives in
+``test_reconciliation_hybrid_scoring.py`` instead of here — kept out of this
+file specifically so a package-wide LLM-test-marker scan (this file mocks
+``stream_ai_json`` directly) doesn't misclassify those two deterministic
+gating/formula ACs as LLM tests.
 """
 
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.reconciliation import (
-    ReconciliationConfig,
-    ai_semantic_score,
-    weighted_total,
-)
+from src.reconciliation import ReconciliationConfig, ai_semantic_score, weighted_total
 
 
 def _default_config() -> ReconciliationConfig:

@@ -284,15 +284,15 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 | AC ID | Phase | Description |
 |-------|-------|-------------|
 | AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
-| AC18.3.2 | 3 | Hybrid scoring: `0.7 * algorithmic + 0.3 * AI` for 60-84 range only. **Untested** — no test exercises `calculate_match_score`'s hybrid-AI branch (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
-| AC18.3.3 | 3 | Feature flag `enable_ai_reconciliation` controls AI scoring. **Untested** — no test toggles `ENABLE_AI_RECONCILIATION` (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
 > (AC18.4.3 removed, canonical: migrated to the `extraction` package roadmap
-> as `AC-extraction.1804.1`, #1821 Wave A. AC18.3.1/AC18.3.2/AC18.3.3 above
-> stay pending-package — each already has a documented blocker [missing test
-> / undecided package-boundary tier conflict] from the #1663/#1711/#1715
-> migration verification passes; #1821 Wave A only moves
-> mechanically-provable rows, not open investigations — see the notes above
-> this table for the three rows resolved on 2026-07-14.)
+> as `AC-extraction.1804.1`, #1821 Wave A. AC18.3.1 above stays
+> pending-package — it already has a documented blocker [undecided
+> package-boundary tier conflict] from the #1663/#1711/#1715 migration
+> verification passes; #1821 Wave A only moves mechanically-provable rows,
+> not open investigations — see the notes above this table for the other
+> rows resolved on 2026-07-14/2026-07-15.)
+>
+> (AC18.3.2 removed and AC18.3.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.1803.1` and `AC-reconciliation.1803.2` respectively — both now have real tests exercising `calculate_match_score`'s hybrid-AI branch [`test_calculate_match_score_applies_hybrid_ai_scoring` / `test_calculate_match_score_flag_off_skips_ai_scoring`], closing the "Untested" blocker from #1663/#1711. AC18.3.1 above is untouched — its tier-boundary blocker is a separate, still-open question.)
 
 ### AC18.7: Evidence Graph Foundation
 

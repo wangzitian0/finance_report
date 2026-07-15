@@ -1889,6 +1889,32 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── closing the two remaining EPIC-018 AC18.3.x "Untested"
+        # pending-package rows now that a real test exercises calculate_match_score's
+        # hybrid-AI branch directly (AC18.3.1's separate tier-boundary blocker is
+        # unrelated and untouched — see docs/project/EPIC-018.ai-driven-pipeline.md) ──
+        ACRecord(
+            id="AC-reconciliation.1803.1",
+            statement="Hybrid scoring: calculate_match_score blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.",
+            # was AC18.3.2
+            test=(
+                "apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py"
+                "::test_calculate_match_score_applies_hybrid_ai_scoring"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.1803.2",
+            statement="Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, calculate_match_score never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.",
+            # was AC18.3.3
+            test=(
+                "apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py"
+                "::test_calculate_match_score_flag_off_skips_ai_scoring"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(
