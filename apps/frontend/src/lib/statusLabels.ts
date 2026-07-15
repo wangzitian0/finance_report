@@ -14,3 +14,29 @@ export function coverageLabel(pct: number): string {
     if (pct >= 60) return "Fair";
     return "Needs attention";
 }
+
+/** Stage-2 consistency-check severity color (was components/review/stage2/types.ts). */
+export function checkSeverityColor(severity: string): string {
+    switch (severity) {
+        case "high":
+            return "text-[var(--error)]";
+        case "medium":
+            return "text-[var(--warning)]";
+        default:
+            return "text-muted";
+    }
+}
+
+/** Stage-2 consistency-check type display label (was components/review/stage2/types.ts). */
+export function checkTypeLabel(type: string): string {
+    switch (type) {
+        case "duplicate":
+            return "Duplicate";
+        case "transfer_pair":
+            return "Transfer Pair";
+        case "anomaly":
+            return "Anomaly";
+        default:
+            return type;
+    }
+}

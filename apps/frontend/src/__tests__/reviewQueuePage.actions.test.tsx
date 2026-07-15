@@ -17,8 +17,8 @@ describe("Review queue actions", () => {
     it("renders matches and calls batch approve endpoint when Approve selected", async () => {
         const data = {
             pending_matches: [
-                { id: 'm1', match_score: 90, status: 'pending', amount: 10, txn_date: '2024-01-02', description: 'A' },
-                { id: 'm2', match_score: 80, status: 'pending', amount: 20, txn_date: '2024-01-03', description: 'B' },
+                { id: 'm1', match_score: '90', status: 'pending', amount: '10', txn_date: '2024-01-02', description: 'A' },
+                { id: 'm2', match_score: '80', status: 'pending', amount: '20', txn_date: '2024-01-03', description: 'B' },
             ],
             consistency_checks: [],
             has_unresolved_checks: false,
@@ -106,7 +106,7 @@ describe("Review queue actions", () => {
 
     it("shows unresolved checks warning and disables approve", async () => {
         const data = {
-            pending_matches: [{ id: 'm10', match_score: 90, status: 'pending', amount: 5, txn_date: '2024-01-05', description: 'X' }],
+            pending_matches: [{ id: 'm10', match_score: '90', status: 'pending', amount: '5', txn_date: '2024-01-05', description: 'X' }],
             consistency_checks: [],
             has_unresolved_checks: true,
         };
@@ -136,8 +136,8 @@ describe("Review queue actions", () => {
     it("selects all and batch rejects selected matches", async () => {
         const data = {
             pending_matches: [
-                { id: 'r1', match_score: 70, status: 'pending', amount: 1, txn_date: '2024-01-01', description: 'one' },
-                { id: 'r2', match_score: 80, status: 'pending', amount: 2, txn_date: '2024-01-02', description: 'two' },
+                { id: 'r1', match_score: '70', status: 'pending', amount: '1', txn_date: '2024-01-01', description: 'one' },
+                { id: 'r2', match_score: '80', status: 'pending', amount: '2', txn_date: '2024-01-02', description: 'two' },
             ],
             consistency_checks: [],
             has_unresolved_checks: false,

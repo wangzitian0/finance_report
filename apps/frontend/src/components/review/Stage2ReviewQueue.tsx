@@ -16,7 +16,7 @@ import { PendingMatchesPanel } from "./stage2/PendingMatchesPanel";
 import { ResolveCheckDialog } from "./stage2/ResolveCheckDialog";
 import { RunSummaryPanel } from "./stage2/RunSummaryPanel";
 import { Stage2Filters } from "./stage2/Stage2Filters";
-import type { ConsistencyCheck, ProcessingSummary, Stage2Data } from "./stage2/types";
+import type { ConsistencyCheck, ProcessingSummaryResponse, Stage2Data } from "@/lib/types";
 
 export function Stage2ReviewQueue() {
     const { showToast } = useToast();
@@ -31,7 +31,7 @@ export function Stage2ReviewQueue() {
     const [actionLoading, setActionLoading] = useState(false);
     const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
     const [selectedCheck, setSelectedCheck] = useState<ConsistencyCheck | null>(null);
-    const [processingSummary, setProcessingSummary] = useState<ProcessingSummary | null>(null);
+    const [processingSummary, setProcessingSummary] = useState<ProcessingSummaryResponse | null>(null);
 
     // Filters state
     const [checkTypeFilter, setCheckTypeFilter] = useState<string>(searchParams.get("check_type") || "");
@@ -67,7 +67,7 @@ export function Stage2ReviewQueue() {
         if (!isRunReview) return;
 
         try {
-            const result = await apiFetch<ProcessingSummary>("/api/accounts/processing/summary");
+            const result = await apiFetch<ProcessingSummaryResponse>("/api/accounts/processing/summary");
             setProcessingSummary(result);
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Failed to load processing summary", "error");
@@ -129,7 +129,7 @@ export function Stage2ReviewQueue() {
     const toggleAll = () => {
         if (!data) return;
         const visibleIds = data.pending_matches
-            .filter((m) => m.match_score >= minScore)
+            .filter((m) => Number(m.match_score) >= minScore)
             .map((m) => m.id);
         if (visibleIds.every((id) => selectedMatches.has(id)) && visibleIds.length > 0) {
             setSelectedMatches((prev) => {
@@ -309,7 +309,7 @@ export function Stage2ReviewQueue() {
     const unresolvedTransferCount = unresolvedChecks.filter((check) => check.check_type === "transfer_pair").length;
     const unresolvedDuplicateCount = unresolvedChecks.filter((check) => check.check_type === "duplicate").length;
     const unresolvedAnomalyCount = unresolvedChecks.filter((check) => check.check_type === "anomaly").length;
-    const matchesFilteredByScore = data.pending_matches.filter(m => m.match_score >= minScore);
+    const matchesFilteredByScore = data.pending_matches.filter(m => Number(m.match_score) >= minScore);
     const processingPendingCount = processingSummary?.pending_count ?? 0;
     const approveRunDisabled = actionLoading || data.has_unresolved_checks || processingPendingCount > 0 || data.pending_matches.length === 0;
     const runApprovalTitle = data.has_unresolved_checks

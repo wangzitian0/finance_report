@@ -1,7 +1,18 @@
 import { formatAmount } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 
-import type { PendingMatch } from "./types";
+import type { PendingMatch } from "@/lib/types";
+
+// match_score arrives as a decimal string (money wire policy: no JSON floats)
+// — Number() for the threshold comparison, string display stays exact.
+// Full static class strings (not interpolated) so Tailwind's JIT scanner
+// picks them up.
+function matchScoreColorClass(matchScore: string): string {
+    const score = Number(matchScore);
+    if (score >= 85) return "text-[var(--success)]";
+    if (score >= 60) return "text-[var(--warning)]";
+    return "text-[var(--error)]";
+}
 
 interface PendingMatchesPanelProps {
     matches: PendingMatch[];
@@ -68,13 +79,7 @@ export function PendingMatchesPanel({
                                                     </p>
                                                 </div>
                                                 <span
-                                                    className={`flex-shrink-0 text-sm font-semibold ${
-                                                        match.match_score >= 85
-                                                            ? "text-[var(--success)]"
-                                                            : match.match_score >= 60
-                                                              ? "text-[var(--warning)]"
-                                                              : "text-[var(--error)]"
-                                                    }`}
+                                                    className={`flex-shrink-0 text-sm font-semibold ${matchScoreColorClass(match.match_score)}`}
                                                 >
                                                     {match.match_score}
                                                 </span>
@@ -145,15 +150,7 @@ export function PendingMatchesPanel({
                                             />
                                         </td>
                                         <td className="px-4 py-2">
-                                            <span
-                                                className={`font-medium ${
-                                                    match.match_score >= 85
-                                                        ? "text-[var(--success)]"
-                                                        : match.match_score >= 60
-                                                          ? "text-[var(--warning)]"
-                                                          : "text-[var(--error)]"
-                                                }`}
-                                            >
+                                            <span className={`font-medium ${matchScoreColorClass(match.match_score)}`}>
                                                 {match.match_score}
                                             </span>
                                         </td>

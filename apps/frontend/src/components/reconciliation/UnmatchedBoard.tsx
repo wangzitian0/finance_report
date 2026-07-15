@@ -12,9 +12,10 @@ import type {
   JournalEntrySummary,
   UnmatchedTransactionsResponse,
 } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
 type CreatedJournalEntrySummary = JournalEntrySummary & { currency?: string | null };
-interface BatchCreateEntriesResponse { created_count: number; }
+type BatchCreateEntriesResponse = Schemas["BatchCreateEntriesResponse"];
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
 

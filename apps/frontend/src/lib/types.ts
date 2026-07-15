@@ -121,6 +121,15 @@ export type AccountLineageLine = Schemas["AccountLineageLine"];
 
 export type AccountLineageResponse = Schemas["AccountLineageResponse"];
 
+/**
+ * The generated `fx_warnings`/`opening_balance_warnings` fields are typed as
+ * a loose `{[key: string]: string}[]` dict (the backend's Pydantic schema
+ * models the field as `list[dict[str, str]]`, not a precise shape) — this
+ * richer type is what the presentation layer (`FxWarningBanner`) actually
+ * relies on (`.type`, `.message`, `.from_currency`, …). Every report response
+ * below overrides those two fields with `FxWarning[]` instead of taking the
+ * generated dict shape as-is.
+ */
 export interface FxWarning {
   type: string;
   message?: string;
@@ -132,60 +141,27 @@ export interface FxWarning {
   [key: string]: string | undefined;
 }
 
-export interface BalanceSheetResponse {
-  as_of_date: string;
-  currency: string;
-  assets: ReportLine[];
-  liabilities: ReportLine[];
-  equity: ReportLine[];
-  total_assets: MoneyValue;
-  total_liabilities: MoneyValue;
-  total_equity: MoneyValue;
-  net_income?: MoneyValue;
-  unrealized_fx_gain_loss?: MoneyValue;
-  net_worth_adjustment_gain_loss?: MoneyValue;
+export type BalanceSheetResponse = Omit<
+  Schemas["BalanceSheetResponse"],
+  "fx_warnings" | "opening_balance_warnings"
+> & {
   fx_warnings?: FxWarning[];
-  // #1481/#1486: aggregate confidence tier (degraded to LOW while an opening
-  // balance is missing) and the matching opening-balance warning(s).
-  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
   opening_balance_warnings?: FxWarning[];
-  equation_delta: MoneyValue;
-  is_balanced: boolean;
-}
+};
 
 export type IncomeStatementTrend = Schemas["IncomeStatementTrend"];
 
-export interface IncomeStatementResponse {
-  start_date: string;
-  end_date: string;
-  currency: string;
-  income: ReportLine[];
-  expenses: ReportLine[];
-  total_income: MoneyValue;
-  total_expenses: MoneyValue;
-  net_income: MoneyValue;
+export type IncomeStatementResponse = Omit<Schemas["IncomeStatementResponse"], "fx_warnings"> & {
   fx_warnings?: FxWarning[];
-  trends: IncomeStatementTrend[];
-  filters_applied?: {
-    tags: string[] | null;
-    account_type: string | null;
-  };
-}
+};
 
 export type CashFlowItem = Schemas["CashFlowItem"];
 
 export type CashFlowSummary = Schemas["CashFlowSummary"];
 
-export interface CashFlowResponse {
-  start_date: string;
-  end_date: string;
-  currency: string;
-  operating: CashFlowItem[];
-  investing: CashFlowItem[];
-  financing: CashFlowItem[];
-  summary: CashFlowSummary;
+export type CashFlowResponse = Omit<Schemas["CashFlowResponse"], "fx_warnings"> & {
   fx_warnings?: FxWarning[];
-}
+};
 
 export type PersonalReportPackageSectionContract = Schemas["PersonalReportPackageSectionContract"];
 
@@ -436,6 +412,14 @@ export interface RestrictedHolding {
 export type ValuationComponentsResponse = Schemas["ValuationComponentsResponse"];
 
 export type ReconciliationStatsResponse = Schemas["ReconciliationStatsResponse"];
+
+// ── Stage-2 review queue (was hand-declared in components/review/stage2/types.ts, #1868 S5) ──
+
+export type ConsistencyCheck = Schemas["ConsistencyCheckResponse"];
+
+export type PendingMatch = Schemas["Stage2PendingMatch"];
+
+export type Stage2Data = Schemas["Stage2ReviewQueueResponse"];
 
 export type UnmatchedTransactionsResponse = ListResponse<BankStatementTransactionSummary>;
 

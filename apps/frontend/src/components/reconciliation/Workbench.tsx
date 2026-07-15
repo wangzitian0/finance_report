@@ -19,12 +19,9 @@ import {
   ReconciliationStatsResponse,
   type MoneyValue,
 } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
-interface AnomalyResponse {
-  anomaly_type: string;
-  severity: string;
-  message: string;
-}
+type AnomalyResponse = Schemas["AnomalyResponse"];
 
 function formatQueueAmount(value: MoneyValue): string {
   const amount = formatAmount(value, 2);

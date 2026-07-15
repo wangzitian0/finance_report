@@ -64,7 +64,6 @@ describe("IncomeStatementPage", () => {
       net_income: "3800",
       fx_warnings: [{ type: "missing_average_rate", from_currency: "USD", to_currency: "SGD", date: "2026-01-31" }],
       trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: "5000", total_expenses: "1200", net_income: "3800" }],
-      filters_applied: { tags: null, account_type: null },
     })
 
     render(<IncomeStatementPage />)
@@ -125,7 +124,6 @@ describe("IncomeStatementPage", () => {
         total_expenses: "1200",
         net_income: "3800",
         trends: [],
-        filters_applied: { tags: null, account_type: null },
       })
     })
 
@@ -158,7 +156,6 @@ describe("IncomeStatementPage", () => {
       total_expenses: 0,
       net_income: 0,
       trends: [],
-      filters_applied: { tags: ["business"], account_type: "INCOME" },
     })
 
     render(<IncomeStatementPage />)
@@ -179,7 +176,14 @@ describe("IncomeStatementPage", () => {
     })
   })
 
-  it("AC16.14.10 shows active filters and empty-state messages", async () => {
+  // #1868 S5: the "Active filters:" banner echoed back a `filters_applied`
+  // field the backend's `IncomeStatementResponse` schema never actually
+  // declares (Pydantic silently drops it from `IncomeStatementResponse(**report)`
+  // — confirmed dead in production); removed with the wire-type migration.
+  // Selected filters are already visible via the tag/account-type control
+  // highlighting above (covered by AC16.14.6), so this test now only proves
+  // the empty-state messaging.
+  it("AC16.14.10 shows empty-state messages when there is no data", async () => {
     mockedApiFetch.mockResolvedValue({
       start_date: "2026-01-01",
       end_date: "2026-02-01",
@@ -190,15 +194,11 @@ describe("IncomeStatementPage", () => {
       total_expenses: 0,
       net_income: 0,
       trends: [],
-      filters_applied: { tags: ["business"], account_type: "INCOME" },
     })
 
     render(<IncomeStatementPage />)
 
-    await waitFor(() => expect(screen.getByText("Active filters:")).toBeInTheDocument())
-    expect(screen.getByText("INCOME")).toBeInTheDocument()
-    expect(screen.getByText("business")).toBeInTheDocument()
-    expect(screen.getByText("No trend data yet.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("No trend data yet.")).toBeInTheDocument())
     expect(screen.getByText("No income categories.")).toBeInTheDocument()
     expect(screen.getByText("No expense categories.")).toBeInTheDocument()
   })
@@ -214,7 +214,6 @@ describe("IncomeStatementPage", () => {
       total_expenses: 0,
       net_income: 0,
       trends: [],
-      filters_applied: { tags: null, account_type: null },
     })
 
     const { container } = render(<IncomeStatementPage />)

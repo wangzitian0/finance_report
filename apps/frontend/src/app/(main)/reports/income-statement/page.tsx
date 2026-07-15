@@ -132,14 +132,6 @@ export default function IncomeStatementPage() {
         </div>
       </div>
 
-      {report?.filters_applied && (report.filters_applied.tags || report.filters_applied.account_type) && (
-        <div className="mb-4 p-3 rounded-md bg-[var(--accent-muted)] text-sm">
-          <span className="text-xs text-muted uppercase">Active filters: </span>
-          {report.filters_applied.account_type && <span className="badge badge-primary mr-2">{report.filters_applied.account_type}</span>}
-          {report.filters_applied.tags?.map((t) => <span key={t} className="badge badge-muted mr-2">{t}</span>)}
-        </div>
-      )}
-
       <FxWarningBanner warnings={report?.fx_warnings} />
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">

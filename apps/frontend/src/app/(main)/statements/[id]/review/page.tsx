@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { MoneyValue } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { BalanceIndicator } from "@/components/review/BalanceIndicator";
@@ -69,9 +70,7 @@ interface ReviewConflicts {
     resolved?: boolean;
 }
 
-interface Stage1ApprovalResponse {
-    journal_entries_created: number;
-}
+type Stage1ApprovalResponse = Schemas["Stage1ApprovalResponse"];
 
 export default function StatementReviewPage() {
     const { showToast } = useToast();

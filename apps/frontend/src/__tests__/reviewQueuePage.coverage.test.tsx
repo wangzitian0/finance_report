@@ -22,8 +22,8 @@ describe("ReviewQueuePage - coverage additions", () => {
     it("renders checks and pending matches, toggles severity and minScore filter, select/deselect all", async () => {
         const data = {
             pending_matches: [
-                { id: "m1", match_score: 90, status: "pending", created_at: null, description: "Good match", amount: 12.3, txn_date: "2024-01-02" },
-                { id: "m2", match_score: 50, status: "pending", created_at: null, description: "Low match", amount: null, txn_date: null },
+                { id: "m1", match_score: "90", status: "pending", created_at: null, description: "Good match", amount: "12.3", txn_date: "2024-01-02" },
+                { id: "m2", match_score: "50", status: "pending", created_at: null, description: "Low match", amount: null, txn_date: null },
             ],
             consistency_checks: [
                 { id: "c1", check_type: "duplicate", status: "pending", related_txn_ids: [], details: { message: "dup" }, severity: "high", resolved_at: null, resolution_note: null, created_at: "2024-01-01", updated_at: "2024-01-01" }
