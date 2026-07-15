@@ -351,9 +351,10 @@ export default function StatementReviewPage() {
                 message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) from the statement page. This will mark the statement as rejected."
                 confirmLabel="Reject"
                 confirmVariant="danger"
-                showInput
-                inputLabel="Rejection Reason (optional)"
-                inputPlaceholder="Enter reason for rejection..."
+                input={{
+                    label: "Rejection Reason (optional)",
+                    placeholder: "Enter reason for rejection...",
+                }}
                 loading={rejectMutation.isPending}
             />
         </div>

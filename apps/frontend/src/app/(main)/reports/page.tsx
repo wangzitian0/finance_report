@@ -17,7 +17,7 @@ import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
+import { packageQuery } from "@/lib/reportPackage";
 import { countLabel, readinessVariant, sourceClassLabel } from "@/lib/statusLabels";
 import type {
   AnnualizedIncomeResponse,
@@ -47,16 +47,6 @@ const MORE_REPORTS = [
 ];
 
 type ReadinessLoadState = "loading" | "loaded" | "error";
-
-function packageReadinessQuery(): string {
-  const reportDate = new Date().toISOString().slice(0, 10);
-  const params = new URLSearchParams({
-    start_date: reportPeriodStart(reportDate),
-    end_date: reportDate,
-    as_of_date: reportDate,
-  });
-  return `?${params.toString()}`;
-}
 
 function isPackageReadiness(
   value: unknown,
@@ -92,7 +82,7 @@ export default function ReportsPage() {
       .then((data) => active && setStats(data))
       .catch(() => active && setStats(null));
     apiFetch<PersonalReportPackageReadinessResponse>(
-      `/api/reports/package/readiness${packageReadinessQuery()}`,
+      `/api/reports/package/readiness${packageQuery(new Date().toISOString().slice(0, 10))}`,
     )
       .then((data) => {
         if (!isPackageReadiness(data)) {

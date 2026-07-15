@@ -272,14 +272,6 @@ export function Stage2ReviewQueue() {
         setSelectedCheck(null);
     };
 
-    const toggleSeverity = (severity: string) => {
-        setSeverityFilter(prev =>
-            prev.includes(severity)
-                ? prev.filter(s => s !== severity)
-                : [...prev, severity]
-        );
-    };
-
     if (loading) {
         return (
             <div className="p-6">
@@ -337,27 +329,32 @@ export function Stage2ReviewQueue() {
             {isRunReview && (
                 <RunSummaryPanel
                     runId={runId}
-                    unresolvedTransferCount={unresolvedTransferCount}
-                    unresolvedDuplicateCount={unresolvedDuplicateCount}
-                    unresolvedAnomalyCount={unresolvedAnomalyCount}
+                    unresolvedCounts={{
+                        transfer: unresolvedTransferCount,
+                        duplicate: unresolvedDuplicateCount,
+                        anomaly: unresolvedAnomalyCount,
+                    }}
                     processingPendingCount={processingPendingCount}
                     pendingMatchesCount={data.pending_matches.length}
                     actionLoading={actionLoading}
-                    approveRunDisabled={approveRunDisabled}
-                    runApprovalTitle={runApprovalTitle}
+                    approval={{ disabled: approveRunDisabled, reason: runApprovalTitle }}
                     onApproveRun={handleApproveRun}
                 />
             )}
 
             <Stage2Filters
-                checkTypeFilter={checkTypeFilter}
-                statusFilter={statusFilter}
-                severityFilter={severityFilter}
-                minScore={minScore}
-                onToggleSeverity={toggleSeverity}
-                onCheckTypeChange={setCheckTypeFilter}
-                onStatusChange={setStatusFilter}
-                onMinScoreChange={setMinScore}
+                filters={{
+                    checkType: checkTypeFilter,
+                    status: statusFilter,
+                    severity: severityFilter,
+                    minScore,
+                }}
+                onChange={(patch) => {
+                    if (patch.checkType !== undefined) setCheckTypeFilter(patch.checkType);
+                    if (patch.status !== undefined) setStatusFilter(patch.status);
+                    if (patch.severity !== undefined) setSeverityFilter(patch.severity);
+                    if (patch.minScore !== undefined) setMinScore(patch.minScore);
+                }}
             />
 
             {error && <div className="mb-4 alert-error">{error}</div>}

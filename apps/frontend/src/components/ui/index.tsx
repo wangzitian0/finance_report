@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
-function cx(...classes: Array<string | false | null | undefined>) {
+export function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 

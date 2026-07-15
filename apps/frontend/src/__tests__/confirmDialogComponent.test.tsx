@@ -14,8 +14,7 @@ describe("ConfirmDialog component", () => {
         isOpen
         title="Reject"
         message="Provide reason"
-        showInput
-        inputRequired
+        input={{ required: true }}
         confirmLabel="Reject"
         onConfirm={onConfirm}
         onCancel={onCancel}
@@ -102,7 +101,7 @@ describe("ConfirmDialog component", () => {
 
   it("AC16.19.16 shows input label with required indicator", () => {
     render(
-      <ConfirmDialog isOpen title="T" message="M" showInput inputRequired inputLabel="Reason" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+      <ConfirmDialog isOpen title="T" message="M" input={{ required: true, label: "Reason" }} onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
     expect(screen.getByText("Reason")).toBeInTheDocument()
     expect(screen.getByText("*")).toBeInTheDocument()
@@ -111,7 +110,7 @@ describe("ConfirmDialog component", () => {
   it("AC16.19.16 passes input value on confirm without required", () => {
     const onConfirm = vi.fn()
     render(
-      <ConfirmDialog isOpen title="T" message="M" showInput onConfirm={onConfirm} onCancel={vi.fn()} />,
+      <ConfirmDialog isOpen title="T" message="M" input={{}} onConfirm={onConfirm} onCancel={vi.fn()} />,
     )
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "note" } })
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
@@ -130,7 +129,7 @@ describe("ConfirmDialog component", () => {
   // AC-meta.fe-app-shell.18
   it("AC16.19.17 AC16.30.4 traps focus with Tab and Shift+Tab", () => {
     render(
-      <ConfirmDialog isOpen title="Focus" message="Trap" showInput onConfirm={vi.fn()} onCancel={vi.fn()} />,
+      <ConfirmDialog isOpen title="Focus" message="Trap" input={{}} onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
 
     const dialog = screen.getByRole("dialog")
@@ -161,8 +160,7 @@ describe("ConfirmDialog component", () => {
         isOpen
         title="T"
         message="M"
-        showInput
-        inputRequired
+        input={{ required: true }}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,

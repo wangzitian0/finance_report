@@ -2189,6 +2189,24 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.fe-contract-types.5",
+            statement=(
+                "No file under `apps/frontend/src/components/workflow/` exceeds "
+                "300 lines, and `cx` has exactly one definition in the tree "
+                "(exported from `components/ui`) — `WorkflowNotifications.tsx` "
+                "was a 769-line god-file with a private re-implementation of "
+                "`cx` that already existed, unexported, in `components/ui/index.tsx` "
+                "(#1868 S5 PR-C). Split into one component per file, re-exported "
+                "as a barrel from the original path so external imports are unchanged."
+            ),
+            test=(
+                "tests/tooling/test_fe_no_godfile.py"
+                "::test_AC_fe_no_godfile_1_workflow_files_stay_under_300_lines"
+            ),
+            priority="P2",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

@@ -107,7 +107,7 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
   },
   {
     flow: "workflow.event-lifecycle",
-    file: "components/workflow/WorkflowNotifications.tsx",
+    file: "hooks/useWorkflowStatus.ts",
     invalidates: [
       ["workflow", "status"],
       ["workflow", "events"],

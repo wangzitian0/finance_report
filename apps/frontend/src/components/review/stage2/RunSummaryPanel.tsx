@@ -1,28 +1,33 @@
 import { InfoHint } from "@/components/ui/InfoHint";
 
+export interface RunSummaryUnresolvedCounts {
+    transfer: number;
+    duplicate: number;
+    anomaly: number;
+}
+
+export interface RunSummaryApproval {
+    disabled: boolean;
+    reason: string;
+}
+
 interface RunSummaryPanelProps {
     runId: string | null;
-    unresolvedTransferCount: number;
-    unresolvedDuplicateCount: number;
-    unresolvedAnomalyCount: number;
+    unresolvedCounts: RunSummaryUnresolvedCounts;
     processingPendingCount: number;
     pendingMatchesCount: number;
     actionLoading: boolean;
-    approveRunDisabled: boolean;
-    runApprovalTitle: string;
+    approval: RunSummaryApproval;
     onApproveRun: () => void;
 }
 
 export function RunSummaryPanel({
     runId,
-    unresolvedTransferCount,
-    unresolvedDuplicateCount,
-    unresolvedAnomalyCount,
+    unresolvedCounts,
     processingPendingCount,
     pendingMatchesCount,
     actionLoading,
-    approveRunDisabled,
-    runApprovalTitle,
+    approval,
     onApproveRun,
 }: RunSummaryPanelProps) {
     return (
@@ -38,7 +43,7 @@ export function RunSummaryPanel({
                         <InfoHint term="transfer_pair" label="Transfer pair" />
                     </p>
                     <p className="mt-1 text-lg font-semibold text-[var(--warning)]">
-                        {unresolvedTransferCount} unresolved transfer{unresolvedTransferCount === 1 ? "" : "s"}
+                        {unresolvedCounts.transfer} unresolved transfer{unresolvedCounts.transfer === 1 ? "" : "s"}
                     </p>
                 </div>
                 <div className="card p-4">
@@ -47,7 +52,7 @@ export function RunSummaryPanel({
                         <InfoHint term="duplicate" label="Duplicate" />
                     </p>
                     <p className="mt-1 text-lg font-semibold">
-                        {unresolvedDuplicateCount} duplicate{unresolvedDuplicateCount === 1 ? "" : "s"}
+                        {unresolvedCounts.duplicate} duplicate{unresolvedCounts.duplicate === 1 ? "" : "s"}
                     </p>
                 </div>
                 <div className="card p-4">
@@ -56,7 +61,7 @@ export function RunSummaryPanel({
                         <InfoHint term="anomaly" label="Anomaly" />
                     </p>
                     <p className="mt-1 text-lg font-semibold">
-                        {unresolvedAnomalyCount} anomal{unresolvedAnomalyCount === 1 ? "y" : "ies"}
+                        {unresolvedCounts.anomaly} anomal{unresolvedCounts.anomaly === 1 ? "y" : "ies"}
                     </p>
                 </div>
                 <div className="card p-4">
@@ -81,9 +86,9 @@ export function RunSummaryPanel({
                 <button
                     type="button"
                     onClick={onApproveRun}
-                    disabled={approveRunDisabled}
+                    disabled={approval.disabled}
                     className="btn-primary disabled:opacity-50 md:min-w-36"
-                    title={runApprovalTitle}
+                    title={approval.reason}
                 >
                     {actionLoading ? "Processing..." : "Approve Run"}
                 </button>

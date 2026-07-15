@@ -1,5 +1,5 @@
 import { SkeletonBlock } from "@/components/ui";
-import { reportPeriodStart } from "@/hooks/usePersonalReportPackage";
+import { reportPeriodStart } from "@/lib/reportPackage";
 import type { PersonalReportPackageContractResponse } from "@/lib/types";
 
 import { FRAMEWORK_LABELS, type PackageTocLink } from "./shared";
