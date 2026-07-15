@@ -460,7 +460,7 @@ class Settings(BaseSettings):
 
         In staging/production, if OTEL export is enabled, the resource MUST carry a
         ``deployment.environment`` tag (issued by infra2 at deploy — see
-        repo/docs/ssot/core.environments.md#telemetry-identity) whose value EQUALS
+        https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity) whose value EQUALS
         ``settings.environment`` (#1828 G-telemetry-tag-consistent: presence alone
         let "prod telemetry tagged as staging" boot healthy). This catches the
         "untagged or mistagged production telemetry" class before it reaches the
@@ -479,7 +479,7 @@ class Settings(BaseSettings):
                 "Telemetry contract violation: OTEL export is enabled in a deployed "
                 "environment but OTEL_RESOURCE_ATTRIBUTES has no "
                 "deployment.environment tag. infra2 must issue it; see "
-                "repo/docs/ssot/core.environments.md#telemetry-identity."
+                "the canonical infra2 environment SSOT."
             )
         declared = attrs["deployment.environment"].strip().lower()
         if declared != environment:
@@ -488,7 +488,7 @@ class Settings(BaseSettings):
                 f"deployment.environment={declared!r} but the running environment is "
                 f"{environment!r} — telemetry would be attributed to the wrong tier "
                 "(#1828 G-telemetry-tag-consistent). infra2 issues the tag at deploy; "
-                "see repo/docs/ssot/core.environments.md#telemetry-identity."
+                "see the canonical infra2 environment SSOT."
             )
         return self
 

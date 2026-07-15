@@ -344,7 +344,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.setup.outputs.head_sha }}
-          submodules: recursive
 
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests

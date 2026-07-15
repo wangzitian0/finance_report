@@ -115,11 +115,10 @@ def test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution() -> None:
             assert "pytest " not in line, "setup composite must not run pytest"
 
 
-def test_AC7_16_2_staging_deploy_v2_dependency_install_retries() -> None:
-    """AC-testing.toolchain.12: AC7.16.2: staging deploy_v2 dependency install retries with backoff.
+def test_AC7_16_2_staging_receiver_dependency_install_retries() -> None:
+    """AC-testing.toolchain.12: AC7.16.2: receiver dependency install retries with backoff.
 
-    The ``Install deploy_v2 dependencies`` step (``pip install httpx
-    python-dotenv rich``) is a transient network download and must be wrapped in
+    The app deploy request dependency step is a transient network download and must be wrapped in
     the bounded exponential-backoff retry idiom, with the original error visible
     on exhaustion.
     """
@@ -130,9 +129,9 @@ def test_AC7_16_2_staging_deploy_v2_dependency_install_retries() -> None:
     shell = _step_run_by_id(steps, "install_deploy_v2")
 
     assert "pip install" in shell
-    assert "httpx" in shell and "python-dotenv" in shell and "rich" in shell
+    assert "httpx" in shell and "infra2_sdk-0.1.0" in shell
     assert _has_bounded_backoff_retry(shell), (
-        "Install deploy_v2 dependencies must use the bounded backoff retry idiom"
+        "App deploy request dependencies must use the bounded backoff retry idiom"
     )
     assert "TOOLCHAIN_DOWNLOAD_RETRIES" in shell
     assert "TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS" in shell

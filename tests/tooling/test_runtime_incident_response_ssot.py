@@ -31,9 +31,9 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         "common/runtime/ci-cd.md",
         "common/runtime/readme.md",
         "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
-        "repo/docs/ssot/ops.alerting.md",
-        "repo/docs/ssot/ops.availability-ledger.md",
-        "repo/docs/ssot/ops.recovery.md",
+        "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.alerting.md",
+        "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.availability-ledger.md",
+        "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.recovery.md",
         "`route`",
         "`dependency`",
         "`observability`",
@@ -59,9 +59,6 @@ def test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage() -> None:
         "common/runtime/ci-cd.md",
         "common/runtime/readme.md",
         "docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md",
-        "repo/docs/ssot/ops.alerting.md",
-        "repo/docs/ssot/ops.availability-ledger.md",
-        "repo/docs/ssot/ops.recovery.md",
     }
     assert (
         "tests/tooling/test_runtime_incident_response_ssot.py"

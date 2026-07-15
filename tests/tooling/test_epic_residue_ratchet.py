@@ -14,7 +14,7 @@ EPIC_RESIDUE_CATEGORIES`:
 - ``fe-half`` — the frontend half of a dual-proof AC whose backend half lives
   in a package roadmap; the row keeps an in-row pointer to the migrated half.
 - ``horizontal`` — confirmed cross-module/infra scope (phase-0 scaffolding,
-  infra2 submodule content, CI/CD tooling, archive-residual ownership rows).
+  independently owned infra content, CI/CD tooling, archive-residual ownership rows).
 - ``pending-package`` — stays EPIC-owned until a named blocker clears (the
   advisor be-cutover, an owner decision, missing coverage); NOT permanent —
   tracked for the post-migration backlog.

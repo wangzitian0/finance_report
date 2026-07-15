@@ -2,9 +2,8 @@
 """
 Environment variable consistency validation.
 
-Validates consistency between:
-1. secrets.ctmpl (Vault SSOT) vs config.py (Backend Code)
-2. config.py (Backend Code) vs .env.example (Documentation)
+Validates consistency between config.py (Backend Code) and .env.example
+(Documentation).
 
 Note (Infra-014 C3): the backend block of ``.env.example`` and
 ``common/runtime/env-reference.generated.md`` are now GENERATED from the
@@ -12,8 +11,9 @@ Note (Infra-014 C3): the backend block of ``.env.example`` and
 ``tools/generate_env_reference.py``. The .env.example <-> config.py leg below is
 therefore guaranteed by generation (the generated block contains every backend
 key); ``tools/generate_env_reference.py --check`` is the authoritative drift
-guard for that file. This validator still owns the secrets.ctmpl <-> config.py
-leg.
+guard for that file. The versioned
+``common/runtime/required-env.generated.json`` artifact is the only App ->
+infra2 secret-injection contract; Finance Report does not read infra2 source.
 
 Usage:
     python tools/check_env_keys.py           # Check consistency
@@ -285,20 +285,17 @@ def main():
 
     root = get_project_root()
 
-    ctmpl_path = root / "repo/finance_report/finance_report/10.app/secrets.ctmpl"
     config_path = root / "apps/backend/src/config.py"
     env_example_path = root / ".env.example"
 
     print(f"Project root: {root}")
-    print(f"secrets.ctmpl: {ctmpl_path.relative_to(root) if ctmpl_path.exists() else 'NOT FOUND'}")
     print(f"config.py:     {config_path.relative_to(root)}")
     print(f".env.example:  {env_example_path.relative_to(root)}")
 
-    ctmpl_keys = parse_secrets_ctmpl(ctmpl_path)
     config_fields = parse_config_py(config_path)
     env_example_keys = parse_env_example(env_example_path)
 
-    result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+    result = check_consistency(set(), config_fields, env_example_keys)
     print_report(result, verbose=args.diff)
 
     if args.fix:

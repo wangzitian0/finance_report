@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -46,21 +44,3 @@ def test_AC10_9_5_app_side_snapshot_is_retired() -> None:
             ):
                 hits.append(str(path.relative_to(ROOT)))
     assert hits == [], f"app still references the retired snapshot tool: {hits}"
-
-
-def test_AC10_9_5_infra2_owns_deploy_failure_snapshots() -> None:
-    """AC10.9.5: the capability lives in infra2 (relocation-resilient: any
-    failure-snapshot module anywhere under repo/tools or repo/libs counts), so
-    retiring the app copy leaves no diagnostic blind spot. Skips when the repo/
-    submodule is not checked out (CI always populates it)."""
-    repo = ROOT / "repo"
-    if not (repo / "tools").is_dir():
-        pytest.skip("infra2 submodule (repo/) not checked out in this workspace")
-    candidates = [
-        p
-        for base in ("tools", "libs")
-        for p in (repo / base).rglob("*failure_snapshot*.py")
-    ]
-    assert candidates, (
-        "infra2 (repo/) no longer ships a deploy failure snapshot — investigate before retiring"
-    )

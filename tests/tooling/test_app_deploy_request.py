@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import json
 import re
 import shlex
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -38,10 +40,22 @@ VALID_REQUEST = {
     },
 }
 
+VALID_PRODUCTION_REQUEST = {
+    **VALID_REQUEST,
+    "deploy_type": "prod",
+    "evidence": {
+        **VALID_REQUEST["evidence"],
+        "staging_run_url": "https://github.com/wangzitian0/finance_report/actions/runs/12345679",
+        "reviewed_change_url": "https://github.com/wangzitian0/finance_report/pull/1878",
+    },
+}
+
 
 def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() -> None:
     """AC-runtime.deploy-request.1: the SDK release and canonical v1 wire shape are immutable."""
-    pyproject = tomllib.loads((ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads(
+        (ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8")
+    )
     sdk_dependencies = [
         dependency
         for dependency in pyproject["dependency-groups"]["dev"]
@@ -56,7 +70,9 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
-    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
     tooling_step = next(
         step
         for step in workflow["jobs"]["tooling-coverage"]["steps"]
@@ -82,7 +98,9 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST
     assert renderer.canonical_json(request) == (
-        json.dumps(VALID_REQUEST, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        json.dumps(
+            VALID_REQUEST, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
         + "\n"
     )
 
@@ -90,12 +108,11 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
 def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC-runtime.deploy-request.2: app authority is staging-only and side-effect-free."""
+    """AC-runtime.deploy-request.2: fixed-env authority is evidence-bound and side-effect-free."""
     invalid_cases = [
         ({"contract_version": True}, "contract_version must be 1"),
         ({"operation": "rollback"}, "operation must be deploy"),
-        ({"deploy_type": "prod"}, "production requests are disabled"),
-        ({"deploy_type": "preview/tag"}, "deploy_type must be staging"),
+        ({"deploy_type": "preview/tag"}, "deploy_type must be staging or prod"),
         ({"service": "truealpha/app"}, "service must be finance_report/app"),
         (
             {"source_repository": "wangzitian0/infra2"},
@@ -113,7 +130,7 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
                     "staging_run_url": "https://github.com/example/staging/runs/1",
                 }
             },
-            "evidence.staging_run_url must be empty",
+            "evidence.staging_run_url must be empty for staging",
         ),
         (
             {
@@ -122,7 +139,7 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
                     "reviewed_change_url": "https://github.com/example/pull/1",
                 }
             },
-            "evidence.reviewed_change_url must be empty",
+            "evidence.reviewed_change_url must be empty for staging",
         ),
         (
             {"evidence": {**VALID_REQUEST["evidence"], "unexpected": "authority"}},
@@ -182,6 +199,25 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     )
     assert rendered.to_dict() == VALID_REQUEST
 
+    production = renderer.render_request(
+        request_id=VALID_PRODUCTION_REQUEST["request_id"],
+        deploy_type="prod",
+        version_ref=VALID_PRODUCTION_REQUEST["version_ref"],
+        source_sha=VALID_PRODUCTION_REQUEST["source_sha"],
+        source_run_url=VALID_PRODUCTION_REQUEST["evidence"]["source_run_url"],
+        source_run_id=VALID_PRODUCTION_REQUEST["evidence"]["source_run_id"],
+        staging_run_url=VALID_PRODUCTION_REQUEST["evidence"]["staging_run_url"],
+        reviewed_change_url=VALID_PRODUCTION_REQUEST["evidence"]["reviewed_change_url"],
+    )
+    assert production.to_dict() == VALID_PRODUCTION_REQUEST
+
+    for field in ("staging_run_url", "reviewed_change_url"):
+        evidence = {**VALID_PRODUCTION_REQUEST["evidence"], field: ""}
+        with pytest.raises(ValueError, match=field):
+            renderer.request_from_mapping(
+                {**VALID_PRODUCTION_REQUEST, "evidence": evidence}
+            )
+
     cli_args = [
         "--request-id",
         VALID_REQUEST["request_id"],
@@ -201,8 +237,10 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     invalid_cli_args[3] = "main"
     with pytest.raises(SystemExit, match="2"):
         renderer.main(invalid_cli_args)
-    assert capsys.readouterr().err.rstrip().endswith(
-        "error: version_ref must be a release tag like vX.Y.Z"
+    assert (
+        capsys.readouterr()
+        .err.rstrip()
+        .endswith("error: version_ref must be a release tag like vX.Y.Z")
     )
 
     source = MODULE_PATH.read_text(encoding="utf-8")
@@ -222,3 +260,159 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     forbidden_transport_literals = {"repository_dispatch"}
     assert imported_modules.isdisjoint(forbidden_imports)
     assert string_literals.isdisjoint(forbidden_transport_literals)
+
+
+def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> None:
+    """AC-runtime.deploy-request.3: dispatch success means this exact receiver run succeeded."""
+    transport = importlib.import_module("tools.app_deploy_transport")
+    source = (ROOT / "tools/app_deploy_transport.py").read_text(encoding="utf-8")
+
+    assert "repository_dispatch" in source
+    assert "app-deploy-request.yml" in source
+    assert "request_id" in source
+    assert "watermark" in source
+    assert "logs" in source
+    assert hasattr(transport, "dispatch_and_wait")
+
+    staging_workflow = (ROOT / ".github/workflows/deploy.yml").read_text(
+        encoding="utf-8"
+    )
+    production_workflow = (ROOT / ".github/workflows/release.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "python -m tools.app_deploy_transport" in staging_workflow
+    assert "--deploy-type staging" in staging_workflow
+    assert "steps.release_images_run.outputs.run_id" in staging_workflow
+    assert production_workflow.count("python -m tools.app_deploy_transport") == 2
+    assert production_workflow.count("--deploy-type prod") == 2
+    assert "steps.reviewed_change.outputs.reviewed_change_url" in production_workflow
+    assert "steps.staging.outputs.run_id" in production_workflow
+    assert (
+        "steps.rollback_reviewed_change.outputs.reviewed_change_url"
+        in production_workflow
+    )
+
+    calls: list[tuple[str, str, object]] = []
+    run_lists = iter(
+        [
+            {"workflow_runs": [{"id": 100}]},
+            {
+                "workflow_runs": [
+                    {
+                        "id": 101,
+                        "status": "in_progress",
+                        "conclusion": None,
+                        "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
+                    },
+                    {"id": 100},
+                ]
+            },
+            {
+                "workflow_runs": [
+                    {
+                        "id": 101,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
+                    },
+                    {"id": 100},
+                ]
+            },
+        ]
+    )
+
+    def api(method: str, path: str, body: object = None) -> object:
+        calls.append((method, path, body))
+        if method == "GET":
+            return next(run_lists)
+        return None
+
+    result = transport.dispatch_and_wait(
+        VALID_REQUEST,
+        api=api,
+        fetch_logs=lambda run_id: b'plan {"request_id": "finance-report-run-12345678"}',
+        sleep=lambda _: None,
+        max_attempts=3,
+    )
+    assert result.run_id == 101
+    assert result.url.endswith("/101")
+    dispatch = next(call for call in calls if call[0] == "POST")
+    assert dispatch[2] == {
+        "event_type": "app-deploy-request",
+        "client_payload": VALID_REQUEST,
+    }
+
+    ambiguous_runs = {
+        "workflow_runs": [
+            {"id": 103, "status": "queued"},
+            {"id": 102, "status": "queued"},
+            {"id": 100, "status": "completed"},
+        ]
+    }
+    responses = iter([{"workflow_runs": [{"id": 100}]}, ambiguous_runs])
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        transport.dispatch_and_wait(
+            VALID_REQUEST,
+            api=lambda method, path, body=None: (
+                next(responses) if method == "GET" else None
+            ),
+            fetch_logs=lambda run_id: b"",
+            sleep=lambda _: None,
+            max_attempts=1,
+        )
+
+    responses = iter(
+        [
+            {"workflow_runs": [{"id": 100}]},
+            {
+                "workflow_runs": [
+                    {
+                        "id": 101,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
+                    }
+                ]
+            },
+        ]
+    )
+    with pytest.raises(RuntimeError, match="request_id"):
+        transport.dispatch_and_wait(
+            VALID_REQUEST,
+            api=lambda method, path, body=None: (
+                next(responses) if method == "GET" else None
+            ),
+            fetch_logs=lambda run_id: b"another request",
+            sleep=lambda _: None,
+            max_attempts=1,
+        )
+
+
+def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:
+    """AC-runtime.deploy-request.4 AC-meta.infra-boundary.1 AC-meta.infra-boundary.2: App consumes SDK/URLs, never an infra2 checkout."""
+    assert not (ROOT / ".gitmodules").exists()
+    gitlinks = subprocess.check_output(
+        ["git", "ls-files", "--stage"], cwd=ROOT, text=True
+    )
+    assert not any(line.startswith("160000 ") for line in gitlinks.splitlines())
+
+    workflows = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml"))
+    )
+    assert "submodules: recursive" not in workflows
+    assert "working-directory: repo" not in workflows
+    assert "python -m tools.deploy_v2" not in workflows
+    assert "DOKPLOY_API_KEY" not in (ROOT / ".github/workflows/deploy.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "DOKPLOY_API_KEY" not in (ROOT / ".github/workflows/release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    retired_source_readers = (
+        "tests/tooling/_infra2_source.py",
+        "tests/tooling/test_deploy_compose_contract.py",
+        "tests/tooling/test_infra2_pin_is_release_tag.py",
+    )
+    assert all(not (ROOT / path).exists() for path in retired_source_readers)

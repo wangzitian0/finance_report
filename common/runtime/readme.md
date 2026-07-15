@@ -32,10 +32,10 @@ test selection, execution, and reporting → `testing`.
 
 The cross-repository CD seam is a versioned data contract, not an infra2 source
 import. Finance Report pins `infra2-sdk`, and its side-effect-free renderer emits
-only a staging `DeployRequest` for an immutable app release. infra2 remains the
-sole authority for IaC selection, credentials, and deployment execution. During
-the migration, the legacy `repo/` path remains only until the receiver passes a
-controlled staging proof; Production requests stay disabled.
+staging or Production `DeployRequest` values for immutable app releases. infra2
+remains the sole authority for IaC selection, credentials, and deployment
+execution. Staging, Production, and rollback all use the receiver transport and
+prove the correlated infra2 workflow run before App health gates begin.
 
 ## Ubiquitous language
 

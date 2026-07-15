@@ -341,8 +341,6 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
         "apps/backend/tests/extraction/test_extraction.py",
         "apps/frontend/src/app/page.tsx",
         "docker-compose.yml",
-        "repo",
-        "repo/tools/deploy_v2.py",
         "tools/health_check.sh",
         "docs/ssot/README.md",
     ):
@@ -398,9 +396,6 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "toolchain.toml",
         ".python-version",
         ".node-version",
-        "repo",
-        "repo/tools/deploy_v2.py",
-        "repo/docker-compose.yml",
     ):
         assert is_staging_relevant(path) is True
 

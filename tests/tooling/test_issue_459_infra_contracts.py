@@ -1,7 +1,7 @@
 """Behavioral replacements for legacy AC traceability stubs.
 
-These tests exercise repository configuration, deployment templates, and PDF fixture
-tooling that used to be represented only by apps/backend/tests/_ac_stubs.
+These tests exercise application configuration and PDF fixture tooling that
+used to be represented only by apps/backend/tests/_ac_stubs.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PDF_FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf"
-FINANCE_REPORT_IAC = REPO_ROOT / "repo" / "finance_report" / "finance_report"
 
 
 def _read(path: Path) -> str:
@@ -44,64 +43,12 @@ def _assert_python_defines_function(path: Path, function_name: str) -> None:
     assert function_name in functions
 
 
-def test_epic_007_finance_report_iac_components() -> None:
-    """Finance Report IaC components exist.
-
-    AC7.1.2 AC7.1.3 AC7.2.1 AC7.2.2 AC7.2.3 AC7.2.4 AC7.2.5
-    AC7.3.1 AC7.3.2 AC7.3.3 AC7.3.4 AC7.3.5
-    AC7.4.1 AC7.4.2 AC7.4.3 AC7.4.4 AC7.4.5 AC7.4.6
-    """
-    assert (REPO_ROOT / "README.md").exists()
-    assert (REPO_ROOT / "apps" / "backend" / "src").is_dir()
-    assert (REPO_ROOT / "apps" / "frontend" / "src").is_dir()
-    assert (FINANCE_REPORT_IAC / "README.md").exists()
-
-    components = {
-        "01.postgres": ("postgres", "PostgresDeployer"),
-        "02.redis": ("redis", "RedisDeployer"),
-        "10.app": ("app", "AppDeployer"),
-    }
-    for folder, (service_hint, deployer_class) in components.items():
-        component_dir = FINANCE_REPORT_IAC / folder
-        compose = _load_yaml(component_dir / "compose.yaml")
-        services = compose.get("services", {})
-        assert service_hint in yaml.safe_dump(services).lower()
-        assert (component_dir / "vault-agent.hcl").exists()
-        assert "path" in _read(component_dir / "vault-policy.hcl")
-        assert "{{" in _read(component_dir / "secrets.ctmpl")
-        _assert_python_defines_class(component_dir / "deploy.py", deployer_class)
-
-    app_compose = _load_yaml(FINANCE_REPORT_IAC / "10.app" / "compose.yaml")
-    labels = "\n".join(
-        str(label)
-        for service in app_compose["services"].values()
-        for label in service.get("labels", [])
-    )
-    assert "traefik" in labels.lower()
-
-
-def test_epic_007_secret_and_health_contracts_are_documented() -> None:
-    """Secrets and health contracts are documented.
-
-    AC7.5.1 AC7.5.2 AC7.5.3 AC7.5.4 AC7.5.5 AC7.6.2
-    AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5 AC7.9.6 AC7.9.7 AC7.9.8
-    """
-    app_template = _read(FINANCE_REPORT_IAC / "10.app" / "secrets.ctmpl")
-    postgres_template = _read(FINANCE_REPORT_IAC / "01.postgres" / "secrets.ctmpl")
-    redis_template = _read(FINANCE_REPORT_IAC / "02.redis" / "secrets.ctmpl")
-    deployment_ssot = _read(REPO_ROOT / "common" / "runtime" / "deployment.md")
-    root_env = _read(REPO_ROOT / ".env.example")
-
-    assert "DATABASE_URL" in app_template
-    assert "REDIS_URL" in app_template
-    assert "S3_" in app_template
-    assert "ZAI_API_KEY" in app_template or "AI_API_KEY" in app_template
-    assert "POSTGRES" in postgres_template
-    assert "PASSWORD" in redis_template
-    assert "vault" in deployment_ssot.lower()
-    assert "health" in deployment_ssot.lower()
-    assert "INTERNAL_DOMAIN" in _read(FINANCE_REPORT_IAC / "10.app" / "compose.yaml")
-    assert "DATABASE_URL" in root_env and "REDIS_URL" in root_env
+def test_legacy_infra_acceptance_criteria_are_owned_by_the_receiver_boundary() -> None:
+    """AC7.1.1 AC7.1.2 AC7.1.3 AC7.2.1 AC7.2.2 AC7.2.3 AC7.2.4 AC7.2.5 AC7.3.1 AC7.3.2 AC7.3.3 AC7.3.4 AC7.3.5 AC7.4.1 AC7.4.2 AC7.4.3 AC7.4.4 AC7.4.5 AC7.4.6 AC7.5.1 AC7.5.2 AC7.5.3 AC7.5.4 AC7.5.5 AC7.6.2 AC7.9.6 AC7.9.7 AC7.9.8 AC10.5.1 AC10.5.2 AC10.5.3 AC10.7.5 AC10.7.6: historical infra implementation checks moved to infra2; Finance Report proves only the receiver boundary."""
+    assert not (REPO_ROOT / ".gitmodules").exists()
+    workflow = _read(REPO_ROOT / ".github" / "workflows" / "deploy.yml")
+    assert "tools.app_deploy_request" in workflow
+    assert "tools.app_deploy_transport" in workflow
 
 
 def test_epic_009_pdf_fixture_tooling_contracts() -> None:
@@ -164,38 +111,20 @@ def test_epic_009_generator_templates_and_cli_options() -> None:
 
 
 def test_epic_010_observability_docs_and_templates() -> None:
-    """Observability SSOT, env docs, and app templates stay aligned."""
+    """Observability SSOT, generated env contract, and app config stay aligned."""
     observability = _read(REPO_ROOT / "common" / "observability" / "observability.md")
     env_example = _read(REPO_ROOT / ".env.example")
     config_py = _read(REPO_ROOT / "apps" / "backend" / "src" / "config.py")
-    app_template = _read(FINANCE_REPORT_IAC / "10.app" / "secrets.ctmpl")
-    app_readme = _read(FINANCE_REPORT_IAC / "10.app" / "README.md")
-    app_compose = _read(FINANCE_REPORT_IAC / "10.app" / "compose.yaml")
+    required_env = _read(
+        REPO_ROOT / "common" / "runtime" / "required-env.generated.json"
+    )
 
     for key in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_SERVICE_NAME"):
         assert key in observability
         assert key in env_example
         assert key.lower() in config_py.lower()
-        assert key in app_template
+        assert key in required_env
     assert "observability" in observability.lower()
-    # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
-    # dissolution); it no longer indexes individual concepts like ci-cd by name.
-    assert "otel" in app_readme.lower()
-    assert "IAC_CONFIG_HASH" in app_compose
-    assert "printf" in app_template
-    # Genuine secrets must fall back to EMPTY (Vault-sourced), never a baked literal.
-    # Non-secret OTEL telemetry config (Infra-014 #360/#376) legitimately carries
-    # canonical defaults, so assert secret hygiene directly instead of banning the
-    # substring "default" outright (which now false-positives on the telemetry block).
-    for secret_key in ("SECRET_KEY", "S3_SECRET_KEY", "S3_ACCESS_KEY"):
-        secret_line = next(
-            line
-            for line in app_template.splitlines()
-            if line.startswith(f"{secret_key}=")
-        )
-        assert secret_line.endswith('{{ else }}""{{ end }}'), (
-            f"{secret_key} must fall back to empty (Vault-sourced), not a baked default: {secret_line}"
-        )
     assert "optional" in observability.lower()
     assert "redact" in observability.lower() or "sensitive" in observability.lower()
     assert "json" in observability.lower()

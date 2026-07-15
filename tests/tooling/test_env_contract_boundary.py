@@ -21,8 +21,8 @@ ENVIRONMENTS_DOC = ROOT / "common" / "runtime" / "environments.md"
 CONFIG_PY = ROOT / "apps" / "backend" / "src" / "config.py"
 
 # Pointers each App doc MUST keep to the infra2-owned contract.
-OPS_OBSERVABILITY_POINTER = "repo/docs/ssot/ops.observability.md"
-CORE_ENVIRONMENTS_POINTER = "repo/docs/ssot/core.environments.md"
+OPS_OBSERVABILITY_POINTER = "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md"
+CORE_ENVIRONMENTS_POINTER = "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md"
 
 # Drift patterns the App docs MUST NOT contain.
 #

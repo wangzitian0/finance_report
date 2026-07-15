@@ -219,7 +219,7 @@ encoded:
 
 **Cross-cutting contract checks** (each owned by
 [red-lines.md](./red-lines.md) §Engineering Integrity — listed here only as the
-work-order reminder): sync the `repo/` submodule (`infra2`) when a change adds
+work-order reminder): link a separate infra2 PR when a change adds production
 env vars; every `sa.Enum` carries an explicit `name=`
 (See: [common/meta/schema.md#enum-naming](../../common/meta/schema.md#enum-naming));
 `NEXT_PUBLIC_` variables are baked as `ARG`/`ENV` in
@@ -271,10 +271,8 @@ Judgment, not config (vision.md, Good Taste 6):
 
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API; SSH only for reading, never modifying.
 2. **Shared network isolation**: Use compose service DNS on project-scoped networks for PR previews; do not use fixed container names as hostnames.
-3. **Infrastructure Submodule Sync**: Before creating PR, verify `repo/` points to latest `infra2` main:
-   ```bash
-   cd repo && git fetch origin main && git log --oneline -1 origin/main && git log --oneline -1 HEAD
-   ```
+3. **Infrastructure Boundary**: Never check out infra2 source in this repo. Link
+   the independent infra2 PR for Vault/Compose changes and keep the SDK pin exact.
 4. **Probe before claiming inability**: never report "can't access X / no
    credentials" without first attempting the documented path — direnv probe
    (`echo ${#VAR}`), the Dokploy API, a read-only VPS SSH log pull, the SigNoz

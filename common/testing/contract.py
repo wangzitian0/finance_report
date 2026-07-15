@@ -1180,7 +1180,7 @@ CONTRACT = PackageContract(
             id="AC-testing.deploy-gates.14",
             statement=(
                 "Post-merge staging deploys only for runtime, deploy, E2E, staging "
-                "workflow, toolchain, or infra-submodule changes (Was EPIC-008 "
+                "workflow, or toolchain changes (Was EPIC-008 "
                 "AC8.13.55)."
             ),
             test=(
@@ -3271,7 +3271,7 @@ CONTRACT = PackageContract(
             statement=(
                 "Local verification entry points fail on the same backend format "
                 "errors and route make test through the root Moon test command "
-                "without hashing the infra submodule gitlink as a file input (Was "
+                "with explicit application workspace inputs (Was "
                 "EPIC-008 AC8.13.45)."
             ),
             test=(
@@ -3409,7 +3409,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.toolchain.12",
             statement=(
-                "The staging deploy_v2 dependency install retries transient "
+                "The staging receiver dependency install retries transient "
                 "download failures with bounded exponential backoff; "
                 "application deploy/test steps remain fail-fast (not "
                 "wrapped in retry)."
@@ -3417,7 +3417,7 @@ CONTRACT = PackageContract(
             # was AC7.16.2
             test=(
                 "tests/tooling/test_staging_toolchain_retry.py"
-                "::test_AC7_16_2_staging_deploy_v2_dependency_install_retries"
+                "::test_AC7_16_2_staging_receiver_dependency_install_retries"
             ),
             priority="P0",
             status="done",

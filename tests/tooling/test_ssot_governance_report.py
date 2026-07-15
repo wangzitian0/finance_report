@@ -74,32 +74,6 @@ def _seed_finance_manifest(root: Path) -> None:
     )
 
 
-def _seed_infra_manifest(root: Path) -> None:
-    for relative_path in (
-        "repo/docs/ssot/ops.pipeline.md",
-        "repo/docs/ssot/vault-inventory.yaml",
-        "repo/libs/tests/test_pipeline.py",
-    ):
-        _write(root / relative_path)
-
-    _write_yaml(
-        root / "repo/docs/ssot/MANIFEST.yaml",
-        {
-            "entries": {
-                "ops.pipeline": {
-                    "owner": "docs/ssot/ops.pipeline.md",
-                    "description": "CI deploy pipeline.",
-                    "proofs": ["libs/tests/test_pipeline.py"],
-                },
-                "vault.inventory": {
-                    "owner": "docs/ssot/vault-inventory.yaml",
-                    "description": "Vault token inventory.",
-                },
-            }
-        },
-    )
-
-
 def _source(report: dict[str, object], system: str) -> dict[str, object]:
     sources = report["sources"]
     assert isinstance(sources, list)
@@ -114,18 +88,16 @@ def _assert_file_mentions(path: str, expected: list[str]) -> None:
         assert marker in text, f"{path} must mention {marker}"
 
 
-def test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes(
+def test_AC14_1_12_report_covers_finance_manifest_shape(
     tmp_path: Path,
 ) -> None:
-    """AC-meta.ssot-governance.2: SSOT governance metrics report finance and infra2 manifests."""
+    """AC-meta.ssot-governance.2: SSOT governance metrics report Finance Report's manifest."""
 
     _seed_finance_manifest(tmp_path)
-    _seed_infra_manifest(tmp_path)
-
     report = governance_report.build_report(tmp_path)
 
     assert report["report_only"] is True
-    assert report["overall"]["entry_count"] == 7
+    assert report["overall"]["entry_count"] == 5
     assert report["overall"]["errors"] == []
 
     finance = _source(report, "finance_report")
@@ -150,12 +122,6 @@ def test_AC14_1_12_report_covers_finance_and_infra2_manifest_shapes(
         "deployment_clause_without_parent"
         in finance["future_gate_candidates"][2]["sample"]
     )
-
-    infra = _source(report, "infra2")
-    assert infra["entry_key"] == "entries"
-    assert infra["entry_count"] == 2
-    assert infra["machine_owner_entries"]["missing_proof"] == ["vault.inventory"]
-    assert infra["high_risk_entries"]["missing_proof"] == ["vault.inventory"]
 
     markdown = governance_report.render_markdown(report)
     assert "# SSOT Governance Report" in markdown
@@ -239,11 +205,11 @@ def test_AC14_1_12_helper_and_error_branches_stay_report_only(
     )
     assert (
         governance_report._display_ref(
-            tmp_path / "repo",
+            tmp_path / "nested",
             "docs/ssot/core.md",
             tmp_path,
         )
-        == "repo/docs/ssot/core.md"
+        == "nested/docs/ssot/core.md"
     )
 
     project_entry = governance_report.GovernanceEntry(
@@ -654,20 +620,8 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     assert governance_report._source_changed_files(
         outside_source,
         tmp_path,
-        ["docs/ssot/root.md", "repo/docs/ssot/infra.md"],
-    ) == ["docs/ssot/root.md"]
-
-    infra_source = governance_report.ManifestSource(
-        system="infra2",
-        source_root=tmp_path / "repo",
-        manifest_path=tmp_path / "repo/docs/ssot/MANIFEST.yaml",
-        entry_key="entries",
-    )
-    assert governance_report._source_changed_files(
-        infra_source,
-        tmp_path,
-        ["docs/ssot/root.md", "repo/docs/ssot/infra-risk.md"],
-    ) == ["docs/ssot/infra-risk.md"]
+        ["docs/ssot/root.md", "nested/docs/ssot/extra.md"],
+    ) == ["docs/ssot/root.md", "nested/docs/ssot/extra.md"]
     assert governance_report._changed_ssot_files(
         ["docs/readme.md", "docs/ssot/README.md", "docs/ssot/owned.md"]
     ) == ["docs/ssot/owned.md"]

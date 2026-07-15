@@ -49,7 +49,7 @@ Assets = Liabilities + Equity + (Income - Expenses)
 | **Explicit Enum naming** | All `sa.Enum` MUST have `name="..._enum"` in SQLAlchemy. |
 | **Frontend env vars** | `NEXT_PUBLIC_` vars MUST be defined as `ARG`/`ENV` in `apps/frontend/Dockerfile`. |
 | **Backend env vars** | All vars MUST have type + default in `apps/backend/src/config.py` and be in `.env.example`. |
-| **Cross-repo sync** | Production config changes (Vault/Compose) REQUIRE a PR in the `repo` submodule (`infra2`). |
+| **Cross-repo sync** | Production config changes (Vault/Compose) REQUIRE a separate PR in [`infra2`](https://github.com/wangzitian0/infra2); never reintroduce an infra source checkout. |
 | **Async transaction boundary** | Routers call `commit()`; Services call `flush()` only. |
 
 ---

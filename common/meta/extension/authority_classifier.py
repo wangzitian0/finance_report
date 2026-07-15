@@ -43,8 +43,7 @@ CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY = BANDS
 
 _AC_ROW = re.compile(r"\|\s*(AC\d+\.\d+\.\d+)\s*\|")
 _FILE_TOKEN = re.compile(r"([\w./-]+\.(?:py|tsx|ts))")
-# Skip vendored/duplicated trees: worktree copies and the `repo/` submodule each
-# hold a FULL copy of the test tree, which would make every basename ambiguous.
+# Skip vendored/duplicated trees that would make every basename ambiguous.
 _SKIP_DIRS = (
     "node_modules",
     "/.venv",
@@ -52,7 +51,6 @@ _SKIP_DIRS = (
     "/dist/",
     "/build/",
     "/.claude/",
-    "/repo/",
 )
 
 

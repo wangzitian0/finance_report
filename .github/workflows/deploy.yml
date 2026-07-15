@@ -212,11 +212,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install deploy_v2 dependencies
+      - name: Install App deploy request dependencies
         id: install_deploy_v2
         if: steps.gates.outputs.staging_required == 'true'
         env:
-          # Bounded retry for the transient deploy_v2 dependency download
+          # Bounded retry for the immutable SDK and transport dependencies
           # (timeout/504). Mirrors the "AI Provider Connectivity Smoke" idiom.
           # The deploy itself (Deploy to Staging) stays fail-fast.
           TOOLCHAIN_DOWNLOAD_RETRIES: "3"
@@ -228,9 +228,11 @@ jobs:
           log="$(mktemp)"
           rc=1
           for n in $(seq 1 "$attempts"); do
-            echo "::group::Install deploy_v2 dependencies (attempt ${n}/${attempts})"
+            echo "::group::Install App deploy request dependencies (attempt ${n}/${attempts})"
             set +e
-            python -m pip install httpx python-dotenv rich 2>&1 | tee "$log"
+            python -m pip install \
+              "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl" \
+              "httpx>=0.27.0" 2>&1 | tee "$log"
             rc="${PIPESTATUS[0]}"
             set -e
             echo "::endgroup::"
@@ -238,49 +240,52 @@ jobs:
               break
             fi
             if [ "$n" -lt "$attempts" ]; then
-              echo "deploy_v2 dependency install attempt ${n} failed (rc=${rc}); retrying in ${delay}s..."
+              echo "App deploy dependency install attempt ${n} failed (rc=${rc}); retrying in ${delay}s..."
               sleep "$delay"
               delay=$((delay * 2))
             fi
           done
           if [ "$rc" -ne 0 ]; then
-            echo "::error::deploy_v2 dependency install failed after ${attempts} attempts (rc=${rc}). Original error:"
+            echo "::error::App deploy dependency install failed after ${attempts} attempts (rc=${rc}). Original error:"
             cat "$log"
             exit "$rc"
           fi
 
-      - name: Deploy to Staging
-        id: deploy_staging
+      - name: Verify release images workflow passed
+        id: release_images_run
         if: steps.gates.outputs.staging_required == 'true'
-        working-directory: repo
         env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DEPLOY_PRIMARY_MODEL_OVERRIDE: ${{ env.STAGING_E2E_PRIMARY_MODEL }}
-          DEPLOY_OCR_MODEL_OVERRIDE: ${{ env.STAGING_E2E_OCR_MODEL }}
-          DEPLOY_VISION_MODEL_OVERRIDE: ${{ env.STAGING_E2E_VISION_MODEL }}
-          # Empty PYTHONPATH so `python -m tools.deploy_v2` resolves repo/tools (infra2)
-          # rather than the app's tools/ package, which a later E2E step's
-          # PYTHONPATH=<repo root> export would otherwise shadow (see release.yml).
-          PYTHONPATH: ""
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
         run: |
           set -euo pipefail
-          # Staging deploys the release tag through the infra2 deploy_v2 front door
-          # (deploy_primitive -> Dokploy compose). The :<tag> images were published by
-          # deploy.yml on the tag push; deploy_v2 pulls them (promote-not-rebuild).
-          # --iac-ref is the pinned infra2 submodule's RELEASE TAG (resolved by
-          # release_coordinate.py via `git -C repo describe --exact-match`): deploy_v2
-          # requires a vX.Y.Z iac_ref for staging/prod, and pinning the submodule at a
-          # tagged infra2 commit makes staging use the same released IaC prod promotes.
+          python tools/verify_release_evidence.py \
+            --check release-images-run \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-sha "$RELEASE_SHA"
+
+      - name: Deploy to Staging through infra2 receiver
+        id: deploy_staging
+        if: steps.gates.outputs.staging_required == 'true'
+        env:
+          INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
+          SOURCE_RUN_ID: ${{ steps.release_images_run.outputs.run_id }}
+        run: |
+          set -euo pipefail
           version_ref="${{ steps.release.outputs.version_ref }}"
-          iac_ref="${{ steps.release.outputs.iac_ref }}"
-          echo "Deploying staging via deploy_v2: type=staging version-ref=$version_ref iac-ref=$iac_ref"
-          python -m tools.deploy_v2 \
-            --service finance_report/app \
-            --type staging \
+          source_sha="${{ steps.release.outputs.full_sha }}"
+          source_run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}"
+          request_file="$(mktemp)"
+          python -m tools.app_deploy_request \
+            --request-id "finance-report-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --deploy-type staging \
             --version-ref "$version_ref" \
-            --iac-ref "$iac_ref" \
-            --domain zitian.party \
-            --timeout 600
+            --source-sha "$source_sha" \
+            --source-run-url "$source_run_url" \
+            --source-run-id "$SOURCE_RUN_ID" > "$request_file"
+          python -m tools.app_deploy_transport \
+            --timeout 1800 \
+            --poll-interval 5 < "$request_file"
 
       - name: Confirm staging backend health
         id: staging_health
@@ -457,7 +462,7 @@ jobs:
             classify_failure \
               "install_deploy_v2" \
               "toolchain/deploy-v2-deps" \
-              "deploy_v2 dependency install failed before the staging deploy."
+              "App deploy request dependency install failed before the staging deploy."
           elif [ "${{ steps.deploy_staging.outcome }}" = "failure" ]; then
             classify_failure \
               "deploy_staging" \
@@ -523,7 +528,7 @@ jobs:
             echo "deployed_version_ref=${{ steps.release.outputs.version_ref }}"
             echo "deployed_full_sha=${{ steps.release.outputs.full_sha }}"
             echo "target_short_sha=${{ steps.release.outputs.short_sha }}"
-            echo "iac_ref=${{ steps.release.outputs.iac_ref }}"
+            echo "receiver_run_id=${{ steps.deploy_staging.outputs.receiver_run_id }}"
             echo "app_url=${APP_URL}"
             echo "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
             echo "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"

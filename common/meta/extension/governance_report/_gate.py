@@ -58,7 +58,7 @@ def _source_changed_files(
         source_prefix = "."
 
     if source_prefix in ("", "."):
-        return [path for path in changed_files if path and not path.startswith("repo/")]
+        return [path for path in changed_files if path]
 
     prefix = f"{source_prefix}/"
     return [
@@ -116,40 +116,7 @@ def _read_base_manifest_text(
         text=True,
     )
     if result.returncode != 0:
-        try:
-            submodule_path = source.source_root.relative_to(repo_root).as_posix()
-            manifest_in_submodule = source.manifest_path.relative_to(
-                source.source_root
-            ).as_posix()
-        except ValueError:
-            return None
-
-        submodule_result = subprocess.run(
-            ["git", "-C", repo_root.as_posix(), "ls-tree", base_ref, submodule_path],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if submodule_result.returncode != 0:
-            return None
-        parts = submodule_result.stdout.split()
-        if len(parts) < 3 or parts[1] != "commit":
-            return None
-        submodule_sha = parts[2]
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                source.source_root.as_posix(),
-                "show",
-                f"{submodule_sha}:{manifest_in_submodule}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            return None
+        return None
     return result.stdout
 
 

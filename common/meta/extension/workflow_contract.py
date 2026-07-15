@@ -100,19 +100,6 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/staging-ai-ocr-gate.yml",
 )
 
-INFRA2_WORKFLOW_FILES = (
-    ".github/workflows/apply-observability.yml",
-    ".github/workflows/config-drift-report.yml",
-    ".github/workflows/deploy-report-main.yml",
-    ".github/workflows/deploy.yml",
-    ".github/workflows/dns-drift-report.yml",
-    ".github/workflows/docs.yml",
-    ".github/workflows/infra-ci.yml",
-    ".github/workflows/ops-checks.yml",
-    ".github/workflows/preview-teardown.yml",
-    ".github/workflows/reconcile-iac-inputs.yml",
-)
-
 # Triggers a workflow must NOT declare. Staging auto-following `main` is the
 # specific drift #531 fixes: the staging workflow must stay manual-only.
 WORKFLOW_FORBIDDEN_TRIGGERS: dict[str, tuple[str, ...]] = {}
@@ -345,17 +332,6 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
             f"(expected: {workflow_set_display(expected_app_workflows)}, "
             f"found: {workflow_set_display(app_workflows)})"
         )
-
-    infra_workflow_dir = repo_root / "repo" / ".github" / "workflows"
-    if infra_workflow_dir.exists():
-        infra_workflows = workflow_file_set(repo_root, "repo/.github/workflows")
-        expected_infra_workflows = set(INFRA2_WORKFLOW_FILES)
-        if infra_workflows != expected_infra_workflows:
-            errors.append(
-                "repo/.github/workflows: consolidated infra2 workflow set drifted "
-                f"(expected: {workflow_set_display(expected_infra_workflows, prefix='repo/')}, "
-                f"found: {workflow_set_display(infra_workflows, prefix='repo/')})"
-            )
 
     for path, expected in WORKFLOW_CONTRACT.items():
         try:

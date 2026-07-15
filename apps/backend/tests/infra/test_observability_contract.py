@@ -16,7 +16,6 @@ from src.config import Settings
 from src.observability import logger as logger_module, telemetry_metrics as telemetry_metrics_module
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-APP_IAC = REPO_ROOT / "repo" / "finance_report" / "finance_report" / "10.app"
 pytestmark = pytest.mark.no_db
 
 
@@ -144,36 +143,18 @@ def test_observability_ssot_and_env_docs_are_linked() -> None:
         assert key in env_example
 
 
-def test_vault_template_exposes_otel_keys_with_safe_quoting() -> None:
-    """AC-observability.6.1 AC-observability.6.4: AC10.6.1 AC10.6.4 AC10.7.6: Vault template renders OTEL keys safely."""
-    template = _read(APP_IAC / "secrets.ctmpl")
+def test_required_env_manifest_exports_observability_contract() -> None:
+    """AC-observability.6.1 AC-observability.6.2 AC-observability.6.3 AC-observability.6.4: observability deploy requirements cross the App/Infra artifact boundary."""
+    manifest = json.loads(_read(REPO_ROOT / "common" / "runtime" / "required-env.generated.json"))
+    fields = {entry["env"]: entry for entry in manifest["fields"]}
 
     for key in (
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "OTEL_SERVICE_NAME",
         "OTEL_RESOURCE_ATTRIBUTES",
     ):
-        line = next(line for line in template.splitlines() if line.startswith(f"{key}="))
-        assert f"with .Data.data.{key}" in line
-        assert 'printf "%q"' in line
-        assert " default " not in line
-
-
-def test_app_readme_and_compose_document_observability_rollout() -> None:
-    """AC-observability.6.2 AC-observability.6.3: AC10.6.2 AC10.6.3: App docs and compose expose OTEL rollout controls."""
-    readme = _read(APP_IAC / "README.md")
-    compose = _read(APP_IAC / "compose.yaml")
-
-    for key in (
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "OTEL_SERVICE_NAME",
-        "OTEL_RESOURCE_ATTRIBUTES",
-    ):
-        assert f"| `{key}` |" in readme
-
-    assert "OTLP HTTP endpoint" in readme
-    assert "IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}" in compose
-    assert compose.count("IAC_CONFIG_HASH: ${IAC_CONFIG_HASH:-}") >= 2
+        assert key in fields
+        assert key in _read(REPO_ROOT / "common" / "runtime" / "env-reference.generated.md")
 
 
 def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
