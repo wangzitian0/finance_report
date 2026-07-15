@@ -39,9 +39,7 @@
     "EPIC-017.portfolio-management.md": {
       "pending-package": 1
     },
-    "EPIC-018.ai-driven-pipeline.md": {
-      "pending-package": 1
-    },
+    "EPIC-018.ai-driven-pipeline.md": {},
     "EPIC-019.event-driven-upload-to-report-ux.md": {
       "fe-half": 1
     },

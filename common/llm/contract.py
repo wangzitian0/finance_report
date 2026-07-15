@@ -109,6 +109,16 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/ocr_client.py",
         ),
+        # generic prompt-in/score-out semantic-similarity helper, moved from
+        # reconciliation (#1859 — Cross-tier MUST rule 2: a CODE-ONLY package
+        # must not own a genuine LLM call). Takes an already-built prompt so
+        # it never needs to import a caller's (e.g. reconciliation's) own
+        # domain-specific prompt construction.
+        Unit(
+            name="ai_semantic_score",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/semantic_scoring.py",
+        ),
         # the input-keyed record/replay mechanism (cache output by input)
         Unit(
             name="CassetteStore",
@@ -176,6 +186,7 @@ CONTRACT = PackageContract(
         "SecretCipher",
         "Usage",
         "accumulate_stream",
+        "ai_semantic_score",
         "build_call",
         "build_cipher",
         "cassette_completion",
@@ -890,6 +901,35 @@ CONTRACT = PackageContract(
             statement="common.testing.reverify_real_corpus.compare_scores correctly distinguishes a field-accuracy regression, an improvement, and a failed re-record (no usable fresh response) when comparing a committed corpus case's extraction against a fresh one, without mutating the committed cassette",
             test="tests/tooling/test_reverify_real_corpus.py::test_reverify_case_never_mutates_the_committed_cassette",
             priority="P2",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── group semantic-scoring: ai_semantic_score, relocated from
+        # reconciliation (was EPIC-018 AC18.3.1; #1859 flagged the CODE-ONLY
+        # violation as a follow-up rather than a silent workaround). The
+        # function's entire job is "call the LLM and parse its JSON reply" —
+        # genuinely LLM-LED, so it left reconciliation (declared CODE-ONLY;
+        # common/meta/readme.md's Cross-tier MUST rule 2: a CODE-ONLY module
+        # MUST NOT depend on an LLM client). Domain-specific prompt
+        # construction (build_reconciliation_prompt) stays in reconciliation
+        # and is built by the caller, so llm never depends back on
+        # reconciliation (reconciliation already depends on llm — a reverse
+        # edge would cycle the package DAG). The moved test mocks the
+        # provider response and asserts the deterministic parsing/clamping/
+        # fallback wrapper around it, matching the AC-llm.2.x/5.x precedent:
+        # proof_kind=property (not eval — no LLM judgment quality is graded
+        # here). ──
+        ACRecord(
+            id="AC-llm.semantic-scoring.1",
+            statement=(
+                "ai_semantic_score returns an AI-computed semantic similarity "
+                "score (0-100) between a bank transaction description and a "
+                "journal entry memo, falling back to a neutral 50 on any "
+                "provider error."
+            ),
+            # was AC18.3.1
+            test="apps/backend/tests/llm/test_semantic_scoring.py::test_ai_semantic_score_returns_score",
+            priority="P1",
             status="done",
             proof_kind="property",
         ),

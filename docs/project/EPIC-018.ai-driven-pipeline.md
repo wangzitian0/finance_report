@@ -1,5 +1,10 @@
 # EPIC-018: AI-Driven Data Pipeline
 
+<!-- epic-file: design-doc -->
+<!-- 0 AC rows by design (2026-07-15): every remaining AC18.x row migrated to
+     its owning package roadmap (extraction/reporting/reconciliation/llm);
+     this file stays the delivered AI-driven-pipeline design record. -->
+
 > **Status**: 🟡 In Progress  
 > **Vision Anchor**: `decision-2-event-middle-layer`  
 > **Phase**: 4 (AI Enhancement)  
@@ -280,19 +285,18 @@ Upload → [AI Vision + Category] → BankStatement → [AI + Rules Hybrid] → 
 > *(AC18.2.1 removed and AC18.2.2 removed and AC18.2.3 removed and AC18.2.4 removed and AC18.2.5 removed — migrated to the `extraction` package roadmap as `AC-extraction.1802.1-5`, migration closeout continuation, #1663 / #1715)*
 >
 > *(AC18.4.1 removed and AC18.4.2 removed and AC18.4.4 removed and AC18.4.3 removed — AC18.4.1/.4.2/.4.4 migrated to the `reporting` package roadmap as `AC-reporting.layer3.1-3` (migration closeout continuation, #1663 / #1716); AC18.4.3 migrated separately to the `extraction` package roadmap as `AC-extraction.1804.1` — extraction-owned CSV-fallback scope, not reporting, #1821 Wave A)*
-
-| AC ID | Phase | Description |
-|-------|-------|-------------|
-| AC18.3.1 | 3 | `ai_semantic_score()` returns similarity for transaction description pairs. **Not migrated** — `ai_semantic_score` is a genuine LLM call, but `reconciliation` is declared `CODE-ONLY`; migrating this row trips `check_authority_reconcile.py` (a CODE-ONLY package permits no LLM-classified roadmap-AC test). Needs a tier/package-boundary decision before migration, not a silent workaround (found during migration verification, #1663 / #1711) | <!-- epic-owned: pending-package -->
-> (AC18.4.3 removed, canonical: migrated to the `extraction` package roadmap
-> as `AC-extraction.1804.1`, #1821 Wave A. AC18.3.1 above stays
-> pending-package — it already has a documented blocker [undecided
-> package-boundary tier conflict] from the #1663/#1711/#1715 migration
-> verification passes; #1821 Wave A only moves mechanically-provable rows,
-> not open investigations — see the notes above this table for the other
-> rows resolved on 2026-07-14/2026-07-15.)
 >
-> (AC18.3.2 removed and AC18.3.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.1803.1` and `AC-reconciliation.1803.2` respectively — both now have real tests exercising `calculate_match_score`'s hybrid-AI branch [`test_calculate_match_score_applies_hybrid_ai_scoring` / `test_calculate_match_score_flag_off_skips_ai_scoring`], closing the "Untested" blocker from #1663/#1711. AC18.3.1 above is untouched — its tier-boundary blocker is a separate, still-open question.)
+> *(AC18.3.1 removed — moved to the `llm` package as `AC-llm.semantic-scoring.1`: `ai_semantic_score` is a genuine LLM call and cannot live in `reconciliation` (declared `CODE-ONLY`, Cross-tier MUST rule 2), so it relocated to `llm` (`LLM-LED`) while `reconciliation` keeps consuming it as an external advisory signal, #1859 follow-up)*
+
+> (AC18.3.2 removed and AC18.3.3 removed, canonical: migrated to the
+> `reconciliation` package roadmap as `AC-reconciliation.1803.1` and
+> `AC-reconciliation.1803.2` respectively — both now have real tests
+> exercising `calculate_match_score`'s hybrid-AI branch
+> [`test_calculate_match_score_applies_hybrid_ai_scoring` /
+> `test_calculate_match_score_flag_off_skips_ai_scoring`], closing the
+> "Untested" blocker from #1663/#1711, 2026-07-15. This section now holds
+> no rows; every AC18.3.x/18.4.x row has migrated to its owning package
+> roadmap — see the notes above.)
 
 ### AC18.7: Evidence Graph Foundation
 
