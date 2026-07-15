@@ -164,15 +164,17 @@ CONTRACT = PackageContract(
             id="every-common-directory-is-governed-or-excepted",
             statement=(
                 "check_package_contract discovers packages additively (globs "
-                "common/*/contract.py for a module-level CONTRACT), so a "
-                "directory with no discoverable contract is invisible to it -- "
-                "how common/ci, common/shell, and common/ssot accumulated as "
-                "undeclared junk drawers (#1564-#1568). "
+                "common/*/contract.py for a module-level "
+                "CONTRACT = PackageContract(...)), so a directory with no "
+                "discoverable contract is invisible to it -- how common/ci, "
+                "common/shell, and common/ssot accumulated as undeclared junk "
+                "drawers (#1564-#1568). "
                 "check_package_directory_coverage closes that gap from the other "
                 "direction: every directory directly under common/ must ship a "
-                "contract.py with a module-level CONTRACT or be a documented, "
-                "reasoned entry in UNGOVERNED_EXCEPTIONS, so a missing, "
-                "lowercase, or unloadable declaration cannot silently recur."
+                "contract.py with a module-level "
+                "CONTRACT = PackageContract(...) or be a documented, reasoned "
+                "entry in UNGOVERNED_EXCEPTIONS, so a missing, lowercase, "
+                "wrong-type, or unloadable declaration cannot silently recur."
             ),
             test=(
                 "tests/tooling/test_check_package_directory_coverage.py"
