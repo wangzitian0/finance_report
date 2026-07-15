@@ -22,5 +22,5 @@
     "apps/backend/src/routers/user_settings.py",
     "apps/backend/src/routers/workflow.py"
   ],
-  "package_schema_imports": 22
+  "package_schema_import_files": 20
 }

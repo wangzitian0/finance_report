@@ -3944,7 +3944,8 @@ CONTRACT = PackageContract(
             owner="common/testing/api_surface_ratchet.py",
             description=(
                 "Shrink-only structural lock for the transitional flat router "
-                "directory and package-to-src.schemas dependency count during "
+                "directory and the count of package files carrying a "
+                "src.schemas dependency during "
                 "the API-surface migration (#1865 S2)."
             ),
             cross_refs=[
