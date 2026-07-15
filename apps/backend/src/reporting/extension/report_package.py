@@ -19,7 +19,7 @@ from uuid import UUID
 from src.audit.money.currency import normalize_currency_code
 from src.config import settings
 from src.extraction.orm.layer4 import ReportSnapshot
-from src.schemas import (
+from src.reporting.base.types.reporting import (
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotStatus,
     PersonalReportPackageSnapshotSummary,

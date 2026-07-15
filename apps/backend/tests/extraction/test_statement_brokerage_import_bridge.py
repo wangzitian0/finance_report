@@ -594,7 +594,7 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     async def skip_report_market_data_refresh(*args, **kwargs):
         return None
 
-    monkeypatch.setattr("src.routers.reports.ensure_market_data_fresh", skip_report_market_data_refresh)
+    monkeypatch.setattr("src.reporting.extension.api.reports.ensure_market_data_fresh", skip_report_market_data_refresh)
     balance_response = await client.get(
         "/reports/balance-sheet",
         params={"as_of_date": "2026-05-18", "currency": "SGD"},

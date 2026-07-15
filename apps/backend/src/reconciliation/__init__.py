@@ -138,4 +138,5 @@ __all__ = [
     "score_pattern",
     "sync_reconciliation_match_journal_entry_links",
     "weighted_total",
+    "reconciliation_router",
 ]

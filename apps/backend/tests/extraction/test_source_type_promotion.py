@@ -13,7 +13,7 @@ from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
-from src.routers import statements as statements_router
+import src.extraction.extension.api.statements as statements_router
 from tests.factories import (
     AtomicTransactionFactory,
     StatementSummaryFactory,

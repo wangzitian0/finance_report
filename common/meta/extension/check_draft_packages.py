@@ -28,7 +28,9 @@ from pathlib import Path
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_BASELINE = REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
+DEFAULT_BASELINE = (
+    REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
+)
 
 
 def _draft_packages(repo_root: Path) -> dict[str, dict]:

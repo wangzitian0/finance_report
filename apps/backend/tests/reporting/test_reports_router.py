@@ -18,7 +18,7 @@ from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import StockPrice
 from src.reporting import ReportError
-from src.routers import reports as reports_router
+import src.reporting.extension.api.reports as reports_router
 
 
 @pytest.fixture

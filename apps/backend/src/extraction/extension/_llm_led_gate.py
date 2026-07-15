@@ -20,7 +20,7 @@ failed :class:`InvariantResult` is a ``REJECTED`` verdict regardless of confiden
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from src.audit import (
     STATEMENT_BALANCE_TOLERANCE,
@@ -30,7 +30,7 @@ from src.audit import (
 )
 
 
-class LlmLedQuarantineReason(str, Enum):
+class LlmLedQuarantineReason(StrEnum):
     """Typed, queryable reason an LLM-LED extraction was quarantined.
 
     Each value is a distinct reason code (AC-extraction.2009.7) carrying NO institution name or

@@ -15,7 +15,7 @@ from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, Position
 from src.ledger import Account, AccountType
 from src.portfolio import AssetNotFoundError, DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing.orm.market_data import FxRate
-from src.routers import portfolio as portfolio_router
+import src.portfolio.extension.api.portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
@@ -1000,7 +1000,7 @@ async def test_get_performance_xirr_calculation_error(client: AsyncClient, portf
     async def _raise_xirr(*args, **kwargs):
         raise XIRRCalculationError("Newton+bisection failed")
 
-    monkeypatch.setattr("src.routers.portfolio.calculate_xirr", _raise_xirr)
+    monkeypatch.setattr("src.portfolio.extension.api.portfolio.calculate_xirr", _raise_xirr)
 
     response = await client.get("/portfolio/performance")
     assert response.status_code == 422
@@ -1017,8 +1017,8 @@ async def test_get_performance_mwr_calculation_error(client: AsyncClient, portfo
     async def _raise_mwr(*args, **kwargs):
         raise XIRRCalculationError("MWR convergence failed")
 
-    monkeypatch.setattr("src.routers.portfolio.calculate_xirr", _ok_xirr)
-    monkeypatch.setattr("src.routers.portfolio.calculate_money_weighted_return", _raise_mwr)
+    monkeypatch.setattr("src.portfolio.extension.api.portfolio.calculate_xirr", _ok_xirr)
+    monkeypatch.setattr("src.portfolio.extension.api.portfolio.calculate_money_weighted_return", _raise_mwr)
 
     response = await client.get("/portfolio/performance")
     assert response.status_code == 422

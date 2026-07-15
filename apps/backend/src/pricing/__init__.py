@@ -139,4 +139,5 @@ __all__ = [
     "subscribe_price_ingest",
     "sync_fx_rates",
     "sync_stock_prices",
+    "market_data_router",
 ]

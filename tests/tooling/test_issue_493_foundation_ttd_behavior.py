@@ -89,7 +89,7 @@ def test_AC12_22_1_stage2_review_schemas_live_outside_statements_router() -> Non
     assert moved_schema_names.isdisjoint(_class_names(statements_router_path))
     assert moved_schema_names <= _imported_names_from_module(
         review_router_path,
-        "src.schemas.review",
+        "src.extraction.base.types.review",
     )
 
 

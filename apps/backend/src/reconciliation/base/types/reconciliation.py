@@ -1,0 +1,131 @@
+"""Pydantic schemas for reconciliation API."""
+
+from datetime import date, datetime
+from decimal import Decimal
+from enum import StrEnum
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.platform.base.types.base import ListResponse
+
+
+class ReconciliationStatusEnum(StrEnum):
+    """Reconciliation match status."""
+
+    AUTO_ACCEPTED = "auto_accepted"
+    PENDING_REVIEW = "pending_review"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
+class BankTransactionSummary(BaseModel):
+    """Summary of a transaction for reconciliation.
+
+    Mapped from Layer-2 ``AtomicTransaction`` (EPIC-011 Stage 3). ``statement_id``
+    is retained as an optional field for backward compatibility with API
+    consumers; atomic transactions do not carry a per-transaction status.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    statement_id: UUID | None = None
+    txn_date: date
+    description: str
+    amount: Decimal
+    direction: str
+    reference: str | None
+    confidence_tier: str = "LOW"
+
+
+class JournalEntrySummary(BaseModel):
+    """Summary of a journal entry."""
+
+    id: UUID
+    entry_date: date
+    memo: str | None
+    status: str
+    total_amount: Decimal
+    confidence_tier: str | None = None
+
+
+class ReconciliationMatchResponse(BaseModel):
+    """Match response with transaction and entry details."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    atomic_txn_id: UUID | None = None
+    journal_entry_ids: list[str]
+    match_score: int
+    score_breakdown: dict[str, float]
+    status: ReconciliationStatusEnum
+    version: int
+    superseded_by_id: UUID | None
+    created_at: datetime
+    updated_at: datetime
+    transaction: BankTransactionSummary | None = None
+    entries: list[JournalEntrySummary] = Field(default_factory=list)
+
+
+ReconciliationMatchListResponse = ListResponse[ReconciliationMatchResponse]
+
+
+class ReconciliationRunRequest(BaseModel):
+    """Request body to run reconciliation."""
+
+    statement_id: UUID | None = None
+    limit: int | None = Field(default=None, ge=1, le=10000)
+
+
+class ReconciliationRunResponse(BaseModel):
+    """Response for reconciliation run."""
+
+    matches_created: int
+    auto_accepted: int
+    pending_review: int
+    unmatched: int
+
+
+class BatchAcceptRequest(BaseModel):
+    """Request body for batch accept."""
+
+    match_ids: list[str]
+
+
+class BatchCreateEntriesRequest(BaseModel):
+    """Request body for batch creating journal entries from unmatched transactions."""
+
+    txn_ids: list[UUID] = Field(default_factory=list)
+    all: bool = False
+
+
+class BatchCreateEntriesResponse(BaseModel):
+    """Response for batch create entries."""
+
+    created_count: int
+
+
+class ReconciliationStatsResponse(BaseModel):
+    """Reconciliation statistics."""
+
+    total_transactions: int
+    matched_transactions: int
+    unmatched_transactions: int
+    pending_review: int
+    auto_accepted: int
+    match_rate: float
+    score_distribution: dict[str, int]
+
+
+UnmatchedTransactionsResponse = ListResponse[BankTransactionSummary]
+
+
+class AnomalyResponse(BaseModel):
+    """Response for anomalies."""
+
+    anomaly_type: str
+    severity: str
+    message: str

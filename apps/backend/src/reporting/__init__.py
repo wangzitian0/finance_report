@@ -131,4 +131,6 @@ __all__ = [
     "register_fx_gateway",
     "register_manual_valuation_lines_provider",
     "resolve_line_currency",
+    "income_router",
+    "reports_router",
 ]

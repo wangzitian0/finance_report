@@ -114,7 +114,9 @@ def load_vision_anchors(vision_path: Path = VISION_PATH) -> dict[str, str]:
     return anchors
 
 
-def _anchor_label(line: str, anchor_end: int, lines: list[str], idx: int, last_heading: str) -> str:
+def _anchor_label(
+    line: str, anchor_end: int, lines: list[str], idx: int, last_heading: str
+) -> str:
     """Derive a short human label for an anchor."""
     # Text immediately following the anchor on the same line wins.
     tail = re.sub(r"<[^>]+>", "", line[anchor_end:]).strip()
@@ -143,7 +145,9 @@ def _epic_files(epic_dir: Path = EPIC_DIR) -> list[Path]:
     return sorted(
         epic_dir / fname
         for fname in os.listdir(epic_dir)
-        if re.match(r"EPIC-\d+.*\.md", fname) and "IMPLEMENTATION" not in fname and "ENCODING" not in fname
+        if re.match(r"EPIC-\d+.*\.md", fname)
+        and "IMPLEMENTATION" not in fname
+        and "ENCODING" not in fname
     )
 
 
@@ -186,7 +190,9 @@ def load_epic_anchor_map(epic_dir: Path = EPIC_DIR) -> dict[str, list[str]]:
     return {anchor: sorted(epics) for anchor, epics in mapping.items()}
 
 
-def _load_registry_acs(registry_paths: tuple[Path, Path] = (FEATURE_REGISTRY, INFRA_REGISTRY)) -> dict[str, dict[str, Any]]:
+def _load_registry_acs(
+    registry_paths: tuple[Path, Path] = (FEATURE_REGISTRY, INFRA_REGISTRY),
+) -> dict[str, dict[str, Any]]:
     """Return ``{ac_id: {epic, epic_name, description, mandatory}}`` for both registries."""
     acs: dict[str, dict[str, Any]] = {}
     for path in registry_paths:
@@ -302,7 +308,9 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         ),
         "summary": {
             "vision_nodes": len(nodes),
-            "vision_nodes_with_owner_epic": sum(1 for node in nodes if node["owner_epics"]),
+            "vision_nodes_with_owner_epic": sum(
+                1 for node in nodes if node["owner_epics"]
+            ),
             "total_acs": total_acs,
             "acs_with_real_test": total_proven,
         },
@@ -374,7 +382,9 @@ def render_markdown(matrix: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"- **Node**: {_md_escape(node['label'])}")
         lines.append(f"- **Owner EPICs**: {', '.join(node['owner_epics']) or '_none_'}")
-        lines.append(f"- **ACs**: {node['ac_count']} ({node['ac_with_test_count']} with a real test reference)")
+        lines.append(
+            f"- **ACs**: {node['ac_count']} ({node['ac_with_test_count']} with a real test reference)"
+        )
         lines.append("")
         if not node["acs"]:
             lines.append("_No Acceptance Criteria are anchored to this node yet._")
@@ -383,8 +393,14 @@ def render_markdown(matrix: dict[str, Any]) -> str:
         lines.append("| AC | EPIC | Description | Tests |")
         lines.append("|---|---|---|---|")
         for ac in node["acs"]:
-            tests = "<br>".join(f"`{path}`" for path in ac["tests"]) if ac["tests"] else "_none_"
-            lines.append(f"| {ac['id']} | {ac['epic']} | {_md_escape(ac['description'])} | {tests} |")
+            tests = (
+                "<br>".join(f"`{path}`" for path in ac["tests"])
+                if ac["tests"]
+                else "_none_"
+            )
+            lines.append(
+                f"| {ac['id']} | {ac['epic']} | {_md_escape(ac['description'])} | {tests} |"
+            )
         lines.append("")
 
     # This page reproduces AC descriptions verbatim, so it can incidentally

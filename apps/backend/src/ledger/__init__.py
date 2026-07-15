@@ -138,6 +138,8 @@ __all__ = [
     "validate_line_account_ownership",
     "verify_accounting_equation",
     "void_journal_entry",
+    "accounts_router",
+    "journal_router",
 ]
 
 # Which submodule owns each published name (lazy import map).

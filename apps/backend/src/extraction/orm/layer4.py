@@ -1,7 +1,7 @@
 """Layer 4: Reporting - Snapshots and Cache."""
 
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from src.extraction.orm.layer3 import ClassificationRule
 
 
-class ReportType(str, Enum):
+class ReportType(StrEnum):
     """Types of financial reports."""
 
     BALANCE_SHEET = "balance_sheet"

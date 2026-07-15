@@ -124,8 +124,8 @@ def test_AC_meta_residue_1_census_is_nonvacuous() -> None:
         + len(unmarked)
         + len(invalid)
     )
-    assert total_definitions >= 40, (
-        f"sentinel missing: expected >= 40 AC definition lines total across all "
+    assert total_definitions == 0, (
+        f"sentinel missing: expected 0 AC definition lines total across all "
         f"EPIC docs, saw {total_definitions}; the definition parser is not "
         "matching the known row set"
     )

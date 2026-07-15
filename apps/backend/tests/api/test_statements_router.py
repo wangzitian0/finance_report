@@ -50,7 +50,8 @@ from src.llm.base import Modality, ModelSpec
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match as accept_match_service
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-from src.routers import review as review_router, statements as statements_router
+import src.extraction.extension.api.review as review_router
+import src.extraction.extension.api.statements as statements_router
 from src.runtime import StorageError
 from src.schemas import StatementDecisionRequest
 from src.schemas.review import (
@@ -108,7 +109,7 @@ def model_catalog_stub(monkeypatch: pytest.MonkeyPatch) -> None:
             modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
         )
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -574,7 +575,7 @@ async def test_upload_rejects_text_only_model(db, monkeypatch, test_user):
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     upload_file = make_upload_file("statement.pdf", b"content")
 
@@ -913,7 +914,7 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -1033,7 +1034,7 @@ async def test_retry_statement_parsing_allowed(db, monkeypatch, storage_stub, te
     await seed_uploaded_document(db, statement, file_path="p", original_filename="f.pdf")
     await db.commit()
 
-    with patch("src.routers.statements.StorageService") as mock_storage_cls:
+    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.return_value = b"content"
 
@@ -1074,7 +1075,7 @@ async def test_AC13_21_3_retry_accepts_parsed_resting_state(db, storage_stub, te
     await seed_uploaded_document(db, statement, file_path="p", original_filename="f.pdf")
     await db.commit()
 
-    with patch("src.routers.statements.StorageService") as mock_storage_cls:
+    with patch("src.extraction.extension.api.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.return_value = b"content"
 
@@ -1266,7 +1267,7 @@ async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stu
     async def fake_catalog_get(self, model_id):
         return None
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
@@ -1290,7 +1291,7 @@ async def test_upload_statement_rejects_model_without_image_modality(db, test_us
     async def fake_catalog_get(self, model_id):
         return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT}))
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.upload_statement(
@@ -1316,7 +1317,7 @@ async def test_retry_statement_rejects_invalid_model(db, test_user, monkeypatch,
     async def fake_catalog_get(self, model_id):
         return None
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     from src.schemas import RetryParsingRequest
 
@@ -1353,7 +1354,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
             modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
         )
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     upload_file = make_upload_file("statement.pdf", content)
     created = await statements_router.upload_statement(
@@ -1407,7 +1408,7 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
             modalities=frozenset({Modality.TEXT, Modality.IMAGE}),
         )
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     from src.schemas import RetryParsingRequest
 
@@ -3779,7 +3780,7 @@ async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test
     async def fake_catalog_get(self, model_id):
         return None
 
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
+    monkeypatch.setattr("src.extraction.extension.api.statements.LitellmCatalog.get", fake_catalog_get)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(

@@ -86,4 +86,5 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     # L4 — the deliverables.
     "backend": "app",
     "frontend": "app",
+    "ui_core": "app",
 }

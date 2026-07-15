@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.observability import get_logger
@@ -43,7 +43,7 @@ DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
 
 
-class BootMode(str, Enum):
+class BootMode(StrEnum):
     CRITICAL = "critical"  # DB only (Fast fail for startup)
     FULL = "full"  # DB + S3 + AI (Smoke tests)
     DRY_RUN = "dry-run"  # Static config check only (CI lint)

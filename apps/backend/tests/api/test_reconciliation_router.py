@@ -476,7 +476,7 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User, monkeypatch
     ):
         """all=True batch create should reject oversized unmatched sets."""
-        from src.routers import reconciliation as reconciliation_router
+        import src.reconciliation.extension.api.reconciliation as reconciliation_router
 
         with monkeypatch.context() as local_monkeypatch:
             local_monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)

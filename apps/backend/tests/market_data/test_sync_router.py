@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
-from src.routers import market_data as market_data_router, reports as reports_router
+import src.pricing.extension.api.market_data as market_data_router
+import src.reporting.extension.api.reports as reports_router
 
 
 async def test_market_data_sync_endpoints_return_counts(

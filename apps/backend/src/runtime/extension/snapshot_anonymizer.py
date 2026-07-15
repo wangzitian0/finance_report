@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from hashlib import sha256
 
 import sqlalchemy as sa
@@ -60,7 +60,7 @@ class ResidualError(Exception):
     """An original sensitive value survived anonymization — refuse to commit."""
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     """What happens to a column's values when the snapshot is anonymized."""
 
     KEEP = "keep"

@@ -156,4 +156,5 @@ __all__ = [
     "resolve_provider_and_model",
     "stream_ai_chat",
     "stream_ai_json",
+    "llm_router",
 ]

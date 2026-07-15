@@ -53,7 +53,14 @@ __all__ = [
 # it via a direct `common.meta.extension.check_package_contract` import rather
 # than through this lazy attribute, so its CI invocation adds `--with pydantic`
 # explicitly instead of relying on this shield.)
-_BASE_NAMES = {"ACRecord", "ConceptRecord", "Invariant", "Kind", "PackageContract", "Unit"}
+_BASE_NAMES = {
+    "ACRecord",
+    "ConceptRecord",
+    "Invariant",
+    "Kind",
+    "PackageContract",
+    "Unit",
+}
 
 
 def __getattr__(name: str):

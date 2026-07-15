@@ -4,7 +4,7 @@
     "accounts_list": {
       "method": "GET",
       "fe_path": "/api/accounts",
-      "response_model": "src.schemas.account.AccountListResponse",
+      "response_model": "src.ledger.base.types.account.AccountListResponse",
       "response": {
         "items": [
           {

@@ -46,6 +46,7 @@ from src.advisor.base.guardrails import (
     redact_sensitive,
 )
 from src.advisor.base.prompt import get_ai_advisor_prompt
+from src.advisor.base.types.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
@@ -64,7 +65,6 @@ from src.reporting import (
     get_category_breakdown,
     get_personal_report_package_readiness,
 )
-from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings

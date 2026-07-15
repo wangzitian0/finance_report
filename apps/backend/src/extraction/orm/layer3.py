@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from src.extraction.orm.layer2 import AtomicTransaction
 
 
-class RuleType(str, Enum):
+class RuleType(StrEnum):
     """Type of classification rule."""
 
     KEYWORD_MATCH = "keyword_match"
@@ -45,7 +45,7 @@ class RuleType(str, Enum):
     ML_MODEL = "ml_model"
 
 
-class ClassificationStatus(str, Enum):
+class ClassificationStatus(StrEnum):
     """Status of transaction classification."""
 
     DRAFT = "draft"
@@ -151,14 +151,14 @@ class TransactionClassification(Base, UUIDMixin, TimestampMixin):
     rule_version: Mapped["ClassificationRule"] = relationship("ClassificationRule")
 
 
-class PositionStatus(str, Enum):
+class PositionStatus(StrEnum):
     """Status of a managed position."""
 
     ACTIVE = "active"
     DISPOSED = "disposed"
 
 
-class CostBasisMethod(str, Enum):
+class CostBasisMethod(StrEnum):
     """Cost basis calculation method for realized P&L."""
 
     FIFO = "FIFO"  # First In First Out
@@ -260,7 +260,7 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         return Quantity(self.quantity, POSITION_QUANTITY_UNIT)
 
 
-class ManualValuationComponentType(str, Enum):
+class ManualValuationComponentType(StrEnum):
     """Manual net worth component type."""
 
     PROPERTY_VALUE = "property_value"
@@ -280,7 +280,7 @@ class ManualValuationComponentType(str, Enum):
     OTHER_LIABILITY = "other_liability"
 
 
-class ManualValuationLiquidityClass(str, Enum):
+class ManualValuationLiquidityClass(StrEnum):
     """How a manual valuation should be presented in net worth views."""
 
     LIQUID = "liquid"
@@ -289,7 +289,7 @@ class ManualValuationLiquidityClass(str, Enum):
     LIABILITY = "liability"
 
 
-class ManualValuationBasis(str, Enum):
+class ManualValuationBasis(StrEnum):
     """How a manual valuation's value was determined — the evidence basis.
 
     Captured for guided evidence intake (#706) so a manual-trusted value carries

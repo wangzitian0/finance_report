@@ -16,7 +16,7 @@ from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.routers.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
+from src.extraction.extension.api.evidence import _materialization_failure_status, _should_attempt_lazy_materialization
 from src.schemas.evidence import (
     EvidenceLineageBlocker,
     LedgerLineProperties,

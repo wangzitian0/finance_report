@@ -106,7 +106,7 @@ class TestAssetsRouterCoverage:
         WHEN reconciling positions
         THEN it should return 500 and rollback
         """
-        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
+        with patch("src.portfolio.extension.api.assets._positions.reconcile_positions") as mock_reconcile:
             mock_reconcile.side_effect = PositionServiceError("Test error")
 
             response = await client.post("/assets/reconcile")
@@ -119,7 +119,7 @@ class TestAssetsRouterCoverage:
         WHEN reconciling positions
         THEN it should return 500 with generic message
         """
-        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
+        with patch("src.portfolio.extension.api.assets._positions.reconcile_positions") as mock_reconcile:
             mock_reconcile.side_effect = RuntimeError("Unexpected error")
 
             response = await client.post("/assets/reconcile")
@@ -157,7 +157,7 @@ class TestAssetsRouterCoverage:
         await db.commit()
         await db.refresh(position)
 
-        with patch("src.routers.assets._positions.get_depreciation_schedule") as mock_depreciation:
+        with patch("src.portfolio.extension.api.assets._positions.get_depreciation_schedule") as mock_depreciation:
             mock_depreciation.side_effect = PositionServiceError("Invalid asset for depreciation")
 
             response = await client.get(
@@ -183,7 +183,7 @@ class TestAssetsRouterCoverage:
             skipped_assets=["UNKNOWN"],
         )
 
-        with patch("src.routers.assets._positions.reconcile_positions") as mock_reconcile:
+        with patch("src.portfolio.extension.api.assets._positions.reconcile_positions") as mock_reconcile:
             mock_reconcile.return_value = mock_result
 
             response = await client.post("/assets/reconcile")
@@ -239,7 +239,7 @@ class TestAssetsRouterCoverage:
             salvage_value=Decimal("0"),
         )
 
-        with patch("src.routers.assets._positions.get_depreciation_schedule") as mock_depreciation:
+        with patch("src.portfolio.extension.api.assets._positions.get_depreciation_schedule") as mock_depreciation:
             mock_depreciation.return_value = mock_result
 
             response = await client.get(

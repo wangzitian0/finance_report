@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.observability import ErrorIds, get_logger
+from src.platform.base.types.provenance import DataProvenance
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _REPORT_STATUSES,
@@ -37,7 +38,6 @@ from src.reporting.extension.reporting_calc import (
     _quantize_money,
     _signed_amount,
 )
-from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 

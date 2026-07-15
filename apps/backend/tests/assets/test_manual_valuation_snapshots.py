@@ -198,7 +198,7 @@ async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
 
 async def test_manual_valuation_snapshot_router_rolls_back_on_service_errors(client, monkeypatch):
     """AC11.9.1: Valuation mutation endpoints return server errors when persistence fails."""
-    from src.routers import assets as assets_router
+    import src.portfolio.extension.api.assets as assets_router
 
     async def raise_on_create(*args, **kwargs):
         raise RuntimeError("create failed")

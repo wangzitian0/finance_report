@@ -9,10 +9,10 @@ Staging / Production live on the VPS (implemented by infra2).
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class EnvTier(str, Enum):
+class EnvTier(StrEnum):
     """One of the six environments."""
 
     LOCAL_DEV = "local_dev"

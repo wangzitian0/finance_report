@@ -24,7 +24,7 @@ from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 import src.config
 from src.llm.base.errors import LLMConfigError
-from src.llm.base.types import Encrypted
+from src.llm.base.types.core import Encrypted
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings

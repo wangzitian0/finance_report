@@ -30,7 +30,7 @@ from src.extraction.orm.layer3 import (
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
 from src.reporting import income_bucket
-from src.schemas import (
+from src.reporting.base.types.reporting import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
     AnnualizedIncomeScheduleNetWorthTreatment,

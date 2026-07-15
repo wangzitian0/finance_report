@@ -1,6 +1,6 @@
 """Layer 1: Raw Files - Document metadata registry for 4-layer architecture."""
 
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import Enum as SQLEnum, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -10,7 +10,7 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class DocumentType(str, Enum):
+class DocumentType(StrEnum):
     """Document type classification."""
 
     BANK_STATEMENT = "bank_statement"
@@ -19,7 +19,7 @@ class DocumentType(str, Enum):
     PROPERTY_APPRAISAL = "property_appraisal"
 
 
-class DocumentStatus(str, Enum):
+class DocumentStatus(StrEnum):
     """Document processing status."""
 
     UPLOADED = "uploaded"

@@ -11,12 +11,12 @@ helpers accept any journal-entry-shaped object structurally (see
 
 from __future__ import annotations
 
-import enum
 from collections.abc import Iterable
+from enum import StrEnum
 from typing import Any, Protocol
 
 
-class JournalEntrySourceType(str, enum.Enum):
+class JournalEntrySourceType(StrEnum):
     """Source type of a journal entry."""
 
     MANUAL = "manual"

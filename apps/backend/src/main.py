@@ -24,6 +24,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # ``from src.models import ...`` hub side effect; issue #1461).
 import src.orm_registry  # noqa: E402, F401
 from src.advisor import register_fx_conversion, register_fx_pairs_read
+from src.advisor.extension.api import chat
+from src.audit.extension.api import audit
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
@@ -41,8 +43,12 @@ from src.extraction import (
     register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
+from src.extraction.extension.api import classifications, corrections, evidence, review, statements
 from src.identity import auth_router, register_in_flight_parse_checker, users_router
+from src.identity.extension.api import ai_feedback, user_settings
 from src.ledger import register_fx_revaluation_provider, register_statement_coverage_reader
+from src.ledger.extension.api import accounts, journal
+from src.llm.extension.api import llm
 from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
@@ -56,6 +62,7 @@ from src.observability import (
     record_http_request,
     record_rate_limit_rejected,
 )
+from src.observability.extension.api import metrics
 from src.platform import (
     BaseAppException,
     OutboxRelay,
@@ -66,8 +73,17 @@ from src.platform import (
     register_statement_reader,
     register_uploaded_document_readers,
 )
+from src.platform.base.types.errors import (
+    COMMON_ERROR_RESPONSES,
+    ErrorCode,
+    ErrorResponse,
+    error_code_for_status,
+)
+from src.platform.base.types.ping import PingStateResponse
+from src.platform.extension.api import workflow
 from src.platform.orm.ping_state import PingState
 from src.portfolio import PositionService
+from src.portfolio.extension.api import assets, portfolio
 from src.pricing import (
     PrefetchedFxRates,
     PricingError,
@@ -79,43 +95,17 @@ from src.pricing import (
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
+from src.pricing.extension.api import market_data
 from src.reconciliation import accepted_transfer_txn_ids
+from src.reconciliation.extension.api.reconciliation import router as reconciliation_router
 from src.reporting import (
     get_personal_report_package_readiness,
     register_fx_gateway,
     register_manual_valuation_lines_provider,
 )
-from src.routers import (
-    accounts,
-    ai_feedback,
-    app_config,
-    assets,
-    audit,
-    chat,
-    classifications,
-    corrections,
-    evidence,
-    income,
-    journal,
-    llm,
-    market_data,
-    metrics,
-    portfolio,
-    reports,
-    review,
-    statements,
-    user_settings,
-    workflow,
-)
-from src.routers.reconciliation import router as reconciliation_router
+from src.reporting.extension.api import income, reports
 from src.runtime import register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
-from src.schemas import PingStateResponse
-from src.schemas.errors import (
-    COMMON_ERROR_RESPONSES,
-    ErrorCode,
-    ErrorResponse,
-    error_code_for_status,
-)
+from src.ui_core.extension.api import app_config
 
 # Initialize logging early
 configure_logging()

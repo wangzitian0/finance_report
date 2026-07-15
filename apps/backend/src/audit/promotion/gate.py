@@ -15,7 +15,7 @@ across services (statement balance tolerance, reconciliation auto-accept/review)
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 # --- Named, centrally-owned thresholds (consolidates the scattered magic numbers) ---
 STATEMENT_BALANCE_TOLERANCE = Decimal("0.001")
@@ -32,7 +32,7 @@ def tier_rank(tier: str | None) -> int:
     return _TIER_RANK.get((tier or "").upper(), 0)
 
 
-class PromotionDecision(str, Enum):
+class PromotionDecision(StrEnum):
     """What the gate decided a version may become."""
 
     AUTHORITATIVE = "authoritative"  # invariants pass AND confidence >= threshold

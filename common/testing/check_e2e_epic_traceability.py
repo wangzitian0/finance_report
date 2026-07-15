@@ -15,12 +15,8 @@ DEFAULT_E2E_ROOTS = (
     "tests/e2e",
     "apps/backend/tests/e2e",
 )
-DECLARED_NON_PRODUCT_E2E_ROOTS = (
-    "repo/e2e_regressions",
-)
-DECLARED_NON_PRODUCT_E2E_FILES = (
-    "repo/finance/appwrite/scripts/e2e-test.sh",
-)
+DECLARED_NON_PRODUCT_E2E_ROOTS = ("repo/e2e_regressions",)
+DECLARED_NON_PRODUCT_E2E_FILES = ("repo/finance/appwrite/scripts/e2e-test.sh",)
 E2E_ASSET_SUFFIXES = {".py", ".sh", ".ts", ".tsx", ".js", ".jsx"}
 EXCLUDED_SCAN_DIRS = {
     ".git",
@@ -102,9 +98,13 @@ class TraceabilityResult:
         missing = sorted(project - readme)
         unknown = sorted(readme - project)
         if missing:
-            errors.append(f"README EPIC map missing project EPICs: {', '.join(missing)}")
+            errors.append(
+                f"README EPIC map missing project EPICs: {', '.join(missing)}"
+            )
         if unknown:
-            errors.append(f"README EPIC map includes unknown EPICs: {', '.join(unknown)}")
+            errors.append(
+                f"README EPIC map includes unknown EPICs: {', '.join(unknown)}"
+            )
         return errors
 
     @property

@@ -125,7 +125,7 @@ class TestAssetsReconcileCoverageBoost:
         WHEN POST /assets/reconcile
         THEN returns 500
         """
-        with patch("src.routers.assets._positions.reconcile_positions") as mock:
+        with patch("src.portfolio.extension.api.assets._positions.reconcile_positions") as mock:
             mock.side_effect = PositionServiceError("Boost test error")
             response = await client.post("/assets/reconcile")
             assert response.status_code == 500
@@ -136,7 +136,7 @@ class TestAssetsReconcileCoverageBoost:
         WHEN POST /assets/reconcile
         THEN returns 500 with generic message
         """
-        with patch("src.routers.assets._positions.reconcile_positions") as mock:
+        with patch("src.portfolio.extension.api.assets._positions.reconcile_positions") as mock:
             mock.side_effect = RuntimeError("Boost unexpected")
             response = await client.post("/assets/reconcile")
             assert response.status_code == 500

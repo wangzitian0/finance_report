@@ -22,8 +22,8 @@ from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import to_money
 from src.config import settings
 from src.ledger import Account, AccountType, Direction, JournalLine
-from src.schemas.base import normalize_currency_code
-from src.schemas.provenance import DataProvenance
+from src.platform.base.types.base import normalize_currency_code
+from src.platform.base.types.provenance import DataProvenance
 
 _IMPORTED_SOURCE_TYPES = {
     JournalEntrySourceType.AUTO_PARSED,

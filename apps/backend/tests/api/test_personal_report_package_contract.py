@@ -48,7 +48,7 @@ from src.reporting.extension.report_traceability import (
     _ledger_anchor_detail,
     _source_document_details,
 )
-from src.routers.reports import (
+from src.reporting.extension.api.reports import (
     ExportFormat,
     ExportReportType,
     PackageSnapshotExportFormat,
@@ -222,11 +222,11 @@ async def test_AC5_17_2_package_csv_export_streams_contract_rows(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "src.routers.reports.personal_report_package_framework_policy",
+        "src.reporting.extension.api.reports.personal_report_package_framework_policy",
         fake_policy,
     )
     monkeypatch.setattr(
-        "src.routers.reports.personal_report_package_traceability",
+        "src.reporting.extension.api.reports.personal_report_package_traceability",
         fake_traceability,
     )
 
@@ -360,9 +360,9 @@ async def _patch_package_snapshot_inputs(
         assert decisions_by_source_id["stmt-1"].evidence_anchors[0].source_id == "stmt-1"
         return _package_snapshot_sections(section_label)
 
-    monkeypatch.setattr("src.routers.reports.get_personal_report_package_readiness", fake_readiness)
-    monkeypatch.setattr("src.routers.reports.derive_user_framework_policy_result", fake_policy)
-    monkeypatch.setattr("src.routers.reports._personal_report_package_section_payloads", fake_sections)
+    monkeypatch.setattr("src.reporting.extension.api.reports.get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr("src.reporting.extension.api.reports.derive_user_framework_policy_result", fake_policy)
+    monkeypatch.setattr("src.reporting.extension.api.reports._personal_report_package_section_payloads", fake_sections)
 
 
 async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(

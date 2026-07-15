@@ -35,7 +35,9 @@ try:
         TableStyle,
     )
 except ImportError:
-    print("❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'.")
+    print(
+        "❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'."
+    )
     sys.exit(1)
 
 
@@ -99,7 +101,9 @@ def generate_legacy_dbs_pdf(output_path: Path):
     styles = getSampleStyleSheet()
 
     # Header
-    header_style = ParagraphStyle("Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12)
+    header_style = ParagraphStyle(
+        "Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12
+    )
     elements.append(Paragraph("DBS Bank - E-Statement", header_style))
     elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
     elements.append(Spacer(1, 20))
@@ -113,7 +117,9 @@ def generate_legacy_dbs_pdf(output_path: Path):
     txns = generate_transactions(start_date, count=15)
     data = [["Date", "Transaction Description", "Withdrawal", "Deposit", "Balance"]]
     for t in txns:
-        data.append([t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]])
+        data.append(
+            [t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]]
+        )
 
     # Table Styling
     t = Table(data, colWidths=[70, 200, 60, 60, 70])
@@ -187,7 +193,9 @@ def main():
         from .generators.pingan_generator import PinganGenerator
     except ImportError as e:
         print(f"❌ Error importing generators: {e}")
-        print("Make sure common.testing.fixtures.pdf is importable from the repository root.")
+        print(
+            "Make sure common.testing.fixtures.pdf is importable from the repository root."
+        )
         sys.exit(1)
 
     # Template paths

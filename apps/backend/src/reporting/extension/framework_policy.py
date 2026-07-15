@@ -18,7 +18,7 @@ from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride
 from src.pricing.orm.market_data import StockPrice
-from src.schemas.reporting import (
+from src.reporting.base.types.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
     FrameworkPolicyFact,

@@ -91,4 +91,6 @@ __all__ = [
     "get_sector_allocation",
     "portfolio_service",
     "position_currencies",
+    "assets_router",
+    "portfolio_router",
 ]

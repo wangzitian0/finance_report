@@ -24,11 +24,10 @@ from fastapi import status
 from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
-import src.routers as _routers_pkg
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
 
-_ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
+_SRC_DIR = Path(__file__).resolve().parent.parent.parent / 'src'
 _RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
 
 # The list endpoints #1099 named as unbounded; each must now accept bounded
@@ -116,7 +115,7 @@ def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
     """AC-platform.29.1: routers use ``status.HTTP_*`` constants (no raw-integer
     ``status_code=`` literals), and the async upload endpoint advertises ``202``."""
     offenders: list[str] = []
-    for py in sorted(_ROUTER_DIR.glob("*.py")):
+    for py in sorted(_SRC_DIR.rglob("extension/api/*.py")):
         for lineno, line in enumerate(py.read_text().splitlines(), start=1):
             if _RAW_STATUS_CODE.search(line):
                 offenders.append(f"{py.name}:{lineno}: {line.strip()}")

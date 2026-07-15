@@ -32,7 +32,7 @@ async def test_reports_router_errors_extended(client: AsyncClient, monkeypatch):
     ]
 
     for path, params, func_name in test_cases:
-        with patch(f"src.routers.reports.{func_name}", new_callable=AsyncMock) as mock_func:
+        with patch(f"src.reporting.extension.api.reports.{func_name}", new_callable=AsyncMock) as mock_func:
             mock_func.side_effect = ReportError("Mock Error")
             response = await client.get(path, params=params)
             assert response.status_code == 400
@@ -65,7 +65,7 @@ async def test_export_csv_rows_coverage(client: AsyncClient):
     }
 
     # 1. Balance Sheet Export
-    with patch("src.routers.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_func:
+    with patch("src.reporting.extension.api.reports.generate_balance_sheet", new_callable=AsyncMock) as mock_func:
         mock_func.return_value = mock_bs
         resp = await client.get("/reports/export", params={"report_type": "balance-sheet"})
         assert resp.status_code == 200
@@ -73,7 +73,7 @@ async def test_export_csv_rows_coverage(client: AsyncClient):
         assert "Total Assets,,100.0" in resp.text
 
     # 2. Income Statement Export
-    with patch("src.routers.reports.generate_income_statement", new_callable=AsyncMock) as mock_func:
+    with patch("src.reporting.extension.api.reports.generate_income_statement", new_callable=AsyncMock) as mock_func:
         mock_func.return_value = mock_is
         params = {
             "report_type": "income-statement",
@@ -142,7 +142,7 @@ async def test_accounts_coverage_errors(client: AsyncClient):
     assert resp.status_code == 404
 
     # 3. Delete non-existent (AccountNotFoundError branch in delete_account)
-    with patch("src.routers.accounts.account_service.get_account", new_callable=AsyncMock) as mock:
+    with patch("src.ledger.extension.api.accounts.account_service.get_account", new_callable=AsyncMock) as mock:
         mock.side_effect = AccountNotFoundError(uuid4())
         resp = await client.delete(f"/accounts/{uuid4()}")
         assert resp.status_code == 404
@@ -152,19 +152,19 @@ async def test_reconciliation_coverage_errors(client: AsyncClient):
     """Test reconciliation router error paths."""
 
     # 1. Accept non-existent match
-    with patch("src.routers.reconciliation.accept_match_service", new_callable=AsyncMock) as mock:
+    with patch("src.reconciliation.extension.api.reconciliation.accept_match_service", new_callable=AsyncMock) as mock:
         mock.side_effect = ValueError("Match not found")
         resp = await client.post(f"/reconciliation/matches/{uuid4()}/accept")
         assert resp.status_code == 404
 
     # 2. Reject non-existent match
-    with patch("src.routers.reconciliation.reject_match_service", new_callable=AsyncMock) as mock:
+    with patch("src.reconciliation.extension.api.reconciliation.reject_match_service", new_callable=AsyncMock) as mock:
         mock.side_effect = ValueError("Match not found")
         resp = await client.post(f"/reconciliation/matches/{uuid4()}/reject")
         assert resp.status_code == 404
 
     # 3. Batch accept empty
-    with patch("src.routers.reconciliation.batch_accept_service", new_callable=AsyncMock) as mock:
+    with patch("src.reconciliation.extension.api.reconciliation.batch_accept_service", new_callable=AsyncMock) as mock:
         mock.return_value = []
         resp = await client.post("/reconciliation/batch-accept", json={"match_ids": []})
         assert resp.status_code == 200

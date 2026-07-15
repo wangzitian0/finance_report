@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Sequence
 from typing import Protocol, runtime_checkable
 
-from src.llm.base.types import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene
+from src.llm.base.types.core import ChatResult, Message, Modality, ModelSpec, ReasoningEffort, Scene
 
 
 @runtime_checkable

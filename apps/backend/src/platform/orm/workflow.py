@@ -1,7 +1,7 @@
 """User-facing workflow event read model."""
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
@@ -22,7 +22,7 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
-class WorkflowEventFamily(str, Enum):
+class WorkflowEventFamily(StrEnum):
     """Product-level workflow event families."""
 
     SOURCE_UPLOADED = "source.uploaded"
@@ -41,7 +41,7 @@ class WorkflowEventFamily(str, Enum):
     REPORT_GENERATED = "report.generated"
 
 
-class WorkflowEventSeverity(str, Enum):
+class WorkflowEventSeverity(StrEnum):
     """User-facing actionability level."""
 
     INFO = "info"
@@ -51,7 +51,7 @@ class WorkflowEventSeverity(str, Enum):
     BLOCKED = "blocked"
 
 
-class WorkflowEventStatus(str, Enum):
+class WorkflowEventStatus(StrEnum):
     """User-visible event lifecycle."""
 
     UNREAD = "unread"
@@ -59,7 +59,7 @@ class WorkflowEventStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class WorkflowReportImpact(str, Enum):
+class WorkflowReportImpact(StrEnum):
     """Impact of the event on report readiness."""
 
     NONE = "none"
@@ -69,7 +69,7 @@ class WorkflowReportImpact(str, Enum):
     STALE = "stale"
 
 
-class WorkflowSessionStatus(str, Enum):
+class WorkflowSessionStatus(StrEnum):
     """Upload-to-report workflow session lifecycle."""
 
     ACTIVE = "active"

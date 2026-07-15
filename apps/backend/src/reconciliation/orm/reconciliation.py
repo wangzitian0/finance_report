@@ -8,7 +8,7 @@ ruling). Consumers resolve ``atomic_txn_id`` via an explicit query (#1675 D4,
 now that ``AtomicTransaction`` has moved into ``extraction/orm/layer2.py``).
 """
 
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import Enum as SQLEnum, ForeignKey, Index, Integer, String
@@ -19,7 +19,7 @@ from src.database import Base
 from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
-class ReconciliationStatus(str, Enum):
+class ReconciliationStatus(StrEnum):
     """Match status for reconciliation results."""
 
     AUTO_ACCEPTED = "auto_accepted"

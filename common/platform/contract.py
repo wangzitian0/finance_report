@@ -1143,6 +1143,43 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+    
+        
+
+        
+
+        
+
+        
+    
+        ACRecord(
+            id="AC-platform.12.24.1",
+            statement="metrics endpoint returns 200 OK (deferred) (DROPPED)",
+            test="TODO",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.12.24.2",
+            statement="metrics endpoint returns text/plain (deferred) (DROPPED)",
+            test="TODO",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.12.24.3",
+            statement="metrics response contains Prometheus data (deferred) (DROPPED)",
+            test="TODO",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.12.25.1",
+            statement="UUID logging formatting (doc-governance self-check) (DROPPED)",
+            test="TODO",
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

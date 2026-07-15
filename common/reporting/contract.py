@@ -2923,6 +2923,24 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-reporting.5.37.2",
+            statement="Reporting visualization capability (DROPPED)",
+            test="TODO",
+            priority="P0",
+            status="done",
+        ),
+    
+        
+    
+        ACRecord(
+            id="AC-reporting.5.37.2",
+            epic=5,
+            epic_name="reporting-visualization",
+            description="Reporting visualization capability",
+            mandatory=False,
+            status="dropped",
+        ),
     ],
     concepts=[
         ConceptRecord(

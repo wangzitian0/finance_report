@@ -98,7 +98,11 @@ class MatrixValidation:
 
     @property
     def errors(self) -> list[str]:
-        return [error for result in [*self.proofs, *self.outcomes] for error in result.errors]
+        return [
+            error
+            for result in [*self.proofs, *self.outcomes]
+            for error in result.errors
+        ]
 
 
 def _rel(path: Path, repo_root: Path) -> str:
@@ -152,7 +156,9 @@ def _readme_outcome_ids(text: str) -> tuple[list[str], list[str]]:
             break
 
     if table_start is None:
-        return [], ["README.md missing parseable macro outcome table with `Outcome ID` header"]
+        return [], [
+            "README.md missing parseable macro outcome table with `Outcome ID` header"
+        ]
 
     ids: list[str] = []
     for line in lines[table_start:]:
@@ -267,7 +273,9 @@ def _validate_proof(
     ci_tier = str(proof.get("ci_tier", ""))
     ac_ids = [str(ac_id) for ac_id in proof.get("ac_ids", [])]
     trust_mode = str(proof.get("trust_mode", ""))
-    source_classes = [str(source_class) for source_class in proof.get("source_classes", [])]
+    source_classes = [
+        str(source_class) for source_class in proof.get("source_classes", [])
+    ]
     mirror_proof_id = str(proof.get("mirror_proof_id", ""))
     rel_file = str(proof.get("file", ""))
     test_name = str(proof.get("test", ""))
@@ -277,9 +285,13 @@ def _validate_proof(
         if trust_mode not in VALID_TRUST_MODES:
             errors.append(f"{proof_id}: invalid trust_mode {trust_mode!r}")
         if not source_classes:
-            errors.append(f"{proof_id}: source_classes are required when trust_mode is set")
+            errors.append(
+                f"{proof_id}: source_classes are required when trust_mode is set"
+            )
         if trust_mode == "llm_ocr_post_merge" and not mirror_proof_id:
-            errors.append(f"{proof_id}: llm_ocr_post_merge proof requires mirror_proof_id")
+            errors.append(
+                f"{proof_id}: llm_ocr_post_merge proof requires mirror_proof_id"
+            )
 
     for ac_id in ac_ids:
         if ac_id not in registry_ids:
@@ -306,7 +318,9 @@ def _validate_proof(
     if rel_file in BROAD_CONTRACT_DENYLIST:
         errors.append(f"{proof_id}: broad contract tests cannot satisfy critical proof")
     if scope == "behavioral" and not rel_file.startswith(BEHAVIORAL_ROOTS):
-        errors.append(f"{proof_id}: behavioral proof must live under product test roots, got {rel_file}")
+        errors.append(
+            f"{proof_id}: behavioral proof must live under product test roots, got {rel_file}"
+        )
     if not path.exists():
         errors.append(f"{proof_id}: file does not exist: {rel_file}")
         return ProofResult(
@@ -341,18 +355,26 @@ def _validate_proof(
         )
 
     stable_refs = set(AC_PATTERN.findall(anchor.stable_text))
-    file_refs = set(AC_PATTERN.findall(path.read_text(encoding="utf-8", errors="ignore")))
+    file_refs = set(
+        AC_PATTERN.findall(path.read_text(encoding="utf-8", errors="ignore"))
+    )
     missing_stable_refs = [ac_id for ac_id in ac_ids if ac_id not in stable_refs]
     for ac_id in missing_stable_refs:
         if ac_id in file_refs:
-            errors.append(f"{proof_id}: {ac_id} is only a file/body reference; put it in the test name or docstring")
+            errors.append(
+                f"{proof_id}: {ac_id} is only a file/body reference; put it in the test name or docstring"
+            )
         else:
-            errors.append(f"{proof_id}: {ac_id} is missing from the test name or docstring")
+            errors.append(
+                f"{proof_id}: {ac_id} is missing from the test name or docstring"
+            )
 
     required_markers = {str(marker) for marker in proof.get("required_markers", [])}
     missing_markers = sorted(required_markers - anchor.markers)
     if missing_markers:
-        errors.append(f"{proof_id}: missing pytest markers on {test_name}: {', '.join(missing_markers)}")
+        errors.append(
+            f"{proof_id}: missing pytest markers on {test_name}: {', '.join(missing_markers)}"
+        )
 
     return ProofResult(
         proof_id=proof_id,
@@ -375,7 +397,9 @@ def validate_matrix(repo_root: Path, matrix: dict[str, Any]) -> list[ProofResult
         raise ValueError("critical proof matrix must define a non-empty proofs list")
     registry_ids = _load_registry_ids(repo_root)
     results = [
-        _validate_proof(proof, repo_root=repo_root, registry_ids=registry_ids, index=index)
+        _validate_proof(
+            proof, repo_root=repo_root, registry_ids=registry_ids, index=index
+        )
         for index, proof in enumerate(proofs)
         if isinstance(proof, dict)
     ]
@@ -398,7 +422,10 @@ def validate_matrix(repo_root: Path, matrix: dict[str, Any]) -> list[ProofResult
                 ac_ids=[],
                 status="fail",
                 mirror_proof_id="",
-                errors=["critical proof matrix duplicate proof ids: " + ", ".join(sorted(duplicate_proof_ids))],
+                errors=[
+                    "critical proof matrix duplicate proof ids: "
+                    + ", ".join(sorted(duplicate_proof_ids))
+                ],
             )
         )
     by_id = {result.proof_id: result for result in results}
@@ -407,13 +434,17 @@ def validate_matrix(repo_root: Path, matrix: dict[str, Any]) -> list[ProofResult
             continue
         mirror = by_id.get(result.mirror_proof_id)
         if mirror is None:
-            result.errors.append(f"{result.proof_id}: unknown mirror_proof_id {result.mirror_proof_id}")
+            result.errors.append(
+                f"{result.proof_id}: unknown mirror_proof_id {result.mirror_proof_id}"
+            )
             continue
         if mirror.trust_mode != "deterministic_pr" or mirror.ci_tier != "pr_ci":
             result.errors.append(
                 f"{result.proof_id}: mirror proof {result.mirror_proof_id} must be deterministic_pr in pr_ci"
             )
-        missing_classes = sorted(set(result.source_classes) - set(mirror.source_classes))
+        missing_classes = sorted(
+            set(result.source_classes) - set(mirror.source_classes)
+        )
         if missing_classes:
             result.errors.append(
                 f"{result.proof_id}: mirror proof {result.mirror_proof_id} missing source classes: {', '.join(missing_classes)}"
@@ -432,15 +463,25 @@ def _validate_outcome(
     status = str(outcome.get("status", ""))
     raw_owner_epics = outcome.get("owner_epics", [])
     raw_proof_ids = outcome.get("proof_ids", [])
-    owner_epics = [str(epic) for epic in raw_owner_epics] if isinstance(raw_owner_epics, list) else []
-    proof_ids = [str(proof_id) for proof_id in raw_proof_ids] if isinstance(raw_proof_ids, list) else []
+    owner_epics = (
+        [str(epic) for epic in raw_owner_epics]
+        if isinstance(raw_owner_epics, list)
+        else []
+    )
+    proof_ids = (
+        [str(proof_id) for proof_id in raw_proof_ids]
+        if isinstance(raw_proof_ids, list)
+        else []
+    )
     issue = str(outcome.get("issue", ""))
     errors: list[str] = []
 
     required = {"id", "status", "owner_epics"}
     missing = sorted(required - set(outcome))
     if missing:
-        errors.append(f"{outcome_id}: missing required outcome keys: {', '.join(missing)}")
+        errors.append(
+            f"{outcome_id}: missing required outcome keys: {', '.join(missing)}"
+        )
 
     if status not in VALID_OUTCOME_STATUSES:
         errors.append(f"{outcome_id}: invalid status {status!r}")
@@ -462,9 +503,13 @@ def _validate_outcome(
         epic_text = epic_path.read_text(encoding="utf-8", errors="ignore")
         ownership_section = _macro_ownership_section(epic_text)
         if ownership_section is None:
-            errors.append(f"{outcome_id}: owner EPIC {epic_id} missing `## Macro Proof Ownership` section")
+            errors.append(
+                f"{outcome_id}: owner EPIC {epic_id} missing `## Macro Proof Ownership` section"
+            )
         elif outcome_id not in ownership_section:
-            errors.append(f"{outcome_id}: owner EPIC {epic_id} missing macro outcome declaration")
+            errors.append(
+                f"{outcome_id}: owner EPIC {epic_id} missing macro outcome declaration"
+            )
 
     if status == "covered" and not proof_ids:
         errors.append(f"{outcome_id}: covered outcome requires at least one proof_id")
@@ -493,7 +538,9 @@ def _validate_outcome(
     )
 
 
-def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) -> OutcomeResult:
+def _validate_readme_contract(
+    repo_root: Path, outcomes: list[OutcomeResult]
+) -> OutcomeResult:
     readme_path = repo_root / "README.md"
     errors: list[str] = []
     text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
@@ -509,7 +556,11 @@ def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) ->
     if "tools/check_ac_index.py" not in text:
         errors.append("README.md missing AC index consistency gate command")
 
-    matrix_ids = [outcome.outcome_id for outcome in outcomes if not outcome.outcome_id.startswith("__")]
+    matrix_ids = [
+        outcome.outcome_id
+        for outcome in outcomes
+        if not outcome.outcome_id.startswith("__")
+    ]
     readme_ids, table_errors = _readme_outcome_ids(text)
     errors.extend(table_errors)
 
@@ -520,7 +571,9 @@ def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) ->
             duplicate_ids.add(outcome_id)
         seen.add(outcome_id)
     if duplicate_ids:
-        errors.append(f"README macro outcomes duplicate ids: {', '.join(sorted(duplicate_ids))}")
+        errors.append(
+            f"README macro outcomes duplicate ids: {', '.join(sorted(duplicate_ids))}"
+        )
 
     matrix_set = set(matrix_ids)
     readme_set = set(readme_ids)
@@ -529,7 +582,9 @@ def _validate_readme_contract(repo_root: Path, outcomes: list[OutcomeResult]) ->
     if missing:
         errors.append(f"README macro outcomes missing ids: {', '.join(missing)}")
     if unknown:
-        errors.append(f"README macro outcomes include unknown ids: {', '.join(unknown)}")
+        errors.append(
+            f"README macro outcomes include unknown ids: {', '.join(unknown)}"
+        )
 
     for outcome in outcomes:
         if outcome.outcome_id.startswith("__"):
@@ -602,11 +657,17 @@ def validate_outcomes(
     unknown = sorted(seen - REQUIRED_OUTCOME_IDS)
     global_errors: list[str] = []
     if duplicates:
-        global_errors.append(f"macro outcomes duplicate ids: {', '.join(sorted(duplicates))}")
+        global_errors.append(
+            f"macro outcomes duplicate ids: {', '.join(sorted(duplicates))}"
+        )
     if missing:
-        global_errors.append(f"macro outcomes missing required ids: {', '.join(missing)}")
+        global_errors.append(
+            f"macro outcomes missing required ids: {', '.join(missing)}"
+        )
     if unknown:
-        global_errors.append(f"macro outcomes include unknown ids: {', '.join(unknown)}")
+        global_errors.append(
+            f"macro outcomes include unknown ids: {', '.join(unknown)}"
+        )
     if global_errors:
         outcomes.append(
             OutcomeResult(
@@ -643,7 +704,9 @@ def build_matrix_payload(repo_root: Path) -> dict[str, Any]:
     return build_matrix_from_graph(build_proofs_only(repo_root))
 
 
-def validate_matrix_contract(repo_root: Path, matrix_payload: dict[str, Any] | None = None) -> MatrixValidation:
+def validate_matrix_contract(
+    repo_root: Path, matrix_payload: dict[str, Any] | None = None
+) -> MatrixValidation:
     if matrix_payload is None:
         matrix_payload = build_matrix_payload(repo_root)
     proofs = validate_matrix(repo_root, matrix_payload)

@@ -11,7 +11,7 @@ from src.advisor import AIAdvisorError
 
 async def test_chat_suggestions_en() -> None:
     """AC-advisor.suggestions.2: AC6.2.4 AC6.5.1: Chat suggestions endpoint returns English suggestions."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     response = await suggestions(language="en")
     assert response.suggestions
@@ -20,7 +20,7 @@ async def test_chat_suggestions_en() -> None:
 
 async def test_chat_suggestions_zh() -> None:
     """AC-advisor.suggestions.1: AC6.2.3 AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     response = await suggestions(language="zh")
     assert response.suggestions
@@ -29,7 +29,7 @@ async def test_chat_suggestions_zh() -> None:
 
 async def test_chat_suggestions_auto_detect_zh() -> None:
     """AC-advisor.language.3: AC6.2.5: Auto-detect Chinese language from message."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     response = await suggestions(language=None, message="这个月花了多少钱")
     assert response.suggestions
@@ -38,7 +38,7 @@ async def test_chat_suggestions_auto_detect_zh() -> None:
 
 async def test_chat_suggestions_auto_detect_en() -> None:
     """AC-advisor.language.4: AC6.2.6: Auto-detect English language from message."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     response = await suggestions(message="What are my expenses?")
     assert response.suggestions
@@ -48,7 +48,7 @@ async def test_chat_suggestions_auto_detect_en() -> None:
 @pytest.mark.no_db
 async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> None:
     """AC-advisor.suggestions.3: AC21.3.1: Chat suggestions expose structured advisor facts without LLM prose parsing."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     advisor_fact = {
         "basis": "Report package is blocked by one review-required item.",
@@ -60,7 +60,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
         mock_service.get_advisor_context = AsyncMock(return_value={"suggestions": [advisor_fact]})
         MockService.return_value = mock_service
@@ -81,12 +81,12 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
 @pytest.mark.no_db
 async def test_AC21_3_1_chat_suggestions_default_stays_lightweight() -> None:
     """AC21.3.1: Base chat suggestions do not load Advisor Brief facts unless requested."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         response = await suggestions(language="en", db=mock_db, user_id=mock_user_id)
 
     assert response.suggestions
@@ -97,7 +97,7 @@ async def test_AC21_3_1_chat_suggestions_default_stays_lightweight() -> None:
 @pytest.mark.no_db
 async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_context_times_out() -> None:
     """AC6.5.1: Chat suggestions stay available when structured advisor context is slow."""
-    from src.routers.chat import suggestions
+    from src.advisor.extension.api.chat import suggestions
 
     async def slow_context(*_args: object) -> dict:
         await asyncio.sleep(0.05)
@@ -107,8 +107,8 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
     mock_user_id = uuid4()
 
     with (
-        patch("src.routers.chat.SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS", 0.001),
-        patch("src.routers.chat.AIAdvisorService") as MockService,
+        patch("src.advisor.extension.api.chat.SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS", 0.001),
+        patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService,
     ):
         mock_service = MagicMock()
         mock_service.get_advisor_context = AsyncMock(side_effect=slow_context)
@@ -146,12 +146,12 @@ async def test_chat_error_api_key_unavailable() -> None:
     """AC-advisor.api.1: AC6.5.3: Chat error returns 503 when API key unavailable."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
         mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError("OpenRouter API key not configured"))
         MockService.return_value = mock_service
@@ -172,12 +172,12 @@ async def test_chat_error_session_not_found() -> None:
     """AC-advisor.api.2: AC6.5.4: Chat error returns 404 when session not found."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
         mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError("Session not found"))
         MockService.return_value = mock_service
@@ -197,12 +197,12 @@ async def test_chat_error_bad_request() -> None:
     """AC-advisor.api.3: AC6.5.5: Chat error returns 400 for bad request."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
         mock_service.chat_stream = AsyncMock(side_effect=AIAdvisorError("Invalid request format"))
         MockService.return_value = mock_service
@@ -219,7 +219,7 @@ async def test_chat_error_bad_request() -> None:
 
 async def test_chat_with_model_name_header() -> None:
     """AC-advisor.api.4: AC6.5.6: Chat response includes X-Model-Name header."""
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -228,7 +228,7 @@ async def test_chat_with_model_name_header() -> None:
     async def mock_stream():
         yield "Hello"
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
@@ -251,7 +251,7 @@ async def test_chat_with_model_name_header() -> None:
 @pytest.mark.no_db
 async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> None:
     """AC-advisor.grounding.1: AC22.14.1: Chat stream response exposes application-owned grounding metadata."""
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -280,7 +280,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
         ],
     }
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
@@ -303,7 +303,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
 
 async def test_chat_without_model_name_header() -> None:
     """AC-advisor.api.5: AC6.5.7: Chat response omits X-Model-Name when model is None."""
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -312,7 +312,7 @@ async def test_chat_without_model_name_header() -> None:
     async def mock_stream():
         yield "Hello"
 
-    with patch("src.routers.chat.AIAdvisorService") as MockService:
+    with patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService:
         mock_stream_obj = MagicMock()
         mock_stream_obj.session_id = uuid4()
         mock_stream_obj.stream = mock_stream()
@@ -335,7 +335,7 @@ async def test_delete_session_not_found() -> None:
     """AC-advisor.session.6: AC6.4.6: Delete session returns 404 when not found."""
     from fastapi import HTTPException
 
-    from src.routers.chat import delete_session
+    from src.advisor.extension.api.chat import delete_session
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
@@ -353,7 +353,7 @@ async def test_delete_session_success() -> None:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from src.advisor.orm.chat import ChatSession, ChatSessionStatus
-    from src.routers.chat import delete_session
+    from src.advisor.extension.api.chat import delete_session
 
     mock_session = MagicMock(spec=ChatSession)
     mock_db = MagicMock(spec=AsyncSession)
@@ -370,7 +370,7 @@ async def test_delete_session_success() -> None:
 async def test_chat_history_with_session_id() -> None:
     """AC6.4.3: Chat history returns messages for specific session."""
     from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-    from src.routers.chat import chat_history
+    from src.advisor.extension.api.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)
     mock_session.id = uuid4()
@@ -406,7 +406,7 @@ async def test_chat_history_with_session_id() -> None:
 
 async def test_chat_history_empty() -> None:
     """AC6.4.3: Chat history returns empty when no sessions exist."""
-    from src.routers.chat import chat_history
+    from src.advisor.extension.api.chat import chat_history
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
@@ -420,7 +420,7 @@ async def test_chat_history_empty() -> None:
 async def test_chat_history_lists_sessions() -> None:
     """AC6.4.3: Chat history lists active sessions with message counts."""
     from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-    from src.routers.chat import chat_history
+    from src.advisor.extension.api.chat import chat_history
 
     mock_session = MagicMock(spec=ChatSession)
     mock_session.id = uuid4()
@@ -470,7 +470,7 @@ async def test_chat_history_session_not_found() -> None:
     """AC6.4.6: Chat history returns 404 for non-existent session."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_history
+    from src.advisor.extension.api.chat import chat_history
 
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
@@ -485,7 +485,7 @@ async def test_chat_history_session_not_found() -> None:
 
 async def test_chat_with_allowed_model():
     """AC6.5.6: Chat with allowed model passes validation."""
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -495,8 +495,8 @@ async def test_chat_with_allowed_model():
         yield "Hello"
 
     with (
-        patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
+        patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService,
+        patch("src.advisor.extension.api.chat.LitellmCatalog") as MockCatalog,
     ):
         mock_get = AsyncMock()
         MockCatalog.return_value.get = mock_get
@@ -527,7 +527,7 @@ async def test_chat_with_allowed_model():
 
 async def test_chat_with_known_external_model():
     """AC6.5.6: Chat with known external model passes validation."""
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_db.commit = AsyncMock()
@@ -537,8 +537,8 @@ async def test_chat_with_known_external_model():
         yield "Hello"
 
     with (
-        patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
+        patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService,
+        patch("src.advisor.extension.api.chat.LitellmCatalog") as MockCatalog,
     ):
         mock_get = AsyncMock(return_value=object())  # known model -> a catalogue entry
         MockCatalog.return_value.get = mock_get
@@ -570,14 +570,14 @@ async def test_chat_with_unknown_external_model():
     """AC6.5.5: Chat with unknown external model returns 400."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
     with (
-        patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
+        patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService,
+        patch("src.advisor.extension.api.chat.LitellmCatalog") as MockCatalog,
     ):
         mock_get = AsyncMock(return_value=None)  # unknown model -> no catalogue entry
         MockCatalog.return_value.get = mock_get
@@ -604,14 +604,14 @@ async def test_chat_with_model_validation_error():
     """AC6.5.3: Chat returns 503 when model validation fails."""
     from fastapi import HTTPException
 
-    from src.routers.chat import chat_message
+    from src.advisor.extension.api.chat import chat_message
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
 
     with (
-        patch("src.routers.chat.AIAdvisorService") as MockService,
-        patch("src.routers.chat.LitellmCatalog") as MockCatalog,
+        patch("src.advisor.extension.api.chat.AIAdvisorService") as MockService,
+        patch("src.advisor.extension.api.chat.LitellmCatalog") as MockCatalog,
     ):
         mock_get = AsyncMock(side_effect=Exception("Some error"))
         MockCatalog.return_value.get = mock_get
@@ -635,7 +635,7 @@ async def test_chat_with_model_validation_error():
 
 
 async def test_chat_history_returns_empty_sessions_for_no_rows() -> None:
-    from src.routers.chat import chat_history
+    from src.advisor.extension.api.chat import chat_history
 
     main_result = MagicMock()
     main_result.all.return_value = []

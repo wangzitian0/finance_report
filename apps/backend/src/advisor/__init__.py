@@ -66,4 +66,5 @@ __all__ = [
     "redact_sensitive",
     "register_fx_conversion",
     "register_fx_pairs_read",
+    "chat_router",
 ]

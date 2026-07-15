@@ -122,7 +122,9 @@ def _real_test(repo_root: Path, file_rel: str, test_name: str) -> bool:
     except (OSError, SyntaxError):
         return False
     for node in ast.walk(module):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and (node.name == test_name):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and (
+            node.name == test_name
+        ):
             return True
     return False
 
@@ -151,7 +153,9 @@ def _proof_obligations(graph: AcGraph) -> list[Obligation]:
     out: list[Obligation] = []
     for proof in graph.proofs:
         if not proof.ac_ids:
-            out.append(Obligation(False, f"proof {proof.proof_id!r}: declares no ac_ids"))
+            out.append(
+                Obligation(False, f"proof {proof.proof_id!r}: declares no ac_ids")
+            )
         for ac_id in proof.ac_ids:
             out.append(
                 Obligation(
@@ -343,7 +347,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args([] if argv is None else argv)
     repo_root = args.repo_root.resolve()
-    floor_file = args.floor_file or (repo_root / "common" / "testing" / "data" / "protection-floor.json")
+    floor_file = args.floor_file or (
+        repo_root / "common" / "testing" / "data" / "protection-floor.json"
+    )
 
     graph = build_ac_graph(repo_root)
 

@@ -14,7 +14,7 @@ from fastapi import HTTPException, status
 from httpx import AsyncClient
 
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
-from src.routers import review as review_router
+import src.extraction.extension.api.review as review_router
 from src.schemas.review import BatchApproveRequest
 
 # --- AC12.27: structured error contract (#1005) --------------------------------

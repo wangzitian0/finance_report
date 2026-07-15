@@ -13,14 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE
-from src.ledger.orm.account import Account
-from src.schemas.account import (
+from src.ledger.base.types.account import (
     AccountCoverageCadence,
     AccountCoverageIssue,
     AccountCoverageIssueType,
     AccountCoverageListResponse,
     AccountCoverageResponse,
 )
+from src.ledger.orm.account import Account
 
 if TYPE_CHECKING:
     pass

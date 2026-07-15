@@ -31,7 +31,7 @@ from src.reporting.extension.framework_policy import (
     framework_policy_facts_for_user,
 )
 from src.reporting.extension.report_readiness import framework_policy_readiness_blockers
-from src.routers.reports import (
+from src.reporting.extension.api.reports import (
     personal_report_package_contract,
     personal_report_package_framework_policy,
     personal_report_package_readiness,

@@ -53,13 +53,17 @@ def _router_names(tree: ast.AST) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
             func = node.value.func
-            callee = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            callee = (
+                func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            )
             if callee == "APIRouter":
                 names.update(t.id for t in node.targets if isinstance(t, ast.Name))
     return names
 
 
-def _route_decorators(node: ast.AST, router_names: set[str]) -> Iterable[tuple[str, ast.Call]]:
+def _route_decorators(
+    node: ast.AST, router_names: set[str]
+) -> Iterable[tuple[str, ast.Call]]:
     """Yield (http_method, call) for each @<router>.<method>(...) decorator on a function."""
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return
@@ -87,7 +91,11 @@ def _has_response_model(call: ast.Call) -> bool:
 
 
 def _route_literal(call: ast.Call) -> str:
-    if call.args and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str):
+    if (
+        call.args
+        and isinstance(call.args[0], ast.Constant)
+        and isinstance(call.args[0].value, str)
+    ):
         return call.args[0].value
     return "?"
 
@@ -146,18 +154,28 @@ def render_markdown(findings: Sequence[UntypedEndpoint]) -> str:
         "|--------|-------------------------|---------|-----------|",
     ]
     for f in findings:
-        lines.append(f"| `{f.method}` | `{f.route}` | `{f.handler}` | {f.relative_path}:{f.line} |")
+        lines.append(
+            f"| `{f.method}` | `{f.route}` | `{f.handler}` | {f.relative_path}:{f.line} |"
+        )
     lines.append("")
     return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Audit router endpoints for missing response_model contracts.")
+    parser = argparse.ArgumentParser(
+        description="Audit router endpoints for missing response_model contracts."
+    )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--router-dir", type=Path, default=None)
-    parser.add_argument("--max-allowed", type=int, default=DEFAULT_MAX_UNTYPED_ENDPOINTS)
-    parser.add_argument("--output", type=Path, default=None, help="Write the findings markdown here.")
-    parser.add_argument("--check", action="store_true", help="Exit nonzero if the budget is exceeded.")
+    parser.add_argument(
+        "--max-allowed", type=int, default=DEFAULT_MAX_UNTYPED_ENDPOINTS
+    )
+    parser.add_argument(
+        "--output", type=Path, default=None, help="Write the findings markdown here."
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Exit nonzero if the budget is exceeded."
+    )
     return parser
 
 
@@ -178,7 +196,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         for f in findings:
-            print(f"  {f.relative_path}:{f.line}: {f.method} {f.route} ({f.handler})", file=sys.stderr)
+            print(
+                f"  {f.relative_path}:{f.line}: {f.method} {f.route} ({f.handler})",
+                file=sys.stderr,
+            )
         return 1
 
     print(f"Untyped endpoints: {count} (budget {args.max_allowed}).")

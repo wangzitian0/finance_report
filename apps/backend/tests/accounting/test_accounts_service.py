@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
-from src.routers.accounts import (
+from src.ledger.extension.api.accounts import (
     create_account,
     get_account,
     list_accounts,
