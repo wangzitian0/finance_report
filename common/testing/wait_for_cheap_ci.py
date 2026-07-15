@@ -6,7 +6,11 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from common.runtime.github_api import GitHubActionsClient
+from common.runtime import github_api
+
+# Keep the established monkeypatch seam pointed at the shared transport.
+GitHubActionsClient = github_api.GitHubActionsClient
+urllib = github_api.urllib
 
 
 def wait_for_cheap_ci(

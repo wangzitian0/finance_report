@@ -29,6 +29,8 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
     assert train_wait.GitHubActionsClient is github_api.GitHubActionsClient
     assert wait_for_cheap_ci.GitHubActionsClient is github_api.GitHubActionsClient
     assert train_wait.parse_github_time is github_api.parse_github_time
+    assert train_wait.urllib is github_api.urllib
+    assert wait_for_cheap_ci.urllib is github_api.urllib
     assert release_evidence._write_github_output is github_api.write_github_output
     assert release_images._write_github_output is github_api.write_github_output
     assert release_coordinate.write_github_output is github_api.write_github_output
@@ -42,6 +44,26 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     github_api.write_github_output({"run_id": "123", "status": "success"})
     assert output.read_text(encoding="utf-8") == "run_id=123\nstatus=success\n"
+
+    github_api.write_github_output(
+        {
+            "multiline": "before\nattacker=unsafe",
+            "carriage": "first\rsecond",
+        }
+    )
+    output_lines = output.read_text(encoding="utf-8").splitlines()
+    assert output_lines[:2] == ["run_id=123", "status=success"]
+    assert output_lines[2].startswith("multiline<<")
+    multiline_delimiter = output_lines[2].removeprefix("multiline<<")
+    assert output_lines[3:5] == ["before", "attacker=unsafe"]
+    assert output_lines[5] == multiline_delimiter
+    assert output_lines[6].startswith("carriage<<")
+    carriage_delimiter = output_lines[6].removeprefix("carriage<<")
+    assert output_lines[7:9] == ["first", "second"]
+    assert output_lines[9] == carriage_delimiter
+
+    with pytest.raises(ValueError, match="invalid GitHub output key"):
+        github_api.write_github_output({"not-a-key": "value"})
 
     requests: list[str] = []
 

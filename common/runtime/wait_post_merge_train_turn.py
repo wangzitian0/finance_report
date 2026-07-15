@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from common.runtime.github_api import GitHubActionsClient, parse_github_time
+from common.runtime import github_api
+
+# Keep the established monkeypatch seam pointed at the shared transport.
+GitHubActionsClient = github_api.GitHubActionsClient
+parse_github_time = github_api.parse_github_time
+urllib = github_api.urllib
 
 ACTIVE_STATUSES = frozenset(
     {"queued", "in_progress", "requested", "waiting", "pending"}
