@@ -97,7 +97,7 @@ def test_contract_file_with_invalid_syntax_is_rejected(tmp_path: Path) -> None:
 
 
 def test_contract_file_with_wrong_contract_type_is_rejected(tmp_path: Path) -> None:
-    """An uppercase non-PackageContract export is still undiscoverable."""
+    """A CONTRACT export that is not a PackageContract is undiscoverable."""
     pkg = tmp_path / "common" / "widgets"
     pkg.mkdir(parents=True)
     (pkg / "contract.py").write_text("CONTRACT = object()\n", encoding="utf-8")

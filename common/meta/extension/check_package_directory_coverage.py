@@ -69,7 +69,7 @@ def discover_common_dirs(repo_root: Path) -> list[str]:
 
 
 def _is_package_contract_call(value: ast.expr) -> bool:
-    """Whether ``value`` matches the repo-standard direct ``PackageContract(...)`` call."""
+    """Whether ``value`` matches the repo-standard unqualified ``PackageContract(...)`` call."""
     if not isinstance(value, ast.Call):
         return False
     func = value.func
