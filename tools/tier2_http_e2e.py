@@ -63,7 +63,9 @@ def normalize_base_url(base_url: str) -> str:
     return trimmed
 
 
-def deployed_input_report(*, mode: str, missing_inputs: Sequence[str]) -> dict[str, object]:
+def deployed_input_report(
+    *, mode: str, missing_inputs: Sequence[str]
+) -> dict[str, object]:
     return {
         "proof_tier": PROOF_TIER,
         "mode": mode,
@@ -76,7 +78,9 @@ def deployed_input_report(*, mode: str, missing_inputs: Sequence[str]) -> dict[s
 
 
 def request_http(url: str, timeout_seconds: float) -> HttpResponse:
-    request = urllib.request.Request(url, headers={"User-Agent": "finance-report-tier2-http-e2e"})
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "finance-report-tier2-http-e2e"}
+    )
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             body = response.read().decode("utf-8", errors="replace")
@@ -108,7 +112,9 @@ def _sha_matches(actual: str, expected: str) -> bool:
     )
 
 
-def _result(name: str, url: str, response: HttpResponse, passed: bool, detail: str) -> CheckResult:
+def _result(
+    name: str, url: str, response: HttpResponse, passed: bool, detail: str
+) -> CheckResult:
     if not passed and response.error:
         detail = f"{detail}: {response.error}"
     return CheckResult(
@@ -120,7 +126,9 @@ def _result(name: str, url: str, response: HttpResponse, passed: bool, detail: s
     )
 
 
-def run_tier2_http_e2e(config: Tier2Config, requester: RequestFunc = request_http) -> dict[str, object]:
+def run_tier2_http_e2e(
+    config: Tier2Config, requester: RequestFunc = request_http
+) -> dict[str, object]:
     base_url = normalize_base_url(config.base_url)
     checks: list[CheckResult] = []
 
@@ -197,14 +205,18 @@ def run_tier2_http_e2e(config: Tier2Config, requester: RequestFunc = request_htt
 
 def write_json_report(report: Mapping[str, object], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_junit_report(report: Mapping[str, object], path: Path) -> None:
     checks = report.get("checks", [])
     if not isinstance(checks, list):
         checks = []
-    failures = sum(1 for check in checks if isinstance(check, dict) and not check.get("passed"))
+    failures = sum(
+        1 for check in checks if isinstance(check, dict) and not check.get("passed")
+    )
     skipped = 1 if report.get("status") == "not_run" else 0
     tests = len(checks) if checks else skipped
 
@@ -219,11 +231,17 @@ def write_junit_report(report: Mapping[str, object], path: Path) -> None:
     )
     properties = ElementTree.SubElement(suite, "properties")
     for key in ("proof_tier", "mode", "status", "proof_eligible", "env_gated"):
-        ElementTree.SubElement(properties, "property", {"name": key, "value": str(report.get(key))})
+        ElementTree.SubElement(
+            properties, "property", {"name": key, "value": str(report.get(key))}
+        )
 
     if report.get("status") == "not_run":
-        case = ElementTree.SubElement(suite, "testcase", {"classname": PROOF_TIER, "name": "not_run"})
-        ElementTree.SubElement(case, "skipped", {"message": ",".join(report.get("missing_inputs", []))})
+        case = ElementTree.SubElement(
+            suite, "testcase", {"classname": PROOF_TIER, "name": "not_run"}
+        )
+        ElementTree.SubElement(
+            case, "skipped", {"message": ",".join(report.get("missing_inputs", []))}
+        )
     else:
         for check in checks:
             if not isinstance(check, dict):
@@ -234,7 +252,9 @@ def write_junit_report(report: Mapping[str, object], path: Path) -> None:
                 {"classname": PROOF_TIER, "name": str(check.get("name"))},
             )
             if not check.get("passed"):
-                ElementTree.SubElement(case, "failure", {"message": str(check.get("detail"))})
+                ElementTree.SubElement(
+                    case, "failure", {"message": str(check.get("detail"))}
+                )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     ElementTree.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
@@ -251,10 +271,16 @@ def _env_value(environ: Mapping[str, str], names: Sequence[str]) -> str | None:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Tier 2 deployed HTTP E2E checks.")
     parser.add_argument(
-        "--base-url", help="Deployed app base URL. Falls back to TIER2_HTTP_BASE_URL/APP_URL/FRONTEND_URL."
+        "--base-url",
+        help="Deployed app base URL. Falls back to TIER2_HTTP_BASE_URL/APP_URL/FRONTEND_URL.",
     )
-    parser.add_argument("--expected-sha", help="Expected deployed git_sha/version. Falls back to EXPECTED_SHA.")
-    parser.add_argument("--mode", default="staging", help="Environment label for reports.")
+    parser.add_argument(
+        "--expected-sha",
+        help="Expected deployed git_sha/version. Falls back to EXPECTED_SHA.",
+    )
+    parser.add_argument(
+        "--mode", default="staging", help="Environment label for reports."
+    )
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--json-report", type=Path)
     parser.add_argument("--junit-xml", type=Path)

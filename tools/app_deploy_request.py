@@ -120,7 +120,10 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
         raise ValueError("deploy_type must be staging")
 
     version_ref = raw.get("version_ref")
-    if not isinstance(version_ref, str) or _RELEASE_REF_RE.fullmatch(version_ref) is None:
+    if (
+        not isinstance(version_ref, str)
+        or _RELEASE_REF_RE.fullmatch(version_ref) is None
+    ):
         raise ValueError("version_ref must be a release tag like vX.Y.Z")
 
     source_sha = raw.get("source_sha")

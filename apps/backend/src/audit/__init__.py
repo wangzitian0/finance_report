@@ -94,7 +94,6 @@ __all__ = [
     "source_type_rank",
     "source_type_tiebreak_key",
     "statement_source_values",
-    "audit_router",
 ]
 
 _SOURCE_TYPE_NAMES = {

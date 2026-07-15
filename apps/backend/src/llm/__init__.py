@@ -99,6 +99,10 @@ def __getattr__(name: str) -> Any:
         from src.llm.extension.catalog import LitellmCatalog
 
         return LitellmCatalog
+    if name == "llm_router":
+        from src.llm.extension.api.llm import router as llm_router
+
+        return llm_router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

@@ -27,18 +27,11 @@ rule does not apply here.
 from __future__ import annotations
 
 from enum import StrEnum
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.advisor.base.types.chat import ChatResponseMetadata
-
 # Header names are part of the public wire contract; keep them as constants so
 # the router and the contract cannot drift.
-SESSION_ID_HEADER = "X-Session-Id"
-MODEL_NAME_HEADER = "X-Model-Name"
-ADVISOR_METADATA_HEADER = "X-Advisor-Metadata"
-EXPOSE_HEADERS_HEADER = "Access-Control-Expose-Headers"
 CONTENT_DISPOSITION_HEADER = "Content-Disposition"
 
 # Characters that are unsafe to interpolate into an HTTP header value:
@@ -48,75 +41,11 @@ CONTENT_DISPOSITION_HEADER = "Content-Disposition"
 _UNSAFE_FILENAME_CHARS = frozenset('\r\n";/\\')
 
 
-class ChatStreamMediaType(StrEnum):
-    """Wire media type for the chat streaming body (plain token text)."""
-
-    TEXT_PLAIN = "text/plain"
-
-
 class ExportStreamMediaType(StrEnum):
     """Wire media types supported by the report export streams."""
 
     CSV = "text/csv"
     JSON = "application/json"
-
-
-class ChatStreamEnvelope(BaseModel):
-    """Typed envelope for the ``POST /chat`` streaming response.
-
-    The streamed *body* is a sequence of UTF-8 ``text/plain`` answer tokens; it
-    is intentionally schema-less prose. The *metadata* that the previous code
-    smuggled through ad-hoc headers is what this envelope makes typed and
-    testable:
-
-    * ``session_id`` -> ``X-Session-Id``
-    * ``model_name`` -> ``X-Model-Name`` (omitted when ``None``)
-    * ``advisor_metadata`` -> ``X-Advisor-Metadata`` (omitted when empty)
-
-    ``to_headers()`` rebuilds the byte-identical header dict the router shipped
-    before this contract existed.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    session_id: UUID
-    media_type: ChatStreamMediaType = ChatStreamMediaType.TEXT_PLAIN
-    model_name: str | None = Field(
-        default=None,
-        max_length=120,
-        description="Resolved model id exposed via the X-Model-Name response header; omitted when unknown.",
-    )
-    advisor_metadata: ChatResponseMetadata | None = Field(
-        default=None,
-        description="Grounding metadata exposed via the X-Advisor-Metadata header; omitted when empty.",
-    )
-
-    def _advisor_metadata_header(self) -> str | None:
-        """Serialize advisor metadata exactly as the router did, or ``None``.
-
-        Only non-empty metadata (grounded, or any citations/actions) is exposed,
-        matching the pre-contract behavior so the wire output is unchanged.
-        """
-        meta = self.advisor_metadata
-        if meta is None:
-            return None
-        if not (meta.grounded or meta.citations or meta.actions):
-            return None
-        return meta.model_dump_json()
-
-    def to_headers(self) -> dict[str, str]:
-        """Build the exact response header dict for the streaming response."""
-        exposed = [SESSION_ID_HEADER]
-        headers = {SESSION_ID_HEADER: str(self.session_id)}
-        if self.model_name:
-            headers[MODEL_NAME_HEADER] = self.model_name
-            exposed.append(MODEL_NAME_HEADER)
-        metadata_header = self._advisor_metadata_header()
-        if metadata_header is not None:
-            headers[ADVISOR_METADATA_HEADER] = metadata_header
-            exposed.append(ADVISOR_METADATA_HEADER)
-        headers[EXPOSE_HEADERS_HEADER] = ", ".join(exposed)
-        return headers
 
 
 class ExportStreamEnvelope(BaseModel):

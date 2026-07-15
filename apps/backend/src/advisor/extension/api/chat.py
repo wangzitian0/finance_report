@@ -26,13 +26,13 @@ from src.advisor.base.types.chat import (
     ChatResponseMetadata,
     ChatSessionResponse,
     ChatSessionStatusEnum,
+    ChatStreamEnvelope,
     ChatSuggestionsResponse,
 )
 from src.deps import CurrentUserId, DbSession
 from src.llm import LitellmCatalog
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found, raise_service_unavailable
-from src.platform.base.types.streaming import ChatStreamEnvelope
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = get_logger(__name__)

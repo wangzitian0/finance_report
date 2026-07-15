@@ -10,20 +10,10 @@ journal enum) and has no model dependency.
 """
 
 from src.ledger import ConfidenceTier, derive_confidence_tier
+from src.reconciliation import derive_reconciliation_score_tier
 
 __all__ = [
     "ConfidenceTier",
     "derive_confidence_tier",
     "derive_reconciliation_score_tier",
 ]
-
-
-def derive_reconciliation_score_tier(score: int | None) -> ConfidenceTier:
-    """Map a reconciliation score to the Stage 2 review confidence tier."""
-    if score is None:
-        return "LOW"
-    if score >= 85:
-        return "HIGH"
-    if score >= 60:
-        return "MEDIUM"
-    return "LOW"

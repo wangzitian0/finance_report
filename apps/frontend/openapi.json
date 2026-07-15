@@ -21750,7 +21750,6 @@
     },
     "/reports/package/annualized-income-schedule": {
       "get": {
-        "description": "Return report-ready annualized income and restricted compensation schedule.",
         "operationId": "annualized_income_schedule_reports_package_annualized_income_schedule_get",
         "parameters": [
           {

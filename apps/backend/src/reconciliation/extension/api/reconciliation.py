@@ -17,17 +17,6 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Direction, JournalEntry
 from src.observability import get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
-from src.reconciliation import (
-    ReconciliationMatch,
-    ReconciliationStatus,
-    accept_match as accept_match_service,
-    batch_accept as batch_accept_service,
-    detect_anomalies,
-    execute_matching,
-    get_pending_items,
-    get_reconciliation_stats,
-    reject_match as reject_match_service,
-)
 from src.reconciliation.base.types.reconciliation import (
     AnomalyResponse,
     BatchAcceptRequest,
@@ -41,6 +30,19 @@ from src.reconciliation.base.types.reconciliation import (
     ReconciliationStatsResponse,
     ReconciliationStatusEnum,
     UnmatchedTransactionsResponse,
+)
+from src.reconciliation.data.stats import get_reconciliation_stats
+from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.matching import execute_matching
+from src.reconciliation.extension.review_queue import (
+    accept_match as accept_match_service,
+    batch_accept as batch_accept_service,
+    get_pending_items,
+    reject_match as reject_match_service,
+)
+from src.reconciliation.orm.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationStatus,
 )
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])

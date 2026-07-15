@@ -29,12 +29,12 @@ from src.extraction.orm.layer3 import (
 )
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
-from src.reporting import income_bucket
-from src.reporting.base.types.reporting import (
+from src.reporting import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
     AnnualizedIncomeScheduleNetWorthTreatment,
     AnnualizedIncomeScheduleResponse,
+    income_bucket,
 )
 
 # Bound from the bare published root (config publishes no named symbols).

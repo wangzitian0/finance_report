@@ -1,13 +1,13 @@
 """Market data sync API router."""
 
+from collections.abc import Awaitable, Callable
 from datetime import date
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from src.composition import observed_fx_pairs
 from src.deps import CurrentUserId, DbSession
-from src.portfolio import active_stock_symbols
 from src.pricing import (
     MarketDataScopeStatus,
     MarketDataSyncResult,
@@ -15,6 +15,14 @@ from src.pricing import (
     sync_fx_rates,
     sync_stock_prices,
 )
+
+_ACTIVE_STOCK_SYMBOLS_PROVIDER: Callable[[Any, Any], Awaitable[Any]] | None = None
+
+
+def register_active_stock_symbols_provider(provider: Callable[[Any, Any], Awaitable[Any]]) -> None:
+    global _ACTIVE_STOCK_SYMBOLS_PROVIDER
+    _ACTIVE_STOCK_SYMBOLS_PROVIDER = provider
+
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
@@ -81,10 +89,17 @@ async def market_data_status_endpoint(
 ) -> list[MarketDataStatusResponse]:
     """Return read-only market data freshness status for observed or explicit scopes."""
     try:
+        from src.composition import observed_fx_pairs
+
         sync_pairs = (
             pairs if pairs is not None else await observed_fx_pairs(db, user_id, include_default=include_default_fx)
         )
-        sync_symbols = symbols if symbols is not None else await active_stock_symbols(db, user_id)
+        if symbols is None:
+            if _ACTIVE_STOCK_SYMBOLS_PROVIDER is None:
+                raise RuntimeError("Active stock symbols provider not registered")
+            sync_symbols = await _ACTIVE_STOCK_SYMBOLS_PROVIDER(db, user_id)
+        else:
+            sync_symbols = symbols
         statuses = await get_market_data_status(db, pairs=sync_pairs, symbols=sync_symbols)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -99,6 +114,8 @@ async def sync_fx_endpoint(
 ) -> MarketDataSyncResponse:
     """Incrementally fill FX rows for explicit or observed pairs."""
     try:
+        from src.composition import observed_fx_pairs
+
         sync_pairs = request.pairs if request.pairs is not None else await observed_fx_pairs(db, user_id)
         result = await sync_fx_rates(
             db,
@@ -121,7 +138,12 @@ async def sync_stocks_endpoint(
 ) -> MarketDataSyncResponse:
     """Incrementally fill stock prices for explicit symbols or active holdings."""
     try:
-        sync_symbols = request.symbols if request.symbols is not None else await active_stock_symbols(db, user_id)
+        if request.symbols is None:
+            if _ACTIVE_STOCK_SYMBOLS_PROVIDER is None:
+                raise RuntimeError("Active stock symbols provider not registered")
+            sync_symbols = await _ACTIVE_STOCK_SYMBOLS_PROVIDER(db, user_id)
+        else:
+            sync_symbols = request.symbols
         result = await sync_stock_prices(
             db,
             symbols=sync_symbols,

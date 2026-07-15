@@ -114,3 +114,54 @@ class ChatSuggestionsResponse(BaseModel):
 
     suggestions: list[str]
     structured_suggestions: list[AdvisorSuggestion] = Field(default_factory=list)
+
+
+SESSION_ID_HEADER = "X-Session-Id"
+MODEL_NAME_HEADER = "X-Model-Name"
+ADVISOR_METADATA_HEADER = "X-Advisor-Metadata"
+EXPOSE_HEADERS_HEADER = "Access-Control-Expose-Headers"
+
+
+class ChatStreamMediaType(StrEnum):
+    """Wire media type for the chat streaming body (plain token text)."""
+
+    TEXT_PLAIN = "text/plain"
+
+
+class ChatStreamEnvelope(BaseModel):
+    """Typed envelope for the ``POST /chat`` streaming response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    session_id: UUID
+    media_type: ChatStreamMediaType = ChatStreamMediaType.TEXT_PLAIN
+    model_name: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Resolved model id exposed via the X-Model-Name response header; omitted when unknown.",
+    )
+    advisor_metadata: ChatResponseMetadata | None = Field(
+        default=None,
+        description="Grounding metadata exposed via the X-Advisor-Metadata header; omitted when empty.",
+    )
+
+    def _advisor_metadata_header(self) -> str | None:
+        meta = self.advisor_metadata
+        if meta is None:
+            return None
+        if not (meta.grounded or meta.citations or meta.actions):
+            return None
+        return meta.model_dump_json()
+
+    def to_headers(self) -> dict[str, str]:
+        exposed = [SESSION_ID_HEADER]
+        headers = {SESSION_ID_HEADER: str(self.session_id)}
+        if self.model_name:
+            headers[MODEL_NAME_HEADER] = self.model_name
+            exposed.append(MODEL_NAME_HEADER)
+        metadata_header = self._advisor_metadata_header()
+        if metadata_header is not None:
+            headers[ADVISOR_METADATA_HEADER] = metadata_header
+            exposed.append(ADVISOR_METADATA_HEADER)
+        headers[EXPOSE_HEADERS_HEADER] = ", ".join(exposed)
+        return headers
