@@ -26,7 +26,6 @@ from common.testing.lint_doc_consistency._checks import (
     check_test_id_epic_alignment,
 )
 from common.testing.lint_doc_consistency._parsing import (
-    collect_ac_refs_in_epics,
     collect_ac_refs_in_tests,
     list_readme_files,
     load_registry_acs,

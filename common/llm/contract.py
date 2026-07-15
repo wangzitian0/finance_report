@@ -1058,7 +1058,6 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/llm/readme.md#cassettes",
-
                 "common/testing/cassette_graded_eval.py",
                 "common/testing/check_cassette_graded_eval.py",
                 "common/testing/fixtures/cassette-eval-baseline.jsonl",
@@ -1077,7 +1076,6 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/extraction/readme.md",
-
                 "apps/backend/src/llm/base/types/llm.py",
                 "apps/backend/src/llm/base/secrets.py",
                 "apps/backend/src/llm/extension/cassette.py",

@@ -61,6 +61,7 @@ shared infra, imported as the bare root.
 declared *taxonomy-only* (``module=None``): the governance gate skips
 placement checks for units without a module path, per the package model.
 """
+
 from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
@@ -69,6 +70,7 @@ from common.meta.package_contract import (
     PackageContract,
     Unit,
 )
+
 CONTRACT = PackageContract(
     name="advisor",
     status="active",
@@ -1239,7 +1241,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-    
         ACRecord(
             id="AC-advisor.6.34.1",
             epic=6,
@@ -1263,7 +1264,6 @@ CONTRACT = PackageContract(
                 "common/platform/workflow-events.md",
                 "common/testing/data/source-coverage-matrix.yaml",
                 "common/pricing/market_data.md",
-
             ],
         ),
     ],

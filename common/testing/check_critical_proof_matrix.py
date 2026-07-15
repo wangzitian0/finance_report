@@ -132,7 +132,7 @@ def _load_matrix(path: Path) -> dict[str, Any]:
 
 def _epic_path(repo_root: Path, epic_id: str) -> Path | None:
     """Return the absolute path to the EPIC's markdown file, or None if not found.
-    
+
     If epic_id is pkg-{name}, returns common/{name}/readme.md.
     """
     if epic_id.startswith("pkg-"):

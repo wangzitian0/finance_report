@@ -2930,8 +2930,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-
-    
         ACRecord(
             id="AC-reporting.5.37.2",
             epic=5,
@@ -2952,7 +2950,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/reporting/reporting.md",
                 "common/ledger/readme.md",
-
             ],
         ),
         ConceptRecord(

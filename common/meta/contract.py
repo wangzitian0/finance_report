@@ -11,6 +11,7 @@ meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension
 ``data``). Its BE implementation is ``common/meta`` (the same directory): the
 published language is ``common/meta/__init__.py``'s ``__all__``.
 """
+
 from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
@@ -20,6 +21,7 @@ from common.meta.package_contract import (
     PackageContract,
     Unit,
 )
+
 CONTRACT = PackageContract(
     name="meta",
     status="active",
@@ -1339,7 +1341,7 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
-         ACRecord(
+        ACRecord(
             id="AC-meta.fe-app-shell.1",
             statement="Ping-pong page loads initial state and displays current ping/pong value",
             # was AC16.12.8
@@ -2558,7 +2560,6 @@ CONTRACT = PackageContract(
                 "common/testing/tdd.md",
                 "common/llm/ai.md",
                 "common/extraction/readme.md",
-
                 "common/meta/data/ac-tier-baseline.json",
                 "common/meta/extension/generate_ac_registry.py",
                 "common/meta/base/authority_matrix.py",
@@ -2586,7 +2587,6 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/ci-cd.md",
-
                 ".github/workflows/ci.yml",
             ],
             proofs=["tests/tooling/test_ci_gate_inventory.py"],
@@ -2605,7 +2605,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/extraction/readme.md",
                 "common/reconciliation/reconciliation.md",
-
             ],
             family="schema",
         ),
@@ -2643,7 +2642,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/testing/ci-cd.md",
                 "common/runtime/environments.md",
-
                 ".github/workflows/preview.yml",
                 ".github/workflows/deploy.yml",
                 ".github/workflows/deploy.yml",
@@ -2725,7 +2723,6 @@ CONTRACT = PackageContract(
             ],
             family="development",
         ),
-
         ConceptRecord(
             key="fk_cascade_baseline",
             owner="common/meta/data/fk-cascade-baseline.json",
@@ -2818,7 +2815,6 @@ CONTRACT = PackageContract(
                 "common/identity/contract.py",
                 "apps/backend/src/identity/__init__.py",
                 "common/ledger/contract.py",
-
             ],
             proofs=["tests/tooling/test_counter_package.py"],
             family="platform",

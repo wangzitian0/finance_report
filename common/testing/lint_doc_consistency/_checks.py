@@ -34,7 +34,6 @@ from common.testing.lint_doc_consistency._parsing import (
     discover_no_ac_test_files,
     is_deprecated,
     load_traceability_exception_paths,
-    parse_vision_anchors_from_readme,
 )
 from common.testing.lint_doc_consistency._types import Violation
 
@@ -106,7 +105,7 @@ def check_vision_anchors(
         pkg_name = path.parent.name
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except OSError:
             continue
         slugs = _parsing.parse_vision_anchors_from_readme(text)
         if slugs:
@@ -138,8 +137,7 @@ def check_orphan_vision_anchors(
         Violation(
             check="check2_orphan_vision_anchor",
             message=(
-                f"vision.md anchor `{anchor}` is not claimed by any "
-                "Package readme"
+                f"vision.md anchor `{anchor}` is not claimed by any Package readme"
             ),
         )
         for anchor in orphans

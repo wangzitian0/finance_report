@@ -1410,7 +1410,6 @@ CONTRACT = PackageContract(
                 "apps/backend/src/audit/quantity/__init__.py",
                 "apps/frontend/src/lib/audit/ratio/index.ts",
                 "apps/frontend/src/lib/audit/quantity/index.ts",
-
             ],
             proofs=[
                 "tests/tooling/test_ratio_value_type.py",
@@ -1432,7 +1431,6 @@ CONTRACT = PackageContract(
                 "common/audit/money/ make bad money states unrepresentable (#1167)."
             ),
             cross_refs=[
-
                 "common/audit/money/__init__.py",
                 "common/audit/money/contract/money.contract.md",
                 "common/audit/money/conformance/vectors.json",

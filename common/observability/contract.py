@@ -1249,7 +1249,6 @@ CONTRACT = PackageContract(
                 "common/observability/observability.md",
                 "common/extraction/readme.md",
                 "common/llm/ai.md",
-
                 "apps/backend/tests/api/test_statements_router.py",
                 "apps/backend/tests/extraction/test_statement_parsing_audit_logging.py",
                 "apps/backend/tests/reconciliation/test_reconciliation_router_additional.py",

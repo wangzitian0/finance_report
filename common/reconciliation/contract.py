@@ -1972,7 +1972,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="open",
         ),
-    
         ACRecord(
             id="AC-reconciliation.15.7.8",
             epic=15,
@@ -1981,7 +1980,6 @@ CONTRACT = PackageContract(
             mandatory=False,
             status="dropped",
         ),
-
         ACRecord(
             id="AC-reconciliation.4.10.3",
             epic=4,

@@ -20,6 +20,7 @@ VALID_PROOF_LEVELS = {"pr_deterministic", "post_merge_llm_ocr", "manual_trusted"
 ISSUE_RE = re.compile(r"^#\d+$")
 EPIC_RE = re.compile(r"^(?:EPIC-\d{3}|pkg-[a-z0-9_-]+)$")
 
+
 def _epic_path(repo_root: Path, epic_id: str) -> Path | None:
     if epic_id.startswith("pkg-"):
         pkg_name = epic_id.split("-", 1)[1]

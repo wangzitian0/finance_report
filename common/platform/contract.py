@@ -1188,7 +1188,6 @@ CONTRACT = PackageContract(
             priority="P1",
             status="open",
         ),
-    
         ACRecord(
             id="AC-platform.12.24.1",
             epic=12,
@@ -1197,7 +1196,6 @@ CONTRACT = PackageContract(
             mandatory=False,
             status="dropped",
         ),
-
         ACRecord(
             id="AC-platform.12.24.2",
             epic=12,
@@ -1206,7 +1204,6 @@ CONTRACT = PackageContract(
             mandatory=False,
             status="dropped",
         ),
-
         ACRecord(
             id="AC-platform.12.24.3",
             epic=12,
@@ -1215,7 +1212,6 @@ CONTRACT = PackageContract(
             mandatory=False,
             status="dropped",
         ),
-
         ACRecord(
             id="AC-platform.12.25.1",
             epic=12,
@@ -1231,7 +1227,6 @@ CONTRACT = PackageContract(
             owner="common/platform/workflow-events.md",
             description="User-facing upload-to-report workflow event read model.",
             cross_refs=[
-
                 "common/extraction/confirmation-workflow.md",
                 "common/reporting/reporting.md",
             ],

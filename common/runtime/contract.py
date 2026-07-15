@@ -1240,8 +1240,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-
-    
         ACRecord(
             id="AC-runtime.26.9.1",
             epic=26,

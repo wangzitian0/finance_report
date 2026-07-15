@@ -4017,7 +4017,6 @@ CONTRACT = PackageContract(
             owner="common/extraction/evidence-lineage.md",
             description="Generic Evidence Graph for source-to-ledger-to-report audit lineage.",
             cross_refs=[
-
                 "common/platform/workflow-events.md",
                 "common/reporting/reporting.md",
                 "apps/backend/tests/extraction/test_evidence_graph_materialization.py",
@@ -4043,7 +4042,6 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/extraction/readme.md",
-
             ],
             proofs=["tests/tooling/test_extraction_failed_case_registry.py"],
             family="extraction",

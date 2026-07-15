@@ -3,6 +3,7 @@ from common.meta.base.package_contract import (
     ConceptRecord,
     PackageContract,
 )
+
 contract = PackageContract(
     name="ui_core",
     tier="CODE-ONLY",
@@ -24,7 +25,7 @@ contract = PackageContract(
     ],
     invariants=[],
     roadmap=[
-              ACRecord(
+        ACRecord(
             id="AC-ui_core.16.23.2",
             statement="TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast",
             test="Manual UI test",
@@ -66,7 +67,7 @@ contract = PackageContract(
             priority="P0",
             status="done",
         ),
-          ACRecord(
+        ACRecord(
             id="AC-ui_core.16.23.1",
             statement="Two-stage review UI capability (DROPPED)",
             test="TODO",
@@ -80,7 +81,6 @@ contract = PackageContract(
             priority="P0",
             status="done",
         ),
-    
         ACRecord(
             id="AC-ui_core.16.23.1",
             epic=16,
@@ -89,7 +89,6 @@ contract = PackageContract(
             mandatory=False,
             status="dropped",
         ),
-
         ACRecord(
             id="AC-ui_core.19.11.1",
             epic=19,

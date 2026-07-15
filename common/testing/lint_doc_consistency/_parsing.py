@@ -160,7 +160,11 @@ def parse_vision_anchors(vision_text: str) -> set[str]:
 
 def parse_vision_anchors_from_readme(text: str) -> list[str]:
     import re
-    return re.findall(r"(?i)(?:>\s*)?(?:\*\*Vision Anchor\*\*|Vision Anchor)\s*:\s*`?([a-z0-9-]+)`?", text)
+
+    return re.findall(
+        r"(?i)(?:>\s*)?(?:\*\*Vision Anchor\*\*|Vision Anchor)\s*:\s*`?([a-z0-9-]+)`?",
+        text,
+    )
 
 
 def collect_ac_refs_in_epics(epic_files: list[Path]) -> dict[str, set[str]]:
