@@ -1,0 +1,4 @@
+[finance_report_audit] Refactor: Decompose routers/schemas into packages
+
+Decomposes the global routers/ and schemas/ directories by migrating all routing layers and types into their respective bounded-context packages.
+Updates main.py routing targets, transitions Enum strings to StrEnum, fixes app-boundary baselines and registers the new ui_core package.

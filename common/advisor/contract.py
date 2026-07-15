@@ -1256,11 +1256,10 @@ CONTRACT = PackageContract(
     
         ACRecord(
             id="AC-advisor.6.34.1",
-            epic=6,
-            epic_name="ai-advisor",
-            description="AI advisor capability",
-            mandatory=False,
-            status="dropped",
+            statement="AI advisor capability (DROPPED)",
+            test="TODO",
+            priority="P0",
+            status="done",
         ),
     ],
     concepts=[
