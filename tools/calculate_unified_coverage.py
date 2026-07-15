@@ -14,4 +14,4 @@ from common.testing.coverage.calculate_unified_coverage import main  # noqa: E40
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(sys.argv[1:])
+    raise SystemExit(main(sys.argv[1:]))

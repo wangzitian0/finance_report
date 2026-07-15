@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -167,16 +165,7 @@ def test_main_exits_with_audit_result(tmp_path, monkeypatch):
         return 9
 
     monkeypatch.setattr(check_policy, "run_audit", fake_run_audit)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["check_coverage_policy.py", "--repo-root", str(tmp_path)],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        main()
-
-    assert exc.value.code == 9
+    assert main(["--repo-root", str(tmp_path)]) == 9
     assert called_with == [tmp_path.resolve()]
 
 
@@ -290,21 +279,16 @@ def test_build_unified_lcov_main_exits_with_builder_result(tmp_path, monkeypatch
         "build_unified_lcov",
         fake_build_unified_lcov,
     )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "build_unified_lcov.py",
-            str(tmp_path / "coverage" / "unified.lcov"),
-            "--repo-root",
-            str(tmp_path),
-        ],
+    assert (
+        build_unified_lcov.main(
+            [
+                str(tmp_path / "coverage" / "unified.lcov"),
+                "--repo-root",
+                str(tmp_path),
+            ]
+        )
+        == 4
     )
-
-    with pytest.raises(SystemExit) as exc:
-        build_unified_lcov.main()
-
-    assert exc.value.code == 4
     assert calls == [
         (tmp_path / "coverage" / "unified.lcov", tmp_path.resolve(), False)
     ]

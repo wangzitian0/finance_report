@@ -3966,8 +3966,98 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.governance.16",
+            statement=(
+                "Repository gates share one CLI runner for repo-root parsing, "
+                "PASS/FAIL summaries, and GitHub workflow-command escaping, so "
+                "an injection-shaped violation remains one inert annotation."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_testing_governance_16_gate_cli_escapes_workflow_commands"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.17",
+            statement=(
+                "Module-level main functions under common/ and tools/ converge on "
+                "Sequence[str] | None -> int, while a shrink-only path baseline "
+                "rejects new legacy signatures and new check modules that bypass "
+                "the shared gate runner."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_testing_governance_17_main_contract_ratchet_rejects_new_debt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.18",
+            statement=(
+                "Every argparse baseline mutation flag declares its monotonic mode: "
+                "--update is raise-only or shrink-only, while debt-adopting rewrites "
+                "require the explicit --rewrite-baseline spelling."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_testing_governance_18_baseline_mutation_flags_are_explicit"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="baseline_update_contract",
+            owner="common/testing/baseline_update_contract.py",
+            description=(
+                "AST contract requiring every baseline mutation CLI to declare "
+                "raise-only, shrink-only, or rewrite semantics; debt-adopting "
+                "rewrites use --rewrite-baseline rather than --update."
+            ),
+            cross_refs=[
+                "common/testing/README.md",
+                "tools/check_baseline_update_contract.py",
+            ],
+            proofs=["tests/tooling/test_s4_gate_contracts.py"],
+            family="delivery",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="gate_cli",
+            owner="common/testing/gate_cli.py",
+            description=(
+                "Shared policy-gate command boundary for repository-root parsing, "
+                "workflow-command-safe annotations, summaries, and integer status codes."
+            ),
+            cross_refs=[
+                "common/testing/README.md",
+                "common/testing/baseline_update_contract.py",
+            ],
+            proofs=["tests/tooling/test_s4_gate_contracts.py"],
+            family="delivery",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="gate_main_contract",
+            owner="common/testing/gate_main_contract.py",
+            description=(
+                "Shrink-only structural lock for composable gate main signatures "
+                "and adoption of the shared gate CLI runner."
+            ),
+            cross_refs=[
+                "common/testing/data/gate-main-contract-baseline.json",
+                "common/testing/README.md",
+                "tools/check_gate_main_contract.py",
+            ],
+            proofs=["tests/tooling/test_s4_gate_contracts.py"],
+            family="delivery",
+            kind="baseline",
+        ),
         ConceptRecord(
             key="api_surface_ratchet",
             owner="common/testing/api_surface_ratchet.py",

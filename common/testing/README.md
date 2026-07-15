@@ -54,6 +54,20 @@ classification, and the shared stats record used by coverage analysis and both
 traceability consumers. This prevents gate-specific copies from drifting while
 leaving each gate's policy in its own module.
 
+`gate_cli.py` is the shared command boundary for policy gates: it owns
+repository-root selection, escaped GitHub Actions annotations, stable
+pass/fail summaries, and integer status codes. New gate entry points use the
+composable `main(argv: Sequence[str] | None = None) -> int` contract; only the
+`__main__` boundary raises `SystemExit`. `gate_main_contract.py` prevents new
+signature or shared-runner debt and permits its checked-in baseline to shrink
+only.
+
+Baseline mutation is explicit and machine-checked by
+`baseline_update_contract.py`. `--update` is reserved for `raise-only` or
+`shrink-only` mutation. A command that can replace an entire baseline must
+declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
+`--rewrite-baseline` flag.
+
 ### Responsibility table
 
 | Failure class | Owner |

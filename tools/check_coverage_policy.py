@@ -14,4 +14,4 @@ from common.testing.coverage.check_policy import main  # noqa: E402
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

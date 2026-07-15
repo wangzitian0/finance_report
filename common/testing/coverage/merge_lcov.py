@@ -7,7 +7,8 @@ we merge the coverage by taking the MAX hit count for each line.
 This gives us the combined coverage across all test shards.
 """
 
-import sys
+import argparse
+from collections.abc import Sequence
 from pathlib import Path
 
 
@@ -99,13 +100,13 @@ def write_lcov(records: dict, output_path: Path) -> None:
             f.write("end_of_record\n")
 
 
-def main() -> None:
-    if len(sys.argv) < 3:
-        print("Usage: merge_lcov.py <output.lcov> <input1.lcov> [input2.lcov ...]")
-        sys.exit(1)
-
-    output_path = Path(sys.argv[1])
-    input_paths = [Path(p) for p in sys.argv[2:]]
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Merge LCOV files.")
+    parser.add_argument("output", type=Path)
+    parser.add_argument("inputs", nargs="+", type=Path)
+    args = parser.parse_args(argv)
+    output_path = args.output
+    input_paths = args.inputs
 
     print(f"Merging {len(input_paths)} LCOV files...")
 
@@ -123,7 +124,8 @@ def main() -> None:
 
     write_lcov(merged, output_path)
     print(f"✅ Wrote merged coverage to: {output_path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

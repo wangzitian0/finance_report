@@ -35,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -331,7 +332,7 @@ def git_diff_text(base: str, repo_root: Path = ROOT_DIR) -> str:
     return result.stdout
 
 
-def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Diff-scoped PR coverage gate (#1810): changed/added lines in "
@@ -378,7 +379,7 @@ def parse_args(argv: list[str] | tuple[str, ...]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | tuple[str, ...] = ()) -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point: exit 0 on pass (or nothing to gate), 1 below threshold,
     2 on usage/environment errors."""
     args = parse_args(argv)
@@ -396,7 +397,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
                     "(expected a number)",
                     file=sys.stderr,
                 )
-                sys.exit(2)
+                return 2
         else:
             threshold = DEFAULT_THRESHOLD
 
@@ -408,7 +409,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         diff_path = Path(args.diff_file)
         if not diff_path.exists():
             print(f"❌ Diff file not found: {diff_path}", file=sys.stderr)
-            sys.exit(2)
+            return 2
         diff_text = diff_path.read_text(encoding="utf-8", errors="ignore")
         print(f"   diff source: {diff_path}")
     else:
@@ -417,7 +418,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             diff_text = git_diff_text(base, repo_root)
         except RuntimeError as exc:
             print(f"❌ {exc}", file=sys.stderr)
-            sys.exit(2)
+            return 2
         print(f"   diff source: git diff --merge-base {base} HEAD")
 
     report = evaluate_diff_coverage(parse_unified_diff(diff_text), repo_root)
@@ -435,7 +436,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
             "✅ diff coverage: no measurable changed lines "
             "(out-of-scope or non-executable diff) — nothing to gate"
         )
-        sys.exit(0)
+        return 0
 
     for verdict in report.files:
         if not verdict.uncovered_lines:
@@ -459,7 +460,7 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
     )
     if percent >= threshold:
         print(f"✅ {summary}")
-        sys.exit(0)
+        return 0
 
     print(f"❌ {summary}")
     print(
@@ -468,8 +469,8 @@ def main(argv: list[str] | tuple[str, ...] = ()) -> None:
         "LCOV and re-run tools/check_diff_coverage.py.",
         file=sys.stderr,
     )
-    sys.exit(1)
+    return 1
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(sys.argv[1:])
+    raise SystemExit(main())

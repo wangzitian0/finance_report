@@ -15,8 +15,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.testing.coverage import diff_coverage as dc  # noqa: E402
@@ -547,9 +545,7 @@ def test_cli_missing_diff_file_is_a_usage_error(tmp_path):
 
 
 def _main_code(argv: list[str]) -> int:
-    with pytest.raises(SystemExit) as exc:
-        dc.main(argv)
-    return exc.value.code
+    return dc.main(argv)
 
 
 def test_main_red_then_green_thresholds(tmp_path, capfd):

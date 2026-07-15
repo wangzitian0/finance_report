@@ -11,9 +11,9 @@ low-confidence DOWN, do not let it pool):
    the package ``active``.
 2. **Every draft is registered.** Each ``draft`` package must be listed in
    ``common/meta/data/draft-package-baseline.json``, so adding one is a deliberate,
-   reviewed line in the diff rather than a silent accumulation. ``--update``
-   rewrites the registry to the packages that are draft right now (pruning the
-   ones that have since shipped).
+   reviewed line in the diff rather than a silent accumulation. The explicit
+   ``--rewrite-baseline`` maintenance action rewrites the registry to the
+   packages that are draft right now (pruning the ones that have since shipped).
 
 Pure AST/text (no pydantic), so it runs in the CI lint env.
 """
@@ -28,7 +28,10 @@ from pathlib import Path
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_BASELINE = REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
+DEFAULT_BASELINE = (
+    REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
+)
+BASELINE_UPDATE_MODE = "rewrite"
 
 
 def _draft_packages(repo_root: Path) -> dict[str, dict]:
@@ -104,7 +107,7 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
             errors.append(
                 f"draft package {name!r} is not registered in "
                 f"{baseline_path.name}: add it (deliberate, reviewed) or run "
-                "--update."
+                "--rewrite-baseline."
             )
     return errors
 
@@ -116,9 +119,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--baseline", type=Path, default=None)
     parser.add_argument(
-        "--update",
+        "--rewrite-baseline",
+        dest="rewrite_baseline",
         action="store_true",
-        help="Rewrite the baseline to the packages that are draft right now.",
+        help="Explicitly rewrite the baseline to the packages that are draft right now.",
     )
     return parser.parse_args(argv)
 
@@ -130,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
     )
 
-    if args.update:
+    if args.rewrite_baseline:
         drafts = set(_draft_packages(repo_root))
         write_baseline(baseline_path, drafts)
         print(f"Updated draft baseline: {baseline_path} ({len(drafts)} draft(s))")

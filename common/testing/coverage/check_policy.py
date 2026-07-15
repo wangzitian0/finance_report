@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.extension.coverage.policy import (
@@ -103,18 +103,18 @@ def audit_unregistered_sources(repo_root: Path = ROOT_DIR) -> int:
     return 0
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Check source tree vs LCOV coverage policy."
     )
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     result = run_audit(repo_root)
     if result == 0:
         result = audit_unregistered_sources(repo_root)
-    sys.exit(result)
+    return result
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
