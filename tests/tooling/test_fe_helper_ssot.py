@@ -19,7 +19,6 @@ from pathlib import Path
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
-FRONTEND_SRC = REPO / "apps" / "backend" / ".." / "frontend" / "src"
 FRONTEND_SRC = (REPO / "apps" / "frontend" / "src").resolve()
 
 # Line-anchored (not raw substring), matching both `function foo(` and
@@ -32,6 +31,10 @@ _HELPER_DEFS = {
     ),
     "getPnlColor": re.compile(
         r"^\s*(?:export\s+)?(?:function\s+getPnlColor\(|const\s+getPnlColor\s*=)",
+        re.MULTILINE,
+    ),
+    "pnlColorClass": re.compile(
+        r"^\s*(?:export\s+)?(?:function\s+pnlColorClass\(|const\s+pnlColorClass\s*=)",
         re.MULTILINE,
     ),
     "formatPeriod": re.compile(
@@ -53,6 +56,7 @@ _HELPER_DEFS = {
 _CANONICAL_HOME = {
     "countLabel": "apps/frontend/src/lib/statusLabels.ts",
     "getPnlColor": None,  # renamed to pnlColorClass; zero definitions allowed anywhere
+    "pnlColorClass": "apps/frontend/src/lib/statusLabels.ts",
     "formatPeriod": "apps/frontend/src/lib/date.ts",
     "isActive": "apps/frontend/src/components/navigation.ts",
     "formatCurrency": "apps/frontend/src/lib/audit/money/format.ts",
