@@ -71,16 +71,18 @@ signature or shared-runner debt and permits its checked-in baseline to shrink
 only.
 
 Baseline mutation is explicit and machine-checked by
-`baseline_update_contract.py`. `--update` is reserved for `raise-only` or
-`shrink-only` mutation. A command that can replace an entire baseline must
-declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
-`--rewrite-baseline` flag. Its monotonic-updater census recognizes both
+`baseline_update_contract.py`. The `--update` / `--update-*` monotonic mutation
+family (including specialized flags such as `--update-floor`) is reserved for
+`raise-only` or `shrink-only` mutation. A command that can replace an entire
+baseline must declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the
+deliberately louder `--rewrite-baseline` flag. The updater census recognizes both
 `argparse` declarations and manual argument-membership checks, resolving simple
 module-level string constants in both forms. Every path must map to a live test
-node that uses `assert_regression_debt_refused` to establish synthetic debt,
-snapshot the baseline, invoke that updater's `main` with `--update`, and prove
-the baseline remains unchanged. A newly added `--update` path therefore cannot
-be covered by a declaration, an unrelated test name, or a happy-path call alone.
+node that uses `assert_regression_debt_refused` with non-vacuous debt and
+baseline-state observers, invokes that updater's `main` with its mutation flag,
+and proves the baseline remains unchanged. A new mutation path therefore cannot
+be covered by a declaration, an unrelated test name, constant callbacks, or a
+happy-path call.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires

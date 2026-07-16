@@ -454,6 +454,7 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/meta/extension/check_ac_tier_baseline.py",
         "common/meta/extension/check_app_boundary.py",
         "common/testing/api_surface_ratchet.py",
+        "common/testing/check_ac_index.py",
         "common/testing/check_ac_score_baseline.py",
         "common/testing/check_cas" + "sette_graded_eval.py",
         "common/testing/check_critical_value_proof.py",
@@ -522,6 +523,24 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    ) == 1\n",
         encoding="utf-8",
     )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py: behavioral proof uses constant or vacuous "
+        "regression-debt observers: tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    baseline.write_bytes(b'before')\n"
+        "    debt = {'new-debt'}\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=baseline.read_bytes,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
     assert baseline_update_contract.proof_violations(synthetic_root) == []
 
 
@@ -548,3 +567,18 @@ def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -
             update=mutate_baseline,
         )
     assert state == {"baseline": b"after", "called": True}
+
+
+def test_AC_testing_governance_21_specialized_mutation_flags_are_censused(
+    tmp_path: Path,
+) -> None:
+    updater = tmp_path / "common/testing/specialized.py"
+    updater.parent.mkdir(parents=True)
+    updater.write_text(
+        'BASELINE_UPDATE_MODE = "raise-only"\nparser.add_argument("--update-floor")\n',
+        encoding="utf-8",
+    )
+
+    assert baseline_update_contract.monotonic_update_paths(tmp_path) == {
+        "common/testing/specialized.py"
+    }

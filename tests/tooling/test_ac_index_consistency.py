@@ -36,6 +36,7 @@ import json
 from pathlib import Path
 
 from common.testing import (
+    baseline_update_contract,
     check_ac_index as gate,
     check_ac_score_baseline as ratchet,
     protection,
@@ -398,7 +399,7 @@ def test_AC8_13_140_count_floor_passes_when_protection_added(tmp_path) -> None:
     assert floor_file.read_text(encoding="utf-8") == before
 
 
-def test_AC8_13_140_update_floor_raises_floors(tmp_path) -> None:
+def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
     """AC8.13.140: --update-floor raises floors to current counts (never lowers)."""
     floor_file = tmp_path / "protection-floor.json"
     protection.write_floor(floor_file, dict.fromkeys(protection.PROTECTION_TYPES, 0))
@@ -424,7 +425,28 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path) -> None:
             proof_ids=(),
             score=None,
         )
-    not_lowered = protection.update_floor(poorer, floor_file)
+    monkeypatch.setattr(gate, "build_ac_graph", lambda _repo_root: poorer)
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: any(
+                protection.count_protection_types(poorer)[ptype]
+                < protection.load_floor(floor_file)[ptype]
+                for ptype in protection.PROTECTION_TYPES
+            ),
+            baseline_state=floor_file.read_bytes,
+            update=lambda: gate.main(
+                [
+                    "--repo-root",
+                    str(tmp_path),
+                    "--floor-file",
+                    str(floor_file),
+                    "--update-floor",
+                ]
+            ),
+        )
+        == 0
+    )
+    not_lowered = protection.load_floor(floor_file)
     assert not_lowered["has_proof"] >= raised["has_proof"]
 
 
