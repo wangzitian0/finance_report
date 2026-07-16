@@ -6,8 +6,14 @@ from src.reconciliation.base import (
     DEFAULT_CONFIG,
     MAX_COMBINATION_CANDIDATES,
     RECONCILIATION_SEMANTIC_PROMPT,
+    AmountMismatchError,
+    CheckResolutionAction,
+    ConsistencyCheckNotFoundError,
+    InvalidCheckActionError,
     MatchCandidate,
+    MatchNotFoundError,
     ReconciliationConfig,
+    ReconciliationError,
     _candidate_is_better,
     build_reconciliation_prompt,
     entry_bank_side_amount,
@@ -18,7 +24,6 @@ from src.reconciliation.base import (
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.consistency_checks import (
-    get_pending_checks,
     has_unresolved_checks,
     list_checks,
     resolve_check,
@@ -34,6 +39,7 @@ from src.reconciliation.extension.fx_transfer import (
 )
 from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 from src.reconciliation.extension.matching import (
+    MatchingContext,
     _find_many_to_one_candidates,
     _find_normal_candidates,
     _find_transfer_candidates,
@@ -47,6 +53,8 @@ from src.reconciliation.extension.matching import (
     execute_matching,
     find_candidates,
     prune_candidates,
+    score_group,
+    score_single,
     sync_reconciliation_match_journal_entry_links,
 )
 from src.reconciliation.extension.review_queue import (
@@ -78,17 +86,24 @@ from src.reconciliation.orm.reconciliation import (
 )
 
 __all__ = [
+    "AmountMismatchError",
+    "CheckResolutionAction",
     "CheckStatus",
     "CheckType",
     "ConsistencyCheck",
+    "ConsistencyCheckNotFoundError",
     "DEFAULT_CONFIG",
     "DEFAULT_RATE_TOLERANCE",
     "DEFAULT_TIME_WINDOW",
     "FxTransferError",
+    "InvalidCheckActionError",
     "MAX_COMBINATION_CANDIDATES",
     "MatchCandidate",
+    "MatchNotFoundError",
+    "MatchingContext",
     "RECONCILIATION_SEMANTIC_PROMPT",
     "ReconciliationConfig",
+    "ReconciliationError",
     "ReconciliationMatch",
     "ReconciliationMatchJournalEntry",
     "ReconciliationStats",
@@ -116,7 +131,6 @@ __all__ = [
     "execute_matching",
     "extract_merchant_tokens",
     "find_candidates",
-    "get_pending_checks",
     "get_pending_items",
     "get_reconciliation_stats",
     "get_stage2_queue",
@@ -135,6 +149,8 @@ __all__ = [
     "score_business_logic",
     "score_date",
     "score_description",
+    "score_group",
+    "score_single",
     "score_pattern",
     "sync_reconciliation_match_journal_entry_links",
     "weighted_total",

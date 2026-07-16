@@ -15,7 +15,7 @@ from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import AmountMismatchError, ReconciliationMatch, ReconciliationStatus
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import (
     BatchAcceptRequest,
@@ -565,7 +565,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     db.add(match)
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match_service(db, match.id, user_id=test_user.id)
 
 
@@ -660,7 +660,7 @@ async def test_accept_match_amount_check_cannot_be_bypassed(db: AsyncSession, te
     await db.commit()
 
     # $50 entry vs $100 transaction: validation is unconditional, so this raises.
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match_service(db, match.id, user_id=test_user.id)
 
 

@@ -6,6 +6,11 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.reconciliation.base.errors import (
+    CheckResolutionAction,
+    ConsistencyCheckNotFoundError,
+    InvalidCheckActionError,
+)
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 
@@ -215,7 +220,7 @@ async def run_all_consistency_checks(
 async def resolve_check(
     db: AsyncSession,
     check_id: UUID,
-    action: str,
+    action: CheckResolutionAction,
     user_id: UUID,
     note: str | None = None,
 ) -> ConsistencyCheck:
@@ -227,16 +232,16 @@ async def resolve_check(
     )
     check = result.scalar_one_or_none()
     if not check:
-        raise ValueError("Check not found or access denied")
+        raise ConsistencyCheckNotFoundError("Check not found or access denied")
 
-    if action == "approve":
+    if action == CheckResolutionAction.APPROVE:
         check.status = CheckStatus.APPROVED
-    elif action == "reject":
+    elif action == CheckResolutionAction.REJECT:
         check.status = CheckStatus.REJECTED
-    elif action == "flag":
+    elif action == CheckResolutionAction.FLAG:
         check.status = CheckStatus.FLAGGED
     else:
-        raise ValueError(f"Invalid action: {action}")
+        raise InvalidCheckActionError(f"Invalid action: {action}")
 
     check.resolved_at = datetime.now(UTC)
     if note:
@@ -244,35 +249,6 @@ async def resolve_check(
 
     await db.flush()
     return check
-
-
-async def get_pending_checks(
-    db: AsyncSession,
-    user_id: UUID,
-    check_type: CheckType | None = None,
-    severity: str | None = None,
-    run_id: str | None = None,
-    limit: int | None = 50,
-    offset: int = 0,
-) -> list[ConsistencyCheck]:
-    query = (
-        select(ConsistencyCheck)
-        .where(ConsistencyCheck.user_id == user_id)
-        .where(ConsistencyCheck.status == CheckStatus.PENDING)
-        .order_by(desc(ConsistencyCheck.created_at))
-        .offset(offset)
-    )
-    if check_type:
-        query = query.where(ConsistencyCheck.check_type == check_type)
-    if severity:
-        query = query.where(ConsistencyCheck.severity == severity)
-    if run_id:
-        query = query.where(ConsistencyCheck.run_id == run_id)
-    if limit is not None:
-        query = query.limit(limit)
-
-    result = await db.execute(query)
-    return list(result.scalars().all())
 
 
 async def has_unresolved_checks(
@@ -299,8 +275,9 @@ async def list_checks(
     *,
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
+    severity: str | None = None,
     run_id: str | None = None,
-    limit: int = 50,
+    limit: int | None = 50,
     offset: int = 0,
 ) -> tuple[list[ConsistencyCheck], int]:
     """Return filtered consistency checks with total count."""
@@ -308,9 +285,10 @@ async def list_checks(
         select(ConsistencyCheck)
         .where(ConsistencyCheck.user_id == user_id)
         .order_by(desc(ConsistencyCheck.created_at))
-        .limit(limit)
         .offset(offset)
     )
+    if limit is not None:
+        query = query.limit(limit)
 
     count_query = select(func.count()).select_from(ConsistencyCheck).where(ConsistencyCheck.user_id == user_id)
 
@@ -320,6 +298,9 @@ async def list_checks(
     if check_type:
         query = query.where(ConsistencyCheck.check_type == check_type)
         count_query = count_query.where(ConsistencyCheck.check_type == check_type)
+    if severity:
+        query = query.where(ConsistencyCheck.severity == severity)
+        count_query = count_query.where(ConsistencyCheck.severity == severity)
     if run_id:
         query = query.where(ConsistencyCheck.run_id == run_id)
         count_query = count_query.where(ConsistencyCheck.run_id == run_id)

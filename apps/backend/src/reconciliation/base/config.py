@@ -34,6 +34,7 @@ class ReconciliationConfig:
     amount_percent: Decimal
     amount_absolute: Decimal
     date_days: int
+    enable_ai_reconciliation: bool = False
 
 
 @dataclass
@@ -164,6 +165,12 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                     amount_percent=Decimal(str(tolerances.get("amount_percent", config.amount_percent))),
                     amount_absolute=Decimal(str(tolerances.get("amount_absolute", config.amount_absolute))),
                     date_days=int(tolerances.get("date_days", config.date_days)),
+                    enable_ai_reconciliation=bool(
+                        scoring.get(
+                            "enable_ai_reconciliation",
+                            config.enable_ai_reconciliation,
+                        )
+                    ),
                 )
             except Exception as e:
                 logger.warning(
@@ -175,10 +182,16 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
 
     auto_accept_env = os.getenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD")
     pending_review_env = os.getenv("RECONCILIATION_REVIEW_THRESHOLD")
+    enable_ai_env = os.getenv("ENABLE_AI_RECONCILIATION")
     if auto_accept_env:
         config = replace(config, auto_accept=int(auto_accept_env))
     if pending_review_env:
         config = replace(config, pending_review=int(pending_review_env))
+    if enable_ai_env is not None:
+        config = replace(
+            config,
+            enable_ai_reconciliation=enable_ai_env.lower() in {"1", "true", "yes", "on"},
+        )
 
     _config_cache = config
     return config

@@ -20,10 +20,12 @@ from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict
 from src.reconciliation import (
+    CheckResolutionAction,
+    ConsistencyCheckNotFoundError,
+    InvalidCheckActionError,
     ReconciliationMatch,
     ReconciliationStatus,
     accept_match as accept_match_service,
-    get_pending_checks,
     get_stage2_queue,
     has_unresolved_checks,
     list_checks,
@@ -207,7 +209,13 @@ async def get_stage2_review_queue(
             )
         )
 
-    checks = await get_pending_checks(db, user_id, run_id=run_id, limit=None)
+    checks, _ = await list_checks(
+        db,
+        user_id,
+        status=CheckStatus.PENDING,
+        run_id=run_id,
+        limit=None,
+    )
 
     return Stage2ReviewQueueResponse(
         pending_matches=pending_matches,
@@ -244,9 +252,12 @@ async def resolve_consistency_check(
 ) -> ConsistencyCheckResponse:
     """Resolve a consistency check."""
     try:
-        check = await resolve_check(db, check_id, request.action, user_id, request.note)
+        action = CheckResolutionAction(request.action)
+        check = await resolve_check(db, check_id, action, user_id, request.note)
         await db.commit()
-    except ValueError as e:
+    except ConsistencyCheckNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (InvalidCheckActionError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return ConsistencyCheckResponse.model_validate(check)

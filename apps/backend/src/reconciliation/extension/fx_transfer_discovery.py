@@ -38,7 +38,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -151,7 +151,7 @@ async def discover_fx_conversions(
     *,
     start_date: date | None = None,
     tolerance: Decimal = DEFAULT_RATE_TOLERANCE,
-    time_window=DEFAULT_TIME_WINDOW,
+    time_window: timedelta = DEFAULT_TIME_WINDOW,
 ) -> list[DiscoveredConversion]:
     """Auto-discover unambiguous cross-currency transfer pairs from the ledger.
 

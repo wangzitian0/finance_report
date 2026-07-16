@@ -224,7 +224,7 @@ async def test_auto_match_records_anchor_without_mutating_posted_source_type(db:
         direction="IN",
     )
 
-    matches = await execute_matching(db, user_id=user.id)
+    matches = await execute_matching(db, user_id=user.id, currency="SGD")
 
     assert len(matches) == 1
     assert entry.status == JournalEntryStatus.RECONCILED
@@ -265,7 +265,7 @@ async def test_manual_wins_conflict_resolution(db: AsyncSession) -> None:
         direction="OUT",
     )
 
-    matches = await execute_matching(db, user_id=user.id)
+    matches = await execute_matching(db, user_id=user.id, currency="SGD")
 
     assert len(matches) == 1
     assert matches[0].journal_entry_ids == [str(manual_entry.id)]

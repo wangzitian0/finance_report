@@ -111,7 +111,7 @@ class TestReconciliationLayer4Read:
         await db.commit()
 
         # 2. Run Reconciliation
-        matches = await execute_matching(db, user_id=test_user.id)
+        matches = await execute_matching(db, user_id=test_user.id, currency="SGD")
 
         # 3. Verify matches link to AtomicTransaction
         assert len(matches) == 1
@@ -149,9 +149,9 @@ class TestReconciliationLayer4Read:
         await db.commit()
 
         # Run once
-        matches1 = await execute_matching(db, user_id=test_user.id)
+        matches1 = await execute_matching(db, user_id=test_user.id, currency="SGD")
         assert len(matches1) == 1
 
         # Run again
-        matches2 = await execute_matching(db, user_id=test_user.id)
+        matches2 = await execute_matching(db, user_id=test_user.id, currency="SGD")
         assert len(matches2) == 0  # Should be skipped because matched

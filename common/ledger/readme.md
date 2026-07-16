@@ -84,6 +84,12 @@ base_amount = line.amount * line.fx_rate
 
 Debit and credit totals are valid only when their converted base amounts differ by no more than `0.01`.
 
+Account-balance projections make their currency space explicit in the function
+name: `calculate_account_balances` returns nominal amounts in each account's own
+currency, while `calculate_account_balances_in_base_currency` performs FX
+conversion for equation/reporting checks. No boolean flag can silently change
+the meaning of the returned `dict[account_id, Decimal]`.
+
 ### Posted Ledger Database Floor
 
 Application services validate drafts before posting, but the database is the
@@ -274,7 +280,7 @@ cross-domain transaction or foreign key.
 | Dimension | Physical Location (SSOT) | Description |
 |-----------|--------------------------|-------------|
 | **Processing Logic (verbs)** | `apps/backend/src/ledger/extension/processing.py` | Core business — acquire/post/project/pair (impure edge) |
-| **Processing Policy (pure)** | `apps/backend/src/ledger/base/processing.py` | Account identity + transfer detection/scoring (pure core) |
+| **Processing Policy (pure)** | `apps/backend/src/ledger/base/processing.py` | Account identity + transfer detection, amount/date scoring, and ledger weights (pure core); description similarity is supplied by reconciliation's one kernel |
 | **Published Interface** | `apps/backend/src/ledger` (`from src.ledger import ...`) | The only surface consumers (reconciliation/reporting) import |
 | **Transfer Detection** | `apps/backend/src/reconciliation/extension/matching.py` | Calls the ledger published interface (by id/event) |
 
@@ -360,6 +366,13 @@ flowchart TB
 
 **Manual Review**: 60-84 score → show in review queue with suggested pair
 
+Both transfer directions construct the same typed `Entry.transfer` value and
+persist it through ledger's `post_entry` front door. They cannot hand-roll a
+`POSTED` ORM row or bypass balance, ownership, FX-rate, and posting validation.
+The effective Processing currency is mandatory at every processing API boundary;
+the delivery layer passes the configured owner value, and ledger has no hidden
+`SGD` default.
+
 ---
 
 ## P4. Data Model
@@ -387,7 +400,7 @@ INSERT INTO accounts (
     'Processing - ' || :user_email,
     'ASSET',
     '1199',
-    'SGD',  -- Base currency from config
+    :base_currency,  -- Explicit effective base currency from config
     true,
     true,  -- Mark as system account
     'Virtual clearing account for in-transit funds between accounts'
@@ -731,7 +744,9 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 ## P11. Open Questions
 
 ### Q1: What currency should Processing account use?
-**Answer**: Use base currency from user settings (default SGD). Multi-currency transfers handled via FX conversion at destination account.
+**Answer**: Use the effective base currency passed explicitly from application
+configuration. Multi-currency transfers are handled via FX conversion at the
+destination account; ledger never substitutes a currency default.
 
 ### Q2: Should Processing be visible in account balance totals?
 **Answer**: Yes in raw totals, but with explanatory footnote. Hide in user-facing summaries unless balance ≠ 0.

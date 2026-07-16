@@ -84,11 +84,11 @@ class TestTransferDetectionIdempotency:
         _, txn = await self._setup(db, user_id, direction="OUT", file_hash_suffix="idem_out")
 
         # First run - creates the match
-        matches_first = await execute_matching(db, user_id=user_id)
+        matches_first = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches_first) == 1, "First run should produce exactly one match"
 
         # Second run - should detect the existing match and skip
-        matches_second = await execute_matching(db, user_id=user_id)
+        matches_second = await execute_matching(db, user_id=user_id, currency="SGD")
 
         # Verify: at most 0 new matches created (idempotency)
         assert len(matches_second) == 0, (
@@ -113,11 +113,11 @@ class TestTransferDetectionIdempotency:
         _, txn = await self._setup(db, user_id, direction="IN", file_hash_suffix="idem_in")
 
         # First run
-        matches_first = await execute_matching(db, user_id=user_id)
+        matches_first = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches_first) == 1, "First run should produce exactly one match"
 
         # Second run
-        matches_second = await execute_matching(db, user_id=user_id)
+        matches_second = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches_second) == 0, (
             f"Second run should produce no new matches (idempotent), got {len(matches_second)}"
         )

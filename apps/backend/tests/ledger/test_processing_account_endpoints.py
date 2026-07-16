@@ -75,6 +75,7 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
         amount=Decimal("100.00"),
         txn_date=older,
         description="Older OUT",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -83,6 +84,7 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
         amount=Decimal("40.00"),
         txn_date=newer,
         description="Newer IN",
+        currency="SGD",
     )
     await db.commit()
 
@@ -112,6 +114,7 @@ async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClien
         amount=Decimal("100.00"),
         txn_date=out_date,
         description="Vendor payout alpha",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -120,6 +123,7 @@ async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClien
         amount=Decimal("80.00"),
         txn_date=in_date,
         description="Refund receipt beta",
+        currency="SGD",
     )
     await db.commit()
 
@@ -144,6 +148,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -152,6 +157,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_out_entry(
         db,
@@ -160,6 +166,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("50.00"),
         txn_date=today - timedelta(days=30),
         description="Unmatched brokerage sweep",
+        currency="SGD",
     )
     await db.commit()
 
@@ -190,6 +197,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -198,6 +206,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_out_entry(
         db,
@@ -206,6 +215,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("50.00"),
         txn_date=today - timedelta(days=30),
         description="Unmatched brokerage sweep",
+        currency="SGD",
     )
     await db.commit()
 
@@ -234,6 +244,7 @@ async def test_processing_pending_lists_pairs_with_days_outstanding(
         amount=Decimal("250.00"),
         txn_date=out_date,
         description="Wire out",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -242,6 +253,7 @@ async def test_processing_pending_lists_pairs_with_days_outstanding(
         amount=Decimal("75.00"),
         txn_date=in_date,
         description="Wire in",
+        currency="SGD",
     )
     await db.commit()
 
@@ -278,6 +290,7 @@ async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db:
         amount=Decimal("500.00"),
         txn_date=today - timedelta(days=14),
         description="Stuck transfer",
+        currency="SGD",
     )
     await db.commit()
 

@@ -34,7 +34,9 @@ async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountC
 
 
 async def get_or_create_opening_balance_equity_account(
-    db: AsyncSession, user_id: UUID, currency: str = "SGD"
+    db: AsyncSession,
+    user_id: UUID,
+    currency: str,
 ) -> Account:
     """Get or create the Opening Balance Equity account for a user (#949).
 

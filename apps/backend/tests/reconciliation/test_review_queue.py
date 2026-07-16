@@ -31,7 +31,7 @@ from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, 
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
 from src.pricing import PricingError
-from src.reconciliation import ReconciliationStatus
+from src.reconciliation import AmountMismatchError, MatchNotFoundError, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
 from tests.factories import (
     AccountFactory,
@@ -138,7 +138,7 @@ async def test_accept_match_updates_status(db, test_user):
 
 
 async def test_accept_match_not_found_raises(db, test_user):
-    with pytest.raises(ValueError, match="Match not found"):
+    with pytest.raises(MatchNotFoundError, match="Match not found"):
         await accept_match(db, uuid4(), user_id=test_user.id)
 
 
@@ -171,7 +171,7 @@ async def test_accept_match_amount_mismatch_raises(db, test_user):
     )
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
@@ -192,7 +192,7 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
     )
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
@@ -279,7 +279,7 @@ async def test_reject_match_updates_status(db, test_user):
 
 
 async def test_reject_match_not_found_raises(db, test_user):
-    with pytest.raises(ValueError, match="Match not found"):
+    with pytest.raises(MatchNotFoundError, match="Match not found"):
         await reject_match(db, str(uuid4()), user_id=test_user.id)
 
 

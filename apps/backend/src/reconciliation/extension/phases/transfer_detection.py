@@ -10,6 +10,7 @@ from src.extraction.extension.statement_summary import resolve_custody_account_i
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntryStatus, create_transfer_in_entry, create_transfer_out_entry, detect_transfer_pattern
 from src.observability import get_logger
+from src.reconciliation.base import ReconciliationRepository
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
@@ -20,11 +21,12 @@ async def run_transfer_detection_phase(
     *,
     transactions: list[AtomicTransaction],
     matched_txn_ids: set[UUID],
-    matches: list[ReconciliationMatch],
+    repository: ReconciliationRepository,
     user_id: UUID,
-    get_existing_active_match,
-) -> None:
+    currency: str,
+) -> list[ReconciliationMatch]:
     """Detect and materialize transfer matches before normal scoring."""
+    created_matches: list[ReconciliationMatch] = []
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
@@ -33,7 +35,7 @@ async def run_transfer_detection_phase(
             continue
 
         try:
-            existing_transfer_match = await get_existing_active_match(db, txn.id)
+            existing_transfer_match = await repository.get_active_match(txn.id)
             if existing_transfer_match:
                 logger.warning(
                     "Transfer already matched - skipping duplicate match creation",
@@ -59,6 +61,7 @@ async def run_transfer_detection_phase(
                     amount=txn.amount,
                     txn_date=txn.txn_date,
                     description=txn.description,
+                    currency=currency,
                 )
                 matched_txn_ids.add(txn.id)
                 match = ReconciliationMatch(
@@ -68,8 +71,8 @@ async def run_transfer_detection_phase(
                     score_breakdown={"transfer_out": 100.0},
                     status=ReconciliationStatus.AUTO_ACCEPTED,
                 )
-                db.add(match)
-                matches.append(match)
+                await repository.add_match(match)
+                created_matches.append(match)
                 if transfer_entry.status != JournalEntryStatus.VOID:
                     transfer_entry.status = JournalEntryStatus.RECONCILED
                 logger.info(
@@ -86,6 +89,7 @@ async def run_transfer_detection_phase(
                     amount=txn.amount,
                     txn_date=txn.txn_date,
                     description=txn.description,
+                    currency=currency,
                 )
                 matched_txn_ids.add(txn.id)
                 match = ReconciliationMatch(
@@ -95,8 +99,8 @@ async def run_transfer_detection_phase(
                     score_breakdown={"transfer_in": 100.0},
                     status=ReconciliationStatus.AUTO_ACCEPTED,
                 )
-                db.add(match)
-                matches.append(match)
+                await repository.add_match(match)
+                created_matches.append(match)
                 if transfer_entry.status != JournalEntryStatus.VOID:
                     transfer_entry.status = JournalEntryStatus.RECONCILED
                 logger.info(
@@ -112,3 +116,4 @@ async def run_transfer_detection_phase(
                 direction=txn.direction,
                 error=str(e),
             )
+    return created_matches

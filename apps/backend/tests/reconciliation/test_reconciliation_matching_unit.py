@@ -38,6 +38,7 @@ from src.reconciliation import (
     score_business_logic,
     score_date,
     score_description,
+    score_group,
     score_pattern,
     weighted_total,
 )
@@ -448,8 +449,14 @@ async def test_calculate_match_score_overrides(db: AsyncSession):
         lines=[JournalLine(amount=Decimal("100.00"), direction=Direction.DEBIT)],
     )
 
-    candidate = await calculate_match_score(
-        db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score_override=90.0, is_many_to_one=True
+    candidate = await score_group(
+        db,
+        txn,
+        [entry],
+        DEFAULT_CONFIG,
+        uuid4(),
+        group_amount=txn.amount,
+        history_score=90.0,
     )
     assert candidate.breakdown["history"] == 90.0
     assert "many_to_one_bonus" in candidate.breakdown
@@ -475,7 +482,7 @@ async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession,
     await db.commit()
 
     # Should not crash and should mark txn as unmatched
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 0
 
 
@@ -554,7 +561,7 @@ async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user)
     )
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 1
     assert matches[0].score_breakdown.get("multi_entry") == 1
 
@@ -618,7 +625,7 @@ async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
         )
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 1
     assert matches[0].score_breakdown.get("multi_entry") == 2
 
@@ -690,7 +697,7 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
     )
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 2
     for m in matches:
         assert m.score_breakdown.get("many_to_one_bonus") == 10.0
@@ -748,8 +755,11 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
         amount=Decimal("100.00"),
     )
 
-    with patch("src.reconciliation.extension.matching.is_entry_balanced", return_value=False):
-        matches = await execute_matching(db, user_id=user_id)
+    with patch(
+        "src.reconciliation.extension.phases.normal_matching.is_entry_balanced",
+        return_value=False,
+    ):
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 0
 
 
@@ -808,7 +818,7 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user)
     )
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 0
 
 
@@ -929,7 +939,7 @@ async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_
 
     # statement_id has no meaning on the Layer-2 atomic stream; matching scans all
     # pending atomic transactions for the user.
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
     matched_atomic_ids = {m.atomic_txn_id for m in matches}
     assert txn1.id in matched_atomic_ids
@@ -1027,7 +1037,7 @@ async def test_execute_matching_with_limit(db: AsyncSession, test_user):
     await db.commit()
 
     # With limit=1, should only process 1 transaction
-    matches = await execute_matching(db, user_id=user_id, limit=1)
+    matches = await execute_matching(db, user_id=user_id, limit=1, currency="SGD")
     # No matching entries, so no matches, but at most 1 txn should be processed
     assert len(matches) == 0
 
@@ -1053,7 +1063,7 @@ async def test_transfer_detection_no_account_id(db: AsyncSession, test_user):
     db.add(txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # Transfer skipped due to no account_id, txn should be UNMATCHED
     assert len(matches) == 0
 
@@ -1099,7 +1109,7 @@ async def test_transfer_out_creates_match(db: AsyncSession):
     db.add(txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) >= 1
     transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
     assert len(transfer_matches) == 1
@@ -1145,7 +1155,7 @@ async def test_transfer_in_creates_match(db: AsyncSession):
     db.add(txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) >= 1
     transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_in")]
     assert len(transfer_matches) == 1
@@ -1193,7 +1203,7 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
         side_effect=Exception("DB Error"),
     ):
         # Should not crash — falls through to normal matching
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         # No transfer match should be created
         transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
         assert len(transfer_matches) == 0
@@ -1250,7 +1260,7 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     await db.commit()
 
     # Both should be matched as transfers, many-to-one should skip them
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # Should have transfer matches for both
     transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
     assert len(transfer_matches) == 2
@@ -1287,7 +1297,7 @@ async def test_many_to_one_no_candidates(db: AsyncSession, test_user):
     db.add_all([t1, t2])
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # No candidates → no many-to-one matches, txns should be UNMATCHED
     assert len(matches) == 0
 
@@ -1350,12 +1360,12 @@ async def test_normal_matching_supersession_same_entries(db: AsyncSession, test_
     await db.commit()
 
     # First matching run → creates a match
-    matches1 = await execute_matching(db, user_id=user_id)
+    matches1 = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches1) == 1
     await db.commit()
 
     # Second matching run → txn already has a match (idempotent), no new match
-    matches2 = await execute_matching(db, user_id=user_id)
+    matches2 = await execute_matching(db, user_id=user_id, currency="SGD")
     # Should skip creating a new match because the txn is already matched.
     assert len(matches2) == 0
 
@@ -1422,7 +1432,7 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     db.add_all([txn_out, txn_in])
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # Both transfers should be matched
     transfer_out = [m for m in matches if m.score_breakdown.get("transfer_out")]
     transfer_in = [m for m in matches if m.score_breakdown.get("transfer_in")]
@@ -1464,7 +1474,7 @@ async def test_final_flush_failure(db: AsyncSession, test_user):
 
     with patch.object(db, "flush", side_effect=counting_flush):
         with pytest.raises(RuntimeError, match="Final flush failed"):
-            await execute_matching(db, user_id=user_id)
+            await execute_matching(db, user_id=user_id, currency="SGD")
 
 
 async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_user):
@@ -1492,7 +1502,7 @@ async def test_find_transfer_pairs_exception_non_fatal(db: AsyncSession, test_us
         side_effect=Exception("Pair search failed"),
     ):
         # Should not crash — non-fatal error is logged
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         # No matching entries, so no matches, but function should complete
         assert isinstance(matches, list)
 
@@ -1585,7 +1595,7 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
             date_days=7,
         ),
     ):
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         m2o_matches = [m for m in matches if m.score_breakdown.get("many_to_one_bonus")]
         if m2o_matches:
             for m in m2o_matches:
@@ -1655,7 +1665,7 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, 
     db.add(txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 1
     assert matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
     await db.commit()
@@ -1739,7 +1749,7 @@ async def test_normal_matching_pending_review(db: AsyncSession, test_user):
             date_days=7,
         ),
     ):
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
 
@@ -1830,7 +1840,7 @@ async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
     db.add(l2_txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # Should find and match the L2 transaction, keyed on atomic_txn_id.
     assert len(matches) == 1
     assert matches[0].atomic_txn_id == l2_txn.id
@@ -1860,7 +1870,7 @@ async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
     db.add(l2_txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # No candidates → no matches.
     assert len(matches) == 0
 
@@ -1940,7 +1950,7 @@ async def test_execute_matching_layer2_pending_review(db: AsyncSession):
             date_days=7,
         ),
     ):
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
         # L2 mode: match is keyed on atomic_txn_id.
@@ -2023,7 +2033,7 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, te
     with patch(
         "src.reconciliation.extension.matching.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id
     ):
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
     # Result depends on scoring but the key is the code path is exercised
     assert isinstance(matches, list)
@@ -2219,7 +2229,7 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
     db.add(l2_txn)
     await db.commit()
 
-    matches = await execute_matching(db, user_id=user_id)
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
     assert len(matches) == 1
     # One emission per resolved match, labelled by its status.

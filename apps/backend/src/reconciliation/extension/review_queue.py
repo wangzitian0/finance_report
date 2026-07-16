@@ -19,6 +19,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
 from src.reconciliation.base.config import entry_total_amount
+from src.reconciliation.base.errors import AmountMismatchError, MatchNotFoundError
 from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
@@ -63,7 +64,7 @@ async def accept_match(
         user_id: User ID for authorization
 
     Raises:
-        ValueError: If match not found or amount validation fails
+        ReconciliationError: If match not found or amount validation fails
     """
     result = await db.execute(
         select(ReconciliationMatch)
@@ -74,7 +75,7 @@ async def accept_match(
     )
     match = result.scalar_one_or_none()
     if not match:
-        raise ValueError("Match not found")
+        raise MatchNotFoundError("Match not found")
 
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
@@ -115,7 +116,7 @@ async def accept_match(
         # Allow 1% tolerance or $0.10, whichever is greater
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
         if abs(total_entry_amount - txn.amount) > tolerance:
-            raise ValueError(
+            raise AmountMismatchError(
                 f"Amount mismatch: transaction={txn.amount}, entries={total_entry_amount}, tolerance={tolerance}"
             )
 
@@ -153,7 +154,7 @@ async def reject_match(
     )
     match = result.scalar_one_or_none()
     if not match:
-        raise ValueError("Match not found")
+        raise MatchNotFoundError("Match not found")
 
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match

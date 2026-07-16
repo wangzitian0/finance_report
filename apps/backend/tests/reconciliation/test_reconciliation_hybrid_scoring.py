@@ -19,6 +19,7 @@ even though what's actually under test here (the 60-84 band gate, the
 scorer is a black box these tests treat as an opaque, mocked dependency.
 """
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -57,13 +58,13 @@ def _hybrid_band_txn_and_entry() -> tuple[AtomicTransaction, JournalEntry]:
     return txn, entry
 
 
-async def test_calculate_match_score_applies_hybrid_ai_scoring(monkeypatch, db) -> None:
+async def test_calculate_match_score_applies_hybrid_ai_scoring(db) -> None:
     """AC-reconciliation.1803.1: with ENABLE_AI_RECONCILIATION on and a pre-AI
     weighted total in the 60-84 review band, calculate_match_score blends
     70% algorithmic + 30% AI semantic score (also proves EPIC-018 AC18.3.2).
     """
-    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "true")
     txn, entry = _hybrid_band_txn_and_entry()
+    config = replace(DEFAULT_CONFIG, enable_ai_reconciliation=True)
 
     pre_ai_total = weighted_total(
         {"amount": 100.0, "date": 100.0, "description": 0.0, "business": 40.0, "history": 0.0},
@@ -75,7 +76,7 @@ async def test_calculate_match_score_applies_hybrid_ai_scoring(monkeypatch, db) 
     mock_ai_score = AsyncMock(return_value=90)
 
     with patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_score):
-        candidate = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score_override=0.0)
+        candidate = await calculate_match_score(db, txn, [entry], config, uuid4(), history_score_override=0.0)
 
     expected_score = int(round(Decimal("0.7") * pre_ai_total + Decimal("0.3") * 90, 0))
     assert expected_score == 75
@@ -85,13 +86,12 @@ async def test_calculate_match_score_applies_hybrid_ai_scoring(monkeypatch, db) 
     mock_ai_score.assert_awaited_once()
 
 
-async def test_calculate_match_score_flag_off_skips_ai_scoring(monkeypatch, db) -> None:
+async def test_calculate_match_score_flag_off_skips_ai_scoring(db) -> None:
     """AC-reconciliation.1803.2: with ENABLE_AI_RECONCILIATION off, the hybrid
     branch never runs — even when the pre-AI weighted total is in the 60-84
     band that would otherwise trigger it — and the AI scorer is never called
     (also proves EPIC-018 AC18.3.3).
     """
-    monkeypatch.setenv("ENABLE_AI_RECONCILIATION", "false")
     txn, entry = _hybrid_band_txn_and_entry()
 
     mock_ai_score = AsyncMock(return_value=90)

@@ -95,11 +95,43 @@ async def calculate_account_balances(
     db: AsyncSession,
     accounts: list[Account],
     user_id: UUID,
-    *,
-    use_base_currency: bool = False,
 ) -> dict[UUID, Decimal]:
-    """
-    Calculate balances for multiple accounts in a single query.
+    """Calculate nominal balances in each account's own currency space."""
+    return await _calculate_account_balances(
+        db,
+        accounts,
+        user_id,
+        amount_expr=JournalLine.amount,
+    )
+
+
+async def calculate_account_balances_in_base_currency(
+    db: AsyncSession,
+    accounts: list[Account],
+    user_id: UUID,
+) -> dict[UUID, Decimal]:
+    """Calculate balances converted into the configured base currency."""
+    base_currency = src.config.settings.base_currency.upper()
+    amount_expr: Any = case(
+        (func.coalesce(func.upper(JournalLine.currency), base_currency) == base_currency, JournalLine.amount),
+        else_=JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1")),
+    )
+    return await _calculate_account_balances(
+        db,
+        accounts,
+        user_id,
+        amount_expr=amount_expr,
+    )
+
+
+async def _calculate_account_balances(
+    db: AsyncSession,
+    accounts: list[Account],
+    user_id: UUID,
+    *,
+    amount_expr: Any,
+) -> dict[UUID, Decimal]:
+    """Calculate balances with one caller-selected currency-space expression.
 
     Returns a mapping of account_id -> balance, with account type adjustments applied.
     """
@@ -107,15 +139,6 @@ async def calculate_account_balances(
         return {}
 
     account_ids = [account.id for account in accounts]
-    if use_base_currency:
-        base_currency = src.config.settings.base_currency.upper()
-        amount_expr: Any = case(
-            (func.coalesce(func.upper(JournalLine.currency), base_currency) == base_currency, JournalLine.amount),
-            else_=JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1")),
-        )
-    else:
-        amount_expr = JournalLine.amount
-
     net_query = (
         select(
             JournalLine.account_id,
@@ -169,7 +192,7 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     result = await db.execute(select(Account).where(Account.user_id == user_id))
     accounts = list(result.scalars().all())
 
-    balances = await calculate_account_balances(db, accounts, user_id, use_base_currency=True)
+    balances = await calculate_account_balances_in_base_currency(db, accounts, user_id)
 
     totals = {
         AccountType.ASSET: Decimal("0"),

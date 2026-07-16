@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES
+from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -18,6 +19,8 @@ from src.ledger import Direction, JournalEntry
 from src.observability import get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
+    MatchNotFoundError,
+    ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
     accept_match as accept_match_service,
@@ -199,10 +202,12 @@ async def run_reconciliation(
     )
 
     try:
+        currency = await get_effective_base_currency(db)
         matches = await execute_matching(
             db,
             limit=payload.limit,
             user_id=user_id,
+            currency=currency,
         )
         await db.commit()
     except Exception as exc:
@@ -344,9 +349,9 @@ async def accept_match(
     try:
         match = await accept_match_service(db, match_id, user_id=user_id)
         await db.commit()
-    except ValueError as exc:
-        if "not found" in str(exc).lower():
-            raise_not_found("Match", cause=exc)
+    except MatchNotFoundError as exc:
+        raise_not_found("Match", cause=exc)
+    except ReconciliationError as exc:
         raise_bad_request(str(exc), cause=exc)
     log_financial_mutation(
         logger,
@@ -376,9 +381,9 @@ async def reject_match(
     try:
         match = await reject_match_service(db, str(match_id), user_id=user_id)
         await db.commit()
-    except ValueError as exc:
-        if "not found" in str(exc).lower():
-            raise_not_found("Match", cause=exc)
+    except MatchNotFoundError as exc:
+        raise_not_found("Match", cause=exc)
+    except ReconciliationError as exc:
         raise_bad_request(str(exc), cause=exc)
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
     txn = await db.get(AtomicTransaction, match.atomic_txn_id)

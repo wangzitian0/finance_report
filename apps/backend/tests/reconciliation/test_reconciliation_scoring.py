@@ -16,7 +16,6 @@ from src.reconciliation import (
     ReconciliationStatus,
     auto_accept,
     build_many_to_one_groups,
-    calculate_match_score,
     entry_total_amount,
     extract_merchant_tokens,
     is_entry_balanced,
@@ -27,6 +26,7 @@ from src.reconciliation import (
     score_business_logic,
     score_date,
     score_description,
+    score_group,
     score_pattern,
     weighted_total,
 )
@@ -533,15 +533,13 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
         dedup_hash=uuid4().hex,
         source_documents=[],
     )
-    candidate = await calculate_match_score(
+    candidate = await score_group(
         db,
         txn,
         [entry],
         DEFAULT_CONFIG,
         user_id=user_id,
-        is_multi=True,
-        is_many_to_one=True,
-        amount_override=Decimal("100.00"),
+        group_amount=Decimal("100.00"),
     )
     assert candidate.journal_entry_ids == [str(entry.id)]
     assert candidate.breakdown["many_to_one_bonus"] == 10.0
