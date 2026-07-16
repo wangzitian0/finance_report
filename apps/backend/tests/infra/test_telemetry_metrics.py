@@ -376,10 +376,10 @@ def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
         encoding="utf-8"
     )
 
-    assert "statement_id=statement_id" in pipeline
-    assert "request_id=request_id" in pipeline
-    assert "statement_id=statement_id" in flow
-    assert "request_id=request_id" in flow
+    assert "statement_id=job.statement_id" in pipeline
+    assert "request_id=job.request_id" in pipeline
+    assert "statement_id=parse_job.statement_id" in flow
+    assert "request_id=parse_job.request_id" in flow
 
 
 def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:

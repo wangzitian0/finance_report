@@ -9,8 +9,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from src.extraction import DocumentStatus, UploadedDocument
-from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction import (
+    DocumentStatus,
+    ExtractedTransactionRow,
+    ParseJob,
+    TransactionDirection,
+    UploadedDocument,
+)
+from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -34,10 +40,17 @@ async def test_handle_parse_failure_persists_failed_document_lineage(db, test_us
     await handle_parse_failure(
         statement,
         db,
+        job=ParseJob(
+            statement_id=statement.id,
+            filename="futu-2506.pdf",
+            institution=statement.institution,
+            user_id=test_user.id,
+            account_id=statement.account_id,
+            file_hash=statement.file_hash,
+            storage_key=f"statements/{statement.id}/abc123.pdf",
+            model=None,
+        ),
         message="All 1 models failed. Breakdown: 1 json_parse.",
-        file_hash=statement.file_hash,
-        storage_key=f"statements/{statement.id}/abc123.pdf",
-        original_filename="futu-2506.pdf",
     )
 
     doc = (
@@ -728,15 +741,17 @@ async def test_parse_statement_background_storage_error(db, test_user, monkeypat
     monkeypatch.setattr("src.extraction.extension.service.ExtractionService.parse_document", mock_parse)
 
     await parse_statement_background(
-        statement_id=sid,
-        filename="f.pdf",
-        institution="DBS",
-        user_id=uid,
-        account_id=None,
-        file_hash="h_storage_err",
-        storage_key="p",
+        job=ParseJob(
+            statement_id=sid,
+            filename="f.pdf",
+            institution="DBS",
+            user_id=uid,
+            account_id=None,
+            file_hash="h_storage_err",
+            storage_key="p",
+            model=None,
+        ),
         content=b"content",
-        model=None,
         session_maker=create_session_maker_from_db(db),
     )
 
@@ -1379,22 +1394,39 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
 
-        txn = MagicMock()
-        txn.direction = "IN"
-        txn.txn_date = date(2025, 1, 1)
-        txn.amount = Decimal("1.00")
-        txn.description = "txn"
-        txn.reference = None
-        txn.currency = "SGD"
+        user_id = uuid4()
+        txn_date = date(2025, 1, 1)
+        amount = Decimal("1.00")
+        direction = TransactionDirection.IN
+        description = "txn"
+        txn = ExtractedTransactionRow(
+            user_id=user_id,
+            txn_date=txn_date,
+            amount=amount,
+            direction=direction.value,
+            description=description,
+            reference=None,
+            currency="SGD",
+            currency_unresolved=False,
+            balance_after=None,
+            occurrence_index=0,
+            dedup_hash=DeduplicationService.calculate_transaction_hash(
+                user_id,
+                txn_date,
+                amount,
+                direction,
+                description,
+            ),
+        )
         statement = StatementSummaryFactory.build(
-            user_id=uuid4(),
+            user_id=user_id,
             file_hash="abc123",
             institution="DBS",
             currency="SGD",
         )
         await dual_write_layer2(
             db=db,
-            user_id=uuid4(),
+            user_id=user_id,
             statement=statement,
             transactions=[txn],
             file_path=Path("statement.pdf"),

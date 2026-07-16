@@ -80,8 +80,21 @@ flowchart TB
 Ingestion writes the ODS/DWD tables directly. A successful parse persists one
 `UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), and a
 `StatementSummary` envelope (DWD). `parse_document` returns
-`(StatementSummary, list[AtomicTransaction])`. There is no legacy `BankStatement`
-write path and no dual-write flag.
+`(StatementSummary, list[ExtractedTransactionRow])`; the immutable DTO carries
+`dedup_hash`, `balance_after`, `occurrence_index`, and currency-resolution state
+explicitly until `dual_write_layer2` persists an `AtomicTransaction`. No
+pre-persistence metadata is hidden on transient ORM attributes. There is no
+legacy `BankStatement` write path and no dual-write flag.
+
+The upload, in-process worker, and durable Prefect worker share one frozen
+`ParseJob` value object. Only `ParseJob.to_prefect_params()` crosses the Prefect
+boundary, and `from_prefect_params()` reconstructs typed UUIDs in the worker;
+raw bytes and database sessions never enter the durable parameter payload.
+`DocumentSource` similarly resolves storage path, content, URL, content hash,
+and display filename once before `parse_document` dispatches to separate CSV or
+vision extraction paths. The parser and Layer-2 writer accept typed
+`AsyncSession` seams, and failure handling uses one explicit call contract
+rather than runtime signature reflection.
 
 **ODS: Raw Documents (`UploadedDocument`)**
 - Stores immutable metadata for every uploaded file

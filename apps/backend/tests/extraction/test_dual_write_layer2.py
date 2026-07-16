@@ -9,7 +9,8 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from src.extraction import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction import DocumentStatus, DocumentType, ExtractedTransactionRow, UploadedDocument
+from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -375,7 +376,7 @@ class TestDualWriteLayer2:
         from sqlalchemy.exc import IntegrityError
 
         from src.extraction.extension.deduplication import dual_write_layer2
-        from tests.factories import AtomicTransactionFactory, StatementSummaryFactory
+        from tests.factories import StatementSummaryFactory
 
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
@@ -390,14 +391,30 @@ class TestDualWriteLayer2:
             opening_balance=Decimal("1000.00"),
             closing_balance=Decimal("1500.00"),
         )
-        txn = AtomicTransactionFactory.build(
+        txn_date = date(2024, 1, 15)
+        amount = Decimal("3000.00")
+        direction = TransactionDirection.IN
+        description = "Salary Deposit"
+        reference = "SAL001"
+        txn = ExtractedTransactionRow(
             user_id=test_user.id,
-            txn_date=date(2024, 1, 15),
-            description="Salary Deposit",
-            amount=Decimal("3000.00"),
-            direction=TransactionDirection.IN,
-            reference="SAL001",
-            source_documents=[],
+            txn_date=txn_date,
+            description=description,
+            amount=amount,
+            direction=direction.value,
+            reference=reference,
+            currency="SGD",
+            currency_unresolved=False,
+            balance_after=None,
+            occurrence_index=0,
+            dedup_hash=DeduplicationService.calculate_transaction_hash(
+                test_user.id,
+                txn_date,
+                amount,
+                direction,
+                description,
+                reference,
+            ),
         )
         transactions = [txn]
 

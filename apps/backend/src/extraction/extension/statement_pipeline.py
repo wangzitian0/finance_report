@@ -19,12 +19,12 @@ everywhere), so the fallback path never pays an import cost it doesn't need.
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.database import create_session_maker_from_db
+from src.extraction.base.types import ParseJob
 from src.extraction.extension.statement_parsing import parse_statement_background
 from src.observability import get_logger, run_with_async_parse_tracking
 
@@ -45,17 +45,9 @@ def _consume_background_task_exception(task: asyncio.Task[None]) -> None:
 
 async def submit_parse_pipeline(
     *,
-    statement_id: UUID,
-    filename: str,
-    institution: str | None,
-    user_id: UUID,
-    account_id: UUID | None,
-    file_hash: str,
-    storage_key: str,
+    job: ParseJob,
     content: bytes,
-    model: str | None,
     db: AsyncSession,
-    request_id: str | None,
 ) -> asyncio.Task[None] | None:
     """Dispatch statement parsing.
 
@@ -72,20 +64,12 @@ async def submit_parse_pipeline(
         task = asyncio.create_task(
             run_with_async_parse_tracking(
                 parse_statement_background(
-                    statement_id=statement_id,
-                    filename=filename,
-                    institution=institution,
-                    user_id=user_id,
-                    account_id=account_id,
-                    file_hash=file_hash,
-                    storage_key=storage_key,
+                    job=job,
                     content=content,
-                    model=model,
                     session_maker=create_session_maker_from_db(db),
-                    request_id=request_id,
                 ),
-                statement_id=statement_id,
-                request_id=request_id,
+                statement_id=job.statement_id,
+                request_id=job.request_id,
             )
         )
         task.add_done_callback(_consume_background_task_exception)
@@ -100,24 +84,14 @@ async def submit_parse_pipeline(
 
             await run_deployment(
                 name=PARSE_DEPLOYMENT,
-                parameters={
-                    "statement_id": str(statement_id),
-                    "filename": filename,
-                    "institution": institution,
-                    "user_id": str(user_id),
-                    "account_id": str(account_id) if account_id is not None else None,
-                    "file_hash": file_hash,
-                    "storage_key": storage_key,
-                    "model": model,
-                    "request_id": request_id,
-                },
+                parameters={"job": job.to_prefect_params()},
                 timeout=0,  # fire-and-submit: do not block the upload request on completion
             )
             logger.info(
                 "statement.parse.submitted_to_prefect",
-                statement_id=str(statement_id),
+                statement_id=str(job.statement_id),
                 deployment=PARSE_DEPLOYMENT,
-                request_id=request_id,
+                request_id=job.request_id,
             )
             return None
         except Exception as exc:  # noqa: BLE001
@@ -128,9 +102,9 @@ async def submit_parse_pipeline(
             # runs; only the durable-handoff is skipped (logged loudly for ops).
             logger.warning(
                 "statement.parse.prefect_unavailable_fallback_in_process",
-                statement_id=str(statement_id),
+                statement_id=str(job.statement_id),
                 error=str(exc),
-                request_id=request_id,
+                request_id=job.request_id,
             )
             return _run_in_process()
 

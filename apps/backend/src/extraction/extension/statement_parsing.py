@@ -1,7 +1,7 @@
 """Background task functions for statement parsing."""
 
 import time
-from inspect import Parameter, signature
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.extraction.base.types import DocumentSource, ParseJob
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
@@ -228,16 +229,12 @@ async def handle_parse_failure(
     statement: StatementSummary,
     db: AsyncSession,
     *,
+    job: ParseJob | None = None,
     message: str | None,
     phase: str = "unknown",
     progress: int | None = None,
     model_to_use: str | None = None,
     error_type: str | None = None,
-    request_id: str | None = None,
-    statement_id: UUID | None = None,
-    file_hash: str | None = None,
-    storage_key: str | None = None,
-    original_filename: str | None = None,
 ) -> None:
     """Handle parse failure by marking statement as REJECTED.
 
@@ -250,14 +247,15 @@ async def handle_parse_failure(
         statement: The StatementSummary envelope (may have expired session)
         db: AsyncSession for database operations
         message: Error message to store in validation_error
-        statement_id: Plain statement UUID captured before any failing operation.
-            Preferred over reading ``statement.id`` (#1256, AC13.23.3): on an
-            already-failed session, touching an expired ORM attribute raises
-            ``PendingRollbackError`` and masks the original error. We roll back
-            FIRST, then only fall back to reading the ORM attribute once the
-            session is clean.
+        job: Parse identity captured before any failing operation. Its plain
+            statement UUID is preferred over reading ``statement.id`` (#1256,
+            AC13.23.3): on an already-failed session, touching an expired ORM
+            attribute raises ``PendingRollbackError`` and masks the original
+            error. We roll back FIRST, then only fall back to reading the ORM
+            attribute once the session is clean.
     """
-    request_id = request_id or str(uuid4())
+    request_id = job.request_id if job is not None and job.request_id else str(uuid4())
+    statement_id = job.statement_id if job is not None else None
     # Resolve the statement id WITHOUT ever letting an expired/failed-session ORM
     # read mask the original error (#1256, AC13.23.3). Prefer the plain id the
     # caller captured before any failing operation; otherwise read ``statement.id``
@@ -305,13 +303,13 @@ async def handle_parse_failure(
         refreshed.validation_error = _redacted(message)
         refreshed.confidence_score = 0
         refreshed.balance_validated = False
-        if file_hash and storage_key:
+        if job is not None:
             await _ensure_failed_document_lineage(
                 db,
                 refreshed,
-                file_hash=file_hash,
-                storage_key=storage_key,
-                original_filename=original_filename or file_hash,
+                file_hash=job.file_hash,
+                storage_key=job.storage_key,
+                original_filename=job.filename,
             )
         await db.commit()
         logger.warning(
@@ -336,66 +334,11 @@ async def handle_parse_failure(
         )
 
 
-def _filter_failure_handler_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
-    try:
-        parameters = signature(handle_parse_failure).parameters
-    except (TypeError, ValueError):
-        return kwargs
-    if any(parameter.kind == Parameter.VAR_KEYWORD for parameter in parameters.values()):
-        return kwargs
-    return {key: value for key, value in kwargs.items() if key in parameters}
-
-
-async def _handle_parse_failure(
-    statement: StatementSummary,
-    db: AsyncSession,
-    *,
-    message: str | None,
-    phase: str,
-    progress: int | None,
-    model_to_use: str | None,
-    error_type: str | None,
-    request_id: str,
-    statement_id: UUID | None = None,
-    file_hash: str | None = None,
-    storage_key: str | None = None,
-    original_filename: str | None = None,
-) -> None:
-    await handle_parse_failure(
-        statement,
-        db,
-        **_filter_failure_handler_kwargs(
-            {
-                "message": message,
-                "phase": phase,
-                "progress": progress,
-                "model_to_use": model_to_use,
-                "error_type": error_type,
-                "request_id": request_id,
-                # Plain UUID captured at task start — safe to read even if the
-                # ORM `statement` row's session is in a failed state (#1256).
-                "statement_id": statement_id,
-                "file_hash": file_hash,
-                "storage_key": storage_key,
-                "original_filename": original_filename,
-            }
-        ),
-    )
-
-
 async def parse_statement_background(
+    job: ParseJob,
     *,
-    statement_id: UUID,
-    filename: str,
-    institution: str | None,
-    user_id: UUID,
-    account_id: UUID | None,
-    file_hash: str,
-    storage_key: str,
     content: bytes,
-    model: str | None,
     session_maker: async_sessionmaker[AsyncSession],
-    request_id: str | None = None,
 ) -> None:
     """Background task to parse a bank statement document.
 
@@ -406,19 +349,21 @@ async def parse_statement_background(
     4. Handle errors and mark statement appropriately
 
     Args:
-        statement_id: UUID of the StatementSummary envelope to parse
-        filename: Original filename of uploaded file
-        institution: Bank institution name (or None for auto-detect)
-        user_id: User ID who uploaded the statement
-        account_id: Optional account ID to associate with statement
-        file_hash: SHA256 hash of file content
-        storage_key: Storage key for the uploaded file
+        job: Immutable identity and routing context for this parse.
         content: Raw file content bytes
-        model: AI model to use for parsing (or None for default)
         session_maker: AsyncSession maker for background DB operations
-        request_id: Optional request ID for tracing
     """
-    request_id = request_id or str(uuid4())
+    statement_id = job.statement_id
+    filename = job.filename
+    institution = job.institution
+    user_id = job.user_id
+    account_id = job.account_id
+    file_hash = job.file_hash
+    storage_key = job.storage_key
+    model = job.model
+    request_id = job.request_id or str(uuid4())
+    if job.request_id is None:
+        job = replace(job, request_id=request_id)
     # Bind request_id to context for this background task
     structlog.contextvars.bind_contextvars(
         request_id=request_id, statement_id=str(statement_id), task="parse_statement"
@@ -492,15 +437,17 @@ async def parse_statement_background(
             # (caught by the #1520 real-storage pipeline test). The display
             # name travels separately as original_filename.
             parsed_statement, transactions = await service.parse_document(
-                file_path=Path(storage_key),
+                DocumentSource.resolve(
+                    path=Path(storage_key),
+                    content=content,
+                    url=file_url,
+                    content_hash=file_hash,
+                    filename=filename,
+                ),
                 institution=institution,
                 user_id=user_id,
                 file_type=file_type,
                 account_id=account_id,
-                file_content=content,
-                file_hash=file_hash,
-                file_url=file_url,
-                original_filename=filename,
                 force_model=model,
                 db=session,
             )
@@ -515,19 +462,15 @@ async def parse_statement_background(
             )
             checkpoint("extraction_completed")
         except ExtractionError as exc:
-            await _handle_parse_failure(
+            await handle_parse_failure(
                 statement,
                 session,
+                job=job,
                 message=str(exc),
                 phase=current_phase,
                 progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
-                request_id=request_id,
-                statement_id=statement_id,
-                file_hash=file_hash,
-                storage_key=storage_key,
-                original_filename=filename,
             )
             return
         except Exception as exc:
@@ -539,19 +482,15 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
-            await _handle_parse_failure(
+            await handle_parse_failure(
                 statement,
                 session,
+                job=job,
                 message=f"Parsing failed: {exc}",
                 phase=current_phase,
                 progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
-                request_id=request_id,
-                statement_id=statement_id,
-                file_hash=file_hash,
-                storage_key=storage_key,
-                original_filename=filename,
             )
             return
 
@@ -603,17 +542,13 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
-            await _handle_parse_failure(
+            await handle_parse_failure(
                 statement,
                 session,
+                job=job,
                 message=f"Finalize failed: {exc}",
                 phase=current_phase,
                 progress=None,
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
-                request_id=request_id,
-                statement_id=statement_id,
-                file_hash=file_hash,
-                storage_key=storage_key,
-                original_filename=filename,
             )

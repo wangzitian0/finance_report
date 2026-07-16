@@ -26,6 +26,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction import ParseJob
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
@@ -303,15 +304,17 @@ class TestBackgroundTaskDirtyData:
         monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
         await parse_statement_background(
-            statement_id=sid,
-            filename="test.pdf",
-            institution="DBS",
-            user_id=uid,
-            account_id=account.id,
-            file_hash=f"bg_dirty_{uuid4().hex[:8]}",
-            storage_key="test_path",
+            job=ParseJob(
+                statement_id=sid,
+                filename="test.pdf",
+                institution="DBS",
+                user_id=uid,
+                account_id=account.id,
+                file_hash=f"bg_dirty_{uuid4().hex[:8]}",
+                storage_key="test_path",
+                model=None,
+            ),
             content=b"dummy content",
-            model=None,
             session_maker=create_session_maker_from_db(db),
         )
 
@@ -450,10 +453,11 @@ class TestCascadingFailureRecovery:
 
         handler_called_with: dict | None = None
 
-        async def spy_handler(statement, db_session, *, message):
+        async def spy_handler(statement, db_session, **failure_context):
             nonlocal handler_called_with
+            message = failure_context["message"]
             handler_called_with = {"statement_id": statement.id, "message": message}
-            return await handle_parse_failure(statement, db_session, message=message)
+            return await handle_parse_failure(statement, db_session, **failure_context)
 
         monkeypatch.setattr("src.extraction.extension.statement_parsing.handle_parse_failure", spy_handler)
 
@@ -506,15 +510,17 @@ class TestCascadingFailureRecovery:
 
         try:
             await parse_statement_background(
-                statement_id=sid,
-                filename="test.pdf",
-                institution="DBS",
-                user_id=uid,
-                account_id=account.id,
-                file_hash=f"commit_fail_{uuid4().hex[:8]}",
-                storage_key="test_path",
+                job=ParseJob(
+                    statement_id=sid,
+                    filename="test.pdf",
+                    institution="DBS",
+                    user_id=uid,
+                    account_id=account.id,
+                    file_hash=f"commit_fail_{uuid4().hex[:8]}",
+                    storage_key="test_path",
+                    model=None,
+                ),
                 content=b"dummy content",
-                model=None,
                 session_maker=create_session_maker_from_db(db),
             )
         except Exception:

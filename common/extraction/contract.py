@@ -155,6 +155,13 @@ CONTRACT = PackageContract(
         # is only metrics-logged; publishing via the platform outbox is the
         # planned upgrade — package-internal, not a re-cutover) ──
         Unit(name="BalanceChainViolated", kind=Kind.DOMAIN_EVENT),
+        Unit(name="DocumentSource", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(
+            name="ExtractedTransactionRow",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(name="ParseJob", kind=Kind.VALUE_OBJECT, module="base/types.py"),
     ],
     implementations={"be": "apps/backend/src/extraction", "fe": None},
     interface=[
@@ -170,6 +177,7 @@ CONTRACT = PackageContract(
         "CurrencyUnresolvedError",
         "DEFAULT_MAX_DEPTH",
         "DeduplicationService",
+        "DocumentSource",
         "DocumentStatus",
         "DocumentType",
         "EvidenceEdge",
@@ -180,12 +188,14 @@ CONTRACT = PackageContract(
         "EvidenceTraversalStep",
         "ExtractionError",
         "ExtractionService",
+        "ExtractedTransactionRow",
         "ManagedPosition",
         "ManualValuationBasis",
         "ManualValuationComponentType",
         "ManualValuationLiquidityClass",
         "ManualValuationSnapshot",
         "PositionStatus",
+        "ParseJob",
         "ReportSnapshot",
         "ReportType",
         "SYSTEM_PROMPT",
@@ -3946,6 +3956,73 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1832_4_rejected_parse_deletes_the_account_it_just_created"
             ),
             priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        # ── issue #1866 PR-B: the extraction orchestration boundary carries
+        # cohesive typed values instead of repeating primitive parameter
+        # clusters or attaching transient persistence data to ORM instances. ──
+        ACRecord(
+            id="AC-extraction.signature-seams.1",
+            statement=(
+                "A single frozen ParseJob value object crosses the upload, "
+                "in-process worker, and Prefect boundaries; its explicit "
+                "to/from Prefect conversion round-trips UUIDs and contains no "
+                "bytes or database/session objects."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_signature_seams.py"
+                "::test_AC_extraction_signature_seams_1_parse_job_round_trips_prefect_params"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.signature-seams.2",
+            statement=(
+                "DocumentSource resolves the document path, content, URL, "
+                "content hash, and display filename once before parsing; CSV "
+                "and vision extraction then consume that immutable source."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_signature_seams.py"
+                "::test_AC_extraction_signature_seams_2_document_source_resolves_once"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.signature-seams.3",
+            statement=(
+                "parse_document delegates CSV and vision source extraction to "
+                "separate typed paths while preserving the shared validation "
+                "and persistence pipeline."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_signature_seams.py"
+                "::test_AC_extraction_signature_seams_3_csv_and_vision_paths_are_separate"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.signature-seams.4",
+            statement=(
+                "Parsed transaction rows carry dedup_hash, balance_after, "
+                "occurrence_index, and currency resolution as a typed immutable "
+                "DTO; Layer-2 persistence accepts AsyncSession and never reads "
+                "transient attributes from ORM objects or filters failure "
+                "arguments with inspect.signature. ParseJob also owns the "
+                "failure-lineage identity instead of repeating its fields."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_signature_seams.py"
+                "::test_AC_extraction_signature_seams_4_typed_rows_and_failure_contract"
+            ),
+            priority="P0",
             status="done",
             proof_kind="property",
         ),

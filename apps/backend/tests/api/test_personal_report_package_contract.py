@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import DocumentType, ReportSnapshot, UploadedDocument
-from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction import DocumentType, ExtractedTransactionRow, ReportSnapshot, UploadedDocument
+from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
@@ -1644,16 +1644,29 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
         balance_validated=True,
         stage1_status=Stage1Status.APPROVED,
     )
-    txn = AtomicTransaction(
+    amount = Decimal("120.00")
+    direction = TransactionDirection.IN
+    description = "Evidence graph income"
+    reference = "EG-INC"
+    txn = ExtractedTransactionRow(
         user_id=test_user.id,
         txn_date=report_date,
-        description="Evidence graph income",
-        amount=Decimal("120.00"),
-        direction=TransactionDirection.IN,
+        description=description,
+        amount=amount,
+        direction=direction.value,
         currency="SGD",
-        reference="EG-INC",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[],
+        reference=reference,
+        currency_unresolved=False,
+        balance_after=None,
+        occurrence_index=0,
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
+            test_user.id,
+            report_date,
+            amount,
+            direction,
+            description,
+            reference,
+        ),
     )
 
     await dual_write_layer2(

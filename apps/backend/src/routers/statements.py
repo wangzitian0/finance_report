@@ -18,6 +18,7 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BrokeragePositionImportService,
+    ParseJob,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -151,17 +152,19 @@ async def _queue_statement_reparse(
     request_id = _current_request_id()
     model_to_use = None if model == settings.ocr_model else model
     task = await submit_parse_pipeline(
-        statement_id=statement.id,
-        filename=filename,
-        institution=statement.institution,
-        user_id=user_id,
-        account_id=statement.account_id,
-        file_hash=statement.file_hash,
-        storage_key=storage_key,
+        job=ParseJob(
+            statement_id=statement.id,
+            filename=filename,
+            institution=statement.institution,
+            user_id=user_id,
+            account_id=statement.account_id,
+            file_hash=statement.file_hash,
+            storage_key=storage_key,
+            model=model_to_use,
+            request_id=request_id,
+        ),
         content=content,
-        model=model_to_use,
         db=db,
-        request_id=request_id,
     )
     if task is not None:
         _track_task(task)
@@ -403,17 +406,19 @@ async def upload_statement(
         raise_internal_error("Failed to persist statement metadata", cause=exc)
 
     task = await submit_parse_pipeline(
-        statement_id=statement_id,
-        filename=filename,
-        institution=institution,
-        user_id=user_id,
-        account_id=account_id,
-        file_hash=file_hash,
-        storage_key=storage_key,
+        job=ParseJob(
+            statement_id=statement_id,
+            filename=filename,
+            institution=institution,
+            user_id=user_id,
+            account_id=account_id,
+            file_hash=file_hash,
+            storage_key=storage_key,
+            model=model_to_use,
+            request_id=request_id,
+        ),
         content=content,
-        model=model_to_use,
         db=db,
-        request_id=request_id,
     )
     if task is not None:
         _track_task(task)

@@ -6,6 +6,7 @@ and the failure-log fields, so an exception message quoting statement content
 (emails, account numbers) never lands raw.
 """
 
+from src.extraction import ParseJob
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
@@ -28,8 +29,17 @@ async def test_AC_safe_error_ssot_2_handle_parse_failure_redacts_pii(db, test_us
     await handle_parse_failure(
         summary,
         db,
+        job=ParseJob(
+            statement_id=summary.id,
+            filename=doc.original_filename,
+            institution=summary.institution,
+            user_id=test_user.id,
+            account_id=summary.account_id,
+            file_hash=summary.file_hash,
+            storage_key=doc.file_path,
+            model=None,
+        ),
         message=PII_MESSAGE,
-        statement_id=summary.id,
         error_type="ValueError",
     )
 
