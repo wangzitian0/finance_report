@@ -86,7 +86,7 @@ async def test_create_correction_returns_404_when_transaction_is_missing(monkeyp
 
     with pytest.raises(HTTPException) as exc_info:
         await corrections.create_correction(
-            corrections.CorrectionRequest(
+            body=corrections.CorrectionRequest(
                 transaction_id=uuid4(),
                 corrected_category="Office Supplies",
             ),

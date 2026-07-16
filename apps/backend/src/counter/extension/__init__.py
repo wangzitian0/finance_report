@@ -7,7 +7,7 @@ stays pure behind the ports this layer satisfies.
 
 from __future__ import annotations
 
-from src.counter.extension.api import read_count, record_increment
+from src.counter.extension.facade import read_count, record_increment
 from src.counter.extension.sql import CounterTally, SqlCounterRepository
 
 __all__ = ["CounterTally", "SqlCounterRepository", "read_count", "record_increment"]

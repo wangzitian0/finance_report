@@ -9,7 +9,15 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 
 from src.extraction import reject_json_floats
 from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus
-from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Percent, Quantity
+from src.schemas.base import (
+    BaseResponse,
+    CurrencyCode,
+    ListResponse,
+    MoneyAmount,
+    NonNegativeMoneyAmount,
+    Percent,
+    Quantity,
+)
 from src.schemas.provenance import DataProvenance
 
 
@@ -25,12 +33,12 @@ class HoldingResponse(BaseResponse):
     market_value: MoneyAmount
     unrealized_pnl: MoneyAmount
     unrealized_pnl_percent: Percent
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     # #1098: pre-conversion native cost basis + currency, so a holding's base view
     # (cost_basis/currency) reconciles with the native view returned by
     # /assets/positions. These are the raw position values before convert_money.
     native_cost_basis: MoneyAmount
-    native_currency: Annotated[str, Field(min_length=3, max_length=3)]
+    native_currency: CurrencyCode
     acquisition_date: date
     disposal_date: date | None = None
     status: PositionStatus
@@ -116,7 +124,7 @@ class PriceUpdateRequest(BaseModel):
     asset_identifier: Annotated[str, Field(min_length=1, max_length=100)]
     price_date: Annotated[date, Field(description="Date of the price (default: today)")]
     price: NonNegativeMoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
 
 
 class PriceUpdateResponse(BaseModel):
@@ -164,7 +172,7 @@ class PortfolioSummaryResponse(BaseModel):
     holdings_count: int
     active_positions_count: int
     disposed_positions_count: int
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
 
 
 class PortfolioSummaryDashboardResponse(PortfolioSummaryResponse):
@@ -184,7 +192,7 @@ class InvestmentPerformanceHoldingRow(BaseModel):
     unrealized_pnl: MoneyAmount
     realized_pnl: MoneyAmount
     dividend_income: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
 
 
 class InvestmentPerformanceAllocationRow(BaseModel):
@@ -213,7 +221,7 @@ class InvestmentPerformanceReportScheduleResponse(BaseModel):
     period_start: date
     period_end: date
     as_of_date: date
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     xirr: Annotated[Decimal | None, Field(decimal_places=2)]
     time_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
     money_weighted_return: Annotated[Decimal | None, Field(decimal_places=2)]
@@ -235,7 +243,7 @@ class DividendEventResponse(BaseModel):
     ex_date: date
     pay_date: date
     amount: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     reinvested: bool = False
 
 
@@ -250,7 +258,7 @@ class RealizedLotResponse(BaseModel):
     proceeds: MoneyAmount
     gain_loss: MoneyAmount
     holding_period: int | None = None
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
 
 
 class CostBasisMethodUpdateRequest(BaseModel):

@@ -81,6 +81,7 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
+DEFAULT_INCLUDE_RESTRICTED = False
 
 
 def _target_currency_pair(currency: str | None) -> list[str]:
@@ -140,7 +141,8 @@ async def _ensure_report_market_data_fresh(
 
 @router.get("/currencies", response_model=list[str])
 async def get_available_currencies(
-    db: DbSession = None,
+    *,
+    db: DbSession,
 ) -> list[str]:
     """Get list of currencies with FX data available."""
     base_stmt = select(FxRate.base_currency).distinct()
@@ -193,8 +195,9 @@ async def personal_report_package_readiness(
     start_date: date | None = None,
     end_date: date | None = None,
     as_of_date: date | None = None,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> PersonalReportPackageReadinessResponse:
     """Return deterministic readiness and blocker state for the personal package."""
     payload = await get_personal_report_package_readiness(
@@ -214,8 +217,9 @@ async def personal_report_package_framework_policy(
     start_date: date | None = None,
     end_date: date | None = None,
     as_of_date: date | None = None,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> FrameworkPolicyResult:
     """Return the selected framework policy result consumed by package assembly."""
     report_as_of = as_of_date or end_date or date.today()
@@ -242,8 +246,9 @@ async def personal_report_package_traceability(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     as_of_date: date | None = Query(default=None),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> PersonalReportPackageTraceabilityResponse:
     """Return the package-level source-ledger-report traceability appendix."""
     payload = await build_personal_report_package_traceability_payload(
@@ -259,8 +264,9 @@ async def personal_report_package_traceability(
 @router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)
 async def annualized_income_schedule(
     as_of_date: date | None = Query(default=None),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AnnualizedIncomeScheduleResponse:
     """Return report-ready annualized income and restricted compensation schedule."""
     return await generate_annualized_income_schedule(db, user_id, as_of_date=as_of_date)
@@ -420,41 +426,24 @@ async def _build_personal_report_package_snapshot_data(
 async def generate_personal_report_package_snapshot(
     db: DbSession,
     user_id: CurrentUserId,
-    request: PersonalReportPackageGenerateRequest | None = None,
-    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    as_of_date: date | None = None,
-    currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
+    request: PersonalReportPackageGenerateRequest,
 ) -> PersonalReportPackageSnapshotResponse:
     """Generate and persist an immutable personal report package snapshot."""
-    if request is not None:
-        framework_id = request.framework_id
-        start_date = request.start_date
-        end_date = request.end_date
-        as_of_date = request.as_of_date
-        currency = request.currency
-        include_restricted = request.include_restricted
-    if not isinstance(currency, str):
-        currency = None
-    if not isinstance(include_restricted, bool):
-        include_restricted = False
     report_start, report_end, report_as_of = _package_dates(
-        start_date=start_date,
-        end_date=end_date,
-        as_of_date=as_of_date,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        as_of_date=request.as_of_date,
     )
-    target_currency = _package_currency(currency)
+    target_currency = _package_currency(request.currency)
     snapshot_data = await _build_personal_report_package_snapshot_data(
         db=db,
         user_id=user_id,
-        framework_id=framework_id,
+        framework_id=request.framework_id,
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
-        include_restricted=include_restricted,
+        include_restricted=request.include_restricted,
     )
     snapshot = await ReportingSnapshotService().create_snapshot(
         db,
@@ -477,7 +466,7 @@ async def generate_personal_report_package_snapshot(
     # safe to call directly (tests) without a FastAPI BackgroundTasks instance.
     _track_analytics(
         "report_generated",
-        {"framework_id": framework_id.value, "currency": target_currency},
+        {"framework_id": request.framework_id.value, "currency": target_currency},
     )
     return _package_snapshot_response(snapshot)
 
@@ -548,9 +537,10 @@ async def export_personal_report_package_snapshot(
 async def balance_sheet(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BalanceSheetResponse:
     """Get balance sheet as of date."""
     try:
@@ -581,8 +571,9 @@ async def account_lineage(
     as_of_date: date | None = Query(default=None),
     start_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AccountLineageResponse:
     """List the journal lines contributing to one account's report balance.
 
@@ -613,8 +604,9 @@ async def income_statement(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     tags: list[str] | None = Query(default=None, alias="tags"),
     account_type: AccountType | None = Query(default=None, alias="account_type"),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
     try:
@@ -646,8 +638,9 @@ async def cash_flow(
     start_date: date = Query(...),
     end_date: date = Query(...),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> CashFlowResponse:
     """Get cash flow statement for a period."""
     try:
@@ -677,8 +670,9 @@ async def account_trend(
     account_id: UUID = Query(...),
     period: TrendPeriod = Query(default=TrendPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> AccountTrendResponse:
     """Get account trend data."""
     try:
@@ -709,8 +703,9 @@ async def net_worth_timeseries(
     to_date: date = Query(..., alias="to"),
     granularity: NetWorthGranularity = Query(default=NetWorthGranularity.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> NetWorthTimeSeriesResponse:
     """Get daily or monthly net worth time-series."""
     try:
@@ -741,9 +736,10 @@ async def net_worth_timeseries(
 async def net_worth_allocation(
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=True),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> NetWorthAllocationResponse:
     """Get signed net-worth allocation grouped by asset class, liquidity, and source currency."""
     report_date = as_of_date or date.today()
@@ -774,8 +770,9 @@ async def category_breakdown(
     breakdown_type: BreakdownType = Query(..., alias="type"),
     period: BreakdownPeriod = Query(default=BreakdownPeriod.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> CategoryBreakdownResponse:
     """Get income or expense category breakdown."""
     account_type = AccountType.INCOME if breakdown_type == BreakdownType.INCOME else AccountType.EXPENSE
@@ -811,8 +808,9 @@ async def export_report(
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     include_restricted: bool = Query(default=False),
     framework_id: PersonalReportingFrameworkId | None = Query(default=None),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> StreamingResponse:
     """Export reports in CSV format."""
     output = StringIO()
@@ -964,8 +962,9 @@ async def export_report(
 @router.get("/{report_type}/snapshots", response_model=list[ReportSnapshotSummary])
 async def list_report_snapshots(
     report_type: SnapshotReportType,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> list[ReportSnapshotSummary]:
     """List available report snapshots for a given report type.
 

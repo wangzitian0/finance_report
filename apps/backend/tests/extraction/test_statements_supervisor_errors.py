@@ -153,7 +153,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         from src.schemas import RetryParsingRequest
 
-        await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+        await retry_statement_parsing(sid, RetryParsingRequest(model=None), db=db, user_id=uid)
     assert exc.value.status_code == 404
 
     # Retry invalid status
@@ -171,7 +171,7 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
         mock_storage = mock_storage_cls.return_value
         mock_storage.get_object.return_value = b"content"
         with pytest.raises(HTTPException) as exc:
-            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db=db, user_id=uid)
         assert exc.value.status_code == 400
 
     # Background parsing not found
@@ -357,7 +357,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         from src.schemas import RetryParsingRequest
 
         with pytest.raises(HTTPException) as exc:
-            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+            await retry_statement_parsing(sid, RetryParsingRequest(model=None), db=db, user_id=uid)
         assert exc.value.status_code == 503
 
     # 2. ExtractionError in retry
@@ -370,7 +370,7 @@ async def test_retry_statement_parsing_error_paths(db, test_user):
         # To test pre-task failures, we can mock something earlier.
         # But wait, retry_statement_parsing now returns 200 if task starts.
         # Let's adjust expectations.
-        resp = await retry_statement_parsing(sid, RetryParsingRequest(model=None), db, uid)
+        resp = await retry_statement_parsing(sid, RetryParsingRequest(model=None), db=db, user_id=uid)
         assert resp.status == BankStatementStatus.PARSING
 
 

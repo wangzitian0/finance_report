@@ -6,10 +6,10 @@ from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from src.ledger import AccountType
-from src.schemas.base import BaseResponse, ListResponse, MoneyAmount
+from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount
 
 
 class OpeningBalanceRequest(BaseModel):
@@ -21,17 +21,8 @@ class OpeningBalanceRequest(BaseModel):
 
     entry_date: date
     balances: dict[UUID, Annotated[Decimal, Field(gt=Decimal("0"), decimal_places=2)]]
-    currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+    currency: CurrencyCode | None = None
     memo: Annotated[str, Field(min_length=1, max_length=500)] = "Opening balances"
-
-    @field_validator("currency", mode="before")
-    @classmethod
-    def normalize_currency(cls, value: object) -> object:
-        # Strip + uppercase before the length check so " sgd " normalizes to "SGD",
-        # consistent with currency normalization elsewhere (e.g. reporting).
-        if isinstance(value, str):
-            return value.strip().upper()
-        return value
 
 
 class OpeningBalanceReadinessResponse(BaseModel):
@@ -54,7 +45,7 @@ class AccountBase(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=255)]
     code: Annotated[str | None, Field(None, max_length=50)]
     type: AccountType
-    currency: Annotated[str, Field(min_length=3, max_length=3)] = "SGD"
+    currency: CurrencyCode = "SGD"
     parent_id: UUID | None = None
     description: Annotated[str | None, Field(None, max_length=500)] = None
 
@@ -105,7 +96,7 @@ class AccountCoverageIssueType(str, Enum):
 class AccountCoverageIssue(BaseResponse):
     type: AccountCoverageIssueType
     severity: str
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     period_start: date
     period_end: date
     statement_id: UUID | None = None
@@ -118,7 +109,7 @@ class AccountCoverageIssue(BaseResponse):
 class AccountCoverageResponse(BaseResponse):
     account_id: UUID
     account_name: str
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     cadence: AccountCoverageCadence
     latest_source_date: date | None = None
     latest_confirmed_balance: MoneyAmount | None = None
@@ -139,7 +130,7 @@ class ProcessingSummaryResponse(BaseResponse):
     pending_count: int
     pending_total: MoneyAmount
     current_balance: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     oldest_pending_date: date | None = None
 
 
@@ -148,7 +139,7 @@ class ProcessingPendingItem(BaseResponse):
     from_account: str
     to_account: str
     amount: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     initiated_date: date
     days_outstanding: int
     description: str

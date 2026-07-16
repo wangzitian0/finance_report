@@ -42,8 +42,9 @@ SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS = 2.0
 @router.post("", response_class=StreamingResponse)
 async def chat_message(
     payload: ChatRequest,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
@@ -105,8 +106,9 @@ async def chat_message(
 async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ChatHistoryResponse:
     """Retrieve chat session history."""
     sessions: list[ChatSessionResponse] = []
@@ -217,8 +219,9 @@ async def chat_history(
 @router.delete("/session/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: UUID,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> None:
     """Soft-delete a chat session."""
     session = await get_owned_or_404(db, ChatSession, session_id, user_id, name="Chat session")
@@ -239,8 +242,9 @@ async def suggestions(
             ),
         ),
     ] = False,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ChatSuggestionsResponse:
     """Return a suggested question list for the chat UI."""
     resolved_language = language or (detect_language(message) if message else "en")

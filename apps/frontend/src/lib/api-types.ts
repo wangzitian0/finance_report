@@ -617,16 +617,7 @@ export interface paths {
         };
         /**
          * Health Check
-         * @description Check application health status with dependency checks.
-         *
-         *     Returns 200 if all critical services are healthy, 503 otherwise.
-         *     This endpoint is used by Docker healthcheck and deployment verification.
-         *
-         *     The default (frequent Docker healthcheck) stays light: database + S3.
-         *     ``?full=1`` asserts the FULL manifest-declared dependency set for this
-         *     environment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every
-         *     dependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or
-         *     the endpoint returns 503. The smoke test calls this form.
+         * @description Return light or manifest-complete dependency health.
          */
         get: operations["health_check_health_get"];
         put?: never;
@@ -5769,7 +5760,7 @@ export interface components {
         PersonalReportingFrameworkId: "personal_us_gaap_like" | "personal_hkfrs_like";
         /**
          * PingStateResponse
-         * @description Schema for ping state response.
+         * @description Ping demo-state response.
          */
         PingStateResponse: {
             /** State */
@@ -5858,7 +5849,10 @@ export interface components {
              */
             updated_count: number;
         };
-        /** PriceUpdateRequest */
+        /**
+         * PriceUpdateRequest
+         * @description Schema for manual price update request.
+         */
         PriceUpdateRequest: {
             /** Asset Identifier */
             asset_identifier: string;
@@ -5869,6 +5863,7 @@ export interface components {
             /**
              * Price Date
              * Format: date
+             * @description Date of the price (default: today)
              */
             price_date: string;
         };
@@ -10296,6 +10291,51 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -10303,6 +10343,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -12162,6 +12220,69 @@ export interface operations {
                     "application/json": components["schemas"]["PingStateResponse"];
                 };
             };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     toggle_ping_state_ping_toggle_post: {
@@ -12180,6 +12301,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingStateResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -15647,21 +15831,14 @@ export interface operations {
     };
     generate_personal_report_package_snapshot_reports_package_generate_post: {
         parameters: {
-            query?: {
-                framework_id?: components["schemas"]["PersonalReportingFrameworkId"];
-                start_date?: string | null;
-                end_date?: string | null;
-                as_of_date?: string | null;
-                currency?: string | null;
-                include_restricted?: boolean;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["PersonalReportPackageGenerateRequest"] | null;
+                "application/json": components["schemas"]["PersonalReportPackageGenerateRequest"];
             };
         };
         responses: {

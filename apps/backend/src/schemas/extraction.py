@@ -7,10 +7,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction.orm.statement_enums import BankStatementStatus
-from src.schemas.base import ListResponse
+from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
     from src.extraction import UploadedDocument
@@ -34,16 +34,11 @@ class CurrencyBalance(BaseModel):
     are out of scope here and tracked as follow-up.
     """
 
-    currency: str = Field(..., description="ISO currency code (normalized upper-case)")
+    currency: CurrencyCode = Field(description="ISO currency code (normalized upper-case)")
     opening: Decimal = Field(..., description="Opening balance in this currency")
     closing: Decimal = Field(..., description="Closing balance in this currency")
 
     model_config = ConfigDict(from_attributes=True)
-
-    @field_validator("currency")
-    @classmethod
-    def _normalize_currency(cls, value: str) -> str:
-        return value.strip().upper()
 
 
 # --- Request Schemas ---

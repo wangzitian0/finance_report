@@ -7,7 +7,7 @@ transaction. The caller commits once: tally upsert + outbox row commit together,
 or — on rollback — neither persists. That single-session sharing is what makes
 the event atomic with the state change (the heart of the transactional outbox).
 
-``api`` is the only role that combines the session with the domain verbs and with
+The facade is the only role that combines the session with the domain verbs and with
 the platform bus; ``ops.increment`` stays a pure, session-free verb that the
 in-memory fake can unit-test. Dispatch is NOT done here — the row is left
 ``pending`` for the relay to deliver post-commit.

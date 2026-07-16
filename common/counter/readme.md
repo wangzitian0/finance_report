@@ -70,7 +70,7 @@ overall = get_count(repo, key=key)                             # global (all use
 **atomic** write — bump + outbox event in one transaction — and a thin read:
 
 ```python
-from src.counter.api import record_increment, read_count
+from src.counter import record_increment, read_count
 
 # write: bump the tally AND enqueue counter.Incremented into the platform outbox,
 # both in `db`'s transaction; the caller's single commit makes them atomic.
@@ -92,7 +92,7 @@ The implementation converges into the package model's internal layers
 | `base/ops/` | `increment` (publishes `Incremented` through an `EventBus`) and `get_count` (per-user/global), over the repository **port** |
 | `base/repository.py` | `CounterRepository` (a `typing.Protocol` port — mechanism B's base half) |
 | `extension/sql.py` | `SqlCounterRepository`/`CounterTally` (the SQLAlchemy adapter — the only module that touches the ORM) |
-| `extension/api/` | `read_count` (thin async read) and `record_increment` (atomic write: tally bump + outbox event in one transaction) |
+| `extension/facade/` | `read_count` (thin async read) and `record_increment` (atomic write: tally bump + outbox event in one transaction) |
 
 Dependency rule (DAG, down only): `extension → base` and never back, and the
 package depends downward on the `platform` package (the

@@ -62,7 +62,11 @@ from src.routers.reports import (
     personal_report_package_readiness,
     personal_report_package_traceability,
 )
-from src.schemas import PersonalReportingFrameworkId, PersonalReportPackageReadinessResponse
+from src.schemas import (
+    PersonalReportingFrameworkId,
+    PersonalReportPackageGenerateRequest,
+    PersonalReportPackageReadinessResponse,
+)
 from tests.factories import UserFactory
 
 
@@ -374,11 +378,13 @@ async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
     await _patch_package_snapshot_inputs(monkeypatch, readiness_state="blocked", blocking_count=1)
 
     draft = await generate_personal_report_package_snapshot(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 12, 31),
-        as_of_date=date(2025, 12, 31),
-        currency="SGD",
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+            as_of_date=date(2025, 12, 31),
+            currency="SGD",
+        ),
         db=db,
         user_id=test_user.id,
     )
@@ -395,11 +401,13 @@ async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
 
     await _patch_package_snapshot_inputs(monkeypatch, readiness_state="ready", blocking_count=0)
     trusted = await generate_personal_report_package_snapshot(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 12, 31),
-        as_of_date=date(2025, 12, 31),
-        currency="SGD",
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+            as_of_date=date(2025, 12, 31),
+            currency="SGD",
+        ),
         db=db,
         user_id=test_user.id,
     )
@@ -429,11 +437,13 @@ async def test_AC5_19_2_package_snapshot_get_is_user_scoped_and_immutable(
     """AC-reporting.package-snapshot.2: AC5.19.2: Package snapshots list/get by user and reopen the frozen payload."""
     await _patch_package_snapshot_inputs(monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen")
     snapshot = await generate_personal_report_package_snapshot(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 12, 31),
-        as_of_date=date(2025, 12, 31),
-        currency="SGD",
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+            as_of_date=date(2025, 12, 31),
+            currency="SGD",
+        ),
         db=db,
         user_id=test_user.id,
     )
@@ -483,11 +493,13 @@ async def test_AC5_19_3_package_snapshot_exports_are_snapshot_derived(
         monkeypatch, readiness_state="ready", blocking_count=0, section_label="Frozen CSV"
     )
     snapshot = await generate_personal_report_package_snapshot(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 12, 31),
-        as_of_date=date(2025, 12, 31),
-        currency="SGD",
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+            as_of_date=date(2025, 12, 31),
+            currency="SGD",
+        ),
         db=db,
         user_id=test_user.id,
     )
@@ -1106,9 +1118,11 @@ async def test_AC19_9_1_package_readiness_reports_source_trust_summary(
     assert "manual_record" in trust["gap_source_classes"]
 
 
-async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors():
+async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_anchors(db: AsyncSession, test_user: User):
     """AC-reporting.package-traceability.1 · AC-reporting.trust-signals.3: AC5.13.1: Package traceability endpoint returns source-to-ledger anchors per report line."""
-    response = await personal_report_package_traceability()
+    response = await personal_report_package_traceability(
+        start_date=None, end_date=None, as_of_date=None, db=db, user_id=test_user.id
+    )
     payload = response.model_dump(mode="json")
 
     assert payload["section_id"] == "traceability_appendix"
@@ -1134,9 +1148,11 @@ async def test_AC5_13_1_package_traceability_endpoint_returns_section_line_ancho
     assert total_assets["anchor_count"] == 0
 
 
-async def test_AC5_13_2_package_traceability_declares_completeness_warnings():
+async def test_AC5_13_2_package_traceability_declares_completeness_warnings(db: AsyncSession, test_user: User):
     """AC-reporting.package-traceability.2: AC5.13.2: Traceability appendix exposes explicit completeness states where anchors are unavailable."""
-    response = await personal_report_package_traceability()
+    response = await personal_report_package_traceability(
+        start_date=None, end_date=None, as_of_date=None, db=db, user_id=test_user.id
+    )
     payload = response.model_dump(mode="json")
 
     lines = {line["line_id"]: line for line in payload["lines"]}

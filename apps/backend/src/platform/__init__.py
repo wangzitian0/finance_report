@@ -71,6 +71,7 @@ _EXTENSION_EXPORTS = {
     "BaseAppException",
     "OutboxEventBus",
     "OutboxRelay",
+    "PingStateResponse",
     "RateLimitConfig",
     "RateLimiter",
     "RateLimitState",
@@ -93,6 +94,7 @@ _EXTENSION_EXPORTS = {
     "register_statement_reader",
     "register_uploaded_document_readers",
     "update_workflow_event_status",
+    "platform_system_router",
 }
 
 __all__ = [
@@ -106,6 +108,7 @@ __all__ = [
     "OutboxRelay",
     "OutboxRepository",
     "PingState",
+    "PingStateResponse",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",
@@ -151,6 +154,7 @@ __all__ = [
     "register_statement_reader",
     "register_uploaded_document_readers",
     "update_workflow_event_status",
+    "platform_system_router",
 ]
 
 
@@ -169,6 +173,7 @@ if TYPE_CHECKING:
         Outbox,
         OutboxEventBus,
         OutboxRelay,
+        PingStateResponse,
         RateLimitConfig,
         RateLimiter,
         RateLimitState,
@@ -178,6 +183,7 @@ if TYPE_CHECKING:
         get_workflow_status,
         list_workflow_events_response,
         paginate,
+        platform_system_router,
         raise_bad_request,
         raise_conflict,
         raise_gateway_timeout,

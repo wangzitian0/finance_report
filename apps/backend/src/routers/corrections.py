@@ -53,8 +53,9 @@ class CorrectionStatsResponse(BaseModel):
 @router.post("", response_model=CorrectionResponse, status_code=status.HTTP_201_CREATED)
 async def create_correction(
     body: CorrectionRequest,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> CorrectionResponse:
     """Record a user correction to an AI-suggested category.
 
@@ -81,8 +82,9 @@ async def create_correction(
 
 @router.get("/stats", response_model=CorrectionStatsResponse)
 async def correction_stats(
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> CorrectionStatsResponse:
     """Get correction statistics for the current user.
 

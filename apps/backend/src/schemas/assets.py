@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field
 
 from src.extraction.orm.layer3 import (
     ManualValuationBasis,
@@ -12,7 +12,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationLiquidityClass,
     PositionStatus,
 )
-from src.schemas.base import BaseResponse, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
+from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
 from src.schemas.provenance import DataProvenance
 
 
@@ -28,7 +28,7 @@ class ManagedPositionResponse(BaseResponse):
     acquisition_date: date
     disposal_date: date | None = None
     status: PositionStatus
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     position_metadata: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -39,7 +39,7 @@ class ManagedPositionResponse(BaseResponse):
     # Null when no FX rate is available — an FX failure must never 500 a read
     # (the #1388 lesson), so the reporting view degrades to null instead.
     reporting_cost_basis: MoneyAmount | None = None
-    reporting_currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+    reporting_currency: CurrencyCode | None = None
 
     # Denormalized fields from related Account (optional)
     account_name: str | None = None
@@ -93,18 +93,13 @@ class ManualValuationSnapshotCreate(BaseModel):
     component_type: ManualValuationComponentType
     as_of_date: date
     value: NonNegativeMoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     source: Annotated[str, Field(min_length=1, max_length=120)]
     valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     liquidity_class: ManualValuationLiquidityClass | None = None
     recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
     reminder_date: date | None = None
-
-    @field_validator("currency")
-    @classmethod
-    def normalize_currency(cls, value: str) -> str:
-        return value.upper()
 
 
 class ManualValuationSnapshotUpdate(BaseModel):
@@ -113,18 +108,13 @@ class ManualValuationSnapshotUpdate(BaseModel):
     component_type: ManualValuationComponentType | None = None
     as_of_date: date | None = None
     value: NonNegativeMoneyAmount | None = None
-    currency: Annotated[str, Field(min_length=3, max_length=3)] | None = None
+    currency: CurrencyCode | None = None
     source: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
     liquidity_class: ManualValuationLiquidityClass | None = None
     recurrence_days: Annotated[int, Field(ge=1, le=3660)] | None = None
     reminder_date: date | None = None
-
-    @field_validator("currency")
-    @classmethod
-    def normalize_currency(cls, value: str | None) -> str | None:
-        return value.upper() if value else value
 
 
 class ManualValuationSnapshotResponse(BaseResponse):
@@ -136,7 +126,7 @@ class ManualValuationSnapshotResponse(BaseResponse):
     liquidity_class: ManualValuationLiquidityClass
     as_of_date: date
     value: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     source: str
     valuation_basis: ManualValuationBasis | None = None
     notes: str | None = None
@@ -155,7 +145,7 @@ class ValuationComponentResponse(BaseModel):
     liquidity_class: ManualValuationLiquidityClass
     as_of_date: date
     value: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     source: str
     provenance: DataProvenance = "manual"
 
@@ -184,7 +174,7 @@ class RestrictedHoldingResponse(BaseModel):
     vesting_schedule: str | None = None
     unlock_date: date | None = None
     fair_value: MoneyAmount
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
 
 
 ManagedPositionListResponse = ListResponse[ManagedPositionResponse]

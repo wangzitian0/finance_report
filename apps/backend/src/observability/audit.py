@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import structlog
 
@@ -53,6 +53,16 @@ def _redact_detected_pii(text: str) -> str:
 def current_request_id() -> str | None:
     value = structlog.contextvars.get_contextvars().get("request_id")
     return str(value) if value else None
+
+
+def ensure_request_id() -> str:
+    """Return the bound request id, creating and binding one when absent."""
+    value = current_request_id()
+    if value is not None:
+        return value
+    generated = str(uuid4())
+    structlog.contextvars.bind_contextvars(request_id=generated)
+    return generated
 
 
 def safe_error_message(message: object, *, limit: int = MAX_SAFE_ERROR_CHARS) -> str:

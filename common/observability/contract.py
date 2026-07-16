@@ -60,6 +60,7 @@ CONTRACT = PackageContract(
         "configure_logging",
         "configure_otel_metrics",
         "current_request_id",
+        "ensure_request_id",
         "detect_pii",
         "get_logger",
         "get_observability_status",

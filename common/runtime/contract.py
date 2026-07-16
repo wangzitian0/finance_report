@@ -69,6 +69,7 @@ CONTRACT = PackageContract(
         "register_known_storage_paths_provider",
         "resolve_env_tier",
         "run_storage_sweep",
+        "runtime_system_router",
     ],
     events=[],
     invariants=[

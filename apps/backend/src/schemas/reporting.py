@@ -15,6 +15,7 @@ from src.reporting.base.types import (
     PolicyDimension,
     ReportLineId as ReportLineId,
 )
+from src.schemas.base import CurrencyCode
 from src.schemas.provenance import DataProvenance
 
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
@@ -640,7 +641,7 @@ class PersonalReportPackageGenerateRequest(BaseModel):
     start_date: date | None = Field(default=None, description="Requested reporting period start date")
     end_date: date | None = Field(default=None, description="Requested reporting period end date")
     as_of_date: date | None = Field(default=None, description="Requested point-in-time report date")
-    currency: str | None = Field(
+    currency: CurrencyCode | None = Field(
         default=None,
         description="Requested presentation currency",
         min_length=3,

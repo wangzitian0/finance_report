@@ -154,7 +154,7 @@ async def test_build_match_response_includes_entries(db: AsyncSession, test_user
 async def test_run_reconciliation_statement_not_found(db: AsyncSession, test_user) -> None:
     payload = ReconciliationRunRequest(statement_id=uuid4())
     with pytest.raises(HTTPException, match="Statement not found"):
-        await reconciliation_router.run_reconciliation(payload, db, test_user.id)
+        await reconciliation_router.run_reconciliation(payload, db=db, user_id=test_user.id)
 
 
 async def test_run_reconciliation_maps_processing_currency_conflict_to_400(
@@ -168,7 +168,7 @@ async def test_run_reconciliation_maps_processing_currency_conflict_to_400(
     monkeypatch.setattr(reconciliation_router, "execute_matching", fail_matching)
 
     with pytest.raises(HTTPException) as exc_info:
-        await reconciliation_router.run_reconciliation(ReconciliationRunRequest(), db, test_user.id)
+        await reconciliation_router.run_reconciliation(ReconciliationRunRequest(), db=db, user_id=test_user.id)
 
     assert exc_info.value.status_code == 400
     assert "Processing account currency is SGD" in exc_info.value.detail
@@ -202,7 +202,7 @@ async def test_run_reconciliation_filters_unmatched(
     monkeypatch.setattr(reconciliation_router, "execute_matching", fake_execute_matching)
 
     response = await reconciliation_router.run_reconciliation(
-        ReconciliationRunRequest(statement_id=statement.id), db, test_user.id
+        ReconciliationRunRequest(statement_id=statement.id), db=db, user_id=test_user.id
     )
 
     assert response.matches_created == 2
@@ -238,7 +238,7 @@ async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
     monkeypatch.setattr(reconciliation_router.logger, "exception", mock_exception)
 
     response = await reconciliation_router.run_reconciliation(
-        ReconciliationRunRequest(statement_id=statement_id, limit=25), db, test_user.id
+        ReconciliationRunRequest(statement_id=statement_id, limit=25), db=db, user_id=test_user.id
     )
 
     calls = [(call.args[0], call.kwargs) for call in mock_info.call_args_list]
@@ -271,7 +271,9 @@ async def test_AC10_8_3_reconciliation_run_audit_checkpoints(
 
     with pytest.raises(RuntimeError, match="matching score service unavailable"):
         await reconciliation_router.run_reconciliation(
-            ReconciliationRunRequest(statement_id=statement_id, limit=25), db, test_user.id
+            ReconciliationRunRequest(statement_id=statement_id, limit=25),
+            db=db,
+            user_id=test_user.id,
         )
 
     failed = next(call.kwargs for call in mock_exception.call_args_list if call.args[0] == "reconciliation.run.failed")

@@ -420,7 +420,13 @@ class TestReportsEndpoints:
         today = date.today()
         start = today - timedelta(days=30)
         response = await client.post(
-            f"/reports/package/generate?start_date={start}&end_date={today}&as_of_date={today}&currency=SGD"
+            "/reports/package/generate",
+            json={
+                "start_date": start.isoformat(),
+                "end_date": today.isoformat(),
+                "as_of_date": today.isoformat(),
+                "currency": "SGD",
+            },
         )
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
