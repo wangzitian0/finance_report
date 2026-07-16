@@ -383,9 +383,11 @@ def _destructured_literal_names(target: ast.expr, value: ast.expr) -> set[str]:
     }
 
 
-class _ScopedAssignmentVisitor(ast.NodeVisitor):
+class _FunctionScopeVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.assignments: list[ast.Assign | ast.AnnAssign] = []
+        self.functions: list[TestFunction] = []
+        self.return_values: list[ast.expr] = []
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.assignments.append(node)
@@ -396,10 +398,10 @@ class _ScopedAssignmentVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        return
+        self.functions.append(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        return
+        self.functions.append(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         return
@@ -407,18 +409,81 @@ class _ScopedAssignmentVisitor(ast.NodeVisitor):
     def visit_Lambda(self, node: ast.Lambda) -> None:
         return
 
+    def visit_Return(self, node: ast.Return) -> None:
+        if node.value is not None:
+            self.return_values.append(node.value)
+
+
+def _function_scope(function: TestFunction) -> _FunctionScopeVisitor:
+    visitor = _FunctionScopeVisitor()
+    for statement in function.body:
+        visitor.visit(statement)
+    return visitor
+
 
 def _scoped_assignments(
     function: TestFunction,
 ) -> list[ast.Assign | ast.AnnAssign]:
-    visitor = _ScopedAssignmentVisitor()
-    for statement in function.body:
-        visitor.visit(statement)
-    return visitor.assignments
+    return _function_scope(function).assignments
 
 
-def _literal_local_names(function: TestFunction) -> set[str]:
+_CONTAINER_MUTATORS = frozenset(
+    {
+        "add",
+        "append",
+        "clear",
+        "difference_update",
+        "discard",
+        "extend",
+        "insert",
+        "intersection_update",
+        "pop",
+        "popitem",
+        "remove",
+        "reverse",
+        "setdefault",
+        "sort",
+        "symmetric_difference_update",
+        "update",
+    }
+)
+
+
+def _root_name(node: ast.expr) -> str | None:
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _mutated_local_names(function: TestFunction) -> set[str]:
     names: set[str] = set()
+    for node in ast.walk(function):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _CONTAINER_MUTATORS
+        ):
+            if name := _root_name(node.func.value):
+                names.add(name)
+        elif isinstance(node, ast.AugAssign):
+            if name := _root_name(node.target):
+                names.add(name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names.update(
+                name
+                for target in targets
+                if isinstance(target, ast.Subscript)
+                and (name := _root_name(target)) is not None
+            )
+    return names
+
+
+def _literal_local_names(
+    function: TestFunction, *, include_unmutated_containers: bool = False
+) -> set[str]:
+    names: set[str] = set()
+    mutated_names = _mutated_local_names(function)
     for node in _scoped_assignments(function):
         if isinstance(node, ast.Assign):
             if len(node.targets) > 1:
@@ -431,16 +496,25 @@ def _literal_local_names(function: TestFunction) -> set[str]:
                 )
             elif isinstance(node.targets[0], (ast.List, ast.Tuple)):
                 names.update(_destructured_literal_names(node.targets[0], node.value))
-            elif isinstance(node.targets[0], ast.Name) and isinstance(
-                node.value, ast.Constant
+            elif isinstance(node.targets[0], ast.Name):
+                target_name = node.targets[0].id
+                try:
+                    ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    continue
+                if isinstance(node.value, ast.Constant) or (
+                    include_unmutated_containers and target_name not in mutated_names
+                ):
+                    names.add(target_name)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            try:
+                ast.literal_eval(node.value)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(node.value, ast.Constant) or (
+                include_unmutated_containers and node.target.id not in mutated_names
             ):
-                names.add(node.targets[0].id)
-        elif (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and isinstance(node.value, ast.Constant)
-        ):
-            names.add(node.target.id)
+                names.add(node.target.id)
     return names
 
 
@@ -463,25 +537,99 @@ def _literal_module_names(tree: ast.Module) -> set[str]:
     return names
 
 
-def _observer_uses_runtime_state(
-    observer: ast.expr, tree: ast.Module, function: TestFunction
+def _scoped_functions(function: TestFunction) -> list[TestFunction]:
+    return _function_scope(function).functions
+
+
+def _named_observer_function(
+    name: str, tree: ast.Module, function: TestFunction
+) -> TestFunction | None:
+    candidates = _scoped_functions(function)
+    candidates.extend(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+    return next((candidate for candidate in candidates if candidate.name == name), None)
+
+
+def _return_values(function: TestFunction) -> list[ast.expr]:
+    return _function_scope(function).return_values
+
+
+def _has_arguments(function: TestFunction | ast.Lambda) -> bool:
+    arguments = function.args
+    return bool(
+        arguments.posonlyargs
+        or arguments.args
+        or arguments.kwonlyargs
+        or arguments.vararg
+        or arguments.kwarg
+    )
+
+
+def _expression_uses_runtime_state(
+    expression: ast.expr,
+    tree: ast.Module,
+    function: TestFunction,
+    *,
+    observer_function: TestFunction | None = None,
+    include_unmutated_containers: bool = False,
 ) -> bool:
-    if isinstance(observer, ast.Name):
-        return False
-    expression = observer.body if isinstance(observer, ast.Lambda) else observer
     if _static_result(expression) is not _UNKNOWN_RESULT:
         return False
-    lambda_arguments: set[str] = set()
-    if isinstance(observer, ast.Lambda):
-        lambda_arguments = {argument.arg for argument in observer.args.args}
-    referenced = {node.id for node in ast.walk(observer) if isinstance(node, ast.Name)}
+    referenced = {
+        node.id for node in ast.walk(expression) if isinstance(node, ast.Name)
+    }
+    literal_names: set[str] = set()
+    if observer_function is not None:
+        literal_names = _literal_local_names(
+            observer_function,
+            include_unmutated_containers=include_unmutated_containers,
+        )
     referenced -= (
-        lambda_arguments
+        literal_names
         | _OBSERVER_BUILTINS
-        | _literal_local_names(function)
+        | _literal_local_names(
+            function,
+            include_unmutated_containers=include_unmutated_containers,
+        )
         | _literal_module_names(tree)
     )
     return bool(referenced)
+
+
+def _observer_uses_runtime_state(
+    observer: ast.expr,
+    tree: ast.Module,
+    function: TestFunction,
+    *,
+    include_unmutated_containers: bool,
+) -> bool:
+    if isinstance(observer, ast.Name):
+        observer_function = _named_observer_function(observer.id, tree, function)
+        if observer_function is None or _has_arguments(observer_function):
+            return False
+        return_values = _return_values(observer_function)
+        return bool(return_values) and all(
+            _expression_uses_runtime_state(
+                value,
+                tree,
+                function,
+                observer_function=observer_function,
+                include_unmutated_containers=include_unmutated_containers,
+            )
+            for value in return_values
+        )
+    if isinstance(observer, ast.Lambda) and _has_arguments(observer):
+        return False
+    expression = observer.body if isinstance(observer, ast.Lambda) else observer
+    return _expression_uses_runtime_state(
+        expression,
+        tree,
+        function,
+        include_unmutated_containers=include_unmutated_containers,
+    )
 
 
 def _static_result(node: ast.expr) -> object:
@@ -621,7 +769,12 @@ def _proof_status(
         }
         if all(
             name in observers
-            and _observer_uses_runtime_state(observers[name], tree, function)
+            and _observer_uses_runtime_state(
+                observers[name],
+                tree,
+                function,
+                include_unmutated_containers=name == "baseline_state",
+            )
             for name in ("regression_debt_present", "baseline_state")
         ):
             return "valid"
