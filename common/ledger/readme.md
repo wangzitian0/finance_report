@@ -106,7 +106,8 @@ and deletable until posting.
 A void reversal preserves the original entry's historical currency basis; it
 must not reinterpret FX-free historical lines using a later effective-base
 override. The write path derives that basis from the original line currency/FX
-metadata and fails closed when multiple FX-free currencies make it ambiguous.
+metadata and fails closed when no FX-free line identifies the historical base,
+or when multiple FX-free currencies make it ambiguous.
 
 Ledger immutability protects accounting facts: entry ownership/date/memo/source
 identity, status correction path, and all journal-line amounts, directions,

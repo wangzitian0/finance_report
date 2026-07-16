@@ -15,7 +15,11 @@ from uuid import uuid4
 
 import pytest
 
-from src.ledger import Direction, ValidationError
+from src.ledger import (
+    Direction,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
+)
 from src.ledger.base.processing import _calculate_pair_confidence
 from src.reconciliation import (
     AmountMismatchError,
@@ -180,10 +184,12 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
     monkeypatch.setattr(
         transfer_detection,
         "create_transfer_out_entry",
-        AsyncMock(side_effect=ValidationError("Processing account currency is SGD; got transfer currency USD")),
+        AsyncMock(
+            side_effect=ProcessingCurrencyConflictError("Processing account currency is SGD; got transfer currency USD")
+        ),
     )
 
-    with pytest.raises(ValidationError, match="Processing account currency is SGD"):
+    with pytest.raises(ProcessingCurrencyConflictError, match="Processing account currency is SGD"):
         await transfer_detection.run_transfer_detection_phase(
             SimpleNamespace(),
             transactions=[transaction],
@@ -192,6 +198,50 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
             user_id=uuid4(),
             currency="USD",
         )
+
+
+@pytest.mark.asyncio
+async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(monkeypatch) -> None:
+    """AC-reconciliation.signature-surgery.7: unsupported foreign legs remain candidates."""
+    transaction = SimpleNamespace(
+        id=uuid4(),
+        description="Transfer to USD savings",
+        direction="OUT",
+        amount=Decimal("25.00"),
+        txn_date=date(2026, 1, 1),
+    )
+    repository = SimpleNamespace(
+        get_active_match=AsyncMock(return_value=None),
+        add_match=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        transfer_detection,
+        "resolve_custody_account_id",
+        AsyncMock(return_value=uuid4()),
+    )
+    monkeypatch.setattr(
+        transfer_detection,
+        "create_transfer_out_entry",
+        AsyncMock(
+            side_effect=TransferAccountCurrencyMismatchError(
+                "Transfer account currency is USD; Processing account currency is SGD"
+            )
+        ),
+    )
+    matched_txn_ids: set = set()
+
+    matches = await transfer_detection.run_transfer_detection_phase(
+        SimpleNamespace(),
+        transactions=[transaction],
+        matched_txn_ids=matched_txn_ids,
+        repository=repository,
+        user_id=uuid4(),
+        currency="SGD",
+    )
+
+    assert matches == []
+    assert matched_txn_ids == set()
+    repository.add_match.assert_not_awaited()
 
 
 def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:

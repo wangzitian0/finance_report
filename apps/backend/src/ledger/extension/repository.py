@@ -52,6 +52,8 @@ def _historical_reversal_base_currency(
     """Recover the base currency under which the posted lines were validated."""
     fallback = Currency.of(fallback_base_currency or src.config.settings.base_currency).code
     fx_free_currencies = {Currency.of(line.currency or fallback).code for line in lines if line.fx_rate is None}
+    if not fx_free_currencies:
+        raise ValidationError("Cannot determine historical base currency: all lines have FX rates")
     if len(fx_free_currencies) > 1:
         currencies = ", ".join(sorted(fx_free_currencies))
         raise ValidationError(f"Cannot determine historical base currency from FX-free lines: {currencies}")

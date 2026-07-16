@@ -189,9 +189,11 @@ CONTRACT = PackageContract(
         "LedgerError",
         "Leg",
         "ProcessingAccount",
+        "ProcessingCurrencyConflictError",
         "RevaluationError",
         "SqlJournalRepository",
         "StatementCoverageRow",
+        "TransferAccountCurrencyMismatchError",
         "TransferPair",
         "UnbalancedEntryError",
         "ValidationError",
@@ -621,6 +623,19 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/ledger/test_multicurrency_integrity.py"
                 "::test_void_preserves_historical_base_after_effective_currency_change"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.13",
+            statement=(
+                "Voiding fails closed when every historical line carries an FX rate "
+                "and the original base-currency basis cannot be recovered."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_void_rejects_all_fx_entry_without_historical_basis"
             ),
             priority="P0",
             status="done",

@@ -2042,6 +2042,20 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.7",
+            statement=(
+                "Transfer detection leaves a foreign-account candidate unmatched "
+                "when it requires an FX-aware posting path, while preserving the "
+                "typed Processing-account configuration conflict."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_transfer_detection_leaves_foreign_account_candidate_unmatched"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

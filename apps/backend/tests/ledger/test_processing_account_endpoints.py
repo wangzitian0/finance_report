@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import (
     Account,
     AccountType,
-    ValidationError,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     create_transfer_in_entry,
     create_transfer_out_entry,
     get_or_create_processing_account,
@@ -354,10 +355,11 @@ async def test_transfer_rejects_currency_mismatch_with_existing_processing_accou
     db: AsyncSession,
     test_user,
 ) -> None:
+    """AC-ledger.signature.1: persisted Processing conflicts stay distinguishable."""
     await get_or_create_processing_account(db, test_user.id, currency="SGD")
     usd_cash = await _seed_account(db, test_user.id, "USD Cash", "1001", currency="USD")
 
-    with pytest.raises(ValidationError, match="Processing account currency is SGD"):
+    with pytest.raises(ProcessingCurrencyConflictError, match="Processing account currency is SGD"):
         await create_transfer_out_entry(
             db,
             user_id=test_user.id,
@@ -366,4 +368,24 @@ async def test_transfer_rejects_currency_mismatch_with_existing_processing_accou
             txn_date=date.today(),
             description="invalid USD sweep",
             currency="USD",
+        )
+
+
+async def test_transfer_classifies_foreign_counterparty_mismatch(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.signature.1: foreign legs are distinct from Processing conflicts."""
+    await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    usd_cash = await _seed_account(db, test_user.id, "Foreign USD Cash", "1002", currency="USD")
+
+    with pytest.raises(TransferAccountCurrencyMismatchError, match="Transfer account currency is USD"):
+        await create_transfer_out_entry(
+            db,
+            user_id=test_user.id,
+            source_account_id=usd_cash.id,
+            amount=Decimal("25.00"),
+            txn_date=date.today(),
+            description="foreign USD sweep",
+            currency="SGD",
         )

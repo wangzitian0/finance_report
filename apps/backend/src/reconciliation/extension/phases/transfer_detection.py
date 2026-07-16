@@ -10,7 +10,8 @@ from src.extraction.extension.statement_summary import resolve_custody_account_i
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     JournalEntryStatus,
-    ValidationError,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     create_transfer_in_entry,
     create_transfer_out_entry,
     detect_transfer_pattern,
@@ -115,8 +116,15 @@ async def run_transfer_detection_phase(
                     entry_id=str(transfer_entry.id),
                     amount=str(txn.amount),
                 )
-        except ValidationError:
+        except ProcessingCurrencyConflictError:
             raise
+        except TransferAccountCurrencyMismatchError as exc:
+            logger.info(
+                "Transfer candidate requires an FX-aware posting path",
+                txn_id=str(txn.id),
+                direction=txn.direction,
+                error=str(exc),
+            )
         except Exception as e:
             logger.error(
                 "Failed to create Processing account entry for transfer",

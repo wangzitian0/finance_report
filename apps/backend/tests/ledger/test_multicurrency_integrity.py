@@ -220,3 +220,48 @@ async def test_void_preserves_historical_base_after_effective_currency_change(db
 
     assert reversal.status == JournalEntryStatus.POSTED
     assert {line.currency for line in reversal.lines} == {"SGD"}
+
+
+async def test_void_rejects_all_fx_entry_without_historical_basis(db: AsyncSession, test_user) -> None:
+    """AC-ledger.3.13: reversal fails closed when every historical line has FX."""
+    user_id = test_user.id
+    usd_asset = Account(user_id=user_id, name="All-FX USD Cash", type=AccountType.ASSET, currency="USD")
+    eur_equity = Account(user_id=user_id, name="All-FX EUR Equity", type=AccountType.EQUITY, currency="EUR")
+    db.add_all([usd_asset, eur_equity])
+    await db.flush()
+
+    entry = await create_journal_entry(
+        db,
+        user_id,
+        entry_date=date(2026, 1, 1),
+        memo="All-FX historical entry",
+        lines_data=[
+            {
+                "account_id": usd_asset.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("100.00"),
+                "currency": "USD",
+                "fx_rate": Decimal("1.350000"),
+            },
+            {
+                "account_id": eur_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("90.00"),
+                "currency": "EUR",
+                "fx_rate": Decimal("1.500000"),
+            },
+        ],
+        base_currency="SGD",
+    )
+    await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
+    entry_id = entry.id
+    await db.commit()
+
+    with pytest.raises(ValidationError, match="Cannot determine historical base currency.*all lines have FX"):
+        await void_journal_entry(
+            db,
+            entry_id,
+            "Ambiguous historical basis",
+            user_id,
+            base_currency="USD",
+        )

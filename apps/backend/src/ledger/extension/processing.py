@@ -37,6 +37,8 @@ from src.ledger.base.processing import (
     PROCESSING_ACCOUNT_DESCRIPTION,
     PROCESSING_ACCOUNT_NAME,
     PROCESSING_ACCOUNT_TYPE,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     TransferPair,
     _calculate_pair_confidence,
     _validate_transfer_params,
@@ -272,7 +274,7 @@ async def _create_transfer_entry(
     )
     processing_currency = Currency.of(processing_account.currency).code
     if processing_currency != normalized_currency:
-        raise ValidationError(
+        raise ProcessingCurrencyConflictError(
             f"Processing account currency is {processing_currency}; got transfer currency {normalized_currency}"
         )
 
@@ -282,7 +284,7 @@ async def _create_transfer_entry(
         raise ValidationError(f"Account {account_id} not found")
     counterparty_currency = Currency.of(counterparty.currency).code
     if counterparty_currency != processing_currency:
-        raise ValidationError(
+        raise TransferAccountCurrencyMismatchError(
             f"Transfer account currency is {counterparty_currency}; Processing account currency is {processing_currency}"
         )
 

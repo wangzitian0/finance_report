@@ -26,6 +26,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import AccountType
 from src.ledger.orm.journal import Direction, JournalEntry
 
@@ -60,6 +61,14 @@ HISTORY_WEIGHT = Decimal("0.10")
 
 # Date tolerance for transfer pairing (from common/ledger/readme.md).
 MAX_DATE_DIFF_DAYS = 7
+
+
+class ProcessingCurrencyConflictError(ValidationError):
+    """The persisted Processing account conflicts with the effective base currency."""
+
+
+class TransferAccountCurrencyMismatchError(ValidationError):
+    """A transfer leg cannot use the non-FX Processing posting path."""
 
 
 @dataclass(frozen=True)
