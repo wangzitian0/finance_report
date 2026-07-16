@@ -4040,9 +4040,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.governance.21",
             statement=(
-                "Every real --update baseline mutation path is behaviorally driven "
-                "against synthetic regression debt and refuses to adopt it; the "
-                "contract census fails when a new monotonic updater lacks that proof."
+                "Every real monotonic baseline-mutation CLI path, including "
+                "specialized update flags, is behaviorally driven against synthetic "
+                "regression debt and refuses to adopt it; the contract census fails "
+                "when a new monotonic updater lacks non-vacuous state proof."
             ),
             test=(
                 "tests/tooling/test_s4_gate_contracts.py"

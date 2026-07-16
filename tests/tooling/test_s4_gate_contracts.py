@@ -454,6 +454,7 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/meta/extension/check_ac_tier_baseline.py",
         "common/meta/extension/check_app_boundary.py",
         "common/testing/api_surface_ratchet.py",
+        "common/testing/check_ac_index.py",
         "common/testing/check_ac_score_baseline.py",
         "common/testing/check_cas" + "sette_graded_eval.py",
         "common/testing/check_critical_value_proof.py",
@@ -463,7 +464,12 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/testing/mirror_ratchet.py",
         "common/testing/tool_shim_contract.py",
     }
-    assert set(baseline_update_contract.MONOTONIC_UPDATE_PROOFS) == update_paths
+    assert {
+        path for path, _flag in baseline_update_contract.MONOTONIC_UPDATE_PROOFS
+    } == update_paths
+    assert set(
+        baseline_update_contract.MONOTONIC_UPDATE_PROOFS
+    ) == baseline_update_contract.monotonic_update_commands(ROOT)
     assert baseline_update_contract.proof_violations(ROOT) == []
 
     synthetic_root = tmp_path / "proof-contract"
@@ -477,17 +483,21 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     monkeypatch.setattr(baseline_update_contract, "MONOTONIC_UPDATE_PROOFS", {})
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: monotonic --update path lacks a behavioral "
-        "regression proof"
+        "common/testing/synthetic.py [--update]: monotonic mutation path lacks a "
+        "behavioral regression proof"
     ]
 
     monkeypatch.setattr(
         baseline_update_contract,
         "MONOTONIC_UPDATE_PROOFS",
-        {"common/testing/synthetic.py": "tests/tooling/test_missing.py::test_missing"},
+        {
+            ("common/testing/synthetic.py", "--update"): (
+                "tests/tooling/test_missing.py::test_missing"
+            )
+        },
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof node does not exist: "
+        "common/testing/synthetic.py [--update]: behavioral proof node does not exist: "
         "tests/tooling/test_missing.py::test_missing"
     ]
 
@@ -495,8 +505,8 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     proof_file.parent.mkdir(parents=True)
     proof_file.write_text("def test_missing():\n    assert True\n", encoding="utf-8")
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof does not exercise synthetic "
-        "regression debt through the refusal harness: "
+        "common/testing/synthetic.py [--update]: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
         "tests/tooling/test_missing.py::test_missing"
     ]
 
@@ -507,7 +517,7 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         encoding="utf-8",
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof does not exercise "
+        "common/testing/synthetic.py [--update]: behavioral proof does not exercise "
         "synthetic regression debt through the refusal harness: "
         "tests/tooling/test_missing.py::test_missing"
     ]
@@ -522,7 +532,242 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    ) == 1\n",
         encoding="utf-8",
     )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    for debt_observer, baseline_observer in (
+        ("lambda: True or debt", "lambda: b'fixed' if debt else b'fixed'"),
+        ("lambda: bool(debt)", "lambda: b'fixed' if debt else b'fixed'"),
+        ("lambda: False and debt", "lambda: debt"),
+        ("lambda: bool(debt)", "lambda: b'fixed' if True else debt"),
+        ("lambda fixed=True: fixed", "lambda fixed=b'fixed': fixed"),
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def test_missing():\n"
+            "    debt = {'new-debt'}\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            f"        regression_debt_present={debt_observer},\n"
+            f"        baseline_state={baseline_observer},\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
+
+    for debt_observer, baseline_observer in (
+        ("always", "fixed"),
+        ("lambda: always()", "lambda: fixed()"),
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def always():\n"
+            "    return True\n\n"
+            "def fixed():\n"
+            "    state = build_state()\n"
+            "    state = b'baseline'\n"
+            "    return state\n\n"
+            "def test_missing():\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            f"        regression_debt_present={debt_observer},\n"
+            f"        baseline_state={baseline_observer},\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    debt = build_state()\n"
+        "    baseline = []\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=lambda: baseline,\n"
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    debt = build_state()\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=lambda: debt,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = build_state()\n"
+        "    def read_baseline():\n"
+        "        state = b''\n"
+        "        if should_read():\n"
+        "            state = baseline.read_bytes()\n"
+        "        return state\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=read_baseline,\n"
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = build_state()\n"
+        "    def debt_present():\n"
+        "        return bool(debt)\n"
+        "    def read_baseline():\n"
+        "        state = b''\n"
+        "        state = baseline.read_bytes()\n"
+        "        return state\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=debt_present,\n"
+        "        baseline_state=read_baseline,\n"
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
     assert baseline_update_contract.proof_violations(synthetic_root) == []
+
+    for assignment in (
+        "    always, baseline = True, b'baseline'\n",
+        "    always = baseline = True\n",
+        "    always, (baseline, dynamic) = True, (b'baseline', build_state())\n",
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def test_missing():\n"
+            f"{assignment}"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: always,\n"
+            "        baseline_state=lambda: baseline,\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    if True:\n"
+        "        debt = True\n"
+        "        baseline = b'baseline'\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: debt,\n"
+        "        baseline_state=lambda: baseline,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    debt = {'new-debt'}\n"
+        "    _head, *baseline = (True, b'baseline')\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=lambda: baseline,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    baseline.write_bytes(b'before')\n"
+        "    debt = {'new-debt'}\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=baseline.read_bytes,\n"
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == []
+
+    for module_assignment in (
+        "ALWAYS = True\nBASELINE = b'baseline'\n",
+        "ALWAYS, *BASELINE = (True, b'baseline')\n",
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            f"{module_assignment}\n"
+            "def test_missing():\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: ALWAYS,\n"
+            "        baseline_state=lambda: BASELINE,\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
 
 
 def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -> None:
@@ -548,3 +793,180 @@ def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -
             update=mutate_baseline,
         )
     assert state == {"baseline": b"after", "called": True}
+
+
+def test_AC_testing_governance_21_specialized_mutation_flags_are_censused(
+    tmp_path: Path,
+) -> None:
+    updater = tmp_path / "common/testing/specialized.py"
+    updater.parent.mkdir(parents=True)
+    updater.write_text(
+        'BASELINE_UPDATE_MODE = "raise-only"\nparser.add_argument("--update-floor")\n',
+        encoding="utf-8",
+    )
+
+    assert baseline_update_contract.monotonic_update_paths(tmp_path) == {
+        "common/testing/specialized.py"
+    }
+    assert baseline_update_contract.monotonic_update_commands(tmp_path) == {
+        ("common/testing/specialized.py", "--update-floor")
+    }
+
+
+def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    updater = tmp_path / "common/testing/multi_flag.py"
+    updater.parent.mkdir(parents=True)
+    updater.write_text(
+        'BASELINE_UPDATE_MODE = "raise-only"\n'
+        'parser.add_argument("--update")\n'
+        'parser.add_argument("--update-floor")\n',
+        encoding="utf-8",
+    )
+    proof = tmp_path / "tests/tooling/test_multi_flag.py"
+    proof.parent.mkdir(parents=True)
+    proof.write_text(
+        "from common.testing import baseline_update_contract, multi_flag\n\n"
+        "def test_update(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = {'new-debt'}\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=baseline.read_bytes,\n"
+        "        update=lambda: multi_flag.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/multi_flag.py", "--update"): (
+                "tests/tooling/test_multi_flag.py::test_update"
+            )
+        },
+    )
+
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: monotonic mutation path "
+        "lacks a behavioral regression proof"
+    ]
+
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/multi_flag.py", flag): (
+                "tests/tooling/test_multi_flag.py::test_update"
+            )
+            for flag in ("--update", "--update-floor")
+        },
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update"
+    ]
+
+    proof.write_text(
+        proof.read_text(encoding="utf-8").replace(
+            "multi_flag.main(\n"
+            '            ["--baseline", str(baseline), "--update"]\n'
+            "        )",
+            "multi_flag.main(\n"
+            '            ["--baseline", str(baseline), "--update", "--update-floor"]\n'
+            "        )",
+        ),
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update]: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
+    ]
+
+    for extra_setup, invocation in (
+        ("    extra = build_flag()\n", '["--update", extra]'),
+        ("    extra = build_flags()\n", '["--update", *extra]'),
+    ):
+        proof.write_text(
+            "from common.testing import baseline_update_contract, multi_flag\n\n"
+            "def test_update(tmp_path):\n"
+            "    baseline = tmp_path / 'baseline'\n"
+            "    debt = {'new-debt'}\n"
+            f"{extra_setup}"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: bool(debt),\n"
+            "        baseline_state=baseline.read_bytes,\n"
+            f"        update=lambda: multi_flag.main({invocation}),\n"
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(tmp_path) == [
+            "common/testing/multi_flag.py [--update]: behavioral proof does not "
+            "exercise synthetic regression debt through the refusal harness: "
+            "tests/tooling/test_multi_flag.py::test_update",
+            "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+            "exercise synthetic regression debt through the refusal harness: "
+            "tests/tooling/test_multi_flag.py::test_update",
+        ]
+
+    proof.write_text(
+        "from common.testing import baseline_update_contract, multi_flag\n\n"
+        "def test_update(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = {'new-debt'}\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=baseline.read_bytes,\n"
+        "        update=lambda: multi_flag.main([\n"
+        '            "--baseline", str(baseline),\n'
+        '            "--update" if True else "--update-floor"\n'
+        "        ]),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update"
+    ]
+
+    dynamic_source = proof.read_text(encoding="utf-8").replace(
+        '"--update" if True else "--update-floor"',
+        '"--update" if choose_update else "--update-floor"',
+    )
+    proof.write_text(dynamic_source, encoding="utf-8")
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update]: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
+    ]
+
+    proof.write_text(
+        dynamic_source.replace(
+            "multi_flag.main([\n"
+            '            "--baseline", str(baseline),\n'
+            '            "--update" if choose_update else "--update-floor"\n'
+            "        ])",
+            "multi_flag.main(\n"
+            '            argv=["--baseline", str(baseline), "--update"]\n'
+            "        )",
+        ),
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update"
+    ]
