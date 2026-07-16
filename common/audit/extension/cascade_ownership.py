@@ -87,11 +87,17 @@ def _cascade_target(node: ast.AST) -> tuple[str, str, str | None] | None:
     call_name = _call_name(node)
     if call_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
-    ondelete = next(
-        (keyword.value for keyword in node.keywords if keyword.arg == "ondelete"),
-        None,
-    )
-    if not (isinstance(ondelete, ast.Constant) and ondelete.value == "CASCADE"):
+    ondelete_values = [
+        keyword.value for keyword in node.keywords if keyword.arg == "ondelete"
+    ]
+    if not ondelete_values:
+        return None
+    ondelete = ondelete_values[0]
+    if not isinstance(ondelete, ast.Constant):
+        raise CascadeInventoryError(
+            f"{call_name} ondelete must be a literal for ownership review"
+        )
+    if ondelete.value != "CASCADE":
         return None
     if call_name == "ForeignKey":
         if not node.args:
@@ -194,6 +200,30 @@ def _mixin_consumers(
     field: str,
     parsed_sources: Sequence[tuple[Path, str, ast.Module]],
 ) -> tuple[tuple[Path, str, ast.ClassDef], ...]:
+    definitions: dict[str, list[ast.ClassDef]] = {}
+    for _relative, _source_owner, tree in parsed_sources:
+        for candidate in ast.walk(tree):
+            if isinstance(candidate, ast.ClassDef):
+                definitions.setdefault(candidate.name, []).append(candidate)
+
+    def inherits_through_mixins(
+        candidate: ast.ClassDef, ancestor: str, seen: frozenset[str]
+    ) -> bool:
+        for base in candidate.bases:
+            base_name = _base_name(base)
+            if base_name is None:
+                continue
+            if base_name == ancestor:
+                return True
+            if base_name in seen:
+                continue
+            for intermediate in definitions.get(base_name, []):
+                if _literal_tablename(intermediate) is not None:
+                    continue
+                if inherits_through_mixins(intermediate, ancestor, seen | {base_name}):
+                    return True
+        return False
+
     consumers: list[tuple[Path, str, ast.ClassDef]] = []
     for relative, source_owner, tree in parsed_sources:
         for candidate in ast.walk(tree):
@@ -201,9 +231,7 @@ def _mixin_consumers(
                 continue
             if _literal_tablename(candidate) is None:
                 continue
-            if mixin.name not in {
-                name for base in candidate.bases if (name := _base_name(base))
-            }:
+            if not inherits_through_mixins(candidate, mixin.name, frozenset()):
                 continue
             if _defines_field(candidate, field):
                 continue
@@ -308,6 +336,11 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
                     raise CascadeInventoryError(
                         f"{relative.as_posix()}::{label}: mixin CASCADE has no stable field"
                     )
+                consumers = _mixin_consumers(enclosing_class, field, parsed_sources)
+                if not consumers:
+                    raise CascadeInventoryError(
+                        f"{relative.as_posix()}::{label}: mixin CASCADE has no mapped consumers"
+                    )
                 origins = [
                     (
                         consumer_relative,
@@ -318,9 +351,7 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
                             1,
                         ),
                     )
-                    for consumer_relative, consumer_owner, consumer in _mixin_consumers(
-                        enclosing_class, field, parsed_sources
-                    )
+                    for consumer_relative, consumer_owner, consumer in consumers
                 ]
 
             for origin_relative, origin_owner, origin_label in origins:

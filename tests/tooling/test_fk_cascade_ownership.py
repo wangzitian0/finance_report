@@ -181,8 +181,14 @@ def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumer
     ):
         package = tmp_path / owner
         package.mkdir()
+        base_declaration = (
+            "class DomainBase(TenantMixin):\n    pass\n" if owner == "alpha" else ""
+        )
+        base_name = "DomainBase" if owner == "alpha" else "TenantMixin"
         (package / "models.py").write_text(
-            f"class {class_name}(TenantMixin):\n    __tablename__ = '{table_name}'\n",
+            f"{base_declaration}"
+            f"class {class_name}({base_name}):\n"
+            f"    __tablename__ = '{table_name}'\n",
             encoding="utf-8",
         )
     override = tmp_path / "override"
@@ -202,6 +208,23 @@ def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumer
     ]
     assert [site.source_owner for site in sites] == ["alpha", "beta"]
     assert {site.target_owner for site in sites} == {"identity"}
+
+
+def test_AC_audit_deletion_ownership_1_rejects_unresolved_mixin_cascade(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "platform"
+    package.mkdir()
+    (package / "mixins.py").write_text(
+        "class TenantMixin:\n"
+        "    user_id = mapped_column(\n"
+        "        ForeignKey('users.id', ondelete='CASCADE')\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CascadeInventoryError, match="has no mapped consumers"):
+        discover_cascades(tmp_path)
 
 
 @pytest.mark.parametrize("ambiguous", [False, True], ids=["missing", "ambiguous"])
@@ -338,6 +361,10 @@ def test_AC_audit_deletion_ownership_1_rejects_unreviewable_decisions() -> None:
     [
         ('ForeignKey(ondelete="CASCADE")', "no target argument"),
         ('ForeignKey(target, ondelete="CASCADE")', "target must be a literal"),
+        (
+            "ForeignKey('parents.id', ondelete=DELETE_POLICY)",
+            "ondelete must be a literal",
+        ),
     ],
 )
 def test_AC_audit_deletion_ownership_1_rejects_opaque_targets(
