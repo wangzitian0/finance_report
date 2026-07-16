@@ -36,29 +36,67 @@ def _annotation(node: ast.expr | None) -> str:
     return ast.unparse(node) if node is not None else "Any"
 
 
+def _decorator_prefix(nodes: list[ast.expr]) -> str:
+    return "".join(f"@{ast.unparse(node)} " for node in nodes)
+
+
+def _type_parameters(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
+) -> str:
+    parameters = getattr(node, "type_params", [])
+    if not parameters:
+        return ""
+    return f"[{', '.join(ast.unparse(parameter) for parameter in parameters)}]"
+
+
 def _function_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
-    return f"{prefix}({ast.unparse(node.args)}) -> {_annotation(node.returns)}"
+    return (
+        f"{_decorator_prefix(node.decorator_list)}{prefix}{_type_parameters(node)}"
+        f"({ast.unparse(node.args)}) -> {_annotation(node.returns)}"
+    )
+
+
+def _annotated_assignment_signature(node: ast.AnnAssign) -> str:
+    signature = _annotation(node.annotation)
+    if node.value is not None:
+        signature += f"={ast.unparse(node.value)}"
+    return signature
 
 
 def _class_signature(node: ast.ClassDef) -> str:
-    bases = ", ".join(ast.unparse(base) for base in node.bases)
+    bases = [ast.unparse(base) for base in node.bases]
+    bases.extend(
+        f"{keyword.arg}={ast.unparse(keyword.value)}"
+        if keyword.arg is not None
+        else f"**{ast.unparse(keyword.value)}"
+        for keyword in node.keywords
+    )
     members: list[str] = []
     for child in node.body:
-        if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
-            members.append(f"{child.target.id}: {_annotation(child.annotation)}")
+        if (
+            isinstance(child, ast.AnnAssign)
+            and isinstance(child.target, ast.Name)
+            and not child.target.id.startswith("_")
+        ):
+            members.append(
+                f"{child.target.id}: {_annotated_assignment_signature(child)}"
+            )
         elif isinstance(child, ast.Assign):
             for target in child.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
                     members.append(f"{target.id}={ast.unparse(child.value)}")
         elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
-            child.name == "__init__" or not child.name.startswith("_")
+            child.name in {"__init__", "__new__"} or not child.name.startswith("_")
         ):
             signature = _function_signature(child)
-            suffix = signature.removeprefix("async def").removeprefix("def")
-            members.append(f"{child.name}{suffix}")
+            marker = "async def" if isinstance(child, ast.AsyncFunctionDef) else "def"
+            members.append(signature.replace(marker, child.name, 1))
     body = "; ".join(members)
-    return f"class({bases}){{{body}}}"
+    return (
+        f"{_decorator_prefix(node.decorator_list)}class{_type_parameters(node)}"
+        f"({', '.join(bases)}){{{body}}}"
+    )
 
 
 def _definition_signatures(
@@ -79,7 +117,7 @@ def _definition_signatures(
                 signature = _class_signature(node)
             elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 name = node.target.id
-                signature = f"value: {_annotation(node.annotation)}"
+                signature = f"value: {_annotated_assignment_signature(node)}"
             elif isinstance(node, ast.Assign):
                 names = [
                     target.id for target in node.targets if isinstance(target, ast.Name)

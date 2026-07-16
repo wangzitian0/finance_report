@@ -167,10 +167,11 @@ builds that historical snapshot in a clean `python -I` subprocess before
 comparing it with the working tree. A historical contract is therefore never
 reinterpreted through HEAD's `PackageContract` model. The JSON report includes
 added/removed typed edges, changed public signatures, and the union of base/head
-direct and transitive consumers. Class signatures include their public class
-members and constructor. Every declared public symbol gets exactly one snapshot
-record; when AST inspection cannot statically resolve a lazy export, the record
-says so instead of silently dropping it. Unreadable refs, empty discovery,
+direct and transitive consumers. Public signatures preserve annotated values,
+decorators, generic type parameters, class construction, and public class
+members. Every declared public symbol gets exactly one snapshot record; when
+AST inspection cannot statically resolve a lazy export, the record says so
+instead of silently dropping it. Unreadable refs, empty discovery,
 duplicate/unknown/self edges, and cycles fail closed.
 
 The report is ephemeral CI output, not SSOT: `.github/workflows/ci.yml` appends

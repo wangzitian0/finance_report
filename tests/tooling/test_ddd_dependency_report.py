@@ -207,6 +207,28 @@ def _write_public_types(
     constructor: str,
     enum_value: str,
 ) -> None:
+    _write_public_surface(
+        repo,
+        interface=["PublicClass", "PublicEnum"],
+        source=f"""
+        from enum import StrEnum
+
+        class PublicClass:
+            def __init__(self, {constructor}) -> None:
+                self.value = value
+
+        class PublicEnum(StrEnum):
+            FIRST = {enum_value!r}
+        """,
+    )
+
+
+def _write_public_surface(
+    repo: Path,
+    *,
+    interface: list[str],
+    source: str,
+) -> None:
     impl = "apps/backend/src/provider"
     _write(
         repo / "common/provider/contract.py",
@@ -218,7 +240,7 @@ def _write_public_types(
             klass="meta",
             tier="CODE-ONLY",
             depends_on=[],
-            interface=["PublicClass", "PublicEnum"],
+            interface={interface!r},
             events=[],
             invariants=[],
             roadmap=[],
@@ -228,24 +250,9 @@ def _write_public_types(
     )
     _write(
         repo / f"{impl}/__init__.py",
-        (
-            "from .api import PublicClass, PublicEnum\n\n"
-            '__all__ = ["PublicClass", "PublicEnum"]\n'
-        ),
+        (f"from .api import {', '.join(interface)}\n\n__all__ = {interface!r}\n"),
     )
-    _write(
-        repo / f"{impl}/api.py",
-        f"""
-        from enum import StrEnum
-
-        class PublicClass:
-            def __init__(self, {constructor}) -> None:
-                self.value = value
-
-        class PublicEnum(StrEnum):
-            FIRST = {enum_value!r}
-        """,
-    )
+    _write(repo / f"{impl}/api.py", source)
 
 
 def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
@@ -420,6 +427,123 @@ def test_AC_meta_dependency_governance_2_public_enum_members_are_reported(
     changes = {record["symbol"]: record for record in report["changed_public_symbols"]}
     assert "FIRST='first'" in changes["PublicEnum"]["before"]
     assert "FIRST='renamed'" in changes["PublicEnum"]["after"]
+
+
+def test_AC_meta_dependency_governance_2_annotated_defaults_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: annotated defaults are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["PUBLIC_CONTRACT", "PublicConfig"],
+        source="""
+        class PublicConfig:
+            max_requests: int = 5
+
+        PUBLIC_CONTRACT: dict[str, int] = {"version": 1}
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish annotated defaults")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["PUBLIC_CONTRACT", "PublicConfig"],
+        source="""
+        class PublicConfig:
+            max_requests: int = 10
+
+        PUBLIC_CONTRACT: dict[str, int] = {"version": 2}
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    changes = {record["symbol"]: record for record in report["changed_public_symbols"]}
+    assert "max_requests: int=5" in changes["PublicConfig"]["before"]
+    assert "max_requests: int=10" in changes["PublicConfig"]["after"]
+    assert "{'version': 1}" in changes["PUBLIC_CONTRACT"]["before"]
+    assert "{'version': 2}" in changes["PUBLIC_CONTRACT"]["after"]
+
+
+def test_AC_meta_dependency_governance_2_method_decorators_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: method binding style is boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["PublicService"],
+        source="""
+        class PublicService:
+            @property
+            def value(self) -> str:
+                return "value"
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish decorated method")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["PublicService"],
+        source="""
+        class PublicService:
+            def value(self) -> str:
+                return "value"
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "PublicService"
+    assert "@property" in change["before"]
+    assert "@property" not in change["after"]
+
+
+def test_AC_meta_dependency_governance_2_generic_parameters_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: PEP 695 bounds are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["PublicGeneric", "public"],
+        source="""
+        class PublicGeneric[T]:
+            def __new__(cls, value: T) -> "PublicGeneric[T]":
+                return super().__new__(cls)
+
+        def public[T](value: T) -> T:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish generic boundaries")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["PublicGeneric", "public"],
+        source="""
+        class PublicGeneric[T: str]:
+            def __new__(cls, value: T) -> "PublicGeneric[T]":
+                return super().__new__(cls)
+
+        def public[T: str](value: T) -> T:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    changes = {record["symbol"]: record for record in report["changed_public_symbols"]}
+    assert "T: str" in changes["PublicGeneric"]["after"]
+    assert "T: str" in changes["public"]["after"]
 
 
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
