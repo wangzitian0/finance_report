@@ -802,6 +802,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.ssot-governance.9",
+            statement=(
+                "Incremental SSOT governance compares the same computed concept "
+                "registry at base and HEAD (residual manifest plus package-owned "
+                "concepts), detects package-contract concept drift, isolates the "
+                "requested git ref, and fails closed when the base cannot be loaded."
+            ),
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── migrated from EPIC-014, wave 2 (#1663): GitHub issue template
         # contract. Was AC14.1.11. ──
         ACRecord(

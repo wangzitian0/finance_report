@@ -143,6 +143,11 @@ about a package is *derived from its contract*:
   `common/meta/extension/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
   and are **never mirrored** into an EPIC table.
+- The concept registry is the computed union of residual
+  [`data/MANIFEST.yaml`](./data/MANIFEST.yaml) entries and every package's
+  `concepts`. Its incremental quality gate projects that same union from both
+  HEAD and an isolated base-ref checkout, treats `common/*/contract.py` as a
+  registry input, and fails closed when either projection cannot be loaded.
 - The vision proof matrix sources direct package backing from each roadmap AC's
   optional `vision_anchor` via the pure `ac_vision_index` projection. EPIC docs
   still declare which historical goal owns an anchor; no central AC-to-vision

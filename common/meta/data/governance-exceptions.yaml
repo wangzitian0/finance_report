@@ -1,25 +1,5 @@
 version: 1
 exceptions:
-  # #1799 base-computation bug (#1869): the incremental gate's base-ref side
-  # reads MANIFEST.yaml's raw text via `git show`, but HEAD's side routes
-  # through load_computed_concepts (the union of the residual file + every
-  # package's declared concepts). Post-#1799 that union is ~77 entries vs.
-  # the residual file's ~14-20, so ANY PR based on a post-#1799 commit shows
-  # a spurious missing-family/missing-kind "increase" — reproduced on a diff
-  # that touches zero ConceptRecords. Remove once #1869 fixes the base-side
-  # loader to compute the same union.
-  - target: finance_report:debt:missing_family
-    issue: https://github.com/wangzitian0/finance_report/issues/1869
-    reason: >-
-      Base-ref comparison reads raw MANIFEST.yaml text (pre-#1799 shape) while
-      HEAD uses the computed union (#1799); this diff touches no ConceptRecord
-      or manifest concept. Remove once #1869 fixes the base-side loader.
-  - target: finance_report:debt:missing_kind
-    issue: https://github.com/wangzitian0/finance_report/issues/1869
-    reason: >-
-      Same #1869 base-vs-HEAD computation mismatch as missing_family, for the
-      kind-coverage debt metric. Remove once #1869 fixes the base-side loader.
-
   # Retiring the valuation taxonomy island: the `stable_valuation_taxonomy`
   # MANIFEST entry (which carried family+kind) is removed because the concept it
   # owned was reinvented scaffolding (it duplicated the chart of accounts +
