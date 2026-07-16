@@ -147,7 +147,11 @@ class TestJournalEntrySchemas:
         assert len(entry.lines) == 2
 
     def test_journal_entry_unbalanced_allowed_by_schema(self):
-        """Test that unbalanced entries pass schema validation."""
+        """Test that unbalanced entries pass schema validation.
+
+        Boundary rejection remains covered in:
+        tests/e2e/test_core_journeys.py::test_unbalanced_journal_entry_rejection
+        """
         account1 = uuid4()
         account2 = uuid4()
 
