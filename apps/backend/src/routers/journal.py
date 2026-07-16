@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.ledger import (
     JournalEntry,
@@ -35,6 +36,7 @@ async def create_entry(
 ) -> JournalEntryResponse:
     lines_data = [line.model_dump() for line in entry_data.lines]
     try:
+        base_currency = await get_effective_base_currency(db)
         entry = await create_journal_entry(
             db=db,
             user_id=user_id,
@@ -43,6 +45,7 @@ async def create_entry(
             lines_data=lines_data,
             source_type=entry_data.source_type,
             source_id=entry_data.source_id,
+            base_currency=base_currency,
         )
         await db.commit()
         await db.refresh(entry, ["lines"])
@@ -108,7 +111,13 @@ async def post_entry(
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
     try:
-        entry = await post_journal_entry(db, entry_id, user_id)
+        base_currency = await get_effective_base_currency(db)
+        entry = await post_journal_entry(
+            db,
+            entry_id,
+            user_id,
+            base_currency=base_currency,
+        )
         await db.commit()
         await db.refresh(entry, ["lines"])
         log_financial_mutation(
@@ -133,7 +142,14 @@ async def void_entry(
     user_id: CurrentUserId = None,
 ) -> JournalEntryResponse:
     try:
-        reversal_entry = await void_journal_entry(db, entry_id, void_request.reason, user_id)
+        base_currency = await get_effective_base_currency(db)
+        reversal_entry = await void_journal_entry(
+            db,
+            entry_id,
+            void_request.reason,
+            user_id,
+            base_currency=base_currency,
+        )
         await db.commit()
         log_financial_mutation(
             logger,

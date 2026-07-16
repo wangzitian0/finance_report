@@ -116,7 +116,7 @@ class TestTransferDetectionDuringReconciliation:
             direction="OUT",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 1
         match = matches[0]
@@ -129,7 +129,7 @@ class TestTransferDetectionDuringReconciliation:
         assert entry.status == JournalEntryStatus.RECONCILED
         assert "Transfer OUT" in entry.memo or "TRANSFER TO" in entry.memo
 
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         lines_result = await db.execute(
             select(JournalLine).where(
                 JournalLine.journal_entry_id == entry.id,
@@ -166,12 +166,12 @@ class TestTransferDetectionDuringReconciliation:
             direction="OUT",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 0
         await db.refresh(txn)
 
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         lines = list(lines_result.scalars().all())
         assert len(lines) == 0
@@ -194,13 +194,13 @@ class TestTransferDetectionDuringReconciliation:
             direction="IN",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 1
         match = matches[0]
         assert len(match.journal_entry_ids) == 1
         entry_id = UUID(match.journal_entry_ids[0])
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         entry_result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
         entry = entry_result.scalar_one()
 
@@ -257,13 +257,13 @@ class TestTransferAutoPairingPhase:
             direction="IN",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 2
 
         from src.ledger import get_processing_balance
 
-        balance = await get_processing_balance(db, user_id)
+        balance = await get_processing_balance(db, user_id, currency="SGD")
         assert balance == Decimal("0.00")
 
     async def test_unpaired_transfer_leaves_processing_nonzero(self, db: AsyncSession, test_user):
@@ -284,13 +284,13 @@ class TestTransferAutoPairingPhase:
             direction="OUT",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 1
 
         from src.ledger import get_processing_balance
 
-        balance = await get_processing_balance(db, user_id)
+        balance = await get_processing_balance(db, user_id, currency="SGD")
         assert balance == Decimal("250.00")  # Positive = unpaired OUT transfer
 
 
@@ -345,13 +345,13 @@ class TestNormalMatchingPhaseIntegration:
             direction="OUT",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 1
         match = matches[0]
         assert UUID(match.journal_entry_ids[0]) == entry.id
 
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         lines = list(lines_result.scalars().all())
         assert len(lines) == 0
@@ -410,7 +410,7 @@ class TestNormalMatchingPhaseIntegration:
             direction="OUT",
         )
 
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
         assert len(matches) == 2
 
@@ -428,7 +428,7 @@ class TestNormalMatchingPhaseIntegration:
         assert grocery_match is not None
         assert UUID(grocery_match.journal_entry_ids[0]) == grocery_entry.id
 
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         lines_result = await db.execute(select(JournalLine).where(JournalLine.account_id == processing.id))
         processing_lines = list(lines_result.scalars().all())
         assert len(processing_lines) == 1

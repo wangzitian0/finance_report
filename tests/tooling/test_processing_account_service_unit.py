@@ -24,15 +24,16 @@ import src.ledger.extension.processing as processing_account_module  # noqa: E40
 import src.orm_registry  # noqa: E402, F401  -- register all ORM mappers before relationship config
 from src.audit.money import Money  # noqa: E402
 from src.ledger.base.processing import _calculate_pair_confidence  # noqa: E402
-from src.ledger import (
+from src.ledger import (  # noqa: E402
     Account,
     AccountType,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
-)  # noqa: E402
+)
 from src.audit import JournalEntrySourceType  # noqa: E402
+from src.reconciliation import score_description  # noqa: E402
 
 find_transfer_pairs = processing_account_module.find_transfer_pairs
 get_processing_balance = processing_account_module.get_processing_balance
@@ -133,7 +134,13 @@ async def test_find_transfer_pairs_delayed_transfer_auto_pairs() -> None:
         "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
-        pairs = await find_transfer_pairs(db, user_id, threshold=85)
+        pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=85,
+        )
 
     assert len(pairs) == 1
     assert pairs[0].confidence >= 85
@@ -167,7 +174,10 @@ async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
     )
 
     confidence, _ = _calculate_pair_confidence(
-        out_entry, in_entry, processing_account.id
+        out_entry,
+        in_entry,
+        processing_account.id,
+        description_scorer=score_description,
     )
     assert 60 <= confidence < 85
 
@@ -179,8 +189,20 @@ async def test_find_transfer_pairs_keeps_partial_match_in_review_band() -> None:
         "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
-        review_pairs = await find_transfer_pairs(db, user_id, threshold=60)
-        auto_pairs = await find_transfer_pairs(db, user_id, threshold=85)
+        review_pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=60,
+        )
+        auto_pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=85,
+        )
 
     assert len(review_pairs) == 1
     assert review_pairs[0].confidence == confidence
@@ -214,7 +236,10 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
     )
 
     confidence, breakdown = _calculate_pair_confidence(
-        out_entry, in_entry, processing_account.id
+        out_entry,
+        in_entry,
+        processing_account.id,
+        description_scorer=score_description,
     )
     assert confidence < 60
     assert breakdown["amount"] < 70.0
@@ -227,7 +252,13 @@ async def test_find_transfer_pairs_rejects_unmatched_pair() -> None:
         "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
-        pairs = await find_transfer_pairs(db, user_id, threshold=60)
+        pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=60,
+        )
 
     assert pairs == []
 
@@ -252,7 +283,7 @@ async def test_processing_balance_uses_decimal_net_balance() -> None:
         "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
-        balance = await get_processing_balance(db, uuid4())
+        balance = await get_processing_balance(db, uuid4(), currency="SGD")
 
     assert balance == Decimal("85.00")
     assert isinstance(balance, Decimal)
@@ -293,7 +324,7 @@ async def test_list_processing_transfer_legs_keeps_unpaired_status_visible() -> 
         "get_or_create_processing_account",
         new=AsyncMock(return_value=processing_account),
     ):
-        legs = await list_processing_transfer_legs(db, user_id)
+        legs = await list_processing_transfer_legs(db, user_id, currency="SGD")
 
     assert len(legs) == 2
     out_leg = next(leg for leg in legs if leg["amount"] == Decimal("250.00"))

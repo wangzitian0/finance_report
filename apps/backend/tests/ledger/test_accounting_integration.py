@@ -567,7 +567,7 @@ async def test_accounting_equation_holds(db: AsyncSession, bank_account, salary_
     await db.commit()
 
     # Verify accounting equation
-    result = await verify_accounting_equation(db, test_user_id)
+    result = await verify_accounting_equation(db, test_user_id, base_currency="SGD")
     assert result is True
 
 

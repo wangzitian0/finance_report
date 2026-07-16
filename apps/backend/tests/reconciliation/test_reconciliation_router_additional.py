@@ -11,11 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import CurrencyUnresolvedError, DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
+from src.reconciliation import AmountMismatchError, EntryCreationError, ReconciliationMatch, ReconciliationStatus
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import (
     BatchAcceptRequest,
@@ -155,6 +155,23 @@ async def test_run_reconciliation_statement_not_found(db: AsyncSession, test_use
     payload = ReconciliationRunRequest(statement_id=uuid4())
     with pytest.raises(HTTPException, match="Statement not found"):
         await reconciliation_router.run_reconciliation(payload, db, test_user.id)
+
+
+async def test_run_reconciliation_maps_processing_currency_conflict_to_400(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail_matching(*_args, **_kwargs):
+        raise ValidationError("Processing account currency is SGD; got transfer currency USD")
+
+    monkeypatch.setattr(reconciliation_router, "execute_matching", fail_matching)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await reconciliation_router.run_reconciliation(ReconciliationRunRequest(), db, test_user.id)
+
+    assert exc_info.value.status_code == 400
+    assert "Processing account currency is SGD" in exc_info.value.detail
 
 
 async def test_run_reconciliation_filters_unmatched(
@@ -565,7 +582,7 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     db.add(match)
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match_service(db, match.id, user_id=test_user.id)
 
 
@@ -660,7 +677,7 @@ async def test_accept_match_amount_check_cannot_be_bypassed(db: AsyncSession, te
     await db.commit()
 
     # $50 entry vs $100 transaction: validation is unconditional, so this raises.
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match_service(db, match.id, user_id=test_user.id)
 
 
@@ -690,6 +707,43 @@ async def test_batch_accept_skips_low_score_matches(db: AsyncSession, test_user)
     # Verify match was not modified
     await db.refresh(match)
     assert match.status == ReconciliationStatus.PENDING_REVIEW
+
+
+async def test_batch_accept_router_maps_entry_creation_error_to_400(db, test_user, monkeypatch) -> None:
+    """AC-reconciliation.signature-surgery.4: batch and single accept share typed status mapping."""
+
+    async def fail_batch(*args, **kwargs):
+        raise EntryCreationError("Account mapping required before posting")
+
+    monkeypatch.setattr(reconciliation_router, "batch_accept_service", fail_batch)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await reconciliation_router.batch_accept(
+            BatchAcceptRequest(match_ids=[str(uuid4())]),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+async def test_batch_accept_router_preserves_currency_unresolved_error(db, test_user, monkeypatch) -> None:
+    """AC12.40.4: the global handler remains the sole owner of the structured 409."""
+    error = CurrencyUnresolvedError("Currency must be resolved")
+
+    async def fail_batch(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(reconciliation_router, "batch_accept_service", fail_batch)
+
+    with pytest.raises(CurrencyUnresolvedError) as exc_info:
+        await reconciliation_router.batch_accept(
+            BatchAcceptRequest(match_ids=[str(uuid4())]),
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc_info.value is error
 
 
 async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, test_user) -> None:

@@ -29,6 +29,10 @@ def _load_reconciliation_module():
 
 
 reconciliation_module = _load_reconciliation_module()
+normal_phase_module = importlib.import_module(
+    "src.reconciliation.extension.phases.normal_matching"
+)
+phases_module = importlib.import_module("src.reconciliation.extension.phases")
 MatchCandidate = reconciliation_module.MatchCandidate
 execute_matching = reconciliation_module.execute_matching
 
@@ -86,6 +90,24 @@ def _make_db(*, txn: object, entry: object) -> AsyncMock:
     return db
 
 
+def _make_repository(
+    db: AsyncMock,
+    *,
+    txn: object,
+    entry: object,
+    existing_match: ReconciliationMatch | None = None,
+) -> SimpleNamespace:
+    async def add_match(match: ReconciliationMatch) -> None:
+        db.add(match)
+
+    return SimpleNamespace(
+        list_pending_transactions=AsyncMock(return_value=[txn]),
+        list_journal_candidates=AsyncMock(return_value=[entry]),
+        get_active_match=AsyncMock(return_value=existing_match),
+        add_match=AsyncMock(side_effect=add_match),
+    )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("score", "expected_status", "expected_match_count"),
@@ -111,18 +133,26 @@ async def test_execute_matching_score_thresholds(
         score=score,
         breakdown={"amount": 100.0},
     )
+    repository = _make_repository(db, txn=txn, entry=entry)
 
     with (
         patch.object(
-            reconciliation_module, "detect_transfer_pattern", return_value=False
+            phases_module,
+            "run_transfer_detection_phase",
+            new=AsyncMock(return_value=[]),
         ),
-        patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
+        patch.object(
+            phases_module,
+            "run_many_to_one_phase",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch.object(normal_phase_module, "is_entry_balanced", return_value=True),
         patch.object(
             reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
         ),
         patch.object(
-            reconciliation_module,
-            "calculate_match_score",
+            normal_phase_module,
+            "score_single",
             new=AsyncMock(return_value=candidate),
         ),
         patch.object(
@@ -130,11 +160,16 @@ async def test_execute_matching_score_thresholds(
         ),
         patch.object(
             reconciliation_module,
-            "_get_existing_active_match",
-            new=AsyncMock(return_value=None),
+            "sync_reconciliation_match_journal_entry_links",
+            new=AsyncMock(),
         ),
     ):
-        matches = await execute_matching(db, user_id=uuid4())
+        matches = await execute_matching(
+            db,
+            user_id=uuid4(),
+            currency="SGD",
+            repository=repository,
+        )
 
     assert len(matches) == expected_match_count
     # bank-txn.status is no longer mutated under the Layer-2 read path (Stage 3 removes it)
@@ -170,18 +205,31 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
         score=92,
         breakdown={"amount": 100.0},
     )
+    repository = _make_repository(
+        db,
+        txn=txn,
+        entry=entry,
+        existing_match=existing_match,
+    )
 
     with (
         patch.object(
-            reconciliation_module, "detect_transfer_pattern", return_value=False
+            phases_module,
+            "run_transfer_detection_phase",
+            new=AsyncMock(return_value=[]),
         ),
-        patch.object(reconciliation_module, "is_entry_balanced", return_value=True),
+        patch.object(
+            phases_module,
+            "run_many_to_one_phase",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch.object(normal_phase_module, "is_entry_balanced", return_value=True),
         patch.object(
             reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
         ),
         patch.object(
-            reconciliation_module,
-            "calculate_match_score",
+            normal_phase_module,
+            "score_single",
             new=AsyncMock(return_value=candidate),
         ),
         patch.object(
@@ -189,11 +237,16 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
         ),
         patch.object(
             reconciliation_module,
-            "_get_existing_active_match",
-            new=AsyncMock(return_value=existing_match),
+            "sync_reconciliation_match_journal_entry_links",
+            new=AsyncMock(),
         ),
     ):
-        matches = await execute_matching(db, user_id=uuid4())
+        matches = await execute_matching(
+            db,
+            user_id=uuid4(),
+            currency="SGD",
+            repository=repository,
+        )
 
     assert matches == []
     assert existing_match.status == ReconciliationStatus.AUTO_ACCEPTED

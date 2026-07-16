@@ -103,4 +103,4 @@ async def test_AC1_9_1_first_run_registration_account_entry_journey(
     account_balances = {item["code"]: Decimal(str(item["balance"])) for item in accounts_response.json()["items"]}
     assert account_balances["1001"] == Decimal("1250.00")
     assert account_balances["4001"] == Decimal("1250.00")
-    assert await verify_accounting_equation(db, user_id)
+    assert await verify_accounting_equation(db, user_id, base_currency="SGD")

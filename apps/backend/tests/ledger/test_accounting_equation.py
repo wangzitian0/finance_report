@@ -165,7 +165,7 @@ async def test_accounting_equation_violation_detected(
     await db.commit()
 
     # First verify equation holds with balanced data
-    assert await verify_accounting_equation(db, test_user_id) is True
+    assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
 
     # Now attempt an UNBALANCED entry by directly inserting (bypass validation).
     bad_entry = JournalEntry(
@@ -201,7 +201,7 @@ async def test_accounting_equation_violation_detected(
         await db.commit()
     await db.rollback()
 
-    assert await verify_accounting_equation(db, test_user_id) is True
+    assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
 
 
 async def test_accounting_equation_holds_with_all_account_types(
@@ -270,7 +270,7 @@ async def test_accounting_equation_holds_with_all_account_types(
         await db.commit()
 
     # Verify equation holds
-    result = await verify_accounting_equation(db, test_user_id)
+    result = await verify_accounting_equation(db, test_user_id, base_currency="SGD")
     assert result is True
 
     # Verify actual balances
@@ -623,7 +623,7 @@ async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id,
     assert posted.status == JournalEntryStatus.POSTED
 
     # Verify equation still holds
-    assert await verify_accounting_equation(db, test_user_id) is True
+    assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
 
     # --- L3 behavioral evidence (deterministic) ---
     # Recompute the debit/credit imbalance from the lines that the production

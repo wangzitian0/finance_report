@@ -62,6 +62,9 @@ collision-free as later slices add ACs without re-reading this file:
 - **groups 71–76** — the EPIC-015 processing (in-transit) account, slice 3c-i
   (71=creation, 72=transfer-entry, 73=integrity, 74=detection, 75=scoring,
   76=reconciliation integration), each mirroring its source ``AC15.<g>`` group.
+- **group 77** — #1866 processing front-door, explicit-currency, and balance-space
+  signature surgery; **group 78** is reserved for the parallel confidence-tier
+  single-owner slice.
 
 (The aspirational ``AC-ledger.<entity>.<seq>`` form some docs advertise is not
 adopted: the live traceability regex in
@@ -186,15 +189,18 @@ CONTRACT = PackageContract(
         "LedgerError",
         "Leg",
         "ProcessingAccount",
+        "ProcessingCurrencyConflictError",
         "RevaluationError",
         "SqlJournalRepository",
         "StatementCoverageRow",
+        "TransferAccountCurrencyMismatchError",
         "TransferPair",
         "UnbalancedEntryError",
         "ValidationError",
         "account_service",
         "calculate_account_balance",
         "calculate_account_balances",
+        "calculate_account_balances_in_base_currency",
         "calculate_unrealized_fx_gains",
         "create_journal_entry",
         "create_transfer_in_entry",
@@ -605,6 +611,33 @@ CONTRACT = PackageContract(
                 "::test_void_journal_entry_success"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.12",
+            statement=(
+                "Voiding a posted entry preserves the historical base-currency "
+                "basis encoded by its line currencies and FX rates, even after "
+                "the effective base currency changes."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_void_preserves_historical_base_after_effective_currency_change"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.3.13",
+            statement=(
+                "Voiding fails closed when every historical line carries an FX rate "
+                "and the original base-currency basis cannot be recovered."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_void_rejects_all_fx_entry_without_historical_basis"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── group 4: Balance calculation (was EPIC-002 AC2.4.*) ──
@@ -2191,6 +2224,60 @@ CONTRACT = PackageContract(
             # was AC15.7.7
             test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::AC15.7.7 AC16.19.12 AC19.6.3 AC19.6.4 AC19.6.5 AC22.21.1 keeps the accounting machinery, sidebar badges and settings out of the sidebar (supersedes the Advanced drawer)",
             priority="P1",
+            status="done",
+        ),
+        # #1866 PR-A: package-local signature surgery guarantees.
+        ACRecord(
+            id="AC-ledger.signature.1",
+            statement=(
+                "Processing transfer legs are built once and persisted through post_entry, so "
+                "the standard balanced-entry, account-ownership, and posting invariants apply."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_signature_surgery.py"
+                "::test_processing_transfers_use_the_post_entry_front_door"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.signature.2",
+            statement=(
+                "System-account and processing APIs require callers to supply the owning "
+                "currency explicitly; the processing path has no hidden SGD or configuration default."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_signature_surgery.py"
+                "::test_processing_apis_require_explicit_currency"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.signature.3",
+            statement=(
+                "Nominal account balances and base-currency account balances use separate "
+                "typed functions with caller-supplied explicit base currency, so a boolean or "
+                "process default cannot silently change result semantics."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_signature_surgery.py"
+                "::test_account_balance_currency_spaces_are_explicit"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.signature.4",
+            statement=(
+                "Caller-supplied operation currency reaches both Python journal "
+                "validation and the PostgreSQL deferred ledger invariant."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_effective_usd_base_drives_posting_trigger_and_equation"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

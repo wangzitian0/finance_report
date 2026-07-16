@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from itertools import combinations
@@ -11,14 +11,12 @@ from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType, promote_entry_source_type
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
-    JournalLine,
     detect_transfer_pattern,
     find_transfer_pairs,
 )
@@ -37,11 +35,8 @@ from src.reconciliation.base.config import (  # noqa: F401
     load_reconciliation_config,
 )
 from src.reconciliation.base.prompts import build_reconciliation_prompt
-from src.reconciliation.extension.phases import (
-    run_many_to_one_phase,
-    run_normal_matching_phase,
-    run_transfer_detection_phase,
-)
+from src.reconciliation.base.repository import ReconciliationRepository
+from src.reconciliation.extension.repository import SqlReconciliationRepository
 from src.reconciliation.extension.scoring import (  # noqa: F401
     extract_merchant_tokens,
     is_cross_period,
@@ -60,6 +55,22 @@ from src.reconciliation.orm.reconciliation import (
 )
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class MatchingContext:
+    """Stable dependencies shared by the matching phases.
+
+    Only the two run-scoped closures live here; package-level matching helpers
+    are imported by the phases directly instead of being passed as untyped
+    function parameters.
+    """
+
+    config: ReconciliationConfig
+    base_currency: str
+    entries_by_id: dict[str, JournalEntry]
+    get_candidates_for_date: Callable[[date], list[JournalEntry]]
+    get_cached_pattern_score: Callable[[AtomicTransaction], Awaitable[float]]
 
 
 def _within_combination_tolerance(
@@ -113,32 +124,30 @@ def prune_candidates(
     return [entry for _, _, _, entry in scored[:limit]]
 
 
-async def calculate_match_score(
+async def _calculate_candidate_score(
     db: AsyncSession,
     transaction: AtomicTransaction,
     entries: list[JournalEntry],
     config: ReconciliationConfig,
     user_id: UUID,
-    is_multi: bool = False,
-    is_many_to_one: bool = False,
-    amount_override: Decimal | None = None,
-    history_score_override: float | None = None,
+    *,
+    amount: Decimal,
+    is_group: bool,
+    history_score: float | None,
 ) -> MatchCandidate:
-    """Calculate match score for a transaction against entry candidates."""
+    """Calculate the common score after the public mode selected semantics."""
     entry_amounts = [entry_bank_side_amount(entry, transaction.direction) for entry in entries]
     total_amount = sum(entry_amounts, Decimal("0.00"))
     entry_dates = [entry.entry_date for entry in entries]
     entry_memo = " / ".join([entry.memo for entry in entries]).strip()
 
-    txn_amount = amount_override if amount_override is not None else transaction.amount
-    amount_score = score_amount(txn_amount, total_amount, config, is_multi=is_multi)
+    uses_multi_tolerance = is_group or len(entries) > 1
+    amount_score = score_amount(amount, total_amount, config, is_multi=uses_multi_tolerance)
     date_score = max(score_date(transaction.txn_date, d, config) for d in entry_dates)
     description_score = score_description(transaction.description, entry_memo)
     business_score = min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
 
-    if history_score_override is not None:
-        history_score = history_score_override
-    else:
+    if history_score is None:
         history_score = await score_pattern(db, transaction, config, user_id=user_id)
 
     scores = {
@@ -148,7 +157,7 @@ async def calculate_match_score(
         "business": business_score,
         "history": history_score,
     }
-    if is_many_to_one:
+    if is_group:
         scores["many_to_one_bonus"] = 10.0
         amount_score = min(100.0, amount_score + 5.0)
         scores["amount"] = amount_score
@@ -156,13 +165,7 @@ async def calculate_match_score(
     total = weighted_total(scores, config)
 
     # EPIC-018 Phase 3: Hybrid scoring for ambiguous matches (60-84 range)
-    enable_ai_reconciliation = os.getenv("ENABLE_AI_RECONCILIATION", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    if enable_ai_reconciliation and 60 <= total <= 84:
+    if config.enable_ai_reconciliation and 60 <= total <= 84:
         primary_entry = entries[0] if entries else None
         if primary_entry:
             date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
@@ -185,6 +188,71 @@ async def calculate_match_score(
         journal_entry_ids=[str(entry.id) for entry in entries],
         score=total,
         breakdown=scores,
+    )
+
+
+async def score_single(
+    db: AsyncSession,
+    transaction: AtomicTransaction,
+    entries: list[JournalEntry],
+    config: ReconciliationConfig,
+    user_id: UUID,
+    *,
+    history_score: float | None = None,
+) -> MatchCandidate:
+    """Score a normal single- or multi-entry candidate against one transaction."""
+    return await _calculate_candidate_score(
+        db,
+        transaction,
+        entries,
+        config,
+        user_id,
+        amount=transaction.amount,
+        is_group=False,
+        history_score=history_score,
+    )
+
+
+async def score_group(
+    db: AsyncSession,
+    transaction: AtomicTransaction,
+    entries: list[JournalEntry],
+    config: ReconciliationConfig,
+    user_id: UUID,
+    *,
+    group_amount: Decimal,
+    history_score: float | None = None,
+) -> MatchCandidate:
+    """Score a many-transactions-to-one-entry candidate with its group total."""
+    return await _calculate_candidate_score(
+        db,
+        transaction,
+        entries,
+        config,
+        user_id,
+        amount=group_amount,
+        is_group=True,
+        history_score=history_score,
+    )
+
+
+async def calculate_match_score(
+    db: AsyncSession,
+    transaction: AtomicTransaction,
+    entries: list[JournalEntry],
+    config: ReconciliationConfig,
+    user_id: UUID,
+    *,
+    history_score_override: float | None = None,
+) -> MatchCandidate:
+    """Compatibility name for normal scoring; group callers use ``score_group``."""
+    return await score_single(
+        db,
+        transaction,
+        entries,
+        config,
+        user_id,
+        history_score=history_score_override,
     )
 
 
@@ -214,53 +282,26 @@ async def find_candidates(
     """Find journal entry candidates near a transaction date."""
     date_start = txn_date - timedelta(days=config.date_days)
     date_end = txn_date + timedelta(days=config.date_days)
-
-    result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.entry_date.between(date_start, date_end))
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    return await SqlReconciliationRepository(db).list_journal_candidates(
+        user_id=user_id,
+        start_date=date_start,
+        end_date=date_end,
     )
-    return result.scalars().all()
 
 
 async def _get_pending_layer2_transactions(
     db: AsyncSession, user_id: UUID, limit: int | None = None
 ) -> list[AtomicTransaction]:
-    """Fetch pending transactions from Layer 2 (AtomicTransaction).
-
-    Pending means NOT present in reconciliation_matches table.
-    """
-    # Find IDs that are already matched
-    subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.isnot(None))
-
-    query = (
-        select(AtomicTransaction)
-        .where(AtomicTransaction.user_id == user_id)
-        .where(AtomicTransaction.id.notin_(subquery))
-        .order_by(AtomicTransaction.txn_date)
-    )
-
-    if limit:
-        query = query.limit(limit)
-
-    result = await db.execute(query)
-    return result.scalars().all()
+    """Compatibility wrapper over the single repository-owned pending query."""
+    return await SqlReconciliationRepository(db).list_pending_transactions(user_id, limit)
 
 
 async def _get_existing_active_match(
     db: AsyncSession,
     txn_id: UUID,
 ) -> ReconciliationMatch | None:
-    """Get existing active (non-superseded) match for a transaction."""
-    query = select(ReconciliationMatch).where(
-        ReconciliationMatch.atomic_txn_id == txn_id,
-        ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-        ReconciliationMatch.superseded_by_id.is_(None),
-    )
-    result = await db.execute(query)
-    return result.scalar_one_or_none()
+    """Compatibility wrapper over the single repository-owned active query."""
+    return await SqlReconciliationRepository(db).get_active_match(txn_id)
 
 
 async def accepted_transfer_txn_ids(
@@ -329,6 +370,8 @@ def _find_many_to_one_candidates(
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
+    *,
+    base_currency: str,
 ) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find many-to-one match candidates by grouping batch transactions.
 
@@ -365,7 +408,7 @@ def _find_many_to_one_candidates(
 
         best_candidate: MatchCandidate | None = None
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=base_currency):
                 continue
 
             # Inline scoring using pure functions (no DB)
@@ -408,6 +451,8 @@ def _find_normal_candidates(
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
+    *,
+    base_currency: str,
 ) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find normal 1:1 and 1:N match candidates.
 
@@ -474,7 +519,7 @@ def _find_normal_candidates(
 
         # Single entry matching
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=base_currency):
                 continue
             candidate = _score_entries(txn, [entry], history_score)
             if best_match is None or candidate.score > best_match.score:
@@ -482,7 +527,10 @@ def _find_normal_candidates(
 
         # Two-entry combinations
         for entry_a, entry_b in combinations(candidates, 2):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=base_currency)
+                and is_entry_balanced(entry_b, base_currency=base_currency)
+            ):
                 continue
             combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
             if not _within_combination_tolerance(combined, txn, config):
@@ -494,7 +542,11 @@ def _find_normal_candidates(
 
         # Three-entry combinations
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=base_currency)
+                and is_entry_balanced(entry_b, base_currency=base_currency)
+                and is_entry_balanced(entry_c, base_currency=base_currency)
+            ):
                 continue
             combined = (
                 entry_bank_side_amount(entry_a, txn.direction)
@@ -517,13 +569,16 @@ async def execute_matching(
     db: AsyncSession,
     *,
     user_id: UUID,
+    currency: str,
     limit: int | None = None,
+    repository: ReconciliationRepository | None = None,
 ) -> list[ReconciliationMatch]:
     """Execute reconciliation matching for pending transactions."""
     config = load_reconciliation_config()
+    repo = repository if repository is not None else SqlReconciliationRepository(db)
 
     # Read pending transactions from Layer 2 (atomic_transactions).
-    transactions = await _get_pending_layer2_transactions(db, user_id, limit)
+    transactions = await repo.list_pending_transactions(user_id, limit)
 
     if not transactions:
         return []
@@ -532,14 +587,11 @@ async def execute_matching(
     min_date = min(txn.txn_date for txn in transactions) - timedelta(days=config.date_days)
     max_date = max(txn.txn_date for txn in transactions) + timedelta(days=config.date_days)
 
-    all_candidates_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.entry_date.between(min_date, max_date))
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    all_candidates = await repo.list_journal_candidates(
+        user_id=user_id,
+        start_date=min_date,
+        end_date=max_date,
     )
-    all_candidates = all_candidates_result.scalars().all()
     entries_by_id = {str(entry.id): entry for entry in all_candidates}
 
     def get_candidates_for_date(txn_date: date) -> list[JournalEntry]:
@@ -564,65 +616,66 @@ async def execute_matching(
         pattern_score_cache[token] = score
         return score
 
-    # Phase 1: Transfer Detection (BEFORE normal matching)
-    await run_transfer_detection_phase(
-        db,
-        transactions=transactions,
-        matched_txn_ids=matched_txn_ids,
-        matches=matches,
-        user_id=user_id,
-        get_existing_active_match=_get_existing_active_match,
-    )
-
-    await run_many_to_one_phase(
-        db,
-        transactions=transactions,
-        matched_txn_ids=matched_txn_ids,
-        matches=matches,
+    context = MatchingContext(
+        config=config,
+        base_currency=currency,
+        entries_by_id=entries_by_id,
         get_candidates_for_date=get_candidates_for_date,
         get_cached_pattern_score=get_cached_pattern_score,
-        entries_by_id=entries_by_id,
-        config=config,
-        user_id=user_id,
-        get_existing_active_match=_get_existing_active_match,
-        calculate_match_score=calculate_match_score,
-        build_many_to_one_groups=build_many_to_one_groups,
-        prune_candidates=prune_candidates,
-        is_entry_balanced=is_entry_balanced,
-        candidate_is_better=_candidate_is_better,
-        mark_auto_accepted=_mark_auto_accepted_entry_reconciled,
     )
 
-    await run_normal_matching_phase(
-        db,
-        transactions=transactions,
-        matched_txn_ids=matched_txn_ids,
-        matches=matches,
-        get_candidates_for_date=lambda txn_date: [
-            c
-            for c in all_candidates
-            if txn_date - timedelta(days=config.date_days)
-            <= c.entry_date
-            <= txn_date + timedelta(days=config.date_days)
-        ],
-        get_cached_pattern_score=get_cached_pattern_score,
-        entries_by_id=entries_by_id,
-        config=config,
-        user_id=user_id,
-        get_existing_active_match=_get_existing_active_match,
-        calculate_match_score=calculate_match_score,
-        candidate_is_better=_candidate_is_better,
-        prune_candidates=prune_candidates,
-        is_entry_balanced=is_entry_balanced,
-        within_combination_tolerance=_within_combination_tolerance,
-        entry_bank_side_amount=entry_bank_side_amount,
-        mark_auto_accepted=_mark_auto_accepted_entry_reconciled,
+    # Imported after this module's helpers are defined so phase modules can
+    # import the shared typed helpers without a module-initialization cycle.
+    from src.reconciliation.extension.phases import (
+        run_many_to_one_phase,
+        run_normal_matching_phase,
+        run_transfer_detection_phase,
+    )
+
+    # Phase 1: Transfer Detection (BEFORE normal matching)
+    matches.extend(
+        await run_transfer_detection_phase(
+            db,
+            transactions=transactions,
+            matched_txn_ids=matched_txn_ids,
+            repository=repo,
+            user_id=user_id,
+            currency=currency,
+        )
+    )
+
+    matches.extend(
+        await run_many_to_one_phase(
+            db,
+            transactions=transactions,
+            matched_txn_ids=matched_txn_ids,
+            context=context,
+            repository=repo,
+            user_id=user_id,
+        )
+    )
+
+    matches.extend(
+        await run_normal_matching_phase(
+            db,
+            transactions=transactions,
+            matched_txn_ids=matched_txn_ids,
+            context=context,
+            repository=repo,
+            user_id=user_id,
+        )
     )
 
     # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
     # Find and pair transfers automatically per common/ledger/readme.md
     try:
-        transfer_pairs = await find_transfer_pairs(db, user_id, threshold=85)
+        transfer_pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency=currency,
+            description_scorer=score_description,
+            threshold=85,
+        )
         if transfer_pairs:
             logger.info(
                 "Auto-pairing complete",

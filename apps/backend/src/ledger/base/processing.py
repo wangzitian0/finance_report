@@ -20,12 +20,13 @@ so a fully-paired transfer nets Processing to zero.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from difflib import SequenceMatcher
 from uuid import UUID
 
+from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import AccountType
 from src.ledger.orm.journal import Direction, JournalEntry
 
@@ -60,6 +61,14 @@ HISTORY_WEIGHT = Decimal("0.10")
 
 # Date tolerance for transfer pairing (from common/ledger/readme.md).
 MAX_DATE_DIFF_DAYS = 7
+
+
+class ProcessingCurrencyConflictError(ValidationError):
+    """The persisted Processing account conflicts with the effective base currency."""
+
+
+class TransferAccountCurrencyMismatchError(ValidationError):
+    """A transfer leg cannot use the non-FX Processing posting path."""
 
 
 @dataclass(frozen=True)
@@ -150,38 +159,6 @@ def _score_amount_match(amount1: Decimal, amount2: Decimal) -> float:
     return float(round(ratio, 2))
 
 
-def _score_description_match(desc1: str | None, desc2: str | None) -> float:
-    """Score description similarity (0-100).
-
-    Args:
-        desc1: First description
-        desc2: Second description
-
-    Returns:
-        Score from 0-100 based on text similarity
-    """
-    if not desc1 or not desc2:
-        return 0.0
-
-    # Normalize: lowercase and strip whitespace
-    norm1 = desc1.lower().strip()
-    norm2 = desc2.lower().strip()
-
-    if not norm1 or not norm2:
-        return 0.0
-
-    # Use SequenceMatcher for fuzzy matching
-    ratio = SequenceMatcher(None, norm1, norm2).ratio()
-
-    # Token overlap score
-    tokens1 = set(norm1.split())
-    tokens2 = set(norm2.split())
-    token_overlap = len(tokens1 & tokens2) / len(tokens1 | tokens2) if tokens1 | tokens2 else 0
-
-    # Combined score (60% sequence ratio, 40% token overlap)
-    return round(100 * (0.6 * ratio + 0.4 * token_overlap), 2)
-
-
 def _score_date_proximity(date1: date, date2: date) -> float:
     """Score date proximity (0-100).
 
@@ -218,6 +195,8 @@ def _calculate_pair_confidence(
     out_entry: JournalEntry,
     in_entry: JournalEntry,
     processing_account_id: UUID | None = None,
+    *,
+    description_scorer: Callable[[str | None, str | None], float],
 ) -> tuple[int, dict[str, float]]:
     """Calculate confidence score for transfer pair matching.
     Args:
@@ -249,7 +228,7 @@ def _calculate_pair_confidence(
 
     # Score individual components
     amount_score = _score_amount_match(out_amount, in_amount)
-    description_score = _score_description_match(out_entry.memo, in_entry.memo)
+    description_score = description_scorer(out_entry.memo, in_entry.memo)
     date_score = _score_date_proximity(out_entry.entry_date, in_entry.entry_date)
 
     # History score: 0 for now (can be enhanced with ML)

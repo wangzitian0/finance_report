@@ -14,11 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
-from src.extraction import create_entry_from_txn
+from src.extraction import CurrencyUnresolvedError, create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
 from src.reconciliation.base.config import entry_total_amount
+from src.reconciliation.base.errors import AmountMismatchError, EntryCreationError, MatchNotFoundError
 from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
@@ -50,6 +51,7 @@ async def accept_match(
     match_id: UUID,
     *,
     user_id: UUID,
+    base_currency: str | None = None,
 ) -> ReconciliationMatch:
     """Accept a pending reconciliation match.
 
@@ -63,7 +65,7 @@ async def accept_match(
         user_id: User ID for authorization
 
     Raises:
-        ValueError: If match not found or amount validation fails
+        ReconciliationError: If match not found or amount validation fails
     """
     result = await db.execute(
         select(ReconciliationMatch)
@@ -74,7 +76,7 @@ async def accept_match(
     )
     match = result.scalar_one_or_none()
     if not match:
-        raise ValueError("Match not found")
+        raise MatchNotFoundError("Match not found")
 
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
@@ -95,7 +97,18 @@ async def accept_match(
         if existing_entry:
             match.journal_entry_ids = [str(existing_entry.id)]
         else:
-            created_entry = await create_entry_from_txn(db, txn, user_id=user_id, auto_post=True)
+            try:
+                created_entry = await create_entry_from_txn(
+                    db,
+                    txn,
+                    user_id=user_id,
+                    base_currency=base_currency,
+                    auto_post=True,
+                )
+            except CurrencyUnresolvedError:
+                raise
+            except ValueError as exc:
+                raise EntryCreationError(str(exc)) from exc
             match.journal_entry_ids = [str(created_entry.id)]
 
     # Validate that journal entry amounts match transaction amount
@@ -115,7 +128,7 @@ async def accept_match(
         # Allow 1% tolerance or $0.10, whichever is greater
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))
         if abs(total_entry_amount - txn.amount) > tolerance:
-            raise ValueError(
+            raise AmountMismatchError(
                 f"Amount mismatch: transaction={txn.amount}, entries={total_entry_amount}, tolerance={tolerance}"
             )
 
@@ -153,7 +166,7 @@ async def reject_match(
     )
     match = result.scalar_one_or_none()
     if not match:
-        raise ValueError("Match not found")
+        raise MatchNotFoundError("Match not found")
 
     if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
@@ -170,6 +183,7 @@ async def batch_accept(
     match_ids: list[str],
     *,
     user_id: UUID,
+    base_currency: str | None = None,
     min_score: int = 80,
 ) -> list[ReconciliationMatch]:
     """Batch accept high-score matches."""
@@ -201,7 +215,14 @@ async def batch_accept(
 
     accepted: list[ReconciliationMatch] = []
     for match in matches:
-        accepted.append(await accept_match(db, match.id, user_id=user_id))
+        accepted.append(
+            await accept_match(
+                db,
+                match.id,
+                user_id=user_id,
+                base_currency=base_currency,
+            )
+        )
 
     await db.flush()
     return accepted

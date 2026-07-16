@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
 from src.audit.money.currency import normalize_currency_code
+from src.config_app import get_effective_base_currency
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
@@ -109,6 +110,7 @@ async def auto_create_posted_entries_for_statement(
     # and effective-dated per txn_date, so publishing a new basis version never
     # restates already-covered periods; uncovered dates are skipped, never fatal.
     await classify_by_effective_policy(db, user_id, txns_to_post)
+    base_currency = await get_effective_base_currency(db)
 
     for txn in txns_to_post:
         # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
@@ -116,6 +118,7 @@ async def auto_create_posted_entries_for_statement(
             db,
             txn,
             user_id=user_id,
+            base_currency=base_currency,
             auto_post=True,
             source_type=JournalEntrySourceType.USER_CONFIRMED,
             preloaded_bank_account=preloaded_bank_account,
@@ -296,6 +299,7 @@ async def try_auto_post_statement_opening_balance(
         return False
 
     try:
+        base_currency = await get_effective_base_currency(db)
         async with db.begin_nested():
             await post_opening_balance_entry(
                 db,
@@ -303,6 +307,7 @@ async def try_auto_post_statement_opening_balance(
                 entry_date=statement.period_start,
                 balances={statement.account_id: opening_balance},
                 currency=normalize_currency_code(statement.currency or ""),
+                base_currency=base_currency,
                 memo="Opening balance (statement import)",
             )
         return True

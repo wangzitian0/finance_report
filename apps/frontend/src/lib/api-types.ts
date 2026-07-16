@@ -4457,7 +4457,7 @@ export interface components {
          */
         JournalEntryResponse: {
             /** Confidence Tier */
-            confidence_tier?: ("TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
+            confidence_tier?: ("DETERMINISTIC" | "TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
             /**
              * Created At
              * Format: date-time
@@ -4545,11 +4545,8 @@ export interface components {
             account_id: string;
             /** Amount */
             amount: number | string;
-            /**
-             * Currency
-             * @default SGD
-             */
-            currency: string;
+            /** Currency */
+            currency?: string | null;
             direction: components["schemas"]["Direction"];
             /** Event Type */
             event_type?: string | null;
@@ -4577,10 +4574,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Currency
-             * @default SGD
-             */
+            /** Currency */
             currency: string;
             direction: components["schemas"]["Direction"];
             /** Event Type */
@@ -7949,6 +7943,7 @@ export interface operations {
     list_ai_suggestions_ai_suggestions_get: {
         parameters: {
             query?: {
+                /** @description Maximum items to return */
                 limit?: number;
                 offset?: number;
             };
@@ -17077,6 +17072,7 @@ export interface operations {
                 status?: components["schemas"]["CheckStatus"] | null;
                 check_type?: components["schemas"]["CheckType"] | null;
                 run_id?: string | null;
+                /** @description Maximum items to return */
                 limit?: number;
                 offset?: number;
             };

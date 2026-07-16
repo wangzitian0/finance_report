@@ -3573,6 +3573,10 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
+    fallback_query = (
+        select(Account.id).where(Account.user_id == test_user.id).where(Account.name == "Expense - Uncategorized")
+    )
+    fallback_ids_before = set((await db.scalars(fallback_query)).all())
 
     with pytest.raises(ValueError, match="not active"):
         await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
@@ -3584,6 +3588,7 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
         .where(JournalEntry.source_id == txn.id)
     )
     assert list(entry_result.scalars().all()) == []
+    assert set((await db.scalars(fallback_query)).all()) == fallback_ids_before
 
 
 async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph(

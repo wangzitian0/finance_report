@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from src.ledger.base.processing import (
     ProcessingAccount,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     TransferPair,
     detect_transfer_pattern,
 )
@@ -38,6 +40,8 @@ __all__ = [
     "LedgerError",
     "Leg",
     "ProcessingAccount",
+    "ProcessingCurrencyConflictError",
+    "TransferAccountCurrencyMismatchError",
     "TransferPair",
     "UnbalancedEntryError",
     "ValidationError",

@@ -156,17 +156,25 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/reconciliation", "fe": None},
     interface=[
+        "AmountMismatchError",
+        "CheckResolutionAction",
         "CheckStatus",
         "CheckType",
         "ConsistencyCheck",
+        "ConsistencyCheckNotFoundError",
         "DEFAULT_CONFIG",
         "DEFAULT_RATE_TOLERANCE",
         "DEFAULT_TIME_WINDOW",
+        "EntryCreationError",
         "FxTransferError",
+        "InvalidCheckActionError",
         "MAX_COMBINATION_CANDIDATES",
         "MatchCandidate",
+        "MatchNotFoundError",
+        "MatchingContext",
         "RECONCILIATION_SEMANTIC_PROMPT",
         "ReconciliationConfig",
+        "ReconciliationError",
         "ReconciliationMatch",
         "ReconciliationMatchJournalEntry",
         "ReconciliationStats",
@@ -194,7 +202,6 @@ CONTRACT = PackageContract(
         "execute_matching",
         "extract_merchant_tokens",
         "find_candidates",
-        "get_pending_checks",
         "get_pending_items",
         "get_reconciliation_stats",
         "get_stage2_queue",
@@ -213,6 +220,8 @@ CONTRACT = PackageContract(
         "score_business_logic",
         "score_date",
         "score_description",
+        "score_group",
+        "score_single",
         "score_pattern",
         "sync_reconciliation_match_journal_entry_links",
         "weighted_total",
@@ -375,9 +384,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.group-matching.2",
             statement=(
-                "calculate_match_score adds a many_to_one_bonus (10 points) when scoring a "
-                "batch-payment transaction against a single matching journal entry with "
-                "is_multi/is_many_to_one set, pushing the composite score above the auto-accept threshold."
+                "score_group adds a many_to_one_bonus (10 points) when scoring a "
+                "batch-payment total against a single matching journal entry, pushing the "
+                "composite score above the auto-accept threshold without coupled boolean flags."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_reconciliation_scoring.py"
@@ -1197,7 +1206,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         # ── group consistency-checks: detect_duplicates/detect_transfer_pairs/
-        # resolve_check/get_pending_checks edge-case behavior (was EPIC-016
+        # resolve_check/list_checks edge-case behavior (was EPIC-016
         # AC16.4, migration closeout continuation, #1663 / #1711) ──
         ACRecord(
             id="AC-reconciliation.consistency-checks.1",
@@ -1261,7 +1270,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.consistency-checks.7",
-            statement="get_pending_checks filters results by severity.",
+            statement="list_checks filters pending results by severity.",
             test=(
                 "apps/backend/tests/review/test_consistency_checks.py"
                 "::test_get_pending_filters_by_severity"
@@ -1948,6 +1957,103 @@ CONTRACT = PackageContract(
                 "::test_calculate_match_score_flag_off_skips_ai_scoring"
             ),
             priority="P1",
+            status="done",
+        ),
+        # #1866 PR-A: reconciliation/ledger signature surgery.  The split is
+        # intentionally package-local: reconciliation owns orchestration,
+        # errors, and the similarity policy; ledger separately owns posting
+        # and balance-space guarantees in AC-ledger.signature.*.
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.1",
+            statement=(
+                "Public reconciliation extension functions have fully annotated signatures "
+                "and no more than eight parameters; matching phases receive a typed context."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_public_reconciliation_signatures_are_typed_and_bounded"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.2",
+            statement=(
+                "execute_matching drives the ReconciliationRepository port and each phase "
+                "returns its created matches instead of mutating an output list."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_matching_phases_return_created_matches"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.3",
+            statement=(
+                "Normal single-/multi-entry scoring and many-to-one group scoring use distinct typed entry points; "
+                "normal multi-entry candidates retain widened amount tolerance, and the AI switch is supplied "
+                "through ReconciliationConfig rather than read in scoring."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_scoring_has_explicit_modes_and_no_hidden_environment_switch"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.4",
+            statement=(
+                "Reconciliation failures use typed domain errors, router status mapping does "
+                "not inspect exception text, and consistency-check actions are enum-typed."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_reconciliation_errors_and_resolve_actions_are_typed"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.5",
+            statement=(
+                "Reconciliation owns the sole SequenceMatcher description-similarity kernel; "
+                "ledger transfer pairing consumes that score while retaining ledger weights."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_description_similarity_has_one_owner_and_both_consumers_agree"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.6",
+            statement=(
+                "Transfer detection propagates processing-account currency "
+                "conflicts instead of reporting a successful no-op run."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_transfer_detection_surfaces_processing_currency_conflicts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.7",
+            statement=(
+                "Transfer detection leaves a foreign-account candidate unmatched "
+                "when it requires an FX-aware posting path, while preserving the "
+                "typed Processing-account configuration conflict."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_transfer_detection_leaves_foreign_account_candidate_unmatched"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

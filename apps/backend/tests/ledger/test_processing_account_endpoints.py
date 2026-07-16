@@ -3,24 +3,35 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import (
     Account,
     AccountType,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     create_transfer_in_entry,
     create_transfer_out_entry,
+    get_or_create_processing_account,
 )
 
 
-async def _seed_account(db: AsyncSession, user_id, name: str, code: str) -> Account:
+async def _seed_account(
+    db: AsyncSession,
+    user_id,
+    name: str,
+    code: str,
+    *,
+    currency: str = "SGD",
+) -> Account:
     account = Account(
         user_id=user_id,
         name=name,
         code=code,
         type=AccountType.ASSET,
-        currency="SGD",
+        currency=currency,
     )
     db.add(account)
     await db.flush()
@@ -75,6 +86,7 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
         amount=Decimal("100.00"),
         txn_date=older,
         description="Older OUT",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -83,6 +95,7 @@ async def test_processing_summary_aggregates_unpaired(client: AsyncClient, db: A
         amount=Decimal("40.00"),
         txn_date=newer,
         description="Newer IN",
+        currency="SGD",
     )
     await db.commit()
 
@@ -112,6 +125,7 @@ async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClien
         amount=Decimal("100.00"),
         txn_date=out_date,
         description="Vendor payout alpha",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -120,6 +134,7 @@ async def test_pending_total_uses_net_balance_not_sum_of_legs(client: AsyncClien
         amount=Decimal("80.00"),
         txn_date=in_date,
         description="Refund receipt beta",
+        currency="SGD",
     )
     await db.commit()
 
@@ -144,6 +159,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -152,6 +168,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_out_entry(
         db,
@@ -160,6 +177,7 @@ async def test_pending_excludes_fully_paired_entries(client: AsyncClient, db: As
         amount=Decimal("50.00"),
         txn_date=today - timedelta(days=30),
         description="Unmatched brokerage sweep",
+        currency="SGD",
     )
     await db.commit()
 
@@ -190,6 +208,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -198,6 +217,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("100.00"),
         txn_date=today,
         description="Salary Transfer OUT: IN:",
+        currency="SGD",
     )
     await create_transfer_out_entry(
         db,
@@ -206,6 +226,7 @@ async def test_pending_list_excludes_paired_legs(client: AsyncClient, db: AsyncS
         amount=Decimal("50.00"),
         txn_date=today - timedelta(days=30),
         description="Unmatched brokerage sweep",
+        currency="SGD",
     )
     await db.commit()
 
@@ -234,6 +255,7 @@ async def test_processing_pending_lists_pairs_with_days_outstanding(
         amount=Decimal("250.00"),
         txn_date=out_date,
         description="Wire out",
+        currency="SGD",
     )
     await create_transfer_in_entry(
         db,
@@ -242,6 +264,7 @@ async def test_processing_pending_lists_pairs_with_days_outstanding(
         amount=Decimal("75.00"),
         txn_date=in_date,
         description="Wire in",
+        currency="SGD",
     )
     await db.commit()
 
@@ -278,6 +301,7 @@ async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db:
         amount=Decimal("500.00"),
         txn_date=today - timedelta(days=14),
         description="Stuck transfer",
+        currency="SGD",
     )
     await db.commit()
 
@@ -287,3 +311,81 @@ async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db:
     assert len(items) == 1
     assert items[0]["days_outstanding"] == 14
     assert items[0]["days_outstanding"] > 7
+
+
+async def test_usd_transfer_uses_explicit_base_for_python_and_database_invariants(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    cash = await _seed_account(db, test_user.id, "USD Cash", "1001", currency="USD")
+
+    entry = await create_transfer_out_entry(
+        db,
+        user_id=test_user.id,
+        source_account_id=cash.id,
+        amount=Decimal("25.00"),
+        txn_date=date.today(),
+        description="USD sweep",
+        currency="USD",
+    )
+    await db.commit()
+
+    assert entry.status.value == "posted"
+    assert {line.currency for line in entry.lines} == {"USD"}
+
+
+async def test_processing_summary_uses_stored_account_currency_after_config_change(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    assert processing.currency == "SGD"
+    await db.commit()
+    update = await client.put("/app-config/base-currency", json={"base_currency": "USD"})
+    assert update.status_code == 200, update.text
+
+    response = await client.get("/accounts/processing/summary")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["currency"] == "SGD"
+
+
+async def test_transfer_rejects_currency_mismatch_with_existing_processing_account(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.signature.1: persisted Processing conflicts stay distinguishable."""
+    await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    usd_cash = await _seed_account(db, test_user.id, "USD Cash", "1001", currency="USD")
+
+    with pytest.raises(ProcessingCurrencyConflictError, match="Processing account currency is SGD"):
+        await create_transfer_out_entry(
+            db,
+            user_id=test_user.id,
+            source_account_id=usd_cash.id,
+            amount=Decimal("25.00"),
+            txn_date=date.today(),
+            description="invalid USD sweep",
+            currency="USD",
+        )
+
+
+async def test_transfer_classifies_foreign_counterparty_mismatch(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.signature.1: foreign legs are distinct from Processing conflicts."""
+    await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    usd_cash = await _seed_account(db, test_user.id, "Foreign USD Cash", "1002", currency="USD")
+
+    with pytest.raises(TransferAccountCurrencyMismatchError, match="Transfer account currency is USD"):
+        await create_transfer_out_entry(
+            db,
+            user_id=test_user.id,
+            source_account_id=usd_cash.id,
+            amount=Decimal("25.00"),
+            txn_date=date.today(),
+            description="foreign USD sweep",
+            currency="SGD",
+        )

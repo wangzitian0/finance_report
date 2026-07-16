@@ -16,6 +16,7 @@ from src.ledger.data.account_coverage import (
 from src.ledger.data.balance import (
     calculate_account_balance,
     calculate_account_balances,
+    calculate_account_balances_in_base_currency,
     verify_accounting_equation,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "StatementCoverageRow",
     "calculate_account_balance",
     "calculate_account_balances",
+    "calculate_account_balances_in_base_currency",
     "get_account_statement_coverage",
     "register_statement_coverage_reader",
     "verify_accounting_equation",

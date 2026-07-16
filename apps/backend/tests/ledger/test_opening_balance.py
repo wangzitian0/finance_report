@@ -12,8 +12,8 @@ from uuid import uuid4
 from httpx import AsyncClient
 
 
-async def _account(client: AsyncClient, name: str, account_type: str) -> str:
-    resp = await client.post("/accounts", json={"name": name, "type": account_type, "currency": "SGD"})
+async def _account(client: AsyncClient, name: str, account_type: str, *, currency: str = "SGD") -> str:
+    resp = await client.post("/accounts", json={"name": name, "type": account_type, "currency": currency})
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
 
@@ -155,3 +155,44 @@ async def test_AC2_15_7_system_account_target_is_rejected(client: AsyncClient, d
         json={"entry_date": "2026-01-01", "balances": {str(system_account.id): "100.00"}},
     )
     assert resp.status_code == 400
+
+
+async def test_effective_usd_base_posts_opening_balance_when_process_default_is_sgd(client: AsyncClient) -> None:
+    update = await client.put("/app-config/base-currency", json={"base_currency": "USD"})
+    assert update.status_code == 200, update.text
+    bank = await _account(client, "USD Bank", "ASSET", currency="USD")
+
+    resp = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "1000.00"}},
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert {line["currency"] for line in resp.json()["lines"]} == {"USD"}
+
+
+async def test_existing_opening_equity_currency_mismatch_fails_closed(client: AsyncClient, db, test_user) -> None:
+    from src.ledger import Account, AccountType
+
+    db.add(
+        Account(
+            user_id=test_user.id,
+            name="Opening Balance Equity",
+            code="3199",
+            type=AccountType.EQUITY,
+            currency="SGD",
+            is_system=True,
+        )
+    )
+    await db.commit()
+    update = await client.put("/app-config/base-currency", json={"base_currency": "USD"})
+    assert update.status_code == 200, update.text
+    bank = await _account(client, "USD Bank", "ASSET", currency="USD")
+
+    resp = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "1000.00"}},
+    )
+
+    assert resp.status_code == 400
+    assert "Opening Balance Equity account currency is SGD" in resp.text

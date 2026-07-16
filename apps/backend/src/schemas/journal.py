@@ -5,10 +5,9 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.audit import JournalEntrySourceType, normalize_source_type
-from src.config import settings
 from src.ledger import ConfidenceTier, Direction, JournalEntryStatus
 from src.schemas.base import BaseResponse, ListResponse
 
@@ -19,7 +18,7 @@ class JournalLineBase(BaseModel):
     account_id: UUID
     direction: Direction
     amount: Annotated[Decimal, Field(gt=0, decimal_places=2)]
-    currency: Annotated[str, Field(min_length=3, max_length=3)] = "SGD"
+    currency: Annotated[str, Field(min_length=3, max_length=3)]
     fx_rate: Annotated[Decimal | None, Field(None, gt=0, decimal_places=6)] = None
     event_type: Annotated[str | None, Field(None, max_length=100)] = None
     tags: dict | None = None
@@ -28,7 +27,7 @@ class JournalLineBase(BaseModel):
 class JournalLineCreate(JournalLineBase):
     """Schema for creating a journal line."""
 
-    pass
+    currency: Annotated[str | None, Field(min_length=3, max_length=3)] = None
 
 
 class JournalLineResponse(JournalLineBase, BaseResponse):
@@ -59,26 +58,6 @@ class JournalEntryCreate(JournalEntryBase):
     """Schema for creating a journal entry."""
 
     lines: Annotated[list[JournalLineCreate], Field(min_length=2)]
-
-    @model_validator(mode="after")
-    def validate_balanced(self) -> "JournalEntryCreate":
-        """Validate that debits equal credits after base-currency conversion."""
-        base_currency = settings.base_currency.upper()
-
-        def base_amount(line: JournalLineCreate) -> Decimal:
-            if line.currency.upper() == base_currency:
-                return line.amount
-            if line.fx_rate is None:
-                raise ValueError(f"fx_rate required for currency {line.currency} (base {base_currency})")
-            return line.amount * line.fx_rate
-
-        total_debit = sum(base_amount(line) for line in self.lines if line.direction == Direction.DEBIT)
-        total_credit = sum(base_amount(line) for line in self.lines if line.direction == Direction.CREDIT)
-
-        if abs(total_debit - total_credit) > Decimal("0.01"):
-            raise ValueError(f"Journal entry not balanced: debit={total_debit}, credit={total_credit}")
-
-        return self
 
 
 class JournalEntryResponse(JournalEntryBase, BaseResponse):

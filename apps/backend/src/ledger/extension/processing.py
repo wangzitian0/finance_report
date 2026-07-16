@@ -19,6 +19,7 @@ interface (by id/event), never via a shared cross-domain transaction or FK.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -27,9 +28,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-import src.config
 from src.audit import JournalEntrySourceType
-from src.audit.money import Money
+from src.audit.money import Currency, Money
 from src.ledger.base.processing import (
     AUTO_PAIR_THRESHOLD,
     MAX_DATE_DIFF_DAYS,
@@ -37,16 +37,25 @@ from src.ledger.base.processing import (
     PROCESSING_ACCOUNT_DESCRIPTION,
     PROCESSING_ACCOUNT_NAME,
     PROCESSING_ACCOUNT_TYPE,
+    ProcessingCurrencyConflictError,
+    TransferAccountCurrencyMismatchError,
     TransferPair,
     _calculate_pair_confidence,
     _validate_transfer_params,
 )
 from src.ledger.base.types.entry import Entry
+from src.ledger.base.validators import ValidationError
+from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
-async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, currency: str = "SGD") -> Account:
+async def get_or_create_processing_account(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    currency: str,
+) -> Account:
     """Get or create the Processing virtual account for a user."""
     result = await db.execute(
         select(Account).where(
@@ -78,6 +87,9 @@ async def get_or_create_processing_account(db: AsyncSession, user_id: UUID, curr
 async def find_transfer_pairs(
     db: AsyncSession,
     user_id: UUID,
+    *,
+    currency: str,
+    description_scorer: Callable[[str | None, str | None], float],
     threshold: int = AUTO_PAIR_THRESHOLD,
     max_entries: int = 500,
 ) -> list[TransferPair]:
@@ -96,7 +108,7 @@ async def find_transfer_pairs(
         List of TransferPair objects with confidence >= threshold
     """
     # Get Processing account
-    processing_account = await get_or_create_processing_account(db, user_id)
+    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
 
     # Find all journal entries involving Processing account
     result = await db.execute(
@@ -138,7 +150,12 @@ async def find_transfer_pairs(
             if id(in_entry) in matched_in_entries:
                 continue
 
-            confidence, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account.id)
+            confidence, breakdown = _calculate_pair_confidence(
+                out_entry,
+                in_entry,
+                processing_account.id,
+                description_scorer=description_scorer,
+            )
             if confidence >= threshold:
                 pair = TransferPair(
                     out_entry=out_entry,
@@ -163,10 +180,15 @@ async def create_transfer_out_entry(
     amount: Decimal,
     txn_date: date,
     description: str,
+    *,
+    currency: str,
 ) -> JournalEntry:
     """Create a Transfer OUT journal entry.
 
     Transfer OUT: DEBIT Processing, CREDIT source account
+    ``currency`` is the caller's effective base currency, not an arbitrary
+    statement transaction currency. Foreign-currency transfers require a
+    separate FX-aware posting flow.
 
     Args:
         db: Database session
@@ -179,43 +201,16 @@ async def create_transfer_out_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
-    _validate_transfer_params(amount, description)
-
-    processing_account = await get_or_create_processing_account(db, user_id)
-
-    entry = JournalEntry(
+    return await _create_transfer_entry(
+        db,
         user_id=user_id,
-        entry_date=txn_date,
-        memo=f"Transfer OUT: {description}",
-        status=JournalEntryStatus.POSTED,
-        source_type=JournalEntrySourceType.SYSTEM,
+        account_id=source_account_id,
+        amount=amount,
+        txn_date=txn_date,
+        description=description,
+        currency=currency,
+        direction="OUT",
     )
-
-    # Dr Processing / Cr source — guarantee the balance as a type before persisting.
-    _ccy = src.config.settings.base_currency
-    Entry.transfer(debit=processing_account.id, credit=source_account_id, money=Money(amount, _ccy))
-
-    lines = [
-        JournalLine(
-            journal_entry=entry,
-            account_id=processing_account.id,
-            direction=Direction.DEBIT,
-            amount=amount,
-        ),
-        JournalLine(
-            journal_entry=entry,
-            account_id=source_account_id,
-            direction=Direction.CREDIT,
-            amount=amount,
-        ),
-    ]
-
-    db.add(entry)
-    for line in lines:
-        db.add(line)
-
-    await db.flush()
-    return entry
 
 
 async def create_transfer_in_entry(
@@ -225,10 +220,15 @@ async def create_transfer_in_entry(
     amount: Decimal,
     txn_date: date,
     description: str,
+    *,
+    currency: str,
 ) -> JournalEntry:
     """Create a Transfer IN journal entry.
 
     Transfer IN: DEBIT destination account, CREDIT Processing
+    ``currency`` is the caller's effective base currency, not an arbitrary
+    statement transaction currency. Foreign-currency transfers require a
+    separate FX-aware posting flow.
 
     Args:
         db: Database session
@@ -241,46 +241,79 @@ async def create_transfer_in_entry(
     Returns:
         Created JournalEntry (not yet committed)
     """
+    return await _create_transfer_entry(
+        db,
+        user_id=user_id,
+        account_id=dest_account_id,
+        amount=amount,
+        txn_date=txn_date,
+        description=description,
+        currency=currency,
+        direction="IN",
+    )
+
+
+async def _create_transfer_entry(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    account_id: UUID,
+    amount: Decimal,
+    txn_date: date,
+    description: str,
+    currency: str,
+    direction: str,
+) -> JournalEntry:
+    """Build one transfer leg and route persistence through ledger's front door."""
     _validate_transfer_params(amount, description)
+    normalized_currency = Currency.of(currency).code
+    processing_account = await get_or_create_processing_account(
+        db,
+        user_id,
+        currency=normalized_currency,
+    )
+    processing_currency = Currency.of(processing_account.currency).code
+    if processing_currency != normalized_currency:
+        raise ProcessingCurrencyConflictError(
+            f"Processing account currency is {processing_currency}; got transfer currency {normalized_currency}"
+        )
 
-    processing_account = await get_or_create_processing_account(db, user_id)
+    account_result = await db.execute(select(Account).where(Account.id == account_id, Account.user_id == user_id))
+    counterparty = account_result.scalar_one_or_none()
+    if counterparty is None:
+        raise ValidationError(f"Account {account_id} not found")
+    counterparty_currency = Currency.of(counterparty.currency).code
+    if counterparty_currency != processing_currency:
+        raise TransferAccountCurrencyMismatchError(
+            f"Transfer account currency is {counterparty_currency}; Processing account currency is {processing_currency}"
+        )
 
-    entry = JournalEntry(
+    if direction == "OUT":
+        debit_id, credit_id = processing_account.id, account_id
+    else:
+        debit_id, credit_id = account_id, processing_account.id
+    entry = Entry.transfer(
+        debit=debit_id,
+        credit=credit_id,
+        money=Money(amount, processing_currency),
+    )
+    return await post_entry(
+        db,
         user_id=user_id,
         entry_date=txn_date,
-        memo=f"Transfer IN: {description}",
-        status=JournalEntryStatus.POSTED,
+        memo=f"Transfer {direction}: {description}",
+        entry=entry,
+        base_currency=processing_currency,
         source_type=JournalEntrySourceType.SYSTEM,
     )
 
-    # Dr destination / Cr Processing — guarantee the balance as a type before persisting.
-    _ccy = src.config.settings.base_currency
-    Entry.transfer(debit=dest_account_id, credit=processing_account.id, money=Money(amount, _ccy))
 
-    lines = [
-        JournalLine(
-            journal_entry=entry,
-            account_id=dest_account_id,
-            direction=Direction.DEBIT,
-            amount=amount,
-        ),
-        JournalLine(
-            journal_entry=entry,
-            account_id=processing_account.id,
-            direction=Direction.CREDIT,
-            amount=amount,
-        ),
-    ]
-
-    db.add(entry)
-    for line in lines:
-        db.add(line)
-
-    await db.flush()
-    return entry
-
-
-async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
+async def get_processing_balance(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    currency: str,
+) -> Decimal:
     """Get current balance of Processing account.
 
     Args:
@@ -290,7 +323,7 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     Returns:
         Processing account balance (Decimal)
     """
-    processing_account = await get_or_create_processing_account(db, user_id)
+    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
 
     # Get all journal lines for Processing account
     result = await db.execute(
@@ -311,6 +344,8 @@ async def get_processing_balance(db: AsyncSession, user_id: UUID) -> Decimal:
 async def get_unpaired_transfers(
     db: AsyncSession,
     user_id: UUID,
+    *,
+    currency: str,
     days_threshold: int = MAX_DATE_DIFF_DAYS,
 ) -> list[dict]:
     """Get unpaired transfer entries (Processing balance != 0).
@@ -325,7 +360,7 @@ async def get_unpaired_transfers(
     Returns:
         List of dicts with keys: entry_id, direction, amount, date, description
     """
-    processing_account = await get_or_create_processing_account(db, user_id)
+    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
     # Get all journal lines for Processing account
     result = await db.execute(
         select(JournalLine, JournalEntry)
@@ -357,8 +392,10 @@ async def get_unpaired_transfers(
 async def list_processing_transfer_legs(
     db: AsyncSession,
     user_id: UUID,
+    *,
+    currency: str,
 ) -> list[dict]:
-    processing_account = await get_or_create_processing_account(db, user_id)
+    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
 
     result = await db.execute(
         select(JournalEntry)
@@ -388,7 +425,12 @@ async def list_processing_transfer_legs(
         )
         other_account: Account | None = other_line.account if other_line else None
         other_name = other_account.name if other_account else "(unknown)"
-        currency = other_account.currency if other_account else processing_account.currency
+        processing_currency = Currency.of(processing_account.currency).code
+        line_currency = Currency.of(processing_line.currency).code
+        if line_currency != processing_currency:
+            raise ValidationError(
+                f"Processing line currency is {line_currency}; account currency is {processing_currency}"
+            )
 
         if processing_line.direction == Direction.DEBIT:
             from_account = other_name
@@ -403,7 +445,7 @@ async def list_processing_transfer_legs(
                 "from_account": from_account,
                 "to_account": to_account,
                 "amount": processing_line.amount,
-                "currency": currency,
+                "currency": processing_currency,
                 "initiated_date": entry.entry_date,
                 "days_outstanding": (today - entry.entry_date).days,
                 "description": entry.memo or "",

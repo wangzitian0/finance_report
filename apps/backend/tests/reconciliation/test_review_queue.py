@@ -16,7 +16,7 @@ source of truth).
 import inspect
 from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -25,13 +25,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.extraction import CurrencyUnresolvedError
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
 from src.pricing import PricingError
-from src.reconciliation import ReconciliationStatus
+from src.reconciliation import AmountMismatchError, EntryCreationError, MatchNotFoundError, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
 from tests.factories import (
     AccountFactory,
@@ -138,7 +139,7 @@ async def test_accept_match_updates_status(db, test_user):
 
 
 async def test_accept_match_not_found_raises(db, test_user):
-    with pytest.raises(ValueError, match="Match not found"):
+    with pytest.raises(MatchNotFoundError, match="Match not found"):
         await accept_match(db, uuid4(), user_id=test_user.id)
 
 
@@ -171,7 +172,7 @@ async def test_accept_match_amount_mismatch_raises(db, test_user):
     )
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
@@ -192,7 +193,7 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
     )
     await db.commit()
 
-    with pytest.raises(ValueError, match="Amount mismatch"):
+    with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
@@ -243,6 +244,53 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
+async def test_accept_match_maps_entry_creation_failure_to_domain_error(db, test_user):
+    """AC-reconciliation.signature-surgery.4: extraction failures remain typed at the boundary."""
+    stmt = await _make_statement(db, test_user.id)
+    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
+    match = await ReconciliationMatchFactory.create_async(
+        db,
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    await db.commit()
+
+    with (
+        patch(
+            "src.reconciliation.extension.review_queue.create_entry_from_txn",
+            new=AsyncMock(side_effect=ValueError("Account mapping required before posting")),
+        ),
+        pytest.raises(EntryCreationError, match="Account mapping required before posting"),
+    ):
+        await accept_match(db, match.id, user_id=test_user.id)
+
+
+async def test_accept_match_preserves_currency_unresolved_error(db, test_user):
+    """AC12.40.4: unresolved currency retains its global structured 409 error."""
+    stmt = await _make_statement(db, test_user.id)
+    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
+    match = await ReconciliationMatchFactory.create_async(
+        db,
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    await db.commit()
+    error = CurrencyUnresolvedError("Currency must be resolved")
+
+    with (
+        patch(
+            "src.reconciliation.extension.review_queue.create_entry_from_txn",
+            new=AsyncMock(side_effect=error),
+        ),
+        pytest.raises(CurrencyUnresolvedError) as exc_info,
+    ):
+        await accept_match(db, match.id, user_id=test_user.id)
+
+    assert exc_info.value is error
+
+
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
@@ -279,7 +327,7 @@ async def test_reject_match_updates_status(db, test_user):
 
 
 async def test_reject_match_not_found_raises(db, test_user):
-    with pytest.raises(ValueError, match="Match not found"):
+    with pytest.raises(MatchNotFoundError, match="Match not found"):
         await reject_match(db, str(uuid4()), user_id=test_user.id)
 
 
@@ -606,7 +654,7 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     await db.commit()
 
     with patch(
-        "src.extraction.extension.review_queue.validate_journal_balance", side_effect=ValidationError("not balanced")
+        "src.extraction.extension.review_queue.create_journal_entry", side_effect=ValidationError("not balanced")
     ):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
             await create_entry_from_txn(db, txn, user_id=test_user.id)

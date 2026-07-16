@@ -5,6 +5,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import Currency
+from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import Account, AccountType
 from src.schemas.account import AccountCreate, AccountUpdate
 
@@ -34,7 +36,9 @@ async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountC
 
 
 async def get_or_create_opening_balance_equity_account(
-    db: AsyncSession, user_id: UUID, currency: str = "SGD"
+    db: AsyncSession,
+    user_id: UUID,
+    currency: str,
 ) -> Account:
     """Get or create the Opening Balance Equity account for a user (#949).
 
@@ -52,13 +56,18 @@ async def get_or_create_opening_balance_equity_account(
     # Tolerant fetch: a rare duplicate (e.g. concurrent first-time creates without
     # a DB uniqueness constraint) must not break opening-balance posting.
     account = result.scalars().first()
+    normalized_currency = Currency.of(currency).code
+    if account and Currency.of(account.currency).code != normalized_currency:
+        raise ValidationError(
+            f"Opening Balance Equity account currency is {account.currency}; got base currency {normalized_currency}"
+        )
     if not account:
         account = Account(
             user_id=user_id,
             name="Opening Balance Equity",
             code="3199",
             type=AccountType.EQUITY,
-            currency=currency,
+            currency=normalized_currency,
             is_system=True,
             description="System-managed equity account for year-start opening balance entries",
         )

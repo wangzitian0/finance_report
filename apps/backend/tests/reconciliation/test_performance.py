@@ -134,7 +134,7 @@ class TestMatchingAccuracy:
 
         # Execute matching once over all pending Layer-2 transactions.
         high_score_count = 0
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         for match in matches:
             if match.match_score >= 85:
                 high_score_count += 1
@@ -337,7 +337,7 @@ class TestBatchPerformance:
 
         # Measure execution time
         start_time = time.perf_counter()
-        matches = await execute_matching(db, user_id=user_id)
+        matches = await execute_matching(db, user_id=user_id, currency="SGD")
         elapsed = time.perf_counter() - start_time
 
         # Performance threshold: 5s for 100 transactions
@@ -385,7 +385,7 @@ class TestConcurrentMatching:
         # Re-running matching must be idempotent and not corrupt shared state.
         results = []
         for _ in range(3):
-            matches = await execute_matching(db, user_id=user_id)
+            matches = await execute_matching(db, user_id=user_id, currency="SGD")
             results.append(matches)
 
         # All should complete without error

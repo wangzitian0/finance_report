@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
+from src.config_app import set_base_currency
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
@@ -253,3 +254,34 @@ async def test_same_period_start_second_import_does_not_duplicate_opening_balanc
     await try_auto_post_statement_opening_balance(db, statement, test_user.id)
 
     assert await _opening_equity_line_count(db, test_user.id) == 1
+
+
+async def test_statement_opening_balance_uses_persisted_usd_base(db, test_user) -> None:
+    payload = _drawdown_statement_payload()
+    payload["currency"] = "USD"
+    for transaction in payload["transactions"]:
+        transaction["currency"] = "USD"
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=payload)
+    statement, _txns = await service.parse_document(
+        file_path=Path("effective-usd-opening.pdf"),
+        institution="GXS",
+        user_id=test_user.id,
+        file_content=b"%PDF-1.7",
+        file_hash="effective-usd-opening",
+        db=db,
+    )
+    await set_base_currency(db, "USD")
+
+    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    await db.commit()
+
+    assert posted >= 1
+    lines = (
+        await db.execute(
+            select(JournalLine)
+            .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(JournalEntry.memo == "Opening balance (statement import)")
+        )
+    ).scalars()
+    assert {line.currency for line in lines} == {"USD"}

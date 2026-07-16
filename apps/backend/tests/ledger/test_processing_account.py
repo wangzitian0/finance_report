@@ -19,6 +19,7 @@ from src.ledger import (
     JournalLine,
     get_or_create_processing_account,
 )
+from src.reconciliation import score_description
 from tests.factories import UserFactory
 
 
@@ -28,7 +29,7 @@ class TestProcessingAccountCreation:
     async def test_processing_account_created_on_first_call(self, db: AsyncSession, test_user):
         """AC-ledger.71.1 · Processing account is auto-created on first get_or_create call."""
         user_id = test_user.id
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         assert processing.name == "Processing"
         assert processing.code == "1199"
@@ -40,8 +41,8 @@ class TestProcessingAccountCreation:
     async def test_processing_account_idempotent(self, db: AsyncSession, test_user):
         """AC-ledger.71.2 · Multiple calls return the same Processing account."""
         user_id = test_user.id
-        processing1 = await get_or_create_processing_account(db, user_id)
-        processing2 = await get_or_create_processing_account(db, user_id)
+        processing1 = await get_or_create_processing_account(db, user_id, currency="SGD")
+        processing2 = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         assert processing1.id == processing2.id
 
@@ -51,7 +52,7 @@ class TestProcessingAccountCreation:
         from src.ledger.extension.account_service import list_accounts
 
         # Create Processing account
-        await get_or_create_processing_account(db, user_id)
+        await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Create regular account
         regular = Account(
@@ -76,8 +77,8 @@ class TestProcessingAccountCreation:
         user1 = (await UserFactory.create_async(db)).id
         user2 = (await UserFactory.create_async(db)).id
 
-        processing1 = await get_or_create_processing_account(db, user1)
-        processing2 = await get_or_create_processing_account(db, user2)
+        processing1 = await get_or_create_processing_account(db, user1, currency="SGD")
+        processing2 = await get_or_create_processing_account(db, user2, currency="SGD")
 
         assert processing1.user_id == user1
         assert processing2.user_id == user2
@@ -96,7 +97,7 @@ class TestProcessingAccountTransfers:
         await db.flush()
 
         # Get Processing account
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Create transfer OUT entry: $100 from Cash to Processing
         entry = JournalEntry(
@@ -138,7 +139,7 @@ class TestProcessingAccountTransfers:
         await db.flush()
 
         # Get Processing account
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Create transfer IN entry: $100 from Processing to Checking
         entry = JournalEntry(
@@ -184,7 +185,7 @@ class TestProcessingAccountTransfers:
         await db.flush()
 
         # Get Processing account
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Transfer OUT: $100 from Cash to Processing
         out_entry = JournalEntry(
@@ -269,7 +270,7 @@ class TestProcessingAccountIntegrity:
         await db.flush()
 
         # Get Processing account
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Create ONLY transfer OUT (no matching IN)
         entry = JournalEntry(
@@ -310,7 +311,7 @@ class TestProcessingAccountIntegrity:
         await db.flush()
 
         # Get Processing account
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
 
         # Initial capital: $500 to Cash
         init_entry = JournalEntry(
@@ -412,7 +413,7 @@ class TestProcessingAccountValidation:
     async def test_reject_manual_processing_entry(self, db: AsyncSession, test_user):
         """SSOT Anti-pattern A · Manual journal entries cannot use Processing account."""
         user_id = test_user.id
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
         db.add(cash)
         await db.flush()
@@ -449,7 +450,7 @@ class TestProcessingAccountValidation:
     async def test_system_entry_can_use_processing(self, db: AsyncSession, test_user):
         """SSOT Anti-pattern A · System-generated entries (source_type=SYSTEM) CAN use Processing account."""
         user_id = test_user.id
-        processing = await get_or_create_processing_account(db, user_id)
+        processing = await get_or_create_processing_account(db, user_id, currency="SGD")
         cash = Account(user_id=user_id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
         db.add(cash)
         await db.flush()
@@ -582,6 +583,7 @@ class TestTransferDetection:
             amount=Decimal("100.00"),
             txn_date=date.today(),
             description="Transfer to Bank B",
+            currency="SGD",
         )
 
         await create_transfer_in_entry(
@@ -591,9 +593,16 @@ class TestTransferDetection:
             amount=Decimal("100.00"),
             txn_date=date.today(),
             description="Transfer to Bank B",
+            currency="SGD",
         )
 
-        pairs = await find_transfer_pairs(db, user_id, threshold=85)
+        pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=85,
+        )
 
         assert len(pairs) == 1
         pair = pairs[0]
@@ -661,36 +670,28 @@ class TestTransferScoringFunctions:
 
     def test_description_exact_match(self):
         """AC-ledger.75.3 · Exact description match returns 100."""
-        from src.ledger.base.processing import _score_description_match
-
-        score = _score_description_match("Transfer to Bank B", "Transfer to Bank B")
+        score = score_description("Transfer to Bank B", "Transfer to Bank B")
         assert score == 100.0
 
     def test_description_case_insensitive(self):
         """AC-ledger.75.3 · Description matching is case-insensitive."""
-        from src.ledger.base.processing import _score_description_match
-
-        score = _score_description_match("TRANSFER TO BANK B", "transfer to bank b")
+        score = score_description("TRANSFER TO BANK B", "transfer to bank b")
         assert score == 100.0
 
     def test_description_partial_match(self):
         """AC-ledger.75.3 · Partial description match returns proportional score."""
-        from src.ledger.base.processing import _score_description_match
-
-        score = _score_description_match("Transfer to Bank B", "Transfer to Bank A")
+        score = score_description("Transfer to Bank B", "Transfer to Bank A")
         assert 50 < score < 100
 
     def test_description_none_values(self):
         """AC-ledger.75.3 · None descriptions return 0 score."""
-        from src.ledger.base.processing import _score_description_match
-
-        score = _score_description_match(None, "Transfer")
+        score = score_description(None, "Transfer")
         assert score == 0.0
 
-        score = _score_description_match("Transfer", None)
+        score = score_description("Transfer", None)
         assert score == 0.0
 
-        score = _score_description_match(None, None)
+        score = score_description(None, None)
         assert score == 0.0
 
     def test_date_same_day(self):
@@ -746,7 +747,7 @@ class TestUnpairedTransferDetection:
         from src.ledger import get_unpaired_transfers
 
         user_id = test_user.id
-        unpaired = await get_unpaired_transfers(db, user_id)
+        unpaired = await get_unpaired_transfers(db, user_id, currency="SGD")
 
         assert unpaired == []
 
@@ -770,9 +771,10 @@ class TestUnpairedTransferDetection:
             amount=Decimal("50.00"),
             txn_date=date.today(),
             description="Unpaired transfer",
+            currency="SGD",
         )
 
-        unpaired = await get_unpaired_transfers(db, user_id)
+        unpaired = await get_unpaired_transfers(db, user_id, currency="SGD")
 
         assert len(unpaired) == 1
         assert unpaired[0]["direction"] == "OUT"
@@ -787,7 +789,7 @@ class TestProcessingBalanceQuery:
         from src.ledger import get_processing_balance
 
         user_id = test_user.id
-        balance = await get_processing_balance(db, user_id)
+        balance = await get_processing_balance(db, user_id, currency="SGD")
 
         assert balance == Decimal("0")
 
@@ -811,9 +813,10 @@ class TestProcessingBalanceQuery:
             amount=Decimal("75.00"),
             txn_date=date.today(),
             description="Transfer OUT",
+            currency="SGD",
         )
 
-        balance = await get_processing_balance(db, user_id)
+        balance = await get_processing_balance(db, user_id, currency="SGD")
 
         assert balance == Decimal("75.00")  # Positive balance = funds in transit OUT
 
@@ -838,6 +841,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("0"),
                 txn_date=date.today(),
                 description="Test",
+                currency="SGD",
             )
 
     async def test_transfer_out_rejects_negative_amount(self, db: AsyncSession, test_user):
@@ -857,6 +861,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("-50"),
                 txn_date=date.today(),
                 description="Test",
+                currency="SGD",
             )
 
     async def test_transfer_out_rejects_empty_description(self, db: AsyncSession, test_user):
@@ -876,6 +881,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("100"),
                 txn_date=date.today(),
                 description="",
+                currency="SGD",
             )
 
     async def test_transfer_out_rejects_whitespace_description(self, db: AsyncSession, test_user):
@@ -895,6 +901,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("100"),
                 txn_date=date.today(),
                 description="   ",
+                currency="SGD",
             )
 
     async def test_transfer_in_rejects_zero_amount(self, db: AsyncSession, test_user):
@@ -914,6 +921,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("0"),
                 txn_date=date.today(),
                 description="Test",
+                currency="SGD",
             )
 
     async def test_transfer_in_rejects_empty_description(self, db: AsyncSession, test_user):
@@ -933,6 +941,7 @@ class TestTransferEntryValidation:
                 amount=Decimal("100"),
                 txn_date=date.today(),
                 description="",
+                currency="SGD",
             )
 
 
@@ -941,12 +950,10 @@ class TestDescriptionScoringEdgeCases:
 
     def test_description_whitespace_only(self):
         """AC-ledger.75.3 · Whitespace-only descriptions return 0 score."""
-        from src.ledger.base.processing import _score_description_match
-
-        score = _score_description_match("   ", "Transfer")
+        score = score_description("   ", "Transfer")
         assert score == 0.0
 
-        score = _score_description_match("Transfer", "   ")
+        score = score_description("Transfer", "   ")
         assert score == 0.0
 
 
@@ -984,7 +991,12 @@ class TestPairConfidenceEdgeCases:
             ]
         )
 
-        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+        score, breakdown = _calculate_pair_confidence(
+            out_entry,
+            in_entry,
+            processing_account_id=None,
+            description_scorer=score_description,
+        )
 
         assert score > 0
         assert breakdown["amount"] == 100.0
@@ -1006,7 +1018,12 @@ class TestPairConfidenceEdgeCases:
             ]
         )
 
-        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+        score, breakdown = _calculate_pair_confidence(
+            out_entry,
+            in_entry,
+            processing_account_id=None,
+            description_scorer=score_description,
+        )
 
         assert breakdown["amount"] == 100.0
 
@@ -1028,6 +1045,11 @@ class TestPairConfidenceEdgeCases:
             ]
         )
 
-        score, breakdown = _calculate_pair_confidence(out_entry, in_entry, processing_account_id=None)
+        score, breakdown = _calculate_pair_confidence(
+            out_entry,
+            in_entry,
+            processing_account_id=None,
+            description_scorer=score_description,
+        )
 
         assert breakdown["amount"] == 0.0

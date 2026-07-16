@@ -11,12 +11,13 @@ from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
+from src.reconciliation import ConsistencyCheckNotFoundError, InvalidCheckActionError
 from src.reconciliation.extension.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
     detect_transfer_pairs,
-    get_pending_checks,
     has_unresolved_checks,
+    list_checks,
     resolve_check,
     run_all_consistency_checks,
 )
@@ -242,7 +243,7 @@ class TestRunAllConsistencyChecks:
 
 class TestGetPendingChecks:
     async def test_get_pending_returns_only_pending(self, db, user_id):
-        """get_pending_checks returns only PENDING checks."""
+        """list_checks returns only PENDING checks when status is explicit."""
         pending = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -262,13 +263,13 @@ class TestGetPendingChecks:
         db.add_all([pending, resolved])
         await db.flush()
 
-        result = await get_pending_checks(db, user_id)
+        result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING)
         assert len(result) == 1
         assert result[0].id == pending.id
         assert result[0].status == CheckStatus.PENDING
 
     async def test_get_pending_filters_by_type(self, db, user_id):
-        """get_pending_checks filters by check_type."""
+        """list_checks filters by check_type."""
         dup = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -288,13 +289,18 @@ class TestGetPendingChecks:
         db.add_all([dup, anomaly])
         await db.flush()
 
-        result = await get_pending_checks(db, user_id, check_type=CheckType.DUPLICATE)
+        result, _ = await list_checks(
+            db,
+            user_id,
+            status=CheckStatus.PENDING,
+            check_type=CheckType.DUPLICATE,
+        )
         assert len(result) == 1
         assert result[0].check_type == CheckType.DUPLICATE
 
     async def test_get_pending_empty(self, db, user_id):
-        """get_pending_checks returns empty when no pending checks."""
-        result = await get_pending_checks(db, user_id)
+        """list_checks returns empty when no pending checks exist."""
+        result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING)
         assert result == []
 
 
@@ -496,7 +502,7 @@ class TestDetectTransferPairsEdgeCases:
 
 class TestResolveCheckEdgeCases:
     async def test_resolve_check_invalid_action_raises(self, db, user_id):
-        """AC-reconciliation.consistency-checks.4: AC16.4.4 resolve_check raises ValueError on invalid action."""
+        """AC-reconciliation.consistency-checks.4: invalid actions raise a typed error."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -508,17 +514,17 @@ class TestResolveCheckEdgeCases:
         db.add(check)
         await db.flush()
 
-        with pytest.raises(ValueError, match="Invalid action"):
+        with pytest.raises(InvalidCheckActionError, match="Invalid action"):
             await resolve_check(db, check.id, "unknown_action", user_id)
 
     async def test_resolve_check_not_found_raises(self, db, user_id):
-        """AC-reconciliation.consistency-checks.5: AC16.4.5 resolve_check raises ValueError when check not found."""
+        """AC-reconciliation.consistency-checks.5: missing checks raise a typed error."""
         non_existent_id = uuid4()
-        with pytest.raises(ValueError, match="Check not found or access denied"):
+        with pytest.raises(ConsistencyCheckNotFoundError, match="Check not found or access denied"):
             await resolve_check(db, non_existent_id, "approve", user_id)
 
     async def test_resolve_check_wrong_user_raises(self, db, user_id):
-        """AC16.4.5 resolve_check raises ValueError when called with wrong user_id."""
+        """AC16.4.5 resolve_check raises the not-found error for another user."""
         check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -531,7 +537,7 @@ class TestResolveCheckEdgeCases:
         await db.flush()
 
         wrong_user_id = uuid4()
-        with pytest.raises(ValueError, match="Check not found or access denied"):
+        with pytest.raises(ConsistencyCheckNotFoundError, match="Check not found or access denied"):
             await resolve_check(db, check.id, "approve", wrong_user_id)
 
     async def test_resolve_check_sets_flagged(self, db, user_id):
@@ -604,7 +610,7 @@ class TestDetectAnomaliesEdgeCases:
 
 class TestGetPendingChecksEdgeCases:
     async def test_get_pending_filters_by_severity(self, db, user_id):
-        """AC-reconciliation.consistency-checks.7: AC16.4.7 get_pending_checks filters by severity."""
+        """AC-reconciliation.consistency-checks.7: AC16.4.7 list_checks filters by severity."""
         high_check = ConsistencyCheck(
             id=uuid4(),
             user_id=user_id,
@@ -626,7 +632,12 @@ class TestGetPendingChecksEdgeCases:
         db.add_all([high_check, medium_check])
         await db.flush()
 
-        result = await get_pending_checks(db, user_id, severity="high")
+        result, _ = await list_checks(
+            db,
+            user_id,
+            status=CheckStatus.PENDING,
+            severity="high",
+        )
         assert len(result) == 1
         assert result[0].id == high_check.id
 

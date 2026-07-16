@@ -27,8 +27,10 @@ either side.
 - **Match score** — a weighted composite of amount/date/description/business-
   logic/pattern sub-scores in `[0, 100]` (`score_amount`/`score_date`/
   `score_description`/`score_business_logic`/`score_pattern` composed by
-  `calculate_match_score`). Scores at or above the auto-accept threshold
-  auto-accept; the review band routes to `PENDING_REVIEW`.
+  the explicit `score_single` or `score_group` entry point;
+  `calculate_match_score` remains the compatibility name for single scoring).
+  Scores at or above the auto-accept threshold auto-accept; the review band
+  routes to `PENDING_REVIEW`.
 - **`TransferLeg`** — one side of an internal transfer between the user's own
   accounts; `pair_fx_legs`/`discover_fx_conversions` pair cross-currency
   transfer legs within a rate/time tolerance.
@@ -65,10 +67,14 @@ reference resolves, no upward import edge).
 ### <a id="thresholds"></a>Thresholds
 
 Runtime threshold values are code/config-owned. The defaults live in
-`apps/backend/src/reconciliation/extension/matching.py` (`DEFAULT_CONFIG`) and
+`apps/backend/src/reconciliation/base/config.py` (`DEFAULT_CONFIG`) and
 are loaded from `apps/backend/config/reconciliation.yaml` when present.
+The scoring and routing application of those values lives in
+`apps/backend/src/reconciliation/extension/matching.py`.
 Environment overrides are applied by `load_reconciliation_config()`:
-`RECONCILIATION_AUTO_ACCEPT_THRESHOLD` and `RECONCILIATION_REVIEW_THRESHOLD`.
+`RECONCILIATION_AUTO_ACCEPT_THRESHOLD`, `RECONCILIATION_REVIEW_THRESHOLD`, and
+`ENABLE_AI_RECONCILIATION`. Matching/scoring bodies never read the environment;
+they receive the fully resolved `ReconciliationConfig` value.
 Update the config/code and tests first when changing values — this doc
 describes the default routing semantics, it doesn't own them.
 
@@ -103,6 +109,11 @@ debit total only when no bank/cash-side asset line is available. This keeps
 split entries, clearing lines, tax lines, and payable/receivable lines from
 inflating the amount used for bank reconciliation.
 
+`score_description` is the one description-similarity kernel. It owns the
+normalized `SequenceMatcher` plus token-overlap formula; ledger transfer pairing
+receives that scorer explicitly and applies its own transfer weights rather than
+forking the formula.
+
 ### <a id="state-machine"></a>State machine
 
 ```mermaid
@@ -131,6 +142,11 @@ stateDiagram-v2
   prevent concurrent overwrites.
 - The matching engine pre-fetches candidates for the whole statement period
   and caches historical-pattern scores to avoid N+1 queries.
+- `execute_matching` uses the `ReconciliationRepository` port for pending
+  transactions, journal candidates, active matches, and writes. Its phases
+  receive one typed `MatchingContext` and return their created matches; they do
+  not mutate a caller-owned output list or accept module helpers as untyped
+  callback parameters.
 - **Never** mark as matched without scoring; **never** delete rejected match
   records (preserve the audit trail); **never** use non-bank split lines to
   inflate the amount matched to a bank statement transaction.

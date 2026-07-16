@@ -4427,6 +4427,7 @@
             "anyOf": [
               {
                 "enum": [
+                  "DETERMINISTIC",
                   "TRUSTED",
                   "HIGH",
                   "MEDIUM",
@@ -4635,11 +4636,17 @@
             "title": "Amount"
           },
           "currency": {
-            "default": "SGD",
-            "maxLength": 3,
-            "minLength": 3,
-            "title": "Currency",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "direction": {
             "$ref": "#/components/schemas/Direction"
@@ -4712,7 +4719,6 @@
             "type": "string"
           },
           "currency": {
-            "default": "SGD",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -4777,6 +4783,7 @@
           "account_id",
           "direction",
           "amount",
+          "currency",
           "id",
           "journal_entry_id",
           "created_at",
