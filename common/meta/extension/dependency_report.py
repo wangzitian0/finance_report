@@ -318,6 +318,21 @@ def _consumer_set(
     return sorted(consumers)
 
 
+def _providers_with_consumer_changes(
+    base: dict[str, object], head: dict[str, object]
+) -> set[str]:
+    changed: set[str] = set()
+    for field in ("direct_consumers", "transitive_consumers"):
+        base_index = base[field]
+        head_index = head[field]
+        assert isinstance(base_index, dict)
+        assert isinstance(head_index, dict)
+        for package in base_index.keys() | head_index.keys():
+            if base_index.get(package, []) != head_index.get(package, []):
+                changed.add(package)
+    return changed
+
+
 def compare_dependency_snapshots(
     base: dict[str, object], head: dict[str, object]
 ) -> dict[str, object]:
@@ -356,6 +371,7 @@ def compare_dependency_snapshots(
     }
     affected_packages.update(edge["provider"] for edge in added_edges)
     affected_packages.update(edge["provider"] for edge in removed_edges)
+    affected_packages.update(_providers_with_consumer_changes(base, head))
 
     affected_consumers: dict[str, dict[str, list[str]]] = {}
     for package in sorted(affected_packages):

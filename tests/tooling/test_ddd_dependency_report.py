@@ -333,6 +333,32 @@ def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
         build_dependency_snapshot(broken)
 
 
+def test_AC_meta_dependency_governance_2_edge_change_includes_upstream_providers(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: topology fan-out reaches upstream."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_package(repo, "consumer", klass="domain", depends_on=[])
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "detach downstream consumer")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_package(repo, "consumer", klass="domain", depends_on=["middle"])
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    assert report["affected_consumers"]["middle"] == {
+        "direct": ["consumer"],
+        "transitive": ["consumer"],
+        "indirect": [],
+    }
+    assert report["affected_consumers"]["provider"] == {
+        "direct": ["middle"],
+        "transitive": ["consumer", "middle"],
+        "indirect": ["consumer"],
+    }
+
+
 def test_AC_meta_dependency_governance_2_base_snapshot_uses_clean_interpreter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
