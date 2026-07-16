@@ -596,6 +596,25 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=lambda: bool(debt),\n"
         "        baseline_state=lambda: baseline,\n"
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    debt = build_state()\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=lambda: debt,\n"
         '        update=lambda: synthetic.main(["--update"]),\n'
         "    ) == 1\n",
         encoding="utf-8",
@@ -619,7 +638,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=lambda: bool(debt),\n"
         "        baseline_state=read_baseline,\n"
-        '        update=lambda: synthetic.main(["--update"]),\n'
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
         "    ) == 1\n",
         encoding="utf-8",
     )
@@ -643,7 +664,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=debt_present,\n"
         "        baseline_state=read_baseline,\n"
-        '        update=lambda: synthetic.main(["--update"]),\n'
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
         "    ) == 1\n",
         encoding="utf-8",
     )
@@ -717,7 +740,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=lambda: bool(debt),\n"
         "        baseline_state=baseline.read_bytes,\n"
-        '        update=lambda: synthetic.main(["--update"]),\n'
+        "        update=lambda: synthetic.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
         "    ) == 1\n",
         encoding="utf-8",
     )
@@ -810,7 +835,9 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=lambda: bool(debt),\n"
         "        baseline_state=baseline.read_bytes,\n"
-        '        update=lambda: multi_flag.main(["--update"]),\n'
+        "        update=lambda: multi_flag.main(\n"
+        '            ["--baseline", str(baseline), "--update"]\n'
+        "        ),\n"
         "    ) == 1\n",
         encoding="utf-8",
     )
@@ -847,8 +874,12 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
 
     proof.write_text(
         proof.read_text(encoding="utf-8").replace(
-            'multi_flag.main(["--update"])',
-            'multi_flag.main(["--update", "--update-floor"])',
+            "multi_flag.main(\n"
+            '            ["--baseline", str(baseline), "--update"]\n'
+            "        )",
+            "multi_flag.main(\n"
+            '            ["--baseline", str(baseline), "--update", "--update-floor"]\n'
+            "        )",
         ),
         encoding="utf-8",
     )
@@ -896,6 +927,7 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
         "        regression_debt_present=lambda: bool(debt),\n"
         "        baseline_state=baseline.read_bytes,\n"
         "        update=lambda: multi_flag.main([\n"
+        '            "--baseline", str(baseline),\n'
         '            "--update" if True else "--update-floor"\n'
         "        ]),\n"
         "    ) == 1\n",
@@ -924,9 +956,12 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
     proof.write_text(
         dynamic_source.replace(
             "multi_flag.main([\n"
+            '            "--baseline", str(baseline),\n'
             '            "--update" if choose_update else "--update-floor"\n'
             "        ])",
-            'multi_flag.main(argv=["--update"])',
+            "multi_flag.main(\n"
+            '            argv=["--baseline", str(baseline), "--update"]\n'
+            "        )",
         ),
         encoding="utf-8",
     )

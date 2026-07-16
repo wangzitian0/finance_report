@@ -592,6 +592,34 @@ def _has_arguments(function: TestFunction | ast.Lambda) -> bool:
     )
 
 
+def _expanded_function_references(
+    names: set[str], observer_function: TestFunction | None
+) -> set[str]:
+    if observer_function is None:
+        return names
+    dependencies: dict[str, set[str]] = {}
+    for node in observer_function.body:
+        target: ast.expr | None = None
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            target, value = node.target, node.value
+        if not isinstance(target, ast.Name) or value is None:
+            continue
+        dependencies[target.id] = {
+            child.id for child in ast.walk(value) if isinstance(child, ast.Name)
+        }
+    expanded = set(names)
+    pending = list(names)
+    while pending:
+        name = pending.pop()
+        for dependency in dependencies.get(name, set()) - expanded:
+            expanded.add(dependency)
+            pending.append(dependency)
+    return expanded
+
+
 def _expression_uses_runtime_state(
     expression: ast.expr,
     tree: ast.Module,
@@ -599,6 +627,7 @@ def _expression_uses_runtime_state(
     *,
     observer_function: TestFunction | None = None,
     include_unmutated_containers: bool = False,
+    required_names: frozenset[str] | None = None,
     seen_functions: frozenset[tuple[int, int]] = frozenset(),
 ) -> bool:
     if _static_result(expression) is not _UNKNOWN_RESULT:
@@ -629,12 +658,17 @@ def _expression_uses_runtime_state(
         )
         | _literal_module_names(tree)
     )
-    return bool(referenced) or any(
+    referenced = _expanded_function_references(referenced, observer_function)
+    directly_uses_state = bool(
+        referenced if required_names is None else referenced & required_names
+    )
+    return directly_uses_state or any(
         _function_uses_runtime_state(
             called_function,
             tree,
             function,
             include_unmutated_containers=include_unmutated_containers,
+            required_names=required_names,
             seen_functions=seen_functions,
         )
         for called_function in named_calls.values()
@@ -647,6 +681,7 @@ def _function_uses_runtime_state(
     function: TestFunction,
     *,
     include_unmutated_containers: bool,
+    required_names: frozenset[str] | None = None,
     seen_functions: frozenset[tuple[int, int]] = frozenset(),
 ) -> bool:
     function_key = (observer_function.lineno, observer_function.col_offset)
@@ -661,6 +696,7 @@ def _function_uses_runtime_state(
             function,
             observer_function=observer_function,
             include_unmutated_containers=include_unmutated_containers,
+            required_names=required_names,
             seen_functions=next_seen,
         )
         for value in return_values
@@ -673,6 +709,7 @@ def _observer_uses_runtime_state(
     function: TestFunction,
     *,
     include_unmutated_containers: bool,
+    required_names: frozenset[str] | None = None,
 ) -> bool:
     if isinstance(observer, ast.Name):
         observer_function = _named_observer_function(observer.id, tree, function)
@@ -683,6 +720,7 @@ def _observer_uses_runtime_state(
             tree,
             function,
             include_unmutated_containers=include_unmutated_containers,
+            required_names=required_names,
         )
     if isinstance(observer, ast.Lambda) and _has_arguments(observer):
         return False
@@ -692,6 +730,7 @@ def _observer_uses_runtime_state(
         tree,
         function,
         include_unmutated_containers=include_unmutated_containers,
+        required_names=required_names,
     )
 
 
@@ -746,14 +785,18 @@ def _is_explicit_non_option_value(node: ast.expr) -> bool:
     )
 
 
-def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str] | None:
-    argv = (
+def _call_argv_node(call: ast.Call) -> ast.expr | None:
+    return (
         call.args[0]
         if call.args
         else next(
             (keyword.value for keyword in call.keywords if keyword.arg == "argv"), None
         )
     )
+
+
+def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str] | None:
+    argv = _call_argv_node(call)
     if not isinstance(argv, (ast.List, ast.Tuple)):
         return None
     values: list[str] = []
@@ -764,6 +807,53 @@ def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str] |
         elif not _is_explicit_non_option_value(element):
             return None
     return values
+
+
+def _node_names(node: ast.AST) -> set[str]:
+    return {child.id for child in ast.walk(node) if isinstance(child, ast.Name)}
+
+
+def _updater_baseline_names(
+    function: TestFunction,
+    updater_call: ast.Call,
+    updater_aliases: set[str],
+    constants: dict[str, str],
+) -> frozenset[str]:
+    names: set[str] = set()
+    argv = _call_argv_node(updater_call)
+    if isinstance(argv, (ast.List, ast.Tuple)):
+        for option_node, value_node in zip(argv.elts, argv.elts[1:]):
+            option = _executed_string_value(option_node, constants)
+            if option is not None and any(
+                token in option.lower() for token in ("baseline", "floor")
+            ):
+                names.update(_node_names(value_node))
+
+    mutated_names = _mutated_local_names(function)
+    for call in ast.walk(function):
+        if not (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "setattr"
+            and len(call.args) >= 3
+            and isinstance(call.args[0], ast.Name)
+            and call.args[0].id in updater_aliases
+        ):
+            continue
+        attribute = _executed_string_value(call.args[1], constants)
+        if attribute is None:
+            continue
+        value = call.args[2]
+        value_names = _node_names(value)
+        if isinstance(value, ast.Lambda):
+            value_names -= {argument.arg for argument in value.args.args}
+        attribute = attribute.lower()
+        if "baseline" in attribute or "floor" in attribute:
+            names.update(value_names)
+        elif attribute.startswith(("dump", "write")):
+            names.update(value_names & mutated_names)
+    names -= updater_aliases | _OBSERVER_BUILTINS | {"monkeypatch"}
+    return frozenset(names)
 
 
 def _proof_status(
@@ -802,7 +892,7 @@ def _proof_status(
         )
         if update_argument is None:
             continue
-        updater_is_bound = False
+        bound_updater_call: ast.Call | None = None
         for call in ast.walk(update_argument):
             if not isinstance(call, ast.Call):
                 continue
@@ -820,11 +910,17 @@ def _proof_status(
                 value for value in argv_strings if _is_monotonic_mutation_flag(value)
             ]
             if invocation_flags == [mutation_flag]:
-                updater_is_bound = True
+                bound_updater_call = call
                 break
-        if not updater_is_bound:
+        if bound_updater_call is None:
             continue
         saw_bound_updater = True
+        baseline_names = _updater_baseline_names(
+            function,
+            bound_updater_call,
+            updater_aliases,
+            proof_constants,
+        )
         observers = {
             keyword.arg: keyword.value
             for keyword in harness_call.keywords
@@ -837,6 +933,7 @@ def _proof_status(
                 tree,
                 function,
                 include_unmutated_containers=name == "baseline_state",
+                required_names=baseline_names if name == "baseline_state" else None,
             )
             for name in ("regression_debt_present", "baseline_state")
         ):
