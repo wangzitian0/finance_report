@@ -385,7 +385,7 @@ def _destructured_literal_names(target: ast.expr, value: ast.expr) -> set[str]:
 
 class _FunctionScopeVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
-        self.assignments: list[ast.Assign | ast.AnnAssign] = []
+        self.assignments: list[ast.Assign | ast.AnnAssign | ast.AugAssign] = []
         self.functions: list[TestFunction] = []
         self.return_values: list[ast.expr] = []
 
@@ -394,6 +394,10 @@ class _FunctionScopeVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self.assignments.append(node)
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
         self.assignments.append(node)
         self.generic_visit(node)
 
@@ -423,7 +427,7 @@ def _function_scope(function: TestFunction) -> _FunctionScopeVisitor:
 
 def _scoped_assignments(
     function: TestFunction,
-) -> list[ast.Assign | ast.AnnAssign]:
+) -> list[ast.Assign | ast.AnnAssign | ast.AugAssign]:
     return _function_scope(function).assignments
 
 
@@ -484,7 +488,22 @@ def _literal_local_names(
 ) -> set[str]:
     names: set[str] = set()
     mutated_names = _mutated_local_names(function)
+    direct_assignments = {
+        id(node)
+        for node in function.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+    }
     for node in _scoped_assignments(function):
+        targets: list[ast.expr]
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        else:
+            targets = [node.target]
+        bound_names = {name for target in targets for name in _bound_names(target)}
+        if id(node) in direct_assignments:
+            names.difference_update(bound_names)
+        if isinstance(node, ast.AugAssign):
+            continue
         if isinstance(node, ast.Assign):
             if len(node.targets) > 1:
                 try:
@@ -527,8 +546,13 @@ def _literal_module_names(tree: ast.Module) -> set[str]:
             targets, value = node.targets, node.value
         elif isinstance(node, ast.AnnAssign):
             targets, value = [node.target], node.value
+        elif isinstance(node, ast.AugAssign):
+            names.difference_update(_bound_names(node.target))
+            continue
         if value is None:
             continue
+        bound_names = {name for target in targets for name in _bound_names(target)}
+        names.difference_update(bound_names)
         try:
             ast.literal_eval(value)
         except (ValueError, TypeError):

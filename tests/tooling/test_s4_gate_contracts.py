@@ -571,7 +571,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
             "def always():\n"
             "    return True\n\n"
             "def fixed():\n"
-            "    return b'baseline'\n\n"
+            "    state = build_state()\n"
+            "    state = b'baseline'\n"
+            "    return state\n\n"
             "def test_missing():\n"
             "    assert baseline_update_contract.assert_regression_debt_refused(\n"
             f"        regression_debt_present={debt_observer},\n"
@@ -609,10 +611,35 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "def test_missing(tmp_path):\n"
         "    baseline = tmp_path / 'baseline'\n"
         "    debt = build_state()\n"
+        "    def read_baseline():\n"
+        "        state = b''\n"
+        "        if should_read():\n"
+        "            state = baseline.read_bytes()\n"
+        "        return state\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=read_baseline,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = build_state()\n"
         "    def debt_present():\n"
         "        return bool(debt)\n"
         "    def read_baseline():\n"
-        "        return baseline.read_bytes()\n"
+        "        state = b''\n"
+        "        state = baseline.read_bytes()\n"
+        "        return state\n"
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
         "        regression_debt_present=debt_present,\n"
         "        baseline_state=read_baseline,\n"
