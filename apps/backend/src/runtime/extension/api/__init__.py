@@ -1,5 +1,5 @@
 """Runtime HTTP boundary."""
 
-from src.runtime.extension.api.health import router
+from src.runtime.extension.api.health import health_check, router
 
-__all__ = ["router"]
+__all__ = ["health_check", "router"]

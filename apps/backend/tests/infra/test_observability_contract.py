@@ -351,8 +351,8 @@ def test_AC10_11_3_provider_error_body_logging_is_redacted() -> None:
 
 async def test_AC10_9_3_health_response_includes_redacted_observability_status(monkeypatch) -> None:
     """AC-observability.9.3: Health exposes the same redacted observability contract for deploy checks."""
-    from src import main
     from src.boot import Bootloader, ServiceStatus
+    from src.runtime.extension.api import health_check
 
     mock_db = AsyncMock()
     monkeypatch.setattr(
@@ -368,7 +368,7 @@ async def test_AC10_9_3_health_response_includes_redacted_observability_status(m
         "deployment.environment=production",
     )
 
-    response = await main.health_check(db=mock_db)
+    response = await health_check(db=mock_db)
     payload = json.loads(response.body)
 
     assert response.status_code == 200
