@@ -25,8 +25,7 @@ projection contract). The design decisions every copy inherits:
 Wiring: the app composition root (``src/main.py``) owns the
 ``SubscriberRegistry`` and calls :func:`subscribe_price_ingest` at startup —
 platform (L1) must not import pricing (L3), so the registration happens at
-L4, matching the ``register_readiness_provider`` (#1676) / uploaded-document
-readers (#1675 D3) inversion precedents.
+L4, matching the other cross-layer registration precedents.
 """
 
 from __future__ import annotations

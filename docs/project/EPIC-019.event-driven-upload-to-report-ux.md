@@ -485,7 +485,7 @@ test — a Tier-3-only regression had to hit a real staging deploy to be caught.
 Potential service boundaries:
 
 ```text
-apps/backend/src/platform/extension/workflow_events.py
+apps/backend/src/workflow/extension/events.py
 apps/backend/src/routers/workflow.py
 apps/backend/src/schemas/workflow.py
 ```
@@ -513,7 +513,7 @@ app/(main)/dashboard/page.tsx or app/(main)/upload/page.tsx
 Add or update SSOT before implementation:
 
 ```text
-common/platform/workflow-events.md
+common/workflow/workflow-events.md
 apps/frontend/frontend-patterns.md
 common/extraction/confirmation-workflow.md
 common/reporting/reporting.md

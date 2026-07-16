@@ -28,10 +28,14 @@ move unchanged:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable
+from datetime import date
+from decimal import Decimal
+from typing import Never, Protocol, TypeVar
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import Money
 
 #: Structural warning-dict alias (same shape as ``src.pricing.FxWarning``).
 #: Pure annotation vocabulary — identity is irrelevant, so it is defined
@@ -56,7 +60,11 @@ class _UnwiredPrefetchedFxRates:
     :func:`_require` gives the callables, at the point of use.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, fx_warnings: list[FxWarning] | None = None, *, lazy_load: bool = False) -> None:
+        self._raise_unwired()
+
+    @staticmethod
+    def _raise_unwired() -> Never:
         raise RuntimeError(
             "fx_gateway.register_fx_gateway() was never called (needed for "
             "'PrefetchedFxRates') — main.py wires it at startup (#1666); a "
@@ -64,28 +72,109 @@ class _UnwiredPrefetchedFxRates:
             "(the backend test conftest does)."
         )
 
+    def get_rate(
+        self,
+        base: str,
+        quote: str,
+        rate_date: date,
+        average_start: date | None = None,
+        average_end: date | None = None,
+    ) -> Decimal | None:
+        self._raise_unwired()
+
+    async def prefetch(
+        self,
+        db: AsyncSession,
+        pairs: list[tuple[str, str, date, date | None, date | None]],
+    ) -> None:
+        self._raise_unwired()
+
 
 #: The injected FX-unavailable exception class (``src.pricing.PricingError``
 #: today). Reference late-bound as ``fx_gateway.FxRateError``.
 FxRateError: type[Exception] = _FxGatewayNotRegisteredError
 
+
 #: The injected prefetch-batch helper class (``src.pricing.PrefetchedFxRates``
 #: today). Reference late-bound as ``fx_gateway.PrefetchedFxRates``.
-PrefetchedFxRates: Any = _UnwiredPrefetchedFxRates
+class GetExchangeRatePort(Protocol):
+    def __call__(
+        self, db: AsyncSession, base_currency: str, quote_currency: str, rate_date: date, *, lazy_load: bool = False
+    ) -> Awaitable[Decimal]: ...
 
-_get_exchange_rate: Callable[..., Awaitable[Any]] | None = None
-_get_average_rate: Callable[..., Awaitable[Any]] | None = None
-_convert_amount: Callable[..., Awaitable[Any]] | None = None
-_convert_money: Callable[..., Awaitable[Any]] | None = None
+
+class GetAverageRatePort(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        base_currency: str,
+        quote_currency: str,
+        start_date: date,
+        end_date: date,
+        *,
+        fx_warnings: list[FxWarning] | None = None,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
+
+
+class ConvertAmountPort(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        amount: Decimal,
+        currency: str,
+        target_currency: str,
+        rate_date: date,
+        *,
+        average_start: date | None = None,
+        average_end: date | None = None,
+        fx_warnings: list[FxWarning] | None = None,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
+
+
+class ConvertMoneyPort(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        money: Money,
+        target_currency: str,
+        rate_date: date,
+        *,
+        average_start: date | None = None,
+        average_end: date | None = None,
+        fx_warnings: list[FxWarning] | None = None,
+        lazy_load: bool = False,
+    ) -> Awaitable[Money]: ...
+
+
+class PrefetchedFxRatesPort(Protocol):
+    def __init__(self, fx_warnings: list[FxWarning] | None = None, *, lazy_load: bool = False) -> None: ...
+    def get_rate(
+        self, base: str, quote: str, rate_date: date, average_start: date | None = None, average_end: date | None = None
+    ) -> Decimal | None: ...
+    def prefetch(
+        self, db: AsyncSession, pairs: list[tuple[str, str, date, date | None, date | None]]
+    ) -> Awaitable[None]: ...
+
+
+PrefetchedFxRates: type[PrefetchedFxRatesPort] = _UnwiredPrefetchedFxRates
+
+_get_exchange_rate: GetExchangeRatePort | None = None
+_get_average_rate: GetAverageRatePort | None = None
+_convert_amount: ConvertAmountPort | None = None
+_convert_money: ConvertMoneyPort | None = None
+
+PortT = TypeVar("PortT")
 
 
 def register_fx_gateway(
     *,
-    get_exchange_rate: Callable[..., Awaitable[Any]],
-    get_average_rate: Callable[..., Awaitable[Any]],
-    convert_amount: Callable[..., Awaitable[Any]],
-    convert_money: Callable[..., Awaitable[Any]],
-    prefetched_fx_rates: type,
+    get_exchange_rate: GetExchangeRatePort,
+    get_average_rate: GetAverageRatePort,
+    convert_amount: ConvertAmountPort,
+    convert_money: ConvertMoneyPort,
+    prefetched_fx_rates: type[PrefetchedFxRatesPort],
     fx_rate_error: type[Exception],
 ) -> None:
     """Wire the FX implementation (see module note above)."""
@@ -99,7 +188,7 @@ def register_fx_gateway(
     FxRateError = fx_rate_error
 
 
-def _require(slot: Callable[..., Awaitable[Any]] | None, name: str) -> Callable[..., Awaitable[Any]]:
+def _require(slot: PortT | None, name: str) -> PortT:  # noqa: UP047
     if slot is None:
         raise RuntimeError(
             f"fx_gateway.register_fx_gateway() was never called (needed for {name!r}) — "
@@ -109,21 +198,87 @@ def _require(slot: Callable[..., Awaitable[Any]] | None, name: str) -> Callable[
     return slot
 
 
-async def get_exchange_rate(*args: Any, **kwargs: Any) -> Any:
+async def get_exchange_rate(
+    db: AsyncSession,
+    base_currency: str,
+    quote_currency: str,
+    rate_date: date,
+    *,
+    lazy_load: bool = False,
+) -> Decimal:
     """Dispatch to the registered ``get_exchange_rate`` implementation."""
-    return await _require(_get_exchange_rate, "get_exchange_rate")(*args, **kwargs)
+    return await _require(_get_exchange_rate, "get_exchange_rate")(
+        db, base_currency, quote_currency, rate_date, lazy_load=lazy_load
+    )
 
 
-async def get_average_rate(*args: Any, **kwargs: Any) -> Any:
+async def get_average_rate(
+    db: AsyncSession,
+    base_currency: str,
+    quote_currency: str,
+    start_date: date,
+    end_date: date,
+    *,
+    fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
+) -> Decimal:
     """Dispatch to the registered ``get_average_rate`` implementation."""
-    return await _require(_get_average_rate, "get_average_rate")(*args, **kwargs)
+    return await _require(_get_average_rate, "get_average_rate")(
+        db,
+        base_currency,
+        quote_currency,
+        start_date,
+        end_date,
+        fx_warnings=fx_warnings,
+        lazy_load=lazy_load,
+    )
 
 
-async def convert_amount(*args: Any, **kwargs: Any) -> Any:
+async def convert_amount(
+    db: AsyncSession,
+    amount: Decimal,
+    currency: str,
+    target_currency: str,
+    rate_date: date,
+    *,
+    average_start: date | None = None,
+    average_end: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
+) -> Decimal:
     """Dispatch to the registered ``convert_amount`` implementation."""
-    return await _require(_convert_amount, "convert_amount")(*args, **kwargs)
+    return await _require(_convert_amount, "convert_amount")(
+        db,
+        amount,
+        currency,
+        target_currency,
+        rate_date,
+        average_start=average_start,
+        average_end=average_end,
+        fx_warnings=fx_warnings,
+        lazy_load=lazy_load,
+    )
 
 
-async def convert_money(*args: Any, **kwargs: Any) -> Any:
+async def convert_money(
+    db: AsyncSession,
+    money: Money,
+    target_currency: str,
+    rate_date: date,
+    *,
+    average_start: date | None = None,
+    average_end: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    lazy_load: bool = False,
+) -> Money:
     """Dispatch to the registered ``convert_money`` implementation."""
-    return await _require(_convert_money, "convert_money")(*args, **kwargs)
+    return await _require(_convert_money, "convert_money")(
+        db,
+        money,
+        target_currency,
+        rate_date,
+        average_start=average_start,
+        average_end=average_end,
+        fx_warnings=fx_warnings,
+        lazy_load=lazy_load,
+    )

@@ -15,13 +15,12 @@ in-memory fake can unit-test. Dispatch is NOT done here — the row is left
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.counter.base.ops.increment import increment
 from src.counter.base.types.count import Count
-from src.counter.base.types.events import Incremented
 from src.counter.base.types.key import CounterKey
 from src.counter.extension.sql import SqlCounterRepository
 from src.platform import OutboxEventBus
@@ -44,12 +43,5 @@ async def record_increment(
     single ``commit()`` over this session.
     """
     repo = SqlCounterRepository(db)
-    new_value = await repo.bump(user_id, key)
     bus = OutboxEventBus(db, source_pkg=SOURCE_PKG)
-    bus.publish(Incremented.create(user_id=user_id, key=key, count=new_value, at=_now()))
-    return Count(new_value)
-
-
-def _now() -> datetime:
-    """UTC timestamp for the event's ``occurred_at`` (kept tiny + injectable)."""
-    return datetime.now(UTC)
+    return await increment(repo, user_id=user_id, key=key, bus=bus)

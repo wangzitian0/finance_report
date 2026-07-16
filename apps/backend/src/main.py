@@ -26,12 +26,8 @@ from src.config import settings
 from src.database import async_session_maker, engine, init_db
 from src.extraction import (
     find_in_flight_parse_id,
-    find_uploaded_document_filename_by_hash,
     get_known_storage_paths,
     get_statement_coverage_rows,
-    get_statement_event_sources,
-    get_uploaded_document_filename,
-    get_uploaded_document_filenames,
     register_fx_rate_provider,
     register_position_reconciler,
     register_transfer_exclusions_provider,
@@ -59,9 +55,6 @@ from src.platform import (
     RateLimiter,
     SubscriberRegistry,
     platform_system_router,
-    register_readiness_provider,
-    register_statement_reader,
-    register_uploaded_document_readers,
 )
 from src.portfolio import PositionService
 from src.pricing import (
@@ -77,7 +70,6 @@ from src.pricing import (
 )
 from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import (
-    get_personal_report_package_readiness,
     register_fx_gateway,
     register_manual_valuation_lines_provider,
 )
@@ -122,12 +114,6 @@ configure_otel_metrics()
 configure_database_pool_metrics(engine)
 logger = get_logger(__name__)
 
-# Wire platform's readiness port to the real reporting-domain lookup (#1676):
-# platform (L1 infra) must not import reporting logic itself; the app
-# composition root does it once here, same shape as the eager model
-# registration above.
-register_readiness_provider(get_personal_report_package_readiness)
-
 # Wire the advisor's app-remainder read ports (#1671 Wave B): the advisor is a
 # carved package and must not import services/* itself. #1666 folded the
 # reporting summaries + readiness reads into the published src.reporting root
@@ -170,20 +156,7 @@ register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
 # would cycle (ledger -> pricing -> extraction -> ledger).
 register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
 
-# Wire platform's and runtime's UploadedDocument-read ports to the real
-# extraction-domain lookups (#1675 D3): same inversion, same reason — L1
-# infra must not import an L3-domain package.
-register_uploaded_document_readers(
-    get_filename=get_uploaded_document_filename,
-    get_filenames=get_uploaded_document_filenames,
-    find_filename_by_hash=find_uploaded_document_filename_by_hash,
-)
 register_known_storage_paths_provider(get_known_storage_paths)
-
-# Wire platform's StatementSummary read-model port to the real
-# extraction-domain lookup (#1675 D6, final models-decentralization slice):
-# same inversion, same reason as the UploadedDocument ports above.
-register_statement_reader(get_statement_event_sources)
 
 # Wire ledger's and identity's StatementSummary read-model ports to the real
 # extraction-domain lookups (#1675 D6): same inversion, same reason as the FX

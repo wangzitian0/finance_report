@@ -41,15 +41,6 @@ from src.platform.extension.sql import (
     Outbox,
     SqlOutboxRepository,
 )
-from src.platform.extension.workflow_event_builders import StatementEventSource
-from src.platform.extension.workflow_events import (
-    get_workflow_status,
-    list_workflow_events_response,
-    register_readiness_provider,
-    register_statement_reader,
-    register_uploaded_document_readers,
-    update_workflow_event_status,
-)
 
 __all__ = [
     "BaseAppException",
@@ -64,10 +55,7 @@ __all__ = [
     "STATUS_PENDING",
     "STATUS_PUBLISHED",
     "SqlOutboxRepository",
-    "StatementEventSource",
     "get_owned_or_404",
-    "get_workflow_status",
-    "list_workflow_events_response",
     "paginate",
     "raise_bad_request",
     "raise_conflict",
@@ -78,9 +66,5 @@ __all__ = [
     "raise_too_large",
     "raise_too_many_requests",
     "raise_unauthorized",
-    "register_readiness_provider",
-    "register_statement_reader",
-    "register_uploaded_document_readers",
-    "update_workflow_event_status",
     "platform_system_router",
 ]

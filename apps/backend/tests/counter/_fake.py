@@ -1,6 +1,6 @@
 """An in-memory ``CounterRepository`` — proves ops are testable without a DB.
 
-This fake satisfies the ``CounterRepository`` Protocol (sync ``bump`` / ``total``
+This fake satisfies the ``CounterRepository`` Protocol (async ``bump`` / ``total``
 / ``for_user``) so the domain verbs (``increment`` / ``get_count``) can be
 exercised in pure unit tests. It is the same port the SQL adapter implements, so
 a green ops test against this fake validates the verb logic independently of
@@ -21,12 +21,12 @@ class InMemoryCounterRepository:
     def __init__(self) -> None:
         self._tally: dict[tuple[UUID, str], int] = defaultdict(int)
 
-    def bump(self, user_id: UUID, key: CounterKey) -> int:
+    async def bump(self, user_id: UUID, key: CounterKey) -> int:
         self._tally[(user_id, key.value)] += 1
         return self._tally[(user_id, key.value)]
 
-    def total(self, key: CounterKey) -> int:
+    async def total(self, key: CounterKey) -> int:
         return sum(v for (_, k), v in self._tally.items() if k == key.value)
 
-    def for_user(self, user_id: UUID, key: CounterKey) -> int:
+    async def for_user(self, user_id: UUID, key: CounterKey) -> int:
         return self._tally.get((user_id, key.value), 0)

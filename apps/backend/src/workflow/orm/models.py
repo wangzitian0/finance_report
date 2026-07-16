@@ -18,14 +18,14 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.platform.base.workflow import (
+from src.platform import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.workflow.base.types import (
     WorkflowEventFamily,
     WorkflowEventSeverity,
     WorkflowEventStatus,
     WorkflowReportImpact,
     WorkflowSessionStatus,
 )
-from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class WorkflowSession(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

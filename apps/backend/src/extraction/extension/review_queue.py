@@ -10,8 +10,10 @@ operations that also need ``entry_total_amount`` /
 instead, calling back into ``create_entry_from_txn`` here.
 """
 
+from collections.abc import Awaitable
+from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -35,8 +37,17 @@ from src.ledger import (
 )
 from src.observability import get_logger
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+
+class FxRateProvider(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        base_currency: str,
+        quote_currency: str,
+        rate_date: date,
+        *,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
 
 
 class _FxRateProviderNotRegisteredError(Exception):
@@ -60,7 +71,7 @@ settings = src.config.settings
 # ``reporting.extension.fx_gateway`` (#1666) and the #1675 D3 / D5c provider
 # ports: the port lives here, main.py (L4) wires the real
 # pricing.get_exchange_rate/PricingError at startup; tests wire it directly.
-_get_exchange_rate: "Callable[..., Awaitable[Decimal]] | None" = None
+_get_exchange_rate: "FxRateProvider | None" = None
 
 #: The injected FX-unavailable exception class (``src.pricing.PricingError``
 #: today). Reference late-bound as ``review_queue.FxRateError``.
@@ -68,7 +79,7 @@ FxRateError: type[Exception] = _FxRateProviderNotRegisteredError
 
 
 def register_fx_rate_provider(
-    get_exchange_rate: "Callable[..., Awaitable[Decimal]]",
+    get_exchange_rate: "FxRateProvider",
     *,
     fx_rate_error: type[Exception],
 ) -> None:
@@ -78,7 +89,7 @@ def register_fx_rate_provider(
     FxRateError = fx_rate_error
 
 
-def _require_fx_rate_provider() -> "Callable[..., Awaitable[Decimal]]":
+def _require_fx_rate_provider() -> "FxRateProvider":
     if _get_exchange_rate is None:
         raise RuntimeError(
             "review_queue.register_fx_rate_provider() was never called — "

@@ -31,7 +31,6 @@ EXTRACTION_FAMILY = {
     "TransactionClassification",
     "ManagedPosition",
     "ManualValuationSnapshot",
-    "ReportSnapshot",
     "CorrectionLog",
     "EvidenceNode",
     "EvidenceEdge",

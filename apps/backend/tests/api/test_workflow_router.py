@@ -14,21 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer3 import ClassificationRule, RuleType
-from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User, get_current_user_id
 from src.ledger import Account, AccountType
 from src.main import app
-from src.platform import (
-    WorkflowEvent,
-    WorkflowEventFamily,
-    WorkflowEventSeverity,
-    WorkflowEventStatus,
-    WorkflowReportImpact,
-    WorkflowSession,
-)
-from src.platform.extension.workflow_events import upsert_workflow_event
+from src.reporting import ReportSnapshot, ReportType
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventListResponse,
@@ -36,6 +27,15 @@ from src.schemas.workflow import (
     WorkflowPrimaryState,
     WorkflowReportReadinessState,
     WorkflowStatusResponse,
+)
+from src.workflow import (
+    WorkflowEvent,
+    WorkflowEventFamily,
+    WorkflowEventSeverity,
+    WorkflowEventStatus,
+    WorkflowReportImpact,
+    WorkflowSession,
+    upsert_workflow_event,
 )
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
@@ -571,7 +571,7 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "/workflow/events" in route_paths
     assert "/workflow/events/{event_id}" in route_paths
 
-    ssot = (ROOT_DIR / "common" / "platform" / "workflow-events.md").read_text(encoding="utf-8")
+    ssot = (ROOT_DIR / "common" / "workflow" / "workflow-events.md").read_text(encoding="utf-8")
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot

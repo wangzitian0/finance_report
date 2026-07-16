@@ -5,17 +5,17 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 
 from src.deps import CurrentUserId, DbSession
-from src.platform import (
-    WorkflowEventStatus,
-    get_workflow_status,
-    list_workflow_events_response,
-    update_workflow_event_status,
-)
 from src.schemas.workflow import (
     WorkflowEventListResponse,
     WorkflowEventResponse,
     WorkflowEventStatusUpdate,
     WorkflowStatusResponse,
+)
+from src.workflow import (
+    WorkflowEventStatus,
+    get_workflow_status,
+    list_workflow_events_response,
+    update_workflow_event_status,
 )
 
 router = APIRouter(prefix="/workflow", tags=["workflow"])

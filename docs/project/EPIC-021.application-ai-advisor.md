@@ -119,7 +119,7 @@ their tests are introduced.
 
 - [ai.md](../../common/llm/ai.md)
 - [reporting.md](../../common/reporting/reporting.md)
-- [workflow-events.md](../../common/platform/workflow-events.md)
+- [workflow-events.md](../../common/workflow/workflow-events.md)
 - [source-coverage-matrix.yaml](../../common/testing/data/source-coverage-matrix.yaml)
 - [EPIC-006](./EPIC-006.ai-advisor.md)
 - [EPIC-018](./EPIC-018.ai-driven-pipeline.md)

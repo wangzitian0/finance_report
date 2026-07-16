@@ -34,14 +34,13 @@ extracted fact to its source document.
   wired by ``main.py``, so portfolio can import this package's entities
   without a cycle. ``StatementSummary``/statement enums completed the move in
   #1675 D6 (``orm/statement_summary.py`` / ``orm/statement_enums.py``), the
-  final models-decentralization slice: their three cross-domain readers each
-  needed the same inversion — ``platform`` (L1-infra, upward) reads through
-  the registered ``StatementEventSource`` port, and ``ledger``/``identity``
+  final models-decentralization slice: the workflow package directly consumes
+  extraction's published ``StatementEventSource`` read model, while
+  ``ledger``/``identity``
   (same rank, dependency-cycle — both readers extraction itself
   ``depends_on``) read through their own registered ports
   (``register_statement_coverage_reader`` / ``register_in_flight_parse_checker``),
-  each wired by ``main.py``, mirroring ``register_uploaded_document_readers``
-  above.
+  each remain wired by ``main.py`` to avoid their existing same-rank cycles.
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
@@ -106,7 +105,6 @@ CONTRACT = PackageContract(
         Unit(name="TransactionClassification", kind=Kind.ENTITY),
         Unit(name="ManagedPosition", kind=Kind.ENTITY),
         Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
-        Unit(name="ReportSnapshot", kind=Kind.ENTITY),
         Unit(name="CorrectionLog", kind=Kind.ENTITY),
         Unit(name="EvidenceNode", kind=Kind.ENTITY),
         Unit(name="EvidenceEdge", kind=Kind.ENTITY),
@@ -196,10 +194,9 @@ CONTRACT = PackageContract(
         "ManualValuationSnapshot",
         "PositionStatus",
         "ParseJob",
-        "ReportSnapshot",
-        "ReportType",
         "SYSTEM_PROMPT",
         "Stage1Status",
+        "StatementEventSource",
         "StatementSummary",
         "TransactionClassification",
         "TransactionDirection",
@@ -309,6 +306,19 @@ CONTRACT = PackageContract(
     # group instead of claiming a new numeric block, so it can never collide
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
+        ACRecord(
+            id="AC-extraction.fx-port.1",
+            statement=(
+                "Extraction's FX-rate registration exposes the exact pricing lookup "
+                "shape without Callable[..., Any] erasure."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders"
+            ),
+            priority="P0",
+            status="done",
+        ),
         ACRecord(
             id="AC-extraction.1.1",
             statement="Parse DBS PDF",  # was AC3.1.1
@@ -4065,7 +4075,7 @@ CONTRACT = PackageContract(
             description="Generic Evidence Graph for source-to-ledger-to-report audit lineage.",
             cross_refs=[
                 "docs/project/EPIC-018.ai-driven-pipeline.md",
-                "common/platform/workflow-events.md",
+                "common/workflow/workflow-events.md",
                 "common/reporting/reporting.md",
                 "apps/backend/tests/extraction/test_evidence_graph_materialization.py",
             ],

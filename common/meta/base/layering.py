@@ -83,6 +83,7 @@ PACKAGE_LAYER: dict[str, PackageClass] = {
     "pricing": "domain",
     "reconciliation": "domain",
     "reporting": "domain",
+    "workflow": "domain",
     # L4 — the deliverables.
     "backend": "app",
     "frontend": "app",

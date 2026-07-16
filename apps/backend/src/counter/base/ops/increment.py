@@ -28,7 +28,7 @@ from src.counter.base.types.key import CounterKey
 from src.platform.base import EventBus
 
 
-def increment(
+async def increment(
     repo: CounterRepository,
     *,
     user_id: UUID,
@@ -37,7 +37,7 @@ def increment(
     now: datetime | None = None,
 ) -> Count:
     """Bump (``user_id``, ``key``) by one; publish ``Incremented``; return the new count."""
-    new_value = repo.bump(user_id, key)
+    new_value = await repo.bump(user_id, key)
     count = Count(new_value)
     if bus is not None:
         bus.publish(

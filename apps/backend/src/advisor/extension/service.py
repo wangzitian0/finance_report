@@ -59,7 +59,6 @@ from src.llm import (
     stream_ai_chat,
 )
 from src.observability import get_logger
-from src.platform import get_workflow_status
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
 from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.reconciliation import get_reconciliation_stats
@@ -71,6 +70,7 @@ from src.reporting import (
     get_personal_report_package_readiness,
 )
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.workflow import get_workflow_status
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings

@@ -66,6 +66,6 @@ async def test_sql_repo_satisfies_read_via_ops_after_sync_snapshot(db):
 
     # mirror the persisted state into the sync fake and check the sync verbs
     fake = InMemoryCounterRepository()
-    increment(fake, user_id=u1, key=KEY)
-    increment(fake, user_id=u1, key=KEY)
-    assert int(get_count(fake, key=KEY, user_id=u1)) == await repo.for_user(u1, KEY)
+    await increment(fake, user_id=u1, key=KEY)
+    await increment(fake, user_id=u1, key=KEY)
+    assert int(await get_count(fake, key=KEY, user_id=u1)) == await repo.for_user(u1, KEY)

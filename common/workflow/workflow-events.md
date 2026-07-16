@@ -15,9 +15,9 @@
 
 | Concern | Location |
 |---|---|
-| Event and session model | `apps/backend/src/platform/orm/workflow.py` |
+| Event and session model | `apps/backend/src/workflow/orm/models.py` |
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
-| Derivation/upsert service | `apps/backend/src/platform/extension/workflow_events.py` |
+| Derivation/upsert service | `apps/backend/src/workflow/extension/events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
 | Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/reporting/extension/report_readiness.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
@@ -93,7 +93,7 @@ report.generated
 ```
 
 The code owner is `WorkflowEventFamily` in
-`apps/backend/src/platform/orm/workflow.py`.
+`apps/backend/src/workflow/base/types.py`.
 
 ---
 

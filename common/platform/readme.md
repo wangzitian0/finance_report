@@ -85,8 +85,7 @@ the pattern every consumer package copies:
 2. each consumer package publishes a wiring helper the root calls with that
    registry + the app session factory (first precedent: pricing's
    `subscribe_price_ingest`, #1642) — registration lives at the root because
-   platform (L1) must never import a domain package (L3), the same inversion
-   as `register_readiness_provider`;
+   platform (L1) must never import a domain package (L3);
 3. an app-startup `asyncio` background task drains the outbox each poll
    interval via `run_once` on a fresh session; a failing pass is logged and
    retried next pass (at-least-once — handlers are idempotent, so retry is

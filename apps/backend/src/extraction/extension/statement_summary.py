@@ -10,7 +10,7 @@ The ``StatementSummary`` conform is now written directly by the ingestion pipeli
 
 Also holds the three registered-port implementations for ``StatementSummary``'s
 remaining cross-domain readers (#1675 D6): ``get_statement_event_sources``
-(``platform``, L1-infra — read via ``register_statement_reader``),
+(consumed directly by the ``workflow`` domain package),
 ``get_statement_coverage_rows`` (``ledger``, same-rank cycle — read via
 ``register_statement_coverage_reader``), and ``find_in_flight_parse_id``
 (``identity``, same-rank cycle — read via
@@ -21,6 +21,8 @@ main.py wires all three at startup.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -32,10 +34,24 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import StatementCoverageRow
-from src.platform import StatementEventSource
 
 if TYPE_CHECKING:
     from collections.abc import Collection
+
+
+@dataclass(frozen=True)
+class StatementEventSource:
+    """Extraction-owned statement read shape consumed by workflow derivation."""
+
+    id: UUID
+    user_id: UUID
+    uploaded_document_id: UUID | None
+    file_hash: str
+    status: str
+    stage1_status: str | None
+    created_at: datetime
+    updated_at: datetime | None
+    stage1_reviewed_at: datetime | None
 
 
 def _ordered_bank_statement_doc_ids(source_documents: object) -> list[UUID]:
@@ -119,14 +135,11 @@ async def resolve_custody_account_id(db: AsyncSession, atomic_txn: AtomicTransac
 
 
 async def get_statement_event_sources(db: AsyncSession, user_id: UUID) -> list[StatementEventSource]:
-    """Read model for platform's workflow-event derivation port (#1675 D6).
+    """Read model for workflow event derivation.
 
     Returns every ``StatementSummary`` row for the user as the plain
-    ``StatementEventSource`` shape ``platform`` (L1-infra) accepts through its
-    registered ``register_statement_reader`` port — never the ORM class or its
-    enum types themselves. Ordered by creation so the caller (which used to
-    get this ordering from a single cross-domain JOIN, #1675 D3 precedent)
-    doesn't need a second sort.
+    ``StatementEventSource`` shape instead of leaking the ORM class or enum
+    types. Ordered by creation so workflow does not need a second sort.
     """
     result = await db.execute(
         select(StatementSummary).where(StatementSummary.user_id == user_id).order_by(StatementSummary.created_at)

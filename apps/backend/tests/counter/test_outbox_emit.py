@@ -63,7 +63,7 @@ async def test_rollback_leaves_neither_tally_nor_event(db):
 
 
 @ac_proof(proof_id="test_counter_increment_op_publishes_via_bus", ac_ids=["AC-platform.1.5"], ci_tier="pr_ci")
-def test_increment_op_publishes_through_bus_fake():
+async def test_increment_op_publishes_through_bus_fake():
     """AC-platform.1.5: the pure increment verb publishes Incremented through any EventBus."""
     from tests.counter._fake import InMemoryCounterRepository
 
@@ -71,7 +71,7 @@ def test_increment_op_publishes_through_bus_fake():
     bus = RecordingEventBus()
     user_id = uuid4()
 
-    increment(repo, user_id=user_id, key=KEY, bus=bus)
+    await increment(repo, user_id=user_id, key=KEY, bus=bus)
 
     assert len(bus.published) == 1
     event = bus.published[0]

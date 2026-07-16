@@ -115,6 +115,7 @@ CONTRACT = PackageContract(
         "pricing",
         "reconciliation",
         "reporting",
+        "workflow",
     ],
     roles=["base", "extension", "data"],
     units=[
@@ -191,6 +192,19 @@ CONTRACT = PackageContract(
     # functions keep their AC6_*/AC21_* names — the ``test=`` reference is
     # the resolvable anchor, not the function name.
     roadmap=[
+        ACRecord(
+            id="AC-advisor.fx-port.1",
+            statement=(
+                "Advisor FX pair and conversion registrations expose exact async "
+                "protocol signatures without Callable[..., Any] erasure."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders"
+            ),
+            priority="P0",
+            status="done",
+        ),
         ACRecord(
             id="AC-advisor.guardrail.1",
             statement=(
@@ -1243,7 +1257,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/llm/ai.md",
                 "common/reporting/reporting.md",
-                "common/platform/workflow-events.md",
+                "common/workflow/workflow-events.md",
                 "common/testing/data/source-coverage-matrix.yaml",
                 "common/pricing/market_data.md",
                 "docs/project/EPIC-021.application-ai-advisor.md",

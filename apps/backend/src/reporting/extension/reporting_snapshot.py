@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer4 import ReportSnapshot, ReportType
+from src.reporting.orm import ReportSnapshot, ReportType
 
 
 class ReportingSnapshotService:

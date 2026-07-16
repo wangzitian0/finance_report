@@ -1,19 +1,15 @@
-"""Layer 4: Reporting - Snapshots and Cache."""
+"""Reporting-owned immutable report snapshots and cache metadata."""
 
 from datetime import date, datetime
 from enum import Enum
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum as SQLEnum, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-
-if TYPE_CHECKING:
-    from src.extraction.orm.layer3 import ClassificationRule
+from src.platform import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 
 class ReportType(str, Enum):
@@ -87,5 +83,3 @@ class ReportSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     ttl: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Expiration time for cache"
     )
-
-    rule_version: Mapped["ClassificationRule"] = relationship("ClassificationRule")
