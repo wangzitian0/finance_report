@@ -611,6 +611,20 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-ledger.3.12",
+            statement=(
+                "Voiding a posted entry preserves the historical base-currency "
+                "basis encoded by its line currencies and FX rates, even after "
+                "the effective base currency changes."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_void_preserves_historical_base_after_effective_currency_change"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── group 4: Balance calculation (was EPIC-002 AC2.4.*) ──
         ACRecord(
             id="AC-ledger.4.1",
@@ -2197,10 +2211,9 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
-        # #1866 PR-A: groups 77 and 78 are post-migration local extensions;
-        # 78 is reserved by the parallel confidence-tier slice.
+        # #1866 PR-A: package-local signature surgery guarantees.
         ACRecord(
-            id="AC-ledger.77.1",
+            id="AC-ledger.signature.1",
             statement=(
                 "Processing transfer legs are built once and persisted through post_entry, so "
                 "the standard balanced-entry, account-ownership, and posting invariants apply."
@@ -2213,7 +2226,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-ledger.77.2",
+            id="AC-ledger.signature.2",
             statement=(
                 "System-account and processing APIs require callers to supply the owning "
                 "currency explicitly; the processing path has no hidden SGD or configuration default."
@@ -2226,7 +2239,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-ledger.77.3",
+            id="AC-ledger.signature.3",
             statement=(
                 "Nominal account balances and base-currency account balances use separate "
                 "typed functions with caller-supplied explicit base currency, so a boolean or "
@@ -2237,6 +2250,19 @@ CONTRACT = PackageContract(
                 "::test_account_balance_currency_spaces_are_explicit"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.signature.4",
+            statement=(
+                "Caller-supplied operation currency reaches both Python journal "
+                "validation and the PostgreSQL deferred ledger invariant."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_multicurrency_integrity.py"
+                "::test_effective_usd_base_drives_posting_trigger_and_equation"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

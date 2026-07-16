@@ -122,7 +122,7 @@ async def test_AC2_12_2_accounting_equation_uses_base_currency_balances(db: Asyn
 
 
 async def test_effective_usd_base_drives_posting_trigger_and_equation(db: AsyncSession, test_user) -> None:
-    """AC-ledger.77.3: persisted override semantics reach Python and PostgreSQL invariants."""
+    """AC-ledger.signature.4: operation currency reaches Python and PostgreSQL invariants."""
     user_id = test_user.id
     usd_asset = Account(user_id=user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")
     usd_equity = Account(user_id=user_id, name="USD Equity", type=AccountType.EQUITY, currency="USD")
@@ -169,3 +169,54 @@ async def test_effective_usd_base_drives_posting_trigger_and_equation(db: AsyncS
 
     with pytest.raises(ValidationError, match="fx_rate required"):
         await verify_accounting_equation(db, user_id, base_currency="SGD")
+
+
+async def test_void_preserves_historical_base_after_effective_currency_change(db: AsyncSession, test_user) -> None:
+    """AC-ledger.3.12: reversal uses the posted entry's historical currency basis."""
+    user_id = test_user.id
+    sgd_asset = Account(user_id=user_id, name="Historical SGD Cash", type=AccountType.ASSET, currency="SGD")
+    sgd_equity = Account(
+        user_id=user_id,
+        name="Historical SGD Equity",
+        type=AccountType.EQUITY,
+        currency="SGD",
+    )
+    db.add_all([sgd_asset, sgd_equity])
+    await db.flush()
+
+    entry = await create_journal_entry(
+        db,
+        user_id,
+        entry_date=date(2026, 1, 1),
+        memo="Historical SGD entry",
+        lines_data=[
+            {
+                "account_id": sgd_asset.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+            {
+                "account_id": sgd_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+        ],
+        base_currency="SGD",
+    )
+    await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
+    entry_id = entry.id
+    await db.commit()
+
+    reversal = await void_journal_entry(
+        db,
+        entry_id,
+        "Correction after base change",
+        user_id,
+        base_currency="USD",
+    )
+    await db.commit()
+
+    assert reversal.status == JournalEntryStatus.POSTED
+    assert {line.currency for line in reversal.lines} == {"SGD"}

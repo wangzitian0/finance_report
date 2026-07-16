@@ -1962,7 +1962,7 @@ CONTRACT = PackageContract(
         # #1866 PR-A: reconciliation/ledger signature surgery.  The split is
         # intentionally package-local: reconciliation owns orchestration,
         # errors, and the similarity policy; ledger separately owns posting
-        # and balance-space guarantees in AC-ledger.77.*.
+        # and balance-space guarantees in AC-ledger.signature.*.
         ACRecord(
             id="AC-reconciliation.signature-surgery.1",
             statement=(
@@ -2027,6 +2027,19 @@ CONTRACT = PackageContract(
                 "::test_description_similarity_has_one_owner_and_both_consumers_agree"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.signature-surgery.6",
+            statement=(
+                "Transfer detection propagates processing-account currency "
+                "conflicts instead of reporting a successful no-op run."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_transfer_detection_surfaces_processing_currency_conflicts"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

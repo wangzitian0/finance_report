@@ -160,7 +160,7 @@ async def test_group_scoring_keeps_bonus_separate_from_multi_tolerance(monkeypat
 
 @pytest.mark.asyncio
 async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeypatch) -> None:
-    """AC-ledger.77.2: fail closed instead of reporting a successful no-op run."""
+    """AC-reconciliation.signature-surgery.6: surface conflicts instead of a successful no-op."""
     transaction = SimpleNamespace(
         id=uuid4(),
         description="Transfer to savings",

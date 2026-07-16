@@ -103,6 +103,11 @@ updated or deleted directly; the only supported correction is a void transition
 that preserves an immutable reversal relationship. Draft entries remain editable
 and deletable until posting.
 
+A void reversal preserves the original entry's historical currency basis; it
+must not reinterpret FX-free historical lines using a later effective-base
+override. The write path derives that basis from the original line currency/FX
+metadata and fails closed when multiple FX-free currencies make it ambiguous.
+
 Ledger immutability protects accounting facts: entry ownership/date/memo/source
 identity, status correction path, and all journal-line amounts, directions,
 accounts, currencies, and FX rates. The only non-fact metadata update allowed on

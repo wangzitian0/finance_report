@@ -44,6 +44,24 @@ async def _set_transaction_base_currency(db: AsyncSession, base_currency: str | 
     return normalized
 
 
+def _historical_reversal_base_currency(
+    lines: list[JournalLine],
+    *,
+    fallback_base_currency: str | None,
+) -> str:
+    """Recover the base currency under which the posted lines were validated."""
+    fallback = Currency.of(fallback_base_currency or src.config.settings.base_currency).code
+    fx_free_currencies = {Currency.of(line.currency or fallback).code for line in lines if line.fx_rate is None}
+    if len(fx_free_currencies) > 1:
+        currencies = ", ".join(sorted(fx_free_currencies))
+        raise ValidationError(f"Cannot determine historical base currency from FX-free lines: {currencies}")
+
+    historical_base = next(iter(fx_free_currencies), fallback)
+    validate_journal_balance(lines, base_currency=historical_base)
+    validate_fx_rates(lines, base_currency=historical_base)
+    return historical_base
+
+
 async def validate_line_account_ownership(
     db: AsyncSession,
     user_id: UUID,
@@ -191,8 +209,6 @@ async def void_journal_entry(
     Raises:
         ValidationError: If entry cannot be voided
     """
-    await _set_transaction_base_currency(db, base_currency)
-
     # Get original entry
     result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
     entry = result.scalar_one_or_none()
@@ -206,6 +222,11 @@ async def void_journal_entry(
 
     # Load lines
     await db.refresh(entry, ["lines"])
+    historical_base = _historical_reversal_base_currency(
+        entry.lines,
+        fallback_base_currency=base_currency,
+    )
+    await _set_transaction_base_currency(db, historical_base)
 
     # Create reversal entry
     reversal_entry = JournalEntry(

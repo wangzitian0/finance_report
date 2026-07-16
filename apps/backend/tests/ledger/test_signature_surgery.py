@@ -1,4 +1,4 @@
-"""AC-ledger.77.* locks for processing and balance signature surgery."""
+"""AC-ledger.signature.* locks for processing and balance signature surgery."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from src.ledger.extension.account_service import get_or_create_opening_balance_e
 
 @pytest.mark.asyncio
 async def test_processing_transfers_use_the_post_entry_front_door(monkeypatch) -> None:
-    """AC-ledger.77.1."""
+    """AC-ledger.signature.1."""
     processing_id = uuid4()
     captured = {}
 
@@ -75,7 +75,7 @@ async def test_processing_transfers_use_the_post_entry_front_door(monkeypatch) -
 
 
 def test_processing_apis_require_explicit_currency() -> None:
-    """AC-ledger.77.2."""
+    """AC-ledger.signature.2."""
     for function in (
         get_or_create_processing_account,
         find_transfer_pairs,
@@ -96,7 +96,7 @@ def test_processing_apis_require_explicit_currency() -> None:
 
 
 def test_account_balance_currency_spaces_are_explicit() -> None:
-    """AC-ledger.77.3."""
+    """AC-ledger.signature.3."""
     assert "use_base_currency" not in inspect.signature(calculate_account_balances).parameters
     assert "use_base_currency" not in inspect.signature(calculate_account_balances_in_base_currency).parameters
     assert calculate_account_balances is not calculate_account_balances_in_base_currency
