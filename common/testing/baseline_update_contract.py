@@ -345,17 +345,67 @@ _OBSERVER_BUILTINS = frozenset(
 )
 
 
+def _bound_names(target: ast.expr) -> set[str]:
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.List, ast.Tuple)):
+        return {name for element in target.elts for name in _bound_names(element)}
+    if isinstance(target, ast.Starred):
+        return _bound_names(target.value)
+    return set()
+
+
+def _destructured_literal_names(target: ast.expr, value: ast.expr) -> set[str]:
+    if isinstance(target, ast.Name):
+        try:
+            ast.literal_eval(value)
+        except (ValueError, TypeError):
+            return set()
+        return {target.id}
+    if isinstance(target, (ast.List, ast.Tuple)):
+        try:
+            ast.literal_eval(value)
+        except (ValueError, TypeError):
+            pass
+        else:
+            return _bound_names(target)
+    if not (
+        isinstance(target, (ast.List, ast.Tuple))
+        and isinstance(value, (ast.List, ast.Tuple))
+        and len(target.elts) == len(value.elts)
+    ):
+        return set()
+    return {
+        name
+        for target_element, value_element in zip(target.elts, value.elts, strict=True)
+        for name in _destructured_literal_names(target_element, value_element)
+    }
+
+
 def _literal_local_names(function: TestFunction) -> set[str]:
     names: set[str] = set()
     for node in function.body:
-        target: ast.expr | None = None
-        value: ast.expr | None = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target, value = node.targets[0], node.value
-        elif isinstance(node, ast.AnnAssign):
-            target, value = node.target, node.value
-        if isinstance(target, ast.Name) and isinstance(value, ast.Constant):
-            names.add(target.id)
+        if isinstance(node, ast.Assign):
+            if len(node.targets) > 1:
+                try:
+                    ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    continue
+                names.update(
+                    name for target in node.targets for name in _bound_names(target)
+                )
+            elif isinstance(node.targets[0], (ast.List, ast.Tuple)):
+                names.update(_destructured_literal_names(node.targets[0], node.value))
+            elif isinstance(node.targets[0], ast.Name) and isinstance(
+                node.value, ast.Constant
+            ):
+                names.add(node.targets[0].id)
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and isinstance(node.value, ast.Constant)
+        ):
+            names.add(node.target.id)
     return names
 
 
@@ -374,7 +424,7 @@ def _literal_module_names(tree: ast.Module) -> set[str]:
             ast.literal_eval(value)
         except (ValueError, TypeError):
             continue
-        names.update(target.id for target in targets if isinstance(target, ast.Name))
+        names.update(name for target in targets for name in _bound_names(target))
     return names
 
 

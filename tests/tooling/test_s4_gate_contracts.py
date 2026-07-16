@@ -538,6 +538,46 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "tests/tooling/test_missing.py::test_missing"
     ]
 
+    for assignment in (
+        "    always, baseline = True, b'baseline'\n",
+        "    always = baseline = True\n",
+        "    always, (baseline, dynamic) = True, (b'baseline', build_state())\n",
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def test_missing():\n"
+            f"{assignment}"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: always,\n"
+            "        baseline_state=lambda: baseline,\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    debt = {'new-debt'}\n"
+        "    _head, *baseline = (True, b'baseline')\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=lambda: baseline,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
     proof_file.write_text(
         "from common.testing import baseline_update_contract, synthetic\n\n"
         "def test_missing(tmp_path):\n"
@@ -553,23 +593,26 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == []
 
-    proof_file.write_text(
-        "from common.testing import baseline_update_contract, synthetic\n\n"
-        "ALWAYS = True\n"
-        "BASELINE = b'baseline'\n\n"
-        "def test_missing():\n"
-        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
-        "        regression_debt_present=lambda: ALWAYS,\n"
-        "        baseline_state=lambda: BASELINE,\n"
-        '        update=lambda: synthetic.main(["--update"]),\n'
-        "    ) == 1\n",
-        encoding="utf-8",
-    )
-    assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
-        "vacuous regression-debt observers: "
-        "tests/tooling/test_missing.py::test_missing"
-    ]
+    for module_assignment in (
+        "ALWAYS = True\nBASELINE = b'baseline'\n",
+        "ALWAYS, *BASELINE = (True, b'baseline')\n",
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            f"{module_assignment}\n"
+            "def test_missing():\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: ALWAYS,\n"
+            "        baseline_state=lambda: BASELINE,\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
 
 
 def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -> None:
