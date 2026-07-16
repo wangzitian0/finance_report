@@ -575,6 +575,7 @@ def _expression_uses_runtime_state(
     *,
     observer_function: TestFunction | None = None,
     include_unmutated_containers: bool = False,
+    seen_functions: frozenset[tuple[int, int]] = frozenset(),
 ) -> bool:
     if _static_result(expression) is not _UNKNOWN_RESULT:
         return False
@@ -587,16 +588,59 @@ def _expression_uses_runtime_state(
             observer_function,
             include_unmutated_containers=include_unmutated_containers,
         )
+    named_calls: dict[str, TestFunction] = {}
+    for node in ast.walk(expression):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+            continue
+        called_function = _named_observer_function(node.func.id, tree, function)
+        if called_function is not None:
+            named_calls[node.func.id] = called_function
     referenced -= (
         literal_names
         | _OBSERVER_BUILTINS
+        | named_calls.keys()
         | _literal_local_names(
             function,
             include_unmutated_containers=include_unmutated_containers,
         )
         | _literal_module_names(tree)
     )
-    return bool(referenced)
+    return bool(referenced) or any(
+        _function_uses_runtime_state(
+            called_function,
+            tree,
+            function,
+            include_unmutated_containers=include_unmutated_containers,
+            seen_functions=seen_functions,
+        )
+        for called_function in named_calls.values()
+    )
+
+
+def _function_uses_runtime_state(
+    observer_function: TestFunction,
+    tree: ast.Module,
+    function: TestFunction,
+    *,
+    include_unmutated_containers: bool,
+    seen_functions: frozenset[tuple[int, int]] = frozenset(),
+) -> bool:
+    function_key = (observer_function.lineno, observer_function.col_offset)
+    if function_key in seen_functions or _has_arguments(observer_function):
+        return False
+    return_values = _return_values(observer_function)
+    next_seen = seen_functions | {function_key}
+    return bool(return_values) and all(
+        _expression_uses_runtime_state(
+            value,
+            tree,
+            function,
+            observer_function=observer_function,
+            include_unmutated_containers=include_unmutated_containers,
+            seen_functions=next_seen,
+        )
+        for value in return_values
+    )
 
 
 def _observer_uses_runtime_state(
@@ -608,18 +652,13 @@ def _observer_uses_runtime_state(
 ) -> bool:
     if isinstance(observer, ast.Name):
         observer_function = _named_observer_function(observer.id, tree, function)
-        if observer_function is None or _has_arguments(observer_function):
+        if observer_function is None:
             return False
-        return_values = _return_values(observer_function)
-        return bool(return_values) and all(
-            _expression_uses_runtime_state(
-                value,
-                tree,
-                function,
-                observer_function=observer_function,
-                include_unmutated_containers=include_unmutated_containers,
-            )
-            for value in return_values
+        return _function_uses_runtime_state(
+            observer_function,
+            tree,
+            function,
+            include_unmutated_containers=include_unmutated_containers,
         )
     if isinstance(observer, ast.Lambda) and _has_arguments(observer):
         return False

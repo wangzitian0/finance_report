@@ -562,25 +562,29 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
             "tests/tooling/test_missing.py::test_missing"
         ]
 
-    proof_file.write_text(
-        "from common.testing import baseline_update_contract, synthetic\n\n"
-        "def always():\n"
-        "    return True\n\n"
-        "def fixed():\n"
-        "    return b'baseline'\n\n"
-        "def test_missing():\n"
-        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
-        "        regression_debt_present=always,\n"
-        "        baseline_state=fixed,\n"
-        '        update=lambda: synthetic.main(["--update"]),\n'
-        "    ) == 1\n",
-        encoding="utf-8",
-    )
-    assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
-        "vacuous regression-debt observers: "
-        "tests/tooling/test_missing.py::test_missing"
-    ]
+    for debt_observer, baseline_observer in (
+        ("always", "fixed"),
+        ("lambda: always()", "lambda: fixed()"),
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def always():\n"
+            "    return True\n\n"
+            "def fixed():\n"
+            "    return b'baseline'\n\n"
+            "def test_missing():\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            f"        regression_debt_present={debt_observer},\n"
+            f"        baseline_state={baseline_observer},\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
 
     proof_file.write_text(
         "from common.testing import baseline_update_contract, synthetic\n\n"
