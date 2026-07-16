@@ -131,6 +131,36 @@ def _definition_signature(node: ast.stmt, symbol: str) -> str | None:
     return None
 
 
+def _is_overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return any(
+        (isinstance(decorator, ast.Name) and decorator.id == "overload")
+        or (isinstance(decorator, ast.Attribute) and decorator.attr == "overload")
+        for decorator in node.decorator_list
+    )
+
+
+def _module_definition_signature(
+    body: list[ast.stmt], index: int, symbol: str
+) -> str | None:
+    node = body[index]
+    signature = _definition_signature(node, symbol)
+    if signature is None or not isinstance(
+        node, (ast.FunctionDef, ast.AsyncFunctionDef)
+    ):
+        return signature
+    overloads = [
+        candidate
+        for candidate in body[:index]
+        if isinstance(candidate, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and candidate.name == symbol
+        and _is_overload(candidate)
+    ]
+    definitions = overloads if _is_overload(node) else [*overloads, node]
+    if _is_overload(node):
+        definitions.append(node)
+    return " | ".join(_function_signature(definition) for definition in definitions)
+
+
 def _module_source(base: Path) -> Path | None:
     source = base.with_suffix(".py")
     if source.is_file():
@@ -190,6 +220,32 @@ def _literal_value(node: ast.expr) -> object:
             except (ValueError, TypeError, SyntaxError):
                 pass
     return _UNKNOWN
+
+
+def _wildcard_exports(source: Path, symbol: str) -> bool:
+    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    for node in reversed(tree.body):
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        ):
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "__all__"
+        ):
+            value = node.value
+        if value is None:
+            continue
+        exported = _literal_value(value)
+        if not isinstance(exported, (list, tuple, set, frozenset)) or not all(
+            isinstance(item, str) for item in exported
+        ):
+            raise RuntimeError(f"{source}: wildcard target has non-literal __all__")
+        return symbol in exported
+    return not symbol.startswith("_")
 
 
 def _lazy_constants(
@@ -307,8 +363,15 @@ def _call_target(
         return f"{module}.{imported_name}", target_name
     if (
         isinstance(owner, ast.Call)
-        and isinstance(owner.func, ast.Name)
-        and owner.func.id == "import_module"
+        and (
+            (isinstance(owner.func, ast.Name) and owner.func.id == "import_module")
+            or (
+                isinstance(owner.func, ast.Attribute)
+                and isinstance(owner.func.value, ast.Name)
+                and owner.func.value.id == "importlib"
+                and owner.func.attr == "import_module"
+            )
+        )
         and len(owner.args) == 1
     ):
         module = _expression_value(owner.args[0], symbol, {}, strings)
@@ -426,8 +489,9 @@ def _resolve_export(
     next_seen = seen | {key}
 
     # Reverse order reflects the binding left in the module namespace at runtime.
-    for node in reversed(tree.body):
-        signature = _definition_signature(node, symbol)
+    for index in range(len(tree.body) - 1, -1, -1):
+        node = tree.body[index]
+        signature = _module_definition_signature(tree.body, index, symbol)
         if signature is not None:
             relative = source.relative_to(repo_root).as_posix()
             return _ResolvedExport(
@@ -445,17 +509,32 @@ def _resolve_export(
             imported_symbol = symbol if alias.name == "*" else alias.name
             binding = _import_binding(node, imported_symbol)
             target_source = _import_source(source, node, repo_root)
-            resolved = (
-                _resolve_export(target_source, imported_symbol, repo_root, next_seen)
-                if target_source is not None
-                else None
+            if target_source is None:
+                raise RuntimeError(
+                    f"{source}: cannot resolve export {symbol!r} through {binding}"
+                )
+            if alias.name == "*" and not _wildcard_exports(
+                target_source, imported_symbol
+            ):
+                continue
+            resolved = _resolve_export(
+                target_source, imported_symbol, repo_root, next_seen
             )
+            if resolved is None and target_source.name == "__init__.py":
+                submodule_source = _module_source(
+                    target_source.parent / imported_symbol
+                )
+                if submodule_source is not None:
+                    relative = submodule_source.relative_to(repo_root).as_posix()
+                    resolved = _ResolvedExport(
+                        signature=f"module:{relative}",
+                        binding=f"{relative}::{imported_symbol}",
+                        source=submodule_source,
+                        reexported=False,
+                    )
             if resolved is None:
-                return _ResolvedExport(
-                    signature=f"unresolved-reexport:{binding}",
-                    binding=binding,
-                    source=source,
-                    reexported=True,
+                raise RuntimeError(
+                    f"{source}: cannot resolve export {symbol!r} through {binding}"
                 )
             return _ResolvedExport(
                 signature=resolved.signature,
@@ -468,17 +547,14 @@ def _resolve_export(
         module, target_symbol = lazy_target
         binding = f"lazy:{module}.{target_symbol}"
         target_source = _absolute_module_source(source, module, repo_root)
-        resolved = (
-            _resolve_export(target_source, target_symbol, repo_root, next_seen)
-            if target_source is not None
-            else None
-        )
+        if target_source is None:
+            raise RuntimeError(
+                f"{source}: cannot resolve export {symbol!r} through {binding}"
+            )
+        resolved = _resolve_export(target_source, target_symbol, repo_root, next_seen)
         if resolved is None:
-            return _ResolvedExport(
-                signature=f"unresolved-reexport:{binding}",
-                binding=binding,
-                source=source,
-                reexported=True,
+            raise RuntimeError(
+                f"{source}: cannot resolve export {symbol!r} through {binding}"
             )
         return _ResolvedExport(
             signature=resolved.signature,

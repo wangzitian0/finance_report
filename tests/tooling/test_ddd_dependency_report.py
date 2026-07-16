@@ -621,6 +621,115 @@ def test_AC_meta_dependency_governance_2_root_export_binding_is_reported(
     assert change["after"] == "dynamic-export"
 
 
+def test_AC_meta_dependency_governance_2_unresolved_reexport_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: broken explicit exports fail closed."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        'from .missing import public\n\n__all__ = ["public"]\n',
+    )
+
+    with pytest.raises(RuntimeError, match="cannot resolve export 'public'"):
+        build_dependency_snapshot(repo)
+
+
+def test_AC_meta_dependency_governance_2_overloads_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: overloads are public signatures."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        from typing import Any, overload
+
+        @overload
+        def public(value: str) -> str: ...
+
+        @overload
+        def public(value: None) -> None: ...
+
+        def public(value: Any) -> Any:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish overloaded boundary")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        from typing import Any, overload
+
+        @overload
+        def public(value: str, strict: bool = False) -> str: ...
+
+        @overload
+        def public(value: None) -> None: ...
+
+        def public(value: Any) -> Any:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert "@overload def(value: str) -> str" in change["before"]
+    assert "@overload def(value: str, strict: bool=False) -> str" in change["after"]
+    assert "def(value: Any) -> Any" in change["before"]
+    assert "def(value: Any) -> Any" in change["after"]
+
+
+def test_AC_meta_dependency_governance_2_wildcard_honors_target_all(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: wildcard bindings obey target __all__."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write(
+        repo / "apps/backend/src/provider/alternate.py",
+        """
+        def public(value: int) -> int:
+            return value
+
+        __all__: list[str] = []
+        """,
+    )
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        """
+        from .api import public
+        from .alternate import *
+
+        __all__ = ["public"]
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish guarded wildcard")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        repo / "apps/backend/src/provider/api.py",
+        """
+        def public(value: str, strict: bool = False) -> str:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert ".api.public" in change["before"]
+    assert ".api.public" in change["after"]
+    assert "strict: bool=False" in change["after"]
+
+
 def test_AC_meta_dependency_governance_2_protocol_methods_are_reported(
     tmp_path: Path,
 ) -> None:
