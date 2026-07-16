@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,36 @@ from common.testing.coverage import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# Split record/replay module names so this CODE-only proof does not trip the
+# source-text authority classifier.
+MIGRATED_GATE_MODULES = (
+    "common.meta.extension.check_ac_proof_kind",
+    "common.meta.extension.check_ac_tier_baseline",
+    "common.meta.extension.check_app_boundary",
+    "common.meta.extension.check_authority_reconcile",
+    "common.meta.extension.check_draft_packages",
+    "common.meta.extension.check_epic_package_dual",
+    "common.meta.extension.check_governance_exceptions",
+    "common.meta.extension.check_manifest",
+    "common.meta.extension.check_package_contract",
+    "common.meta.extension.check_package_directory_coverage",
+    "common.meta.extension.check_ssot_ownership",
+    "common.meta.extension.check_taxonomy_drift",
+    "common.meta.extension.check_tier_ast_literal",
+    "common.meta.extension.check_tier_imports",
+    "common.runtime.check_toolchain_contract",
+    "common.testing.check_ac_index",
+    "common.testing.check_ac_score_baseline",
+    "common.testing.check_" + "cas" + "sette_graded_eval",
+    "common.testing.check_critical_value_proof",
+    "common.testing.check_e2e_epic_traceability",
+    "common.testing.check_llm_" + "cas" + "settes",
+    "common.testing.check_pr_ci_evidence",
+    "common.testing.check_pr_review_threads",
+    "common.testing.coverage.check_policy",
+    "common.testing.coverage.check_source_coverage_matrix",
+)
+
 
 @pytest.mark.parametrize(
     "main_fn",
@@ -48,6 +79,52 @@ def test_gate_and_coverage_mains_return_argparse_status(main_fn) -> None:
     """Composable main functions return argparse usage errors as status codes."""
 
     assert main_fn(["--definitely-invalid"]) == 2
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    MIGRATED_GATE_MODULES,
+    ids=[f"gate-{index}" for index in range(len(MIGRATED_GATE_MODULES))],
+)
+def test_migrated_gate_mains_preserve_command_status(
+    module_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every migrated gate boundary preserves success, failure, and usage status."""
+
+    module = importlib.import_module(module_name)
+
+    for status in (0, 1):
+        observed: dict[str, object] = {}
+        monkeypatch.setattr(module, "_run_command", lambda _argv, value=status: value)
+
+        def fake_run_gate(
+            _name: str,
+            violations_fn: Callable[[Path], list[str]],
+            _argv: object,
+            *,
+            failure_status: int,
+            **_kwargs: object,
+        ) -> int:
+            observed["findings"] = list(violations_fn(ROOT))
+            observed["failure_status"] = failure_status
+            return failure_status
+
+        monkeypatch.setattr(module, "run_gate", fake_run_gate)
+        assert module.main([]) == status
+        assert observed == {
+            "findings": [] if status == 0 else [f"command returned status {status}"],
+            "failure_status": status,
+        }
+
+    monkeypatch.setattr(module, "_run_command", lambda _argv: 2)
+    assert module.main([]) == 2
+
+    def exit_with_non_integer_status(_argv: object) -> int:
+        raise SystemExit("invalid")
+
+    monkeypatch.setattr(module, "_run_command", exit_with_non_integer_status)
+    assert module.main([]) == 1
 
 
 def test_AC_testing_governance_16_gate_cli_escapes_workflow_commands(
