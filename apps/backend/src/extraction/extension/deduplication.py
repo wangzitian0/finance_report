@@ -537,6 +537,12 @@ async def dual_write_layer2(
     """
     from sqlalchemy.exc import IntegrityError
 
+    if any(not isinstance(txn, ExtractedTransactionRow) for txn in transactions):
+        raise TypeError(
+            "dual_write_layer2 requires ExtractedTransactionRow values; "
+            "ORM rows do not carry a reproducible occurrence_index"
+        )
+
     dedup_service = DeduplicationService()
 
     doc_type_map = {
@@ -593,30 +599,6 @@ async def dual_write_layer2(
 
         layer2_count = 0
         for txn in transactions:
-            if not isinstance(txn, ExtractedTransactionRow):
-                direction = TransactionDirection(txn.direction)
-                txn = ExtractedTransactionRow(
-                    user_id=txn.user_id,
-                    txn_date=txn.txn_date,
-                    amount=txn.amount,
-                    direction=direction.value,
-                    description=txn.description,
-                    reference=txn.reference,
-                    currency=txn.currency,
-                    currency_unresolved=bool(txn.currency_unresolved),
-                    balance_after=txn.balance_after,
-                    occurrence_index=0,
-                    dedup_hash=dedup_service.calculate_transaction_hash(
-                        txn.user_id,
-                        txn.txn_date,
-                        txn.amount,
-                        direction,
-                        txn.description,
-                        txn.reference,
-                        txn.balance_after,
-                        0,
-                    ),
-                )
             upserted_txn = await dedup_service.upsert_atomic_transaction(
                 db=db,
                 row=txn,

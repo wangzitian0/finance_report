@@ -28,7 +28,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
-from src.extraction import DocumentSource, DocumentType, ExtractionError, ParseJob, UploadedDocument
+from src.extraction import (
+    DocumentSource,
+    DocumentType,
+    ExtractedTransactionRow,
+    ExtractionError,
+    ParseJob,
+    UploadedDocument,
+)
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
@@ -599,7 +606,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     content = b"statement-flow"
 
-    from src.extraction.extension.deduplication import dual_write_layer2
+    from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 
     async def fake_parse_document(
         self,
@@ -613,15 +620,28 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
         db=None,
     ):
         statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        transaction = AtomicTransaction(
+        txn_date = date(2025, 1, 2)
+        amount = Decimal("5000.00")
+        direction = TransactionDirection.IN
+        description = "Salary"
+        transaction = ExtractedTransactionRow(
             user_id=test_user.id,
-            txn_date=date(2025, 1, 2),
-            description="Salary",
-            amount=Decimal("5000.00"),
-            direction=TransactionDirection.IN,
+            txn_date=txn_date,
+            description=description,
+            amount=amount,
+            direction=direction.value,
+            reference=None,
             currency="SGD",
-            dedup_hash=uuid4().hex + uuid4().hex,
-            source_documents=[],
+            currency_unresolved=False,
+            balance_after=None,
+            occurrence_index=0,
+            dedup_hash=DeduplicationService.calculate_transaction_hash(
+                test_user.id,
+                txn_date,
+                amount,
+                direction,
+                description,
+            ),
         )
         # Persist via the single DWD linker so the statement resolves its Layer-2 facts.
         await dual_write_layer2(

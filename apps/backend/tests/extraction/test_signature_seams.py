@@ -18,6 +18,7 @@ from src.extraction import DocumentSource, ExtractedTransactionRow, ParseJob
 from src.extraction.extension import statement_parsing, statement_pipeline
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.service import ExtractionService
+from src.extraction.orm.statement_summary import StatementSummary
 
 pytestmark = pytest.mark.no_db
 
@@ -72,7 +73,7 @@ def test_AC_extraction_signature_seams_1_parse_job_round_trips_prefect_params() 
         job.filename = "mutated.pdf"  # type: ignore[misc]
 
 
-def test_AC_extraction_signature_seams_2_document_source_resolves_once() -> None:
+async def test_AC_extraction_signature_seams_2_document_source_resolves_once() -> None:
     """AC-extraction.signature-seams.2: all source aliases resolve into one immutable value."""
     source = DocumentSource.resolve(
         path=Path("statements/storage-key.pdf"),
@@ -89,6 +90,25 @@ def test_AC_extraction_signature_seams_2_document_source_resolves_once() -> None
     assert source.filename == "January statement.pdf"
     with pytest.raises(FrozenInstanceError):
         source.filename = "mutated.pdf"  # type: ignore[misc]
+
+    service = ExtractionService()
+    service._extract_vision_source = AsyncMock(return_value=_valid_payload())
+    await service.parse_document(
+        file_path=None,
+        institution="DBS",
+        user_id=uuid4(),
+        file_content=b"in-memory-pdf",
+        file_hash="b" * 64,
+        original_filename="memory.pdf",
+    )
+    compatibility_source = service._extract_vision_source.await_args.args[0]
+    assert compatibility_source == DocumentSource(
+        path=Path("memory.pdf"),
+        content=b"in-memory-pdf",
+        url=None,
+        content_hash="b" * 64,
+        filename="memory.pdf",
+    )
 
 
 async def test_AC_extraction_signature_seams_3_csv_and_vision_paths_are_separate() -> None:
@@ -190,3 +210,21 @@ async def test_AC_extraction_signature_seams_4_typed_rows_and_failure_contract()
         }
         & failure_params.keys()
     )
+
+
+async def test_dual_write_rejects_non_dto_rows_before_database_work() -> None:
+    """The typed persistence seam must not guess fields missing from ORM rows."""
+    user_id = uuid4()
+    statement = StatementSummary(
+        user_id=user_id,
+        file_hash="typed-seam",
+        institution="DBS",
+    )
+
+    with pytest.raises(TypeError, match="requires ExtractedTransactionRow"):
+        await dual_write_layer2(
+            db=AsyncMock(spec=AsyncSession),
+            user_id=user_id,
+            statement=statement,
+            transactions=[object()],  # type: ignore[list-item]
+        )

@@ -238,15 +238,30 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         links the summary's ``uploaded_document_id``, and persists the summary.
         """
         legacy_path = legacy_source.pop("file_path", None)
-        if source is None:
-            source = legacy_path if isinstance(legacy_path, Path) else None
-        if isinstance(source, Path):
+        if source is None and isinstance(legacy_path, Path):
+            source = legacy_path
+        legacy_content = legacy_source.get("file_content")
+        legacy_url = legacy_source.get("file_url")
+        if isinstance(source, Path) or (
+            source is None and (isinstance(legacy_content, bytes) or isinstance(legacy_url, str))
+        ):
             content = legacy_source.pop("file_content", None)
             file_url = legacy_source.pop("file_url", None)
             file_hash = legacy_source.pop("file_hash", None)
             original_filename = legacy_source.pop("original_filename", None)
+            path = (
+                source
+                if isinstance(source, Path)
+                else Path(
+                    original_filename
+                    if isinstance(original_filename, str)
+                    else file_hash
+                    if isinstance(file_hash, str)
+                    else "in-memory-document"
+                )
+            )
             source = DocumentSource.resolve(
-                path=source,
+                path=path,
                 content=content if isinstance(content, bytes) else None,
                 url=file_url if isinstance(file_url, str) else None,
                 content_hash=file_hash if isinstance(file_hash, str) else None,

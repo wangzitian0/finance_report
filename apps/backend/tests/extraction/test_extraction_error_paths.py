@@ -9,8 +9,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from src.extraction import DocumentStatus, ParseJob, UploadedDocument
-from src.extraction.extension.deduplication import dual_write_layer2
+from src.extraction import (
+    DocumentStatus,
+    ExtractedTransactionRow,
+    ParseJob,
+    TransactionDirection,
+    UploadedDocument,
+)
+from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -1388,22 +1394,39 @@ async def test_dual_write_layer2_integrity_error_is_non_fatal():
         mock_dedup = mock_dedup_cls.return_value
         mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
 
-        txn = MagicMock()
-        txn.direction = "IN"
-        txn.txn_date = date(2025, 1, 1)
-        txn.amount = Decimal("1.00")
-        txn.description = "txn"
-        txn.reference = None
-        txn.currency = "SGD"
+        user_id = uuid4()
+        txn_date = date(2025, 1, 1)
+        amount = Decimal("1.00")
+        direction = TransactionDirection.IN
+        description = "txn"
+        txn = ExtractedTransactionRow(
+            user_id=user_id,
+            txn_date=txn_date,
+            amount=amount,
+            direction=direction.value,
+            description=description,
+            reference=None,
+            currency="SGD",
+            currency_unresolved=False,
+            balance_after=None,
+            occurrence_index=0,
+            dedup_hash=DeduplicationService.calculate_transaction_hash(
+                user_id,
+                txn_date,
+                amount,
+                direction,
+                description,
+            ),
+        )
         statement = StatementSummaryFactory.build(
-            user_id=uuid4(),
+            user_id=user_id,
             file_hash="abc123",
             institution="DBS",
             currency="SGD",
         )
         await dual_write_layer2(
             db=db,
-            user_id=uuid4(),
+            user_id=user_id,
             statement=statement,
             transactions=[txn],
             file_path=Path("statement.pdf"),
