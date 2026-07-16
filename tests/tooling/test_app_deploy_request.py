@@ -92,9 +92,18 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         for step in workflow["jobs"]["tooling-coverage"]["steps"]
         if step.get("name") == "Run tooling tests with coverage"
     )
+    tooling_run = tooling_step["run"]
+    assert f'sdk_url="{SDK_URL}"' in tooling_run
+    assert f'sdk_sha256="{sdk_hash_hex}"' in tooling_run
+    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-0.3.0-py3-none-any.whl"' in tooling_run
+    assert (
+        'curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"'
+        in tooling_run
+    )
+    assert "sha256sum --check --status" in tooling_run
     command_line = next(
         line.strip().removesuffix("\\").strip()
-        for line in tooling_step["run"].splitlines()
+        for line in tooling_run.splitlines()
         if line.strip().startswith("uv run ")
     )
     command_tokens = shlex.split(command_line)
@@ -103,7 +112,8 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         for index, token in enumerate(command_tokens[:-1])
         if token == "--with"
     ]
-    assert with_dependencies.count(expected_sdk_dependency) == 1
+    assert with_dependencies.count("$sdk_wheel") == 1
+    assert expected_sdk_dependency not in with_dependencies
     pytest_index = max(
         index for index, token in enumerate(command_tokens) if token == "pytest"
     )
