@@ -25,7 +25,7 @@ Scope note (#1556): `runtime` is a **domain package like any other** — its
 domain happens to be environments/dependencies/**CD** (deploy execution,
 release evidence, rollback, environment tiering). Cross-cutting CI governance
 — which tests run where, and proof that they ran — belongs to
-[`common/testing`](../testing/README.md); the responsibility split is defined
+[`common/testing`](../testing/readme.md); the responsibility split is defined
 in that package's charter. In the failure-attribution table there: dependency
 missing / env wrong / config drift → this package's contract; everything about
 test selection, execution, and reporting → `testing`.

@@ -24,7 +24,7 @@ issue #1556):
 Workflows consume the selection at runtime through
 ``tools/test_selection.py --stage pr_preview_e2e --shell`` (same pattern as
 ``tools/staging_ai_ocr_gate_contract.py --shell``), so the workflow never
-restates the list. Charter: ``common/testing/README.md``.
+restates the list. Charter: ``common/testing/readme.md``.
 """
 
 from __future__ import annotations

@@ -746,6 +746,16 @@ def test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous(
     )
 
     package_readme.write_text("# truthful\n", encoding="utf-8")
+    wrong_case_readme = package.spec_dir / "README.md"
+    package_readme.rename(wrong_case_readme)
+    ok, messages = run(synthetic_repo)
+    assert not ok
+    assert any(
+        "missing required authored surface: readme.md" in message
+        for message in messages
+    )
+
+    wrong_case_readme.rename(package_readme)
     nested_worklist = package.spec_dir / "data" / "TODO.md"
     nested_worklist.parent.mkdir()
     nested_worklist.write_text("- [ ] hidden work\n", encoding="utf-8")

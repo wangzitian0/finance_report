@@ -216,8 +216,8 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme
     assert "must stay local" in analyzer_readme
     assert "format-only metadata" in analyzer_readme
-    assert "common/testing/README.md#pdf-fixtures" in tool_readme
-    assert "common/testing/README.md#pdf-fixtures" in font_entry
+    assert "common/testing/readme.md#pdf-fixtures" in tool_readme
+    assert "common/testing/readme.md#pdf-fixtures" in font_entry
     assert "Generate Test PDFs" in ssot
     assert "Analyze Real PDFs" in ssot
     assert "python tools/analyze_pdf_fixture.py" in ssot
@@ -225,7 +225,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "templates/*.yaml" in ssot
     assert "input/" in ssot and "gitignored" in ssot
     assert "register_chinese_fonts()" in ssot
-    assert concepts["pdf_fixtures"]["owner"] == "common/testing/README.md#pdf-fixtures"
+    assert concepts["pdf_fixtures"]["owner"] == "common/testing/readme.md#pdf-fixtures"
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:

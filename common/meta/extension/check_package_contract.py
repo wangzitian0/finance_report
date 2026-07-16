@@ -997,7 +997,10 @@ def _check_authored_truth_surfaces(
     errors = [
         f"{package.name}: missing required authored surface: readme.md"
         for package in packages
-        if not (package.spec_dir / "readme.md").is_file()
+        if not any(
+            entry.name == "readme.md" and entry.is_file()
+            for entry in package.spec_dir.iterdir()
+        )
     ]
     common_root = repo_root / "common"
     if common_root.is_dir():
