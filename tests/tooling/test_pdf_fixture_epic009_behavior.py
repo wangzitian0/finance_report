@@ -205,7 +205,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     analyzer_readme = (PDF_FIXTURES / "analyzers" / "README.md").read_text()
     tool_readme = (PDF_FIXTURES / "README.md").read_text()
     font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
-    ssot = (REPO_ROOT / "common" / "testing" / "README.md").read_text()
+    ssot = (REPO_ROOT / "common" / "testing" / "readme.md").read_text()
     # pdf_fixtures is now declared in common/testing/contract.py, not
     # hand-copied into MANIFEST.yaml (#1799) — check the computed registry.
     concepts = load_computed_concepts(
