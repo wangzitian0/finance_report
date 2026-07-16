@@ -16,6 +16,7 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -44,7 +45,7 @@ def cleanup(signum=None, frame=None):
     sys.exit(0)
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     # Set up signal handlers
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
@@ -64,10 +65,11 @@ def main():
 
     # Wait for process
     try:
-        proc.wait()
+        return proc.wait() or 0
     except KeyboardInterrupt:
         cleanup()
+        return 130
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

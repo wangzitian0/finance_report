@@ -91,66 +91,78 @@ def test_AC_testing_governance_16_gate_cli_escapes_workflow_commands(
     assert gate_cli.run_gate("SYNTHETIC", lambda _repo_root: [], ["--bad"]) == 2
 
 
-def test_AC_testing_governance_17_main_contract_ratchet_rejects_new_debt(
+def test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed(
     tmp_path: Path,
 ) -> None:
-    """AC-testing.governance.17: legacy paths shrink and new violations stay red."""
+    """AC-testing.governance.17 / AC-testing.governance.22: no allowlist masks debt."""
 
-    legacy = tmp_path / "common" / "testing" / "legacy.py"
-    legacy.parent.mkdir(parents=True)
-    legacy.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
-    baseline = tmp_path / "baseline.json"
-    baseline.write_text(
-        json.dumps(
-            {
-                "legacy_main_contract": ["common/testing/legacy.py"],
-                "legacy_gate_cli": [],
-            }
-        ),
+    assert not (ROOT / "common/testing/data/gate-main-contract-baseline.json").exists()
+    assert gate_main_contract.current_debt(ROOT) == {
+        "legacy_main_contract": set(),
+        "legacy_gate_cli": set(),
+        "legacy_process_exit": set(),
+        "malformed_python": set(),
+    }
+
+    malformed = tmp_path / "tools" / "broken.py"
+    malformed.parent.mkdir(parents=True)
+    malformed.write_text("def main(:\n", encoding="utf-8")
+    common = tmp_path / "common" / "testing"
+    common.mkdir(parents=True)
+    (common / "async_main.py").write_text(
+        "async def main(argv) -> int:\n    return 0\n", encoding="utf-8"
+    )
+    (common / "extra_argument.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None, *, injected=None) -> int:\n"
+        "    return 0\n",
         encoding="utf-8",
     )
-
-    args = ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
-    assert gate_main_contract.main(args) == 0
-
-    added = tmp_path / "tools" / "added.py"
-    added.parent.mkdir()
-    added.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
-    before = baseline.read_text(encoding="utf-8")
-    assert gate_main_contract.main(args) == 1
-    assert gate_main_contract.main([*args, "--update"]) == 1
-    assert baseline.read_text(encoding="utf-8") == before
-
-    added.unlink()
-    legacy.unlink()
-    conforming = tmp_path / "tools" / "conforming.py"
-    conforming.write_text(
+    (common / "missing_return.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None):\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    (common / "check_without_runner.py").write_text(
         "from collections.abc import Sequence\n"
         "def main(argv: Sequence[str] | None = None) -> int:\n"
         "    return 0\n",
         encoding="utf-8",
     )
-    assert gate_main_contract.main([*args, "--update"]) == 0
-    assert json.loads(baseline.read_text(encoding="utf-8")) == {
-        "legacy_gate_cli": [],
-        "legacy_main_contract": [],
-    }
-
-    check_module = tmp_path / "common" / "testing" / "check_new_gate.py"
-    check_module.write_text(conforming.read_text(encoding="utf-8"), encoding="utf-8")
-    assert gate_main_contract.main(args) == 1
-
-    check_module.unlink()
-    baseline.write_text(
-        json.dumps(
-            {
-                "legacy_main_contract": ["tools/resolved.py"],
-                "legacy_gate_cli": [],
-            }
-        ),
+    (common / "check_qualified_runner.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return gate_cli.run_gate('X', lambda _: [], argv)\n",
         encoding="utf-8",
     )
-    assert gate_main_contract.main(args) == 1
+    (common / "bad_exit.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return 0\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n",
+        encoding="utf-8",
+    )
+    (common / "irrelevant_exit.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return 0\n"
+        "if __name__ == '__main__':\n"
+        "    print('not executable')\n",
+        encoding="utf-8",
+    )
+    assert gate_main_contract.current_debt(tmp_path) == {
+        "legacy_main_contract": {
+            "common/testing/async_main.py",
+            "common/testing/extra_argument.py",
+            "common/testing/missing_return.py",
+        },
+        "legacy_gate_cli": {"common/testing/check_without_runner.py"},
+        "legacy_process_exit": {"common/testing/bad_exit.py"},
+        "malformed_python": {"tools/broken.py"},
+    }
+    assert gate_main_contract.main(["--repo-root", str(tmp_path)]) == 1
 
 
 def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
@@ -258,10 +270,10 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert (
         baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: check_ac_tier_baseline.current_untagged(
-                tmp_path
-            )
-            > check_ac_tier_baseline.load_baseline(tier_baseline),
+            regression_debt_present=lambda: (
+                check_ac_tier_baseline.current_untagged(tmp_path)
+                > check_ac_tier_baseline.load_baseline(tier_baseline)
+            ),
             baseline_state=tier_baseline.read_bytes,
             update=lambda: check_ac_tier_baseline.main(
                 [
@@ -297,10 +309,10 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert (
         baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: set(
-                check_app_boundary.discover_and_compute_edges(app_root)
-            )
-            > check_app_boundary.load_baseline(app_baseline),
+            regression_debt_present=lambda: (
+                set(check_app_boundary.discover_and_compute_edges(app_root))
+                > check_app_boundary.load_baseline(app_baseline)
+            ),
             baseline_state=lambda: tuple(tuple(edges) for edges in dumped_edges),
             update=lambda: check_app_boundary.main(
                 ["--repo-root", str(app_root), "--update"]
@@ -324,10 +336,12 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert (
         baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: json.loads(
-                current_scores.read_text(encoding="utf-8")
-            )["acs"]["AC-score.1"]["score"]
-            < 0.8,
+            regression_debt_present=lambda: (
+                json.loads(current_scores.read_text(encoding="utf-8"))["acs"][
+                    "AC-score.1"
+                ]["score"]
+                < 0.8
+            ),
             baseline_state=score_baseline.read_bytes,
             update=lambda: check_ac_score_baseline.main(
                 [str(current_scores), "--baseline", str(score_baseline), "--update"]
@@ -381,44 +395,6 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert eval_writes == []
 
-    main_root = tmp_path / "main-contract"
-    legacy_main = main_root / "common/testing/legacy.py"
-    legacy_main.parent.mkdir(parents=True)
-    legacy_main.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
-    added_main = main_root / "tools/added.py"
-    added_main.parent.mkdir()
-    added_main.write_text("def main() -> None:\n    return None\n", encoding="utf-8")
-    main_baseline = tmp_path / "main-baseline.json"
-    main_baseline.write_text(
-        json.dumps(
-            {
-                "legacy_main_contract": ["common/testing/legacy.py"],
-                "legacy_gate_cli": [],
-            }
-        ),
-        encoding="utf-8",
-    )
-    assert (
-        baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: added_main.exists()
-            and "tools/added.py"
-            not in json.loads(main_baseline.read_text(encoding="utf-8"))[
-                "legacy_main_contract"
-            ],
-            baseline_state=main_baseline.read_bytes,
-            update=lambda: gate_main_contract.main(
-                [
-                    "--repo-root",
-                    str(main_root),
-                    "--baseline",
-                    str(main_baseline),
-                    "--update",
-                ]
-            ),
-        )
-        == 1
-    )
-
     tool_root = tmp_path / "tool-contract"
     tools_dir = tool_root / "tools"
     tools_dir.mkdir(parents=True)
@@ -431,10 +407,10 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert (
         baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: len(
-                (tools_dir / "added.py").read_text(encoding="utf-8").splitlines()
-            )
-            > 40,
+            regression_debt_present=lambda: (
+                len((tools_dir / "added.py").read_text(encoding="utf-8").splitlines())
+                > 40
+            ),
             baseline_state=tool_baseline.read_bytes,
             update=lambda: tool_shim_contract.main(
                 [
@@ -460,7 +436,6 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/testing/check_critical_value_proof.py",
         "common/testing/fe_api_handmock_ratchet.py",
         "common/testing/fe_fetch_ratchet.py",
-        "common/testing/gate_main_contract.py",
         "common/testing/mirror_ratchet.py",
         "common/testing/tool_shim_contract.py",
     }

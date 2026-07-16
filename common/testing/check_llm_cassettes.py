@@ -16,8 +16,11 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+
+from common.meta.base.gate_cli import run_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
@@ -66,7 +69,11 @@ def balance_violation(payload: dict) -> str | None:
         amount = _as_decimal(txn.get("amount")) if isinstance(txn, dict) else None
         if amount is None:
             return "transaction with unparseable amount"
-        direction = str(txn.get("direction") or "").strip().upper() if isinstance(txn, dict) else ""
+        direction = (
+            str(txn.get("direction") or "").strip().upper()
+            if isinstance(txn, dict)
+            else ""
+        )
         if direction in _IN_DIRECTIONS:
             net += abs(amount)
         elif direction in _OUT_DIRECTIONS:
@@ -112,7 +119,9 @@ def check(cassette_dir: Path = CASSETTE_DIR) -> list[str]:
             payload = json.loads(text)
         except json.JSONDecodeError:
             continue  # not a JSON extraction response — out of scope here
-        if not (isinstance(payload, dict) and all(k in payload for k in _STATEMENT_KEYS)):
+        if not (
+            isinstance(payload, dict) and all(k in payload for k in _STATEMENT_KEYS)
+        ):
             continue  # not a statement-shaped extraction
         if _balance_exempt(cassette_dir, path.stem):
             continue  # non-reconciling source by construction — field-graded only (AC23.8)
@@ -146,7 +155,7 @@ def statement_cassette_count(cassette_dir: Path = CASSETTE_DIR) -> int:
     return count
 
 
-def main() -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     if not CASSETTE_DIR.exists():
         print(f"[CASSETTE] no cassette dir at {CASSETTE_DIR}; nothing to check.")
         return 0
@@ -173,6 +182,19 @@ def main() -> int:
         f"balance-chain invariant{suffix}."
     )
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "LLM-CASSETTES", lambda _repo_root: findings, [], failure_status=status
+    )
 
 
 def _is_statement(text: str) -> bool:

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-
-from tools._lib.dev.pr_preview_lifecycle import _dokploy
-
 import argparse
 import os
 import sys
+from collections.abc import Sequence
+
+from tools._lib.dev.pr_preview_lifecycle import _dokploy
 
 try:
     sys.stdout.reconfigure(line_buffering=True)
@@ -303,7 +303,7 @@ def main_from_args(args: argparse.Namespace) -> int:
     raise ValueError(f"Unsupported action: {args.action}")
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     # This tool only stands PR previews UP (`deploy`). Preview RECLAIM (the former
     # cleanup/delete/reconcile actions) is owned by infra2 — the app must not touch
     # the Dokploy API. On PR close the app dispatches a vendor-neutral
@@ -330,4 +330,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

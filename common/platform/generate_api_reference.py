@@ -11,6 +11,7 @@ import argparse
 import difflib
 import sys
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -164,7 +165,7 @@ def generate() -> str:
     return render_openapi_reference(_load_openapi())
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",

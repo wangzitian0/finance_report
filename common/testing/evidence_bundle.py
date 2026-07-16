@@ -27,7 +27,7 @@ import argparse
 import json
 import statistics
 import subprocess
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -366,7 +366,7 @@ def render_markdown(bundle: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Generate the shared CI/nightly evidence bundle (#1690)."
     )
@@ -418,4 +418,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

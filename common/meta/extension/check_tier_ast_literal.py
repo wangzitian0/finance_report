@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.base.authority_matrix import PACKAGE_TIERS
+from common.meta.base.gate_cli import run_gate
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -61,8 +63,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args([] if argv is None else argv)
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     errors = violations(args.repo_root.resolve())
     if errors:
         for message in errors:
@@ -77,5 +79,18 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "TIER-AST-LITERAL", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

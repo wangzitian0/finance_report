@@ -11,4 +11,4 @@ if str(ROOT_DIR) not in sys.path:
 from tools._lib.dev.dev_frontend import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

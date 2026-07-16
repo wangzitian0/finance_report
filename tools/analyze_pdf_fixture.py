@@ -11,4 +11,4 @@ if str(ROOT_DIR) not in sys.path:
 from common.testing.fixtures.pdf.analyzers.analyze_pdf import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

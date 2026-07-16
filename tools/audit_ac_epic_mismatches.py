@@ -13,4 +13,4 @@ if str(ROOT_DIR) not in sys.path:
 from common.testing.audit_ac_epic_mismatches import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

@@ -25,7 +25,6 @@ import pytest
 
 from common.meta.extension import check_manifest as cm
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -405,9 +404,7 @@ class TestMain:
             mock.patch("sys.argv", ["check_manifest.py"]),
             mock.patch.object(cm, "MANIFEST_PATH", tmp_path / "missing.yaml"),
         ):
-            with pytest.raises(SystemExit) as exc_info:
-                cm.main()
-        assert exc_info.value.code == 1
+            assert cm.main() == 1
 
     def test_empty_concepts_exits_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

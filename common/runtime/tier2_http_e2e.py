@@ -212,7 +212,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(
+def run(
     argv: Sequence[str] | None = None,
     *,
     environ: Mapping[str, str] | None = None,
@@ -263,5 +263,9 @@ def main(
     return 0 if report["status"] == "passed" else 1
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    return run(argv, environ=dict(os.environ))
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:], environ=dict(os.environ)))
+    raise SystemExit(main())

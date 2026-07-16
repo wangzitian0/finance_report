@@ -12,6 +12,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.testing.coverage.calculate_unified_coverage import main  # noqa: E402
 
-
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

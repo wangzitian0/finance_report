@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -635,7 +635,7 @@ def get_fixtures() -> tuple[StatementFixture, ...]:
     )
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     try:
         pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
     except Exception as exc:
@@ -651,4 +651,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

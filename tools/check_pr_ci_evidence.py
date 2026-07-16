@@ -13,4 +13,4 @@ if str(ROOT_DIR) not in sys.path:
 from common.testing.check_pr_ci_evidence import main  # noqa: E402
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

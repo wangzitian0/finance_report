@@ -7,6 +7,7 @@ import argparse
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 
 from common.runtime.github_api import write_github_output
 
@@ -55,7 +56,7 @@ def resolve(version_ref: str) -> dict[str, str]:
     return build_release_coordinate(version_ref, full_sha)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="resolve a Finance Report vX.Y.Z release tag"
     )

@@ -26,6 +26,7 @@ import re
 import shlex
 import subprocess
 import sys
+from collections.abc import Sequence
 from enum import Enum
 from pathlib import Path
 
@@ -238,7 +239,7 @@ def list_containers(env: Environment) -> None:
         print(f"  - {service.value:12} → {container}")
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Unified debugging tool for Finance Report",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -317,7 +318,7 @@ Examples:
         help="Target environment (default: production)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args() if argv is None else parser.parse_args(argv)
 
     # Execute command
     if args.command == "logs":
@@ -344,7 +345,8 @@ Examples:
     elif args.command == "containers":
         env = Environment(args.env)
         list_containers(env)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

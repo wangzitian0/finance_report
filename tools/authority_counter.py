@@ -11,6 +11,7 @@ tools/check_authority_reconcile.py, is the enforced check; this is the human vie
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -32,11 +33,13 @@ def render_table(result: dict) -> str:
     lines.append(
         f"{'ALL':<10}{o['total']:>5}{o['code']:>6}{o['llm']:>5}{o['unknown']:>5}{o['llm_share']:>6}%"
     )
-    lines.append("\nclassified by test shape: cassette/replay -> LLM, else CODE. '?' = test file unresolved.")
+    lines.append(
+        "\nclassified by test shape: cassette/replay -> LLM, else CODE. '?' = test file unresolved."
+    )
     return "\n".join(lines)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     print(render_table(classify_repo(ROOT_DIR)))
     return 0
 

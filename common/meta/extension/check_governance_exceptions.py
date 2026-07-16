@@ -23,9 +23,12 @@ Run locally::
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
+
+from common.meta.base.gate_cli import run_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_REGISTRY = REPO_ROOT / "common" / "meta" / "data" / "governance-exceptions.yaml"
@@ -90,7 +93,7 @@ def _is_known_generated(owner: str) -> bool:
     return owner.startswith("tools/generate_")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     registry = Path(args[0]) if args else DEFAULT_REGISTRY
 
@@ -106,6 +109,19 @@ def main(argv: list[str] | None = None) -> int:
     for violation in violations:
         print(f"  - {violation}", file=sys.stderr)
     return 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "GOVERNANCE-EXCEPTIONS", lambda _repo_root: findings, [], failure_status=status
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

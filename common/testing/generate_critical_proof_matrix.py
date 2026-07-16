@@ -25,6 +25,7 @@ The consumers are ``check_critical_proof_matrix`` (``build_matrix_payload``),
 from __future__ import annotations
 
 import ast
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -279,7 +280,7 @@ def render_matrix(payload: dict[str, Any]) -> str:
     return _HEADER + rendered
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Render the derived critical-proof matrix to stdout on demand.
 
     The matrix is NOT committed; this is the human-facing way to view it. Full
@@ -294,13 +295,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Render the derived critical-proof matrix on demand (never committed)."
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    args = parser.parse_args([] if argv is None else argv)
+    args = parser.parse_args(argv)
     graph = build_ac_graph(repo_root=args.repo_root.resolve())
     sys.stdout.write(render_matrix(build_matrix_from_graph(graph)))
     return 0
 
 
 if __name__ == "__main__":
-    import sys as _sys
-
-    raise SystemExit(main(_sys.argv[1:]))
+    raise SystemExit(main())

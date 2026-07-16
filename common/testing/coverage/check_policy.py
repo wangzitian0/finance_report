@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from common.meta.base.gate_cli import run_gate
 from common.meta.extension.coverage.policy import (
     COMPONENTS,
     ROOT_DIR,
@@ -103,7 +104,7 @@ def audit_unregistered_sources(repo_root: Path = ROOT_DIR) -> int:
     return 0
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Check source tree vs LCOV coverage policy."
     )
@@ -117,6 +118,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if result == 0:
         result = audit_unregistered_sources(repo_root)
     return result
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate("POLICY", lambda _repo_root: findings, [], failure_status=status)
 
 
 if __name__ == "__main__":

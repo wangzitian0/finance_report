@@ -23,12 +23,12 @@ from __future__ import annotations
 import argparse
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from common.meta.extension.ac_registry_format import load_registry_entries
-from common.meta.extension.ac_registry_format import sort_key
+from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing import ac_scan
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -509,7 +509,7 @@ def normalize_generated_report(report: str) -> str:
     return GENERATED_LINE_RE.sub("> Generated: <normalized>", report)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze AC coverage across test suites."
     )
@@ -540,11 +540,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Fail if the existing report is missing or stale; does not write files",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     repo_root = args.repo_root.resolve()
 
     result = analyze_repo(repo_root=repo_root)

@@ -691,9 +691,7 @@ class TestDevBackendMain:
 
         monkeypatch.setattr(_signal, "signal", lambda *args: None)
 
-        with pytest.raises(SystemExit) as exc:
-            dev_backend.main()
-        assert exc.value.code == 1
+        assert dev_backend.main() == 1
 
     def test_main_keyboard_interrupt_calls_cleanup(self, monkeypatch):
         """When proc.wait() raises KeyboardInterrupt, cleanup() should be called."""

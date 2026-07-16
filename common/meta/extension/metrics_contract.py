@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.extension.coverage.policy import (
@@ -279,12 +279,12 @@ def run_contract(
     return 0
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate CI metrics contracts.")
     parser.add_argument("--repo-root", type=Path, default=ROOT_DIR)
-    args = parser.parse_args()
-    sys.exit(run_contract(args.repo_root))
+    args = parser.parse_args(argv)
+    return run_contract(args.repo_root)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

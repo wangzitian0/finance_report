@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -15,4 +14,4 @@ from common.runtime.tier2_http_e2e import *  # noqa: E402,F403
 from common.runtime.tier2_http_e2e import main  # noqa: E402
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:], environ=dict(os.environ)))
+    raise SystemExit(main())

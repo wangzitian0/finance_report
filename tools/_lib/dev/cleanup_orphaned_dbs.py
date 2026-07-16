@@ -16,7 +16,7 @@ import argparse
 import json
 import re
 import subprocess
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 CACHE_DIR = Path.home() / ".cache" / "finance_report"
@@ -176,7 +176,7 @@ def cleanup_orphaned(dry_run=False, clean_all=False):
     return 0
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Clean up orphaned test databases from interrupted test runs"
     )
@@ -190,10 +190,10 @@ def main():
         action="store_true",
         help="Clean ALL test databases (not just orphaned ones)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args() if argv is None else parser.parse_args(argv)
 
     return cleanup_orphaned(dry_run=args.dry_run, clean_all=args.all)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

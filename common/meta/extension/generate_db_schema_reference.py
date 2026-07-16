@@ -11,16 +11,19 @@ import argparse
 import difflib
 import sys
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
-    Enum as SAEnum,
     ForeignKeyConstraint,
     MetaData,
     PrimaryKeyConstraint,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects import postgresql
 
@@ -284,7 +287,7 @@ def generate() -> str:
     return render_db_schema_reference(_load_metadata())
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",

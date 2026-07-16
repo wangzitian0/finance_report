@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import secrets
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -60,7 +61,7 @@ def _normalize_url(url: str) -> str:
     return url.replace("+asyncpg", "+psycopg2")
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--database-url", help="SQLAlchemy URL of the SCRATCH copy to rewrite"
@@ -126,4 +127,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

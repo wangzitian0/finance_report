@@ -45,8 +45,11 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import NamedTuple
+
+from common.meta.base.gate_cli import run_gate
 
 try:
     import yaml
@@ -340,7 +343,7 @@ def check_anchor_refs_exist(concepts: dict) -> list[Violation]:
     return violations
 
 
-def main() -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate common/meta/data/MANIFEST.yaml consistency."
     )
@@ -350,12 +353,15 @@ def main() -> int:
         action="store_true",
         help="Print summary statistics even on success.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     concepts = load_computed_concepts(REPO_ROOT, MANIFEST_PATH)
 
     if not concepts:
-        print("ERROR: No concepts found (MANIFEST.yaml + package contracts).", file=sys.stderr)
+        print(
+            "ERROR: No concepts found (MANIFEST.yaml + package contracts).",
+            file=sys.stderr,
+        )
         return 1
 
     violations: list[Violation] = []
@@ -397,5 +403,16 @@ def main() -> int:
     return 1
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate("MANIFEST", lambda _repo_root: findings, [], failure_status=status)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

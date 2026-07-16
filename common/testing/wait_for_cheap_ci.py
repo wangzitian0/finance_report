@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import argparse
-import sys
 import time
+from collections.abc import Sequence
+
 from common.runtime import github_api
 
 # Keep the established monkeypatch seam pointed at the shared transport.
@@ -134,7 +135,7 @@ def wait_for_cheap_ci(
         time.sleep(poll_seconds)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Wait for cheap CI jobs.")
     parser.add_argument(
         "--repository", required=True, help="GitHub repository (owner/repo)"
@@ -159,4 +160,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

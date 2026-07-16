@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from common.testing.lint_doc_consistency import _base
-
 import argparse
 import sys
+from collections.abc import Sequence
 
-
+from common.testing.lint_doc_consistency import _base
 from common.testing.lint_doc_consistency._checks import (
     check_code_owned_coverage_threshold_doc,
     check_epic_anchors,
@@ -35,7 +34,7 @@ from common.testing.lint_doc_consistency._parsing import (
 from common.testing.lint_doc_consistency._types import Violation
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=("Lint vision <-> EPIC <-> AC registry <-> test consistency.")
     )
@@ -45,7 +44,7 @@ def main() -> int:
         action="store_true",
         help="Print summary statistics even on success.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not _base.VISION_PATH.exists():
         print(f"ERROR: vision.md not found at {_base.VISION_PATH}", file=sys.stderr)
@@ -130,4 +129,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

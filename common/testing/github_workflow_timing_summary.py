@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -153,13 +154,13 @@ def load_run(repo: str, run_id: str) -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write GitHub Actions timing summary")
     parser.add_argument("--repo", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--title", default="Workflow Timing Summary")
     parser.add_argument("--summary-path", type=Path, required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     run = load_run(args.repo, args.run_id)
     summary = format_timing_summary(run, title=args.title)

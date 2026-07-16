@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
+
+from common.meta.base.gate_cli import run_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTCOMES_PATH = (
@@ -104,7 +107,7 @@ def _load_baseline() -> set[str]:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     current = current_non_value_proofs()
     baseline = _load_baseline()
@@ -147,5 +150,18 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "CRITICAL-VALUE-PROOF", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

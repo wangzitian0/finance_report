@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from common.runtime.github_api import write_github_output as _write_github_output
 
@@ -98,7 +98,7 @@ def _required(value: str, name: str) -> str:
     return value
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default=os.getenv("REGISTRY", ""))
     parser.add_argument("--image-prefix", default=os.getenv("IMAGE_PREFIX", ""))

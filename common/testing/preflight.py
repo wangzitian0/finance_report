@@ -340,7 +340,7 @@ def run_checks(
     return results
 
 
-def main(
+def run(
     argv: Sequence[str] | None = None,
     *,
     runner: Runner = _default_runner,
@@ -399,3 +399,7 @@ def main(
         return 1
     print("preflight: all relevant gates passed.")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    return run(argv)

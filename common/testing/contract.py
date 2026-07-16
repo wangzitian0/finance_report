@@ -3983,14 +3983,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.governance.17",
             statement=(
-                "Module-level main functions under common/ and tools/ converge on "
-                "Sequence[str] | None -> int, while a shrink-only path baseline "
-                "rejects new legacy signatures and new check modules that bypass "
-                "the shared gate runner."
+                "During migration, the structural gate rejects new legacy main "
+                "signatures and check modules that bypass the shared gate runner."
             ),
             test=(
-                "tests/tooling/test_s4_gate_contracts.py"
-                "::test_AC_testing_governance_17_main_contract_ratchet_rejects_new_debt"
+                "tests/tooling/test_s4_gate_contracts.py::"
+                "test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed"
             ),
             priority="P1",
             status="done",
@@ -4048,6 +4046,21 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_s4_gate_contracts.py"
                 "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.governance.22",
+            statement=(
+                "Every module-level common/tools main uses the composable "
+                "Sequence[str] argv and integer-status contract, every common check "
+                "uses the shared gate runner, and the allowlist-free AST gate fails "
+                "closed on malformed Python without a legacy baseline."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed"
             ),
             priority="P1",
             status="done",
@@ -4136,13 +4149,14 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="gate_cli",
-            owner="common/testing/gate_cli.py",
+            owner="common/meta/base/gate_cli.py",
             description=(
                 "Shared policy-gate command boundary for repository-root parsing, "
                 "workflow-command-safe annotations, summaries, and integer status codes."
             ),
             cross_refs=[
                 "common/testing/README.md",
+                "common/testing/gate_cli.py",
                 "common/testing/baseline_update_contract.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
@@ -4153,17 +4167,17 @@ CONTRACT = PackageContract(
             key="gate_main_contract",
             owner="common/testing/gate_main_contract.py",
             description=(
-                "Shrink-only structural lock for composable gate main signatures "
-                "and adoption of the shared gate CLI runner."
+                "Allowlist-free structural lock for composable main signatures, "
+                "process-exit boundaries, malformed Python, and adoption of the "
+                "shared gate CLI runner."
             ),
             cross_refs=[
-                "common/testing/data/gate-main-contract-baseline.json",
                 "common/testing/README.md",
                 "tools/check_gate_main_contract.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
             family="delivery",
-            kind="baseline",
+            kind="concept",
         ),
         ConceptRecord(
             key="api_surface_ratchet",

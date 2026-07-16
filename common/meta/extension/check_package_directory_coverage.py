@@ -26,7 +26,10 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+
+from common.meta.base.gate_cli import run_gate
 
 # This module lives at common/meta/extension/check_package_directory_coverage.py,
 # so the repo root is three parents up (extension -> meta -> common -> repo).
@@ -126,7 +129,7 @@ def check_directory_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repo-root",
@@ -146,6 +149,22 @@ def main(argv: list[str] | None = None) -> int:
         "[DIRECTORY COVERAGE] PASSED: every common/ directory is governed or excepted."
     )
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "PACKAGE-DIRECTORY-COVERAGE",
+        lambda _repo_root: findings,
+        [],
+        failure_status=status,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -60,7 +61,7 @@ def count_call_sites() -> dict[str, int]:
     return counts
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     total = sum(count_call_sites().values())
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))["total"]
@@ -92,4 +93,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    raise SystemExit(main())

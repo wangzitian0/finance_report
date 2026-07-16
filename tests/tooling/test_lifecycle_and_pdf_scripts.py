@@ -3,13 +3,12 @@ AC16.13.8 AC16.13.9 AC16.13.10 AC16.13.11 AC16.13.12: lifecycle and PDF script c
 """
 
 import hashlib
-import json
 import importlib
+import json
 import sys
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -883,9 +882,7 @@ class TestMainFunction:
         monkeypatch.setattr(tl.signal, "signal", lambda *a: None)
         monkeypatch.setattr(tl.sys, "argv", ["test_lifecycle.py"])
 
-        with pytest.raises(SystemExit) as exc:
-            tl.main()
-        assert exc.value.code == 1
+        assert tl.main() == 1
 
     def test_main_exception_exits(self, monkeypatch, tmp_path):
         """Lines 608-610: exception during main exits."""
@@ -900,9 +897,7 @@ class TestMainFunction:
         monkeypatch.setattr(tl.signal, "signal", lambda *a: None)
         monkeypatch.setattr(tl.sys, "argv", ["test_lifecycle.py"])
 
-        with pytest.raises(SystemExit) as exc:
-            tl.main()
-        assert exc.value.code == 1
+        assert tl.main() == 1
 
 
 class TestGetChangedFilesEdgeCases:

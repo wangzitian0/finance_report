@@ -167,7 +167,7 @@ def render_report(results: list[ReverifyResult]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv: list[str] | None = None, *, live_extractor: LiveExtractor) -> int:
+def run(argv: list[str] | None = None, *, live_extractor: LiveExtractor) -> int:
     """CLI orchestration only — deliberately domain-agnostic (common/testing is
     infra-tier and must not import a specific domain package's extraction code;
     see tools/reverify_real_corpus.py for the concrete extractor + entrypoint).

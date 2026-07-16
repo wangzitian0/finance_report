@@ -7,20 +7,19 @@ import argparse
 import ast
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from common.meta.base.gate_cli import run_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_E2E_ROOTS = (
     "tests/e2e",
     "apps/backend/tests/e2e",
 )
-DECLARED_NON_PRODUCT_E2E_ROOTS = (
-    "repo/e2e_regressions",
-)
-DECLARED_NON_PRODUCT_E2E_FILES = (
-    "repo/finance/appwrite/scripts/e2e-test.sh",
-)
+DECLARED_NON_PRODUCT_E2E_ROOTS = ("repo/e2e_regressions",)
+DECLARED_NON_PRODUCT_E2E_FILES = ("repo/finance/appwrite/scripts/e2e-test.sh",)
 E2E_ASSET_SUFFIXES = {".py", ".sh", ".ts", ".tsx", ".js", ".jsx"}
 EXCLUDED_SCAN_DIRS = {
     ".git",
@@ -102,9 +101,13 @@ class TraceabilityResult:
         missing = sorted(project - readme)
         unknown = sorted(readme - project)
         if missing:
-            errors.append(f"README EPIC map missing project EPICs: {', '.join(missing)}")
+            errors.append(
+                f"README EPIC map missing project EPICs: {', '.join(missing)}"
+            )
         if unknown:
-            errors.append(f"README EPIC map includes unknown EPICs: {', '.join(unknown)}")
+            errors.append(
+                f"README EPIC map includes unknown EPICs: {', '.join(unknown)}"
+            )
         return errors
 
     @property
@@ -425,7 +428,7 @@ def render_report(result: TraceabilityResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Check that product E2E test functions and project EPICs are linked."
@@ -440,11 +443,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", help="Optional Markdown report path.")
     parser.add_argument("--report-only", action="store_true")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     repo_root = Path(args.repo_root)
     result = check_traceability(repo_root, tuple(args.e2e_roots))
     report = render_report(result)
@@ -468,5 +471,18 @@ def main() -> int:
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "E2E-EPIC-TRACEABILITY", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

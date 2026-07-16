@@ -27,6 +27,7 @@ import asyncio
 import os
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -118,7 +119,7 @@ async def _run(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     return asyncio.run(_run(_parse_args(argv)))
 
 

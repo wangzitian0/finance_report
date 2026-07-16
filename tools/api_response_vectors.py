@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -316,7 +317,7 @@ def build_vector_files() -> dict[Path, dict[str, Any]]:
     }
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     for path, payload in build_vector_files().items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -325,4 +326,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    raise SystemExit(main())
