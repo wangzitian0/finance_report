@@ -681,6 +681,41 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     assert gate_with_custom_exception_path["exception_count"] == 1
 
 
+def test_AC14_1_13_deleted_ssot_file_does_not_require_current_owner(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.3: Retired SSOT files need no current owner."""
+
+    _write_yaml(tmp_path / "common/meta/data/MANIFEST.yaml", {"concepts": {}})
+    base_manifest = dedent(
+        """
+        concepts:
+          retired:
+            owner: common/meta/data/retired-baseline.json
+            description: Retired governance baseline.
+            family: platform
+            kind: concept
+        """
+    ).lstrip()
+
+    gate = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        [
+            "common/meta/data/MANIFEST.yaml",
+            "common/meta/data/retired-baseline.json",
+        ],
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+
+    assert not any(
+        violation["code"] == "changed_ssot_file_without_owner"
+        and violation["target"]
+        == "finance_report:common/meta/data/retired-baseline.json"
+        for violation in gate["violations"]
+    )
+
+
 def test_AC14_1_13_gate_helper_edges_remain_incremental(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
