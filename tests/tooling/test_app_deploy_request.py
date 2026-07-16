@@ -21,10 +21,10 @@ from tools import app_deploy_request as renderer
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools/app_deploy_request.py"
 SDK_URL = (
-    "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/"
-    "infra2_sdk-0.1.0-py3-none-any.whl"
+    "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.3.0/"
+    "infra2_sdk-0.3.0-py3-none-any.whl"
 )
-SDK_HASH = "sha256:94bfdc8b13c5bdcef9ee9150eda0ec794d3b3a0b4b11d529c29d6a2a1ba32a55"
+SDK_HASH = "sha256:2046043be5d1072fe405851e7b5b9c9e2d0729a5ac8273552f24bd1228347c5c"
 
 VALID_REQUEST = {
     "contract_version": 1,
@@ -69,7 +69,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
-    assert package["version"] == "0.1.0"
+    assert package["version"] == "0.3.0"
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 

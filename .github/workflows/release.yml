@@ -333,9 +333,9 @@ jobs:
         run: |
           set -euo pipefail
           sdk_dir="$(mktemp -d)"
-          sdk_wheel="${sdk_dir}/infra2_sdk-0.1.0-py3-none-any.whl"
-          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v0.1.0/infra2_sdk-0.1.0-py3-none-any.whl"
-          sdk_sha256="94bfdc8b13c5bdcef9ee9150eda0ec794d3b3a0b4b11d529c29d6a2a1ba32a55"
+          sdk_wheel="${sdk_dir}/infra2_sdk-0.3.0-py3-none-any.whl"
+          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v0.3.0/infra2_sdk-0.3.0-py3-none-any.whl"
+          sdk_sha256="2046043be5d1072fe405851e7b5b9c9e2d0729a5ac8273552f24bd1228347c5c"
           curl --fail --location --silent --show-error \
             "$sdk_url" --output "$sdk_wheel"
           echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status || {

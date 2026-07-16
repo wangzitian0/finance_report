@@ -129,7 +129,7 @@ def test_AC7_16_2_staging_receiver_dependency_install_retries() -> None:
     shell = _step_run_by_id(steps, "install_deploy_v2")
 
     assert "pip install" in shell
-    assert "httpx" in shell and "infra2_sdk-0.1.0" in shell
+    assert "httpx" in shell and "infra2_sdk-0.3.0" in shell
     assert _has_bounded_backoff_retry(shell), (
         "App deploy request dependencies must use the bounded backoff retry idiom"
     )
