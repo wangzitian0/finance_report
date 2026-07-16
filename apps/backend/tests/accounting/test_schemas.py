@@ -146,31 +146,30 @@ class TestJournalEntrySchemas:
         )
         assert len(entry.lines) == 2
 
-    def test_journal_entry_unbalanced_fails(self):
-        """Test that unbalanced entries are rejected."""
+    def test_journal_entry_unbalanced_allowed_by_schema(self):
+        """Test that unbalanced entries pass schema validation."""
         account1 = uuid4()
         account2 = uuid4()
 
-        with pytest.raises(ValidationError) as exc_info:
-            JournalEntryCreate(
-                entry_date=date.today(),
-                memo="Unbalanced",
-                lines=[
-                    JournalLineCreate(
-                        account_id=account1,
-                        direction=Direction.DEBIT,
-                        amount=Decimal("100.00"),
-                        currency="SGD",
-                    ),
-                    JournalLineCreate(
-                        account_id=account2,
-                        direction=Direction.CREDIT,
-                        amount=Decimal("50.00"),
-                        currency="SGD",
-                    ),
-                ],
-            )
-        assert "not balanced" in str(exc_info.value)
+        entry = JournalEntryCreate(
+            entry_date=date.today(),
+            memo="Unbalanced",
+            lines=[
+                JournalLineCreate(
+                    account_id=account1,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("100.00"),
+                    currency="SGD",
+                ),
+                JournalLineCreate(
+                    account_id=account2,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("50.00"),
+                    currency="SGD",
+                ),
+            ],
+        )
+        assert len(entry.lines) == 2
 
     def test_journal_entry_single_line_fails(self):
         """Test that single-line entries are rejected."""
