@@ -343,6 +343,7 @@ _OBSERVER_BUILTINS = frozenset(
         "tuple",
     }
 )
+_UNKNOWN_RESULT = object()
 
 
 def _bound_names(target: ast.expr) -> set[str]:
@@ -433,6 +434,9 @@ def _observer_uses_runtime_state(
 ) -> bool:
     if isinstance(observer, ast.Name):
         return False
+    expression = observer.body if isinstance(observer, ast.Lambda) else observer
+    if _static_result(expression) is not _UNKNOWN_RESULT:
+        return False
     lambda_arguments: set[str] = set()
     if isinstance(observer, ast.Lambda):
         lambda_arguments = {argument.arg for argument in observer.args.args}
@@ -446,6 +450,36 @@ def _observer_uses_runtime_state(
     return bool(referenced)
 
 
+def _static_result(node: ast.expr) -> object:
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError):
+        pass
+    if isinstance(node, ast.IfExp):
+        condition = _static_result(node.test)
+        if condition is not _UNKNOWN_RESULT:
+            return _static_result(node.body if condition else node.orelse)
+        body = _static_result(node.body)
+        alternative = _static_result(node.orelse)
+        if (
+            body is not _UNKNOWN_RESULT
+            and alternative is not _UNKNOWN_RESULT
+            and body == alternative
+        ):
+            return body
+    elif isinstance(node, ast.BoolOp):
+        for value_node in node.values[:-1]:
+            value = _static_result(value_node)
+            if value is _UNKNOWN_RESULT:
+                return _UNKNOWN_RESULT
+            if (isinstance(node.op, ast.Or) and value) or (
+                isinstance(node.op, ast.And) and not value
+            ):
+                return value
+        return _static_result(node.values[-1])
+    return _UNKNOWN_RESULT
+
+
 def _executed_string_value(node: ast.expr, constants: dict[str, str]) -> str | None:
     if isinstance(node, ast.IfExp):
         try:
@@ -457,7 +491,7 @@ def _executed_string_value(node: ast.expr, constants: dict[str, str]) -> str | N
     return _string_value(node, constants)
 
 
-def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> set[str]:
+def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str]:
     argv = (
         call.args[0]
         if call.args
@@ -466,12 +500,12 @@ def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> set[str]:
         )
     )
     if not isinstance(argv, (ast.List, ast.Tuple)):
-        return set()
-    return {
+        return []
+    return [
         value
         for element in argv.elts
         if (value := _executed_string_value(element, constants)) is not None
-    }
+    ]
 
 
 def _proof_status(
@@ -521,7 +555,12 @@ def _proof_status(
                 and call.func.attr == "main"
             ):
                 continue
-            if mutation_flag in _call_argv_strings(call, proof_constants):
+            invocation_flags = [
+                value
+                for value in _call_argv_strings(call, proof_constants)
+                if _is_monotonic_mutation_flag(value)
+            ]
+            if invocation_flags == [mutation_flag]:
                 updater_is_bound = True
                 break
         if not updater_is_bound:

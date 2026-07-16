@@ -538,6 +538,29 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "tests/tooling/test_missing.py::test_missing"
     ]
 
+    for debt_observer, baseline_observer in (
+        ("lambda: True or debt", "lambda: b'fixed' if debt else b'fixed'"),
+        ("lambda: bool(debt)", "lambda: b'fixed' if debt else b'fixed'"),
+        ("lambda: False and debt", "lambda: debt"),
+        ("lambda: bool(debt)", "lambda: b'fixed' if True else debt"),
+    ):
+        proof_file.write_text(
+            "from common.testing import baseline_update_contract, synthetic\n\n"
+            "def test_missing():\n"
+            "    debt = {'new-debt'}\n"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            f"        regression_debt_present={debt_observer},\n"
+            f"        baseline_state={baseline_observer},\n"
+            '        update=lambda: synthetic.main(["--update"]),\n'
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(synthetic_root) == [
+            "common/testing/synthetic.py [--update]: behavioral proof uses constant "
+            "or vacuous regression-debt observers: "
+            "tests/tooling/test_missing.py::test_missing"
+        ]
+
     proof_file.write_text(
         "from common.testing import baseline_update_contract, synthetic\n\n"
         "def always():\n"
@@ -733,6 +756,22 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
         "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
         "exercise synthetic regression debt through the refusal harness: "
         "tests/tooling/test_multi_flag.py::test_update"
+    ]
+
+    proof.write_text(
+        proof.read_text(encoding="utf-8").replace(
+            'multi_flag.main(["--update"])',
+            'multi_flag.main(["--update", "--update-floor"])',
+        ),
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update]: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update",
     ]
 
     proof.write_text(
