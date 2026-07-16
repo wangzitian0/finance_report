@@ -383,9 +383,43 @@ def _destructured_literal_names(target: ast.expr, value: ast.expr) -> set[str]:
     }
 
 
+class _ScopedAssignmentVisitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.assignments: list[ast.Assign | ast.AnnAssign] = []
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.assignments.append(node)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self.assignments.append(node)
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        return
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        return
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        return
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        return
+
+
+def _scoped_assignments(
+    function: TestFunction,
+) -> list[ast.Assign | ast.AnnAssign]:
+    visitor = _ScopedAssignmentVisitor()
+    for statement in function.body:
+        visitor.visit(statement)
+    return visitor.assignments
+
+
 def _literal_local_names(function: TestFunction) -> set[str]:
     names: set[str] = set()
-    for node in function.body:
+    for node in _scoped_assignments(function):
         if isinstance(node, ast.Assign):
             if len(node.targets) > 1:
                 try:
@@ -491,7 +525,17 @@ def _executed_string_value(node: ast.expr, constants: dict[str, str]) -> str | N
     return _string_value(node, constants)
 
 
-def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str]:
+def _is_explicit_non_option_value(node: ast.expr) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "str"
+        and len(node.args) == 1
+        and not node.keywords
+    )
+
+
+def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str] | None:
     argv = (
         call.args[0]
         if call.args
@@ -500,12 +544,15 @@ def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> list[str]:
         )
     )
     if not isinstance(argv, (ast.List, ast.Tuple)):
-        return []
-    return [
-        value
-        for element in argv.elts
-        if (value := _executed_string_value(element, constants)) is not None
-    ]
+        return None
+    values: list[str] = []
+    for element in argv.elts:
+        value = _executed_string_value(element, constants)
+        if value is not None:
+            values.append(value)
+        elif not _is_explicit_non_option_value(element):
+            return None
+    return values
 
 
 def _proof_status(
@@ -555,10 +602,11 @@ def _proof_status(
                 and call.func.attr == "main"
             ):
                 continue
+            argv_strings = _call_argv_strings(call, proof_constants)
+            if argv_strings is None:
+                continue
             invocation_flags = [
-                value
-                for value in _call_argv_strings(call, proof_constants)
-                if _is_monotonic_mutation_flag(value)
+                value for value in argv_strings if _is_monotonic_mutation_flag(value)
             ]
             if invocation_flags == [mutation_flag]:
                 updater_is_bound = True

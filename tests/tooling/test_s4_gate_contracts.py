@@ -606,6 +606,25 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     proof_file.write_text(
         "from common.testing import baseline_update_contract, synthetic\n\n"
         "def test_missing():\n"
+        "    if True:\n"
+        "        debt = True\n"
+        "        baseline = b'baseline'\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: debt,\n"
+        "        baseline_state=lambda: baseline,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
         "    debt = {'new-debt'}\n"
         "    _head, *baseline = (True, b'baseline')\n"
         "    assert baseline_update_contract.assert_regression_debt_refused(\n"
@@ -773,6 +792,32 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
         "exercise synthetic regression debt through the refusal harness: "
         "tests/tooling/test_multi_flag.py::test_update",
     ]
+
+    for extra_setup, invocation in (
+        ("    extra = build_flag()\n", '["--update", extra]'),
+        ("    extra = build_flags()\n", '["--update", *extra]'),
+    ):
+        proof.write_text(
+            "from common.testing import baseline_update_contract, multi_flag\n\n"
+            "def test_update(tmp_path):\n"
+            "    baseline = tmp_path / 'baseline'\n"
+            "    debt = {'new-debt'}\n"
+            f"{extra_setup}"
+            "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+            "        regression_debt_present=lambda: bool(debt),\n"
+            "        baseline_state=baseline.read_bytes,\n"
+            f"        update=lambda: multi_flag.main({invocation}),\n"
+            "    ) == 1\n",
+            encoding="utf-8",
+        )
+        assert baseline_update_contract.proof_violations(tmp_path) == [
+            "common/testing/multi_flag.py [--update]: behavioral proof does not "
+            "exercise synthetic regression debt through the refusal harness: "
+            "tests/tooling/test_multi_flag.py::test_update",
+            "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+            "exercise synthetic regression debt through the refusal harness: "
+            "tests/tooling/test_multi_flag.py::test_update",
+        ]
 
     proof.write_text(
         "from common.testing import baseline_update_contract, multi_flag\n\n"
