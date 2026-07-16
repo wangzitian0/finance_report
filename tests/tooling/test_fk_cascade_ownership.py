@@ -62,6 +62,76 @@ def test_AC_audit_deletion_ownership_1_rejects_false_internal_owner() -> None:
         validate_inventory(sites, inventory)
 
 
+def test_AC_audit_deletion_ownership_1_rejects_forged_target_owner() -> None:
+    sites = discover_cascades(SRC)
+    inventory = list(load_inventory(INVENTORY_PATH))
+    debt_index = next(
+        index
+        for index, record in enumerate(inventory)
+        if "ManagedPosition.account_id->accounts.id" in record.site
+    )
+    debt = inventory[debt_index]
+    inventory[debt_index] = replace(
+        debt,
+        target_owner=debt.source_owner,
+        classification="aggregate_internal",
+        issue=None,
+    )
+
+    with pytest.raises(CascadeInventoryError, match="target_owner must be 'ledger'"):
+        validate_inventory(sites, inventory)
+
+
+def test_AC_audit_deletion_ownership_1_discovers_module_level_table(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "sample"
+    package.mkdir()
+    (package / "models.py").write_text(
+        "class Parent:\n"
+        "    __tablename__ = 'parents'\n"
+        "association = Table(\n"
+        "    'association', metadata,\n"
+        "    Column('parent_id', ForeignKey('parents.id', ondelete='CASCADE')),\n"
+        ")\n",
+        encoding="utf-8",
+    )
+
+    sites = discover_cascades(tmp_path)
+
+    assert len(sites) == 1
+    assert sites[0].site == "sample/models.py::association.parent_id->parents.id"
+    assert sites[0].source_owner == "sample"
+    assert sites[0].target_owner == "sample"
+
+
+@pytest.mark.parametrize("ambiguous", [False, True], ids=["missing", "ambiguous"])
+def test_AC_audit_deletion_ownership_1_rejects_unresolved_target_owner(
+    tmp_path: Path, ambiguous: bool
+) -> None:
+    child = tmp_path / "child"
+    child.mkdir()
+    (child / "models.py").write_text(
+        "class Child:\n"
+        "    parent_id = mapped_column(\n"
+        "        ForeignKey('parents.id', ondelete='CASCADE')\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+    if ambiguous:
+        for owner in ("alpha", "beta"):
+            package = tmp_path / owner
+            package.mkdir()
+            (package / "models.py").write_text(
+                "class Parent:\n    __tablename__ = 'parents'\n",
+                encoding="utf-8",
+            )
+
+    message = "ambiguous owner" if ambiguous else "has no literal table owner"
+    with pytest.raises(CascadeInventoryError, match=message):
+        discover_cascades(tmp_path)
+
+
 def test_AC_audit_deletion_ownership_1_retires_coarse_meta_baseline() -> None:
     assert not (REPO / "common/meta/data/fk-cascade-baseline.json").exists()
     assert not (REPO / "tests/tooling/test_fk_cascade_ratchet.py").exists()
@@ -135,13 +205,13 @@ def test_AC_audit_deletion_ownership_1_rejects_unreviewable_decisions() -> None:
         (
             purge_index,
             {"target_owner": inventory[purge_index].source_owner},
-            "purge_owned",
+            "target_owner must be",
         ),
         (purge_index, {"issue": None}, "purge-owned debt"),
         (
             cross_index,
             {"target_owner": inventory[cross_index].source_owner},
-            "cross_domain",
+            "target_owner must be",
         ),
         (cross_index, {"issue": None}, "cross-domain debt"),
     ]

@@ -38,6 +38,13 @@ owns the exact declaration-level inventory in
 `data/fk-cascade-ownership.json`, discovered and validated by
 `extension/cascade_ownership.py`.
 
+Discovery scans every `ForeignKey(..., ondelete="CASCADE")` call in production
+source, including module-level `Table(...)` declarations. Source ownership comes
+from the implementation package path; target ownership is independently derived
+from the unique literal `__tablename__` declaration. Missing or ambiguous table
+owners fail closed, so the reviewed inventory cannot self-assert either side of
+an ownership boundary.
+
 Each site has exactly one class:
 
 - `aggregate_internal` is an approved lifecycle edge whose source and target

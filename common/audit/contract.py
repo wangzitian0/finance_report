@@ -1425,9 +1425,11 @@ CONTRACT = PackageContract(
             description=(
                 "Exact per-declaration ownership and deletion classification for "
                 'production ForeignKey(..., ondelete="CASCADE") sites. The audit '
-                "extension discovers source owners and requires inventory equality; "
-                "only aggregate-internal survivors are approved, while purge-owned "
-                "and cross-domain records are explicit shrink-only #1848 debt."
+                "extension scans every AST context, derives source owners from package "
+                "paths and target owners from unique literal table declarations, and "
+                "requires inventory equality; only aggregate-internal survivors are "
+                "approved, while purge-owned and cross-domain records are explicit "
+                "shrink-only #1848 debt."
             ),
             cross_refs=[
                 "common/audit/extension/cascade_ownership.py",
