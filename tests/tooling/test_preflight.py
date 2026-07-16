@@ -29,12 +29,24 @@ class TestSelectChecks:
         ]
         assert "ssot-ownership" in names
 
-    def test_AC_testing_preflight_1_package_contract_edit_selects_authority_reconcile(
-        self,
+    @pytest.mark.parametrize(
+        "changed_path",
+        [
+            "common/testing/contract.py",
+            "tests/tooling/test_s4_gate_contracts.py",
+            "apps/backend/tests/ledger/test_accounting_equation.py",
+            "apps/frontend/src/app/__tests__/page.test.tsx",
+            "apps/frontend/src/lib/api.spec.ts",
+            "common/meta/base/authority_matrix.py",
+            "common/meta/extension/authority_classifier.py",
+            "common/meta/extension/check_authority_reconcile.py",
+            "common/meta/extension/generate_ac_registry.py",
+        ],
+    )
+    def test_AC_testing_preflight_1_authority_input_selects_reconcile(
+        self, changed_path: str
     ):
-        names = [
-            c.name for c in preflight.select_checks(["common/testing/contract.py"])
-        ]
+        names = [c.name for c in preflight.select_checks([changed_path])]
         assert "authority-reconcile" in names
 
     def test_docs_edit_selects_doc_consistency(self):

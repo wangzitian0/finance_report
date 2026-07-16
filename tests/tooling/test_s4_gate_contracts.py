@@ -174,6 +174,13 @@ def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
         'BASELINE_UPDATE_MODE = "rewrite"\nparser.add_argument("--rewrite-baseline")\n',
         encoding="utf-8",
     )
+    named = package / "named.py"
+    named.write_text(
+        'UPDATE_FLAG = "--update"\n'
+        'BASELINE_UPDATE_MODE = "shrink-only"\n'
+        "parser.add_argument(UPDATE_FLAG)\n",
+        encoding="utf-8",
+    )
     assert baseline_update_contract.declaration_violations(tmp_path) == []
 
     rewrite.write_text(
@@ -196,16 +203,21 @@ def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
         'def main(args):\n    if "--update" in args:\n        return 0\n',
         encoding="utf-8",
     )
+    named.write_text(
+        'UPDATE_FLAG = "--update"\nparser.add_argument(UPDATE_FLAG)\n',
+        encoding="utf-8",
+    )
     (package / "monotonic_rewrite.py").write_text(
         'BASELINE_UPDATE_MODE = "shrink-only"\n'
         'parser.add_argument("--rewrite-baseline")\n',
         encoding="utf-8",
     )
     findings = baseline_update_contract.declaration_violations(tmp_path)
-    assert len(findings) == 5
+    assert len(findings) == 6
     assert any("has no mutation flag" in finding for finding in findings)
     assert any("requires BASELINE_UPDATE_MODE" in finding for finding in findings)
     assert any("--rewrite-baseline requires" in finding for finding in findings)
+    assert any("named.py" in finding for finding in findings)
     assert baseline_update_contract.main(["--repo-root", str(tmp_path)]) == 1
 
     with pytest.raises(SystemExit):
@@ -416,8 +428,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     synthetic_updater = synthetic_root / "common/testing/synthetic.py"
     synthetic_updater.parent.mkdir(parents=True)
     synthetic_updater.write_text(
+        'UPDATE_FLAG = "--" + "update"\n'
         'BASELINE_UPDATE_MODE = "shrink-only"\n'
-        'def main(args):\n    return 0 if "--update" in args else 1\n',
+        "parser.add_argument(UPDATE_FLAG)\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(baseline_update_contract, "MONOTONIC_UPDATE_PROOFS", {})

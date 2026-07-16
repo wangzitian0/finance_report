@@ -81,7 +81,51 @@ def _declared_mode(tree: ast.Module) -> str | None:
     return None
 
 
+def _string_value(node: ast.expr, constants: dict[str, str]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _string_value(node.left, constants)
+        right = _string_value(node.right, constants)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
+def _module_string_constants(tree: ast.Module) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets, value = [node.target], node.value
+        if value is None:
+            continue
+        resolved = _string_value(value, constants)
+        if resolved is not None:
+            constants.update(
+                (target.id, resolved)
+                for target in targets
+                if isinstance(target, ast.Name)
+            )
+    return constants
+
+
+def _is_argument_sequence(node: ast.expr) -> bool:
+    return (isinstance(node, ast.Name) and node.id in {"args", "argv"}) or (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "sys"
+        and node.attr == "argv"
+    )
+
+
 def _mutation_flags(tree: ast.Module) -> set[str]:
+    constants = _module_string_constants(tree)
     flags: set[str] = set()
     for node in ast.walk(tree):
         if (
@@ -90,17 +134,20 @@ def _mutation_flags(tree: ast.Module) -> set[str]:
             and node.func.attr == "add_argument"
         ):
             flags.update(
-                arg.value
+                value
                 for arg in node.args
-                if isinstance(arg, ast.Constant) and arg.value in MUTATION_FLAGS
+                if (value := _string_value(arg, constants)) in MUTATION_FLAGS
             )
-        elif (
-            isinstance(node, ast.Compare)
-            and isinstance(node.left, ast.Constant)
-            and node.left.value in MUTATION_FLAGS
-            and any(isinstance(operator, (ast.In, ast.NotIn)) for operator in node.ops)
-        ):
-            flags.add(node.left.value)
+        elif isinstance(node, ast.Compare):
+            value = _string_value(node.left, constants)
+            if value not in MUTATION_FLAGS:
+                continue
+            if any(
+                isinstance(operator, (ast.In, ast.NotIn))
+                and _is_argument_sequence(comparator)
+                for operator, comparator in zip(node.ops, node.comparators, strict=True)
+            ):
+                flags.add(value)
     return flags
 
 

@@ -75,10 +75,10 @@ Baseline mutation is explicit and machine-checked by
 `shrink-only` mutation. A command that can replace an entire baseline must
 declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
 `--rewrite-baseline` flag. Its monotonic-updater census recognizes both
-`argparse` declarations and manual argument-membership checks, and every path
-must map to a live test node that drives regression debt through the updater.
-A newly added `--update` path therefore cannot be covered by a declaration
-alone.
+`argparse` declarations and manual argument-membership checks, resolving simple
+module-level string constants in both forms. Every path must map to a live test
+node that drives regression debt through the updater. A newly added `--update`
+path therefore cannot be covered by a declaration alone.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires

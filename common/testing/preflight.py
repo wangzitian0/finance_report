@@ -94,9 +94,21 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="authority-reconcile",
-        globs=("common/*/contract.py",),
+        globs=(
+            "common/*/contract.py",
+            "tests/*.py",
+            "apps/backend/tests/*.py",
+            "apps/frontend/*.test.ts",
+            "apps/frontend/*.test.tsx",
+            "apps/frontend/*.spec.ts",
+            "apps/frontend/*.spec.tsx",
+            "common/meta/base/authority_matrix.py",
+            "common/meta/extension/authority_classifier.py",
+            "common/meta/extension/check_authority_reconcile.py",
+            "common/meta/extension/generate_ac_registry.py",
+        ),
         commands=((PY, "tools/check_authority_reconcile.py"),),
-        why="Package contract changed: declared authority tier must still match the CODE/LLM shape of its roadmap proofs",
+        why="Authority input changed: declared package tiers must still match the CODE/LLM shape of their roadmap proofs",
     ),
     Check(
         name="doc-consistency",
