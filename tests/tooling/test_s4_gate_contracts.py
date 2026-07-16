@@ -448,3 +448,19 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/testing/synthetic.py: behavioral proof node does not exist: "
         "tests/tooling/test_missing.py::test_missing"
     ]
+
+    proof_file = synthetic_root / "tests/tooling/test_missing.py"
+    proof_file.parent.mkdir(parents=True)
+    proof_file.write_text("def test_missing():\n    assert True\n", encoding="utf-8")
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py: behavioral proof does not assert the "
+        "updater's --update path: tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import synthetic\n\n"
+        "def test_missing():\n"
+        '    assert synthetic.main(["--update"]) == 1\n',
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == []

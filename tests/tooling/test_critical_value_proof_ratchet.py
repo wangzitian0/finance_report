@@ -76,8 +76,13 @@ def test_value_asserting_kinds_are_the_oracle_set() -> None:
     assert "evidence" not in cvp.VALUE_ASSERTING_KINDS
 
 
-def test_baseline_only_shrinks_never_grows() -> None:
+def test_baseline_only_shrinks_never_grows(tmp_path: Path, monkeypatch) -> None:
     """The ratchet refuses --update if it would add a new violation."""
-    # current == baseline today, so a plain update is a no-op success; the
-    # shrink-only guard is unit-covered here by asserting the gate is green.
-    assert cvp.main([]) == 0
+    baseline = tmp_path / "critical-value-proof-baseline.json"
+    baseline.write_text(json.dumps({"non_value_proofs": ["legacy"]}), encoding="utf-8")
+    monkeypatch.setattr(cvp, "BASELINE_PATH", baseline)
+    monkeypatch.setattr(cvp, "current_non_value_proofs", lambda: {"legacy", "new-debt"})
+
+    before = baseline.read_bytes()
+    assert cvp.main(["--update"]) == 1
+    assert baseline.read_bytes() == before

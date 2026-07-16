@@ -206,19 +206,97 @@ def declaration_violations(repo_root: Path) -> list[str]:
     return findings
 
 
-def _test_node_exists(repo_root: Path, node_id: str) -> bool:
+TestFunction = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _test_node(repo_root: Path, node_id: str) -> tuple[ast.Module, TestFunction] | None:
     test_path_text, separator, test_name = node_id.partition("::")
     if not separator or not test_name:
-        return False
+        return None
     test_path = repo_root / test_path_text
     if not test_path.is_file():
-        return False
+        return None
     tree = ast.parse(test_path.read_text(encoding="utf-8"), filename=str(test_path))
-    return any(
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == test_name
-        for node in tree.body
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+            node.name == test_name
+        ):
+            return tree, node
+    return None
+
+
+def _updater_aliases(
+    tree: ast.Module, function: TestFunction, module_name: str
+) -> set[str]:
+    aliases: set[str] = set()
+    import_nodes = [
+        node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))
+    ]
+    import_nodes.extend(
+        node
+        for node in ast.walk(function)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
     )
+    for node in import_nodes:
+        if isinstance(node, ast.Import):
+            aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == module_name and alias.asname is not None
+            )
+            continue
+        aliases.update(
+            alias.asname or alias.name
+            for alias in node.names
+            if f"{node.module}.{alias.name}" == module_name
+        )
+
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        value = node.value
+        if (
+            not isinstance(target, ast.Name)
+            or not isinstance(value, ast.Call)
+            or not isinstance(value.func, ast.Attribute)
+            or not isinstance(value.func.value, ast.Name)
+            or value.func.value.id != "importlib"
+            or value.func.attr != "import_module"
+            or not value.args
+        ):
+            continue
+        if _string_value(value.args[0], {}) == module_name:
+            aliases.add(target.id)
+    return aliases
+
+
+def _proof_exercises_updater(
+    tree: ast.Module, function: TestFunction, source_path: str
+) -> bool:
+    module_name = Path(source_path).with_suffix("").as_posix().replace("/", ".")
+    aliases = _updater_aliases(tree, function, module_name)
+    if not aliases:
+        return False
+    for assertion in ast.walk(function):
+        if not isinstance(assertion, ast.Assert):
+            continue
+        for call in ast.walk(assertion.test):
+            if not isinstance(call, ast.Call):
+                continue
+            if not (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id in aliases
+                and call.func.attr == "main"
+            ):
+                continue
+            if any(
+                isinstance(node, ast.Constant) and node.value == UPDATE_FLAG
+                for node in ast.walk(call)
+            ):
+                return True
+    return False
 
 
 def proof_violations(repo_root: Path) -> list[str]:
@@ -234,11 +312,17 @@ def proof_violations(repo_root: Path) -> list[str]:
         f"{path}: behavioral proof is stale; no monotonic --update path exists"
         for path in sorted(registered_paths - update_paths)
     )
-    findings.extend(
-        f"{path}: behavioral proof node does not exist: {MONOTONIC_UPDATE_PROOFS[path]}"
-        for path in sorted(update_paths & registered_paths)
-        if not _test_node_exists(repo_root, MONOTONIC_UPDATE_PROOFS[path])
-    )
+    for path in sorted(update_paths & registered_paths):
+        node_id = MONOTONIC_UPDATE_PROOFS[path]
+        test_node = _test_node(repo_root, node_id)
+        if test_node is None:
+            findings.append(f"{path}: behavioral proof node does not exist: {node_id}")
+            continue
+        if not _proof_exercises_updater(*test_node, path):
+            findings.append(
+                f"{path}: behavioral proof does not assert the updater's --update "
+                f"path: {node_id}"
+            )
     return findings
 
 
