@@ -1236,6 +1236,90 @@ def test_AC_meta_dependency_governance_2_qualified_assignment_alias_is_reported(
     assert change["before"] != change["after"]
 
 
+def test_AC_meta_dependency_governance_2_imported_definitions_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: imported definitions are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public_callback", "public_type"],
+        source="""
+        from .types import Input, callback
+
+        def public_type(value: Input) -> Input:
+            return value
+
+        def public_callback(fn=callback):
+            return fn
+        """,
+    )
+    definitions = repo / "apps/backend/src/provider/types.py"
+    _write(
+        definitions,
+        """
+        class Input:
+            value: str
+
+        def callback(value: str) -> str:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish imported definitions")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        definitions,
+        """
+        class Input:
+            value: int
+
+        def callback(value: str, strict: bool = False) -> str:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    assert {change["symbol"] for change in report["changed_public_symbols"]} == {
+        "public_callback",
+        "public_type",
+    }
+
+
+def test_AC_meta_dependency_governance_2_imported_decorator_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: decorator bindings are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        from .decorators import PUBLIC_BINDING
+
+        class Public:
+            @PUBLIC_BINDING
+            def value(self) -> str:
+                return "value"
+        """,
+    )
+    decorators = repo / "apps/backend/src/provider/decorators.py"
+    _write(decorators, "PUBLIC_BINDING = property\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish imported decorator")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(decorators, "PUBLIC_BINDING = cached_property\n")
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "Public"
+    assert change["before"] != change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):

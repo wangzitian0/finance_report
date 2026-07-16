@@ -175,10 +175,11 @@ declarations, annotated values,
 decorators, generic type parameters, local and repository-imported named defaults,
 annotation aliases (including `TYPE_CHECKING` declarations), class construction,
 repository-owned inherited APIs, public protocol dunder methods, and other public
-class members. Bare and module-qualified project bindings use the same resolver.
-Value bindings are fingerprinted at their assignment/import time, so later
-rebinding cannot rewrite a captured default or alias. Wildcard binding obeys the
-target's `__all__`; missing
+class members. Referenced project function/class definitions and decorator bindings
+are fingerprinted as well. Bare and module-qualified project bindings use the same
+resolver. Value bindings are fingerprinted at their assignment/import time, so
+later rebinding cannot rewrite a captured default or alias. Wildcard binding obeys
+the target's `__all__`; missing
 explicit or lazy targets and ambiguous lazy control flow fail closed. Every declared public
 symbol gets exactly one snapshot record, and the repository snapshot is ratcheted
 to zero unresolved dynamic exports; a declaration with no statically visible
