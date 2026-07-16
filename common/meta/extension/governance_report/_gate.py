@@ -82,10 +82,6 @@ def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
     return sorted(set(files))
 
 
-def _source_has_ssot_change(source_changed_files: list[str]) -> bool:
-    return any(in_ssot_territory(Path(path)) for path in source_changed_files)
-
-
 def _source_has_registry_change(
     source: ManifestSource,
     source_changed_files: list[str],
