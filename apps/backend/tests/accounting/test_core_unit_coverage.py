@@ -9,7 +9,6 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError as PydanticValidationError
 
 from src.audit import JournalEntrySourceType
 from src.ledger import Direction
@@ -63,15 +62,10 @@ class TestReportingHelpers:
 
 
 class TestJournalEntrySchema:
-    """Multi-currency journal balance validation via fx_rate."""
+    """Schema preserves FX input while ledger owns financial validation."""
 
-    def test_cross_currency_entry_balances_via_fx_rate(self):
-        """A base-currency debit balances a foreign credit only via fx_rate conversion.
-
-        Base currency is SGD: a 135.00 SGD debit balances a 100.00 USD credit only
-        because 100.00 * 1.35 == 135.00. If the validator ignored fx_rate it would
-        compare 135 vs 100 and reject — so this proves the conversion is applied.
-        """
+    def test_cross_currency_entry_preserves_fx_rate(self):
+        """FX metadata passes through the schema for ledger validation."""
         debit, credit = uuid4(), uuid4()
         entry = JournalEntryCreate(
             entry_date=date(2026, 1, 1),
@@ -93,28 +87,29 @@ class TestJournalEntrySchema:
             ],
         )
         assert len(entry.lines) == 2
+        assert entry.lines[1].fx_rate == Decimal("1.350000")
 
-    def test_cross_currency_entry_requires_fx_rate(self):
-        """A non-base-currency line without fx_rate fails balance validation."""
-        with pytest.raises(PydanticValidationError, match="fx_rate required"):
-            JournalEntryCreate(
-                entry_date=date(2026, 1, 1),
-                memo="bad fx",
-                lines=[
-                    JournalLineCreate(
-                        account_id=uuid4(),
-                        direction=Direction.DEBIT,
-                        amount=Decimal("100.00"),
-                        currency="USD",
-                    ),
-                    JournalLineCreate(
-                        account_id=uuid4(),
-                        direction=Direction.CREDIT,
-                        amount=Decimal("100.00"),
-                        currency="USD",
-                    ),
-                ],
-            )
+    def test_cross_currency_entry_defers_missing_fx_validation_to_ledger(self):
+        """Missing FX reaches the ledger service instead of reading process config here."""
+        entry = JournalEntryCreate(
+            entry_date=date(2026, 1, 1),
+            memo="ledger validates FX",
+            lines=[
+                JournalLineCreate(
+                    account_id=uuid4(),
+                    direction=Direction.DEBIT,
+                    amount=Decimal("100.00"),
+                    currency="USD",
+                ),
+                JournalLineCreate(
+                    account_id=uuid4(),
+                    direction=Direction.CREDIT,
+                    amount=Decimal("100.00"),
+                    currency="USD",
+                ),
+            ],
+        )
+        assert all(line.fx_rate is None for line in entry.lines)
 
 
 class TestInvestmentValidation:
