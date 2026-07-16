@@ -35,8 +35,12 @@ def test_AC_counter_repository_5_async_adapter_and_api_composition() -> None:
         SqlCounterRepository.__new__(SqlCounterRepository), CounterRepository
     )
 
-    write_source = (SRC / "counter/extension/api/write.py").read_text(encoding="utf-8")
-    read_source = (SRC / "counter/extension/api/insight.py").read_text(encoding="utf-8")
+    write_source = (SRC / "counter/extension/facade/write.py").read_text(
+        encoding="utf-8"
+    )
+    read_source = (SRC / "counter/extension/facade/insight.py").read_text(
+        encoding="utf-8"
+    )
     assert "await increment(repo" in write_source
     assert "await get_count(repo" in read_source
     assert "repo.bump(" not in write_source
