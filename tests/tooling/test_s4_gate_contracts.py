@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
 import importlib
 import json
+import runpy
 from collections.abc import Callable
 from pathlib import Path
 
@@ -209,8 +211,24 @@ def test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero
     )
     (common / "check_qualified_runner.py").write_text(
         "from collections.abc import Sequence\n"
+        "from common.testing import gate_cli\n"
         "def main(argv: Sequence[str] | None = None) -> int:\n"
         "    return gate_cli.run_gate('X', lambda _: [], argv)\n",
+        encoding="utf-8",
+    )
+    (common / "check_unrelated_runner.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def helper():\n"
+        "    return object().run_gate()\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    (common / "check_wrong_runner_import.py").write_text(
+        "from collections.abc import Sequence\n"
+        "from unrelated import run_gate\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return run_gate('X', lambda _: [], argv)\n",
         encoding="utf-8",
     )
     (common / "bad_exit.py").write_text(
@@ -229,17 +247,58 @@ def test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero
         "    print('not executable')\n",
         encoding="utf-8",
     )
+    (common / "module_scope_main.py").write_text(
+        "from collections.abc import Sequence\n"
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    return 0\n"
+        "main()\n",
+        encoding="utf-8",
+    )
     assert gate_main_contract.current_debt(tmp_path) == {
         "legacy_main_contract": {
             "common/testing/async_main.py",
             "common/testing/extra_argument.py",
             "common/testing/missing_return.py",
         },
-        "legacy_gate_cli": {"common/testing/check_without_runner.py"},
-        "legacy_process_exit": {"common/testing/bad_exit.py"},
+        "legacy_gate_cli": {
+            "common/testing/check_unrelated_runner.py",
+            "common/testing/check_without_runner.py",
+            "common/testing/check_wrong_runner_import.py",
+        },
+        "legacy_process_exit": {
+            "common/testing/bad_exit.py",
+            "common/testing/module_scope_main.py",
+        },
         "malformed_python": {"tools/broken.py"},
     }
     assert gate_main_contract.main(["--repo-root", str(tmp_path)]) == 1
+
+
+def test_AC_testing_governance_22_pdf_fixture_import_never_exits_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.governance.22: Missing optional tooling deps never exit importers."""
+
+    original_import = builtins.__import__
+
+    def import_without_reportlab(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "reportlab" or name.startswith("reportlab."):
+            raise ImportError("reportlab unavailable")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_reportlab)
+
+    with pytest.raises(ImportError, match="reportlab"):
+        runpy.run_path(
+            str(ROOT / "common/testing/fixtures/pdf/generate_pdf_fixtures.py"),
+            run_name="pdf_fixture_import_test",
+        )
 
 
 def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(

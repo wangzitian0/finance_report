@@ -595,9 +595,13 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-runtime.24.20",
-            statement="dev_frontend.cleanup terminates the tracked process and exits cleanly.",
+            statement=(
+                "dev_frontend.cleanup terminates the tracked process without exiting "
+                "its caller, and main returns interrupt status 130 after teardown."
+            ),
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits"
+                "tests/tooling/test_cli_and_dev_servers.py::"
+                "test_AC16_11_20_dev_frontend_cleanup_is_process_pure"
             ),
             priority="P1",
             status="done",
@@ -672,9 +676,13 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-runtime.24.29",
-            statement="dev_backend.cleanup terminates the tracked process and exits cleanly.",
+            statement=(
+                "dev_backend.cleanup terminates the tracked process without exiting "
+                "its caller, and main returns interrupt status 130 after teardown."
+            ),
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py::test_AC16_11_29_dev_backend_cleanup_terminates_and_exits"
+                "tests/tooling/test_cli_and_dev_servers.py::"
+                "test_AC16_11_29_dev_backend_cleanup_is_process_pure"
             ),
             priority="P1",
             status="done",

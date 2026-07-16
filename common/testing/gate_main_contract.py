@@ -9,6 +9,10 @@ from pathlib import Path
 from common.meta.base.gate_cli import run_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SHARED_GATE_MODULES = {
+    "common.meta.base.gate_cli",
+    "common.testing.gate_cli",
+}
 
 
 def _python_files(repo_root: Path) -> list[Path]:
@@ -57,18 +61,64 @@ def _main_is_standard(main: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _dotted_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        prefix = _dotted_name(node.value)
+        if prefix is not None:
+            return f"{prefix}.{node.attr}"
+    return None
+
+
+def _shared_gate_call_targets(tree: ast.Module) -> set[str]:
+    targets: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            if node.module in SHARED_GATE_MODULES:
+                targets.update(
+                    alias.asname or alias.name
+                    for alias in node.names
+                    if alias.name == "run_gate"
+                )
+            if node.module in {"common.meta.base", "common.testing"}:
+                targets.update(
+                    f"{alias.asname or alias.name}.run_gate"
+                    for alias in node.names
+                    if alias.name == "gate_cli"
+                )
+        elif isinstance(node, ast.Import):
+            targets.update(
+                f"{alias.asname or alias.name}.run_gate"
+                for alias in node.names
+                if alias.name in SHARED_GATE_MODULES
+            )
+    return targets
+
+
 def _uses_shared_gate_runner(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if isinstance(node.func, ast.Name) and node.func.id == "run_gate":
-            return True
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "run_gate":
-            return True
-    return False
+    main = _module_main(tree)
+    if main is None:
+        return False
+    targets = _shared_gate_call_targets(tree)
+    return any(
+        isinstance(node, ast.Call) and _dotted_name(node.func) in targets
+        for node in ast.walk(main)
+    )
 
 
 def _has_standard_process_exit(tree: ast.Module) -> bool:
+    main_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "main"
+    ]
+    if not main_calls:
+        return True
+
+    boundary_calls: list[ast.Call] = []
     for node in tree.body:
         if not isinstance(node, ast.If):
             continue
@@ -85,14 +135,20 @@ def _has_standard_process_exit(tree: ast.Module) -> bool:
         if len(node.body) != 1 or not isinstance(node.body[0], ast.Raise):
             return False
         exc = node.body[0].exc
-        return (
+        if not (
             isinstance(exc, ast.Call)
             and isinstance(exc.func, ast.Name)
             and exc.func.id == "SystemExit"
             and len(exc.args) == 1
-            and ast.unparse(exc.args[0]) == "main()"
-        )
-    return True
+            and isinstance(exc.args[0], ast.Call)
+            and isinstance(exc.args[0].func, ast.Name)
+            and exc.args[0].func.id == "main"
+            and not exc.args[0].args
+            and not exc.args[0].keywords
+        ):
+            return False
+        boundary_calls.append(exc.args[0])
+    return len(main_calls) == 1 and boundary_calls == main_calls
 
 
 def current_debt(repo_root: Path) -> dict[str, set[str]]:

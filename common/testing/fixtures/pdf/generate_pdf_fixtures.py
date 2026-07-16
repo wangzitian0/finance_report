@@ -19,7 +19,6 @@ Requires: reportlab, pyyaml
 """
 
 import argparse
-import sys
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,11 +34,11 @@ try:
         Table,
         TableStyle,
     )
-except ImportError:
-    print(
-        "❌ reportlab not installed. Please run 'uv sync' from the repository root or 'pip install reportlab'."
-    )
-    sys.exit(1)
+except ImportError as exc:
+    raise ImportError(
+        "reportlab is required; run 'uv sync' from the repository root or "
+        "'pip install reportlab'"
+    ) from exc
 
 
 def generate_legacy_dbs_pdf(output_path: Path):

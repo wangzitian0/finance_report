@@ -2,6 +2,7 @@
 AC16.11.29: CLI and dev server route coverage.
 """
 
+import signal
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -293,26 +294,26 @@ def test_AC16_11_28_check_database_ready_success(monkeypatch):
     assert dev_backend.check_database_ready() is True
 
 
-def test_AC16_11_29_dev_backend_cleanup_terminates_and_exits(monkeypatch):
-    """AC-runtime.24.29: dev_backend.cleanup terminates the tracked process and exits cleanly."""
+def test_AC16_11_29_dev_backend_cleanup_is_process_pure(monkeypatch):
+    """AC-runtime.24.29: backend cleanup tears down without exiting its caller."""
     proc = SimpleNamespace(
         poll=lambda: None, terminate=lambda: None, wait=lambda timeout=5: None
     )
     dev_backend._started_resources["uvicorn_proc"] = proc
-    with pytest.raises(SystemExit) as exc:
-        dev_backend.cleanup()
-    assert exc.value.code == 0
+    assert dev_backend.cleanup() is None
+    with pytest.raises(KeyboardInterrupt):
+        dev_backend._request_shutdown(signal.SIGTERM, None)
 
 
-def test_AC16_11_20_dev_frontend_cleanup_terminates_and_exits(monkeypatch):
-    """AC-runtime.24.20: dev_frontend.cleanup terminates the tracked process and exits cleanly."""
+def test_AC16_11_20_dev_frontend_cleanup_is_process_pure(monkeypatch):
+    """AC-runtime.24.20: frontend cleanup tears down without exiting its caller."""
     proc = SimpleNamespace(
         poll=lambda: None, terminate=lambda: None, wait=lambda timeout=5: None
     )
     dev_frontend._started_resources["next_proc"] = proc
-    with pytest.raises(SystemExit) as exc:
-        dev_frontend.cleanup()
-    assert exc.value.code == 0
+    assert dev_frontend.cleanup() is None
+    with pytest.raises(KeyboardInterrupt):
+        dev_frontend._request_shutdown(signal.SIGTERM, None)
 
 
 def _mock_run(monkeypatch):
@@ -693,8 +694,8 @@ class TestDevBackendMain:
 
         assert dev_backend.main() == 1
 
-    def test_main_keyboard_interrupt_calls_cleanup(self, monkeypatch):
-        """When proc.wait() raises KeyboardInterrupt, cleanup() should be called."""
+    def test_AC16_11_29_main_keyboard_interrupt_returns_130(self, monkeypatch):
+        """AC-runtime.24.29: an interrupted backend main tears down and returns 130."""
         monkeypatch.setattr(dev_backend, "check_database_ready", lambda: True)
 
         import signal as _signal
@@ -718,9 +719,7 @@ class TestDevBackendMain:
             dev_backend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
         )
 
-        with pytest.raises(SystemExit) as exc:
-            dev_backend.main()
-        assert exc.value.code == 0
+        assert dev_backend.main() == 130
 
     def test_get_compose_cmd_returns_podman(self, monkeypatch):
         """get_compose_cmd() in dev_backend delegates to the shared detector."""
@@ -739,8 +738,8 @@ class TestDevBackendMain:
             dev_backend.get_compose_cmd()
         assert exc.value.code == 1
 
-    def test_cleanup_timeout_kills_process(self, monkeypatch):
-        """When proc.wait() times out, cleanup() should kill the process."""
+    def test_AC16_11_29_cleanup_timeout_kills_process(self, monkeypatch):
+        """AC-runtime.24.29: cleanup kills the backend process after timeout."""
         killed = []
 
         def raise_timeout(timeout=5):
@@ -753,8 +752,7 @@ class TestDevBackendMain:
             kill=lambda: killed.append(True),
         )
         dev_backend._started_resources["uvicorn_proc"] = fake_proc
-        with pytest.raises(SystemExit):
-            dev_backend.cleanup()
+        dev_backend.cleanup()
         assert killed, "kill() should have been called on timeout"
 
 
@@ -779,8 +777,8 @@ class TestDevFrontendMain:
         dev_frontend.main()
         assert dev_frontend._started_resources["next_proc"] is fake_proc
 
-    def test_main_keyboard_interrupt_calls_cleanup(self, monkeypatch):
-        """When proc.wait() raises KeyboardInterrupt, cleanup() should be called."""
+    def test_AC16_11_20_main_keyboard_interrupt_returns_130(self, monkeypatch):
+        """AC-runtime.24.20: an interrupted frontend main tears down and returns 130."""
         import signal as _signal
 
         monkeypatch.setattr(_signal, "signal", lambda *args: None)
@@ -802,12 +800,10 @@ class TestDevFrontendMain:
             dev_frontend.subprocess, "Popen", lambda *args, **kwargs: fake_proc
         )
 
-        with pytest.raises(SystemExit) as exc:
-            dev_frontend.main()
-        assert exc.value.code == 0
+        assert dev_frontend.main() == 130
 
-    def test_cleanup_timeout_kills_process(self, monkeypatch):
-        """When proc.wait() times out, cleanup() should kill the process."""
+    def test_AC16_11_20_cleanup_timeout_kills_process(self, monkeypatch):
+        """AC-runtime.24.20: cleanup kills the frontend process after timeout."""
         killed = []
 
         def raise_timeout(timeout=5):
@@ -820,8 +816,7 @@ class TestDevFrontendMain:
             kill=lambda: killed.append(True),
         )
         dev_frontend._started_resources["next_proc"] = fake_proc
-        with pytest.raises(SystemExit):
-            dev_frontend.cleanup()
+        dev_frontend.cleanup()
         assert killed, "kill() should have been called on timeout"
 
     def test_main_custom_app_url(self, monkeypatch, capsys):
