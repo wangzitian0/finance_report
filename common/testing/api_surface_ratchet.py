@@ -81,14 +81,17 @@ def package_schema_import_file_count() -> int:
 
 def base_schema_import_files() -> list[str]:
     """Return forbidden package-base dependencies on delivery schemas."""
-    return sorted(
-        _relative_to_root(path)
-        for package_dir in _package_dirs()
-        for path in (package_dir / "base").rglob("*.py")
-        if (package_dir / "base").is_dir()
-        and "__pycache__" not in path.parts
-        and _imports_schemas(path)
-    )
+    violations: list[str] = []
+    for package_dir in _package_dirs():
+        base_dir = package_dir / "base"
+        if not base_dir.is_dir():
+            continue
+        violations.extend(
+            _relative_to_root(path)
+            for path in base_dir.rglob("*.py")
+            if "__pycache__" not in path.parts and _imports_schemas(path)
+        )
+    return sorted(violations)
 
 
 def _load_baseline() -> dict[str, object]:
