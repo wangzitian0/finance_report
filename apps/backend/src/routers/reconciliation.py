@@ -1,9 +1,8 @@
 """Reconciliation API router."""
 
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
-import structlog
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +15,7 @@ from src.extraction import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Direction, JournalEntry, ValidationError
-from src.observability import get_logger, log_financial_mutation, safe_error_message
+from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
     MatchNotFoundError,
@@ -49,15 +48,6 @@ from src.schemas.reconciliation import (
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
 MAX_BATCH_CREATE_ALL = 200
-
-
-def _current_request_id() -> str:
-    value = structlog.contextvars.get_contextvars().get("request_id")
-    if value:
-        return str(value)
-    generated = str(uuid4())
-    structlog.contextvars.bind_contextvars(request_id=generated)
-    return generated
 
 
 def _unmatched_atomic_txn_query():
@@ -174,8 +164,9 @@ async def _load_transactions(
 @router.post("/runs", response_model=ReconciliationRunResponse, status_code=status.HTTP_200_OK)
 async def run_reconciliation(
     payload: ReconciliationRunRequest,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationRunResponse:
     statement: StatementSummary | None = None
     if payload.statement_id:
@@ -188,7 +179,7 @@ async def run_reconciliation(
         if statement is None:
             raise_not_found("Statement")
 
-    request_id = _current_request_id()
+    request_id = ensure_request_id()
     statement_id = str(payload.statement_id) if payload.statement_id else None
     logger.info(
         "reconciliation.run.started",
@@ -273,8 +264,9 @@ async def list_matches(
     status_filter: ReconciliationStatusEnum | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     query = (
         select(ReconciliationMatch)
@@ -315,8 +307,9 @@ async def list_matches(
 async def pending_review_queue(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     entry_summaries = await _load_entry_summaries(db, matches, user_id)

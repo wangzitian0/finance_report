@@ -2,21 +2,17 @@
 """Finance Report Backend - FastAPI Application."""
 
 import asyncio
-import os
 import time
 import traceback
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Eagerly register every ORM model on Base.metadata at app startup so SQLAlchemy
@@ -27,7 +23,7 @@ from src.advisor import register_fx_conversion, register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
-from src.database import async_session_maker, engine, get_db, init_db
+from src.database import async_session_maker, engine, init_db
 from src.extraction import (
     find_in_flight_parse_id,
     find_uploaded_document_filename_by_hash,
@@ -47,8 +43,8 @@ from src.observability import (
     configure_database_pool_metrics,
     configure_logging,
     configure_otel_metrics,
+    current_request_id,
     get_logger,
-    get_observability_status,
     http_route_label_from_scope,
     log_observability_startup,
     log_security_warning,
@@ -62,11 +58,11 @@ from src.platform import (
     RateLimitConfig,
     RateLimiter,
     SubscriberRegistry,
+    platform_system_router,
     register_readiness_provider,
     register_statement_reader,
     register_uploaded_document_readers,
 )
-from src.platform.orm.ping_state import PingState
 from src.portfolio import PositionService
 from src.pricing import (
     PrefetchedFxRates,
@@ -108,8 +104,11 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import register_known_storage_paths_provider, resolve_env_tier, run_storage_sweep
-from src.schemas import PingStateResponse
+from src.runtime import (
+    register_known_storage_paths_provider,
+    run_storage_sweep,
+    runtime_system_router,
+)
 from src.schemas.errors import (
     COMMON_ERROR_RESPONSES,
     ErrorCode,
@@ -459,14 +458,10 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     return await call_next(request)
 
 
-def _current_request_id() -> str | None:
-    return structlog.contextvars.get_contextvars().get("request_id")
-
-
 @app.exception_handler(BaseAppException)
 async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
     """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
-    request_id = _current_request_id()
+    request_id = current_request_id()
     logger.warning(
         "Application exception",
         error_id=exc.error_id,
@@ -487,7 +482,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     branch on a code instead of parsing ``detail`` text. ``detail`` is preserved as
     a human-readable string for display and back-compat with existing callers.
     """
-    request_id = _current_request_id()
+    request_id = current_request_id()
     # Preserve the original ``detail`` verbatim: most call sites pass a string, but a
     # few raise ``HTTPException(detail={...})`` with a structured body. We add
     # ``error_id``/``request_id`` around it rather than coercing it to a string, so
@@ -517,7 +512,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         detail = "An internal server error occurred. Please try again later."
         trace = None
 
-    request_id = _current_request_id()
+    request_id = current_request_id()
     content: dict[str, Any] = ErrorResponse(
         error_id=ErrorCode.INTERNAL_ERROR.value,
         detail=detail,
@@ -566,120 +561,5 @@ app.include_router(user_settings.router, **_router_kwargs)
 app.include_router(llm.router, **_router_kwargs)
 app.include_router(portfolio.router, **_router_kwargs)
 app.include_router(workflow.router, **_router_kwargs)
-
-
-# --- Health & Demo Endpoints ---
-
-
-@app.get("/health")
-async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -> Response:
-    """Check application health status with dependency checks.
-
-    Returns 200 if all critical services are healthy, 503 otherwise.
-    This endpoint is used by Docker healthcheck and deployment verification.
-
-    The default (frequent Docker healthcheck) stays light: database + S3.
-    ``?full=1`` asserts the FULL manifest-declared dependency set for this
-    environment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every
-    dependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or
-    the endpoint returns 503. The smoke test calls this form.
-    """
-    try:
-        # Use Bootloader's internal check methods to ensure consistency
-        # We don't use validate() here because we want granular report
-        checks = {}
-
-        # DB (Use session from dependency for consistency with request scope)
-        try:
-            await db.execute(text("SELECT 1"))
-            checks["database"] = True
-        except Exception:
-            checks["database"] = False
-
-        # S3
-        s3_res = await Bootloader._check_s3()
-        checks["s3"] = s3_res.status == "ok"
-
-        tier = None
-        if full:
-            tier = resolve_env_tier(
-                settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-            )
-            probed, unprobed = Bootloader._required_checks(tier)
-            names = sorted(probed.keys() - {"database", "object_storage"})
-            # Probe concurrently — latency is the slowest single probe, not the sum
-            # (each probe has its own ~5s timeout and never raises for an outage).
-            results = await asyncio.gather(*(getattr(Bootloader, probed[name])() for name in names))
-            for name, result in zip(names, results, strict=True):
-                checks[name] = result.status == "ok"
-            for name in unprobed:  # declared before its probe lands: visible, failing
-                checks[name] = False
-
-        all_healthy = all(checks.values())
-        status_code = 200 if all_healthy else 503
-
-        content = {
-            "status": "healthy" if all_healthy else "unhealthy",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "version": settings.git_commit_sha,
-            "git_sha": settings.git_commit_sha,
-            "checks": checks,
-            "observability": get_observability_status(),
-        }
-        if tier is not None:
-            content["tier"] = tier.value
-            # #1828 G-staleness-watchdog-visible: informational only — computed
-            # AFTER the verdict, never in ``checks`` (the manifest-parity set)
-            # and never an input to ``all_healthy``. The out-of-band watchdog
-            # axis (#1653) reads it; boot semantics are unchanged.
-            content["vault_secrets"] = Bootloader.vault_secrets_snapshot()
-        return JSONResponse(status_code=status_code, content=content)
-    except Exception as e:
-        logger.error(
-            "Health check: Unexpected error in endpoint",
-            error=str(e),
-            error_type=type(e).__name__,
-            error_module=type(e).__module__,
-        )
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "error",
-                "timestamp": datetime.now(UTC).isoformat(),
-                "error": "Health check failed with unexpected error",
-                "error_type": type(e).__name__,
-            },
-        )
-
-
-@app.get("/ping", response_model=PingStateResponse)
-async def get_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
-    """Get current ping-pong state."""
-    result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
-    state = result.scalar_one_or_none()
-
-    if state is None:
-        return PingStateResponse(state="ping", toggle_count=0, updated_at=None)
-
-    return PingStateResponse.model_validate(state)
-
-
-@app.post("/ping/toggle", response_model=PingStateResponse)
-async def toggle_ping_state(db: AsyncSession = Depends(get_db)) -> PingStateResponse:
-    """Toggle between ping and pong state."""
-    result = await db.execute(select(PingState).order_by(PingState.id.desc()).limit(1))
-    state = result.scalar_one_or_none()
-
-    if state is None:
-        new_state = PingState(state="pong", toggle_count=1)
-        db.add(new_state)
-        await db.commit()
-        await db.refresh(new_state)
-        return PingStateResponse.model_validate(new_state)
-
-    state.state = "pong" if state.state == "ping" else "ping"
-    state.toggle_count += 1
-    await db.commit()
-    await db.refresh(state)
-
-    return PingStateResponse.model_validate(state)
+app.include_router(runtime_system_router, **_router_kwargs)
+app.include_router(platform_system_router, **_router_kwargs)

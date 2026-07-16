@@ -50,7 +50,8 @@ def test_AC_counter_1_1_counter_converges_by_layer():
     assert (COUNTER / "base/repository.py").exists()
     # extension: the ORM adapter + the async boundary.
     assert (COUNTER / "extension/sql.py").exists()
-    assert (COUNTER / "extension/api/write.py").exists()
+    assert (COUNTER / "extension/facade/write.py").exists()
+    assert not (COUNTER / "extension/api").exists()
     # the retired role dirs are gone.
     assert not (COUNTER / "types").exists() and not (COUNTER / "store").exists()
     exports = (COUNTER / "__init__.py").read_text(encoding="utf-8")

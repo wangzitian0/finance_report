@@ -60,7 +60,8 @@ def _require_in_flight_parse_checker() -> InFlightParseChecker:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
-    user_id: CurrentUserId = None,
+    *,
+    user_id: CurrentUserId,
 ) -> UserResponse:
     """Deprecated user creation route.
 
@@ -75,8 +76,9 @@ async def create_user(
 async def list_users(
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> UserListResponse:
     """List the authenticated user's profile only."""
     scoped_query = select(User).where(User.id == user_id)
@@ -95,8 +97,9 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: UUID,
-    db: DbSession = None,
-    current_user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    current_user_id: CurrentUserId,
 ) -> UserResponse:
     """Get current user by ID without cross-user disclosure."""
     if user_id != current_user_id:
@@ -115,8 +118,9 @@ async def get_user(
 async def update_user(
     user_id: UUID,
     user_data: UserUpdate,
-    db: DbSession = None,
-    current_user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    current_user_id: CurrentUserId,
 ) -> UserResponse:
     """Update current user details without cross-user mutation."""
     if user_id != current_user_id:
@@ -144,8 +148,9 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: UUID,
-    db: DbSession = None,
-    current_user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    current_user_id: CurrentUserId,
 ) -> None:
     """Delete the authenticated user's own account."""
     if user_id != current_user_id:

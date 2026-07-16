@@ -1,15 +1,5 @@
-"""Ping state schemas."""
+"""Compatibility re-export for the platform-owned ping wire response."""
 
-from datetime import datetime
+from src.platform import PingStateResponse
 
-from pydantic import BaseModel, ConfigDict
-
-
-class PingStateResponse(BaseModel):
-    """Schema for ping state response."""
-
-    state: str
-    toggle_count: int
-    updated_at: datetime | None = None
-
-    model_config = ConfigDict(from_attributes=True)
+__all__ = ["PingStateResponse"]

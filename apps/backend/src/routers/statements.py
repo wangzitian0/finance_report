@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
-import structlog
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
@@ -38,7 +37,7 @@ from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.llm import LitellmCatalog, Modality
-from src.observability import ErrorIds, get_logger, safe_error_message
+from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
     get_owned_or_404,
     raise_bad_request,
@@ -80,15 +79,6 @@ _BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
 def _track_task(task: asyncio.Task[None]) -> None:
     _PENDING_PARSE_TASKS.add(task)
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
-
-
-def _current_request_id() -> str | None:
-    value = structlog.contextvars.get_contextvars().get("request_id")
-    if value:
-        return str(value)
-    generated = str(uuid4())
-    structlog.contextvars.bind_contextvars(request_id=generated)
-    return generated
 
 
 async def _resolve_uploaded_document(
@@ -149,7 +139,7 @@ async def _queue_statement_reparse(
 
     storage = StorageService()
     content = await run_in_threadpool(storage.get_object, storage_key)
-    request_id = _current_request_id()
+    request_id = ensure_request_id()
     model_to_use = None if model == settings.ocr_model else model
     task = await submit_parse_pipeline(
         job=ParseJob(
@@ -232,8 +222,9 @@ async def upload_statement(
     institution: Annotated[str | None, Form()] = None,
     account_id: Annotated[UUID | None, Form()] = None,
     model: Annotated[str | None, Form()] = None,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """
     Upload a financial statement and enqueue parsing.
@@ -305,7 +296,7 @@ async def upload_statement(
                 raise_bad_request("Selected model does not support image/PDF inputs.")
 
     statement_id = uuid4()
-    request_id = _current_request_id()
+    request_id = ensure_request_id()
     model_to_use = None if model == settings.ocr_model else model
     logger.info(
         "statement.upload.accepted",
@@ -440,8 +431,9 @@ async def upload_statement(
 async def retry_statement_parsing(
     statement_id: UUID,
     request: RetryParsingRequest | None = None,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> BankStatementResponse:
     """Retry parsing with a different model (e.g., stronger model for better accuracy)."""
     model_override = request.model if request else None
@@ -624,7 +616,7 @@ async def import_brokerage_statement_positions(
     payload = _brokerage_payload_from_persisted_extraction(statement=statement, uploaded_document=uploaded_document)
     if payload is None:
         payload = _brokerage_payload_from_statement(statement, transactions)
-    request_id = _current_request_id()
+    request_id = ensure_request_id()
     source_document_id = str(statement.uploaded_document_id or statement.id)
     logger.info(
         "statement.brokerage_import.started",

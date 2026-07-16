@@ -195,8 +195,9 @@ async def login(
 @router.get("/me", response_model=AuthResponse)
 async def get_me(
     token: str | None = Depends(oauth2_scheme),
-    user_id: CurrentUserId = None,
-    db: DbSession = None,
+    *,
+    user_id: CurrentUserId,
+    db: DbSession,
 ) -> AuthResponse:
     """Get current authenticated user."""
     result = await db.execute(select(User).where(User.id == user_id))

@@ -218,6 +218,7 @@ CONTRACT = PackageContract(
         "Outbox",
         "OutboxEventBus",
         "OutboxRelay",
+        "PingStateResponse",
         "OutboxRepository",
         "PingState",
         "RateLimitConfig",
@@ -265,6 +266,7 @@ CONTRACT = PackageContract(
         "register_statement_reader",
         "register_uploaded_document_readers",
         "update_workflow_event_status",
+        "platform_system_router",
     ],
     events=[],
     invariants=[
@@ -703,6 +705,46 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/api/test_api_surface_consistency.py"
                 "::test_AC12_29_6_verb_in_path_urls_renamed_to_resources"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.7",
+            statement=(
+                "Every GET operation that exposes a limit query parameter declares "
+                "an explicit finite upper bound, with no route exemptions."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC_platform_29_7_every_get_limit_has_an_upper_bound"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.8",
+            statement=(
+                "The API delivery surface has no duplicate DTO names or dishonest "
+                "dependency defaults, and currency plus request-id normalization "
+                "each have one implementation home."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC_platform_29_8_delivery_helpers_have_one_honest_home"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.29.9",
+            statement=(
+                "Personal report package generation accepts one body shape only, "
+                "and report surfaces share the named exclude-restricted default."
+            ),
+            test=(
+                "apps/backend/tests/api/test_api_surface_consistency.py"
+                "::test_AC_platform_29_9_report_wire_shape_and_policy_are_single"
             ),
             priority="P1",
             status="done",

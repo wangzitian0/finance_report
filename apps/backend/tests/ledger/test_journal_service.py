@@ -112,25 +112,25 @@ async def test_journal_router_direct(db: AsyncSession, test_user) -> None:
     )
     assert any(item.id == older.id for item in older_list.items)
 
-    fetched = await get_journal_entry(created.id, db, user_id=user_id)
+    fetched = await get_journal_entry(created.id, db=db, user_id=user_id)
     assert fetched.id == created.id
 
     with pytest.raises(HTTPException):
-        await get_journal_entry(uuid4(), db, user_id=user_id)
+        await get_journal_entry(uuid4(), db=db, user_id=user_id)
 
-    posted = await post_entry(created.id, db, user_id=user_id)
+    posted = await post_entry(created.id, db=db, user_id=user_id)
     assert posted.status == JournalEntryStatus.POSTED
 
     voided = await void_entry(
         created.id,
         VoidJournalEntryRequest(reason="Test void"),
-        db,
+        db=db,
         user_id=user_id,
     )
     assert voided.status == JournalEntryStatus.POSTED
 
     with pytest.raises(HTTPException):
-        await post_entry(uuid4(), db, user_id=user_id)
+        await post_entry(uuid4(), db=db, user_id=user_id)
 
     with pytest.raises(HTTPException):
-        await void_entry(uuid4(), VoidJournalEntryRequest(reason="Missing"), db, user_id=user_id)
+        await void_entry(uuid4(), VoidJournalEntryRequest(reason="Missing"), db=db, user_id=user_id)

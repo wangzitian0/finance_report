@@ -14,6 +14,7 @@ satisfy.
 
 from __future__ import annotations
 
+from src.platform.extension.api import PingStateResponse, router as platform_system_router
 from src.platform.extension.bus import OutboxEventBus, RecordingEventBus
 from src.platform.extension.http_errors import (
     BaseAppException,
@@ -55,6 +56,7 @@ __all__ = [
     "Outbox",
     "OutboxEventBus",
     "OutboxRelay",
+    "PingStateResponse",
     "RateLimitConfig",
     "RateLimitState",
     "RateLimiter",
@@ -80,4 +82,5 @@ __all__ = [
     "register_statement_reader",
     "register_uploaded_document_readers",
     "update_workflow_event_status",
+    "platform_system_router",
 ]

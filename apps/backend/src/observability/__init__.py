@@ -30,6 +30,7 @@ import src.config
 from src.observability.analytics import track
 from src.observability.audit import (
     current_request_id,
+    ensure_request_id,
     log_financial_mutation,
     log_security_warning,
     safe_error_message,
@@ -73,6 +74,7 @@ __all__ = [
     "configure_logging",
     "configure_otel_metrics",
     "current_request_id",
+    "ensure_request_id",
     "detect_pii",
     "get_logger",
     "get_observability_status",

@@ -61,8 +61,9 @@ async def list_journal_entries(
     end_date: date_type | None = None,
     limit: int = Query(50, ge=1, le=100, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryListResponse:
     """List journal entries with pagination and filters."""
     query = select(JournalEntry).where(JournalEntry.user_id == user_id)
@@ -90,8 +91,9 @@ async def list_journal_entries(
 @router.get("/{entry_id}", response_model=JournalEntryResponse)
 async def get_journal_entry(
     entry_id: UUID,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     entry = await get_owned_or_404(
         db,
@@ -107,8 +109,9 @@ async def get_journal_entry(
 @router.post("/{entry_id}/postings", response_model=JournalEntryResponse)
 async def post_entry(
     entry_id: UUID,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     try:
         base_currency = await get_effective_base_currency(db)
@@ -138,8 +141,9 @@ async def post_entry(
 async def void_entry(
     entry_id: UUID,
     void_request: VoidJournalEntryRequest,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     try:
         base_currency = await get_effective_base_currency(db)
@@ -169,8 +173,9 @@ async def void_entry(
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_journal_entry(
     entry_id: UUID,
-    db: DbSession = None,
-    user_id: CurrentUserId = None,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
 ) -> None:
     entry = await get_owned_or_404(db, JournalEntry, entry_id, user_id, name="Journal entry")
 

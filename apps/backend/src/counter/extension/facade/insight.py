@@ -5,10 +5,10 @@ This is the one thin, async read the package exposes for callers that hold an
 :class:`Count`. Reporting asks "how many times did X happen — overall, or for
 this user" by calling this with ``user_id=None`` (global) or a concrete user.
 
-We keep ``api`` deliberately minimal: the package's primary published language is
+We keep the facade deliberately minimal: the package's primary published language is
 the in-process verbs (``increment`` / ``get_count``) over the
 :class:`CounterRepository` port; no HTTP route is added until a transport need is
-real. ``api`` is the only place the async session meets the domain verbs.
+real. The facade is the only place the async session meets the domain verbs.
 """
 
 from __future__ import annotations

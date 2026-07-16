@@ -223,7 +223,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |
 | `GET` | `/reports/package/contract` | no | `framework_id` (query) | - | `200` `PersonalReportPackageContractResponse` | Personal Report Package Contract |
 | `GET` | `/reports/package/framework-policy` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `FrameworkPolicyResult` | Personal Report Package Framework Policy |
-| `POST` | `/reports/package/generate` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | `PersonalReportPackageGenerateRequest` \| null | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
+| `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/notes` | no | - | - | `200` `PersonalReportPackageNotesResponse` | Personal Report Package Notes |
 | `GET` | `/reports/package/readiness` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageReadinessResponse` | Personal Report Package Readiness |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |

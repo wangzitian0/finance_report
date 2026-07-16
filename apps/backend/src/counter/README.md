@@ -12,6 +12,6 @@ ubiquitous language, contract, roles, storage, and governance — lives in
 The code here converges into the package model's layers — `base/` (pure core:
 `types/` nouns + events, `ops/` verbs over the repository port,
 `repository.py` the `CounterRepository` port) and `extension/` (the impure
-edges: `sql.py` SQLAlchemy adapter, `api/` the thin async boundary) — and
+edges: `sql.py` SQLAlchemy adapter, `facade/` the thin programmatic boundary) — and
 publishes exactly its `__init__.__all__`, which must equal
 `contract.interface`.

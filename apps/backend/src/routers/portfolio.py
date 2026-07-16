@@ -41,7 +41,7 @@ from src.schemas.portfolio import (
     InvestmentPerformanceReportScheduleResponse,
     PortfolioSummaryDashboardResponse,
     PriceUpdateBatchResponse,
-    PriceUpdateRequest as SchemaPriceUpdateRequest,
+    PriceUpdateRequest,
     RealizedLotResponse,
 )
 
@@ -73,13 +73,6 @@ class PerformanceMetricsResponse(BaseModel):
     xirr: Decimal = Field(decimal_places=2)
     time_weighted_return: Decimal = Field(decimal_places=2)
     money_weighted_return: Decimal = Field(decimal_places=2)
-
-
-class PriceUpdateRequest(BaseModel):
-    asset_identifier: str
-    price: Decimal = Field(decimal_places=2)
-    currency: str = Field(min_length=3, max_length=3)
-    price_date: date
 
 
 class PriceUpdateBatchRequest(BaseModel):
@@ -529,21 +522,10 @@ async def update_prices(
         count=len(request.updates),
     )
 
-    # Map router request models to service schema models
-    schema_updates = [
-        SchemaPriceUpdateRequest(
-            asset_identifier=u.asset_identifier,
-            price_date=u.price_date,
-            price=u.price,
-            currency=u.currency,
-        )
-        for u in request.updates
-    ]
-
     results = await _portfolio_service.update_market_prices(
         db=db,
         user_id=user_id,
-        updates=schema_updates,
+        updates=request.updates,
     )
 
     await db.commit()

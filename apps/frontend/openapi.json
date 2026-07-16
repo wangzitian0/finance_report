@@ -7424,7 +7424,7 @@
         "type": "string"
       },
       "PingStateResponse": {
-        "description": "Schema for ping state response.",
+        "description": "Ping demo-state response.",
         "properties": {
           "state": {
             "title": "State",
@@ -7633,8 +7633,11 @@
         "type": "object"
       },
       "PriceUpdateRequest": {
+        "description": "Schema for manual price update request.",
         "properties": {
           "asset_identifier": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Asset Identifier",
             "type": "string"
           },
@@ -7647,6 +7650,7 @@
           "price": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -7657,6 +7661,7 @@
             "title": "Price"
           },
           "price_date": {
+            "description": "Date of the price (default: today)",
             "format": "date",
             "title": "Price Date",
             "type": "string"
@@ -7664,9 +7669,9 @@
         },
         "required": [
           "asset_identifier",
+          "price_date",
           "price",
-          "currency",
-          "price_date"
+          "currency"
         ],
         "title": "PriceUpdateRequest",
         "type": "object"
@@ -14641,7 +14646,7 @@
     },
     "/health": {
       "get": {
-        "description": "Check application health status with dependency checks.\n\nReturns 200 if all critical services are healthy, 503 otherwise.\nThis endpoint is used by Docker healthcheck and deployment verification.\n\nThe default (frequent Docker healthcheck) stays light: database + S3.\n``?full=1`` asserts the FULL manifest-declared dependency set for this\nenvironment's tier (smoke ↔ declaration parity, invariant 6 / #1578): every\ndependency in ``DEPENDENCY_MANIFEST.required_for(tier)`` must be present or\nthe endpoint returns 503. The smoke test calls this form.",
+        "description": "Return light or manifest-complete dependency health.",
         "operationId": "health_check_health_get",
         "parameters": [
           {
@@ -14664,6 +14669,56 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -14673,6 +14728,26 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
           }
         },
         "summary": "Health Check"
@@ -17050,6 +17125,76 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
           }
         },
         "summary": "Get Ping State"
@@ -17069,6 +17214,76 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
           }
         },
         "summary": "Toggle Ping State"
@@ -21490,7 +21705,7 @@
             "name": "include_restricted",
             "required": false,
             "schema": {
-              "default": true,
+              "default": false,
               "title": "Include Restricted",
               "type": "boolean"
             }
@@ -22174,112 +22389,15 @@
       "post": {
         "description": "Generate and persist an immutable personal report package snapshot.",
         "operationId": "generate_personal_report_package_snapshot_reports_package_generate_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "framework_id",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/PersonalReportingFrameworkId",
-              "default": "personal_us_gaap_like"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "as_of_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "As Of Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "currency",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 3,
-                  "minLength": 3,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Currency"
-            }
-          },
-          {
-            "in": "query",
-            "name": "include_restricted",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Include Restricted",
-              "type": "boolean"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/PersonalReportPackageGenerateRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Request"
+                "$ref": "#/components/schemas/PersonalReportPackageGenerateRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {

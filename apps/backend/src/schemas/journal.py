@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.ledger import ConfidenceTier, Direction, JournalEntryStatus
-from src.schemas.base import BaseResponse, ListResponse
+from src.schemas.base import BaseResponse, CurrencyCode, ListResponse
 
 
 class JournalLineBase(BaseModel):
@@ -18,7 +18,7 @@ class JournalLineBase(BaseModel):
     account_id: UUID
     direction: Direction
     amount: Annotated[Decimal, Field(gt=0, decimal_places=2)]
-    currency: Annotated[str, Field(min_length=3, max_length=3)]
+    currency: CurrencyCode
     fx_rate: Annotated[Decimal | None, Field(None, gt=0, decimal_places=6)] = None
     event_type: Annotated[str | None, Field(None, max_length=100)] = None
     tags: dict | None = None
@@ -27,7 +27,7 @@ class JournalLineBase(BaseModel):
 class JournalLineCreate(JournalLineBase):
     """Schema for creating a journal line."""
 
-    currency: Annotated[str | None, Field(min_length=3, max_length=3)] = None
+    currency: CurrencyCode | None = None
 
 
 class JournalLineResponse(JournalLineBase, BaseResponse):

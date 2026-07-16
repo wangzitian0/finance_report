@@ -16,6 +16,7 @@ PR1 of the sweep (this file's AC-platform.29.4/.5):
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 from uuid import uuid4
@@ -27,9 +28,12 @@ from httpx import AsyncClient
 import src.routers as _routers_pkg
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
+from src.routers.reports import DEFAULT_INCLUDE_RESTRICTED
 
 _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
 _RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
+_BACKEND_SRC = _ROUTER_DIR.parent
+_DISHONEST_DEPENDENCY_DEFAULT = re.compile(r"(?:DbSession|CurrentUserId)\s*=\s*None")
 
 # The list endpoints #1099 named as unbounded; each must now accept bounded
 # limit/offset (AC-platform.29.2).
@@ -163,6 +167,103 @@ def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
         )
         assert limit_schema.get("minimum") == 1
         assert params["offset"]["schema"].get("minimum") == 0
+
+
+def test_AC_platform_29_7_every_get_limit_has_an_upper_bound() -> None:
+    """AC-platform.29.7: every GET ``limit`` parameter has a finite maximum."""
+    offenders: list[str] = []
+    for path, path_item in app.openapi()["paths"].items():
+        operation = path_item.get("get")
+        if operation is None:
+            continue
+        for parameter in operation.get("parameters", []):
+            if parameter.get("in") != "query" or parameter.get("name") != "limit":
+                continue
+            maximum = parameter.get("schema", {}).get("maximum")
+            if not isinstance(maximum, int | float):
+                offenders.append(path)
+
+    assert not offenders, f"GET limit parameters without an explicit upper bound: {offenders}"
+
+
+def _top_level_model_names(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and any(
+            (isinstance(base, ast.Name) and base.id == "BaseModel")
+            or (isinstance(base, ast.Attribute) and base.attr == "BaseModel")
+            for base in node.bases
+        )
+    }
+
+
+def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
+    """AC-platform.29.8: delivery DTOs, dependencies, and helpers have one home."""
+    router_models: dict[str, list[str]] = {}
+    schema_models: dict[str, list[str]] = {}
+    dishonest_defaults: list[str] = []
+    normalize_currency_defs: list[str] = []
+    request_id_defs: list[str] = []
+
+    for path in sorted(_BACKEND_SRC.rglob("*.py")):
+        relative = path.relative_to(_BACKEND_SRC).as_posix()
+        source = path.read_text(encoding="utf-8")
+        for match in _DISHONEST_DEPENDENCY_DEFAULT.finditer(source):
+            dishonest_defaults.append(f"{relative}:{source.count(chr(10), 0, match.start()) + 1}")
+        tree = ast.parse(source, filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            if node.name == "normalize_currency" and relative != "schemas/base.py":
+                normalize_currency_defs.append(f"{relative}:{node.lineno}")
+            if "request_id" in node.name and node.name in {
+                "_current_request_id",
+                "current_request_id",
+                "ensure_request_id",
+            }:
+                request_id_defs.append(f"{relative}:{node.name}")
+
+    for path in sorted(_ROUTER_DIR.glob("*.py")):
+        for name in _top_level_model_names(path):
+            router_models.setdefault(name, []).append(path.name)
+    for path in sorted((_BACKEND_SRC / "schemas").glob("*.py")):
+        for name in _top_level_model_names(path):
+            schema_models.setdefault(name, []).append(path.name)
+
+    collisions = sorted(router_models.keys() & schema_models.keys())
+    assert not collisions, f"router/schema DTO name collisions: {collisions}"
+    assert not dishonest_defaults, f"dependency aliases defaulted to None: {dishonest_defaults}"
+    assert not normalize_currency_defs, f"ad-hoc schema currency normalizers: {normalize_currency_defs}"
+    assert request_id_defs == [
+        "observability/audit.py:current_request_id",
+        "observability/audit.py:ensure_request_id",
+    ]
+
+    utility_owners = {
+        route.path: route.endpoint.__module__
+        for route in _api_routes()
+        if route.path in {"/health", "/ping", "/ping/toggle"}
+    }
+    assert utility_owners == {
+        "/health": "src.runtime.extension.api.health",
+        "/ping": "src.platform.extension.api.system",
+        "/ping/toggle": "src.platform.extension.api.system",
+    }
+
+
+def test_AC_platform_29_9_report_wire_shape_and_policy_are_single() -> None:
+    """AC-platform.29.9: package generation is body-only and restrictions default off."""
+    paths = app.openapi()["paths"]
+    generation = paths["/reports/package/generate"]["post"]
+    assert generation.get("parameters", []) == []
+    assert generation["requestBody"]["required"] is True
+
+    for path in ("/reports/balance-sheet", "/reports/net-worth/allocation"):
+        params = {item["name"]: item for item in paths[path]["get"]["parameters"]}
+        assert params["include_restricted"]["schema"]["default"] is DEFAULT_INCLUDE_RESTRICTED
 
 
 async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) -> None:

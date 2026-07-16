@@ -188,7 +188,7 @@ async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> No
         payload.session_id = None
         payload.model = None
 
-        response = await chat_message(payload, mock_db, uuid4())
+        response = await chat_message(payload, db=mock_db, user_id=uuid4())
 
     assert response.media_type == ChatStreamMediaType.TEXT_PLAIN.value
     assert response.headers["X-Session-Id"] == str(session_id)

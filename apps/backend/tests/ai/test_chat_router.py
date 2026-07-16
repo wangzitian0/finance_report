@@ -13,7 +13,7 @@ async def test_chat_suggestions_en() -> None:
     """AC-advisor.suggestions.2: AC6.2.4 AC6.5.1: Chat suggestions endpoint returns English suggestions."""
     from src.routers.chat import suggestions
 
-    response = await suggestions(language="en")
+    response = await suggestions(language="en", db=MagicMock(), user_id=uuid4())
     assert response.suggestions
     assert "What are my expenses" in response.suggestions[0]
 
@@ -22,7 +22,7 @@ async def test_chat_suggestions_zh() -> None:
     """AC-advisor.suggestions.1: AC6.2.3 AC6.5.2: Chat suggestions endpoint returns Chinese suggestions."""
     from src.routers.chat import suggestions
 
-    response = await suggestions(language="zh")
+    response = await suggestions(language="zh", db=MagicMock(), user_id=uuid4())
     assert response.suggestions
     assert "支出" in response.suggestions[0]
 
@@ -31,7 +31,7 @@ async def test_chat_suggestions_auto_detect_zh() -> None:
     """AC-advisor.language.3: AC6.2.5: Auto-detect Chinese language from message."""
     from src.routers.chat import suggestions
 
-    response = await suggestions(language=None, message="这个月花了多少钱")
+    response = await suggestions(language=None, message="这个月花了多少钱", db=MagicMock(), user_id=uuid4())
     assert response.suggestions
     assert response.suggestions[0].startswith("这个月")
 
@@ -40,7 +40,7 @@ async def test_chat_suggestions_auto_detect_en() -> None:
     """AC-advisor.language.4: AC6.2.6: Auto-detect English language from message."""
     from src.routers.chat import suggestions
 
-    response = await suggestions(message="What are my expenses?")
+    response = await suggestions(message="What are my expenses?", db=MagicMock(), user_id=uuid4())
     assert response.suggestions
     assert "What are my expenses" in response.suggestions[0]
 
@@ -162,7 +162,7 @@ async def test_chat_error_api_key_unavailable() -> None:
         payload.model = None
 
         with pytest.raises(HTTPException) as exc_info:
-            await chat_message(payload, mock_db, mock_user_id)
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert exc_info.value.status_code == 503
         assert "temporarily unavailable" in exc_info.value.detail.lower()
@@ -188,7 +188,7 @@ async def test_chat_error_session_not_found() -> None:
         payload.model = None
 
         with pytest.raises(HTTPException) as exc_info:
-            await chat_message(payload, mock_db, mock_user_id)
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert exc_info.value.status_code == 404
 
@@ -212,7 +212,7 @@ async def test_chat_error_bad_request() -> None:
         payload.session_id = None
 
         with pytest.raises(HTTPException) as exc_info:
-            await chat_message(payload, mock_db, mock_user_id)
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert exc_info.value.status_code == 400
 
@@ -242,7 +242,7 @@ async def test_chat_with_model_name_header() -> None:
         payload.session_id = None
         payload.model = None
 
-        response = await chat_message(payload, mock_db, mock_user_id)
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert response.headers.get("X-Model-Name") == "gpt-4"
         assert "X-Model-Name" in response.headers.get("Access-Control-Expose-Headers", "")
@@ -295,7 +295,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
         payload.session_id = None
         payload.model = None
 
-        response = await chat_message(payload, mock_db, mock_user_id)
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
     assert response.headers.get("X-Advisor-Metadata") is not None
     assert "X-Advisor-Metadata" in response.headers.get("Access-Control-Expose-Headers", "")
@@ -326,7 +326,7 @@ async def test_chat_without_model_name_header() -> None:
         payload.session_id = None
         payload.model = None
 
-        response = await chat_message(payload, mock_db, mock_user_id)
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert response.headers.get("X-Model-Name") is None
 
@@ -343,7 +343,7 @@ async def test_delete_session_not_found() -> None:
     session_id = uuid4()
 
     with pytest.raises(HTTPException) as exc_info:
-        await delete_session(session_id, mock_db, mock_user_id)
+        await delete_session(session_id, db=mock_db, user_id=mock_user_id)
 
     assert exc_info.value.status_code == 404
 
@@ -361,7 +361,7 @@ async def test_delete_session_success() -> None:
     mock_user_id = uuid4()
     session_id = uuid4()
 
-    await delete_session(session_id, mock_db, mock_user_id)
+    await delete_session(session_id, db=mock_db, user_id=mock_user_id)
 
     assert mock_session.status == ChatSessionStatus.DELETED
     mock_db.commit.assert_awaited_once()
@@ -517,7 +517,7 @@ async def test_chat_with_allowed_model():
         payload.session_id = None
         payload.model = "allowed_model"
 
-        response = await chat_message(payload, mock_db, mock_user_id)
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert response.headers.get("X-Model-Name") == "allowed_model"
         # An allowed model never hits the catalogue.
@@ -559,7 +559,7 @@ async def test_chat_with_known_external_model():
         payload.session_id = None
         payload.model = "external_model"
 
-        response = await chat_message(payload, mock_db, mock_user_id)
+        response = await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert response.headers.get("X-Model-Name") == "external_model"
         mock_get.assert_called_once_with("external_model")
@@ -593,7 +593,7 @@ async def test_chat_with_unknown_external_model():
         payload.model = "unknown_model"
 
         with pytest.raises(HTTPException) as exc_info:
-            await chat_message(payload, mock_db, mock_user_id)
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert exc_info.value.status_code == 400
         assert "Invalid model selection" in exc_info.value.detail
@@ -627,7 +627,7 @@ async def test_chat_with_model_validation_error():
         payload.model = "unknown_model"
 
         with pytest.raises(HTTPException) as exc_info:
-            await chat_message(payload, mock_db, mock_user_id)
+            await chat_message(payload, db=mock_db, user_id=mock_user_id)
 
         assert exc_info.value.status_code == 503
         assert "Unable to validate requested model" in exc_info.value.detail
