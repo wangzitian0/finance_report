@@ -15,7 +15,6 @@ REWRITE_MODE = "rewrite"
 VALID_MODES = MONOTONIC_MODES | {REWRITE_MODE}
 UPDATE_FLAG = "--" + "update"
 REWRITE_FLAG = "--rewrite-" + "baseline"
-MUTATION_FLAGS = frozenset({UPDATE_FLAG, REWRITE_FLAG})
 PROOF_HARNESS_MODULE = "common.testing.baseline_update_contract"
 PROOF_HARNESS_NAME = "assert_regression_debt_refused"
 
@@ -37,6 +36,10 @@ MONOTONIC_UPDATE_PROOFS = {
     "common/testing/check_ac_score_baseline.py": (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/testing/check_ac_index.py": (
+        "tests/tooling/test_ac_index_consistency.py"
+        "::test_AC8_13_140_update_floor_raises_floors"
     ),
     "common/testing/check_cassette_graded_eval.py": (
         "tests/tooling/test_s4_gate_contracts.py"
@@ -148,6 +151,14 @@ def _is_argument_sequence(node: ast.expr) -> bool:
     )
 
 
+def _is_monotonic_mutation_flag(value: str | None) -> bool:
+    return value == UPDATE_FLAG or bool(value and value.startswith(f"{UPDATE_FLAG}-"))
+
+
+def _is_mutation_flag(value: str | None) -> bool:
+    return _is_monotonic_mutation_flag(value) or value == REWRITE_FLAG
+
+
 def _mutation_flags(tree: ast.Module) -> set[str]:
     constants = _module_string_constants(tree)
     flags: set[str] = set()
@@ -160,11 +171,11 @@ def _mutation_flags(tree: ast.Module) -> set[str]:
             flags.update(
                 value
                 for arg in node.args
-                if (value := _string_value(arg, constants)) in MUTATION_FLAGS
+                if _is_mutation_flag(value := _string_value(arg, constants))
             )
         elif isinstance(node, ast.Compare):
             value = _string_value(node.left, constants)
-            if value not in MUTATION_FLAGS:
+            if not _is_mutation_flag(value):
                 continue
             if any(
                 isinstance(operator, (ast.In, ast.NotIn))
@@ -186,7 +197,7 @@ def monotonic_update_paths(repo_root: Path) -> set[str]:
         for path in sorted(root.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             if (
-                UPDATE_FLAG in _mutation_flags(tree)
+                any(_is_monotonic_mutation_flag(flag) for flag in _mutation_flags(tree))
                 and _declared_mode(tree) in MONOTONIC_MODES
             ):
                 paths.add(path.relative_to(repo_root).as_posix())
@@ -222,6 +233,17 @@ def declaration_violations(repo_root: Path) -> list[str]:
             if UPDATE_FLAG in flags and mode not in MONOTONIC_MODES:
                 findings.append(
                     f"{relative}: rewrite mode must use --rewrite-baseline, not --update"
+                )
+            specialized = {
+                flag
+                for flag in flags
+                if flag != UPDATE_FLAG and _is_monotonic_mutation_flag(flag)
+            }
+            if specialized and mode not in MONOTONIC_MODES:
+                findings.append(
+                    f"{relative}: monotonic mutation flag(s) "
+                    f"{', '.join(sorted(specialized))} require "
+                    "BASELINE_UPDATE_MODE = 'raise-only' or 'shrink-only'"
                 )
             if REWRITE_FLAG in flags and mode != REWRITE_MODE:
                 findings.append(
@@ -295,14 +317,59 @@ def _updater_aliases(
     return aliases
 
 
-def _proof_exercises_updater(
-    tree: ast.Module, function: TestFunction, source_path: str
-) -> bool:
+_OBSERVER_BUILTINS = frozenset(
+    {
+        "all",
+        "any",
+        "bool",
+        "bytes",
+        "dict",
+        "frozenset",
+        "int",
+        "len",
+        "list",
+        "set",
+        "str",
+        "tuple",
+    }
+)
+
+
+def _literal_local_names(function: TestFunction) -> set[str]:
+    names: set[str] = set()
+    for node in function.body:
+        target: ast.expr | None = None
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            target, value = node.target, node.value
+        if isinstance(target, ast.Name) and isinstance(value, ast.Constant):
+            names.add(target.id)
+    return names
+
+
+def _observer_uses_runtime_state(observer: ast.expr, function: TestFunction) -> bool:
+    lambda_arguments: set[str] = set()
+    if isinstance(observer, ast.Lambda):
+        lambda_arguments = {argument.arg for argument in observer.args.args}
+    referenced = {node.id for node in ast.walk(observer) if isinstance(node, ast.Name)}
+    referenced -= lambda_arguments | _OBSERVER_BUILTINS | _literal_local_names(function)
+    return bool(referenced)
+
+
+def _proof_status(
+    tree: ast.Module,
+    function: TestFunction,
+    source_path: str,
+    mutation_flags: set[str],
+) -> str:
     module_name = Path(source_path).with_suffix("").as_posix().replace("/", ".")
     updater_aliases = _updater_aliases(tree, function, module_name)
     harness_aliases = _updater_aliases(tree, function, PROOF_HARNESS_MODULE)
     if not updater_aliases or not harness_aliases:
-        return False
+        return "missing-harness"
+    saw_bound_updater = False
     for harness_call in ast.walk(function):
         if not isinstance(harness_call, ast.Call):
             continue
@@ -323,6 +390,7 @@ def _proof_exercises_updater(
         )
         if update_argument is None:
             continue
+        updater_is_bound = False
         for call in ast.walk(update_argument):
             if not isinstance(call, ast.Call):
                 continue
@@ -334,11 +402,26 @@ def _proof_exercises_updater(
             ):
                 continue
             if any(
-                isinstance(node, ast.Constant) and node.value == UPDATE_FLAG
+                isinstance(node, ast.Constant) and node.value in mutation_flags
                 for node in ast.walk(call)
             ):
-                return True
-    return False
+                updater_is_bound = True
+                break
+        if not updater_is_bound:
+            continue
+        saw_bound_updater = True
+        observers = {
+            keyword.arg: keyword.value
+            for keyword in harness_call.keywords
+            if keyword.arg in {"regression_debt_present", "baseline_state"}
+        }
+        if all(
+            name in observers
+            and _observer_uses_runtime_state(observers[name], function)
+            for name in ("regression_debt_present", "baseline_state")
+        ):
+            return "valid"
+    return "vacuous-observers" if saw_bound_updater else "missing-harness"
 
 
 def proof_violations(repo_root: Path) -> list[str]:
@@ -360,10 +443,24 @@ def proof_violations(repo_root: Path) -> list[str]:
         if test_node is None:
             findings.append(f"{path}: behavioral proof node does not exist: {node_id}")
             continue
-        if not _proof_exercises_updater(*test_node, path):
+        source_tree = ast.parse(
+            (repo_root / path).read_text(encoding="utf-8"), filename=path
+        )
+        mutation_flags = {
+            flag
+            for flag in _mutation_flags(source_tree)
+            if _is_monotonic_mutation_flag(flag)
+        }
+        proof_status = _proof_status(*test_node, path, mutation_flags)
+        if proof_status == "missing-harness":
             findings.append(
                 f"{path}: behavioral proof does not exercise synthetic regression "
                 f"debt through the refusal harness: {node_id}"
+            )
+        elif proof_status == "vacuous-observers":
+            findings.append(
+                f"{path}: behavioral proof uses constant or vacuous "
+                f"regression-debt observers: {node_id}"
             )
     return findings
 
