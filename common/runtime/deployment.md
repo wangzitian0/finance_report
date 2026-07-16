@@ -26,7 +26,7 @@ dispatches canonical requests to the infra2 receiver.
 The target repository boundary is one-way: Finance Report owns application
 artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
 credentials, and every deployment side effect. The application pins
-[`infra2-sdk v0.1.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.1.0)
+[`infra2-sdk v0.3.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.3.0)
 as the wire-contract authority and `tools/app_deploy_request.py` renders only
 canonical staging or Production requests for `finance_report/app`. The renderer
 performs no network or subprocess operations. Production requires exact source,
