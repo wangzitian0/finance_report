@@ -32,6 +32,14 @@ class SnapshotPackage:
     impl_dir: Path | None
 
 
+@dataclass(frozen=True)
+class _ResolvedExport:
+    signature: str
+    binding: str
+    source: Path
+    reexported: bool
+
+
 def _annotation(node: ast.expr | None) -> str:
     return ast.unparse(node) if node is not None else "Any"
 
@@ -64,6 +72,12 @@ def _annotated_assignment_signature(node: ast.AnnAssign) -> str:
     return signature
 
 
+def _is_public_method(name: str) -> bool:
+    return not name.startswith("_") or (
+        name.startswith("__") and name.endswith("__")
+    )
+
+
 def _class_signature(node: ast.ClassDef) -> str:
     bases = [ast.unparse(base) for base in node.bases]
     bases.extend(
@@ -86,9 +100,9 @@ def _class_signature(node: ast.ClassDef) -> str:
             for target in child.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
                     members.append(f"{target.id}={ast.unparse(child.value)}")
-        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
-            child.name in {"__init__", "__new__"} or not child.name.startswith("_")
-        ):
+        elif isinstance(
+            child, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and _is_public_method(child.name):
             signature = _function_signature(child)
             marker = "async def" if isinstance(child, ast.AsyncFunctionDef) else "def"
             members.append(signature.replace(marker, child.name, 1))
@@ -99,52 +113,379 @@ def _class_signature(node: ast.ClassDef) -> str:
     )
 
 
-def _definition_signatures(
-    impl_dir: Path, repo_root: Path
-) -> dict[str, list[tuple[str, int, str]]]:
-    definitions: dict[str, list[tuple[str, int, str]]] = {}
-    for source in sorted(impl_dir.rglob("*.py")):
-        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
-        relative = source.relative_to(repo_root).as_posix()
-        for node in tree.body:
-            name: str | None = None
-            signature: str | None = None
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                name = node.name
-                signature = _function_signature(node)
-            elif isinstance(node, ast.ClassDef):
-                name = node.name
-                signature = _class_signature(node)
-            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                name = node.target.id
-                signature = f"value: {_annotated_assignment_signature(node)}"
-            elif isinstance(node, ast.Assign):
-                names = [
-                    target.id for target in node.targets if isinstance(target, ast.Name)
-                ]
-                if len(names) == 1:
-                    name = names[0]
-                    signature = f"value={ast.unparse(node.value)}"
-            if name is not None and signature is not None:
-                definitions.setdefault(name, []).append(
-                    (relative, node.lineno, signature)
-                )
-    return definitions
+def _definition_signature(node: ast.stmt, symbol: str) -> str | None:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return _function_signature(node) if node.name == symbol else None
+    if isinstance(node, ast.ClassDef):
+        return _class_signature(node) if node.name == symbol else None
+    if (
+        isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == symbol
+    ):
+        return f"value: {_annotated_assignment_signature(node)}"
+    if isinstance(node, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == symbol for target in node.targets
+    ):
+        return f"value={ast.unparse(node.value)}"
+    return None
 
 
-def _root_reexport(impl_dir: Path, symbol: str) -> str | None:
-    init_path = impl_dir / "__init__.py"
-    if not init_path.is_file():
-        return None
-    tree = ast.parse(init_path.read_text(encoding="utf-8"), filename=str(init_path))
+def _module_source(base: Path) -> Path | None:
+    source = base.with_suffix(".py")
+    if source.is_file():
+        return source
+    init_source = base / "__init__.py"
+    return init_source if init_source.is_file() else None
+
+
+def _absolute_module_source(
+    source: Path, module: str, repo_root: Path
+) -> Path | None:
+    module_parts = module.split(".")
+    anchor = source.parent
+    while anchor == repo_root or repo_root in anchor.parents:
+        candidate = _module_source(anchor.joinpath(*module_parts))
+        if candidate is not None:
+            return candidate
+        if anchor == repo_root:
+            break
+        anchor = anchor.parent
+    return None
+
+
+def _import_source(
+    source: Path, node: ast.ImportFrom, repo_root: Path
+) -> Path | None:
+    module_parts = (node.module or "").split(".") if node.module else []
+    if node.level:
+        anchor = source.parent
+        for _ in range(node.level - 1):
+            anchor = anchor.parent
+        return _module_source(anchor.joinpath(*module_parts))
+    return _absolute_module_source(source, node.module or "", repo_root)
+
+
+def _import_binding(node: ast.ImportFrom, symbol: str) -> str:
+    module = "." * node.level + (node.module or "")
+    separator = "" if module.endswith(".") else "."
+    return f"{module}{separator}{symbol}"
+
+
+_UNKNOWN = object()
+
+
+def _literal_value(node: ast.expr) -> object:
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError, SyntaxError):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "frozenset"
+            and len(node.args) == 1
+        ):
+            try:
+                return frozenset(ast.literal_eval(node.args[0]))
+            except (ValueError, TypeError, SyntaxError):
+                pass
+    return _UNKNOWN
+
+
+def _lazy_constants(
+    tree: ast.Module,
+) -> tuple[dict[str, set[str]], dict[str, dict[str, str]]]:
+    collections: dict[str, set[str]] = {}
+    module_maps: dict[str, dict[str, str]] = {}
     for node in tree.body:
+        name: str | None = None
+        value: ast.expr | None = None
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            name = node.target.id
+            value = node.value
+        if name is None or value is None:
+            continue
+        literal = _literal_value(value)
+        if isinstance(literal, dict) and all(
+            isinstance(key, str) and isinstance(item, str)
+            for key, item in literal.items()
+        ):
+            module_maps[name] = dict(literal)
+        elif isinstance(literal, (set, frozenset, list, tuple)) and all(
+            isinstance(item, str) for item in literal
+        ):
+            collections[name] = set(literal)
+    return collections, module_maps
+
+
+def _expression_value(
+    node: ast.expr,
+    symbol: str,
+    collections: dict[str, set[str]],
+    strings: dict[str, str | None],
+) -> object:
+    if isinstance(node, ast.Name):
+        if node.id == "name":
+            return symbol
+        if node.id in collections:
+            return collections[node.id]
+        return strings.get(node.id, _UNKNOWN)
+    literal = _literal_value(node)
+    return literal
+
+
+def _condition_value(
+    node: ast.expr,
+    symbol: str,
+    collections: dict[str, set[str]],
+    strings: dict[str, str | None],
+) -> bool | None:
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        value = _condition_value(node.operand, symbol, collections, strings)
+        return None if value is None else not value
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+        return None
+    left = _expression_value(node.left, symbol, collections, strings)
+    right = _expression_value(node.comparators[0], symbol, collections, strings)
+    if left is _UNKNOWN or right is _UNKNOWN:
+        return None
+    operator = node.ops[0]
+    if isinstance(operator, (ast.Eq, ast.Is)):
+        return left == right
+    if isinstance(operator, (ast.NotEq, ast.IsNot)):
+        return left != right
+    if isinstance(operator, ast.In):
+        return left in right  # type: ignore[operator]
+    if isinstance(operator, ast.NotIn):
+        return left not in right  # type: ignore[operator]
+    return None
+
+
+def _module_map_value(
+    node: ast.expr, symbol: str, module_maps: dict[str, dict[str, str]]
+) -> str | None | object:
+    if not (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id in module_maps
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "name"
+    ):
+        return _UNKNOWN
+    return module_maps[node.func.value.id].get(symbol)
+
+
+def _call_target(
+    node: ast.expr,
+    symbol: str,
+    imports: dict[str, tuple[str, str]],
+    strings: dict[str, str | None],
+) -> tuple[str, str] | None:
+    if not (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+    ):
+        return None
+    target_name = _expression_value(node.args[1], symbol, {}, strings)
+    if not isinstance(target_name, str):
+        return None
+    owner = node.args[0]
+    if isinstance(owner, ast.Name) and owner.id in imports:
+        module, imported_name = imports[owner.id]
+        return f"{module}.{imported_name}", target_name
+    if (
+        isinstance(owner, ast.Call)
+        and isinstance(owner.func, ast.Name)
+        and owner.func.id == "import_module"
+        and len(owner.args) == 1
+    ):
+        module = _expression_value(owner.args[0], symbol, {}, strings)
+        if isinstance(module, str):
+            return module, target_name
+    return None
+
+
+def _evaluate_lazy_statements(
+    statements: list[ast.stmt],
+    symbol: str,
+    collections: dict[str, set[str]],
+    module_maps: dict[str, dict[str, str]],
+    imports: dict[str, tuple[str, str]],
+    strings: dict[str, str | None],
+    targets: dict[str, tuple[str, str]],
+) -> tuple[tuple[str, str] | None, bool]:
+    for node in statements:
+        if isinstance(node, ast.If):
+            condition = _condition_value(node.test, symbol, collections, strings)
+            if condition is None:
+                continue
+            branch = node.body if condition else node.orelse
+            target, terminal = _evaluate_lazy_statements(
+                branch,
+                symbol,
+                collections,
+                module_maps,
+                imports,
+                strings,
+                targets,
+            )
+            if target is not None or terminal:
+                return target, terminal
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                imports[alias.asname or alias.name] = (node.module, alias.name)
+            continue
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            if isinstance(node, ast.Assign):
+                if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+                    continue
+                name = node.targets[0].id
+                value = node.value
+            else:
+                if not isinstance(node.target, ast.Name) or node.value is None:
+                    continue
+                name = node.target.id
+                value = node.value
+            target = _call_target(value, symbol, imports, strings)
+            if target is not None:
+                targets[name] = target
+                continue
+            mapped = _module_map_value(value, symbol, module_maps)
+            if mapped is not _UNKNOWN:
+                strings[name] = mapped  # type: ignore[assignment]
+                continue
+            literal = _literal_value(value)
+            if isinstance(literal, str):
+                strings[name] = literal
+            continue
+        if isinstance(node, ast.Return):
+            if node.value is None:
+                return None, True
+            target = _call_target(node.value, symbol, imports, strings)
+            if target is not None:
+                return target, True
+            if isinstance(node.value, ast.Name):
+                if node.value.id in targets:
+                    return targets[node.value.id], True
+                if node.value.id in imports:
+                    return imports[node.value.id], True
+            return None, True
+        if isinstance(node, ast.Raise):
+            return None, True
+    return None, False
+
+
+def _lazy_export_target(tree: ast.Module, symbol: str) -> tuple[str, str] | None:
+    getter = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "__getattr__"
+        ),
+        None,
+    )
+    if getter is None:
+        return None
+    collections, module_maps = _lazy_constants(tree)
+    target, _ = _evaluate_lazy_statements(
+        getter.body,
+        symbol,
+        collections,
+        module_maps,
+        {},
+        {},
+        {},
+    )
+    return target
+
+
+def _resolve_export(
+    source: Path,
+    symbol: str,
+    repo_root: Path,
+    seen: frozenset[tuple[Path, str]] = frozenset(),
+) -> _ResolvedExport | None:
+    key = (source.resolve(), symbol)
+    if key in seen:
+        return None
+    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    next_seen = seen | {key}
+
+    # Reverse order reflects the binding left in the module namespace at runtime.
+    for node in reversed(tree.body):
+        signature = _definition_signature(node, symbol)
+        if signature is not None:
+            relative = source.relative_to(repo_root).as_posix()
+            return _ResolvedExport(
+                signature=signature,
+                binding=f"{relative}::{symbol}",
+                source=source,
+                reexported=False,
+            )
         if not isinstance(node, ast.ImportFrom):
             continue
-        for alias in node.names:
+        for alias in reversed(node.names):
             public_name = alias.asname or alias.name
-            if public_name == symbol:
-                module = "." * node.level + (node.module or "")
-                return f"reexport:{module}.{alias.name}"
+            if public_name != symbol and alias.name != "*":
+                continue
+            imported_symbol = symbol if alias.name == "*" else alias.name
+            binding = _import_binding(node, imported_symbol)
+            target_source = _import_source(source, node, repo_root)
+            resolved = (
+                _resolve_export(target_source, imported_symbol, repo_root, next_seen)
+                if target_source is not None
+                else None
+            )
+            if resolved is None:
+                return _ResolvedExport(
+                    signature=f"unresolved-reexport:{binding}",
+                    binding=binding,
+                    source=source,
+                    reexported=True,
+                )
+            return _ResolvedExport(
+                signature=resolved.signature,
+                binding=f"{binding} -> {resolved.binding}",
+                source=resolved.source,
+                reexported=True,
+            )
+    lazy_target = _lazy_export_target(tree, symbol)
+    if lazy_target is not None:
+        module, target_symbol = lazy_target
+        binding = f"lazy:{module}.{target_symbol}"
+        target_source = _absolute_module_source(source, module, repo_root)
+        resolved = (
+            _resolve_export(target_source, target_symbol, repo_root, next_seen)
+            if target_source is not None
+            else None
+        )
+        if resolved is None:
+            return _ResolvedExport(
+                signature=f"unresolved-reexport:{binding}",
+                binding=binding,
+                source=source,
+                reexported=True,
+            )
+        return _ResolvedExport(
+            signature=resolved.signature,
+            binding=f"{binding} -> {resolved.binding}",
+            source=resolved.source,
+            reexported=True,
+        )
     return None
 
 
@@ -159,34 +500,31 @@ def _public_symbol_records(
             "BE implementation"
         )
 
-    definitions = _definition_signatures(package.impl_dir, repo_root)
+    init_path = package.impl_dir / "__init__.py"
     records: list[dict[str, str]] = []
     for symbol in sorted(package.interface):
-        matches = definitions.get(symbol, [])
-        if matches:
-            signatures = sorted({signature for _, _, signature in matches})
-            sources = sorted({source for source, _, _ in matches})
+        resolved = (
+            _resolve_export(init_path, symbol, repo_root) if init_path.is_file() else None
+        )
+        if resolved is not None:
             records.append(
                 {
                     "package": package.name,
                     "symbol": symbol,
-                    "signature": " | ".join(signatures),
-                    "resolution": "definition" if len(matches) == 1 else "ambiguous",
-                    "source": ",".join(sources),
+                    "signature": f"{resolved.binding} => {resolved.signature}",
+                    "resolution": "reexport" if resolved.reexported else "definition",
+                    "source": resolved.source.relative_to(repo_root).as_posix(),
                 }
             )
             continue
 
-        reexport = _root_reexport(package.impl_dir, symbol)
         records.append(
             {
                 "package": package.name,
                 "symbol": symbol,
-                "signature": reexport or "dynamic-export",
-                "resolution": "reexport" if reexport else "dynamic",
-                "source": package.impl_dir.joinpath("__init__.py")
-                .relative_to(repo_root)
-                .as_posix(),
+                "signature": "dynamic-export",
+                "resolution": "dynamic",
+                "source": init_path.relative_to(repo_root).as_posix(),
             }
         )
     return records

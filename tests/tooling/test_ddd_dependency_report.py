@@ -291,8 +291,14 @@ def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
         {
             "package": "provider",
             "symbol": "public",
-            "before": "def(value: str) -> str",
-            "after": "def(value: str, strict: bool=False) -> str",
+            "before": (
+                ".api.public -> apps/backend/src/provider/api.py::public "
+                "=> def(value: str) -> str"
+            ),
+            "after": (
+                ".api.public -> apps/backend/src/provider/api.py::public "
+                "=> def(value: str, strict: bool=False) -> str"
+            ),
         }
     ]
     assert report["affected_consumers"]["provider"] == {
@@ -572,6 +578,130 @@ def test_AC_meta_dependency_governance_2_generic_parameters_are_reported(
     assert "T: str" in changes["public"]["after"]
 
 
+def test_AC_meta_dependency_governance_2_root_export_binding_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: root export targets are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write(
+        repo / "apps/backend/src/provider/alternate.py",
+        """
+        def public(value: str) -> str:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish alternate implementation")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        'from .alternate import public\n\n__all__ = ["public"]\n',
+    )
+
+    switched = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = switched["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert ".api.public" in change["before"]
+    assert ".alternate.public" in change["after"]
+
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "switch public implementation")
+    switched_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        '__all__ = ["public"]\n',
+    )
+
+    removed = build_impact_report(repo, base_ref=switched_ref)
+
+    [change] = removed["changed_public_symbols"]
+    assert ".alternate.public" in change["before"]
+    assert change["after"] == "dynamic-export"
+
+
+def test_AC_meta_dependency_governance_2_protocol_methods_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: public protocols include dunder methods."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["PublicCollection"],
+        source="""
+        from collections.abc import Iterator
+
+        class PublicCollection:
+            def __iter__(self) -> Iterator[str]:
+                return iter(())
+
+            def _normalize(self, value: str) -> str:
+                return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish iterable boundary")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["PublicCollection"],
+        source="""
+        from collections.abc import Iterator
+
+        class PublicCollection:
+            def __iter__(self) -> Iterator[int]:
+                return iter(())
+
+            def _normalize(self, value: object) -> object:
+                return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert "__iter__(self) -> Iterator[str]" in change["before"]
+    assert "__iter__(self) -> Iterator[int]" in change["after"]
+    assert "_normalize" not in change["before"]
+    assert "_normalize" not in change["after"]
+
+
+def test_AC_meta_dependency_governance_2_lazy_root_binding_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: lazy root exports retain their targets."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        """
+        from importlib import import_module
+
+        _EXPORTS = {"public": "src.provider.api"}
+        __all__ = ["public"]
+
+        def __getattr__(name: str) -> object:
+            module = _EXPORTS.get(name)
+            if module is None:
+                raise AttributeError(name)
+            return getattr(import_module(module), name)
+        """,
+    )
+
+    snapshot = build_dependency_snapshot(repo)
+
+    record = next(
+        record
+        for record in snapshot["public_symbols"]
+        if record["package"] == "provider" and record["symbol"] == "public"
+    )
+    assert record["resolution"] == "reexport"
+    assert "lazy:src.provider.api.public" in record["signature"]
+    assert "def(value: str) -> str" in record["signature"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):
@@ -589,6 +719,11 @@ def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symb
 
     assert actual == expected
     assert len(snapshot["public_symbols"]) == len(expected)
+    assert not [
+        record
+        for record in snapshot["public_symbols"]
+        if record["resolution"] == "dynamic"
+    ]
     assert "units_by_layer" not in snapshot
     assert {edge["kind"] for edge in snapshot["edges"]} == {"compile"}
 
@@ -632,7 +767,8 @@ def test_AC_meta_dependency_governance_2_cli_writes_ephemeral_ci_reports(
     assert "## DDD Dependency Impact" in markdown
     assert "| Changed public signatures | 1 |" in markdown
     assert "### Public Boundary Changes" in markdown
-    assert "`def(value: str, strict: bool=False) -> str`" in markdown
+    assert ".api.public" in markdown
+    assert "def(value: str, strict: bool=False) -> str" in markdown
 
 
 def test_AC_meta_dependency_governance_2_ci_publishes_dependency_summary() -> None:
