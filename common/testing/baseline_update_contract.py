@@ -431,6 +431,8 @@ def _literal_module_names(tree: ast.Module) -> set[str]:
 def _observer_uses_runtime_state(
     observer: ast.expr, tree: ast.Module, function: TestFunction
 ) -> bool:
+    if isinstance(observer, ast.Name):
+        return False
     lambda_arguments: set[str] = set()
     if isinstance(observer, ast.Lambda):
         lambda_arguments = {argument.arg for argument in observer.args.args}
@@ -444,6 +446,34 @@ def _observer_uses_runtime_state(
     return bool(referenced)
 
 
+def _executed_string_value(node: ast.expr, constants: dict[str, str]) -> str | None:
+    if isinstance(node, ast.IfExp):
+        try:
+            condition = ast.literal_eval(node.test)
+        except (ValueError, TypeError):
+            return None
+        selected = node.body if condition else node.orelse
+        return _executed_string_value(selected, constants)
+    return _string_value(node, constants)
+
+
+def _call_argv_strings(call: ast.Call, constants: dict[str, str]) -> set[str]:
+    argv = (
+        call.args[0]
+        if call.args
+        else next(
+            (keyword.value for keyword in call.keywords if keyword.arg == "argv"), None
+        )
+    )
+    if not isinstance(argv, (ast.List, ast.Tuple)):
+        return set()
+    return {
+        value
+        for element in argv.elts
+        if (value := _executed_string_value(element, constants)) is not None
+    }
+
+
 def _proof_status(
     tree: ast.Module,
     function: TestFunction,
@@ -455,6 +485,10 @@ def _proof_status(
     harness_aliases = _updater_aliases(tree, function, PROOF_HARNESS_MODULE)
     if not updater_aliases or not harness_aliases:
         return "missing-harness"
+    proof_constants = _module_string_constants(tree)
+    proof_constants.update(
+        _module_string_constants(ast.Module(body=function.body, type_ignores=[]))
+    )
     saw_bound_updater = False
     for harness_call in ast.walk(function):
         if not isinstance(harness_call, ast.Call):
@@ -487,10 +521,7 @@ def _proof_status(
                 and call.func.attr == "main"
             ):
                 continue
-            if any(
-                isinstance(node, ast.Constant) and node.value == mutation_flag
-                for node in ast.walk(call)
-            ):
+            if mutation_flag in _call_argv_strings(call, proof_constants):
                 updater_is_bound = True
                 break
         if not updater_is_bound:
