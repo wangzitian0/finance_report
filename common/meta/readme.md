@@ -173,10 +173,12 @@ bounded lazy `__getattr__` export forms plus local assignment aliases to the
 owning definition. Its signature retains that binding path plus overload
 declarations, annotated values,
 decorators, generic type parameters, local and repository-imported named defaults,
-annotation aliases, class construction, repository-owned inherited APIs, public
-protocol dunder methods, and other public class members. Value bindings are
-fingerprinted at their assignment/import time, so later rebinding cannot rewrite a
-captured default or alias. Wildcard binding obeys the target's `__all__`; missing
+annotation aliases (including `TYPE_CHECKING` declarations), class construction,
+repository-owned inherited APIs, public protocol dunder methods, and other public
+class members. Bare and module-qualified project bindings use the same resolver.
+Value bindings are fingerprinted at their assignment/import time, so later
+rebinding cannot rewrite a captured default or alias. Wildcard binding obeys the
+target's `__all__`; missing
 explicit or lazy targets and ambiguous lazy control flow fail closed. Every declared public
 symbol gets exactly one snapshot record, and the repository snapshot is ratcheted
 to zero unresolved dynamic exports; a declaration with no statically visible

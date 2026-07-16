@@ -321,10 +321,11 @@ CONTRACT = PackageContract(
             statement=(
                 "A ref-isolated base-vs-HEAD dependency impact report shows typed "
                 "edge and public-boundary changes with every direct and transitive "
-                "consumer. Boundary fingerprints resolve root bindings, local "
-                "aliases, inherited APIs, annotation aliases, and local or imported "
-                "named defaults at binding time without importing implementation "
-                "modules; unreadable discovery or ambiguous exports fail closed."
+                "consumer. Boundary fingerprints resolve root bindings, local or "
+                "module-qualified aliases, inherited APIs, TYPE_CHECKING annotation "
+                "aliases, and local or imported named defaults at binding time "
+                "without importing implementation modules; unreadable discovery or "
+                "ambiguous exports fail closed."
             ),
             test=(
                 "tests/tooling/test_ddd_dependency_report.py"

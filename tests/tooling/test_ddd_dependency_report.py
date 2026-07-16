@@ -1080,6 +1080,162 @@ def test_AC_meta_dependency_governance_2_default_uses_assignment_time_value(
     assert change["before"] != change["after"]
 
 
+def test_AC_meta_dependency_governance_2_type_checking_alias_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: type-checking aliases are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            _Input = int | str
+
+        def public(value: _Input) -> _Input:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish type-checking alias")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            _Input = int | str | bytes
+
+        def public(value: _Input) -> _Input:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_qualified_import_defaults_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: qualified defaults resolve modules."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public_from", "public_import"],
+        source="""
+        import src.provider.constants as imported_constants
+        from . import constants
+
+        def public_from(value: int = constants.DEFAULT) -> int:
+            return value
+
+        def public_import(value: int = imported_constants.DEFAULT) -> int:
+            return value
+        """,
+    )
+    constants = repo / "apps/backend/src/provider/constants.py"
+    _write(constants, "DEFAULT = 5\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish qualified defaults")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(constants, "DEFAULT = 10\n")
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    assert {change["symbol"] for change in report["changed_public_symbols"]} == {
+        "public_from",
+        "public_import",
+    }
+
+
+def test_AC_meta_dependency_governance_2_qualified_base_api_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: qualified inherited APIs are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        from . import base
+
+        class Public(base.Base):
+            pass
+        """,
+    )
+    base_source = repo / "apps/backend/src/provider/base.py"
+    _write(
+        base_source,
+        """
+        class Base:
+            def __init__(self, value: str) -> None:
+                self.value = value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish qualified base")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        base_source,
+        """
+        class Base:
+            def __init__(self, value: str, strict: bool = False) -> None:
+                self.value = value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "Public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_qualified_assignment_alias_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: qualified aliases retain targets."""
+
+    repo, _ = _seed_repo(tmp_path)
+    root = repo / "apps/backend/src/provider/__init__.py"
+    _write(
+        root,
+        """
+        from . import api
+
+        public = api.public
+        __all__ = ["public"]
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish qualified alias")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        repo / "apps/backend/src/provider/api.py",
+        """
+        def public(value: str, strict: bool = False) -> str:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):

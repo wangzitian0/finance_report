@@ -48,12 +48,18 @@ class _ImportedValue:
 
 
 @dataclass(frozen=True)
+class _ImportedModule:
+    source: Path
+    binding: str
+
+
+@dataclass(frozen=True)
 class _ExpressionValue:
     expression: str
     dependencies: tuple[tuple[str, _ValueBinding], ...]
 
 
-type _ValueBinding = _ExpressionValue | _ImportedValue
+type _ValueBinding = _ExpressionValue | _ImportedModule | _ImportedValue
 
 
 _ResolutionKey = tuple[Path, str, int | None]
@@ -77,19 +83,61 @@ def _type_parameters(
     return f"[{', '.join(ast.unparse(parameter) for parameter in parameters)}]"
 
 
-def _capture_expression(
-    node: ast.expr, values: dict[str, _ValueBinding]
-) -> _ExpressionValue:
-    references = sorted(
-        {
-            child.id
-            for child in ast.walk(node)
-            if isinstance(child, ast.Name) and child.id in values
-        }
+def _attribute_parts(node: ast.expr) -> tuple[str, tuple[str, ...]] | None:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return node.id, tuple(reversed(parts))
+
+
+def _qualified_imported_value(
+    node: ast.expr,
+    values: dict[str, _ValueBinding],
+) -> _ImportedValue | None:
+    qualified = _attribute_parts(node)
+    if qualified is None:
+        return None
+    root, parts = qualified
+    binding = values.get(root)
+    if not isinstance(binding, _ImportedModule) or not parts:
+        return None
+    target_source = binding.source
+    if len(parts) > 1:
+        target_source = _module_source(target_source.parent.joinpath(*parts[:-1]))
+        if target_source is None:
+            return None
+    return _ImportedValue(
+        source=target_source,
+        symbol=parts[-1],
+        binding=f"{binding.binding}.{'.'.join(parts)}",
     )
+
+
+def _capture_expression(
+    node: ast.expr,
+    values: dict[str, _ValueBinding],
+) -> _ExpressionValue:
+    dependencies: dict[str, _ValueBinding] = {}
+
+    def visit(child: ast.AST) -> None:
+        if isinstance(child, ast.Attribute):
+            qualified = _qualified_imported_value(child, values)
+            if qualified is not None:
+                dependencies[ast.unparse(child)] = qualified
+                return
+        if isinstance(child, ast.Name) and child.id in values:
+            dependencies[child.id] = values[child.id]
+            return
+        for nested in ast.iter_child_nodes(child):
+            visit(nested)
+
+    visit(node)
     return _ExpressionValue(
         expression=ast.unparse(node),
-        dependencies=tuple((name, values[name]) for name in references),
+        dependencies=tuple(sorted(dependencies.items())),
     )
 
 
@@ -98,6 +146,8 @@ def _binding_fingerprint(
     repo_root: Path,
     seen: frozenset[_ValueKey] = frozenset(),
 ) -> str:
+    if isinstance(binding, _ImportedModule):
+        return binding.binding
     if isinstance(binding, _ImportedValue):
         fingerprint = _imported_value_fingerprint(
             binding.source, binding.symbol, repo_root, seen
@@ -140,14 +190,41 @@ def _imported_value_fingerprint(
     )
 
 
+def _is_type_checking_test(node: ast.expr) -> bool:
+    return (isinstance(node, ast.Name) and node.id == "TYPE_CHECKING") or (
+        isinstance(node, ast.Attribute) and node.attr == "TYPE_CHECKING"
+    )
+
+
 def _module_values(
     body: Sequence[ast.stmt],
     *,
     source: Path,
     repo_root: Path,
+    initial: dict[str, _ValueBinding] | None = None,
 ) -> dict[str, _ValueBinding]:
-    values: dict[str, _ValueBinding] = {}
+    values = dict(initial or {})
     for node in body:
+        if isinstance(node, ast.If) and _is_type_checking_test(node.test):
+            values = _module_values(
+                node.body,
+                source=source,
+                repo_root=repo_root,
+                initial=values,
+            )
+            continue
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported_name = alias.name if alias.asname else alias.name.split(".")[0]
+                target_source = _absolute_module_source(
+                    source, imported_name, repo_root
+                )
+                if target_source is not None:
+                    values[alias.asname or imported_name] = _ImportedModule(
+                        source=target_source,
+                        binding=alias.asname or imported_name,
+                    )
+            continue
         if isinstance(node, ast.ImportFrom):
             target_source = _import_source(source, node, repo_root)
             if target_source is None:
@@ -155,11 +232,22 @@ def _module_values(
             for alias in node.names:
                 if alias.name == "*":
                     continue
-                values[alias.asname or alias.name] = _ImportedValue(
-                    source=target_source,
-                    symbol=alias.name,
-                    binding=_import_binding(node, alias.name),
+                submodule_source = (
+                    _module_source(target_source.parent / alias.name)
+                    if target_source.name == "__init__.py"
+                    else None
                 )
+                if submodule_source is not None:
+                    values[alias.asname or alias.name] = _ImportedModule(
+                        source=submodule_source,
+                        binding=_import_binding(node, alias.name),
+                    )
+                else:
+                    values[alias.asname or alias.name] = _ImportedValue(
+                        source=target_source,
+                        symbol=alias.name,
+                        binding=_import_binding(node, alias.name),
+                    )
             continue
         if isinstance(node, ast.Assign):
             binding = _capture_expression(node.value, values)
@@ -185,18 +273,16 @@ def _resolved_references(
     label: str,
     repo_root: Path,
 ) -> str:
-    references = sorted(
-        {
-            child.id
-            for expression in expressions
-            for child in ast.walk(expression)
-            if isinstance(child, ast.Name) and child.id in values
-        }
+    dependencies = dict(
+        dependency
+        for expression in expressions
+        for dependency in _capture_expression(expression, values).dependencies
     )
-    if not references:
+    if not dependencies:
         return ""
     resolved = ", ".join(
-        f"{name}={_binding_fingerprint(values[name], repo_root)}" for name in references
+        f"{name}={_binding_fingerprint(binding, repo_root)}"
+        for name, binding in sorted(dependencies.items())
     )
     return f" [{label}: {resolved}]"
 
@@ -260,10 +346,18 @@ def _is_public_method(name: str) -> bool:
     return not name.startswith("_") or (name.startswith("__") and name.endswith("__"))
 
 
-def _base_name(node: ast.expr) -> str | None:
+def _base_target(
+    node: ast.expr, values: dict[str, _ValueBinding]
+) -> str | _ImportedValue | None:
     while isinstance(node, ast.Subscript):
         node = node.value
-    return node.id if isinstance(node, ast.Name) else None
+    qualified = _qualified_imported_value(node, values)
+    if qualified is not None:
+        return qualified
+    if not isinstance(node, ast.Name):
+        return None
+    imported = values.get(node.id)
+    return imported if isinstance(imported, _ImportedValue) else node.id
 
 
 def _project_base_signature(
@@ -320,17 +414,25 @@ def _class_signature(
     )
     members: list[str] = []
     for base in node.bases:
-        name = _base_name(base)
-        if name is None:
+        target = _base_target(base, values)
+        if target is None:
             continue
-        signature = _project_base_signature(
-            source,
-            module_body,
-            name,
-            repo_root,
-            seen,
-            definition_index,
-        )
+        if isinstance(target, _ImportedValue):
+            resolved = _resolve_export(target.source, target.symbol, repo_root, seen)
+            signature = (
+                f"{target.binding} -> {resolved.signature}"
+                if resolved is not None
+                else None
+            )
+        else:
+            signature = _project_base_signature(
+                source,
+                module_body,
+                target,
+                repo_root,
+                seen,
+                definition_index,
+            )
         if signature is not None:
             members.append(f"inherits[{ast.unparse(base)}]={signature}")
     for child in node.body:
@@ -421,7 +523,7 @@ def _is_overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
-def _assigned_alias_target(node: ast.stmt, symbol: str) -> str | None:
+def _assigned_alias_value(node: ast.stmt, symbol: str) -> ast.expr | None:
     value: ast.expr | None = None
     if isinstance(node, ast.Assign) and any(
         isinstance(target, ast.Name) and target.id == symbol for target in node.targets
@@ -433,7 +535,7 @@ def _assigned_alias_target(node: ast.stmt, symbol: str) -> str | None:
         and node.target.id == symbol
     ):
         value = node.value
-    return value.id if isinstance(value, ast.Name) else None
+    return value
 
 
 def _defines_symbol(node: ast.stmt, symbol: str) -> bool:
@@ -824,8 +926,21 @@ def _resolve_export(
     for index in range(stop - 1, -1, -1):
         node = tree.body[index]
         if _defines_symbol(node, symbol):
-            alias_target = _assigned_alias_target(node, symbol)
-            if alias_target is not None:
+            alias_value = _assigned_alias_value(node, symbol)
+            alias_target: str | _ImportedValue | None = None
+            if isinstance(alias_value, ast.Name):
+                alias_target = alias_value.id
+            elif isinstance(alias_value, ast.Attribute):
+                values = _module_values(
+                    tree.body[:index], source=source, repo_root=repo_root
+                )
+                alias_target = _qualified_imported_value(alias_value, values)
+                if alias_target is None:
+                    raise RuntimeError(
+                        f"{source}: cannot resolve qualified alias {symbol!r} "
+                        f"through {ast.unparse(alias_value)!r}"
+                    )
+            if isinstance(alias_target, str):
                 resolved = _resolve_export(
                     source,
                     alias_target,
@@ -841,6 +956,24 @@ def _resolve_export(
                 return _ResolvedExport(
                     signature=resolved.signature,
                     binding=f"alias:{alias_target} -> {resolved.binding}",
+                    source=resolved.source,
+                    reexported=True,
+                )
+            if isinstance(alias_target, _ImportedValue):
+                resolved = _resolve_export(
+                    alias_target.source,
+                    alias_target.symbol,
+                    repo_root,
+                    next_seen,
+                )
+                if resolved is None:
+                    raise RuntimeError(
+                        f"{source}: cannot resolve alias {symbol!r} through "
+                        f"{alias_target.binding!r}"
+                    )
+                return _ResolvedExport(
+                    signature=resolved.signature,
+                    binding=f"alias:{alias_target.binding} -> {resolved.binding}",
                     source=resolved.source,
                     reexported=True,
                 )
