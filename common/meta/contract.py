@@ -508,31 +508,6 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
-        ACRecord(
-            id="AC-meta.txn.4",
-            statement=(
-                "A DB-level ondelete=CASCADE is a hidden write below the "
-                "application — one table's delete silently mutating other "
-                "rows; across domains it breaks one-txn-per-domain and "
-                "append-only domains, the risk this ratchet exists for. The "
-                'census of ForeignKey(..., ondelete="CASCADE") target tables '
-                "under apps/backend/src (all sites — deliberately not "
-                "domain-aware until models decentralization, #1675 D5/D6, "
-                "makes table ownership derivable) must equal "
-                "common/meta/data/fk-cascade-baseline.json: silent growth fails CI; "
-                "adding a cascade requires raising the baseline in the same "
-                "PR, where the diff makes the choice reviewable (the "
-                "app-boundary idiom); removals prune the baseline in the same "
-                "PR. Existing sites are grandfathered; the end-state is "
-                "saga-owned deletion (#1675 ruling, D1/D7)."
-            ),
-            test=(
-                "tests/tooling/test_fk_cascade_ratchet.py"
-                "::test_AC_meta_txn_4_cross_domain_cascade_only_shrinks"
-            ),
-            priority="P1",
-            status="done",
-        ),
         # The taxonomy migrated in place, so its retired vocabulary lingers in
         # prose; the drift gate makes "old words presented as current" a CI
         # failure instead of a periodic manual audit.
@@ -2642,28 +2617,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "tests/tooling/test_epic_residue_ratchet.py",
                 "common/meta/extension/generate_ac_registry.py",
-                "common/meta/migration-standard.md",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
-            parent="package_model",
-        ),
-        ConceptRecord(
-            key="fk_cascade_baseline",
-            owner="common/meta/data/fk-cascade-baseline.json",
-            description=(
-                'Ratchet census of ForeignKey(..., ondelete="CASCADE") sites under '
-                "apps/backend/src, keyed by target table — a DB cascade is a hidden write "
-                "below the application (across domains it breaks one-txn-per-domain and "
-                "append-only, the risk the ratchet exists for); CI enforces census == "
-                "baseline, so silent growth fails and adding a cascade requires a same-PR "
-                "baseline edit (reviewable consent); deliberately counts all sites, not just "
-                "cross-domain, until models decentralization makes ownership derivable; "
-                "end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling)."
-            ),
-            cross_refs=[
-                "tests/tooling/test_fk_cascade_ratchet.py",
                 "common/meta/migration-standard.md",
             ],
             family="platform",

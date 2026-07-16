@@ -267,6 +267,8 @@ def evaluate_incremental_gate(
                 add_violation(violation)
 
         for ssot_file in _changed_ssot_files(source_changed):
+            if not (source.source_root / ssot_file).exists():
+                continue
             target = _gate_target(source.system, ssot_file)
             owner_entries = [
                 entry
