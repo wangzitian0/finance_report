@@ -923,6 +923,49 @@ def test_AC_meta_dependency_governance_2_named_function_defaults_are_reported(
     assert "DEFAULT=10" in change["after"]
 
 
+def test_AC_meta_dependency_governance_2_local_alias_target_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: local aliases retain target signatures."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        def _implementation(value: str) -> str:
+            return value
+
+        Public = _implementation
+
+        def _implementation(value: int) -> int:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish aliased boundary")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        def _implementation(value: str, strict: bool = False) -> str:
+            return value
+
+        Public = _implementation
+
+        def _implementation(value: int) -> int:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "Public"
+    assert change["before"] != change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):

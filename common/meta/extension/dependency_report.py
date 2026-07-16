@@ -40,6 +40,9 @@ class _ResolvedExport:
     reexported: bool
 
 
+_ResolutionKey = tuple[Path, str, int | None]
+
+
 def _annotation(node: ast.expr | None) -> str:
     return ast.unparse(node) if node is not None else "Any"
 
@@ -153,11 +156,18 @@ def _project_base_signature(
     body: list[ast.stmt],
     base_name: str,
     repo_root: Path,
-    seen: frozenset[tuple[Path, str]],
+    seen: frozenset[_ResolutionKey],
+    before_index: int,
 ) -> str | None:
-    for node in reversed(body):
+    for node in reversed(body[:before_index]):
         if isinstance(node, ast.ClassDef) and node.name == base_name:
-            resolved = _resolve_export(source, base_name, repo_root, seen)
+            resolved = _resolve_export(
+                source,
+                base_name,
+                repo_root,
+                seen,
+                before_index=before_index,
+            )
             return resolved.signature if resolved is not None else None
         if not isinstance(node, ast.ImportFrom):
             continue
@@ -165,7 +175,13 @@ def _project_base_signature(
             continue
         if _import_source(source, node, repo_root) is None:
             return None
-        resolved = _resolve_export(source, base_name, repo_root, seen)
+        resolved = _resolve_export(
+            source,
+            base_name,
+            repo_root,
+            seen,
+            before_index=before_index,
+        )
         return resolved.signature if resolved is not None else None
     return None
 
@@ -177,7 +193,8 @@ def _class_signature(
     values: dict[str, ast.expr],
     source: Path,
     repo_root: Path,
-    seen: frozenset[tuple[Path, str]],
+    seen: frozenset[_ResolutionKey],
+    definition_index: int,
 ) -> str:
     bases = [ast.unparse(base) for base in node.bases]
     bases.extend(
@@ -191,7 +208,14 @@ def _class_signature(
         name = _base_name(base)
         if name is None:
             continue
-        signature = _project_base_signature(source, module_body, name, repo_root, seen)
+        signature = _project_base_signature(
+            source,
+            module_body,
+            name,
+            repo_root,
+            seen,
+            definition_index,
+        )
         if signature is not None:
             members.append(f"inherits[{ast.unparse(base)}]={signature}")
     for child in node.body:
@@ -228,7 +252,8 @@ def _definition_signature(
     values: dict[str, ast.expr],
     source: Path,
     repo_root: Path,
-    seen: frozenset[tuple[Path, str]],
+    seen: frozenset[_ResolutionKey],
+    definition_index: int,
 ) -> str | None:
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return _function_signature(node, values) if node.name == symbol else None
@@ -241,6 +266,7 @@ def _definition_signature(
                 source=source,
                 repo_root=repo_root,
                 seen=seen,
+                definition_index=definition_index,
             )
             if node.name == symbol
             else None
@@ -266,6 +292,21 @@ def _is_overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _assigned_alias_target(node: ast.stmt, symbol: str) -> str | None:
+    value: ast.expr | None = None
+    if isinstance(node, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == symbol for target in node.targets
+    ):
+        value = node.value
+    elif (
+        isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == symbol
+    ):
+        value = node.value
+    return value.id if isinstance(value, ast.Name) else None
+
+
 def _module_definition_signature(
     body: list[ast.stmt],
     index: int,
@@ -273,7 +314,7 @@ def _module_definition_signature(
     *,
     source: Path,
     repo_root: Path,
-    seen: frozenset[tuple[Path, str]],
+    seen: frozenset[_ResolutionKey],
 ) -> str | None:
     node = body[index]
     values = _module_values(body[:index])
@@ -285,6 +326,7 @@ def _module_definition_signature(
         source=source,
         repo_root=repo_root,
         seen=seen,
+        definition_index=index,
     )
     if signature is None or not isinstance(
         node, (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -623,17 +665,40 @@ def _resolve_export(
     source: Path,
     symbol: str,
     repo_root: Path,
-    seen: frozenset[tuple[Path, str]] = frozenset(),
+    seen: frozenset[_ResolutionKey] = frozenset(),
+    *,
+    before_index: int | None = None,
 ) -> _ResolvedExport | None:
-    key = (source.resolve(), symbol)
+    key = (source.resolve(), symbol, before_index)
     if key in seen:
         return None
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
     next_seen = seen | {key}
+    stop = len(tree.body) if before_index is None else min(before_index, len(tree.body))
 
     # Reverse order reflects the binding left in the module namespace at runtime.
-    for index in range(len(tree.body) - 1, -1, -1):
+    for index in range(stop - 1, -1, -1):
         node = tree.body[index]
+        alias_target = _assigned_alias_target(node, symbol)
+        if alias_target is not None:
+            resolved = _resolve_export(
+                source,
+                alias_target,
+                repo_root,
+                next_seen,
+                before_index=index,
+            )
+            if resolved is None:
+                raise RuntimeError(
+                    f"{source}: cannot resolve alias {symbol!r} through "
+                    f"{alias_target!r}"
+                )
+            return _ResolvedExport(
+                signature=resolved.signature,
+                binding=f"alias:{alias_target} -> {resolved.binding}",
+                source=resolved.source,
+                reexported=True,
+            )
         signature = _module_definition_signature(
             tree.body,
             index,

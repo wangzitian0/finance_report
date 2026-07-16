@@ -169,8 +169,9 @@ reinterpreted through HEAD's `PackageContract` model. The JSON report includes
 added/removed typed edges, changed public signatures, and the union of base/head
 direct and transitive consumers. Public-boundary inspection starts at each
 implementation root and follows eager, chained, wildcard, and the repository's
-bounded lazy `__getattr__` export forms to the owning definition. Its signature
-retains that binding path plus overload declarations, annotated values,
+bounded lazy `__getattr__` export forms plus local assignment aliases to the
+owning definition. Its signature retains that binding path plus overload
+declarations, annotated values,
 decorators, generic type parameters, resolved named defaults, class construction,
 repository-owned inherited APIs, public protocol dunder methods, and other public
 class members. Wildcard binding obeys the target's `__all__`; missing explicit or
