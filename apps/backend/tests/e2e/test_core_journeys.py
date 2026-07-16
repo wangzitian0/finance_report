@@ -357,7 +357,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
     AC-ledger.journeys.8: EPIC-002 / AC8.3.4: Unbalanced entry rejected
     GIVEN a user attempts to create an unbalanced journal entry
     WHEN sending the request
-    THEN it should return 422 schema validation error
+    THEN it should return 400 ledger validation error
     """
     account_resp = await client.post(
         "/accounts",
@@ -386,7 +386,7 @@ async def test_unbalanced_journal_entry_rejection(client, test_user):
             ],
         },
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
     error_msg = str(response.json()).lower()
     assert "not balanced" in error_msg or "debit" in error_msg or "credit" in error_msg
 
