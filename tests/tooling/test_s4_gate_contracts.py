@@ -464,7 +464,12 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "common/testing/mirror_ratchet.py",
         "common/testing/tool_shim_contract.py",
     }
-    assert set(baseline_update_contract.MONOTONIC_UPDATE_PROOFS) == update_paths
+    assert {
+        path for path, _flag in baseline_update_contract.MONOTONIC_UPDATE_PROOFS
+    } == update_paths
+    assert set(
+        baseline_update_contract.MONOTONIC_UPDATE_PROOFS
+    ) == baseline_update_contract.monotonic_update_commands(ROOT)
     assert baseline_update_contract.proof_violations(ROOT) == []
 
     synthetic_root = tmp_path / "proof-contract"
@@ -478,17 +483,21 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     monkeypatch.setattr(baseline_update_contract, "MONOTONIC_UPDATE_PROOFS", {})
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: monotonic --update path lacks a behavioral "
-        "regression proof"
+        "common/testing/synthetic.py [--update]: monotonic mutation path lacks a "
+        "behavioral regression proof"
     ]
 
     monkeypatch.setattr(
         baseline_update_contract,
         "MONOTONIC_UPDATE_PROOFS",
-        {"common/testing/synthetic.py": "tests/tooling/test_missing.py::test_missing"},
+        {
+            ("common/testing/synthetic.py", "--update"): (
+                "tests/tooling/test_missing.py::test_missing"
+            )
+        },
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof node does not exist: "
+        "common/testing/synthetic.py [--update]: behavioral proof node does not exist: "
         "tests/tooling/test_missing.py::test_missing"
     ]
 
@@ -496,8 +505,8 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     proof_file.parent.mkdir(parents=True)
     proof_file.write_text("def test_missing():\n    assert True\n", encoding="utf-8")
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof does not exercise synthetic "
-        "regression debt through the refusal harness: "
+        "common/testing/synthetic.py [--update]: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
         "tests/tooling/test_missing.py::test_missing"
     ]
 
@@ -508,7 +517,7 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         encoding="utf-8",
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof does not exercise "
+        "common/testing/synthetic.py [--update]: behavioral proof does not exercise "
         "synthetic regression debt through the refusal harness: "
         "tests/tooling/test_missing.py::test_missing"
     ]
@@ -524,8 +533,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         encoding="utf-8",
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof uses constant or vacuous "
-        "regression-debt observers: tests/tooling/test_missing.py::test_missing"
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
     ]
 
     proof_file.write_text(
@@ -542,6 +552,24 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         encoding="utf-8",
     )
     assert baseline_update_contract.proof_violations(synthetic_root) == []
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "ALWAYS = True\n"
+        "BASELINE = b'baseline'\n\n"
+        "def test_missing():\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: ALWAYS,\n"
+        "        baseline_state=lambda: BASELINE,\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py [--update]: behavioral proof uses constant or "
+        "vacuous regression-debt observers: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
 
 
 def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -> None:
@@ -582,3 +610,64 @@ def test_AC_testing_governance_21_specialized_mutation_flags_are_censused(
     assert baseline_update_contract.monotonic_update_paths(tmp_path) == {
         "common/testing/specialized.py"
     }
+    assert baseline_update_contract.monotonic_update_commands(tmp_path) == {
+        ("common/testing/specialized.py", "--update-floor")
+    }
+
+
+def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    updater = tmp_path / "common/testing/multi_flag.py"
+    updater.parent.mkdir(parents=True)
+    updater.write_text(
+        'BASELINE_UPDATE_MODE = "raise-only"\n'
+        'parser.add_argument("--update")\n'
+        'parser.add_argument("--update-floor")\n',
+        encoding="utf-8",
+    )
+    proof = tmp_path / "tests/tooling/test_multi_flag.py"
+    proof.parent.mkdir(parents=True)
+    proof.write_text(
+        "from common.testing import baseline_update_contract, multi_flag\n\n"
+        "def test_update(tmp_path):\n"
+        "    baseline = tmp_path / 'baseline'\n"
+        "    debt = {'new-debt'}\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: bool(debt),\n"
+        "        baseline_state=baseline.read_bytes,\n"
+        '        update=lambda: multi_flag.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/multi_flag.py", "--update"): (
+                "tests/tooling/test_multi_flag.py::test_update"
+            )
+        },
+    )
+
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: monotonic mutation path "
+        "lacks a behavioral regression proof"
+    ]
+
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/multi_flag.py", flag): (
+                "tests/tooling/test_multi_flag.py::test_update"
+            )
+            for flag in ("--update", "--update-floor")
+        },
+    )
+    assert baseline_update_contract.proof_violations(tmp_path) == [
+        "common/testing/multi_flag.py [--update-floor]: behavioral proof does not "
+        "exercise synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_multi_flag.py::test_update"
+    ]

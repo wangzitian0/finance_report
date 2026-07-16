@@ -19,53 +19,54 @@ PROOF_HARNESS_MODULE = "common.testing.baseline_update_contract"
 PROOF_HARNESS_NAME = "assert_regression_debt_refused"
 
 Result = TypeVar("Result")
+UpdateCommand = tuple[str, str]
 
 MONOTONIC_UPDATE_PROOFS = {
-    "common/meta/extension/check_ac_tier_baseline.py": (
+    ("common/meta/extension/check_ac_tier_baseline.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
-    "common/meta/extension/check_app_boundary.py": (
+    ("common/meta/extension/check_app_boundary.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
-    "common/testing/api_surface_ratchet.py": (
+    ("common/testing/api_surface_ratchet.py", UPDATE_FLAG): (
         "tests/tooling/test_api_surface_ratchet.py"
         "::test_router_ratchet_rejects_new_file_and_update_cannot_adopt_it"
     ),
-    "common/testing/check_ac_score_baseline.py": (
+    ("common/testing/check_ac_score_baseline.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
-    "common/testing/check_ac_index.py": (
+    ("common/testing/check_ac_index.py", f"{UPDATE_FLAG}-floor"): (
         "tests/tooling/test_ac_index_consistency.py"
         "::test_AC8_13_140_update_floor_raises_floors"
     ),
-    "common/testing/check_cassette_graded_eval.py": (
+    ("common/testing/check_cassette_graded_eval.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
-    "common/testing/check_critical_value_proof.py": (
+    ("common/testing/check_critical_value_proof.py", UPDATE_FLAG): (
         "tests/tooling/test_critical_value_proof_ratchet.py"
         "::test_baseline_only_shrinks_never_grows"
     ),
-    "common/testing/fe_api_handmock_ratchet.py": (
+    ("common/testing/fe_api_handmock_ratchet.py", UPDATE_FLAG): (
         "tests/tooling/test_fe_api_handmock_ratchet.py"
         "::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down"
     ),
-    "common/testing/fe_fetch_ratchet.py": (
+    ("common/testing/fe_fetch_ratchet.py", UPDATE_FLAG): (
         "tests/tooling/test_fe_fetch_ratchet.py"
         "::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down"
     ),
-    "common/testing/gate_main_contract.py": (
+    ("common/testing/gate_main_contract.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
-    "common/testing/mirror_ratchet.py": (
+    ("common/testing/mirror_ratchet.py", UPDATE_FLAG): (
         "tests/tooling/test_package_declaration_and_ratchet.py"
         "::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down"
     ),
-    "common/testing/tool_shim_contract.py": (
+    ("common/testing/tool_shim_contract.py", UPDATE_FLAG): (
         "tests/tooling/test_s4_gate_contracts.py"
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
@@ -186,22 +187,31 @@ def _mutation_flags(tree: ast.Module) -> set[str]:
     return flags
 
 
-def monotonic_update_paths(repo_root: Path) -> set[str]:
-    """Return every module that exposes a monotonic ``--update`` path."""
+def monotonic_update_commands(repo_root: Path) -> set[UpdateCommand]:
+    """Return every module/flag command in the monotonic mutation family."""
 
-    paths: set[str] = set()
+    commands: set[UpdateCommand] = set()
     for root_name in ("common", "tools"):
         root = repo_root / root_name
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            if (
-                any(_is_monotonic_mutation_flag(flag) for flag in _mutation_flags(tree))
-                and _declared_mode(tree) in MONOTONIC_MODES
-            ):
-                paths.add(path.relative_to(repo_root).as_posix())
-    return paths
+            if _declared_mode(tree) not in MONOTONIC_MODES:
+                continue
+            relative = path.relative_to(repo_root).as_posix()
+            commands.update(
+                (relative, flag)
+                for flag in _mutation_flags(tree)
+                if _is_monotonic_mutation_flag(flag)
+            )
+    return commands
+
+
+def monotonic_update_paths(repo_root: Path) -> set[str]:
+    """Return modules exposing any monotonic ``--update``/``--update-*`` flag."""
+
+    return {path for path, _flag in monotonic_update_commands(repo_root)}
 
 
 def declaration_violations(repo_root: Path) -> list[str]:
@@ -349,12 +359,38 @@ def _literal_local_names(function: TestFunction) -> set[str]:
     return names
 
 
-def _observer_uses_runtime_state(observer: ast.expr, function: TestFunction) -> bool:
+def _literal_module_names(tree: ast.Module) -> set[str]:
+    names: set[str] = set()
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets, value = [node.target], node.value
+        if value is None:
+            continue
+        try:
+            ast.literal_eval(value)
+        except (ValueError, TypeError):
+            continue
+        names.update(target.id for target in targets if isinstance(target, ast.Name))
+    return names
+
+
+def _observer_uses_runtime_state(
+    observer: ast.expr, tree: ast.Module, function: TestFunction
+) -> bool:
     lambda_arguments: set[str] = set()
     if isinstance(observer, ast.Lambda):
         lambda_arguments = {argument.arg for argument in observer.args.args}
     referenced = {node.id for node in ast.walk(observer) if isinstance(node, ast.Name)}
-    referenced -= lambda_arguments | _OBSERVER_BUILTINS | _literal_local_names(function)
+    referenced -= (
+        lambda_arguments
+        | _OBSERVER_BUILTINS
+        | _literal_local_names(function)
+        | _literal_module_names(tree)
+    )
     return bool(referenced)
 
 
@@ -362,7 +398,7 @@ def _proof_status(
     tree: ast.Module,
     function: TestFunction,
     source_path: str,
-    mutation_flags: set[str],
+    mutation_flag: str,
 ) -> str:
     module_name = Path(source_path).with_suffix("").as_posix().replace("/", ".")
     updater_aliases = _updater_aliases(tree, function, module_name)
@@ -402,7 +438,7 @@ def _proof_status(
             ):
                 continue
             if any(
-                isinstance(node, ast.Constant) and node.value in mutation_flags
+                isinstance(node, ast.Constant) and node.value == mutation_flag
                 for node in ast.walk(call)
             ):
                 updater_is_bound = True
@@ -417,7 +453,7 @@ def _proof_status(
         }
         if all(
             name in observers
-            and _observer_uses_runtime_state(observers[name], function)
+            and _observer_uses_runtime_state(observers[name], tree, function)
             for name in ("regression_debt_present", "baseline_state")
         ):
             return "valid"
@@ -425,41 +461,36 @@ def _proof_status(
 
 
 def proof_violations(repo_root: Path) -> list[str]:
-    """Return monotonic update paths without a live behavioral proof node."""
+    """Return monotonic mutation commands without an exact behavioral proof."""
 
-    update_paths = monotonic_update_paths(repo_root)
-    registered_paths = set(MONOTONIC_UPDATE_PROOFS)
+    update_commands = monotonic_update_commands(repo_root)
+    registered_commands = set(MONOTONIC_UPDATE_PROOFS)
     findings = [
-        f"{path}: monotonic --update path lacks a behavioral regression proof"
-        for path in sorted(update_paths - registered_paths)
+        f"{path} [{flag}]: monotonic mutation path lacks a behavioral regression proof"
+        for path, flag in sorted(update_commands - registered_commands)
     ]
     findings.extend(
-        f"{path}: behavioral proof is stale; no monotonic --update path exists"
-        for path in sorted(registered_paths - update_paths)
+        f"{path} [{flag}]: behavioral proof is stale; "
+        "no matching monotonic mutation command exists"
+        for path, flag in sorted(registered_commands - update_commands)
     )
-    for path in sorted(update_paths & registered_paths):
-        node_id = MONOTONIC_UPDATE_PROOFS[path]
+    for path, flag in sorted(update_commands & registered_commands):
+        node_id = MONOTONIC_UPDATE_PROOFS[(path, flag)]
         test_node = _test_node(repo_root, node_id)
         if test_node is None:
-            findings.append(f"{path}: behavioral proof node does not exist: {node_id}")
+            findings.append(
+                f"{path} [{flag}]: behavioral proof node does not exist: {node_id}"
+            )
             continue
-        source_tree = ast.parse(
-            (repo_root / path).read_text(encoding="utf-8"), filename=path
-        )
-        mutation_flags = {
-            flag
-            for flag in _mutation_flags(source_tree)
-            if _is_monotonic_mutation_flag(flag)
-        }
-        proof_status = _proof_status(*test_node, path, mutation_flags)
+        proof_status = _proof_status(*test_node, path, flag)
         if proof_status == "missing-harness":
             findings.append(
-                f"{path}: behavioral proof does not exercise synthetic regression "
-                f"debt through the refusal harness: {node_id}"
+                f"{path} [{flag}]: behavioral proof does not exercise synthetic "
+                f"regression debt through the refusal harness: {node_id}"
             )
         elif proof_status == "vacuous-observers":
             findings.append(
-                f"{path}: behavioral proof uses constant or vacuous "
+                f"{path} [{flag}]: behavioral proof uses constant or vacuous "
                 f"regression-debt observers: {node_id}"
             )
     return findings

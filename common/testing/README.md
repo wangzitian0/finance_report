@@ -77,12 +77,13 @@ family (including specialized flags such as `--update-floor`) is reserved for
 baseline must declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the
 deliberately louder `--rewrite-baseline` flag. The updater census recognizes both
 `argparse` declarations and manual argument-membership checks, resolving simple
-module-level string constants in both forms. Every path must map to a live test
-node that uses `assert_regression_debt_refused` with non-vacuous debt and
-baseline-state observers, invokes that updater's `main` with its mutation flag,
-and proves the baseline remains unchanged. A new mutation path therefore cannot
-be covered by a declaration, an unrelated test name, constant callbacks, or a
-happy-path call.
+module-level string constants in both forms. Every `(module, mutation flag)`
+command must map to a live test node that uses
+`assert_regression_debt_refused` with non-vacuous debt and baseline-state
+observers, invokes that updater's `main` with that exact flag, and proves the
+baseline remains unchanged. A new mutation command therefore cannot be covered
+by a declaration, another flag's proof, an unrelated test name, constant
+callbacks, or a happy-path call.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires
