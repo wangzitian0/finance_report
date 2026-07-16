@@ -4,8 +4,7 @@
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/unit_price.contract.md`](./contract/unit_price.contract.md) +
-> [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
-> [`todo.md`](./todo.md).
+> [`conformance/vectors.json`](./conformance/vectors.json).
 >
 > An **audit** value language (L1 `infra`). It imports `money` and `quantity` (a `UnitPrice`
 > is money per unit) — declared, acyclic same-class edges, which the model allows.
@@ -47,6 +46,6 @@ frontend implementation yet, so `implementations["fe"]` is `None`.
 [`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`
 (interface == BE `__all__`, invariants pin to conformance tests, no forbidden
 import edge — it may import the same-class `money` and `quantity` packages,
-declared in `depends_on` and acyclic). The unit_price ACs (`AC12.32.x`) are still owned by
-EPIC-012; moving them into the contract `roadmap` is a tracked follow-up — see
-[`todo.md`](./todo.md).
+declared in `depends_on` and acyclic). The unit-price ACs formerly named
+`AC12.32.x` are owned by the audit contract roadmap as `AC-audit.32.*`; the
+EPIC contains no mirrored rows.

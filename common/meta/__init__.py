@@ -2,7 +2,7 @@
 
 A *package* in this repo is a DDD bounded context: a ``readme.md`` (prose /
 ubiquitous language) + a :class:`PackageContract` (the machine-checkable
-contract in ``contract.py``) + a ``todo.md`` + conforming implementations whose
+contract in ``contract.py``) + conforming implementations whose
 files converge by layer (``base`` / ``extension`` / ``data``) and whose published
 language is declared via ``__all__``.
 
@@ -55,7 +55,14 @@ __all__ = [
 # it via a direct `common.meta.extension.check_package_contract` import rather
 # than through this lazy attribute, so its CI invocation adds `--with pydantic`
 # explicitly instead of relying on this shield.)
-_BASE_NAMES = {"ACRecord", "ConceptRecord", "Invariant", "Kind", "PackageContract", "Unit"}
+_BASE_NAMES = {
+    "ACRecord",
+    "ConceptRecord",
+    "Invariant",
+    "Kind",
+    "PackageContract",
+    "Unit",
+}
 
 
 def __getattr__(name: str):

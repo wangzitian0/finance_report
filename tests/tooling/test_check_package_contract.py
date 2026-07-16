@@ -86,6 +86,7 @@ def _write_package(
     )
     spec_dir = repo_root / "common" / name
     spec_dir.mkdir(parents=True)
+    (spec_dir / "readme.md").write_text(f"# {name}\n", encoding="utf-8")
     (spec_dir / "contract.py").write_text(
         textwrap.dedent(
             f"""
@@ -718,6 +719,53 @@ def test_run_reports_no_packages_when_empty(synthetic_repo: Path) -> None:
     ok, messages = run(synthetic_repo)
     assert ok is False
     assert any("no packages discovered" in m for m in messages)
+
+
+def test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous(
+    synthetic_repo: Path,
+) -> None:
+    """AC-meta.package-truth.1 rejects missing owners and parallel worklists."""
+    ok, messages = run(synthetic_repo)
+    assert not ok
+    assert any("no packages discovered" in message for message in messages)
+
+    package = _write_package(
+        _src(synthetic_repo),
+        "truthful",
+        klass="infra",
+        all_names=["K"],
+        interface=["K"],
+    )
+    package_readme = package.spec_dir / "readme.md"
+    package_readme.unlink()
+    ok, messages = run(synthetic_repo)
+    assert not ok
+    assert any(
+        "missing required authored surface: readme.md" in message
+        for message in messages
+    )
+
+    package_readme.write_text("# truthful\n", encoding="utf-8")
+    wrong_case_readme = package.spec_dir / "README.md"
+    package_readme.rename(wrong_case_readme)
+    ok, messages = run(synthetic_repo)
+    assert not ok
+    assert any(
+        "missing required authored surface: readme.md" in message
+        for message in messages
+    )
+
+    wrong_case_readme.rename(package_readme)
+    nested_worklist = package.spec_dir / "data" / "TODO.md"
+    nested_worklist.parent.mkdir()
+    nested_worklist.write_text("- [ ] hidden work\n", encoding="utf-8")
+    ok, messages = run(synthetic_repo)
+    assert not ok
+    assert any("parallel worklist is forbidden" in message for message in messages)
+
+    nested_worklist.unlink()
+    ok, messages = run(synthetic_repo)
+    assert ok, messages
 
 
 def test_discover_and_run_pass_for_clean_package(synthetic_repo: Path) -> None:

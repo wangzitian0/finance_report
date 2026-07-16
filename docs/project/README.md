@@ -114,7 +114,7 @@ owning source instead of copying:
 | [EPIC-026](./EPIC-026.ac-authority-tiers.md) | AC authority tiers |
 
 EPIC-009 (PDF fixture generation) was deleted by #1719 — its scope is owned
-by the [`testing` package](../../common/testing/README.md#pdf-fixtures).
+by the [`testing` package](../../common/testing/readme.md#pdf-fixtures).
 EPIC-013/014/020 and the EPIC-022 design companion are 0-AC-row design docs
 kept with explicit `<!-- epic-file: design-doc -->` justifications.
 
@@ -152,7 +152,7 @@ sync with ACs and tests.
 | [../user-guide/reports.md](../user-guide/reports.md) | EPIC-005 | Reporting user surface |
 | [../user-guide/ai-advisor.md](../user-guide/ai-advisor.md) and [../reference/api.md](../reference/api.md) | EPIC-006 / EPIC-021 | AI advisor user/API surface and application guidance layer |
 | [../reference/api-overview.md](../reference/api-overview.md) | EPIC-001 | API conventions and auth entry point |
-| [../../common/testing/README.md#pdf-fixtures](../../common/testing/README.md#pdf-fixtures) | `testing` package (was EPIC-009, deleted by #1719) | PDF fixture command, template, local-input, and font policy |
+| [../../common/testing/readme.md#pdf-fixtures](../../common/testing/readme.md#pdf-fixtures) | `testing` package (was EPIC-009, deleted by #1719) | PDF fixture command, template, local-input, and font policy |
 | [AUDITS.md](./AUDITS.md) and [AC-AUDIT-2026-05-04.md](./AC-AUDIT-2026-05-04.md) | EPIC-014 | Current and historical audit surfaces |
 | [DECISIONS.md](./DECISIONS.md) | EPIC-014 | Project decision log |
 

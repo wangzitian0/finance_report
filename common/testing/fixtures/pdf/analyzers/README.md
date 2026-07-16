@@ -1,7 +1,7 @@
 # PDF Format Analysis
 
 Full analyzer policy is owned by
-[`common/testing/README.md#pdf-fixtures`](../../../README.md#pdf-fixtures).
+[`common/testing/readme.md#pdf-fixtures`](../../../readme.md#pdf-fixtures).
 
 Real PDFs must stay local under `common/testing/fixtures/pdf/input/`; that path
 is gitignored because statements may contain sensitive data. Analyzer output

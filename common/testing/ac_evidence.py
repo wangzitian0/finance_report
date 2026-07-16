@@ -16,7 +16,7 @@ The record is emitted via pytest's builtin ``record_property`` fixture, which
 serialises it into the junit-xml ``<property>`` element that CI already produces.
 Downstream, :mod:`common.testing.ac_evidence_aggregate` reads it back and
 :mod:`common.testing.check_ac_score_baseline` ratchets it. See
-``common/testing/README.md`` for the full mechanism rationale.
+``common/testing/readme.md`` for the full mechanism rationale.
 
 stdlib-only by design: this module is importable from any test suite without
 pulling in app or framework dependencies.

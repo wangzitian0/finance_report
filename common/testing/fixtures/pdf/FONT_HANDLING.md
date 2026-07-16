@@ -1,7 +1,7 @@
 # PDF Fixture Font Handling
 
 Font fallback policy is owned by
-[`common/testing/README.md#pdf-fixtures`](../../README.md#pdf-fixtures).
+[`common/testing/readme.md#pdf-fixtures`](../../readme.md#pdf-fixtures).
 
 The implementation lives in `generators/font_utils.py`:
 

@@ -1,7 +1,7 @@
 # `platform` — domain EventBus via the transactional outbox (meta-layer capability #1)
 
 > Package model: [`../meta/readme.md`](../meta/readme.md). Machine
-> contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
+> contract: [`contract.py`](./contract.py).
 >
 > This `common/platform/` directory is the **spec + review surface**; the
 > conforming implementation lives at
@@ -92,8 +92,9 @@ the pattern every consumer package copies:
    always safe). A handler may be sync or a coroutine function; the relay
    awaits async handlers before marking the row published.
 
-A `LISTEN/NOTIFY` fast-path and a dead-letter state for poison events remain
-future work ([`todo.md`](./todo.md)).
+A `LISTEN/NOTIFY` fast-path, Prefect adapter, and dead-letter state are
+deliberately deferred until operational evidence justifies their complexity.
+They are not scheduled work; adoption requires a GitHub issue and roadmap AC.
 
 ## Layers (files converge by layer — `base` / `extension`)
 

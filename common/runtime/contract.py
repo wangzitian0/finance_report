@@ -17,10 +17,9 @@ DB connectivity) and EPIC-007 AC7.7.1–.2 → ``AC-runtime.7.*`` (``/health``
 dependency-presence), each ``test=`` resolving to its existing proof; the package
 tier (CODE-ONLY) gives ``proof_kind=exact``; the model-dominant substitute
 proofs live with their owning packages (AC-llm.6.2, EPIC-008 AC8.26.*). (Step 3 / cleanup absorbs the
-env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) Remaining as a
-future feature (not this migration): manifest-driven
-``validate`` for *all* declared dependencies per env tier + smoke↔declaration
-parity — see ``todo.md``.
+env-smoke-test SSOT prose into ``readme.md`` and retires the doc.) The later
+manifest-driven validation and smoke/declaration parity work is complete and
+owned by the roadmap below.
 """
 
 from __future__ import annotations

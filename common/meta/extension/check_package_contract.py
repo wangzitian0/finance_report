@@ -990,6 +990,29 @@ def _check_duplicate_public_function_exports(
     ]
 
 
+def _check_authored_truth_surfaces(
+    packages: list[DiscoveredPackage], repo_root: Path
+) -> list[str]:
+    """Require package owners and reject parallel checkbox-worklist surfaces."""
+    errors = [
+        f"{package.name}: missing required authored surface: readme.md"
+        for package in packages
+        if not any(
+            entry.name == "readme.md" and entry.is_file()
+            for entry in package.spec_dir.iterdir()
+        )
+    ]
+    common_root = repo_root / "common"
+    if common_root.is_dir():
+        for path in sorted(common_root.rglob("*")):
+            if path.is_file() and path.name.casefold() == "todo.md":
+                errors.append(
+                    f"{path.relative_to(repo_root)}: parallel worklist is forbidden; "
+                    "scheduled work belongs in GitHub issues and package roadmaps"
+                )
+    return errors
+
+
 def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     """Validate every discovered package; return (ok, messages)."""
     packages = discover_packages(repo_root)
@@ -1009,7 +1032,7 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     }
     table_owner, model_owner = _collect_orm_ownership(packages)
     messages: list[str] = []
-    all_errors: list[str] = []
+    all_errors = _check_authored_truth_surfaces(packages, repo_root)
     for pkg in packages:
         errs = check_package(
             pkg,
