@@ -6,6 +6,7 @@ import json
 import textwrap
 from pathlib import Path
 
+from common.testing import baseline_update_contract
 from common.testing import check_critical_value_proof as cvp
 
 
@@ -83,6 +84,12 @@ def test_baseline_only_shrinks_never_grows(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(cvp, "BASELINE_PATH", baseline)
     monkeypatch.setattr(cvp, "current_non_value_proofs", lambda: {"legacy", "new-debt"})
 
-    before = baseline.read_bytes()
-    assert cvp.main(["--update"]) == 1
-    assert baseline.read_bytes() == before
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: "new-debt"
+            in cvp.current_non_value_proofs(),
+            baseline_state=baseline.read_bytes,
+            update=lambda: cvp.main(["--update"]),
+        )
+        == 1
+    )

@@ -49,6 +49,15 @@ class TestSelectChecks:
         names = [c.name for c in preflight.select_checks([changed_path])]
         assert "authority-reconcile" in names
 
+    def test_AC_testing_preflight_1_proof_test_selects_baseline_contract(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["tests/tooling/test_s4_gate_contracts.py"], tier="static"
+            )
+        ]
+        assert "gate-contracts" in names
+
     def test_docs_edit_selects_doc_consistency(self):
         names = [c.name for c in preflight.select_checks(["docs/project/README.md"])]
         assert "doc-consistency" in names  # docs/* matches

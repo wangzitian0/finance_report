@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from copy import deepcopy
 from pathlib import Path
+from typing import TypeVar
 
 from common.testing import gate_cli
 
@@ -14,6 +16,10 @@ VALID_MODES = MONOTONIC_MODES | {REWRITE_MODE}
 UPDATE_FLAG = "--" + "update"
 REWRITE_FLAG = "--rewrite-" + "baseline"
 MUTATION_FLAGS = frozenset({UPDATE_FLAG, REWRITE_FLAG})
+PROOF_HARNESS_MODULE = "common.testing.baseline_update_contract"
+PROOF_HARNESS_NAME = "assert_regression_debt_refused"
+
+Result = TypeVar("Result")
 
 MONOTONIC_UPDATE_PROOFS = {
     "common/meta/extension/check_ac_tier_baseline.py": (
@@ -61,6 +67,24 @@ MONOTONIC_UPDATE_PROOFS = {
         "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
     ),
 }
+
+
+def assert_regression_debt_refused(
+    *,
+    regression_debt_present: Callable[[], bool],
+    baseline_state: Callable[[], object],
+    update: Callable[[], Result],
+) -> Result:
+    """Run a real updater while proving synthetic debt cannot mutate its baseline."""
+
+    if not regression_debt_present():
+        raise AssertionError("the proof did not establish synthetic regression debt")
+    before = deepcopy(baseline_state())
+    result = update()
+    after = baseline_state()
+    if after != before:
+        raise AssertionError("the updater adopted synthetic regression debt")
+    return result
 
 
 def _declared_mode(tree: ast.Module) -> str | None:
@@ -275,19 +299,37 @@ def _proof_exercises_updater(
     tree: ast.Module, function: TestFunction, source_path: str
 ) -> bool:
     module_name = Path(source_path).with_suffix("").as_posix().replace("/", ".")
-    aliases = _updater_aliases(tree, function, module_name)
-    if not aliases:
+    updater_aliases = _updater_aliases(tree, function, module_name)
+    harness_aliases = _updater_aliases(tree, function, PROOF_HARNESS_MODULE)
+    if not updater_aliases or not harness_aliases:
         return False
-    for assertion in ast.walk(function):
-        if not isinstance(assertion, ast.Assert):
+    for harness_call in ast.walk(function):
+        if not isinstance(harness_call, ast.Call):
             continue
-        for call in ast.walk(assertion.test):
+        if not (
+            isinstance(harness_call.func, ast.Attribute)
+            and isinstance(harness_call.func.value, ast.Name)
+            and harness_call.func.value.id in harness_aliases
+            and harness_call.func.attr == PROOF_HARNESS_NAME
+        ):
+            continue
+        update_argument = next(
+            (
+                keyword.value
+                for keyword in harness_call.keywords
+                if keyword.arg == "update"
+            ),
+            None,
+        )
+        if update_argument is None:
+            continue
+        for call in ast.walk(update_argument):
             if not isinstance(call, ast.Call):
                 continue
             if not (
                 isinstance(call.func, ast.Attribute)
                 and isinstance(call.func.value, ast.Name)
-                and call.func.value.id in aliases
+                and call.func.value.id in updater_aliases
                 and call.func.attr == "main"
             ):
                 continue
@@ -320,8 +362,8 @@ def proof_violations(repo_root: Path) -> list[str]:
             continue
         if not _proof_exercises_updater(*test_node, path):
             findings.append(
-                f"{path}: behavioral proof does not assert the updater's --update "
-                f"path: {node_id}"
+                f"{path}: behavioral proof does not exercise synthetic regression "
+                f"debt through the refusal harness: {node_id}"
             )
     return findings
 

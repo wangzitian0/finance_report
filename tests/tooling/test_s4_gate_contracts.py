@@ -257,14 +257,21 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         lambda _repo_root: {"AC1.1.1", "AC1.1.2"},
     )
     assert (
-        check_ac_tier_baseline.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--baseline",
-                str(tier_baseline),
-                "--update",
-            ]
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: check_ac_tier_baseline.current_untagged(
+                tmp_path
+            )
+            > check_ac_tier_baseline.load_baseline(tier_baseline),
+            baseline_state=tier_baseline.read_bytes,
+            update=lambda: check_ac_tier_baseline.main(
+                [
+                    "--repo-root",
+                    str(tmp_path),
+                    "--baseline",
+                    str(tier_baseline),
+                    "--update",
+                ]
+            ),
         )
         == 0
     )
@@ -288,7 +295,19 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "dump_baseline",
         lambda _path, edges: dumped_edges.append(list(edges)),
     )
-    assert check_app_boundary.main(["--repo-root", str(app_root), "--update"]) == 1
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: set(
+                check_app_boundary.discover_and_compute_edges(app_root)
+            )
+            > check_app_boundary.load_baseline(app_baseline),
+            baseline_state=lambda: tuple(tuple(edges) for edges in dumped_edges),
+            update=lambda: check_app_boundary.main(
+                ["--repo-root", str(app_root), "--update"]
+            ),
+        )
+        == 1
+    )
     assert dumped_edges == []
 
     score_baseline = tmp_path / "score-baseline.jsonl"
@@ -303,14 +322,19 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         ),
         encoding="utf-8",
     )
-    score_before = score_baseline.read_bytes()
     assert (
-        check_ac_score_baseline.main(
-            [str(current_scores), "--baseline", str(score_baseline), "--update"]
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: json.loads(
+                current_scores.read_text(encoding="utf-8")
+            )["acs"]["AC-score.1"]["score"]
+            < 0.8,
+            baseline_state=score_baseline.read_bytes,
+            update=lambda: check_ac_score_baseline.main(
+                [str(current_scores), "--baseline", str(score_baseline), "--update"]
+            ),
         )
         == 1
     )
-    assert score_baseline.read_bytes() == score_before
 
     truth_dir = tmp_path / "truth"
     truth_dir.mkdir()
@@ -347,7 +371,14 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "write_corpus_count_floor",
         lambda *_args: eval_writes.append("corpus"),
     )
-    assert graded_eval.main(["--update"]) == 1
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: bool(graded_eval.evaluate()["regressions"]),
+            baseline_state=lambda: tuple(eval_writes),
+            update=lambda: graded_eval.main(["--update"]),
+        )
+        == 1
+    )
     assert eval_writes == []
 
     main_root = tmp_path / "main-contract"
@@ -367,20 +398,26 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         ),
         encoding="utf-8",
     )
-    main_before = main_baseline.read_bytes()
     assert (
-        gate_main_contract.main(
-            [
-                "--repo-root",
-                str(main_root),
-                "--baseline",
-                str(main_baseline),
-                "--update",
-            ]
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: added_main.exists()
+            and "tools/added.py"
+            not in json.loads(main_baseline.read_text(encoding="utf-8"))[
+                "legacy_main_contract"
+            ],
+            baseline_state=main_baseline.read_bytes,
+            update=lambda: gate_main_contract.main(
+                [
+                    "--repo-root",
+                    str(main_root),
+                    "--baseline",
+                    str(main_baseline),
+                    "--update",
+                ]
+            ),
         )
         == 1
     )
-    assert main_baseline.read_bytes() == main_before
 
     tool_root = tmp_path / "tool-contract"
     tools_dir = tool_root / "tools"
@@ -392,20 +429,25 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     tool_baseline.write_text(
         json.dumps({"legacy_fat_tools": ["tools/legacy.py"]}), encoding="utf-8"
     )
-    tool_before = tool_baseline.read_bytes()
     assert (
-        tool_shim_contract.main(
-            [
-                "--repo-root",
-                str(tool_root),
-                "--baseline",
-                str(tool_baseline),
-                "--update",
-            ]
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: len(
+                (tools_dir / "added.py").read_text(encoding="utf-8").splitlines()
+            )
+            > 40,
+            baseline_state=tool_baseline.read_bytes,
+            update=lambda: tool_shim_contract.main(
+                [
+                    "--repo-root",
+                    str(tool_root),
+                    "--baseline",
+                    str(tool_baseline),
+                    "--update",
+                ]
+            ),
         )
         == 1
     )
-    assert tool_baseline.read_bytes() == tool_before
 
     update_paths = baseline_update_contract.monotonic_update_paths(ROOT)
     assert update_paths == {
@@ -453,8 +495,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     proof_file.parent.mkdir(parents=True)
     proof_file.write_text("def test_missing():\n    assert True\n", encoding="utf-8")
     assert baseline_update_contract.proof_violations(synthetic_root) == [
-        "common/testing/synthetic.py: behavioral proof does not assert the "
-        "updater's --update path: tests/tooling/test_missing.py::test_missing"
+        "common/testing/synthetic.py: behavioral proof does not exercise synthetic "
+        "regression debt through the refusal harness: "
+        "tests/tooling/test_missing.py::test_missing"
     ]
 
     proof_file.write_text(
@@ -463,4 +506,45 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         '    assert synthetic.main(["--update"]) == 1\n',
         encoding="utf-8",
     )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py: behavioral proof does not exercise "
+        "synthetic regression debt through the refusal harness: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]
+
+    proof_file.write_text(
+        "from common.testing import baseline_update_contract, synthetic\n\n"
+        "def test_missing():\n"
+        "    assert baseline_update_contract.assert_regression_debt_refused(\n"
+        "        regression_debt_present=lambda: True,\n"
+        "        baseline_state=lambda: b'baseline',\n"
+        '        update=lambda: synthetic.main(["--update"]),\n'
+        "    ) == 1\n",
+        encoding="utf-8",
+    )
     assert baseline_update_contract.proof_violations(synthetic_root) == []
+
+
+def test_AC_testing_governance_21_refusal_harness_enforces_its_preconditions() -> None:
+    state = {"baseline": b"before", "called": False}
+
+    def mutate_baseline() -> int:
+        state["called"] = True
+        state["baseline"] = b"after"
+        return 0
+
+    with pytest.raises(AssertionError, match="did not establish"):
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: False,
+            baseline_state=lambda: state["baseline"],
+            update=mutate_baseline,
+        )
+    assert state == {"baseline": b"before", "called": False}
+
+    with pytest.raises(AssertionError, match="adopted synthetic regression debt"):
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: True,
+            baseline_state=lambda: state["baseline"],
+            update=mutate_baseline,
+        )
+    assert state == {"baseline": b"after", "called": True}

@@ -77,9 +77,10 @@ declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the deliberately louder
 `--rewrite-baseline` flag. Its monotonic-updater census recognizes both
 `argparse` declarations and manual argument-membership checks, resolving simple
 module-level string constants in both forms. Every path must map to a live test
-node whose assertion invokes that updater's `main` with `--update` while driving
-regression debt. A newly added `--update` path therefore cannot be covered by a
-declaration or an unrelated test name alone.
+node that uses `assert_regression_debt_refused` to establish synthetic debt,
+snapshot the baseline, invoke that updater's `main` with `--update`, and prove
+the baseline remains unchanged. A newly added `--update` path therefore cannot
+be covered by a declaration, an unrelated test name, or a happy-path call alone.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires

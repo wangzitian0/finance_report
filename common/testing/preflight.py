@@ -216,13 +216,13 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="gate-contracts",
-        globs=("common/*", "tools/*"),
+        globs=("common/*", "tools/*", "tests/tooling/*.py"),
         commands=(
             (PY, "tools/check_gate_main_contract.py"),
             (PY, "tools/check_baseline_update_contract.py"),
             (PY, "tools/check_tool_shim_contract.py"),
         ),
-        why="common or tool source changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
+        why="gate source or proof changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
     ),
     Check(
         name="tooling",
