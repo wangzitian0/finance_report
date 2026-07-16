@@ -1401,14 +1401,16 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-audit.deletion-ownership.1",
             statement=(
-                "Every production SQLAlchemy ondelete=CASCADE declaration is "
+                "Every production SQLAlchemy ForeignKey or ForeignKeyConstraint "
+                "ondelete=CASCADE declaration is "
                 "classified exactly once with its source owner, target owner, "
                 "deletion class, and rationale. Discovery fails closed on an "
                 "empty scan, duplicate or unclassified sites fail, and the "
                 "checked-in inventory cannot hide additions or removals. "
                 "Only aggregate-internal sites are approved survivors; "
-                "purge-owned and cross-domain sites remain exact shrink-only "
-                "debt owned by #1848 until their migration proofs land."
+                "purge-owned, cross-domain, and retention-sensitive sites remain "
+                "exact #1848 debt whose independent site baseline may only shrink "
+                "until their migration proofs land."
             ),
             test=(
                 "tests/tooling/test_fk_cascade_ownership.py"
@@ -1424,15 +1426,16 @@ CONTRACT = PackageContract(
             owner="common/audit/data/fk-cascade-ownership.json",
             description=(
                 "Exact per-declaration ownership and deletion classification for "
-                'production ForeignKey(..., ondelete="CASCADE") sites. The audit '
-                "extension scans every AST context, derives source owners from package "
-                "paths and target owners from unique literal table declarations, and "
-                "requires inventory equality; only aggregate-internal survivors are "
-                "approved, while purge-owned and cross-domain records are explicit "
-                "shrink-only #1848 debt."
+                "production ForeignKey and ForeignKeyConstraint ondelete=CASCADE "
+                "sites. The audit extension scans every AST context, derives source "
+                "owners from package paths and target owners from unique literal table "
+                "declarations, and requires inventory equality; only aggregate-internal "
+                "survivors are approved, while purge-owned, cross-domain, and "
+                "retention-sensitive records are explicit shrink-only #1848 debt."
             ),
             cross_refs=[
                 "common/audit/extension/cascade_ownership.py",
+                "common/audit/data/fk-cascade-debt-baseline.json",
                 "common/audit/readme.md#deletion-ownership",
                 "tests/tooling/test_fk_cascade_ownership.py",
             ],

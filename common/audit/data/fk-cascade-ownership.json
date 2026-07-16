@@ -11,8 +11,24 @@
     "site": "extraction/orm/correction.py::CorrectionLog.transaction_id->atomic_transactions.id",
     "source_owner": "extraction",
     "target_owner": "extraction",
+    "classification": "retention_sensitive",
+    "rationale": "Append-only correction history must survive transaction deletion until an explicit retention policy replaces this cascade.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceEdge.__table_args__.fk_evidence_edges_user_from_node->evidence_nodes.user_id+evidence_nodes.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
     "classification": "aggregate_internal",
-    "rationale": "Correction history is an extraction-owned lifecycle child of its atomic transaction.",
+    "rationale": "An evidence edge is a lifecycle child of its extraction-owned source evidence node.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceEdge.__table_args__.fk_evidence_edges_user_to_node->evidence_nodes.user_id+evidence_nodes.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "An evidence edge is a lifecycle child of its extraction-owned target evidence node.",
     "issue": null
   },
   {
@@ -75,9 +91,9 @@
     "site": "extraction/orm/layer3.py::TransactionClassification.rule_version_id->classification_rules.id",
     "source_owner": "extraction",
     "target_owner": "extraction",
-    "classification": "aggregate_internal",
-    "rationale": "Classification results and their versioned rules share the extraction ownership boundary.",
-    "issue": null
+    "classification": "retention_sensitive",
+    "rationale": "Historical replay requires classifications to retain their versioned rule anchor until an explicit retention policy replaces this cascade.",
+    "issue": "#1848"
   },
   {
     "site": "extraction/orm/statement_summary.py::StatementSummary.user_id->users.id",

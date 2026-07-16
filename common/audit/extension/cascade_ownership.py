@@ -9,9 +9,22 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 INVENTORY_PATH = Path(__file__).resolve().parents[1] / "data/fk-cascade-ownership.json"
+DEBT_BASELINE_PATH = (
+    Path(__file__).resolve().parents[1] / "data/fk-cascade-debt-baseline.json"
+)
 
-CascadeClass = Literal["aggregate_internal", "purge_owned", "cross_domain"]
-_CLASSES = {"aggregate_internal", "purge_owned", "cross_domain"}
+CascadeClass = Literal[
+    "aggregate_internal",
+    "purge_owned",
+    "cross_domain",
+    "retention_sensitive",
+]
+_CLASSES = {
+    "aggregate_internal",
+    "purge_owned",
+    "cross_domain",
+    "retention_sensitive",
+}
 
 
 class CascadeInventoryError(ValueError):
@@ -58,8 +71,21 @@ def _assigned_name(statement: ast.stmt) -> tuple[str | None, ast.AST | None]:
     return None, None
 
 
-def _cascade_target(node: ast.AST) -> str | None:
-    if not isinstance(node, ast.Call) or _call_name(node) != "ForeignKey":
+def _literal_keyword(call: ast.Call, name: str) -> str | None:
+    value = next(
+        (keyword.value for keyword in call.keywords if keyword.arg == name),
+        None,
+    )
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    return None
+
+
+def _cascade_target(node: ast.AST) -> tuple[str, str, str | None] | None:
+    if not isinstance(node, ast.Call):
+        return None
+    call_name = _call_name(node)
+    if call_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
     ondelete = next(
         (keyword.value for keyword in node.keywords if keyword.arg == "ondelete"),
@@ -67,14 +93,46 @@ def _cascade_target(node: ast.AST) -> str | None:
     )
     if not (isinstance(ondelete, ast.Constant) and ondelete.value == "CASCADE"):
         return None
-    if not node.args:
-        raise CascadeInventoryError("CASCADE ForeignKey has no target argument")
-    target = node.args[0]
-    if not (isinstance(target, ast.Constant) and isinstance(target.value, str)):
+    if call_name == "ForeignKey":
+        if not node.args:
+            raise CascadeInventoryError("CASCADE ForeignKey has no target argument")
+        target = node.args[0]
+        if not (isinstance(target, ast.Constant) and isinstance(target.value, str)):
+            raise CascadeInventoryError(
+                "CASCADE ForeignKey target must be a literal for ownership review"
+            )
+        target_value = target.value
+        return target_value, target_value.split(".", 1)[0], None
+
+    if len(node.args) < 2:
         raise CascadeInventoryError(
-            "CASCADE ForeignKey target must be a literal for ownership review"
+            "CASCADE ForeignKeyConstraint has no remote target argument"
         )
-    return target.value
+    remote_targets = node.args[1]
+    if not isinstance(remote_targets, (ast.List, ast.Tuple)) or not remote_targets.elts:
+        raise CascadeInventoryError(
+            "CASCADE ForeignKeyConstraint remote targets must be literal strings"
+        )
+    targets = tuple(
+        element.value
+        for element in remote_targets.elts
+        if isinstance(element, ast.Constant) and isinstance(element.value, str)
+    )
+    if len(targets) != len(remote_targets.elts):
+        raise CascadeInventoryError(
+            "CASCADE ForeignKeyConstraint remote targets must be literal strings"
+        )
+    constraint_name = _literal_keyword(node, "name")
+    if constraint_name is None:
+        raise CascadeInventoryError(
+            "CASCADE ForeignKeyConstraint must have a literal name"
+        )
+    target_tables = {target.split(".", 1)[0] for target in targets}
+    if len(target_tables) != 1:
+        raise CascadeInventoryError(
+            "CASCADE ForeignKeyConstraint must reference one target table"
+        )
+    return "+".join(targets), next(iter(target_tables)), constraint_name
 
 
 def _literal_tablename(node: ast.ClassDef) -> str | None:
@@ -176,11 +234,13 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
     for relative, source_owner, tree in parsed_sources:
         parents = _parent_map(tree)
         for node in ast.walk(tree):
-            target = _cascade_target(node)
-            if target is None:
+            target_details = _cascade_target(node)
+            if target_details is None:
                 continue
-            target_table = target.split(".", 1)[0]
+            target, target_table, constraint_name = target_details
             label = _site_label(node, parents)
+            if constraint_name is not None:
+                label = f"{label}.{constraint_name}"
             site = f"{relative.as_posix()}::{label}->{target}"
             target_owner = table_owners.get(target_table)
             if target_owner is None:
@@ -239,6 +299,51 @@ def load_inventory(path: Path) -> tuple[CascadeOwnership, ...]:
     return tuple(records)
 
 
+def load_debt_baseline(path: Path) -> frozenset[str]:
+    """Load the exact set of reviewed cascade debt sites."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CascadeInventoryError(
+            f"cannot read cascade debt baseline: {path}"
+        ) from exc
+    if not isinstance(payload, dict) or set(payload) != {"debt_sites"}:
+        raise CascadeInventoryError(
+            "cascade debt baseline must contain exactly the debt_sites key"
+        )
+    debt_sites = payload["debt_sites"]
+    if not isinstance(debt_sites, list) or not all(
+        isinstance(site, str) and site for site in debt_sites
+    ):
+        raise CascadeInventoryError(
+            "cascade debt baseline debt_sites must be a list of non-empty strings"
+        )
+    if len(set(debt_sites)) != len(debt_sites):
+        raise CascadeInventoryError("cascade debt baseline contains duplicate sites")
+    return frozenset(debt_sites)
+
+
+def validate_debt_ratchet(
+    inventory: Sequence[CascadeOwnership], baseline: frozenset[str]
+) -> None:
+    """Reject new debt and force resolved sites out of the shrink-only baseline."""
+
+    current = {
+        record.site
+        for record in inventory
+        if record.classification != "aggregate_internal"
+    }
+    new = sorted(current - baseline)
+    stale = sorted(baseline - current)
+    if new:
+        raise CascadeInventoryError(f"cascade debt grew; new={new}")
+    if stale:
+        raise CascadeInventoryError(
+            f"resolved debt remains baselined and must be pruned; stale={stale}"
+        )
+
+
 def validate_inventory(
     sites: Sequence[CascadeSite], inventory: Sequence[CascadeOwnership]
 ) -> None:
@@ -284,10 +389,21 @@ def validate_inventory(
                 )
             if record.issue != "#1848":
                 raise CascadeInventoryError(f"{key}: purge-owned debt must name #1848")
-        else:
+        elif record.classification == "cross_domain":
             if same_owner or site.target_table == "users":
                 raise CascadeInventoryError(
                     f"{key}: cross_domain requires different owners and a non-user target"
                 )
             if record.issue != "#1848":
                 raise CascadeInventoryError(f"{key}: cross-domain debt must name #1848")
+        elif record.classification == "retention_sensitive":
+            if not same_owner:
+                raise CascadeInventoryError(
+                    f"{key}: retention_sensitive requires the same source/target owner"
+                )
+            if record.issue != "#1848":
+                raise CascadeInventoryError(
+                    f"{key}: retention-sensitive debt must name #1848"
+                )
+        else:  # pragma: no cover - load_inventory rejects this shape
+            raise CascadeInventoryError(f"{key}: unknown classification")

@@ -38,12 +38,15 @@ owns the exact declaration-level inventory in
 `data/fk-cascade-ownership.json`, discovered and validated by
 `extension/cascade_ownership.py`.
 
-Discovery scans every `ForeignKey(..., ondelete="CASCADE")` call in production
-source, including module-level `Table(...)` declarations. Source ownership comes
-from the implementation package path; target ownership is independently derived
-from the unique literal `__tablename__` declaration. Missing or ambiguous table
-owners fail closed, so the reviewed inventory cannot self-assert either side of
-an ownership boundary.
+Discovery scans every `ForeignKey(..., ondelete="CASCADE")` and
+`ForeignKeyConstraint(..., ondelete="CASCADE")` call in production source,
+including module-level `Table(...)` declarations and composite constraints.
+Composite constraints require a literal name and literal remote columns that
+all resolve to one table, giving each declaration a stable review key. Source
+ownership comes from the implementation package path; target ownership is
+independently derived from the unique literal `__tablename__` declaration.
+Missing or ambiguous table owners fail closed, so the reviewed inventory cannot
+self-assert either side of an ownership boundary.
 
 Each site has exactly one class:
 
@@ -53,13 +56,18 @@ Each site has exactly one class:
   where each package applies its own retention and append-only policy.
 - `cross_domain` is temporary debt: a foreign aggregate must not be deleted by
   another owner's FK action.
+- `retention_sensitive` is same-owner debt where append-only history or a
+  versioned replay anchor must outlive the referenced aggregate's deletion.
 
 The inventory is exact in both directions and discovery fails closed. Adding,
 removing, duplicating, or leaving a site unclassified fails CI. Only
 `aggregate_internal` entries are approved survivors; the other classes name
-issue #1848 and may only shrink as reversible migrations and purge proofs land.
-The classification gate does not itself prove purge idempotency, migration
-rehearsal, or append-only preservation, so those #1848 guarantees remain open.
+issue #1848. Their exact site set is independently pinned in
+`data/fk-cascade-debt-baseline.json`: new or replacement debt fails, while
+resolved sites must be pruned from the baseline, so the set may only shrink as
+reversible migrations and purge proofs land. The classification gate does not
+itself prove purge idempotency, migration rehearsal, or append-only
+preservation, so those #1848 guarantees remain open.
 
 ## The Shared Kernel now lives inside audit
 
