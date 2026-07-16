@@ -1402,7 +1402,7 @@ CONTRACT = PackageContract(
             id="AC-audit.deletion-ownership.1",
             statement=(
                 "Every production SQLAlchemy ForeignKey or ForeignKeyConstraint "
-                "ondelete=CASCADE declaration is "
+                "ondelete=CASCADE site realized on a mapped table is "
                 "classified exactly once with its source owner, target owner, "
                 "deletion class, and rationale. Discovery fails closed on an "
                 "empty scan, duplicate or unclassified sites fail, and the "
@@ -1427,7 +1427,8 @@ CONTRACT = PackageContract(
             description=(
                 "Exact per-declaration ownership and deletion classification for "
                 "production ForeignKey and ForeignKeyConstraint ondelete=CASCADE "
-                "sites. The audit extension scans every AST context, derives source "
+                "sites. The audit extension scans every AST context, expands non-table "
+                "mixin declarations to their concrete mapped consumers, derives source "
                 "owners from package paths and target owners from unique literal table "
                 "declarations, and requires inventory equality; only aggregate-internal "
                 "survivors are approved, while purge-owned, cross-domain, and "

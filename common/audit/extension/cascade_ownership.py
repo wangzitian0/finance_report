@@ -33,7 +33,7 @@ class CascadeInventoryError(ValueError):
 
 @dataclass(frozen=True, order=True)
 class CascadeSite:
-    """One literal ``ForeignKey(..., ondelete="CASCADE")`` declaration."""
+    """One scalar or composite CASCADE realized on a mapped table."""
 
     site: str
     source_owner: str
@@ -155,6 +155,62 @@ def _parent_map(tree: ast.Module) -> dict[ast.AST, ast.AST]:
     }
 
 
+def _enclosing_class(
+    node: ast.AST, parents: dict[ast.AST, ast.AST]
+) -> ast.ClassDef | None:
+    cursor = node
+    while cursor in parents:
+        cursor = parents[cursor]
+        if isinstance(cursor, ast.ClassDef):
+            return cursor
+    return None
+
+
+def _assigned_field(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str | None:
+    cursor = node
+    while cursor in parents:
+        cursor = parents[cursor]
+        if isinstance(cursor, ast.stmt):
+            field, _value = _assigned_name(cursor)
+            if field is not None:
+                return field
+    return None
+
+
+def _base_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _defines_field(node: ast.ClassDef, field: str) -> bool:
+    return any(_assigned_name(statement)[0] == field for statement in node.body)
+
+
+def _mixin_consumers(
+    mixin: ast.ClassDef,
+    field: str,
+    parsed_sources: Sequence[tuple[Path, str, ast.Module]],
+) -> tuple[tuple[Path, str, ast.ClassDef], ...]:
+    consumers: list[tuple[Path, str, ast.ClassDef]] = []
+    for relative, source_owner, tree in parsed_sources:
+        for candidate in ast.walk(tree):
+            if not isinstance(candidate, ast.ClassDef):
+                continue
+            if _literal_tablename(candidate) is None:
+                continue
+            if mixin.name not in {
+                name for base in candidate.bases if (name := _base_name(base))
+            }:
+                continue
+            if _defines_field(candidate, field):
+                continue
+            consumers.append((relative, source_owner, candidate))
+    return tuple(consumers)
+
+
 def _site_label(node: ast.Call, parents: dict[ast.AST, ast.AST]) -> str:
     column_name: str | None = None
     cursor: ast.AST = node
@@ -241,20 +297,47 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
             label = _site_label(node, parents)
             if constraint_name is not None:
                 label = f"{label}.{constraint_name}"
-            site = f"{relative.as_posix()}::{label}->{target}"
-            target_owner = table_owners.get(target_table)
-            if target_owner is None:
-                raise CascadeInventoryError(
-                    f"{site}: target table {target_table!r} has no literal table owner"
+            origins = [(relative, source_owner, label)]
+            enclosing_class = _enclosing_class(node, parents)
+            if (
+                enclosing_class is not None
+                and _literal_tablename(enclosing_class) is None
+            ):
+                field = _assigned_field(node, parents)
+                if field is None:
+                    raise CascadeInventoryError(
+                        f"{relative.as_posix()}::{label}: mixin CASCADE has no stable field"
+                    )
+                origins = [
+                    (
+                        consumer_relative,
+                        consumer_owner,
+                        label.replace(
+                            f"{enclosing_class.name}.",
+                            f"{consumer.name}.",
+                            1,
+                        ),
+                    )
+                    for consumer_relative, consumer_owner, consumer in _mixin_consumers(
+                        enclosing_class, field, parsed_sources
+                    )
+                ]
+
+            for origin_relative, origin_owner, origin_label in origins:
+                site = f"{origin_relative.as_posix()}::{origin_label}->{target}"
+                target_owner = table_owners.get(target_table)
+                if target_owner is None:
+                    raise CascadeInventoryError(
+                        f"{site}: target table {target_table!r} has no literal table owner"
+                    )
+                sites.append(
+                    CascadeSite(
+                        site=site,
+                        source_owner=origin_owner,
+                        target_table=target_table,
+                        target_owner=target_owner,
+                    )
                 )
-            sites.append(
-                CascadeSite(
-                    site=site,
-                    source_owner=source_owner,
-                    target_table=target_table,
-                    target_owner=target_owner,
-                )
-            )
 
     if not sites:
         raise CascadeInventoryError(

@@ -32,12 +32,12 @@ def test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid() -> None:
     validate_inventory(sites, inventory)
     validate_debt_ratchet(inventory, debt_baseline)
 
-    assert len(sites) == 29
+    assert len(sites) == 47
     classes = Counter(record.classification for record in inventory)
-    assert classes["aggregate_internal"] > 0
-    assert classes["purge_owned"] > 0
-    assert classes["cross_domain"] > 0
-    assert classes["retention_sensitive"] == 2
+    assert classes["aggregate_internal"] == 11
+    assert classes["purge_owned"] == 26
+    assert classes["cross_domain"] == 7
+    assert classes["retention_sensitive"] == 3
 
     retention_sites = {
         record.site
@@ -49,6 +49,8 @@ def test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid() -> None:
         "->atomic_transactions.id",
         "extraction/orm/layer3.py::TransactionClassification.rule_version_id"
         "->classification_rules.id",
+        "portfolio/orm/portfolio.py::InvestmentLot.opening_transaction_id"
+        "->investment_transactions.id",
     }
 
 
@@ -132,6 +134,7 @@ def test_AC_audit_deletion_ownership_1_discovers_composite_foreign_keys(
         "class Parent:\n"
         "    __tablename__ = 'parents'\n"
         "class Link:\n"
+        "    __tablename__ = 'links'\n"
         "    __table_args__ = (\n"
         "        ForeignKeyConstraint(\n"
         "            ['tenant_id', 'parent_id'],\n"
@@ -154,6 +157,53 @@ def test_AC_audit_deletion_ownership_1_discovers_composite_foreign_keys(
     assert sites[0].target_owner == "sample"
 
 
+def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumers(
+    tmp_path: Path,
+) -> None:
+    identity = tmp_path / "identity"
+    identity.mkdir()
+    (identity / "models.py").write_text(
+        "class User:\n    __tablename__ = 'users'\n",
+        encoding="utf-8",
+    )
+    platform = tmp_path / "platform"
+    platform.mkdir()
+    (platform / "mixins.py").write_text(
+        "class TenantMixin:\n"
+        "    user_id = mapped_column(\n"
+        "        ForeignKey('users.id', ondelete='CASCADE')\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+    for owner, class_name, table_name in (
+        ("alpha", "AlphaRecord", "alpha_records"),
+        ("beta", "BetaRecord", "beta_records"),
+    ):
+        package = tmp_path / owner
+        package.mkdir()
+        (package / "models.py").write_text(
+            f"class {class_name}(TenantMixin):\n    __tablename__ = '{table_name}'\n",
+            encoding="utf-8",
+        )
+    override = tmp_path / "override"
+    override.mkdir()
+    (override / "models.py").write_text(
+        "class OverrideRecord(TenantMixin):\n"
+        "    __tablename__ = 'override_records'\n"
+        "    user_id = mapped_column(ForeignKey('users.id'))\n",
+        encoding="utf-8",
+    )
+
+    sites = discover_cascades(tmp_path)
+
+    assert [site.site for site in sites] == [
+        "alpha/models.py::AlphaRecord.user_id->users.id",
+        "beta/models.py::BetaRecord.user_id->users.id",
+    ]
+    assert [site.source_owner for site in sites] == ["alpha", "beta"]
+    assert {site.target_owner for site in sites} == {"identity"}
+
+
 @pytest.mark.parametrize("ambiguous", [False, True], ids=["missing", "ambiguous"])
 def test_AC_audit_deletion_ownership_1_rejects_unresolved_target_owner(
     tmp_path: Path, ambiguous: bool
@@ -162,6 +212,7 @@ def test_AC_audit_deletion_ownership_1_rejects_unresolved_target_owner(
     child.mkdir()
     (child / "models.py").write_text(
         "class Child:\n"
+        "    __tablename__ = 'children'\n"
         "    parent_id = mapped_column(\n"
         "        ForeignKey('parents.id', ondelete='CASCADE')\n"
         "    )\n",

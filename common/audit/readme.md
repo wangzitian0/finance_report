@@ -48,6 +48,13 @@ independently derived from the unique literal `__tablename__` declaration.
 Missing or ambiguous table owners fail closed, so the reviewed inventory cannot
 self-assert either side of an ownership boundary.
 
+A CASCADE declared on a non-table ORM mixin is expanded into one site for every
+directly inheriting class with a literal `__tablename__`. A consumer that
+explicitly redeclares the same field is excluded from mixin expansion and its
+own declaration is scanned normally. The inventory therefore tracks the
+physical table owner affected by user deletion, and adding a new mixin-backed
+model cannot hide behind an unchanged shared declaration.
+
 Each site has exactly one class:
 
 - `aggregate_internal` is an approved lifecycle edge whose source and target
