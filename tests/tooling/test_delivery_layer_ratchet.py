@@ -7,8 +7,8 @@ migration-standard.md`` → "The app delivery layer"). The sanction's teeth:
 they may hold routing and serialization glue only, so their bulk may only
 *shrink* as packages absorb logic. This ratchet approximates "no domain
 logic in the delivery layer" with a shrink-only line-count baseline — the
-census idiom of ``fk-cascade-baseline.json``, coarsened to lines so router
-edits don't churn it.
+exact-baseline idiom used by governance debt, coarsened to lines so router edits
+don't churn it.
 
 Census semantics (precise): for each of ``apps/backend/src/routers`` and
 ``apps/backend/src/schemas``, the census is the **sum over every ``*.py``

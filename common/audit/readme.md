@@ -29,6 +29,31 @@ Everyone's `base` ultimately depends on `audit.base` (the value types), so
 the symmetric mirror of `meta.extension` reaching every package to govern
 structure.
 
+<a id="deletion-ownership"></a>
+## Deletion ownership
+
+A database `ondelete="CASCADE"` is a hidden write: deleting one aggregate can
+mutate another package without calling its command boundary. Audit therefore
+owns the exact declaration-level inventory in
+`data/fk-cascade-ownership.json`, discovered and validated by
+`extension/cascade_ownership.py`.
+
+Each site has exactly one class:
+
+- `aggregate_internal` is an approved lifecycle edge whose source and target
+  share one package owner.
+- `purge_owned` is temporary debt to be replaced by the identity purge saga,
+  where each package applies its own retention and append-only policy.
+- `cross_domain` is temporary debt: a foreign aggregate must not be deleted by
+  another owner's FK action.
+
+The inventory is exact in both directions and discovery fails closed. Adding,
+removing, duplicating, or leaving a site unclassified fails CI. Only
+`aggregate_internal` entries are approved survivors; the other classes name
+issue #1848 and may only shrink as reversible migrations and purge proofs land.
+The classification gate does not itself prove purge idempotency, migration
+rehearsal, or append-only preservation, so those #1848 guarantees remain open.
+
 ## The Shared Kernel now lives inside audit
 
 The four value domains (`money` / `ratio` / `quantity` / `unit_price`) are a
