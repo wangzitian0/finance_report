@@ -901,13 +901,29 @@ def _observer_depends_on_regression_state(
     function: TestFunction,
     baseline_names: frozenset[str],
 ) -> bool:
-    target = _observer_target(observer, tree, function)
-    if target is None:
-        return False
-    referenced = _node_names(target) - baseline_names - _OBSERVER_BUILTINS
-    if isinstance(observer, ast.Name):
-        referenced.discard(observer.id)
-        observer_function = _named_observer_function(observer.id, tree, function)
+    def state_names(
+        target: ast.AST,
+        *,
+        observer_function: TestFunction | None = None,
+        seen: frozenset[tuple[int, int]] = frozenset(),
+    ) -> set[str]:
+        referenced = _node_names(target)
+        for call in ast.walk(target):
+            if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)):
+                continue
+            called_function = _named_observer_function(call.func.id, tree, function)
+            if called_function is None:
+                continue
+            referenced.discard(call.func.id)
+            key = (called_function.lineno, called_function.col_offset)
+            if key not in seen:
+                referenced.update(
+                    state_names(
+                        ast.Module(body=called_function.body, type_ignores=[]),
+                        observer_function=called_function,
+                        seen=seen | {key},
+                    )
+                )
         if observer_function is not None:
             referenced -= {
                 name
@@ -919,6 +935,20 @@ def _observer_depends_on_regression_state(
                 )
                 for name in _bound_names(target_node)
             }
+        return referenced
+
+    target = _observer_target(observer, tree, function)
+    if target is None:
+        return False
+    observer_function = (
+        _named_observer_function(observer.id, tree, function)
+        if isinstance(observer, ast.Name)
+        else None
+    )
+    referenced = state_names(target, observer_function=observer_function)
+    referenced -= baseline_names | _OBSERVER_BUILTINS
+    if isinstance(observer, ast.Name):
+        referenced.discard(observer.id)
     return bool(referenced)
 
 
