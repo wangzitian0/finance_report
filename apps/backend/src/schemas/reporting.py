@@ -8,8 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.extraction.orm.layer4 import ReportType
 from src.ledger import AccountType, Direction
+from src.reporting import ReportType
 from src.reporting.base.types import (
     PersonalReportingFrameworkId,
     PolicyDimension,

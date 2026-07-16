@@ -50,6 +50,7 @@ CONTRACT = PackageContract(
         "extraction",
         "ledger",
         "observability",
+        "platform",
         # portfolio: the market-value adjustment lines read holdings via the
         # published PortfolioService (was services.portfolio before #1643).
         "portfolio",
@@ -160,6 +161,8 @@ CONTRACT = PackageContract(
         "PolicyDimension",
         "ReportError",
         "ReportLineId",
+        "ReportSnapshot",
+        "ReportType",
         "ReportingSnapshotService",
         "_add_months",
         "_aggregate_balances_sql",
@@ -216,6 +219,17 @@ CONTRACT = PackageContract(
             ),
         ),
         Invariant(
+            id="snapshot-orm-owner",
+            statement=(
+                "ReportSnapshot and ReportType are reporting-owned ORM vocabulary "
+                "and register exactly once on shared SQLAlchemy metadata."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_reporting_snapshot_ownership_and_metadata_registration"
+            ),
+        ),
+        Invariant(
             id="reporting-cutover-inventory-declared",
             statement=(
                 "Reporting statement generators/core lanes are declared in units and mapped to the current implementation inventory."
@@ -249,6 +263,32 @@ CONTRACT = PackageContract(
     # old-path residue checks are green. Entity names are word-slugs (not
     # numeric groups) since this roadmap started empty in this migration wave.
     roadmap=[
+        ACRecord(
+            id="AC-reporting.fx-port.1",
+            statement=(
+                "Reporting's FX gateway exposes exact rate, conversion, and prefetch "
+                "protocols without Callable[..., Any] or variadic Any forwarders."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.snapshot-ownership.1",
+            statement=(
+                "ReportSnapshot and ReportType are published and mapped by reporting; "
+                "extraction defines and exports neither."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_reporting_snapshot_ownership_and_metadata_registration"
+            ),
+            priority="P0",
+            status="done",
+        ),
         ACRecord(
             id="AC-reporting.vocabulary-ownership.1",
             statement=(

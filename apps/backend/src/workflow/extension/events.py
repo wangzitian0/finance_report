@@ -1,14 +1,22 @@
 """Deterministic user-facing workflow event derivation."""
 
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
-from src.platform.base.workflow import (
+from src.extraction import (
+    StatementEventSource,
+    find_uploaded_document_filename_by_hash,
+    get_statement_event_sources,
+    get_uploaded_document_filename,
+    get_uploaded_document_filenames,
+)
+from src.reporting import get_personal_report_package_readiness
+from src.workflow.base.types import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
     WorkflowEventFamily,
@@ -26,9 +34,8 @@ from src.platform.base.workflow import (
     WorkflowSessionSummaryResponse,
     WorkflowStatusResponse,
 )
-from src.platform.extension.workflow_event_builders import (  # noqa: F401
+from src.workflow.extension.builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
-    StatementEventSource,
     build_readiness_blocker_event_payload,
     build_report_state_event_payload,
     build_review_completed_event_payload,
@@ -37,139 +44,18 @@ from src.platform.extension.workflow_event_builders import (  # noqa: F401
     build_uploaded_statement_event_payload,
     build_workflow_dedupe_key,
 )
-from src.platform.orm.workflow import (
+from src.workflow.orm.models import (
     WorkflowEvent,
     WorkflowSession,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
-    # This module always calls the provider as (db: AsyncSession, user_id:
-    # UUID) — see _get_readiness_provider()'s call site — so it is typed to
-    # that exact signature, not an unconstrained Callable[..., Awaitable[dict]].
-    ReadinessProvider = Callable[[AsyncSession, UUID], Awaitable[dict]]
-
-    # Called as (db, document_id) / (db, document_ids) / (db, user_id, file_hash) —
-    # see each _get_*_provider()'s call site.
-    DocumentFilenameProvider = Callable[[AsyncSession, UUID], Awaitable[str | None]]
-    DocumentFilenamesProvider = Callable[[AsyncSession, "set[UUID]"], Awaitable[dict[UUID, str]]]
-    DocumentFilenameByHashProvider = Callable[[AsyncSession, UUID, str], Awaitable[str | None]]
-
-    # Called as (db, user_id) — see sync_workflow_events_for_user's call site.
-    StatementReader = Callable[[AsyncSession, UUID], Awaitable[list[StatementEventSource]]]
-
-# Raw ``BankStatementStatus``/``Stage1Status`` .value strings (#1675 D6) — this
-# L1-infra module compares against these instead of importing the extraction-
-# owned enum types; see StatementEventSource's docstring for the inversion.
+# Raw extraction status values keep the derivation independent of ORM enums.
 _STATUS_REJECTED = "rejected"
 _STATUS_PARSED = "parsed"
 _STAGE1_PENDING_REVIEW = "pending_review"
 _STAGE1_APPROVED = "approved"
 _STAGE1_REJECTED = "rejected"
 _STAGE1_EDITED = "edited"
-
-# `platform` is L1 infra — it must never import reporting-domain logic directly
-# (issue #1676: this file previously imported `services.report_readiness`
-# module-level, the sole L1-infra→business upward edge in
-# common/meta/data/app-boundary-baseline.json). The personal-report-package readiness
-# lookup is genuinely reporting-domain logic; platform only needs *a* callable
-# with this shape, not that specific implementation. The app composition root
-# (`main.py`, itself L4 — allowed to import everything) registers the real
-# function at startup; tests register it directly since they don't run the
-# app's lifespan.
-_readiness_provider: "ReadinessProvider | None" = None
-
-
-def register_readiness_provider(provider: "ReadinessProvider") -> None:
-    """Wire the personal-report-package readiness lookup (see module note above)."""
-    global _readiness_provider
-    _readiness_provider = provider
-
-
-def _get_readiness_provider() -> "ReadinessProvider":
-    if _readiness_provider is None:
-        raise RuntimeError(
-            "workflow_events.register_readiness_provider() was never called — "
-            "main.py wires it at startup (issue #1676); a test exercising this "
-            "path must call it too."
-        )
-    return _readiness_provider
-
-
-# Same inversion, same reason (#1675 D3): ``UploadedDocument`` is owned by
-# ``extraction`` (L3 domain); this L1-infra module may only depend on *a*
-# callable with this shape, never import extraction's ORM or its published
-# root directly. main.py wires the real ``src.extraction`` functions at
-# startup; tests register fakes/the real functions directly.
-_document_filename_provider: "DocumentFilenameProvider | None" = None
-_document_filenames_provider: "DocumentFilenamesProvider | None" = None
-_document_filename_by_hash_provider: "DocumentFilenameByHashProvider | None" = None
-
-
-def register_uploaded_document_readers(
-    *,
-    get_filename: "DocumentFilenameProvider",
-    get_filenames: "DocumentFilenamesProvider",
-    find_filename_by_hash: "DocumentFilenameByHashProvider",
-) -> None:
-    """Wire the ``UploadedDocument`` filename lookups (see module note above)."""
-    global _document_filename_provider, _document_filenames_provider, _document_filename_by_hash_provider
-    _document_filename_provider = get_filename
-    _document_filenames_provider = get_filenames
-    _document_filename_by_hash_provider = find_filename_by_hash
-
-
-def _get_document_filename_provider() -> "DocumentFilenameProvider":
-    if _document_filename_provider is None:
-        raise RuntimeError(
-            "workflow_events.register_uploaded_document_readers() was never called — "
-            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
-        )
-    return _document_filename_provider
-
-
-def _get_document_filenames_provider() -> "DocumentFilenamesProvider":
-    if _document_filenames_provider is None:
-        raise RuntimeError(
-            "workflow_events.register_uploaded_document_readers() was never called — "
-            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
-        )
-    return _document_filenames_provider
-
-
-def _get_document_filename_by_hash_provider() -> "DocumentFilenameByHashProvider":
-    if _document_filename_by_hash_provider is None:
-        raise RuntimeError(
-            "workflow_events.register_uploaded_document_readers() was never called — "
-            "main.py wires it at startup (#1675 D3); a test exercising this path must call it too."
-        )
-    return _document_filename_by_hash_provider
-
-
-# Same inversion, same reason (#1675 D6): ``StatementSummary`` is owned by
-# ``extraction`` (L3 domain); this L1-infra module may only depend on the
-# plain ``StatementEventSource`` read-model shape, never import the ORM class
-# or its enum types directly. main.py wires the real
-# ``src.extraction.get_statement_event_sources`` at startup; tests register a
-# fake/the real function directly.
-_statement_reader: "StatementReader | None" = None
-
-
-def register_statement_reader(reader: "StatementReader") -> None:
-    """Wire the ``StatementSummary`` read model (see module note above)."""
-    global _statement_reader
-    _statement_reader = reader
-
-
-def _get_statement_reader() -> "StatementReader":
-    if _statement_reader is None:
-        raise RuntimeError(
-            "workflow_events.register_statement_reader() was never called — "
-            "main.py wires it at startup (#1675 D6); a test exercising this path must call it too."
-        )
-    return _statement_reader
-
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
 MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "report_package"}
@@ -383,10 +269,10 @@ async def _statement_filename(db: AsyncSession, statement: StatementEventSource)
     """Resolve the display filename for a statement summary via its ODS document."""
     document_id = statement.uploaded_document_id
     if document_id is not None:
-        filename = await _get_document_filename_provider()(db, document_id)
+        filename = await get_uploaded_document_filename(db, document_id)
         if filename:
             return filename
-    filename = await _get_document_filename_by_hash_provider()(db, statement.user_id, statement.file_hash)
+    filename = await find_uploaded_document_filename_by_hash(db, statement.user_id, statement.file_hash)
     return filename or statement.file_hash
 
 
@@ -418,8 +304,8 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     # platform only reaches it through the registered StatementEventSource
     # provider (an L1-infra module may never import an L3-domain package,
     # #1676 precedent). The existing-event lookup stays a plain query — it's
-    # platform's own WorkflowEvent table.
-    statement_rows = await _get_statement_reader()(db, user_id)
+    # workflow's own WorkflowEvent table.
+    statement_rows = await get_statement_event_sources(db, user_id)
     if statement_rows:
         existing_events_result = await db.execute(
             select(WorkflowEvent)
@@ -436,13 +322,15 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     # UploadedDocument; platform only reaches it through the registered provider
     # (an L1-infra module may never import an L3-domain package, #1676 precedent).
     document_ids = {s.uploaded_document_id for s, _ in statements if s.uploaded_document_id is not None}
-    ods_filenames = await _get_document_filenames_provider()(db, document_ids)
+    ods_filenames = await get_uploaded_document_filenames(db, document_ids)
 
     derived_payloads: list[WorkflowEventCreate] = []
     for statement, event in statements:
         if workflow_session is None:
             workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
-        filename = ods_filenames.get(statement.uploaded_document_id) or statement.file_hash
+        filename = (
+            ods_filenames.get(statement.uploaded_document_id) if statement.uploaded_document_id is not None else None
+        ) or statement.file_hash
         payload = build_uploaded_statement_event_payload(statement, filename)
         if event is None:
             await _insert_workflow_event_conflict_safe(
@@ -461,7 +349,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
         elif statement.stage1_status in {_STAGE1_APPROVED, _STAGE1_REJECTED, _STAGE1_EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
-    package_readiness = await _get_readiness_provider()(db, user_id=user_id)
+    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
     for blocker in package_readiness.get("blockers", []):
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)
@@ -528,7 +416,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
         )
         if active_derived_dedupe_keys:
             stale_event_query = stale_event_query.where(WorkflowEvent.dedupe_key.not_in(active_derived_dedupe_keys))
-        stale_events = (await db.execute(stale_event_query)).scalars().all()
+        stale_events = list((await db.execute(stale_event_query)).scalars().all())
     stale_session_ids = {event.session_id for event in stale_events if event.session_id is not None}
     for event in stale_events:
         event.status = WorkflowEventStatus.ARCHIVED
@@ -732,9 +620,12 @@ async def get_workflow_status(
     package_readiness_state = _collapse_package_readiness_state(str(package_readiness["state"]))
     package_blocking_count = int(package_readiness["blocking_count"])
 
-    active_filters = [WorkflowEvent.user_id == user_id, WorkflowEvent.status != WorkflowEventStatus.ARCHIVED]
+    active_filters: list[ColumnElement[bool]] = [
+        WorkflowEvent.user_id == user_id,
+        WorkflowEvent.status != WorkflowEventStatus.ARCHIVED,
+    ]
 
-    async def representative_event(*filters: object) -> WorkflowEvent | None:
+    async def representative_event(*filters: ColumnElement[bool]) -> WorkflowEvent | None:
         result = await db.execute(
             select(WorkflowEvent)
             .where(*active_filters, *filters)

@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import DocumentType, ExtractedTransactionRow, ReportSnapshot, UploadedDocument
+from src.extraction import DocumentType, ExtractedTransactionRow, UploadedDocument
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
@@ -31,7 +31,6 @@ from src.extraction.orm.layer3 import (
     PositionStatus,
     RuleType,
 )
-from src.extraction.orm.layer4 import ReportType
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
@@ -41,6 +40,7 @@ from src.pricing import MarketDataOverride, PriceSource, PricingError
 from src.pricing.orm.market_data import FxRate
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reporting import ReportSnapshot, ReportType
 from src.reporting.extension.report_traceability import (
     _add_anchor_details,
     _append_blocker,

@@ -1,4 +1,4 @@
-"""Platform-owned workflow event and status payload vocabulary."""
+"""Workflow-owned event, lifecycle, status, and response vocabulary."""
 
 from datetime import UTC, datetime
 from enum import Enum

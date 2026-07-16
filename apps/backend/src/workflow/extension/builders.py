@@ -4,11 +4,11 @@ Pure constructors that turn statements / readiness blockers / package readiness
 into WorkflowEventCreate payloads. No DB or session logic.
 """
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from src.platform.base.workflow import (
+from src.extraction import StatementEventSource
+from src.workflow.base.types import (
     WorkflowEventCreate,
     WorkflowEventFamily,
     WorkflowEventSeverity,
@@ -16,30 +16,6 @@ from src.platform.base.workflow import (
 )
 
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
-
-
-@dataclass(frozen=True)
-class StatementEventSource:
-    """The ``StatementSummary`` fields workflow-event derivation needs (#1675 D6).
-
-    ``extraction`` owns ``StatementSummary`` (L3 domain); this L1-infra module
-    may only depend on this plain data shape, never import the ORM class or
-    its enum types directly (same inversion as the ``UploadedDocument``
-    filename ports below, #1675 D3). ``status``/``stage1_status`` are the raw
-    ``BankStatementStatus``/``Stage1Status`` ``.value`` strings — extraction's
-    registered provider (``register_statement_reader``) converts them before
-    handing rows across the port.
-    """
-
-    id: UUID
-    user_id: UUID
-    uploaded_document_id: UUID | None
-    file_hash: str
-    status: str
-    stage1_status: str | None
-    created_at: datetime
-    updated_at: datetime | None
-    stage1_reviewed_at: datetime | None
 
 
 def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, source_id: UUID) -> str:

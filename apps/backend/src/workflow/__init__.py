@@ -1,6 +1,6 @@
-"""Compatibility exports for workflow-owned DTOs."""
+"""Upload-to-report workflow domain package."""
 
-from src.workflow import (
+from src.workflow.base import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
     WorkflowEventFamily,
@@ -19,8 +19,17 @@ from src.workflow import (
     WorkflowSessionSummaryResponse,
     WorkflowStatusResponse,
 )
+from src.workflow.extension import (
+    get_workflow_status,
+    list_workflow_events_response,
+    sync_workflow_events_for_user,
+    update_workflow_event_status,
+    upsert_workflow_event,
+)
+from src.workflow.orm import WorkflowEvent, WorkflowSession
 
 __all__ = [
+    "WorkflowEvent",
     "WorkflowEventCountsResponse",
     "WorkflowEventCreate",
     "WorkflowEventFamily",
@@ -35,7 +44,13 @@ __all__ = [
     "WorkflowReportImpact",
     "WorkflowReportReadinessResponse",
     "WorkflowReportReadinessState",
+    "WorkflowSession",
     "WorkflowSessionStatus",
     "WorkflowSessionSummaryResponse",
     "WorkflowStatusResponse",
+    "get_workflow_status",
+    "list_workflow_events_response",
+    "sync_workflow_events_for_user",
+    "update_workflow_event_status",
+    "upsert_workflow_event",
 ]

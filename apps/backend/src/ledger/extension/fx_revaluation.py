@@ -8,10 +8,11 @@ This service provides the foundation for:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -20,14 +21,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit import JournalEntrySourceType
-from src.audit.money import Money
+from src.audit.money import Currency, Money
 from src.ledger import Entry, Leg
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+
+class FxRateProvider(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        base_currency: str,
+        quote_currency: str,
+        rate_date: date,
+        *,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
+
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -57,7 +68,7 @@ class _FxRateProviderNotRegisteredError(Exception):
 # ``extraction.extension.review_queue`` (#1675 D5c): the port lives here,
 # main.py (L4) wires the real pricing.get_exchange_rate/PricingError at
 # startup; tests wire it directly.
-_get_exchange_rate: Callable[..., Awaitable[Decimal]] | None = None
+_get_exchange_rate: FxRateProvider | None = None
 
 #: The injected FX-unavailable exception class (``src.pricing.PricingError``
 #: today). Reference late-bound as ``fx_revaluation.PricingError``.
@@ -65,7 +76,7 @@ PricingError: type[Exception] = _FxRateProviderNotRegisteredError
 
 
 def register_fx_revaluation_provider(
-    get_exchange_rate: Callable[..., Awaitable[Decimal]],
+    get_exchange_rate: FxRateProvider,
     *,
     fx_rate_error: type[Exception],
 ) -> None:
@@ -75,7 +86,7 @@ def register_fx_revaluation_provider(
     PricingError = fx_rate_error
 
 
-def _require_fx_rate_provider() -> Callable[..., Awaitable[Decimal]]:
+def _require_fx_rate_provider() -> FxRateProvider:
     if _get_exchange_rate is None:
         raise RuntimeError(
             "fx_revaluation.register_fx_revaluation_provider() was never called — "
@@ -389,7 +400,7 @@ async def create_revaluation_entry(
     # sub-cent (e.g. +0.014 - 0.011 = 0.003) and would otherwise round to a
     # zero/unbalanced offset line at the DB layer.
     adjustments = [
-        (reval.account_id, Money(reval.unrealized_gain_loss, base_currency).quantize())
+        (reval.account_id, Money(reval.unrealized_gain_loss, Currency.of(base_currency)).quantize())
         for reval in material_revaluations
     ]
     net = Money.sum([adj for _, adj in adjustments], currency=base_currency)

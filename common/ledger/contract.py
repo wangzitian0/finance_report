@@ -300,6 +300,19 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
+            id="AC-ledger.fx-port.1",
+            statement=(
+                "Ledger's FX revaluation registration exposes the exact pricing "
+                "lookup shape without Callable[..., Any] erasure."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-ledger.78.1",
             statement=(
                 "ConfidenceTier owns the one worst_confidence_tier rank function; reporting and "

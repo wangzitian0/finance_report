@@ -17,6 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.counter.base.ops.query import get_count
 from src.counter.base.types.count import Count
 from src.counter.base.types.key import CounterKey
 from src.counter.extension.sql import SqlCounterRepository
@@ -30,6 +31,4 @@ async def read_count(
 ) -> Count:
     """Read the global (``user_id=None``) or per-user tally for ``key``."""
     repo = SqlCounterRepository(db)
-    if user_id is None:
-        return Count(await repo.total(key))
-    return Count(await repo.for_user(user_id, key))
+    return await get_count(repo, key=key, user_id=user_id)

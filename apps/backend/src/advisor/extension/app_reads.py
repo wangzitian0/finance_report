@@ -26,17 +26,48 @@ wire them via the autouse fixture in ``apps/backend/tests/conftest.py``.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Any
+from collections.abc import Awaitable
+from datetime import date
+from decimal import Decimal
+from typing import Protocol, TypeVar
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 #: ``(db, user_id, *, include_default=...)`` → observed FX pairs.
-FxPairsRead = Callable[..., Awaitable[list[Any]]]
+class FxPairsRead(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        user_id: UUID | None,
+        *,
+        include_default: bool = True,
+    ) -> Awaitable[list[str]]: ...
+
+
 #: ``(db, *, amount, currency, target_currency, rate_date, ...)`` → converted Decimal.
-ConvertAmountRead = Callable[..., Awaitable[Any]]
+class ConvertAmountRead(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        amount: Decimal,
+        currency: str,
+        target_currency: str,
+        rate_date: date,
+        *,
+        average_start: date | None = None,
+        average_end: date | None = None,
+        fx_warnings: list[dict[str, str]] | None = None,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
+
 
 _fx_pairs: FxPairsRead | None = None
 _convert_amount: ConvertAmountRead | None = None
 _fx_error: type[Exception] | None = None
+
+ReadT = TypeVar("ReadT")
 
 
 def register_fx_pairs_read(provider: FxPairsRead) -> None:
@@ -52,7 +83,7 @@ def register_fx_conversion(*, convert_amount: ConvertAmountRead, error_type: typ
     _fx_error = error_type
 
 
-def _require(value: Any, registrar: str) -> Any:
+def _require(value: ReadT | None, registrar: str) -> ReadT:  # noqa: UP047
     if value is None:
         raise RuntimeError(
             f"advisor.extension.app_reads.{registrar}() was never called — the "

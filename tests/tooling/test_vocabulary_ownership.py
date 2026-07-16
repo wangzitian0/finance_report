@@ -64,8 +64,8 @@ def test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums() -> None
     )
 
 
-def test_AC_platform_vocabulary_ownership_1_platform_owns_workflow_payloads() -> None:
-    """AC-platform.vocabulary-ownership.1: platform owns workflow payloads."""
+def test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads() -> None:
+    """AC-workflow.vocabulary-ownership.1: workflow owns its payloads."""
     _assert_owned_and_reexported(
         names={
             "WorkflowEventCountsResponse",
@@ -86,9 +86,9 @@ def test_AC_platform_vocabulary_ownership_1_platform_owns_workflow_payloads() ->
             "WorkflowSessionSummaryResponse",
             "WorkflowStatusResponse",
         },
-        owner="apps/backend/src/platform/base/workflow.py",
+        owner="apps/backend/src/workflow/base/types.py",
         compatibility_module="apps/backend/src/schemas/workflow.py",
-        owner_module="src.platform.base.workflow",
+        owner_module="src.workflow",
     )
 
 

@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import ReportSnapshot
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import (
     ClassificationRule,
@@ -21,7 +20,6 @@ from src.extraction.orm.layer3 import (
     PositionStatus,
     RuleType,
 )
-from src.extraction.orm.layer4 import ReportType
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
@@ -29,6 +27,7 @@ from src.portfolio import DividendIncome, DividendType, InvestmentLot, Investmen
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.extension.market_data import _load_stored_stock_price
 from src.pricing.orm.market_data import FxRate, StockPrice
+from src.reporting import ReportSnapshot, ReportType
 
 BACKEND_DIR = Path(__file__).parent.parent.parent
 MIGRATION_PATH = BACKEND_DIR / "migrations" / "versions" / "0033_financial_fact_constraints.py"

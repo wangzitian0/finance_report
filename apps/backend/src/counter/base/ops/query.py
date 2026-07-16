@@ -18,7 +18,7 @@ from src.counter.base.types.count import Count
 from src.counter.base.types.key import CounterKey
 
 
-def get_count(
+async def get_count(
     repo: CounterRepository,
     *,
     key: CounterKey,
@@ -26,5 +26,5 @@ def get_count(
 ) -> Count:
     """Global count when ``user_id`` is None, else the per-user count."""
     if user_id is None:
-        return Count(repo.total(key))
-    return Count(repo.for_user(user_id, key))
+        return Count(await repo.total(key))
+    return Count(await repo.for_user(user_id, key))

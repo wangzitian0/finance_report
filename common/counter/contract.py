@@ -116,6 +116,17 @@ CONTRACT = PackageContract(
                 "::test_AC_counter_1_4_package_contract_gate_passes_for_counter"
             ),
         ),
+        Invariant(
+            id="async-repository-composition",
+            statement=(
+                "CounterRepository is async, SqlCounterRepository structurally "
+                "satisfies it, and extension/api delegates through base operations."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_counter_repository_5_async_adapter_and_api_composition"
+            ),
+        ),
     ],
     roadmap=[
         ACRecord(
@@ -158,6 +169,20 @@ CONTRACT = PackageContract(
             ),
             test="apps/backend/tests/counter/test_query.py::test_global_vs_per_user_count",
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-counter.repository.5",
+            statement=(
+                "The async CounterRepository port is structurally implemented by "
+                "SqlCounterRepository and production API composition executes the "
+                "same increment/get_count operations used by fakes."
+            ),
+            test=(
+                "tests/tooling/test_s3_pr_d_structure.py"
+                "::test_AC_counter_repository_5_async_adapter_and_api_composition"
+            ),
+            priority="P0",
             status="done",
         ),
     ],

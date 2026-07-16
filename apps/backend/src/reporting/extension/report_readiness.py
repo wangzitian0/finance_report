@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.config import settings
-from src.extraction import ReportSnapshot
 from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -26,6 +25,7 @@ from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimensi
 from src.reporting.extension import fx_gateway
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.fx_gateway import convert_amount
+from src.reporting.orm import ReportSnapshot
 from src.schemas.reporting import (
     FrameworkPolicyResult,
     PolicyProvenance,
@@ -411,7 +411,7 @@ async def get_personal_report_package_readiness(
         ),
     )
 
-    source_summary = {
+    source_summary: dict[str, int | str] = {
         "statements": statement_count,
         "active_accounts": active_account_count,
         "posted_journal_entries": journal_entry_count,

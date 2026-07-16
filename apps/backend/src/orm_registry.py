@@ -34,6 +34,8 @@ import src.platform  # noqa: F401,E402
 import src.portfolio  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402
 import src.reconciliation  # noqa: F401,E402
+import src.reporting  # noqa: F401,E402
+import src.workflow  # noqa: F401,E402
 
 # identity exposes its published surface lazily (PEP 562 __getattr__, so
 # importing the package doesn't eagerly pull the FastAPI transport layer);

@@ -13,18 +13,19 @@ from pydantic import ValidationError
 from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import (
-    DocumentType,
-    UploadedDocument,
-    find_uploaded_document_filename_by_hash,
-    get_uploaded_document_filename,
-    get_uploaded_document_filenames,
-)
-from src.extraction.extension.statement_summary import get_statement_event_sources
+import src.workflow.extension.events as workflow_events
+from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.platform import (
+from src.reporting.extension.report_readiness import get_personal_report_package_readiness
+from src.schemas.workflow import (
+    WorkflowEventCreate,
+    WorkflowEventResponse,
+    WorkflowPrimaryState,
+    WorkflowReportReadinessState,
+)
+from src.workflow import (
     WorkflowEvent,
     WorkflowEventFamily,
     WorkflowEventSeverity,
@@ -33,7 +34,7 @@ from src.platform import (
     WorkflowSession,
     WorkflowSessionStatus,
 )
-from src.platform.extension.workflow_events import (
+from src.workflow.extension.events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
     build_uploaded_statement_event_payload,
@@ -42,54 +43,22 @@ from src.platform.extension.workflow_events import (
     get_workflow_status,
     list_workflow_events,
     list_workflow_events_response,
-    register_readiness_provider,
-    register_statement_reader,
-    register_uploaded_document_readers,
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
-)
-from src.reporting.extension.report_readiness import get_personal_report_package_readiness
-from src.schemas.workflow import (
-    WorkflowEventCreate,
-    WorkflowEventResponse,
-    WorkflowPrimaryState,
-    WorkflowReportReadinessState,
 )
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
 
 
 @pytest.fixture(autouse=True)
-def _wire_readiness_provider() -> None:
-    """workflow_events no longer imports report_readiness itself (#1676 — platform
-    must not import reporting-domain logic); production wires this in main.py,
-    tests wire the same real function here so behavior is unchanged."""
-    register_readiness_provider(get_personal_report_package_readiness)
+def _restore_readiness_read() -> None:
+    """Keep test-local readiness overrides isolated without a production locator."""
+    workflow_events.get_personal_report_package_readiness = get_personal_report_package_readiness
 
 
-@pytest.fixture(autouse=True)
-def _wire_uploaded_document_readers() -> None:
-    """workflow_events no longer imports extraction's UploadedDocument itself
-    (#1675 D3 — platform must not import an L3-domain package); production wires
-    this in main.py, tests wire the same real functions here so behavior is
-    unchanged. Without this, any test exercising _statement_filename or
-    sync_workflow_events_for_user raises RuntimeError."""
-    register_uploaded_document_readers(
-        get_filename=get_uploaded_document_filename,
-        get_filenames=get_uploaded_document_filenames,
-        find_filename_by_hash=find_uploaded_document_filename_by_hash,
-    )
-
-
-@pytest.fixture(autouse=True)
-def _wire_statement_reader() -> None:
-    """workflow_events no longer imports extraction's StatementSummary itself
-    (#1675 D6 — platform must not import an L3-domain package); production wires
-    this in main.py, tests wire the same real function here so behavior is
-    unchanged. Without this, any test exercising sync_workflow_events_for_user
-    raises RuntimeError."""
-    register_statement_reader(get_statement_event_sources)
+def _override_readiness_for_test(provider) -> None:
+    workflow_events.get_personal_report_package_readiness = provider
 
 
 async def _make_statement(
@@ -138,7 +107,7 @@ def test_AC19_1_1_workflow_event_ssot_registers_manifest_owner() -> None:
     concepts = load_computed_concepts(ROOT_DIR, manifest_path)
     concept = concepts["workflow_events"]
 
-    assert concept["owner"] == "common/platform/workflow-events.md"
+    assert concept["owner"] == "common/workflow/workflow-events.md"
     assert "docs/project/EPIC-019.event-driven-upload-to-report-ux.md" in concept["cross_refs"]
 
 
@@ -748,7 +717,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     async def fake_readiness(_db, **_kwargs):
         return current_payload
 
-    register_readiness_provider(fake_readiness)
+    _override_readiness_for_test(fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     blocked_event = (
@@ -845,7 +814,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
     async def fake_readiness(_db, **_kwargs):
         return current_payload
 
-    register_readiness_provider(fake_readiness)
+    _override_readiness_for_test(fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     blocked_event = (
@@ -887,7 +856,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
             "blockers": [],
         }
 
-    register_readiness_provider(fake_readiness)
+    _override_readiness_for_test(fake_readiness)
 
     status = await get_workflow_status(db, user_id=test_user.id)
 
@@ -922,7 +891,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
             ],
         }
 
-    register_readiness_provider(fake_readiness)
+    _override_readiness_for_test(fake_readiness)
 
     await sync_workflow_events_for_user(db, user_id=test_user.id)
     events = (
@@ -1222,7 +1191,7 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
             ],
         }
 
-    register_readiness_provider(fake_readiness)
+    _override_readiness_for_test(fake_readiness)
 
     # A blocked active session derived from a balance-validation blocker.
     await sync_workflow_events_for_user(db, user_id=test_user.id)
@@ -1277,7 +1246,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(
             ],
         }
 
-    register_readiness_provider(counting_readiness)
+    _override_readiness_for_test(counting_readiness)
 
     events = await list_workflow_events_response(db, user_id=test_user.id, limit=10)
 

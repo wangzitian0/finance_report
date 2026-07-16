@@ -36,6 +36,8 @@ _EXPORTS = {
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
     "ReportLineId": "src.reporting.base.types",
+    "ReportSnapshot": "src.reporting.orm",
+    "ReportType": "src.reporting.orm",
     "ReportingSnapshotService": "src.reporting.extension.reporting_snapshot",
     "_add_months": "src.reporting.extension.reporting_calc",
     "_aggregate_balances_sql": "src.reporting.extension._core",
@@ -87,6 +89,8 @@ __all__ = [
     "PolicyDimension",
     "ReportError",
     "ReportLineId",
+    "ReportSnapshot",
+    "ReportType",
     "ReportingSnapshotService",
     "_add_months",
     "_aggregate_balances_sql",
@@ -197,3 +201,4 @@ if TYPE_CHECKING:
         resolve_line_currency,
     )
     from src.reporting.extension.reporting_snapshot import ReportingSnapshotService
+    from src.reporting.orm import ReportSnapshot, ReportType

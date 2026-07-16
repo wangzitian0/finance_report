@@ -5,8 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from src.extraction.orm.layer3 import ClassificationRule, RuleType
-from src.extraction.orm.layer4 import ReportType
-from src.reporting import ReportingSnapshotService
+from src.reporting import ReportingSnapshotService, ReportType
 
 
 class TestReportingSnapshotService:

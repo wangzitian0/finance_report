@@ -14,16 +14,15 @@ ORM entities this package owns. ``UploadedDocument`` moved here from
 ``src/models/`` (#1675 D3) — its two former L1-infra readers
 (``platform``/``runtime``) go through the published read-only lookups in
 ``extension/uploaded_document_reads.py`` instead of importing the ORM class.
-The rest of the fact family followed in #1675 D4+D5c: ``layer2``-``layer4``,
+The rest of the extraction fact family followed in #1675 D4+D5c: ``layer2``-``layer3``,
 ``evidence`` and ``correction`` live in ``orm/`` with every cross-domain
 ``relationship()`` (to ``Account``/``User``) replaced by bare FK id columns +
 explicit interface reads; downstream domains (reconciliation / portfolio /
 pricing) import the published entity names below. ``statement_summary`` /
 ``statement_enums`` completed the move in #1675 D6, the final models-
-decentralization slice: their three cross-domain readers each needed the same
-inversion as ``UploadedDocument`` above — ``platform`` (L1-infra, upward)
-reads through the registered ``StatementEventSource`` port
-(``src.platform.register_statement_reader``), and ``ledger``/``identity``
+decentralization slice. Statement facts are consumed directly by the workflow
+package through the published
+``StatementEventSource`` read model, while ``ledger``/``identity``
 (same-rank, dependency-cycle — both are readers extraction itself
 ``depends_on``) read through their own registered ports
 (``ledger.register_statement_coverage_reader`` /
@@ -104,6 +103,7 @@ from src.extraction.extension.statement_posting import (
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_summary import (
+    StatementEventSource,
     find_in_flight_parse_id,
     get_statement_coverage_rows,
     get_statement_event_sources,
@@ -157,7 +157,6 @@ from src.extraction.orm.layer3 import (
     PositionStatus,
     TransactionClassification,
 )
-from src.extraction.orm.layer4 import ReportSnapshot, ReportType
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
@@ -193,10 +192,9 @@ __all__ = [
     "ManualValuationSnapshot",
     "PositionStatus",
     "ParseJob",
-    "ReportSnapshot",
-    "ReportType",
     "SYSTEM_PROMPT",
     "Stage1Status",
+    "StatementEventSource",
     "StatementSummary",
     "TransactionClassification",
     "TransactionDirection",

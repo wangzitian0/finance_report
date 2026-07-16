@@ -504,7 +504,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 
 | File | Purpose |
 |------|---------|
-| `src/extraction/orm/` (`layer1.py`-`layer4.py`, `evidence.py`, `correction.py`, `statement_enums.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
+| `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_enums.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
