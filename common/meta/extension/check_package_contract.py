@@ -43,6 +43,9 @@ asserts:
       integrity invariant, not code-level coupling (#1675). The runtime atomicity
       of the outbox (AC-meta.event.1) is a behavioural property proven by the
       platform package's own tests, not by this structural gate.
+  (f) a public function name has one package owner: duplicate snake_case names
+      in package contract interfaces are rejected, while type names remain free
+      to express shared protocol vocabulary (for example ``Unit``).
 
       *Port-exception decision (counter):* counter imports the platform bus port
       ``from src.platform import OutboxEventBus`` and the base ports
@@ -964,6 +967,29 @@ def check_package(
     return errors
 
 
+def _check_duplicate_public_function_exports(
+    packages: list[DiscoveredPackage],
+) -> list[str]:
+    """Reject duplicate snake_case names in package public interfaces.
+
+    Public functions follow snake_case while exported types use CapWords. The
+    distinction lets packages share protocol vocabulary such as ``Unit`` while
+    making a function's behavioral owner unambiguous across bounded contexts.
+    """
+    owners: dict[str, set[str]] = {}
+    for package in packages:
+        for symbol in package.contract.interface:
+            if re.fullmatch(r"[a-z][a-z0-9_]*", symbol):
+                owners.setdefault(symbol, set()).add(package.name)
+
+    return [
+        f"public function '{symbol}' is exported by multiple packages: "
+        f"{', '.join(sorted(package_names))}"
+        for symbol, package_names in sorted(owners.items())
+        if len(package_names) > 1
+    ]
+
+
 def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     """Validate every discovered package; return (ok, messages)."""
     packages = discover_packages(repo_root)
@@ -1004,6 +1030,7 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
                 f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
             )
     all_errors.extend(_check_no_dependency_cycle(packages))
+    all_errors.extend(_check_duplicate_public_function_exports(packages))
     if not packages:
         all_errors.append("no packages discovered (expected at least 'counter')")
     return (not all_errors, messages + all_errors)

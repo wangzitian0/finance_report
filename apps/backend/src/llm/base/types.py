@@ -8,9 +8,11 @@ cycle. Monetary values use :class:`~decimal.Decimal` per the project money rule;
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 # An OpenAI-style chat message. Content may be a plain string or a list of
@@ -70,6 +72,36 @@ class ReasoningEffort(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+@dataclass(frozen=True, slots=True)
+class DecodeParams:
+    """Provider-independent knobs that can change completion bytes."""
+
+    max_tokens: int | None = None
+    temperature: float | int | None = None
+    reasoning: ReasoningEffort | None = None
+    seed: int | None = None
+    extra_body: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.extra_body is not None:
+            object.__setattr__(self, "extra_body", MappingProxyType(dict(self.extra_body)))
+
+    def as_request(self) -> dict[str, Any]:
+        """Canonical request projection used by transport and cassette keys."""
+        params: dict[str, Any] = {}
+        if self.max_tokens is not None:
+            params["max_tokens"] = self.max_tokens
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
+        if self.reasoning is not None and self.reasoning is not ReasoningEffort.NONE:
+            params["reasoning_effort"] = self.reasoning.value
+        if self.seed is not None:
+            params["seed"] = self.seed
+        if self.extra_body:
+            params["extra_body"] = dict(self.extra_body)
+        return params
 
 
 @dataclass(frozen=True, slots=True)

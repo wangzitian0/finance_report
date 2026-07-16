@@ -27,7 +27,6 @@ from src.advisor import (
     build_refusal,
     detect_language,
     ensure_disclaimer,
-    estimate_tokens,
     get_ai_advisor_prompt,
     is_non_financial,
     is_prompt_injection,
@@ -41,7 +40,7 @@ from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, Chat
 from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.llm import AIStreamError
+from src.llm import AIStreamError, estimate_tokens
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from src.schemas.workflow import (
@@ -99,7 +98,7 @@ def test_estimate_tokens() -> None:
     """AC-advisor.textutil.2: AC6.10.2: Token estimation for text chunks."""
     assert estimate_tokens("short") == 1
     assert estimate_tokens("a" * 100) == 25
-    assert estimate_tokens("") == 1
+    assert estimate_tokens("") == 0
 
 
 def test_redact_sensitive() -> None:
@@ -630,9 +629,9 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
 @pytest.mark.no_db
 def test_AC22_14_1_unknown_confidence_tiers_roll_up_as_least_trusted() -> None:
     """AC22.14.1: Unknown citation confidence values are never promoted above known tiers."""
-    service = AIAdvisorService()
+    from src.ledger import worst_confidence_tier
 
-    assert service._worst_confidence_tier(["HIGH", "UNAVAILABLE", "LOW"]) == "UNAVAILABLE"
+    assert worst_confidence_tier(["HIGH", "UNAVAILABLE", "LOW"]) == "UNAVAILABLE"
 
 
 def test_AC21_2_1_jsonable_normalizes_nested_context_values() -> None:
@@ -1014,19 +1013,32 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
         max_tokens=4096,
     )
 
-    tried: list[tuple[str, object, object, object]] = []
+    seen: dict[str, object] = {}
 
-    async def fake_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
-        tried.append((model, _user_id, _reasoning, _max_tokens))
-        yield "ok"
+    class _Client:
+        def stream(self, scene, messages):
+            seen["scene"] = scene
+            seen["messages"] = messages
 
-    monkeypatch.setattr(service, "_stream_model", fake_stream_model)
+            async def generate():
+                yield "ok"
+
+            return generate()
+
+    def fake_get_llm_client(user_id):
+        seen["user_id"] = user_id
+        return _Client()
+
+    monkeypatch.setattr(ai_advisor_service, "get_llm_client", fake_get_llm_client)
 
     async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None, uid, bound):
         pass
 
-    # Bound (qualified) model tried first, with the binding's reasoning/max_tokens + user_id.
-    assert tried[0] == ("provider1/user-glm-4.6", uid, ReasoningEffort.HIGH, 4096)
+    assert seen == {
+        "user_id": uid,
+        "scene": Scene.ADVISOR_CHAT,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
 
 
 async def test_AC23_4_5_advisor_provider_resolution_is_user_scoped(monkeypatch: pytest.MonkeyPatch) -> None:

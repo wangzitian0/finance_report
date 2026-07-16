@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
+from functools import wraps
 from typing import Any
 
 import litellm
 
 from src.llm.base import (
     ConfigSource,
+    DecodeParams,
     LLMConfigError,
     LLMError,
     Message,
@@ -97,11 +100,7 @@ def _base_kwargs(
     provider: ProviderRef,
     model_id: str,
     messages: Sequence[Message],
-    max_tokens: int | None,
-    temperature: float | None,
-    reasoning: ReasoningEffort | None,
-    seed: int | None,
-    extra_body: dict[str, Any] | None,
+    decode: DecodeParams,
 ) -> dict[str, Any]:
     call = build_call(provider, model_id)
     kwargs = call.kwargs()
@@ -109,12 +108,12 @@ def _base_kwargs(
     # Let litellm drop params a given model rejects instead of erroring (the
     # Z.AI/GLM seed/response_format class of HTTP 400s).
     kwargs["drop_params"] = True
-    if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    if reasoning is not None and reasoning is not ReasoningEffort.NONE:
-        kwargs["reasoning_effort"] = reasoning.value
+    if decode.max_tokens is not None:
+        kwargs["max_tokens"] = decode.max_tokens
+    if decode.temperature is not None:
+        kwargs["temperature"] = decode.temperature
+    if decode.reasoning is not None and decode.reasoning is not ReasoningEffort.NONE:
+        kwargs["reasoning_effort"] = decode.reasoning.value
     elif provider.protocol is ProtocolFamily.GOOGLE_GEMINI:
         # Gemini 2.5+ "thinks" by default and those thinking tokens are charged
         # against max_output_tokens, so a verbose extraction (raw_text + category
@@ -123,15 +122,15 @@ def _base_kwargs(
         # deliberately NOT mirrored into the cassette fingerprint decode params, so
         # a Gemini-recorded cassette still replays under any default provider.
         kwargs["reasoning_effort"] = "disable"
-    if seed is not None:
+    if decode.seed is not None:
         # Native param so drop_params can strip it for models that reject seed.
-        kwargs["seed"] = seed
-    if extra_body:
+        kwargs["seed"] = decode.seed
+    if decode.extra_body:
         # Wire-level protocol filter (#1597): do_sample/thinking are semantic
         # request knobs that always live in the fingerprint, but only
         # OpenAI-compatible providers accept them on the wire — Gemini/Anthropic
         # reject unknown request fields with HTTP 400.
-        body = dict(extra_body)
+        body = dict(decode.extra_body)
         if provider.protocol is not ProtocolFamily.OPENAI_COMPATIBLE:
             body.pop("do_sample", None)
             body.pop("thinking", None)
@@ -166,32 +165,6 @@ def _stream_role(messages: Sequence[Message]) -> str:
             if "image" in part_type or "image_url" in part:
                 return "vision"
     return "text"
-
-
-def _stream_decode_params(
-    *,
-    max_tokens: int | None,
-    temperature: float | None,
-    reasoning: ReasoningEffort | None,
-    seed: int | None,
-    extra_body: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Decode params that change the bytes the provider emits (model id excluded).
-
-    Mirrors ``cassette_completion``'s decode-param block so a streamed call and a
-    non-streamed call with the same knobs key the same way."""
-    decode_params: dict[str, Any] = {}
-    if max_tokens is not None:
-        decode_params["max_tokens"] = max_tokens
-    if temperature is not None:
-        decode_params["temperature"] = temperature
-    if reasoning is not None and reasoning is not ReasoningEffort.NONE:
-        decode_params["reasoning_effort"] = reasoning.value
-    if seed is not None:
-        decode_params["seed"] = seed
-    if extra_body:
-        decode_params["extra_body"] = dict(extra_body)
-    return decode_params
 
 
 async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
@@ -232,24 +205,80 @@ async def _litellm_stream_live(kwargs: dict[str, Any]) -> AsyncIterator[str]:
         )
 
 
-async def litellm_stream(
+@dataclass(frozen=True, slots=True)
+class CassetteOptions:
+    """In-layer cassette test/record controls kept out of transport signatures."""
+
+    store: CassetteStore | None = None
+    mode: CassetteMode | None = None
+    tag: CassetteTag = CassetteTag.FLOW_ONLY
+    validator: Any = None
+
+
+async def _litellm_transport(
     messages: Sequence[Message],
     *,
     provider: ProviderRef | None = None,
     provider_resolver: Callable[[], Awaitable[ProviderRef]] | None = None,
     model_id: str,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    reasoning: ReasoningEffort | None = None,
-    seed: int | None = None,
-    extra_body: dict[str, Any] | None = None,
+    decode: DecodeParams = DecodeParams(),
     timeout: float | None = None,
-    cassette_store: CassetteStore | None = None,
-    cassette_mode: CassetteMode | None = None,
-    cassette_tag: CassetteTag = CassetteTag.FLOW_ONLY,
-    cassette_validator: Any = None,
 ) -> AsyncIterator[str]:
-    """Stream text delta chunks for one completion via litellm — cassette-aware.
+    """Perform one live provider stream with typed decode parameters."""
+    if provider is None:
+        if provider_resolver is None:
+            raise LLMConfigError("litellm_stream needs a provider (or provider_resolver) for a live call")
+        provider = await provider_resolver()
+    kwargs = _base_kwargs(provider=provider, model_id=model_id, messages=messages, decode=decode)
+    kwargs["stream"] = True
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    async for content in _litellm_stream_live(kwargs):
+        yield content
+
+
+def cassette_stream(transport: Callable[..., AsyncIterator[str]]) -> Callable[..., AsyncIterator[str]]:
+    """Decorate a live stream with transparent and explicit cassette policy."""
+
+    @wraps(transport)
+    async def wrapped(
+        messages: Sequence[Message],
+        *,
+        provider: ProviderRef | None = None,
+        provider_resolver: Callable[[], Awaitable[ProviderRef]] | None = None,
+        model_id: str,
+        decode: DecodeParams = DecodeParams(),
+        timeout: float | None = None,
+        cassette: CassetteOptions | None = None,
+    ) -> AsyncIterator[str]:
+        async for content in _cassette_stream_dispatch(
+            transport,
+            messages,
+            provider=provider,
+            provider_resolver=provider_resolver,
+            model_id=model_id,
+            decode=decode,
+            timeout=timeout,
+            cassette=cassette or CassetteOptions(),
+        ):
+            yield content
+
+    wrapped.__cassette_decorated__ = True  # type: ignore[attr-defined]
+    return wrapped
+
+
+async def _cassette_stream_dispatch(
+    transport: Callable[..., AsyncIterator[str]],
+    messages: Sequence[Message],
+    *,
+    provider: ProviderRef | None,
+    provider_resolver: Callable[[], Awaitable[ProviderRef]] | None,
+    model_id: str,
+    decode: DecodeParams,
+    timeout: float | None,
+    cassette: CassetteOptions,
+) -> AsyncIterator[str]:
+    """Apply cassette policy around a live stream.
 
     The streaming bridge for the cassette layer (EPIC-023 AC23.6): the real
     extraction transport is streaming and previously bypassed the record/replay
@@ -275,6 +304,10 @@ async def litellm_stream(
     Z.AI/GLM rejects unknown params with HTTP 400 and litellm won't drop it (it's a
     supported openai-compatible field). Token usage is estimated by the caller from
     text instead (see ``src.llm.extension.streaming``)."""
+    cassette_store = cassette.store
+    cassette_mode = cassette.mode
+    cassette_tag = cassette.tag
+    cassette_validator = cassette.validator
     _provider_cache: list[ProviderRef] = [provider] if provider is not None else []
 
     async def _resolved_provider() -> ProviderRef:
@@ -286,22 +319,15 @@ async def litellm_stream(
             return resolved
         raise LLMConfigError("litellm_stream needs a provider (or provider_resolver) for a live call")
 
-    async def _live_kwargs() -> dict[str, Any]:
-        live_provider = await _resolved_provider()
-        kwargs = _base_kwargs(
-            provider=live_provider,
+    async def _live() -> AsyncIterator[str]:
+        async for content in transport(
+            messages,
+            provider=await _resolved_provider(),
             model_id=model_id,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            reasoning=reasoning,
-            seed=seed,
-            extra_body=extra_body,
-        )
-        kwargs["stream"] = True
-        if timeout is not None:
-            kwargs["timeout"] = timeout
-        return kwargs
+            decode=decode,
+            timeout=timeout,
+        ):
+            yield content
 
     # ------- Transparent per-request decision (#1596) -------
     # No explicit legacy mode anywhere: the LAYER decides per request; downstream
@@ -312,18 +338,12 @@ async def litellm_stream(
         if live_forced() or not layer_engaged():
             # Explicit LIVE (staging -m llm gates, prod) or the layer is simply
             # not engaged (app runtime): exact live passthrough, store untouched.
-            async for content in _litellm_stream_live(await _live_kwargs()):
+            async for content in _live():
                 yield content
             return
 
         t_role = _stream_role(messages)
-        t_decode = _stream_decode_params(
-            max_tokens=max_tokens,
-            temperature=temperature,
-            reasoning=reasoning,
-            seed=seed,
-            extra_body=extra_body,
-        )
+        t_decode = decode.as_request()
         t_key = fingerprint(role=t_role, messages=messages, decode_params=t_decode)
         t_store = cassette_store or CassetteStore()
         t_hit = t_store.get(t_key)
@@ -355,7 +375,7 @@ async def litellm_stream(
                 f"correctness cassette (role={t_role}) requires a ground-truth validator to record"
             )
         parts: list[str] = []
-        async for content in _litellm_stream_live(await _live_kwargs()):
+        async for content in _live():
             parts.append(content)
         text = "".join(parts)
         if cassette_tag is CassetteTag.CORRECTNESS:
@@ -386,18 +406,12 @@ async def litellm_stream(
 
     if mode is CassetteMode.OFF:
         # OFF: the prior passthrough, byte-for-byte. Keeps prod/staging live & real.
-        async for content in _litellm_stream_live(await _live_kwargs()):
+        async for content in _live():
             yield content
         return
 
     role = _stream_role(messages)
-    decode_params = _stream_decode_params(
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning=reasoning,
-        seed=seed,
-        extra_body=extra_body,
-    )
+    decode_params = decode.as_request()
     key = fingerprint(role=role, messages=messages, decode_params=decode_params)
     store = cassette_store or CassetteStore()
 
@@ -419,7 +433,7 @@ async def litellm_stream(
     if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
         raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
     parts: list[str] = []
-    async for content in _litellm_stream_live(await _live_kwargs()):
+    async for content in _live():
         parts.append(content)
     text = "".join(parts)
     response = {_STREAM_TEXT_KEY: text}
@@ -445,6 +459,9 @@ async def litellm_stream(
         yield text
 
 
+litellm_stream = cassette_stream(_litellm_transport)
+
+
 async def cassette_completion(
     messages: Sequence[Message],
     *,
@@ -454,11 +471,7 @@ async def cassette_completion(
     recorder: CassetteRecorder | None = None,
     tag: CassetteTag = CassetteTag.FLOW_ONLY,
     validator: Any = None,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    reasoning: ReasoningEffort | None = None,
-    seed: int | None = None,
-    extra_body: dict[str, Any] | None = None,
+    decode: DecodeParams = DecodeParams(),
     timeout: float | None = None,
 ) -> dict[str, Any]:
     """Cassette-aware non-streaming completion (EPIC-023 AC23.5).
@@ -478,24 +491,14 @@ async def cassette_completion(
     # Decode params that actually change the bytes the provider emits — the model
     # id is intentionally excluded (model-id-agnostic keying). Shared with the
     # streaming path so a streamed and non-streamed call key the same way.
-    decode_params = _stream_decode_params(
-        max_tokens=max_tokens,
-        temperature=temperature,
-        reasoning=reasoning,
-        seed=seed,
-        extra_body=extra_body,
-    )
+    decode_params = decode.as_request()
 
     async def live_call() -> dict[str, Any]:
         kwargs = _base_kwargs(
             provider=provider,
             model_id=model_id,
             messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            reasoning=reasoning,
-            seed=seed,
-            extra_body=extra_body,
+            decode=decode,
         )
         if timeout is not None:
             kwargs["timeout"] = timeout

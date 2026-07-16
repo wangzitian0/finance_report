@@ -90,10 +90,7 @@ def test_AC12_31_3_migrated_hotspots_use_base_packages():
     assert "position_quantity = position.quantity_qty.quantize()" in reporting
 
     investment = _read(Path("apps/backend/src/portfolio/extension/accounting.py"))
-    assert (
-        "trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()"
-        in investment
-    )
+    assert "trade_quantity = order.quantity.quantize()" in investment
     assert "trade_quantity.is_zero()" in investment
     assert "amount = _money(quantity * unit_price" not in investment
     assert "proceeds = _money(quantity * unit_price" not in investment

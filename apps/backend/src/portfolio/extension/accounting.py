@@ -31,6 +31,7 @@ from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, post_entry
 from src.portfolio.base.errors import InvestmentAccountingValidationError
+from src.portfolio.base.types import DividendEvent, TradeAccounts, TradeOrder
 from src.portfolio.orm.portfolio import (
     DividendIncome,
     DividendType,
@@ -59,40 +60,33 @@ class InvestmentAccountingService:
         db: AsyncSession,
         *,
         user_id: UUID,
-        transaction_date: date,
-        asset_identifier: str,
-        quantity: Decimal,
-        unit_price: Decimal,
-        currency: str,
-        cash_account_id: UUID,
-        investment_account_id: UUID,
-        fees: Decimal = Decimal("0.00"),
-        fx_rate: Decimal | None = None,
-        source_id: UUID | None = None,
-        cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO,
+        order: TradeOrder,
+        accounts: TradeAccounts,
     ) -> InvestmentAccountingResult:
         """Post a buy transaction as Dr investment / Cr brokerage cash."""
-        self._validate_positive(quantity, "quantity")
-        self._validate_non_negative(unit_price, "unit_price")
-        self._validate_non_negative(fees, "fees")
-        trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()
+        self._validate_positive(order.quantity.value, "quantity")
+        self._validate_non_negative(order.unit_price.rate, "unit_price")
+        self._validate_non_negative(order.fees.amount, "fees")
+        trade_quantity = order.quantity.quantize()
         if trade_quantity.is_zero():
             raise InvestmentAccountingValidationError("quantity must round to a non-zero quantity")
 
-        cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
-        investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        buy_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
-        gross = (buy_price * trade_quantity + Money(fees, currency)).quantize()
+        cash_account = await self._get_account(db, user_id, accounts.cash, AccountType.ASSET)
+        investment_account = await self._get_account(db, user_id, accounts.investment, AccountType.ASSET)
+        buy_price = order.unit_price
+        currency = buy_price.currency.code
+        gross = (buy_price * trade_quantity + order.fees).quantize()
         if not gross.is_positive():
             raise InvestmentAccountingValidationError("buy amount must be positive")
         amount = gross.amount
+        cost_basis_method = CostBasisMethod(order.cost_basis_method)
 
         position = await self._get_or_create_position(
             db,
             user_id=user_id,
             account_id=investment_account.id,
-            asset_identifier=asset_identifier,
-            transaction_date=transaction_date,
+            asset_identifier=order.asset_identifier,
+            transaction_date=order.transaction_date,
             currency=currency,
             cost_basis_method=cost_basis_method,
         )
@@ -103,16 +97,16 @@ class InvestmentAccountingService:
         posted = await post_entry(
             db,
             user_id=user_id,
-            entry_date=transaction_date,
-            memo=f"Buy {asset_identifier}",
-            source_id=source_id,
+            entry_date=order.transaction_date,
+            memo=f"Buy {order.asset_identifier}",
+            source_id=order.source_id,
             entry=Entry.transfer(
                 debit=investment_account.id,
                 credit=cash_account.id,
                 money=gross,
-                fx_rate=fx_rate,
+                fx_rate=order.fx_rate,
                 event_type="investment_buy",
-                tags={"asset_identifier": asset_identifier},
+                tags={"asset_identifier": order.asset_identifier},
             ),
         )
 
@@ -120,14 +114,14 @@ class InvestmentAccountingService:
             user_id=user_id,
             position_id=position.id,
             journal_entry_id=posted.id,
-            source_id=source_id,
-            transaction_date=transaction_date,
+            source_id=order.source_id,
+            transaction_date=order.transaction_date,
             transaction_type=InvestmentTransactionType.BUY,
-            asset_identifier=asset_identifier,
+            asset_identifier=order.asset_identifier,
             quantity=trade_quantity.value,
             unit_price=buy_price.quantize().rate,
             gross_amount=amount,
-            fees=to_money(fees),
+            fees=order.fees.quantize().amount,
             currency=currency,
             cost_basis=amount,
             realized_pnl=Decimal("0.00"),
@@ -140,8 +134,8 @@ class InvestmentAccountingService:
             user_id=user_id,
             position_id=position.id,
             opening_transaction_id=transaction.id,
-            asset_identifier=asset_identifier,
-            acquisition_date=transaction_date,
+            asset_identifier=order.asset_identifier,
+            acquisition_date=order.transaction_date,
             original_quantity=trade_quantity.value,
             remaining_quantity=trade_quantity.value,
             unit_cost=UnitPrice.from_total(Money(amount, currency), trade_quantity).quantize().rate,
@@ -164,40 +158,33 @@ class InvestmentAccountingService:
         db: AsyncSession,
         *,
         user_id: UUID,
-        transaction_date: date,
-        asset_identifier: str,
-        quantity: Decimal,
-        unit_price: Decimal,
-        currency: str,
-        cash_account_id: UUID,
-        investment_account_id: UUID,
-        realized_pnl_account_id: UUID,
-        fees: Decimal = Decimal("0.00"),
-        fx_rate: Decimal | None = None,
-        source_id: UUID | None = None,
-        cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO,
+        order: TradeOrder,
+        accounts: TradeAccounts,
     ) -> InvestmentAccountingResult:
         """Post a sell transaction and realize gain or loss from investment lots."""
-        self._validate_positive(quantity, "quantity")
-        self._validate_non_negative(unit_price, "unit_price")
-        self._validate_non_negative(fees, "fees")
-        trade_quantity = Quantity(quantity, INVESTMENT_QUANTITY_UNIT).quantize()
+        self._validate_positive(order.quantity.value, "quantity")
+        self._validate_non_negative(order.unit_price.rate, "unit_price")
+        self._validate_non_negative(order.fees.amount, "fees")
+        trade_quantity = order.quantity.quantize()
         if trade_quantity.is_zero():
             raise InvestmentAccountingValidationError("quantity must round to a non-zero quantity")
 
-        cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
-        investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        pnl_account = await self._get_account(db, user_id, realized_pnl_account_id, AccountType.INCOME)
+        if accounts.realized_pnl is None:
+            raise InvestmentAccountingValidationError("realized_pnl account is required for sell")
+        cash_account = await self._get_account(db, user_id, accounts.cash, AccountType.ASSET)
+        investment_account = await self._get_account(db, user_id, accounts.investment, AccountType.ASSET)
+        pnl_account = await self._get_account(db, user_id, accounts.realized_pnl, AccountType.INCOME)
         position = await self._get_position(
             db,
             user_id=user_id,
             account_id=investment_account.id,
-            asset_identifier=asset_identifier,
+            asset_identifier=order.asset_identifier,
         )
+        currency = order.unit_price.currency.code
         self._require_position_currency(position, currency)
 
-        sell_price = UnitPrice(unit_price, currency, INVESTMENT_QUANTITY_UNIT)
-        net = (sell_price * trade_quantity - Money(fees, currency)).quantize()
+        sell_price = order.unit_price
+        net = (sell_price * trade_quantity - order.fees).quantize()
         if not net.is_positive():
             raise InvestmentAccountingValidationError("sell proceeds must be positive")
         proceeds = net.amount
@@ -206,19 +193,26 @@ class InvestmentAccountingService:
             user_id=user_id,
             position=position,
             quantity=trade_quantity,
-            method=cost_basis_method,
-            disposal_date=transaction_date,
+            method=CostBasisMethod(order.cost_basis_method),
+            disposal_date=order.transaction_date,
         )
         realized_pnl = to_money(proceeds - cost_basis)
 
-        sell_tags = {"asset_identifier": asset_identifier}
+        sell_tags = {"asset_identifier": order.asset_identifier}
         legs = [
-            Leg(cash_account.id, Direction.DEBIT, Money(proceeds, currency), fx_rate, "investment_sell", sell_tags),
+            Leg(
+                cash_account.id,
+                Direction.DEBIT,
+                Money(proceeds, currency),
+                order.fx_rate,
+                "investment_sell",
+                sell_tags,
+            ),
             Leg(
                 investment_account.id,
                 Direction.CREDIT,
                 Money(cost_basis, currency),
-                fx_rate,
+                order.fx_rate,
                 "investment_sell",
                 sell_tags,
             ),
@@ -229,7 +223,7 @@ class InvestmentAccountingService:
                     pnl_account.id,
                     Direction.CREDIT,
                     Money(realized_pnl, currency),
-                    fx_rate,
+                    order.fx_rate,
                     "investment_realized_pnl",
                     sell_tags,
                 )
@@ -240,7 +234,7 @@ class InvestmentAccountingService:
                     pnl_account.id,
                     Direction.DEBIT,
                     Money(abs(realized_pnl), currency),
-                    fx_rate,
+                    order.fx_rate,
                     "investment_realized_pnl",
                     sell_tags,
                 )
@@ -249,9 +243,9 @@ class InvestmentAccountingService:
         posted = await post_entry(
             db,
             user_id=user_id,
-            entry_date=transaction_date,
-            memo=f"Sell {asset_identifier}",
-            source_id=source_id,
+            entry_date=order.transaction_date,
+            memo=f"Sell {order.asset_identifier}",
+            source_id=order.source_id,
             entry=Entry.of(*legs),
         )
 
@@ -259,27 +253,27 @@ class InvestmentAccountingService:
         position.quantity = position_quantity.value
         position.cost_basis = (position.cost_basis_money - Money(cost_basis, currency)).quantize().amount
         position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency)).quantize().amount
-        position.cost_basis_method = cost_basis_method
+        position.cost_basis_method = CostBasisMethod(order.cost_basis_method)
         if position_quantity.is_zero():
             position.status = PositionStatus.DISPOSED
-            position.disposal_date = transaction_date
+            position.disposal_date = order.transaction_date
 
         transaction = InvestmentTransaction(
             user_id=user_id,
             position_id=position.id,
             journal_entry_id=posted.id,
-            source_id=source_id,
-            transaction_date=transaction_date,
+            source_id=order.source_id,
+            transaction_date=order.transaction_date,
             transaction_type=InvestmentTransactionType.SELL,
-            asset_identifier=asset_identifier,
+            asset_identifier=order.asset_identifier,
             quantity=trade_quantity.value,
             unit_price=sell_price.quantize().rate,
             gross_amount=proceeds,
-            fees=to_money(fees),
+            fees=order.fees.quantize().amount,
             currency=currency,
             cost_basis=cost_basis,
             realized_pnl=realized_pnl,
-            cost_basis_method=cost_basis_method,
+            cost_basis_method=CostBasisMethod(order.cost_basis_method),
         )
         db.add(transaction)
         await db.flush()
@@ -292,45 +286,40 @@ class InvestmentAccountingService:
         db: AsyncSession,
         *,
         user_id: UUID,
-        payment_date: date,
-        asset_identifier: str,
-        gross_amount: Decimal,
-        currency: str,
-        cash_account_id: UUID,
-        investment_account_id: UUID,
-        dividend_income_account_id: UUID,
-        withholding_tax: Decimal = Decimal("0.00"),
-        withholding_tax_account_id: UUID | None = None,
-        fx_rate: Decimal | None = None,
-        source_id: UUID | None = None,
-        dividend_type: DividendType = DividendType.ORDINARY,
+        event: DividendEvent,
+        accounts: TradeAccounts,
     ) -> InvestmentAccountingResult:
         """Post a dividend transaction as cash plus dividend income."""
+        gross_amount = event.gross_amount.amount
+        withholding_tax = event.withholding_tax.amount
+        currency = event.gross_amount.currency.code
         self._validate_positive(gross_amount, "gross_amount")
         self._validate_non_negative(withholding_tax, "withholding_tax")
-        if withholding_tax > gross_amount:
+        if event.withholding_tax > event.gross_amount:
             raise InvestmentAccountingValidationError("withholding_tax cannot exceed gross_amount")
 
-        cash_account = await self._get_account(db, user_id, cash_account_id, AccountType.ASSET)
-        investment_account = await self._get_account(db, user_id, investment_account_id, AccountType.ASSET)
-        income_account = await self._get_account(db, user_id, dividend_income_account_id, AccountType.INCOME)
+        if accounts.dividend_income is None:
+            raise InvestmentAccountingValidationError("dividend_income account is required for dividend")
+        cash_account = await self._get_account(db, user_id, accounts.cash, AccountType.ASSET)
+        investment_account = await self._get_account(db, user_id, accounts.investment, AccountType.ASSET)
+        income_account = await self._get_account(db, user_id, accounts.dividend_income, AccountType.INCOME)
         tax_account = None
         if withholding_tax > Decimal("0"):
-            if withholding_tax_account_id is None:
+            if accounts.withholding_tax is None:
                 raise InvestmentAccountingValidationError("withholding_tax_account_id is required for tax withheld")
-            tax_account = await self._get_account(db, user_id, withholding_tax_account_id, AccountType.EXPENSE)
+            tax_account = await self._get_account(db, user_id, accounts.withholding_tax, AccountType.EXPENSE)
 
         position = await self._get_position(
             db,
             user_id=user_id,
             account_id=investment_account.id,
-            asset_identifier=asset_identifier,
+            asset_identifier=event.asset_identifier,
         )
         gross = to_money(gross_amount)
         tax = to_money(withholding_tax)
         net_cash = to_money(gross - tax)
 
-        div_tags = {"asset_identifier": asset_identifier}
+        div_tags = {"asset_identifier": event.asset_identifier}
         legs = []
         if net_cash > Decimal("0"):
             legs.append(
@@ -338,25 +327,39 @@ class InvestmentAccountingService:
                     cash_account.id,
                     Direction.DEBIT,
                     Money(net_cash, currency),
-                    fx_rate,
+                    event.fx_rate,
                     "investment_dividend",
                     div_tags,
                 )
             )
         if tax > Decimal("0") and tax_account is not None:
             legs.append(
-                Leg(tax_account.id, Direction.DEBIT, Money(tax, currency), fx_rate, "investment_dividend_tax", div_tags)
+                Leg(
+                    tax_account.id,
+                    Direction.DEBIT,
+                    Money(tax, currency),
+                    event.fx_rate,
+                    "investment_dividend_tax",
+                    div_tags,
+                )
             )
         legs.append(
-            Leg(income_account.id, Direction.CREDIT, Money(gross, currency), fx_rate, "investment_dividend", div_tags)
+            Leg(
+                income_account.id,
+                Direction.CREDIT,
+                Money(gross, currency),
+                event.fx_rate,
+                "investment_dividend",
+                div_tags,
+            )
         )
 
         posted = await post_entry(
             db,
             user_id=user_id,
-            entry_date=payment_date,
-            memo=f"Dividend {asset_identifier}",
-            source_id=source_id,
+            entry_date=event.payment_date,
+            memo=f"Dividend {event.asset_identifier}",
+            source_id=event.source_id,
             entry=Entry.of(*legs),
         )
 
@@ -364,10 +367,10 @@ class InvestmentAccountingService:
             user_id=user_id,
             position_id=position.id,
             journal_entry_id=posted.id,
-            source_id=source_id,
-            transaction_date=payment_date,
+            source_id=event.source_id,
+            transaction_date=event.payment_date,
             transaction_type=InvestmentTransactionType.DIVIDEND,
-            asset_identifier=asset_identifier,
+            asset_identifier=event.asset_identifier,
             quantity=None,
             unit_price=None,
             gross_amount=gross,
@@ -380,10 +383,10 @@ class InvestmentAccountingService:
         dividend = DividendIncome(
             user_id=user_id,
             position_id=position.id,
-            payment_date=payment_date,
+            payment_date=event.payment_date,
             amount=gross,
             currency=currency,
-            dividend_type=dividend_type,
+            dividend_type=DividendType(event.dividend_type),
         )
         db.add_all([transaction, dividend])
         await db.flush()

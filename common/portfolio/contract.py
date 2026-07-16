@@ -104,6 +104,9 @@ CONTRACT = PackageContract(
             kind=Kind.VALUE_OBJECT,
             module="base/errors.py",
         ),
+        Unit(name="DividendEvent", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(name="TradeAccounts", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(name="TradeOrder", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         # ── taxonomy-only ORM units (no module= — the gate skips placement
         # checks, same as extraction's AtomicTransaction/UploadedDocument).
         # InvestmentTransaction/InvestmentLot/DividendIncome + their enums now
@@ -220,6 +223,7 @@ CONTRACT = PackageContract(
         "AssetNotFoundError",
         "DepreciationResult",
         "DividendIncome",
+        "DividendEvent",
         "DividendType",
         "InsufficientDataError",
         "InvalidDateRangeError",
@@ -237,6 +241,8 @@ CONTRACT = PackageContract(
         "PositionService",
         "PositionServiceError",
         "ReconcileResult",
+        "TradeAccounts",
+        "TradeOrder",
         "XIRRCalculationError",
         "active_stock_symbols",
         "build_investment_performance_report_schedule",
@@ -293,6 +299,20 @@ CONTRACT = PackageContract(
     # units above). The EPIC-011/017 read-side AC rows migrate into this
     # roadmap separately (#1717).
     roadmap=[
+        ACRecord(
+            id="AC-portfolio.posting-inputs.1",
+            statement=(
+                "Investment posting accepts TradeOrder, TradeAccounts, and DividendEvent value "
+                "objects so quantity, unit price, money, related accounts, and conditional "
+                "withholding-tax inputs are constructed once before the write boundary."
+            ),
+            test=(
+                "apps/backend/tests/portfolio/test_investment_accounting.py"
+                "::test_AC_portfolio_posting_inputs_1_value_objects_bound_the_write_signature"
+            ),
+            priority="P1",
+            status="done",
+        ),
         ACRecord(
             id="AC-portfolio.1.1",
             statement=(

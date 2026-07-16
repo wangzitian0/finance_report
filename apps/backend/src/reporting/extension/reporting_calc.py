@@ -12,7 +12,7 @@ Money is always ``Decimal`` (never ``float`` — see the money decimal rule).
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -37,12 +37,10 @@ _DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.F
 MAX_TREND_POINTS = 366
 MAX_NET_WORTH_DAILY_POINTS = 366
 
+
 # Confidence tiers ranked by trust (vision Axiom B). The worst-input rule rolls a
 # line/aggregate down to its least-trusted contributor — a defined rollup, never
 # an invented number.
-_CONFIDENCE_TIER_RANK: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "TRUSTED": 3}
-
-
 class ReportError(Exception):
     """Raised when report generation fails or input is invalid."""
 
@@ -201,11 +199,3 @@ def _iter_periods(start: date, end: date, period: str) -> list[PeriodSpan]:
             break
 
     return spans
-
-
-def _worst_confidence_tier(tiers: Iterable[str | None]) -> str | None:
-    """Return the least-trusted tier among the inputs, or None if none are rated."""
-    present = [tier for tier in tiers if tier]
-    if not present:
-        return None
-    return min(present, key=lambda tier: _CONFIDENCE_TIER_RANK.get(tier, 0))

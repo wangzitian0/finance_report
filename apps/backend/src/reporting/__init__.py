@@ -49,7 +49,6 @@ _EXPORTS = {
     "_quantize_money": "src.reporting.extension.reporting_calc",
     "_quarter_start": "src.reporting.extension.reporting_calc",
     "_signed_amount": "src.reporting.extension.reporting_calc",
-    "_worst_confidence_tier": "src.reporting.extension.reporting_calc",
     "assemble_framework_balance_sheet": "src.reporting.extension.framework_report",
     "assemble_framework_income_statement": "src.reporting.extension.framework_report",
     "build_personal_report_package_traceability_payload": "src.reporting.extension.report_traceability",
@@ -101,7 +100,6 @@ __all__ = [
     "_quantize_money",
     "_quarter_start",
     "_signed_amount",
-    "_worst_confidence_tier",
     "assemble_framework_balance_sheet",
     "assemble_framework_income_statement",
     "build_personal_report_package_traceability_payload",
@@ -195,7 +193,6 @@ if TYPE_CHECKING:
         _quantize_money,
         _quarter_start,
         _signed_amount,
-        _worst_confidence_tier,
         income_bucket,
         resolve_line_currency,
     )

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 import src.llm.extension.client as client_mod
-from src.llm.base import LLMConfigError, LLMError, ProtocolFamily, ProviderRef
+from src.llm.base import DecodeParams, LLMConfigError, LLMError, ProtocolFamily, ProviderRef
 from src.llm.extension.client import litellm_stream, resolve_provider_and_model
 
 
@@ -78,8 +78,7 @@ async def test_AC23_2_2_stream_sets_drop_params_and_passes_seed_extra_body(captu
         [{"role": "user", "content": "hi"}],
         provider=_provider(),
         model_id="glm-5.1",
-        seed=7,
-        extra_body={"do_sample": False, "thinking": {"type": "disabled"}},
+        decode=DecodeParams(seed=7, extra_body={"do_sample": False, "thinking": {"type": "disabled"}}),
     ):
         pass
     kw = captured["kwargs"]
@@ -99,9 +98,7 @@ async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
         [{"role": "user", "content": "hi"}],
         provider=_provider(),
         model_id="glm-5.1",
-        max_tokens=256,
-        temperature=0.0,
-        reasoning=ReasoningEffort.MEDIUM,
+        decode=DecodeParams(max_tokens=256, temperature=0.0, reasoning=ReasoningEffort.MEDIUM),
     ):
         pass
     kw = captured["kwargs"]
@@ -250,8 +247,7 @@ async def test_AC23_5_4_cassette_completion_off_mode_does_a_live_litellm_call(mo
         provider=_provider(),
         model_id="glm-5.1",
         recorder=recorder,
-        temperature=0.0,
-        max_tokens=16,
+        decode=DecodeParams(temperature=0.0, max_tokens=16),
     )
     assert out == {"choices": [{"message": {"content": "ok"}}]}
 
@@ -276,7 +272,7 @@ async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkey
         provider=_provider(),
         model_id="glm-5.1",
         recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
-        temperature=0.0,
+        decode=DecodeParams(temperature=0.0),
     )
     assert rec == {"text": "frozen"}
 
@@ -291,7 +287,7 @@ async def test_AC23_5_4_cassette_completion_record_then_replay_roundtrips(monkey
         provider=_provider(),
         model_id="glm-5.2",
         recorder=CassetteRecorder(store, mode=CassetteMode.REPLAY),
-        temperature=0.0,
+        decode=DecodeParams(temperature=0.0),
     )
     assert play == {"text": "frozen"}
 
@@ -337,9 +333,11 @@ async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(
         provider=_provider(),
         model_id="glm-4.6V",
         recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
-        reasoning=ReasoningEffort.MEDIUM,
-        seed=11,
-        extra_body={"thinking": {"type": "disabled"}},
+        decode=DecodeParams(
+            reasoning=ReasoningEffort.MEDIUM,
+            seed=11,
+            extra_body={"thinking": {"type": "disabled"}},
+        ),
         timeout=5.0,
     )
     assert out == {"plain": "dict"}

@@ -173,7 +173,6 @@ CONTRACT = PackageContract(
         "_quantize_money",
         "_quarter_start",
         "_signed_amount",
-        "_worst_confidence_tier",
         "assemble_framework_balance_sheet",
         "assemble_framework_income_statement",
         "build_personal_report_package_traceability_payload",
@@ -260,6 +259,19 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_vocabulary_ownership.py"
                 "::test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reporting.single-owner.1",
+            statement=(
+                "Manual-valuation line naming is defined only by pricing, its fact owner; "
+                "reporting contains no dead duplicate helper that can drift independently."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_reporting_calc_extraction.py"
+                "::test_AC_reporting_single_owner_1_has_no_valuation_line_name_copy"
             ),
             priority="P1",
             status="done",

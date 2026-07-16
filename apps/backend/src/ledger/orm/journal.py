@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
@@ -36,7 +37,24 @@ class JournalEntryStatus(str, enum.Enum):
     VOID = "void"
 
 
-ConfidenceTier = Literal["TRUSTED", "HIGH", "MEDIUM", "LOW"]
+ConfidenceTier = Literal["DETERMINISTIC", "TRUSTED", "HIGH", "MEDIUM", "LOW"]
+
+_CONFIDENCE_TIER_RANK: dict[str, int] = {
+    "LOW": 0,
+    "MEDIUM": 1,
+    "HIGH": 2,
+    "TRUSTED": 3,
+    "DETERMINISTIC": 3,
+}
+
+
+def worst_confidence_tier(tiers: Iterable[str | None], *, default: str | None = None) -> str | None:
+    """Return the least-trusted tier, failing closed for unknown values."""
+    present = [str(tier).upper() for tier in tiers if tier]
+    if not present:
+        return default
+    return min(present, key=lambda tier: _CONFIDENCE_TIER_RANK.get(tier, -1))
+
 
 # Source-type → UI confidence tier (EPIC-018). Co-located with the enum it maps so
 # the model layer never needs to import a service (keeps the dependency a DAG).

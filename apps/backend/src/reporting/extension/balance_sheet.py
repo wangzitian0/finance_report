@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
+from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains, worst_confidence_tier
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
@@ -30,7 +30,6 @@ from src.reporting.extension.reporting_calc import (
     _combine_provenance,
     _normalize_currency,
     _quantize_money,
-    _worst_confidence_tier,
 )
 from src.schemas.provenance import DataProvenance
 
@@ -255,7 +254,7 @@ async def generate_balance_sheet(
     # Net Worth / balance-sheet aggregate tier: the worst-input tier across every
     # rated line. Lines with no derivable tier (e.g. market-derived adjustments)
     # are excluded rather than counted as trusted.
-    aggregate_tier = _worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
+    aggregate_tier = worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
     # Aggregate provenance: the shared provenance across rated lines, or "derived"
     # when sources mix. Mirrors the per-line provenance so the schema field is
     # populated rather than always None.
@@ -286,7 +285,7 @@ async def generate_balance_sheet(
             if earliest is not None:
                 warning["earliest_activity_date"] = earliest.isoformat()
             opening_balance_warnings.append(warning)
-            aggregate_tier = _worst_confidence_tier([aggregate_tier, "LOW"])
+            aggregate_tier = worst_confidence_tier([aggregate_tier, "LOW"])
 
     response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
     response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)

@@ -10,14 +10,16 @@ handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
 """
 
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from typing import Any
 from uuid import UUID
 
 from src.config import settings
 from src.llm.base import (
+    DecodeParams,
     LLMConfigError,
     LLMError,
+    Message,
     ProviderRef,
     ReasoningEffort,
     estimate_tokens,
@@ -95,31 +97,23 @@ async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: 
 
 
 async def _stream_ai_base(
-    messages: list[dict[str, Any]],
+    messages: Sequence[Message],
     model: str,
     *,
     api_key: str | None = None,
     base_url: str | None = None,
     user_id: UUID | None = None,
     timeout: float,
-    connect_timeout: float = 10.0,
-    max_tokens: int | None = None,
-    temperature: float | None = None,
-    reasoning: ReasoningEffort | None = None,
-    do_sample: bool | None = None,
-    seed: int | None = None,
-    thinking: dict[str, Any] | None = None,
-    response_format: dict[str, str] | None = None,
+    decode: DecodeParams = DecodeParams(),
     mode_label: str = "streaming",
 ) -> AsyncIterator[str]:
     """Stream delta chunks via litellm.
 
-    ``do_sample``/``thinking`` are Z.AI/GLM-specific knobs forwarded through
-    ``extra_body``; ``seed`` is a native param litellm drops for models that
-    reject it. ``response_format`` and ``connect_timeout`` are accepted for
-    signature compatibility but unused — JSON mode stays prompt-driven and
-    litellm owns the transport. ``user_id`` scopes provider resolution to that
-    user's configured provider (else deployment default, else env).
+    ``DecodeParams.extra_body`` carries Z.AI/GLM-specific knobs; ``seed`` is a
+    native param litellm drops for models that reject it. JSON mode stays
+    prompt-driven and litellm owns the transport. ``user_id`` scopes provider
+    resolution to that user's configured provider (else deployment default,
+    else env).
     """
     # Deferred: src.llm.extension.client imports litellm at module level, and
     # importing this module must not (the no-litellm-at-root invariant in
@@ -147,18 +141,6 @@ async def _stream_ai_base(
     # needs credentials); an explicit api_key still resolves through the same
     # lazy closure on first network need.
 
-    # do_sample/thinking are semantic request knobs: they are ALWAYS part of the
-    # request (and thus the cassette fingerprint), independent of the provider.
-    # Wire-level protocol filtering (only OpenAI-compatible providers accept
-    # them; Gemini/Anthropic 400 on unknown fields) happens inside the llm
-    # layer at live-call time, where the provider is actually resolved — so the
-    # knob-carrying path stays lazy and a cassette HIT needs no credentials.
-    extra_body: dict[str, Any] = {}
-    if do_sample is not None:
-        extra_body["do_sample"] = do_sample
-    if thinking is not None:
-        extra_body["thinking"] = thinking
-
     def _metric_provider_label() -> str:
         prov = provider or (resolved_lazily[0] if resolved_lazily else None)
         # "frozen" = the llm layer served a cassette; bounded label, never PII.
@@ -179,11 +161,7 @@ async def _stream_ai_base(
             provider=provider,
             provider_resolver=_lazy_provider if provider is None else None,
             model_id=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            reasoning=reasoning,
-            seed=seed,
-            extra_body=extra_body or None,
+            decode=decode,
             timeout=timeout,
         ):
             # Tally length only — don't buffer the full response just to estimate tokens.
@@ -224,7 +202,7 @@ async def _stream_ai_base(
             await get_usage_meter().record(
                 model,
                 mode_label,
-                _estimate_prompt_tokens(messages),
+                _estimate_prompt_tokens(list(messages)),
                 estimate_tokens_from_chars(completion_chars),
             )
         except Exception:  # noqa: BLE001 - usage telemetry is not correctness
@@ -253,11 +231,14 @@ async def stream_ai_json(
         base_url=base_url,
         user_id=user_id,
         timeout=timeout,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        do_sample=do_sample,
-        seed=seed,
-        thinking=thinking,
+        decode=DecodeParams(
+            max_tokens=max_tokens,
+            temperature=temperature,
+            seed=seed,
+            extra_body={
+                key: value for key, value in (("do_sample", do_sample), ("thinking", thinking)) if value is not None
+            },
+        ),
         mode_label="JSON extraction",
     ):
         yield chunk
@@ -284,9 +265,8 @@ async def stream_ai_chat(
         api_key=api_key,
         base_url=base_url,
         user_id=user_id,
-        reasoning=reasoning,
-        max_tokens=max_tokens,
         timeout=timeout,
+        decode=DecodeParams(reasoning=reasoning, max_tokens=max_tokens),
         mode_label="chat mode",
     ):
         yield chunk

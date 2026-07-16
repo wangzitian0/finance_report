@@ -22,9 +22,11 @@ from src.portfolio.base.errors import (
     PortfolioNotFoundError,
     XIRRCalculationError,
 )
+from src.portfolio.base.types import DividendEvent, TradeAccounts, TradeOrder
 
 __all__ = [
     "AssetNotFoundError",
+    "DividendEvent",
     "InsufficientDataError",
     "InvalidDateRangeError",
     "InvestmentAccountingError",
@@ -32,5 +34,7 @@ __all__ = [
     "PerformanceError",
     "PortfolioError",
     "PortfolioNotFoundError",
+    "TradeAccounts",
+    "TradeOrder",
     "XIRRCalculationError",
 ]

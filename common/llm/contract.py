@@ -75,6 +75,7 @@ CONTRACT = PackageContract(
         Unit(name="Encrypted", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="Usage", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="ChatResult", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(name="DecodeParams", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         # the in-memory daily usage counter (per-process running total; the
         # structured ``llm_usage`` log is the durable record it emits).
         Unit(name="LlmUsageMeter", kind=Kind.ENTITY, module="base/usage.py"),
@@ -84,6 +85,11 @@ CONTRACT = PackageContract(
             kind=Kind.REPOSITORY,
             module="base/config_source.py",
             impl="extension/db_config.py",
+        ),
+        Unit(
+            name="LitellmClient",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/scene_client.py",
         ),
         Unit(
             name="LLMClient",
@@ -160,6 +166,7 @@ CONTRACT = PackageContract(
         "CatalogProvider",
         "ChatResult",
         "ConfigSource",
+        "DecodeParams",
         "DbConfigSource",
         "Encrypted",
         "EnvConfigSource",
@@ -171,6 +178,7 @@ CONTRACT = PackageContract(
         "LayeredConfigSource",
         "LitellmCall",
         "LitellmCatalog",
+        "LitellmClient",
         "LlmProvider",
         "LlmSceneBinding",
         "LlmUsageMeter",
@@ -194,6 +202,7 @@ CONTRACT = PackageContract(
         "estimate_tokens_from_chars",
         "fingerprint",
         "get_config_source",
+        "get_llm_client",
         "get_usage_meter",
         "litellm_stream",
         "miss_summary",
@@ -273,6 +282,50 @@ CONTRACT = PackageContract(
     # trailing comments; the anchored test functions keep their AC23_* names
     # (the resolvable anchor is the roadmap's test= reference).
     roadmap=[
+        ACRecord(
+            id="AC-llm.typed-client.1",
+            statement=(
+                "The published LLMClient scene-keyed protocol has a production LitellmClient "
+                "implementation, and advisor chat consumes that typed Message/Scene seam instead "
+                "of assembling provider/model transport arguments itself."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_signature_contract.py"
+                "::test_AC_llm_typed_client_1_scene_client_is_implemented_and_consumed"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.decode-contract.1",
+            statement=(
+                "Provider decode knobs travel as one immutable DecodeParams value and cassette "
+                "record/replay wraps the live stream as a decorator, rather than expanding the "
+                "transport signature with parallel decode and cassette parameter clusters."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_signature_contract.py"
+                "::test_AC_llm_decode_contract_1_groups_decode_and_decorates_cassettes"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.token-estimate.1",
+            statement=(
+                "Token estimation has one definition in llm, returns zero for empty input, and "
+                "advisor consumes it through the llm package facade without re-exporting a copy."
+            ),
+            test=(
+                "apps/backend/tests/llm/test_signature_contract.py"
+                "::test_AC_llm_token_estimate_1_is_single_homed"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-llm.1.1",
             statement="The three axes are typed: `ProtocolFamily` enumerates exactly the three universal protocol families, `Scene` the fixed call sites, and `ModelSpec`/`SceneBinding` carry modality/free/reasoning so model selection is data, not code",  # was AC23.1.1

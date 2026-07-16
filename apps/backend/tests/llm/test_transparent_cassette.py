@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.llm.base.types import ProtocolFamily, ProviderRef
-from src.llm.extension.cassette import CassetteMiss, CassetteStore, fingerprint
-from src.llm.extension.client import _stream_decode_params, litellm_stream
+from src.llm.base.types import DecodeParams, ProtocolFamily, ProviderRef
+from src.llm.extension.cassette import CassetteMiss, CassetteStore, CassetteTag, fingerprint
+from src.llm.extension.client import CassetteOptions, litellm_stream
 
 MESSAGES = [{"role": "user", "content": "transparent-cassette probe"}]
-_DECODE = _stream_decode_params(max_tokens=64, temperature=None, reasoning=None, seed=None, extra_body=None)
+_DECODE = DecodeParams(max_tokens=64).as_request()
 KEY = fingerprint(role="text", messages=MESSAGES, decode_params=_DECODE)
 
 
@@ -63,14 +63,19 @@ def no_network(monkeypatch):
 
 async def _run(*, store, provider=None, provider_resolver=None, **cassette_kwargs):
     chunks = []
+    options = CassetteOptions(
+        store=store,
+        mode=cassette_kwargs.get("cassette_mode"),
+        tag=cassette_kwargs.get("cassette_tag", CassetteTag.FLOW_ONLY),
+        validator=cassette_kwargs.get("cassette_validator"),
+    )
     async for c in litellm_stream(
         MESSAGES,
         provider=provider,
         provider_resolver=provider_resolver,
         model_id="glm-test",
-        max_tokens=64,
-        cassette_store=store,
-        **cassette_kwargs,
+        decode=DecodeParams(max_tokens=64),
+        cassette=options,
     ):
         chunks.append(c)
     return "".join(chunks)
