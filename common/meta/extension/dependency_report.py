@@ -57,11 +57,77 @@ def _type_parameters(
     return f"[{', '.join(ast.unparse(parameter) for parameter in parameters)}]"
 
 
-def _function_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+def _module_values(body: Sequence[ast.stmt]) -> dict[str, ast.expr]:
+    values: dict[str, ast.expr] = {}
+    for node in body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            values[node.targets[0].id] = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.value is not None
+        ):
+            values[node.target.id] = node.value
+    return values
+
+
+def _value_fingerprint(
+    name: str, values: dict[str, ast.expr], seen: frozenset[str] = frozenset()
+) -> str:
+    value = values[name]
+    references = sorted(
+        {
+            child.id
+            for child in ast.walk(value)
+            if isinstance(child, ast.Name)
+            and child.id in values
+            and child.id not in seen
+            and child.id != name
+        }
+    )
+    dependencies = [
+        f"{reference}={_value_fingerprint(reference, values, seen | {name})}"
+        for reference in references
+    ]
+    suffix = f" [{', '.join(dependencies)}]" if dependencies else ""
+    return f"{ast.unparse(value)}{suffix}"
+
+
+def _resolved_default_values(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    values: dict[str, ast.expr],
+) -> str:
+    defaults = [*node.args.defaults]
+    defaults.extend(default for default in node.args.kw_defaults if default is not None)
+    references = sorted(
+        {
+            child.id
+            for default in defaults
+            for child in ast.walk(default)
+            if isinstance(child, ast.Name) and child.id in values
+        }
+    )
+    if not references:
+        return ""
+    resolved = ", ".join(
+        f"{name}={_value_fingerprint(name, values)}" for name in references
+    )
+    return f" [defaults: {resolved}]"
+
+
+def _function_signature(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    values: dict[str, ast.expr] | None = None,
+) -> str:
     prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
     return (
         f"{_decorator_prefix(node.decorator_list)}{prefix}{_type_parameters(node)}"
         f"({ast.unparse(node.args)}) -> {_annotation(node.returns)}"
+        f"{_resolved_default_values(node, values or {})}"
     )
 
 
@@ -73,12 +139,46 @@ def _annotated_assignment_signature(node: ast.AnnAssign) -> str:
 
 
 def _is_public_method(name: str) -> bool:
-    return not name.startswith("_") or (
-        name.startswith("__") and name.endswith("__")
-    )
+    return not name.startswith("_") or (name.startswith("__") and name.endswith("__"))
 
 
-def _class_signature(node: ast.ClassDef) -> str:
+def _base_name(node: ast.expr) -> str | None:
+    while isinstance(node, ast.Subscript):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _project_base_signature(
+    source: Path,
+    body: list[ast.stmt],
+    base_name: str,
+    repo_root: Path,
+    seen: frozenset[tuple[Path, str]],
+) -> str | None:
+    for node in reversed(body):
+        if isinstance(node, ast.ClassDef) and node.name == base_name:
+            resolved = _resolve_export(source, base_name, repo_root, seen)
+            return resolved.signature if resolved is not None else None
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if not any((alias.asname or alias.name) == base_name for alias in node.names):
+            continue
+        if _import_source(source, node, repo_root) is None:
+            return None
+        resolved = _resolve_export(source, base_name, repo_root, seen)
+        return resolved.signature if resolved is not None else None
+    return None
+
+
+def _class_signature(
+    node: ast.ClassDef,
+    *,
+    module_body: list[ast.stmt],
+    values: dict[str, ast.expr],
+    source: Path,
+    repo_root: Path,
+    seen: frozenset[tuple[Path, str]],
+) -> str:
     bases = [ast.unparse(base) for base in node.bases]
     bases.extend(
         f"{keyword.arg}={ast.unparse(keyword.value)}"
@@ -87,6 +187,13 @@ def _class_signature(node: ast.ClassDef) -> str:
         for keyword in node.keywords
     )
     members: list[str] = []
+    for base in node.bases:
+        name = _base_name(base)
+        if name is None:
+            continue
+        signature = _project_base_signature(source, module_body, name, repo_root, seen)
+        if signature is not None:
+            members.append(f"inherits[{ast.unparse(base)}]={signature}")
     for child in node.body:
         if (
             isinstance(child, ast.AnnAssign)
@@ -103,7 +210,7 @@ def _class_signature(node: ast.ClassDef) -> str:
         elif isinstance(
             child, (ast.FunctionDef, ast.AsyncFunctionDef)
         ) and _is_public_method(child.name):
-            signature = _function_signature(child)
+            signature = _function_signature(child, values)
             marker = "async def" if isinstance(child, ast.AsyncFunctionDef) else "def"
             members.append(signature.replace(marker, child.name, 1))
     body = "; ".join(members)
@@ -113,11 +220,31 @@ def _class_signature(node: ast.ClassDef) -> str:
     )
 
 
-def _definition_signature(node: ast.stmt, symbol: str) -> str | None:
+def _definition_signature(
+    node: ast.stmt,
+    symbol: str,
+    *,
+    module_body: list[ast.stmt],
+    values: dict[str, ast.expr],
+    source: Path,
+    repo_root: Path,
+    seen: frozenset[tuple[Path, str]],
+) -> str | None:
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        return _function_signature(node) if node.name == symbol else None
+        return _function_signature(node, values) if node.name == symbol else None
     if isinstance(node, ast.ClassDef):
-        return _class_signature(node) if node.name == symbol else None
+        return (
+            _class_signature(
+                node,
+                module_body=module_body,
+                values=values,
+                source=source,
+                repo_root=repo_root,
+                seen=seen,
+            )
+            if node.name == symbol
+            else None
+        )
     if (
         isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
@@ -140,10 +267,25 @@ def _is_overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _module_definition_signature(
-    body: list[ast.stmt], index: int, symbol: str
+    body: list[ast.stmt],
+    index: int,
+    symbol: str,
+    *,
+    source: Path,
+    repo_root: Path,
+    seen: frozenset[tuple[Path, str]],
 ) -> str | None:
     node = body[index]
-    signature = _definition_signature(node, symbol)
+    values = _module_values(body[:index])
+    signature = _definition_signature(
+        node,
+        symbol,
+        module_body=body,
+        values=values,
+        source=source,
+        repo_root=repo_root,
+        seen=seen,
+    )
     if signature is None or not isinstance(
         node, (ast.FunctionDef, ast.AsyncFunctionDef)
     ):
@@ -158,7 +300,9 @@ def _module_definition_signature(
     definitions = overloads if _is_overload(node) else [*overloads, node]
     if _is_overload(node):
         definitions.append(node)
-    return " | ".join(_function_signature(definition) for definition in definitions)
+    return " | ".join(
+        _function_signature(definition, values) for definition in definitions
+    )
 
 
 def _module_source(base: Path) -> Path | None:
@@ -169,9 +313,7 @@ def _module_source(base: Path) -> Path | None:
     return init_source if init_source.is_file() else None
 
 
-def _absolute_module_source(
-    source: Path, module: str, repo_root: Path
-) -> Path | None:
+def _absolute_module_source(source: Path, module: str, repo_root: Path) -> Path | None:
     module_parts = module.split(".")
     anchor = source.parent
     while anchor == repo_root or repo_root in anchor.parents:
@@ -184,9 +326,7 @@ def _absolute_module_source(
     return None
 
 
-def _import_source(
-    source: Path, node: ast.ImportFrom, repo_root: Path
-) -> Path | None:
+def _import_source(source: Path, node: ast.ImportFrom, repo_root: Path) -> Path | None:
     module_parts = (node.module or "").split(".") if node.module else []
     if node.level:
         anchor = source.parent
@@ -393,7 +533,10 @@ def _evaluate_lazy_statements(
         if isinstance(node, ast.If):
             condition = _condition_value(node.test, symbol, collections, strings)
             if condition is None:
-                continue
+                raise RuntimeError(
+                    f"ambiguous lazy export {symbol!r}: cannot evaluate "
+                    f"{ast.unparse(node.test)!r}"
+                )
             branch = node.body if condition else node.orelse
             target, terminal = _evaluate_lazy_statements(
                 branch,
@@ -491,7 +634,14 @@ def _resolve_export(
     # Reverse order reflects the binding left in the module namespace at runtime.
     for index in range(len(tree.body) - 1, -1, -1):
         node = tree.body[index]
-        signature = _module_definition_signature(tree.body, index, symbol)
+        signature = _module_definition_signature(
+            tree.body,
+            index,
+            symbol,
+            source=source,
+            repo_root=repo_root,
+            seen=next_seen,
+        )
         if signature is not None:
             relative = source.relative_to(repo_root).as_posix()
             return _ResolvedExport(
@@ -580,7 +730,9 @@ def _public_symbol_records(
     records: list[dict[str, str]] = []
     for symbol in sorted(package.interface):
         resolved = (
-            _resolve_export(init_path, symbol, repo_root) if init_path.is_file() else None
+            _resolve_export(init_path, symbol, repo_root)
+            if init_path.is_file()
+            else None
         )
         if resolved is not None:
             records.append(

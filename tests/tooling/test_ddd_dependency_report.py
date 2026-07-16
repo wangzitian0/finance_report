@@ -811,6 +811,118 @@ def test_AC_meta_dependency_governance_2_lazy_root_binding_is_reported(
     assert "def(value: str) -> str" in record["signature"]
 
 
+def test_AC_meta_dependency_governance_2_unknown_lazy_branch_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: ambiguous lazy exports fail closed."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write(
+        repo / "apps/backend/src/provider/alternate.py",
+        """
+        def public(value: int) -> int:
+            return value
+        """,
+    )
+    _write(
+        repo / "apps/backend/src/provider/__init__.py",
+        """
+        from importlib import import_module
+
+        FLAG = object()
+        __all__ = ["public"]
+
+        def __getattr__(name: str) -> object:
+            if FLAG:
+                return getattr(import_module("src.provider.alternate"), name)
+            return getattr(import_module("src.provider.api"), name)
+        """,
+    )
+
+    with pytest.raises(RuntimeError, match="ambiguous lazy export 'public'"):
+        build_dependency_snapshot(repo)
+
+
+def test_AC_meta_dependency_governance_2_inherited_class_api_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: inherited APIs are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["PublicClass"],
+        source="""
+        class Base:
+            def __init__(self, value: str) -> None:
+                self.value = value
+
+        class PublicClass(Base):
+            pass
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish inherited boundary")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["PublicClass"],
+        source="""
+        class Base:
+            def __init__(self, value: str, strict: bool = False) -> None:
+                self.value = value
+
+        class PublicClass(Base):
+            pass
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "PublicClass"
+    assert "inherits[Base]" in change["before"]
+    assert "strict: bool=False" in change["after"]
+
+
+def test_AC_meta_dependency_governance_2_named_function_defaults_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: resolved defaults are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        DEFAULT = 5
+
+        def public(value: int = DEFAULT) -> int:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish named default")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        DEFAULT = 10
+
+        def public(value: int = DEFAULT) -> int:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert "DEFAULT=5" in change["before"]
+    assert "DEFAULT=10" in change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):

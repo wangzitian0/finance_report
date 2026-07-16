@@ -171,13 +171,14 @@ direct and transitive consumers. Public-boundary inspection starts at each
 implementation root and follows eager, chained, wildcard, and the repository's
 bounded lazy `__getattr__` export forms to the owning definition. Its signature
 retains that binding path plus overload declarations, annotated values,
-decorators, generic type parameters, class construction, public protocol dunder
-methods, and other public class members. Wildcard binding obeys the target's
-`__all__`; missing explicit or lazy targets fail closed. Every declared public
-symbol gets exactly one snapshot record, and the repository snapshot is
-ratcheted to zero unresolved dynamic exports; an unsupported future form is
-exposed as `dynamic-export` rather than silently matched to an unrelated
-same-named definition. Unreadable refs, empty discovery,
+decorators, generic type parameters, resolved named defaults, class construction,
+repository-owned inherited APIs, public protocol dunder methods, and other public
+class members. Wildcard binding obeys the target's `__all__`; missing explicit or
+lazy targets and ambiguous lazy control flow fail closed. Every declared public
+symbol gets exactly one snapshot record, and the repository snapshot is ratcheted
+to zero unresolved dynamic exports; a declaration with no statically visible
+binding is exposed as `dynamic-export` rather than silently matched to an
+unrelated same-named definition. Unreadable refs, empty discovery,
 duplicate/unknown/self edges, and cycles fail closed.
 
 The report is ephemeral CI output, not SSOT: `.github/workflows/ci.yml` appends
