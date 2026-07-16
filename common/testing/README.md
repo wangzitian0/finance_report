@@ -66,9 +66,11 @@ leaving each gate's policy in its own module.
 repository-root selection, escaped GitHub Actions annotations, stable
 pass/fail summaries, and integer status codes. New gate entry points use the
 composable `main(argv: Sequence[str] | None = None) -> int` contract; only the
-`__main__` boundary raises `SystemExit`. `gate_main_contract.py` prevents new
-signature or shared-runner debt and permits its checked-in baseline to shrink
-only.
+`__main__` boundary raises `SystemExit(main())`. `gate_main_contract.py` is an
+allowlist-free AST gate: every module-level `main` under `common/` and `tools/`
+must use that exact contract, every common `check_*` command must call the
+shared runner, malformed Python fails closed, and no historical debt baseline
+can conceal a violation.
 
 Baseline mutation is explicit and machine-checked by
 `baseline_update_contract.py`. The `--update` / `--update-*` monotonic mutation

@@ -256,7 +256,7 @@ def prune_ghcr_sha_images(
     return selected_total
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-scope-path", required=True)
     parser.add_argument("--image-name", action="append", required=True)

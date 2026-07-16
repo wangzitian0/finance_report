@@ -40,6 +40,7 @@ import argparse
 import difflib
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -188,7 +189,9 @@ def render_block(
     overall_pct = (total_covered / total_active * 100.0) if total_active else 100.0
 
     coverage_cell = (
-        f"`{coverage_percent:.1f}%`" if coverage_percent is not None else "`n/a` (unified-coverage.json absent)"
+        f"`{coverage_percent:.1f}%`"
+        if coverage_percent is not None
+        else "`n/a` (unified-coverage.json absent)"
     )
 
     lines: list[str] = [
@@ -300,12 +303,14 @@ def splice_block(document: str, block: str) -> str:
     start = document.find(BEGIN_MARKER)
     end = document.find(END_MARKER)
     if start == -1 or end == -1 or end < start:
-        raise ValueError(f"EPIC status markers not found or malformed; expected {BEGIN_MARKER!r} ... {END_MARKER!r}")
+        raise ValueError(
+            f"EPIC status markers not found or malformed; expected {BEGIN_MARKER!r} ... {END_MARKER!r}"
+        )
     end += len(END_MARKER)
     return document[:start] + block + document[end:]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",
@@ -343,7 +348,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # The live numeric table is a derived view, rendered on demand only.
     if args.stdout:
-        print(generate_block(repo_root=args.repo_root, coverage_json=args.coverage_json))
+        print(
+            generate_block(repo_root=args.repo_root, coverage_json=args.coverage_json)
+        )
         return 0
 
     output = args.output

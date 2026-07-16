@@ -1,17 +1,18 @@
-"""Shrink-only contract for repository gate entry points."""
+"""Allowlist-free structural contract for repository command entry points."""
 
 from __future__ import annotations
 
-import argparse
 import ast
-import json
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from common.meta.base.gate_cli import run_gate
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BASELINE = REPO_ROOT / "common/testing/data/gate-main-contract-baseline.json"
-BASELINE_UPDATE_MODE = "shrink-only"
+SHARED_GATE_MODULES = {
+    "common.meta.base.gate_cli",
+    "common.testing.gate_cli",
+}
 
 
 def _python_files(repo_root: Path) -> list[Path]:
@@ -35,156 +36,168 @@ def _module_main(tree: ast.Module) -> ast.FunctionDef | ast.AsyncFunctionDef | N
     )
 
 
-def _has_none_default(main: ast.FunctionDef | ast.AsyncFunctionDef, index: int) -> bool:
-    positional = [*main.args.posonlyargs, *main.args.args]
-    default_offset = len(positional) - len(main.args.defaults)
-    if index < default_offset:
-        return False
-    default = main.args.defaults[index - default_offset]
-    return isinstance(default, ast.Constant) and default.value is None
-
-
 def _main_is_standard(main: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    if isinstance(main, ast.AsyncFunctionDef):
+        return False
     if main.returns is None or ast.unparse(main.returns) != "int":
         return False
-    positional = [*main.args.posonlyargs, *main.args.args]
-    for index, arg in enumerate(positional):
-        if arg.arg != "argv":
-            continue
-        return (
-            arg.annotation is not None
-            and ast.unparse(arg.annotation) == "Sequence[str] | None"
-            and _has_none_default(main, index)
-        )
-    return False
+    if (
+        main.args.posonlyargs
+        or main.args.vararg
+        or main.args.kwarg
+        or main.args.kwonlyargs
+    ):
+        return False
+    if len(main.args.args) != 1 or len(main.args.defaults) != 1:
+        return False
+    argv = main.args.args[0]
+    default = main.args.defaults[0]
+    return (
+        argv.arg == "argv"
+        and argv.annotation is not None
+        and ast.unparse(argv.annotation) == "Sequence[str] | None"
+        and isinstance(default, ast.Constant)
+        and default.value is None
+    )
+
+
+def _dotted_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        prefix = _dotted_name(node.value)
+        if prefix is not None:
+            return f"{prefix}.{node.attr}"
+    return None
+
+
+def _shared_gate_call_targets(tree: ast.Module) -> set[str]:
+    targets: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            if node.module in SHARED_GATE_MODULES:
+                targets.update(
+                    alias.asname or alias.name
+                    for alias in node.names
+                    if alias.name == "run_gate"
+                )
+            if node.module in {"common.meta.base", "common.testing"}:
+                targets.update(
+                    f"{alias.asname or alias.name}.run_gate"
+                    for alias in node.names
+                    if alias.name == "gate_cli"
+                )
+        elif isinstance(node, ast.Import):
+            targets.update(
+                f"{alias.asname or alias.name}.run_gate"
+                for alias in node.names
+                if alias.name in SHARED_GATE_MODULES
+            )
+    return targets
 
 
 def _uses_shared_gate_runner(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
+    main = _module_main(tree)
+    if main is None:
+        return False
+    targets = _shared_gate_call_targets(tree)
+    return any(
+        isinstance(node, ast.Call) and _dotted_name(node.func) in targets
+        for node in ast.walk(main)
+    )
+
+
+def _has_standard_process_exit(tree: ast.Module) -> bool:
+    main_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "main"
+    ]
+    if not main_calls:
+        return True
+
+    boundary_calls: list[ast.Call] = []
+    for node in tree.body:
+        if not isinstance(node, ast.If):
             continue
-        if isinstance(node.func, ast.Name) and node.func.id == "run_gate":
-            return True
-        if (
-            isinstance(node.func, ast.Attribute)
-            and node.func.attr == "run_gate"
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "gate_cli"
+        if ast.unparse(node.test) != "__name__ == '__main__'":
+            continue
+        invokes_main = any(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "main"
+            for call in ast.walk(node)
+        )
+        if not invokes_main:
+            continue
+        if len(node.body) != 1 or not isinstance(node.body[0], ast.Raise):
+            return False
+        exc = node.body[0].exc
+        if not (
+            isinstance(exc, ast.Call)
+            and isinstance(exc.func, ast.Name)
+            and exc.func.id == "SystemExit"
+            and len(exc.args) == 1
+            and isinstance(exc.args[0], ast.Call)
+            and isinstance(exc.args[0].func, ast.Name)
+            and exc.args[0].func.id == "main"
+            and not exc.args[0].args
+            and not exc.args[0].keywords
         ):
-            return True
-    return False
+            return False
+        boundary_calls.append(exc.args[0])
+    return len(main_calls) == 1 and boundary_calls == main_calls
 
 
 def current_debt(repo_root: Path) -> dict[str, set[str]]:
-    """Return legacy main signatures and check modules bypassing gate_cli."""
+    """Return every malformed module or command that violates the contract."""
 
-    main_debt: set[str] = set()
-    gate_cli_debt: set[str] = set()
+    debt = {
+        "legacy_main_contract": set(),
+        "legacy_gate_cli": set(),
+        "legacy_process_exit": set(),
+        "malformed_python": set(),
+    }
     for path in _python_files(repo_root):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        relative = path.relative_to(repo_root).as_posix()
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (SyntaxError, UnicodeDecodeError):
+            debt["malformed_python"].add(relative)
+            continue
         main = _module_main(tree)
         if main is None:
             continue
-        relative = path.relative_to(repo_root).as_posix()
         if not _main_is_standard(main):
-            main_debt.add(relative)
+            debt["legacy_main_contract"].add(relative)
         if (
             path.name.startswith("check_")
             and relative.startswith("common/")
             and not _uses_shared_gate_runner(tree)
         ):
-            gate_cli_debt.add(relative)
-    return {
-        "legacy_main_contract": main_debt,
-        "legacy_gate_cli": gate_cli_debt,
-    }
+            debt["legacy_gate_cli"].add(relative)
+        if not _has_standard_process_exit(tree):
+            debt["legacy_process_exit"].add(relative)
+    return debt
 
 
-def load_baseline(path: Path) -> dict[str, set[str]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    result: dict[str, set[str]] = {}
-    for key in ("legacy_main_contract", "legacy_gate_cli"):
-        values = payload.get(key)
-        if not isinstance(values, list) or not all(
-            isinstance(value, str) for value in values
-        ):
-            raise ValueError(f"{path}: {key} must be a list of paths")
-        result[key] = set(values)
-    return result
-
-
-def write_baseline(path: Path, debt: dict[str, set[str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {key: sorted(values) for key, values in sorted(debt.items())}
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def _diff_findings(
-    current: dict[str, set[str]], baseline: dict[str, set[str]]
-) -> tuple[list[str], list[str]]:
-    new: list[str] = []
-    stale: list[str] = []
-    for key in ("legacy_main_contract", "legacy_gate_cli"):
-        new.extend(
-            f"{key}: new debt {path}" for path in sorted(current[key] - baseline[key])
-        )
-        stale.extend(
-            f"{key}: resolved path still baselined {path}"
-            for path in sorted(baseline[key] - current[key])
-        )
-    return new, stale
-
-
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--baseline", type=Path, default=None)
-    parser.add_argument(
-        "--update",
-        action="store_true",
-        help="Drop resolved legacy paths; refuses to adopt new contract debt.",
-    )
-    return parser.parse_args(argv)
+def violations(repo_root: Path) -> list[str]:
+    return [
+        f"{kind}: {path}"
+        for kind, paths in current_debt(repo_root).items()
+        for path in sorted(paths)
+    ]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    try:
-        args = parse_args(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 1
-    repo_root = args.repo_root.resolve()
-    baseline_path = args.baseline or (
-        repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
+    return run_gate(
+        "GATE-MAIN",
+        violations,
+        argv,
+        annotation_title="Gate main contract",
     )
-    current = current_debt(repo_root)
-    baseline = load_baseline(baseline_path)
-    new, stale = _diff_findings(current, baseline)
-
-    if new:
-        for finding in new:
-            print(f"::error title=Gate main contract::{finding}", file=sys.stderr)
-        outcome = "--update REFUSED" if args.update else "FAILED"
-        print(
-            f"[GATE-MAIN] {outcome}: {len(new)} new debt path(s).",
-            file=sys.stderr,
-        )
-        return 1
-    if args.update:
-        write_baseline(baseline_path, current)
-        print("[GATE-MAIN] baseline tightened.")
-        return 0
-    if stale:
-        for finding in stale:
-            print(f"::error title=Gate main contract::{finding}", file=sys.stderr)
-        print(
-            f"[GATE-MAIN] FAILED: {len(stale)} resolved path(s) must be pruned with --update.",
-            file=sys.stderr,
-        )
-        return 1
-    print("[GATE-MAIN] PASSED: no entry-point or gate-runner debt grew.")
-    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover

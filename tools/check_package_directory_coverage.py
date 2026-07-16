@@ -20,4 +20,4 @@ if str(ROOT_DIR) not in sys.path:
 from common.meta.extension.check_package_directory_coverage import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

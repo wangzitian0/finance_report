@@ -7,6 +7,7 @@ Analyzes pytest coverage reports to identify gaps and suggest improvements.
 
 import argparse
 import subprocess
+from collections.abc import Sequence
 from typing import Dict, List, Tuple
 
 
@@ -114,7 +115,7 @@ def analyze_module_coverage() -> List[Tuple[str, float]]:
     ]
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Analyze test coverage")
     parser.add_argument(
         "--format",
@@ -125,7 +126,7 @@ def main():
     parser.add_argument(
         "--suggest", action="store_true", help="Generate test recommendations"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     print("=" * 60)
     print("Coverage Analysis")
@@ -175,7 +176,8 @@ def main():
         print(f"   Status: ⚠️  {gap:.1f}% BELOW TARGET")
 
     print("\n" + "=" * 60)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

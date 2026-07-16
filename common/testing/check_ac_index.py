@@ -83,9 +83,11 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from common.meta.base.gate_cli import run_gate
 from common.testing.ac_graph import AcGraph, build_ac_graph
 from common.testing.protection import (
     PROTECTION_TYPES,
@@ -287,6 +289,8 @@ def check_repo_contracts(repo_root: Path) -> list[str]:
 def _run_score_ratchet(repo_root: Path, current: Path, baseline: Path | None) -> int:
     from common.testing.check_ac_score_baseline import (
         DEFAULT_BASELINE,
+    )
+    from common.testing.check_ac_score_baseline import (
         main as ratchet_main,
     )
 
@@ -345,8 +349,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args([] if argv is None else argv)
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     floor_file = args.floor_file or (
         repo_root / "common" / "testing" / "data" / "protection-floor.json"
@@ -427,5 +431,16 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate("AC-INDEX", lambda _repo_root: findings, [], failure_status=status)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

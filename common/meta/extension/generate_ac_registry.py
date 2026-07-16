@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import ast
-import re
 import os
+import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 # Import the matrix from the stdlib-only source (NOT package_contract, which
@@ -11,7 +12,11 @@ from pathlib import Path
 # env (`uv run --with pyyaml ...`).
 from common.meta.base.authority_matrix import (
     AC_PROOF_KINDS as _AC_PROOF_KINDS,
+)
+from common.meta.base.authority_matrix import (
     AC_TIERS as _AC_TIERS,
+)
+from common.meta.base.authority_matrix import (
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
 )
 from common.meta.extension.ac_registry_format import (
@@ -766,8 +771,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args([] if argv is None else argv)
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     existing_acs = load_existing_registries([OUTPUT_FEATURE, OUTPUT_INFRA])
     all_acs = build_registry_entries()
     extracted_acs = extract_acs(existing_acs=load_overrides())
@@ -841,4 +846,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    raise SystemExit(main())

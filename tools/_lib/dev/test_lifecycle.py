@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -545,7 +546,7 @@ def test_database(ephemeral=False):
         unregister_namespace(namespace)
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -565,7 +566,9 @@ def main():
         help="Ephemeral mode: destroy all infrastructure after run",
     )
     # Use parse_known_args for transparent pytest flag pass-through (-k, -m, etc.)
-    args, extra_pytest_args = parser.parse_known_args()
+    args, extra_pytest_args = (
+        parser.parse_known_args() if argv is None else parser.parse_known_args(argv)
+    )
 
     # Handle Signals
     def signal_handler(sig, frame):
@@ -653,13 +656,14 @@ def main():
 
             if result.returncode != 0:
                 log("❌ Tests Failed.", RED)
-                sys.exit(result.returncode)
+                return result.returncode
 
             log("✅ Tests Passed.", GREEN)
 
     except Exception as e:
         log(f"❌ Error: {e}", RED)
-        sys.exit(1)
+        return 1
+    return 0
 
 
 def _get_changed_files(base_branch: str = "main") -> list[str]:
@@ -695,4 +699,4 @@ def _get_changed_files(base_branch: str = "main") -> list[str]:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

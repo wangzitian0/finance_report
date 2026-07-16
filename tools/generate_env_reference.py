@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -294,14 +295,14 @@ def _diff(label: str, current: str, generated: str) -> str:
     )
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",
         help="Exit 1 (with a diff) if on-disk files differ from generated output.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     fields = collect_backend_fields()
 

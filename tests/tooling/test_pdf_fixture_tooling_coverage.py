@@ -5,16 +5,20 @@ common/testing/contract.py roadmap)."""
 
 from __future__ import annotations
 
-import sys
 import builtins
+import sys
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from common.testing.fixtures.pdf import generate_pdf_fixtures
 from common.testing.fixtures.pdf.analyzers import analyze_pdf as analyze_pdf_cli
-from common.testing.fixtures.pdf.analyzers.pdf_analyzer import PDFAnalyzer, TemplateExtractor
+from common.testing.fixtures.pdf.analyzers.pdf_analyzer import (
+    PDFAnalyzer,
+    TemplateExtractor,
+)
 from common.testing.fixtures.pdf.data.fake_data import (
     generate_cmb_transactions,
     generate_dbs_transactions,
@@ -22,7 +26,6 @@ from common.testing.fixtures.pdf.data.fake_data import (
     generate_moomoo_transactions,
     generate_pingan_transactions,
 )
-from common.testing.fixtures.pdf import generate_pdf_fixtures
 from common.testing.fixtures.pdf.generators import font_utils
 from common.testing.fixtures.pdf.validators.pdf_validator import PDFValidator
 
@@ -473,10 +476,7 @@ def test_AC9_7_1_main_reports_generator_import_errors(
         ["generate_pdf_fixtures.py", "--source", "dbs", "--output", str(tmp_path)],
     )
 
-    with pytest.raises(SystemExit) as exc:
-        generate_pdf_fixtures.main()
-
-    assert exc.value.code == 1
+    assert generate_pdf_fixtures.main() == 1
     assert "missing cmb generator" in capsys.readouterr().out
 
 
@@ -504,10 +504,7 @@ def test_AC9_7_1_main_reports_generator_errors(
 
     monkeypatch.setattr(dbs_module, "DBSGenerator", BrokenGenerator)
 
-    with pytest.raises(SystemExit) as exc:
-        generate_pdf_fixtures.main()
-
-    assert exc.value.code == 1
+    assert generate_pdf_fixtures.main() == 1
 
 
 def test_AC9_1_3_analyzer_cli_writes_template_yaml(
@@ -574,10 +571,7 @@ def test_AC9_1_3_analyzer_cli_rejects_missing_input(
         ],
     )
 
-    with pytest.raises(SystemExit) as exc:
-        analyze_pdf_cli.main()
-
-    assert exc.value.code == 1
+    assert analyze_pdf_cli.main() == 1
 
 
 def test_AC9_1_3_analyzer_cli_reports_extraction_errors(
@@ -607,7 +601,4 @@ def test_AC9_1_3_analyzer_cli_reports_extraction_errors(
     )
     monkeypatch.setattr(analyze_pdf_cli, "PDFAnalyzer", BrokenAnalyzer)
 
-    with pytest.raises(SystemExit) as exc:
-        analyze_pdf_cli.main()
-
-    assert exc.value.code == 1
+    assert analyze_pdf_cli.main() == 1

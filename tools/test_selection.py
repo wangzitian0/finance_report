@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -27,7 +28,7 @@ from common.testing import matrix  # noqa: E402
 MATRIX_YAML = ROOT_DIR / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--stage", help="Selection stage to emit (e.g. pr_preview_e2e)."
@@ -43,7 +44,7 @@ def main() -> int:
         action="store_true",
         help="Exit 1 if common/testing/data/test-execution-matrix.yaml drifted from the code.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.check_matrix:
         expected = matrix.emit_execution_matrix_yaml()
@@ -86,4 +87,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

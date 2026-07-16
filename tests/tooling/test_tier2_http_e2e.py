@@ -15,7 +15,7 @@ def test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs(
     capsys,
 ) -> None:
     """AC-testing.tier2.1: AC8.18.1: Tier 2 HTTP E2E requires deployed URL and expected version inputs."""
-    status = tier2_http_e2e.main([], environ={})
+    status = tier2_http_e2e.run([], environ={})
 
     assert status == 2
     assert "base_url" in capsys.readouterr().err
@@ -28,7 +28,7 @@ def test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible(
     report_path = tmp_path / "tier2.json"
     junit_path = tmp_path / "tier2.xml"
 
-    status = tier2_http_e2e.main(
+    status = tier2_http_e2e.run(
         [
             "--advisory-if-missing",
             "--json-report",

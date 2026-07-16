@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -709,12 +709,12 @@ def write_github_summary(
             fh.write(f"| `{name}` | `{str(changed).lower()}` |\n")
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--changed-files", type=Path, required=True)
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--github-summary", type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     classification = classify_changed_paths(
         args.changed_files.read_text(encoding="utf-8").splitlines()

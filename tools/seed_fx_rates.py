@@ -16,4 +16,4 @@ if str(ROOT_DIR) in sys.path:
 sys.path.insert(0, str(ROOT_DIR))
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

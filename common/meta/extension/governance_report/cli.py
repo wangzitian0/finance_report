@@ -5,9 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-
 
 from common.meta.extension.governance_report._base import (
     GATE_EXCEPTION_PATH,
@@ -204,7 +203,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         report = build_report(args.repo_root, include_infra2=not args.no_infra2)

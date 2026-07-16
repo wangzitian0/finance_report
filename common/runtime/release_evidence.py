@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from common.runtime.github_api import write_github_output as _write_github_output
 
@@ -342,7 +342,7 @@ def _required(value: str, name: str) -> str:
     return value
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",

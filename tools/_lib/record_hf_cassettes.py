@@ -35,6 +35,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -49,9 +50,13 @@ sys.path.insert(
 )  # for src.* (the cassette/prompt modules)
 sys.path.insert(0, str(ROOT))  # for the tools.* package
 
-from src.llm.extension.cassette import fingerprint  # noqa: E402
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT  # noqa: E402
-from tools._lib.fixtures.extraction_pii_mask import mask_extraction, source_ref  # noqa: E402
+from src.llm.extension.cassette import fingerprint  # noqa: E402
+
+from tools._lib.fixtures.extraction_pii_mask import (  # noqa: E402
+    mask_extraction,
+    source_ref,
+)
 
 CASSETTE_DIR = ROOT / "common/testing/fixtures/llm_cassettes"
 TRUTH_DIR = CASSETTE_DIR / "ground_truth"
@@ -93,9 +98,9 @@ def hf_url(key: str, ext: str = "pdf") -> str:
 
 def fetch_sources() -> list[tuple[str, Path, Path]]:  # pragma: no cover
     """Ensure the HF (pdf, truth-json) pairs are in the git-ignored cache; return (key, pdf, json)."""
-    from huggingface_hub import hf_hub_download
-
     import shutil
+
+    from huggingface_hub import hf_hub_download
 
     out: list[tuple[str, Path, Path]] = []
     for t in HF_TYPES:
@@ -285,7 +290,7 @@ def _prompt_sha() -> str:
     return _sha(SYSTEM_PROMPT.encode("utf-8"))
 
 
-def main() -> int:  # pragma: no cover
+def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
     token = os.environ["GLM_CODING_TOKEN"]
     sources = fetch_sources()
     manifest = _load_manifest()

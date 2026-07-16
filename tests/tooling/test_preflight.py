@@ -222,20 +222,20 @@ class TestRunAndMain:
         assert len(calls) == 1
 
     def test_main_returns_nonzero_when_a_gate_fails(self):
-        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv, cwd: 1)
+        rc = preflight.run(["--changed", ".env.example"], runner=lambda argv, cwd: 1)
         assert rc == 1
 
     def test_main_returns_zero_when_gates_pass(self):
-        rc = preflight.main(["--changed", ".env.example"], runner=lambda argv, cwd: 0)
+        rc = preflight.run(["--changed", ".env.example"], runner=lambda argv, cwd: 0)
         assert rc == 0
 
     def test_main_no_relevant_gates_is_clean(self):
-        rc = preflight.main(["--changed", "Makefile"], runner=lambda argv, cwd: 1)
+        rc = preflight.run(["--changed", "Makefile"], runner=lambda argv, cwd: 1)
         assert rc == 0
 
     def test_main_list_does_not_run_anything(self):
         ran = []
-        rc = preflight.main(
+        rc = preflight.run(
             ["--list", "--changed", "docs/project/EPIC-008.x.md"],
             runner=lambda argv, cwd: ran.append(argv) or 0,
         )
@@ -250,7 +250,7 @@ class TestRunAndMain:
                 return ""
             return ".env.example\n"
 
-        rc = preflight.main([], runner=lambda argv, cwd: 0, git=fake_git)
+        rc = preflight.run([], runner=lambda argv, cwd: 0, git=fake_git)
         assert rc == 0
 
 
@@ -326,7 +326,7 @@ class TestTierCli:
     @staticmethod
     def _run_and_collect(args: list[str]) -> list[list[str]]:
         ran: list[list[str]] = []
-        rc = preflight.main(
+        rc = preflight.run(
             [*args, "--changed", "common/testing/preflight.py"],
             runner=lambda argv, cwd: ran.append(list(argv)) or 0,
         )
@@ -345,7 +345,7 @@ class TestTierCli:
         assert all(argv in full_ran for argv in static_ran)
 
     def test_main_list_shows_each_selected_checks_tier(self, capsys):
-        rc = preflight.main(
+        rc = preflight.run(
             ["--list", "--changed", "common/testing/preflight.py"],
             runner=lambda argv, cwd: 0,
         )
@@ -355,7 +355,7 @@ class TestTierCli:
             assert any(check.name in line and check.tier in line for line in lines)
 
     def test_main_list_respects_tier(self, capsys):
-        rc = preflight.main(
+        rc = preflight.run(
             ["--list", "--tier=static", "--changed", "common/testing/preflight.py"],
             runner=lambda argv, cwd: 0,
         )

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.extension.ac_registry_format import load_registry_entries
@@ -108,7 +109,7 @@ def print_rows(
         print()
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     valid = load_registry()
     files = walk_tests()
     per_file: dict[Path, Counter] = defaultdict(Counter)
@@ -160,7 +161,8 @@ def main() -> None:
         print("## Fixture-Only Mismatches")
         print()
         print_rows(fixture_rows, file_alt_epic)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

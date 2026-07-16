@@ -14,6 +14,5 @@ for path in (ROOT_DIR, BACKEND_DIR):
 
 from src.runtime.extension.schema_validation import main  # noqa: E402
 
-
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(main())

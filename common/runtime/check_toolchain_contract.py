@@ -6,8 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tomllib
+from collections.abc import Sequence
 from pathlib import Path
+
+import tomllib
+
+from common.meta.base.gate_cli import run_gate
 
 
 def load_toolchain(repo_root: Path) -> dict:
@@ -173,13 +177,26 @@ def run_contract(repo_root: Path) -> int:
     return 0
 
 
-def main() -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repo-root", type=Path, default=Path(__file__).resolve().parents[2]
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return run_contract(args.repo_root)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "TOOLCHAIN-CONTRACT", lambda _repo_root: findings, [], failure_status=status
+    )
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ Lifecycle: Starts with script, stops on Ctrl+C (SIGINT/SIGTERM)
 import os
 import signal
 import subprocess
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from tools._lib.dev.toolchain import (  # noqa: F401
@@ -69,7 +69,7 @@ def check_database_ready() -> bool:
         return False
 
 
-def cleanup(signum=None, frame=None):
+def cleanup() -> None:
     """Clean up resources."""
     print("\n🧹 Stopping uvicorn...")
 
@@ -81,13 +81,15 @@ def cleanup(signum=None, frame=None):
         except subprocess.TimeoutExpired:
             proc.kill()
 
-    sys.exit(0)
+
+def _request_shutdown(_signum: int, _frame: object) -> None:
+    raise KeyboardInterrupt
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     # Set up signal handlers
-    signal.signal(signal.SIGINT, cleanup)
-    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
 
     # Set environment defaults (Localhost)
     os.environ.setdefault(
@@ -101,7 +103,7 @@ def main():
 
     # Check dependencies
     if not check_database_ready():
-        sys.exit(1)
+        return 1
 
     print("\n🚀 Starting FastAPI dev server on http://localhost:8000")
     print("   Press Ctrl+C to stop (Infrastructure will keep running)")
@@ -127,10 +129,11 @@ def main():
 
     # Wait for process
     try:
-        proc.wait()
+        return proc.wait() or 0
     except KeyboardInterrupt:
         cleanup()
+        return 130
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -15,7 +15,7 @@ NOTE: Does NOT kill other Next.js processes - only the one we started.
 import os
 import signal
 import subprocess
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -26,7 +26,7 @@ _started_resources: dict = {
 }
 
 
-def cleanup(signum=None, frame=None):
+def cleanup() -> None:
     """Clean up only the resources WE started."""
     print("\n🧹 Cleaning up frontend resources...")
 
@@ -41,13 +41,16 @@ def cleanup(signum=None, frame=None):
             proc.kill()
 
     print("✅ Cleanup complete")
-    sys.exit(0)
 
 
-def main():
+def _request_shutdown(_signum: int, _frame: object) -> None:
+    raise KeyboardInterrupt
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     # Set up signal handlers
-    signal.signal(signal.SIGINT, cleanup)
-    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
 
     app_url = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
     print(f"🚀 Starting Next.js dev server on {app_url}")
@@ -64,10 +67,11 @@ def main():
 
     # Wait for process
     try:
-        proc.wait()
+        return proc.wait() or 0
     except KeyboardInterrupt:
         cleanup()
+        return 130
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

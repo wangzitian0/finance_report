@@ -403,7 +403,7 @@ class TestMain:
             "AC1.1.1: Setup <!-- epic-owned: horizontal -->\n"
         )
         self._setup_outputs(tmp_path, monkeypatch)
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
     def test_main_creates_both_output_files(self, tmp_path, monkeypatch):
         epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
@@ -411,7 +411,7 @@ class TestMain:
             "AC1.1.1: Setup <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
-        gar.main()
+        gar.main([])
         assert out_feature.exists()
         assert out_infra.exists()
         assert "generated_from_epics: true" in out_feature.read_text()
@@ -428,7 +428,7 @@ class TestMain:
             "AC7.1.1: Infra AC <!-- epic-owned: horizontal -->\n"
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
-        gar.main()
+        gar.main([])
         assert self._ids(out_feature) == ["AC1.1.1"]
         assert self._ids(out_infra) == ["AC7.1.1"]
         assert "groups:" not in out_feature.read_text()
@@ -444,7 +444,7 @@ class TestMain:
         )
         (epic_dir / "EPIC-016.two-stage-review-ui.md").write_text(content)
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
-        gar.main()
+        gar.main([])
         assert self._ids(out_feature) == ["AC16.1.1"]
         assert self._ids(out_infra) == ["AC16.11.1", "AC16.13.1"]
 
@@ -472,7 +472,7 @@ class TestMain:
             "      mandatory: false\n"
         )
 
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
         entries = {entry["id"]: entry for entry in load_registry_entries(out_feature)}
         assert entries["AC8.13.16"]["description"] == (
@@ -505,7 +505,7 @@ class TestMain:
             "      mandatory: false\n"
         )
 
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
         entries = {entry["id"]: entry for entry in load_registry_entries(out_feature)}
         assert entries["AC16.15.7"]["description"] == "stub"
@@ -594,7 +594,7 @@ class TestMain:
         )
         out_infra.write_text("version: '1.0'\ntotal: 0\nacs: []\n")
 
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
         content = out_feature.read_text()
         assert "total:" not in content
@@ -627,7 +627,7 @@ class TestMain:
         gar.write_registry_index("feature", out_feature)
         gar.write_registry_index("infra", out_infra)
 
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
     def test_main_materialized_registries_have_no_duplicate_or_missing_ids(
         self, tmp_path, monkeypatch
@@ -642,7 +642,7 @@ class TestMain:
         )
         out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
 
-        assert gar.main() == 0
+        assert gar.main([]) == 0
 
         feature_ids = self._ids(out_feature)
         infra_ids = self._ids(out_infra)

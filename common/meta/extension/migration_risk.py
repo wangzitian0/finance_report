@@ -12,12 +12,12 @@ import ast
 import re
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 RISK_LEVELS = ("low", "medium", "high", "critical")
 RISK_RANK = {risk: index for index, risk in enumerate(RISK_LEVELS)}
@@ -343,7 +343,7 @@ def render_summary(result: ValidationResult) -> str:
     return "\n".join(lines)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate Alembic migration risk classification."
     )

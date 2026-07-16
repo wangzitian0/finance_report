@@ -78,9 +78,11 @@ import ast
 import importlib.util
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from common.meta.base.gate_cli import run_gate
 from common.meta.base.package_contract import (
     KIND_LAYER,
     LAYER_RANK,
@@ -1036,7 +1038,7 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     return (not all_errors, messages + all_errors)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     """CLI entry point: print results and exit non-zero on any violation."""
     parser = argparse.ArgumentParser(description="Validate package contracts.")
     parser.add_argument(
@@ -1058,5 +1060,18 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "PACKAGE-CONTRACT", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

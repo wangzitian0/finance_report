@@ -31,9 +31,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from common.meta.base.gate_cli import run_gate
 from common.meta.extension.generate_ac_registry import build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -115,8 +117,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args([] if argv is None else argv)
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     baseline_path = args.baseline or (
         repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
@@ -161,5 +163,18 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "AC-TIER-BASELINE", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

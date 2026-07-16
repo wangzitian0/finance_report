@@ -6,14 +6,19 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from common.meta.base.gate_cli import run_gate
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_MATRIX = REPO_ROOT / "common" / "testing" / "data" / "source-coverage-matrix.yaml"
+DEFAULT_MATRIX = (
+    REPO_ROOT / "common" / "testing" / "data" / "source-coverage-matrix.yaml"
+)
 VALID_PROOF_LEVELS = {"pr_deterministic", "post_merge_llm_ocr", "manual_trusted", "gap"}
 ISSUE_RE = re.compile(r"^#\d+$")
 EPIC_RE = re.compile(r"^EPIC-\d{3}$")
@@ -181,15 +186,15 @@ def render_report(results: list[SourceCoverageResult]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate source coverage matrix.")
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     matrix_path = args.matrix if args.matrix.is_absolute() else repo_root / args.matrix
     results = validate_source_coverage(repo_root, matrix_path)
@@ -204,6 +209,19 @@ def main() -> int:
         f"Source coverage matrix passed: {len([result for result in results if not result.source_id.startswith('__')])} source class(es) validated."
     )
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "SOURCE-COVERAGE-MATRIX", lambda _repo_root: findings, [], failure_status=status
+    )
 
 
 if __name__ == "__main__":

@@ -20,9 +20,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from common.meta.base.gate_cli import run_gate
 from common.testing.ac_score_baseline_format import load_jsonl, write_jsonl
 from common.testing.jsonl_baseline import ratcheted_raise_only_merge
 
@@ -128,7 +130,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(list(sys.argv[1:] if argv is None else argv))
     current = _load_json(args.current)
     baseline = _load_baseline(args.baseline)
@@ -159,6 +161,19 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print("AC score ratchet passed.")
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "AC-SCORE-BASELINE", lambda _repo_root: findings, [], failure_status=status
+    )
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from tools._lib.dev.toolchain import get_compose_cmd, get_runtime_version, uv_run
@@ -200,7 +201,7 @@ def cmd_clean(args):
         run(cmd)
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Unified CLI for finance_report")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -263,7 +264,9 @@ def main():
     )
 
     # Use parse_known_args for test command to allow pass-through of pytest args
-    args, extra = parser.parse_known_args()
+    args, extra = (
+        parser.parse_known_args() if argv is None else parser.parse_known_args(argv)
+    )
 
     if args.command == "test":
         cmd_test(args, extra)
@@ -276,7 +279,8 @@ def main():
             "clean": cmd_clean,
         }
         commands[args.command](args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

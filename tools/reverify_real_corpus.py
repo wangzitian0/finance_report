@@ -10,6 +10,7 @@ tools/ is unregistered and free to combine both.
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,7 @@ BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from common.testing.reverify_real_corpus import main as _reverify_main  # noqa: E402
+from common.testing.reverify_real_corpus import run as _reverify_main  # noqa: E402
 
 
 def _live_extractor(pdf_path: Path) -> dict[str, Any] | None:
@@ -49,9 +50,9 @@ def _live_extractor(pdf_path: Path) -> dict[str, Any] | None:
     return asyncio.run(_run())
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     return _reverify_main(argv, live_extractor=_live_extractor)
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(main())

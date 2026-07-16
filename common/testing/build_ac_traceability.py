@@ -30,6 +30,7 @@ import argparse
 import re
 import sys
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import NamedTuple
@@ -37,7 +38,6 @@ from typing import NamedTuple
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing import ac_scan
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
-
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -437,7 +437,7 @@ def render_document(
 # ---------------------------------------------------------------------------
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Mechanically regenerate the AC -> test traceability audit document."
     )
@@ -479,7 +479,7 @@ def parse_args() -> argparse.Namespace:
         default=date.today().isoformat(),
         help="Override the generation date (for reproducible CI runs).",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def _strip_date(text: str) -> str:
@@ -488,8 +488,8 @@ def _strip_date(text: str) -> str:
     )
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     test_dirs = list(args.test_dir) if args.test_dir else list(DEFAULT_TEST_DIRS)
 
     acs = load_all_acs(args.feature_registry, args.infra_registry)
@@ -528,4 +528,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

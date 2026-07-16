@@ -17,6 +17,7 @@ import argparse
 import difflib
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +43,7 @@ def generate() -> str:
     return render(_load_openapi())
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",

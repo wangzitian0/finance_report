@@ -15,9 +15,11 @@ make it run or declare post_merge_environment.
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from xml.etree import ElementTree
 
+from common.meta.base.gate_cli import run_gate
 from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage
 
 
@@ -105,7 +107,7 @@ def run_check(junit_paths: list[Path]) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_command(argv: Sequence[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if not args:
         print("usage: check_pr_ci_evidence.py <junit-xml> [...]", file=sys.stderr)
@@ -113,5 +115,18 @@ def main(argv: list[str] | None = None) -> int:
     return run_check([Path(a) for a in args])
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate(
+        "PR-CI-EVIDENCE", lambda _repo_root: findings, [], failure_status=status
+    )
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import os
 import sys
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -31,8 +32,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
-from src.config import settings
-from src.pricing.orm.market_data import FxRate
+from src.config import settings  # noqa: E402
+from src.pricing.orm.market_data import FxRate  # noqa: E402
 
 
 def get_database_url(env: str) -> str:
@@ -148,7 +149,7 @@ async def seed_fx_rates(env: str):
     await engine.dispose()
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Seed FX rates for FX gain/loss testing"
     )
@@ -159,7 +160,7 @@ def main():
         help="Target environment (default: local)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     print(f"Seeding FX rates for environment: {args.env}")
 
@@ -168,8 +169,9 @@ def main():
         print("✅ FX rates seeded successfully")
     except Exception as e:
         print(f"❌ Error seeding FX rates: {e}")
-        sys.exit(1)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
