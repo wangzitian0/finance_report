@@ -10,11 +10,12 @@ The meta package now follows the very layout it governs (the Layout-3 exemplar):
 
 * ``base``      — :mod:`common.meta.base.package_contract`: the ``PackageContract``
   aggregate root, its value objects, and the ``Kind`` / ``KIND_LAYER``
-  building-block taxonomy (pure model);
+  building-block taxonomy; :mod:`common.meta.base.dependency_graph` owns the
+  typed dependency vocabulary and pure graph policy;
 * ``extension`` — :mod:`common.meta.extension.check_package_contract`: the
   governance gate (the impure edge that walks the tree and validates);
-* ``data``      — :mod:`common.meta.data.projection`: ``contract_index`` and
-  ``ac_vision_index``, computed read-model projections.
+* ``data``      — :mod:`common.meta.data.projection`: ``contract_index``,
+  ``dependency_index``, and ``ac_vision_index`` computed read-model projections.
 
 Governance is *computed from contracts*, not hand-maintained: every package
 declares a :class:`PackageContract` in ``common/<pkg>/contract.py`` and
@@ -32,6 +33,8 @@ from __future__ import annotations
 __all__ = [
     "ACRecord",
     "ConceptRecord",
+    "DependencyEdge",
+    "DependencyKind",
     "Invariant",
     "Kind",
     "PackageContract",
@@ -39,6 +42,7 @@ __all__ = [
     "ac_vision_index",
     "concept_index",
     "contract_index",
+    "dependency_index",
 ]
 
 # Lazy re-export (PEP 562): common/meta/extension/ hosts several stdlib-only
@@ -48,18 +52,32 @@ __all__ = [
 # of the pydantic-backed base/data layers here would drag pydantic into every
 # one of those lightweight gates. __getattr__ defers the import until a caller
 # actually reaches for ACRecord/ConceptRecord/Invariant/Kind/PackageContract/
-# Unit/contract_index/concept_index/ac_vision_index, so check_package_contract.py
+# Unit/contract_index/concept_index/ac_vision_index/dependency_index, so
+# check_package_contract.py
 # (which does
 # need the model) still gets it, while the stdlib-only gates never pay the
 # cost. (check_manifest.py itself now needs the model too — #1799 — but reaches
 # it via a direct `common.meta.extension.check_package_contract` import rather
 # than through this lazy attribute, so its CI invocation adds `--with pydantic`
 # explicitly instead of relying on this shield.)
-_BASE_NAMES = {"ACRecord", "ConceptRecord", "Invariant", "Kind", "PackageContract", "Unit"}
+_BASE_NAMES = {
+    "ACRecord",
+    "ConceptRecord",
+    "DependencyEdge",
+    "DependencyKind",
+    "Invariant",
+    "Kind",
+    "PackageContract",
+    "Unit",
+}
 
 
 def __getattr__(name: str):
     if name in _BASE_NAMES:
+        if name in {"DependencyEdge", "DependencyKind"}:
+            from common.meta.base import dependency_graph
+
+            return getattr(dependency_graph, name)
         from common.meta.base import package_contract
 
         return getattr(package_contract, name)
@@ -75,4 +93,8 @@ def __getattr__(name: str):
         from common.meta.data.projection import ac_vision_index
 
         return ac_vision_index
+    if name == "dependency_index":
+        from common.meta.data.projection import dependency_index
+
+        return dependency_index
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
