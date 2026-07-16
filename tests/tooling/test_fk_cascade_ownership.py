@@ -184,9 +184,14 @@ def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumer
         base_declaration = (
             "class DomainBase(TenantMixin):\n    pass\n" if owner == "alpha" else ""
         )
-        base_name = "DomainBase" if owner == "alpha" else "TenantMixin"
+        import_declaration = (
+            "from platform.mixins import TenantMixin as OwnedMixin\n"
+            if owner == "beta"
+            else ""
+        )
+        base_name = "DomainBase" if owner == "alpha" else "OwnedMixin"
         (package / "models.py").write_text(
-            f"{base_declaration}"
+            f"{import_declaration}{base_declaration}"
             f"class {class_name}({base_name}):\n"
             f"    __tablename__ = '{table_name}'\n",
             encoding="utf-8",
@@ -422,6 +427,10 @@ def test_AC_audit_deletion_ownership_1_rejects_unreviewable_decisions() -> None:
         (
             "ForeignKey('parents.id', ondelete=DELETE_POLICY)",
             "ondelete must be a literal",
+        ),
+        (
+            "ForeignKey('parents.id', **{'ondelete': 'CASCADE'})",
+            "unpacked arguments",
         ),
     ],
 )

@@ -84,6 +84,16 @@ def _constructor_aliases(tree: ast.Module) -> dict[str, str]:
     return aliases
 
 
+def _import_aliases(tree: ast.Module) -> dict[str, str]:
+    return {
+        imported.asname: imported.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        for imported in node.names
+        if imported.asname is not None
+    }
+
+
 def _call_argument(call: ast.Call, keyword: str, position: int) -> ast.expr | None:
     keyword_values = [item.value for item in call.keywords if item.arg == keyword]
     positional = call.args[position] if len(call.args) > position else None
@@ -103,6 +113,12 @@ def _cascade_target(
     call_name = aliases.get(syntactic_name or "", syntactic_name)
     if call_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
+    if any(isinstance(argument, ast.Starred) for argument in node.args) or any(
+        keyword.arg is None for keyword in node.keywords
+    ):
+        raise CascadeInventoryError(
+            f"{call_name} uses unpacked arguments that ownership review cannot resolve"
+        )
     ondelete_position = 5 if call_name == "ForeignKey" else 4
     ondelete = _call_argument(node, "ondelete", ondelete_position)
     if ondelete is None:
@@ -219,10 +235,13 @@ def _mixin_consumers(
     parsed_sources: Sequence[tuple[Path, str, ast.Module]],
 ) -> tuple[tuple[Path, str, ast.ClassDef], ...]:
     definitions: dict[str, list[ast.ClassDef]] = {}
+    aliases_by_class: dict[ast.ClassDef, dict[str, str]] = {}
     for _relative, _source_owner, tree in parsed_sources:
+        aliases = _import_aliases(tree)
         for candidate in ast.walk(tree):
             if isinstance(candidate, ast.ClassDef):
                 definitions.setdefault(candidate.name, []).append(candidate)
+                aliases_by_class[candidate] = aliases
 
     def inherits_through_mixins(
         candidate: ast.ClassDef, ancestor: str, seen: frozenset[str]
@@ -231,6 +250,7 @@ def _mixin_consumers(
             base_name = _base_name(base)
             if base_name is None:
                 continue
+            base_name = aliases_by_class.get(candidate, {}).get(base_name, base_name)
             if base_name == ancestor:
                 return True
             if base_name in seen:
