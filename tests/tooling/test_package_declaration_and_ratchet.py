@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from common.testing import matrix, mirror_ratchet
+from common.testing import baseline_update_contract, matrix, mirror_ratchet
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,9 +22,9 @@ def test_AC8_24_1_seed_packages_declare_owned_test_roots() -> None:
     for root in ownership:
         assert (ROOT / root).exists(), f"declared test root missing on disk: {root}"
 
-    yaml_text = (ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml").read_text(
-        encoding="utf-8"
-    )
+    yaml_text = (
+        ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
+    ).read_text(encoding="utf-8")
     assert "ownership:" in yaml_text
     for root, pkg in ownership.items():
         assert f"  - path: {root}\n    package: {pkg}" in yaml_text
@@ -86,7 +86,17 @@ def test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down(
     monkeypatch.setattr(mirror_ratchet, "TOOLING_DIR", fake_dir)
     monkeypatch.setattr(mirror_ratchet, "BASELINE_PATH", fake_baseline)
     assert mirror_ratchet.main([]) == 1
-    assert mirror_ratchet.main(["--update"]) == 1  # refuses to raise
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: sum(
+                mirror_ratchet.count_mirror_assertions().values()
+            )
+            > json.loads(fake_baseline.read_text(encoding="utf-8"))["total"],
+            baseline_state=fake_baseline.read_bytes,
+            update=lambda: mirror_ratchet.main(["--update"]),
+        )
+        == 1
+    )
     assert json.loads(fake_baseline.read_text())["total"] == 0
 
     # Paydown may lower it.

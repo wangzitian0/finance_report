@@ -31,6 +31,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO_ROOT / "apps" / "frontend" / "src"
 BASELINE_PATH = Path(__file__).parent / "fe-fetch-ratchet-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 _CALL_PATTERN = re.compile(
     r"\b(?:apiFetch|apiStream|apiDelete|apiUpload)(?:<[^>(]*>)?\("

@@ -57,8 +57,8 @@ prove the correlated infra2 workflow run before App health gates begin.
   there is no `skipped`.
 - **GitHub Actions transport** — `github_api.py` owns the small authenticated
   Actions client, UTC timestamp parsing, and `GITHUB_OUTPUT` writing used by
-  release evidence and CI waiters. It is shared infrastructure, not a second
-  runtime backend or a testing-owned API.
+  release evidence, CI timing/wait helpers, and app-deploy transport. It is
+  shared infrastructure, not a second runtime backend or a testing-owned API.
 - **Deployed HTTP probe** — `http_probe.py` owns the response shape, URL fetch,
   report rendering, and empty-safe abbreviated-SHA match used by both
   `tier2_http_e2e.py` and `production_infra_smoke.py`. Workflow-facing files in

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from common.testing import api_surface_ratchet
+from common.testing import api_surface_ratchet, baseline_update_contract
 
 
 def _write_baseline(
@@ -51,7 +51,16 @@ def test_router_ratchet_rejects_new_file_and_update_cannot_adopt_it(
     monkeypatch.setattr(api_surface_ratchet, "BASELINE_PATH", baseline)
 
     assert api_surface_ratchet.main([]) == 1
-    assert api_surface_ratchet.main(["--update"]) == 1
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: (routers_dir / "new.py").exists()
+            and "apps/backend/src/routers/new.py"
+            not in json.loads(baseline.read_text(encoding="utf-8"))["router_files"],
+            baseline_state=baseline.read_bytes,
+            update=lambda: api_surface_ratchet.main(["--update"]),
+        )
+        == 1
+    )
     assert json.loads(baseline.read_text(encoding="utf-8"))["router_files"] == [
         "apps/backend/src/routers/existing.py"
     ]

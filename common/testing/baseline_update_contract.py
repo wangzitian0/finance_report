@@ -3,14 +3,88 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from copy import deepcopy
 from pathlib import Path
+from typing import TypeVar
 
 from common.testing import gate_cli
 
 MONOTONIC_MODES = frozenset({"raise-only", "shrink-only"})
 REWRITE_MODE = "rewrite"
 VALID_MODES = MONOTONIC_MODES | {REWRITE_MODE}
+UPDATE_FLAG = "--" + "update"
+REWRITE_FLAG = "--rewrite-" + "baseline"
+MUTATION_FLAGS = frozenset({UPDATE_FLAG, REWRITE_FLAG})
+PROOF_HARNESS_MODULE = "common.testing.baseline_update_contract"
+PROOF_HARNESS_NAME = "assert_regression_debt_refused"
+
+Result = TypeVar("Result")
+
+MONOTONIC_UPDATE_PROOFS = {
+    "common/meta/extension/check_ac_tier_baseline.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/meta/extension/check_app_boundary.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/testing/api_surface_ratchet.py": (
+        "tests/tooling/test_api_surface_ratchet.py"
+        "::test_router_ratchet_rejects_new_file_and_update_cannot_adopt_it"
+    ),
+    "common/testing/check_ac_score_baseline.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/testing/check_cassette_graded_eval.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/testing/check_critical_value_proof.py": (
+        "tests/tooling/test_critical_value_proof_ratchet.py"
+        "::test_baseline_only_shrinks_never_grows"
+    ),
+    "common/testing/fe_api_handmock_ratchet.py": (
+        "tests/tooling/test_fe_api_handmock_ratchet.py"
+        "::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down"
+    ),
+    "common/testing/fe_fetch_ratchet.py": (
+        "tests/tooling/test_fe_fetch_ratchet.py"
+        "::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down"
+    ),
+    "common/testing/gate_main_contract.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+    "common/testing/mirror_ratchet.py": (
+        "tests/tooling/test_package_declaration_and_ratchet.py"
+        "::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down"
+    ),
+    "common/testing/tool_shim_contract.py": (
+        "tests/tooling/test_s4_gate_contracts.py"
+        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
+    ),
+}
+
+
+def assert_regression_debt_refused(
+    *,
+    regression_debt_present: Callable[[], bool],
+    baseline_state: Callable[[], object],
+    update: Callable[[], Result],
+) -> Result:
+    """Run a real updater while proving synthetic debt cannot mutate its baseline."""
+
+    if not regression_debt_present():
+        raise AssertionError("the proof did not establish synthetic regression debt")
+    before = deepcopy(baseline_state())
+    result = update()
+    after = baseline_state()
+    if after != before:
+        raise AssertionError("the updater adopted synthetic regression debt")
+    return result
 
 
 def _declared_mode(tree: ast.Module) -> str | None:
@@ -31,23 +105,95 @@ def _declared_mode(tree: ast.Module) -> str | None:
     return None
 
 
+def _string_value(node: ast.expr, constants: dict[str, str]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _string_value(node.left, constants)
+        right = _string_value(node.right, constants)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
+def _module_string_constants(tree: ast.Module) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets, value = [node.target], node.value
+        if value is None:
+            continue
+        resolved = _string_value(value, constants)
+        if resolved is not None:
+            constants.update(
+                (target.id, resolved)
+                for target in targets
+                if isinstance(target, ast.Name)
+            )
+    return constants
+
+
+def _is_argument_sequence(node: ast.expr) -> bool:
+    return (isinstance(node, ast.Name) and node.id in {"args", "argv"}) or (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "sys"
+        and node.attr == "argv"
+    )
+
+
 def _mutation_flags(tree: ast.Module) -> set[str]:
+    constants = _module_string_constants(tree)
     flags: set[str] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add_argument":
-            continue
-        flags.update(
-            arg.value
-            for arg in node.args
-            if isinstance(arg, ast.Constant)
-            and arg.value in {"--update", "--rewrite-baseline"}
-        )
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "add_argument"
+        ):
+            flags.update(
+                value
+                for arg in node.args
+                if (value := _string_value(arg, constants)) in MUTATION_FLAGS
+            )
+        elif isinstance(node, ast.Compare):
+            value = _string_value(node.left, constants)
+            if value not in MUTATION_FLAGS:
+                continue
+            if any(
+                isinstance(operator, (ast.In, ast.NotIn))
+                and _is_argument_sequence(comparator)
+                for operator, comparator in zip(node.ops, node.comparators, strict=True)
+            ):
+                flags.add(value)
     return flags
 
 
-def violations(repo_root: Path) -> list[str]:
+def monotonic_update_paths(repo_root: Path) -> set[str]:
+    """Return every module that exposes a monotonic ``--update`` path."""
+
+    paths: set[str] = set()
+    for root_name in ("common", "tools"):
+        root = repo_root / root_name
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            if (
+                UPDATE_FLAG in _mutation_flags(tree)
+                and _declared_mode(tree) in MONOTONIC_MODES
+            ):
+                paths.add(path.relative_to(repo_root).as_posix())
+    return paths
+
+
+def declaration_violations(repo_root: Path) -> list[str]:
     """Return baseline CLI declarations whose flag and mutation mode disagree."""
 
     findings: list[str] = []
@@ -73,15 +219,159 @@ def violations(repo_root: Path) -> list[str]:
                     "BASELINE_UPDATE_MODE = 'raise-only', 'shrink-only', or 'rewrite'"
                 )
                 continue
-            if "--update" in flags and mode not in MONOTONIC_MODES:
+            if UPDATE_FLAG in flags and mode not in MONOTONIC_MODES:
                 findings.append(
                     f"{relative}: rewrite mode must use --rewrite-baseline, not --update"
                 )
-            if "--rewrite-baseline" in flags and mode != REWRITE_MODE:
+            if REWRITE_FLAG in flags and mode != REWRITE_MODE:
                 findings.append(
                     f"{relative}: --rewrite-baseline requires BASELINE_UPDATE_MODE = 'rewrite'"
                 )
     return findings
+
+
+TestFunction = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _test_node(repo_root: Path, node_id: str) -> tuple[ast.Module, TestFunction] | None:
+    test_path_text, separator, test_name = node_id.partition("::")
+    if not separator or not test_name:
+        return None
+    test_path = repo_root / test_path_text
+    if not test_path.is_file():
+        return None
+    tree = ast.parse(test_path.read_text(encoding="utf-8"), filename=str(test_path))
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+            node.name == test_name
+        ):
+            return tree, node
+    return None
+
+
+def _updater_aliases(
+    tree: ast.Module, function: TestFunction, module_name: str
+) -> set[str]:
+    aliases: set[str] = set()
+    import_nodes = [
+        node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))
+    ]
+    import_nodes.extend(
+        node
+        for node in ast.walk(function)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+    )
+    for node in import_nodes:
+        if isinstance(node, ast.Import):
+            aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == module_name and alias.asname is not None
+            )
+            continue
+        aliases.update(
+            alias.asname or alias.name
+            for alias in node.names
+            if f"{node.module}.{alias.name}" == module_name
+        )
+
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        value = node.value
+        if (
+            not isinstance(target, ast.Name)
+            or not isinstance(value, ast.Call)
+            or not isinstance(value.func, ast.Attribute)
+            or not isinstance(value.func.value, ast.Name)
+            or value.func.value.id != "importlib"
+            or value.func.attr != "import_module"
+            or not value.args
+        ):
+            continue
+        if _string_value(value.args[0], {}) == module_name:
+            aliases.add(target.id)
+    return aliases
+
+
+def _proof_exercises_updater(
+    tree: ast.Module, function: TestFunction, source_path: str
+) -> bool:
+    module_name = Path(source_path).with_suffix("").as_posix().replace("/", ".")
+    updater_aliases = _updater_aliases(tree, function, module_name)
+    harness_aliases = _updater_aliases(tree, function, PROOF_HARNESS_MODULE)
+    if not updater_aliases or not harness_aliases:
+        return False
+    for harness_call in ast.walk(function):
+        if not isinstance(harness_call, ast.Call):
+            continue
+        if not (
+            isinstance(harness_call.func, ast.Attribute)
+            and isinstance(harness_call.func.value, ast.Name)
+            and harness_call.func.value.id in harness_aliases
+            and harness_call.func.attr == PROOF_HARNESS_NAME
+        ):
+            continue
+        update_argument = next(
+            (
+                keyword.value
+                for keyword in harness_call.keywords
+                if keyword.arg == "update"
+            ),
+            None,
+        )
+        if update_argument is None:
+            continue
+        for call in ast.walk(update_argument):
+            if not isinstance(call, ast.Call):
+                continue
+            if not (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id in updater_aliases
+                and call.func.attr == "main"
+            ):
+                continue
+            if any(
+                isinstance(node, ast.Constant) and node.value == UPDATE_FLAG
+                for node in ast.walk(call)
+            ):
+                return True
+    return False
+
+
+def proof_violations(repo_root: Path) -> list[str]:
+    """Return monotonic update paths without a live behavioral proof node."""
+
+    update_paths = monotonic_update_paths(repo_root)
+    registered_paths = set(MONOTONIC_UPDATE_PROOFS)
+    findings = [
+        f"{path}: monotonic --update path lacks a behavioral regression proof"
+        for path in sorted(update_paths - registered_paths)
+    ]
+    findings.extend(
+        f"{path}: behavioral proof is stale; no monotonic --update path exists"
+        for path in sorted(registered_paths - update_paths)
+    )
+    for path in sorted(update_paths & registered_paths):
+        node_id = MONOTONIC_UPDATE_PROOFS[path]
+        test_node = _test_node(repo_root, node_id)
+        if test_node is None:
+            findings.append(f"{path}: behavioral proof node does not exist: {node_id}")
+            continue
+        if not _proof_exercises_updater(*test_node, path):
+            findings.append(
+                f"{path}: behavioral proof does not exercise synthetic regression "
+                f"debt through the refusal harness: {node_id}"
+            )
+    return findings
+
+
+def violations(repo_root: Path) -> list[str]:
+    """Return invalid declarations or missing monotonic-update proofs."""
+
+    return declaration_violations(repo_root) + proof_violations(repo_root)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

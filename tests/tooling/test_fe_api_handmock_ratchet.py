@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from common.testing import fe_api_handmock_ratchet
+from common.testing import baseline_update_contract, fe_api_handmock_ratchet
 
 
 def _write_fe_test(
@@ -76,7 +76,17 @@ def test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down(
 
     # Growth over the (zero) baseline is red; --update refuses to raise.
     assert fe_api_handmock_ratchet.main([]) == 1
-    assert fe_api_handmock_ratchet.main(["--update"]) == 1
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: sum(
+                fe_api_handmock_ratchet.count_handmock_files().values()
+            )
+            > json.loads(fake_baseline.read_text(encoding="utf-8"))["total"],
+            baseline_state=fake_baseline.read_bytes,
+            update=lambda: fe_api_handmock_ratchet.main(["--update"]),
+        )
+        == 1
+    )
     assert json.loads(fake_baseline.read_text())["total"] == 0
 
     # Paydown may lower the baseline.

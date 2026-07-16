@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from common.runtime.github_api import parse_github_time
+
 
 @dataclass(frozen=True)
 class JobTiming:
@@ -29,13 +31,6 @@ class JobTiming:
         if self.started_at is None or self.completed_at is None:
             return None
         return max(0, int((self.completed_at - self.started_at).total_seconds()))
-
-
-def parse_github_time(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    normalized = value.replace("Z", "+00:00")
-    return datetime.fromisoformat(normalized).astimezone(timezone.utc)
 
 
 def format_duration(seconds: int | None) -> str:

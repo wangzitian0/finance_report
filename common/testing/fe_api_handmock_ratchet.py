@@ -34,6 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO_ROOT / "apps" / "frontend" / "src"
 BASELINE_PATH = Path(__file__).parent / "fe-api-handmock-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 _API_MOCK_MARKERS = ('vi.mock("@/lib/api"', "vi.mock('@/lib/api'")
 _VECTORED_MARKERS = (

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from common.testing import fe_fetch_ratchet
+from common.testing import baseline_update_contract, fe_fetch_ratchet
 
 
 def _write_fe_source(directory, name: str, *, calls: list[str]) -> None:
@@ -55,7 +55,17 @@ def test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down(
 
     # Growth over the (zero) baseline is red; --update refuses to raise.
     assert fe_fetch_ratchet.main([]) == 1
-    assert fe_fetch_ratchet.main(["--update"]) == 1
+    assert (
+        baseline_update_contract.assert_regression_debt_refused(
+            regression_debt_present=lambda: sum(
+                fe_fetch_ratchet.count_call_sites().values()
+            )
+            > json.loads(fake_baseline.read_text(encoding="utf-8"))["total"],
+            baseline_state=fake_baseline.read_bytes,
+            update=lambda: fe_fetch_ratchet.main(["--update"]),
+        )
+        == 1
+    )
     assert json.loads(fake_baseline.read_text())["total"] == 0
 
     # Paydown may lower the baseline.

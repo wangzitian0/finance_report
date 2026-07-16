@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import io
 import json
 import urllib.error
@@ -17,7 +18,10 @@ from common.runtime import (
     release_images,
 )
 from common.runtime import wait_post_merge_train_turn as train_wait
-from common.testing import wait_for_cheap_ci
+from common.testing import github_workflow_timing_summary, wait_for_cheap_ci
+from tools import app_deploy_transport
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
@@ -34,6 +38,30 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
     assert release_evidence._write_github_output is github_api.write_github_output
     assert release_images._write_github_output is github_api.write_github_output
     assert release_coordinate.write_github_output is github_api.write_github_output
+    assert (
+        github_workflow_timing_summary.parse_github_time is github_api.parse_github_time
+    )
+    assert app_deploy_transport.write_github_output is github_api.write_github_output
+
+    helper_definitions: dict[str, list[str]] = {
+        "parse_github_time": [],
+        "write_github_output": [],
+        "_write_github_output": [],
+    }
+    for root_name in ("common", "tools"):
+        for path in sorted((ROOT / root_name).rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if node.name in helper_definitions:
+                        helper_definitions[node.name].append(
+                            path.relative_to(ROOT).as_posix()
+                        )
+    assert helper_definitions == {
+        "parse_github_time": ["common/runtime/github_api.py"],
+        "write_github_output": ["common/runtime/github_api.py"],
+        "_write_github_output": [],
+    }
 
     assert github_api.parse_github_time("2026-07-15T12:00:00Z") == datetime(
         2026, 7, 15, 12, tzinfo=UTC

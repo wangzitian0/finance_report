@@ -20,6 +20,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from common.runtime.github_api import write_github_output  # noqa: E402
 from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
 INFRA_REPOSITORY = "wangzitian0/infra2"
@@ -160,15 +161,6 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_github_output(result: ReceiverRun) -> None:
-    output_path = os.getenv("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    with open(output_path, "a", encoding="utf-8") as output:
-        print(f"receiver_run_id={result.run_id}", file=output)
-        print(f"receiver_run_url={result.url}", file=output)
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     token = os.getenv(args.token_env, "")
@@ -214,7 +206,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (ValueError, RuntimeError, httpx.HTTPError, json.JSONDecodeError) as exc:
         print(f"app deploy transport failed: {exc}", file=sys.stderr)
         return 1
-    _write_github_output(result)
+    write_github_output(
+        {"receiver_run_id": str(result.run_id), "receiver_run_url": result.url}
+    )
     print(
         json.dumps({"receiver_run_id": result.run_id, "receiver_run_url": result.url})
     )

@@ -93,6 +93,24 @@ CHECKS: tuple[Check, ...] = (
         why="Concept registry changed: enforce single-owner + manifest integrity",
     ),
     Check(
+        name="authority-reconcile",
+        globs=(
+            "common/*/contract.py",
+            "tests/*.py",
+            "apps/backend/tests/*.py",
+            "apps/frontend/*.test.ts",
+            "apps/frontend/*.test.tsx",
+            "apps/frontend/*.spec.ts",
+            "apps/frontend/*.spec.tsx",
+            "common/meta/base/authority_matrix.py",
+            "common/meta/extension/authority_classifier.py",
+            "common/meta/extension/check_authority_reconcile.py",
+            "common/meta/extension/generate_ac_registry.py",
+        ),
+        commands=((PY, "tools/check_authority_reconcile.py"),),
+        why="Authority input changed: declared package tiers must still match the CODE/LLM shape of their roadmap proofs",
+    ),
+    Check(
         name="doc-consistency",
         globs=("docs/*", "mkdocs.yml", "vision.md", "README.md"),
         commands=((PY, "tools/lint_doc_consistency.py"),),
@@ -198,13 +216,13 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="gate-contracts",
-        globs=("common/*", "tools/*"),
+        globs=("common/*", "tools/*", "tests/tooling/*.py"),
         commands=(
             (PY, "tools/check_gate_main_contract.py"),
             (PY, "tools/check_baseline_update_contract.py"),
             (PY, "tools/check_tool_shim_contract.py"),
         ),
-        why="common or tool source changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
+        why="gate source or proof changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
     ),
     Check(
         name="tooling",

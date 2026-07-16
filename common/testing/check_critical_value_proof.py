@@ -31,6 +31,7 @@ OUTCOMES_PATH = (
     REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
 )
 BASELINE_PATH = Path(__file__).parent / "critical-value-proof-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 VALUE_ASSERTING_KINDS = {"exact", "property", "invariant", "eval"}
 
