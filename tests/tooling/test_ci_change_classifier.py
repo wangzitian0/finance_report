@@ -294,7 +294,7 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
     """AC8.13.20: PDF fixture MkDocs/doc entrypoint changes do not deploy previews."""
     result = classify_changed_paths(
         [
-            "common/testing/README.md",
+            "common/testing/readme.md",
             "mkdocs.yml",
             "common/testing/fixtures/pdf/README.md",
             "common/testing/fixtures/pdf/FONT_HANDLING.md",

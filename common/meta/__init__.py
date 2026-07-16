@@ -2,7 +2,7 @@
 
 A *package* in this repo is a DDD bounded context: a ``readme.md`` (prose /
 ubiquitous language) + a :class:`PackageContract` (the machine-checkable
-contract in ``contract.py``) + a ``todo.md`` + conforming implementations whose
+contract in ``contract.py``) + conforming implementations whose
 files converge by layer (``base`` / ``extension`` / ``data``) and whose published
 language is declared via ``__all__``.
 

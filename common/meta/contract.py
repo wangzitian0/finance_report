@@ -3,7 +3,7 @@
 The package model self-hosts: the meta package that *defines* what a package is
 (``PackageContract`` / ``ACRecord`` / ``Invariant`` / ``Unit`` / ``Kind`` and the
 ``check_package_contract`` gate) is itself a package, with a ``readme.md`` (the
-package-model spec), this ``contract.py``, and a ``todo.md``. It is discovered
+package-model spec) and this ``contract.py``. It is discovered
 and validated by the very gate it ships, so the model proves itself.
 
 meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension``
@@ -813,6 +813,20 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_ssot_governance_report.py"
                 "::test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.package-truth.1",
+            statement=(
+                "Every discovered package has the two authored truth surfaces "
+                "readme.md and contract.py; parallel todo.md worklists are forbidden "
+                "at any depth under common/, and an empty package scan fails closed."
+            ),
+            test=(
+                "tests/tooling/test_check_package_contract.py"
+                "::test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous"
             ),
             priority="P0",
             status="done",

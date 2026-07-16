@@ -3,7 +3,6 @@
 > The vertical **identity** bounded context: the `User` aggregate root, its
 > `AiFeedback` child entity, and the authentication domain (register / login /
 > resolve-current-user). Machine contract: [`contract.py`](./contract.py).
-> Worklist: [`todo.md`](./todo.md).
 >
 > This `common/identity/` directory is the **spec + review surface**; the
 > conforming implementation lives at
@@ -159,6 +158,11 @@ migration is required.
   successful auth.
 - **Token revocation** — no blacklist; tokens are valid until expiry, mitigated by
   the per-request user-existence check.
+
+Identity domain events, a conforming frontend implementation, and token
+revocation remain deferred until a concrete consumer or security requirement
+exists. They are not scheduled work; each requires a GitHub issue and a tested
+package-roadmap AC before implementation.
 
 ## Governance
 

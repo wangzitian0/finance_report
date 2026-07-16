@@ -1,7 +1,7 @@
 # `advisor` — application-layer AI financial advisor
 
-> The spec + review surface for the ``advisor`` package.  Machine contract:
-> [`contract.py`](./contract.py).  Worklist: [`todo.md`](./todo.md).
+> The spec + review surface for the ``advisor`` package. Machine contract:
+> [`contract.py`](./contract.py).
 >
 > This `common/advisor/` directory is the **spec surface**; the conforming
 > implementation lives at
@@ -67,9 +67,9 @@ invariant is P0 across all delivery tiers.
 - **LLM consumption** — bound advisor calls use `llm.LLMClient` with
   `Scene.ADVISOR_CHAT`; token estimation and worst-confidence ranking are
   consumed from their `llm` and `ledger` owners, never redefined here.
-- **`ChatSessionRepository`** — the repository port (base) + SQL adapter
-  (extension); currently raw `AsyncSession` — port/adapter split is a
-  follow-up ([`todo.md`](./todo.md)).
+- **`ChatSessionRepository`** — the deferred repository port (base) + SQL
+  adapter (extension); the current implementation still uses raw
+  `AsyncSession`.
 - **`ChatHistoryView`** — the read-model projection: paginated chat history
   for the UI (list of sessions + messages, no write state).
 
@@ -108,11 +108,10 @@ reference to another domain's write objects.
 | `orm/` | `chat.py` (`ChatSession` AR, `ChatMessage` entity, status/role enums — schema-neutral move from `src/models/chat.py`) |
 | `data/` | reserved for the `ChatHistoryView` projection (declared taxonomy-only) |
 
-Still planned (follow-up, tracked in [`todo.md`](./todo.md)): the god-file
-split of `extension/service.py` into
-`phases/{context_aggregation,prompt_construction,response_streaming}.py`,
-the `ChatSessionRepository` port/adapter split, and the ARCHIVED session
-lifecycle (`AC-advisor.session.1`).
+The ARCHIVED session lifecycle is scheduled by `AC-advisor.session.1`. A
+service phase split, the `ChatSessionRepository` port/adapter split, and the
+`ChatHistoryView` projection remain deferred design options, not scheduled
+work; adopting one requires a GitHub issue and a tested roadmap AC first.
 
 ## Usage
 
@@ -153,7 +152,7 @@ The package's ACs (`AC-advisor.guardrail.*`, `AC-advisor.session.*`,
 `AC-advisor.context.*`, `AC-advisor.cache.*`, `AC-advisor.txn.*`) live in
 [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly** from
 there into the AC registry (no EPIC mirror); its invariants pin to the tests
-that prove them (registered once the phase split settles — see [`todo.md`](./todo.md)).
+that prove them.
 `tools/check_package_contract.py` validates the implementation against this
 contract (interface == `__all__`, every test reference resolves, no upward
 import edge).

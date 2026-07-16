@@ -4,8 +4,7 @@
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/ratio.contract.md`](./contract/ratio.contract.md) +
-> [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
-> [`todo.md`](./todo.md).
+> [`conformance/vectors.json`](./conformance/vectors.json).
 >
 > An **audit value-language leaf** (L1 `infra`) — it depends on nothing in the app, and is reused by
 > `money` and `quantity`.
@@ -42,5 +41,5 @@ keeps the two ends from drifting.
 
 [`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`
 (interface == BE `__all__`, invariants pin to conformance tests, no forbidden
-import edge). The ratio ACs (`AC12.9.x`) are still owned by EPIC-012; moving them
-into the contract `roadmap` is a tracked follow-up — see [`todo.md`](./todo.md).
+import edge). The ratio ACs formerly named `AC12.9.x` are owned by the audit
+contract roadmap as `AC-audit.9.*`; the EPIC contains no mirrored rows.

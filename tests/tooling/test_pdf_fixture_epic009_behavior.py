@@ -205,7 +205,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     analyzer_readme = (PDF_FIXTURES / "analyzers" / "README.md").read_text()
     tool_readme = (PDF_FIXTURES / "README.md").read_text()
     font_entry = (PDF_FIXTURES / "FONT_HANDLING.md").read_text()
-    ssot = (REPO_ROOT / "common" / "testing" / "README.md").read_text()
+    ssot = (REPO_ROOT / "common" / "testing" / "readme.md").read_text()
     # pdf_fixtures is now declared in common/testing/contract.py, not
     # hand-copied into MANIFEST.yaml (#1799) — check the computed registry.
     concepts = load_computed_concepts(
@@ -216,8 +216,8 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "python tools/analyze_pdf_fixture.py" in analyzer_readme
     assert "must stay local" in analyzer_readme
     assert "format-only metadata" in analyzer_readme
-    assert "common/testing/README.md#pdf-fixtures" in tool_readme
-    assert "common/testing/README.md#pdf-fixtures" in font_entry
+    assert "common/testing/readme.md#pdf-fixtures" in tool_readme
+    assert "common/testing/readme.md#pdf-fixtures" in font_entry
     assert "Generate Test PDFs" in ssot
     assert "Analyze Real PDFs" in ssot
     assert "python tools/analyze_pdf_fixture.py" in ssot
@@ -225,7 +225,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
     assert "templates/*.yaml" in ssot
     assert "input/" in ssot and "gitignored" in ssot
     assert "register_chinese_fonts()" in ssot
-    assert concepts["pdf_fixtures"]["owner"] == "common/testing/README.md#pdf-fixtures"
+    assert concepts["pdf_fixtures"]["owner"] == "common/testing/readme.md#pdf-fixtures"
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:

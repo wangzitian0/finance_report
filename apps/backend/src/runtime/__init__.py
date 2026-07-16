@@ -1,11 +1,10 @@
 """``runtime`` — the app↔external-world dependency boundary (BE implementation).
 
 `PackageContract.implementations["be"]` for the `runtime` package; the spec
-(ubiquitous language, invariants, roadmap) lives in `common/runtime/`. Draft:
-this ships the `base` value language + manifest + `DependencyCheck` port and the
+(ubiquitous language, invariants, roadmap) lives in `common/runtime/`. This
+ships the `base` value language + manifest + `DependencyCheck` port and the
 `extension` probe adapters (`boot.Bootloader` delegates its checks to them). The
-declared-required enforcement and the compose/lifecycle relocation land in the
-cleanup phase (see `common/runtime/todo.md`).
+declared-required enforcement and the compose/lifecycle integration.
 """
 
 from __future__ import annotations

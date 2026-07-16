@@ -3,7 +3,7 @@
 This package directory holds the *authoritative* form of ``advisor`` — its
 ubiquitous-language prose ([`readme.md`](./readme.md)), its machine-checkable
 :class:`~common.meta.package_contract.PackageContract`
-([`contract.py`](./contract.py)), and its worklist ([`todo.md`](./todo.md)).
+([`contract.py`](./contract.py)).
 
 The running implementation lives at ``apps/backend/src/advisor``
 (``contract.implementations["be"]``; physically moved there by #1671

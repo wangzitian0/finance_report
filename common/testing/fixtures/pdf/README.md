@@ -2,7 +2,7 @@
 
 This directory contains code and templates for synthetic PDF bank and brokerage
 statement fixtures. The documentation owner is
-[`common/testing/README.md#pdf-fixtures`](../../README.md#pdf-fixtures).
+[`common/testing/readme.md#pdf-fixtures`](../../readme.md#pdf-fixtures).
 
 Common commands:
 

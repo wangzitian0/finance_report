@@ -21,7 +21,7 @@ from common.testing import matrix
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 PREVIEW_WORKFLOW = ROOT / ".github" / "workflows" / "preview.yml"
-TESTING_README = ROOT / "common" / "testing" / "README.md"
+TESTING_README = ROOT / "common" / "testing" / "readme.md"
 MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
