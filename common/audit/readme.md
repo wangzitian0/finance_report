@@ -41,9 +41,12 @@ owns the exact declaration-level inventory in
 Discovery scans every `ForeignKey(..., ondelete="CASCADE")` and
 `ForeignKeyConstraint(..., ondelete="CASCADE")` call in production source,
 including module-level `Table(...)` declarations and composite constraints.
-The `ondelete` policy itself must be literal; a variable or computed expression
-fails closed rather than being assumed non-CASCADE. Composite constraints also
-require a literal name and literal remote columns that all resolve to one table,
+SQLAlchemy constructor aliases imported with `from sqlalchemy...` are resolved,
+and `ondelete` is read from either its keyword or its constructor signature's
+positional slot. The literal action is stripped and compared case-insensitively;
+a variable or computed expression fails closed rather than being assumed
+non-CASCADE. Composite constraints also require a literal name, supplied by
+keyword or position, and literal remote columns that all resolve to one table,
 giving each declaration a stable review key. Source
 ownership comes from the implementation package path; target ownership is
 independently derived from the unique literal `__tablename__` declaration.
@@ -53,9 +56,9 @@ self-assert either side of an ownership boundary.
 A CASCADE declared on a non-table ORM mixin is expanded into one site for every
 class with a literal `__tablename__` that inherits it directly or through only
 non-table intermediate bases. Traversal stops at a mapped base, because its
-columns are not mixin copies. A consumer that explicitly redeclares the same
-field is excluded from mixin expansion and its own declaration is scanned
-normally. A mixin cascade with no resolvable mapped consumer fails closed. The
+columns are not mixin copies. A field redeclaration anywhere along a non-table
+inheritance path stops the original mixin edge; that replacement declaration is
+scanned normally. A mixin cascade with no resolvable mapped consumer fails closed. The
 inventory therefore tracks the physical table owner affected by user deletion,
 and adding a new mixin-backed model cannot hide behind an unchanged shared
 declaration.

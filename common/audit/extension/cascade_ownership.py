@@ -71,33 +71,47 @@ def _assigned_name(statement: ast.stmt) -> tuple[str | None, ast.AST | None]:
     return None, None
 
 
-def _literal_keyword(call: ast.Call, name: str) -> str | None:
-    value = next(
-        (keyword.value for keyword in call.keywords if keyword.arg == name),
-        None,
-    )
-    if isinstance(value, ast.Constant) and isinstance(value.value, str):
-        return value.value
-    return None
+def _constructor_aliases(tree: ast.Module) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ImportFrom) or not (node.module or "").startswith(
+            "sqlalchemy"
+        ):
+            continue
+        for imported in node.names:
+            if imported.name in {"ForeignKey", "ForeignKeyConstraint"}:
+                aliases[imported.asname or imported.name] = imported.name
+    return aliases
 
 
-def _cascade_target(node: ast.AST) -> tuple[str, str, str | None] | None:
+def _call_argument(call: ast.Call, keyword: str, position: int) -> ast.expr | None:
+    keyword_values = [item.value for item in call.keywords if item.arg == keyword]
+    positional = call.args[position] if len(call.args) > position else None
+    if keyword_values and positional is not None:
+        raise CascadeInventoryError(
+            f"{_call_name(call)} provides {keyword} both positionally and by keyword"
+        )
+    return keyword_values[0] if keyword_values else positional
+
+
+def _cascade_target(
+    node: ast.AST, aliases: dict[str, str]
+) -> tuple[str, str, str | None] | None:
     if not isinstance(node, ast.Call):
         return None
-    call_name = _call_name(node)
+    syntactic_name = _call_name(node)
+    call_name = aliases.get(syntactic_name or "", syntactic_name)
     if call_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
-    ondelete_values = [
-        keyword.value for keyword in node.keywords if keyword.arg == "ondelete"
-    ]
-    if not ondelete_values:
+    ondelete_position = 5 if call_name == "ForeignKey" else 4
+    ondelete = _call_argument(node, "ondelete", ondelete_position)
+    if ondelete is None:
         return None
-    ondelete = ondelete_values[0]
-    if not isinstance(ondelete, ast.Constant):
+    if not (isinstance(ondelete, ast.Constant) and isinstance(ondelete.value, str)):
         raise CascadeInventoryError(
             f"{call_name} ondelete must be a literal for ownership review"
         )
-    if ondelete.value != "CASCADE":
+    if ondelete.value.strip().upper() != "CASCADE":
         return None
     if call_name == "ForeignKey":
         if not node.args:
@@ -128,11 +142,15 @@ def _cascade_target(node: ast.AST) -> tuple[str, str, str | None] | None:
         raise CascadeInventoryError(
             "CASCADE ForeignKeyConstraint remote targets must be literal strings"
         )
-    constraint_name = _literal_keyword(node, "name")
-    if constraint_name is None:
+    constraint_name_node = _call_argument(node, "name", 2)
+    if not (
+        isinstance(constraint_name_node, ast.Constant)
+        and isinstance(constraint_name_node.value, str)
+    ):
         raise CascadeInventoryError(
             "CASCADE ForeignKeyConstraint must have a literal name"
         )
+    constraint_name = constraint_name_node.value
     target_tables = {target.split(".", 1)[0] for target in targets}
     if len(target_tables) != 1:
         raise CascadeInventoryError(
@@ -219,6 +237,8 @@ def _mixin_consumers(
                 continue
             for intermediate in definitions.get(base_name, []):
                 if _literal_tablename(intermediate) is not None:
+                    continue
+                if _defines_field(intermediate, field):
                     continue
                 if inherits_through_mixins(intermediate, ancestor, seen | {base_name}):
                     return True
@@ -317,8 +337,9 @@ def discover_cascades(source_root: Path) -> tuple[CascadeSite, ...]:
     sites: list[CascadeSite] = []
     for relative, source_owner, tree in parsed_sources:
         parents = _parent_map(tree)
+        aliases = _constructor_aliases(tree)
         for node in ast.walk(tree):
-            target_details = _cascade_target(node)
+            target_details = _cascade_target(node, aliases)
             if target_details is None:
                 continue
             target, target_table, constraint_name = target_details

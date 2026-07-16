@@ -199,6 +199,15 @@ def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumer
         "    user_id = mapped_column(ForeignKey('users.id'))\n",
         encoding="utf-8",
     )
+    intermediate_override = tmp_path / "intermediate_override"
+    intermediate_override.mkdir()
+    (intermediate_override / "models.py").write_text(
+        "class NoCascadeMixin(TenantMixin):\n"
+        "    user_id = mapped_column(ForeignKey('users.id'))\n"
+        "class IntermediateOverrideRecord(NoCascadeMixin):\n"
+        "    __tablename__ = 'intermediate_override_records'\n",
+        encoding="utf-8",
+    )
 
     sites = discover_cascades(tmp_path)
 
@@ -208,6 +217,55 @@ def test_AC_audit_deletion_ownership_1_expands_mixin_cascades_to_mapped_consumer
     ]
     assert [site.source_owner for site in sites] == ["alpha", "beta"]
     assert {site.target_owner for site in sites} == {"identity"}
+
+
+@pytest.mark.parametrize(
+    ("imports", "foreign_key", "expected_site"),
+    [
+        (
+            "from sqlalchemy import ForeignKey as FK\n",
+            "FK('users.id', ondelete='cascade')",
+            "sample/models.py::Sample.user_id->users.id",
+        ),
+        (
+            "",
+            "ForeignKey('users.id', None, False, None, None, 'CASCADE')",
+            "sample/models.py::Sample.user_id->users.id",
+        ),
+        (
+            "",
+            "ForeignKeyConstraint(['user_id'], ['users.id'], "
+            "'fk_sample_user', None, 'cascade')",
+            "sample/models.py::Sample.__table_args__.fk_sample_user->users.id",
+        ),
+    ],
+    ids=["aliased-lowercase", "scalar-positional", "composite-positional"],
+)
+def test_AC_audit_deletion_ownership_1_normalizes_equivalent_cascade_syntax(
+    tmp_path: Path, imports: str, foreign_key: str, expected_site: str
+) -> None:
+    identity = tmp_path / "identity"
+    identity.mkdir()
+    (identity / "models.py").write_text(
+        "class User:\n    __tablename__ = 'users'\n",
+        encoding="utf-8",
+    )
+    sample = tmp_path / "sample"
+    sample.mkdir()
+    if "Constraint" in foreign_key:
+        declaration = f"    __table_args__ = ({foreign_key},)\n"
+    else:
+        declaration = f"    user_id = mapped_column({foreign_key})\n"
+    (sample / "models.py").write_text(
+        f"{imports}class Sample:\n    __tablename__ = 'samples'\n{declaration}",
+        encoding="utf-8",
+    )
+
+    sites = discover_cascades(tmp_path)
+
+    assert [site.site for site in sites] == [expected_site]
+    assert sites[0].source_owner == "sample"
+    assert sites[0].target_owner == "identity"
 
 
 def test_AC_audit_deletion_ownership_1_rejects_unresolved_mixin_cascade(
