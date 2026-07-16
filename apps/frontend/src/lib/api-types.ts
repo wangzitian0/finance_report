@@ -4457,7 +4457,7 @@ export interface components {
          */
         JournalEntryResponse: {
             /** Confidence Tier */
-            confidence_tier?: ("TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
+            confidence_tier?: ("DETERMINISTIC" | "TRUSTED" | "HIGH" | "MEDIUM" | "LOW") | null;
             /**
              * Created At
              * Format: date-time

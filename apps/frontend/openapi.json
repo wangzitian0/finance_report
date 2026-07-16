@@ -4427,6 +4427,7 @@
             "anyOf": [
               {
                 "enum": [
+                  "DETERMINISTIC",
                   "TRUSTED",
                   "HIGH",
                   "MEDIUM",
