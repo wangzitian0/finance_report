@@ -1151,7 +1151,9 @@ async def test_traceability_unbalanced_entry_rejected(client, test_user):
             ],
         },
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 400
+    error_msg = str(resp.json()).lower()
+    assert "not balanced" in error_msg or "debit" in error_msg or "credit" in error_msg
 
 
 @pytest.mark.e2e
