@@ -8,6 +8,7 @@ from uuid import uuid4
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.reconciliation import MatchNotFoundError
 from src.reporting import ReportError
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
@@ -153,13 +154,13 @@ async def test_reconciliation_coverage_errors(client: AsyncClient):
 
     # 1. Accept non-existent match
     with patch("src.routers.reconciliation.accept_match_service", new_callable=AsyncMock) as mock:
-        mock.side_effect = ValueError("Match not found")
+        mock.side_effect = MatchNotFoundError("Match not found")
         resp = await client.post(f"/reconciliation/matches/{uuid4()}/accept")
         assert resp.status_code == 404
 
     # 2. Reject non-existent match
     with patch("src.routers.reconciliation.reject_match_service", new_callable=AsyncMock) as mock:
-        mock.side_effect = ValueError("Match not found")
+        mock.side_effect = MatchNotFoundError("Match not found")
         resp = await client.post(f"/reconciliation/matches/{uuid4()}/reject")
         assert resp.status_code == 404
 

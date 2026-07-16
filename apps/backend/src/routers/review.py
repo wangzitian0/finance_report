@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.audit.money import InvalidCurrencyError
+from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     resolve_statement_conflicts,
@@ -21,8 +22,7 @@ from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict
 from src.reconciliation import (
     CheckResolutionAction,
-    ConsistencyCheckNotFoundError,
-    InvalidCheckActionError,
+    ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
     accept_match as accept_match_service,
@@ -255,9 +255,7 @@ async def resolve_consistency_check(
         action = CheckResolutionAction(request.action)
         check = await resolve_check(db, check_id, action, user_id, request.note)
         await db.commit()
-    except ConsistencyCheckNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except (InvalidCheckActionError, ValueError) as e:
+    except (ReconciliationError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return ConsistencyCheckResponse.model_validate(check)
@@ -328,6 +326,7 @@ async def batch_approve_matches(
     approved_count = 0
     journal_entries_created = 0
     journal_entries_reconciled = 0
+    base_currency = await get_effective_base_currency(db)
     for match in matches:
         before_entry_ids = set(match.journal_entry_ids or [])
         had_source_entry = False
@@ -343,8 +342,13 @@ async def batch_approve_matches(
             had_source_entry = existing_entry_result.scalar_one_or_none() is not None
 
         try:
-            accepted_match = await accept_match_service(db, match.id, user_id=user_id)
-        except ValueError as exc:
+            accepted_match = await accept_match_service(
+                db,
+                match.id,
+                user_id=user_id,
+                base_currency=base_currency,
+            )
+        except ReconciliationError as exc:
             await db.rollback()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

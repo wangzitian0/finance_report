@@ -52,7 +52,7 @@ async def run_normal_matching_phase(
         history_score = await context.get_cached_pattern_score(txn)
 
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=context.base_currency):
                 continue
             candidate = await score_single(
                 db,
@@ -66,7 +66,10 @@ async def run_normal_matching_phase(
                 best_match = candidate
 
         for entry_a, entry_b in combinations(candidates, 2):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=context.base_currency)
+                and is_entry_balanced(entry_b, base_currency=context.base_currency)
+            ):
                 continue
             combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
             if not _within_combination_tolerance(combined, txn, context.config):
@@ -84,7 +87,11 @@ async def run_normal_matching_phase(
                 best_match = candidate
 
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=context.base_currency)
+                and is_entry_balanced(entry_b, base_currency=context.base_currency)
+                and is_entry_balanced(entry_c, base_currency=context.base_currency)
+            ):
                 continue
             combined = (
                 entry_bank_side_amount(entry_a, txn.direction)

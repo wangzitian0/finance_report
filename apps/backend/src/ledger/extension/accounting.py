@@ -21,8 +21,6 @@ from src.ledger.extension.repository import create_journal_entry, post_journal_e
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
-settings = src.config.settings
-
 __all__ = [
     "get_opening_balance_readiness",
     "post_opening_balance_entry",
@@ -36,6 +34,7 @@ async def post_opening_balance_entry(
     entry_date: date,
     balances: dict[UUID, Decimal],
     currency: str,
+    base_currency: str | None = None,
     memo: str = "Opening balances",
 ) -> JournalEntry:
     """Post a balanced opening-balance entry establishing year-start positions (#949).
@@ -70,10 +69,11 @@ async def post_opening_balance_entry(
     if system_targets:
         raise ValidationError(f"Opening balances cannot target system accounts: {system_targets}")
 
-    base_currency = normalize_currency_code(settings.base_currency)
-    if normalized_currency != base_currency:
+    normalized_base_currency = normalize_currency_code(base_currency or src.config.settings.base_currency)
+    if normalized_currency != normalized_base_currency:
         raise ValidationError(
-            f"Opening balances are supported only in the base currency ({base_currency}); got {normalized_currency}."
+            "Opening balances are supported only in the base currency "
+            f"({normalized_base_currency}); got {normalized_currency}."
         )
 
     # An opening balance establishes a starting position, not a delta: reject when
@@ -145,8 +145,14 @@ async def post_opening_balance_entry(
         memo=memo,
         lines_data=lines_data,
         source_type=JournalEntrySourceType.SYSTEM,
+        base_currency=normalized_base_currency,
     )
-    return await post_journal_entry(db, entry.id, user_id)
+    return await post_journal_entry(
+        db,
+        entry.id,
+        user_id,
+        base_currency=normalized_base_currency,
+    )
 
 
 async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict:

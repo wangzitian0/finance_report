@@ -17,12 +17,13 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import src.config
 from src.audit import JournalEntrySourceType, normalize_source_type
+from src.audit.money import Currency
 from src.ledger.base.validators import (
     ValidationError,
     validate_fx_rates,
@@ -31,6 +32,16 @@ from src.ledger.base.validators import (
 )
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+
+
+async def _set_transaction_base_currency(db: AsyncSession, base_currency: str | None) -> str:
+    """Keep PostgreSQL's deferred ledger invariant aligned with Python validation."""
+    normalized = Currency.of(base_currency or src.config.settings.base_currency).code
+    await db.execute(
+        text("SELECT set_config('finance_report.base_currency', :base_currency, true)"),
+        {"base_currency": normalized},
+    )
+    return normalized
 
 
 async def validate_line_account_ownership(
@@ -63,7 +74,10 @@ async def create_journal_entry(
     lines_data: list[dict],
     source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
     source_id: UUID | None = None,
+    *,
+    base_currency: str | None = None,
 ) -> JournalEntry:
+    base_currency = await _set_transaction_base_currency(db, base_currency)
     await validate_line_account_ownership(
         db,
         user_id,
@@ -79,7 +93,7 @@ async def create_journal_entry(
     )
 
     lines: list[JournalLine] = []
-    default_currency = src.config.settings.base_currency.upper()
+    default_currency = base_currency
     for line_data in lines_data:
         line = JournalLine(
             journal_entry_id=entry.id,
@@ -93,8 +107,8 @@ async def create_journal_entry(
         )
         lines.append(line)
 
-    validate_journal_balance(lines)
-    validate_fx_rates(lines)
+    validate_journal_balance(lines, base_currency=base_currency)
+    validate_fx_rates(lines, base_currency=base_currency)
 
     db.add(entry)
     await db.flush()
@@ -108,7 +122,13 @@ async def create_journal_entry(
     return entry
 
 
-async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) -> JournalEntry:
+async def post_journal_entry(
+    db: AsyncSession,
+    entry_id: UUID,
+    user_id: UUID,
+    *,
+    base_currency: str | None = None,
+) -> JournalEntry:
     """
     Post a journal entry from draft to posted status.
 
@@ -123,6 +143,7 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     Raises:
         ValidationError: If entry cannot be posted
     """
+    base_currency = await _set_transaction_base_currency(db, base_currency)
     result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.id == entry_id)
@@ -137,7 +158,7 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
 
-    validate_journal_posting_invariants(entry)
+    validate_journal_posting_invariants(entry, base_currency=base_currency)
 
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)
@@ -147,7 +168,14 @@ async def post_journal_entry(db: AsyncSession, entry_id: UUID, user_id: UUID) ->
     return entry
 
 
-async def void_journal_entry(db: AsyncSession, entry_id: UUID, reason: str, user_id: UUID) -> JournalEntry:
+async def void_journal_entry(
+    db: AsyncSession,
+    entry_id: UUID,
+    reason: str,
+    user_id: UUID,
+    *,
+    base_currency: str | None = None,
+) -> JournalEntry:
     """
     Void a posted journal entry by creating a reversal entry.
 
@@ -163,6 +191,8 @@ async def void_journal_entry(db: AsyncSession, entry_id: UUID, reason: str, user
     Raises:
         ValidationError: If entry cannot be voided
     """
+    await _set_transaction_base_currency(db, base_currency)
+
     # Get original entry
     result = await db.execute(select(JournalEntry).where(JournalEntry.id == entry_id))
     entry = result.scalar_one_or_none()
@@ -223,8 +253,9 @@ class SqlJournalRepository:
     over the one ``AsyncSession`` owned by the caller's transaction boundary.
     """
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, *, base_currency: str) -> None:
         self._db = db
+        self._base_currency = Currency.of(base_currency).code
 
     async def create(
         self,
@@ -244,10 +275,22 @@ class SqlJournalRepository:
             lines_data,
             source_type=source_type,
             source_id=source_id,
+            base_currency=self._base_currency,
         )
 
     async def post(self, entry_id: UUID, user_id: UUID) -> JournalEntry:
-        return await post_journal_entry(self._db, entry_id, user_id)
+        return await post_journal_entry(
+            self._db,
+            entry_id,
+            user_id,
+            base_currency=self._base_currency,
+        )
 
     async def void(self, entry_id: UUID, reason: str, user_id: UUID) -> JournalEntry:
-        return await void_journal_entry(self._db, entry_id, reason, user_id)
+        return await void_journal_entry(
+            self._db,
+            entry_id,
+            reason,
+            user_id,
+            base_currency=self._base_currency,
+        )

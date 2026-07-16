@@ -51,7 +51,7 @@ async def run_many_to_one_phase(
         history_score = await context.get_cached_pattern_score(group[0])
 
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=context.base_currency):
                 continue
 
             candidate = await score_group(

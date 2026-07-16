@@ -4,24 +4,30 @@ from __future__ import annotations
 
 import ast
 import inspect
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import get_type_hints
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
-from src.ledger import Direction
+import pytest
+
+from src.ledger import Direction, ValidationError
 from src.ledger.base.processing import _calculate_pair_confidence
 from src.reconciliation import (
     AmountMismatchError,
     CheckResolutionAction,
+    EntryCreationError,
     MatchNotFoundError,
     ReconciliationError,
     score_description,
 )
 from src.reconciliation.extension import matching
 from src.reconciliation.extension.consistency_checks import resolve_check
-from src.reconciliation.extension.phases import run_many_to_one_phase, run_normal_matching_phase
+from src.reconciliation.extension.phases import run_many_to_one_phase, run_normal_matching_phase, transfer_detection
 from src.schemas.review import ResolveCheckRequest
 
 score_group = matching.score_group
@@ -76,8 +82,12 @@ def test_matching_phases_return_created_matches() -> None:
         assert repository_call in source
 
 
-def test_scoring_has_explicit_modes_and_no_hidden_environment_switch() -> None:
-    """AC-reconciliation.signature-surgery.3."""
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "amounts", [(Decimal("500"), Decimal("509")), (Decimal("400"), Decimal("300"), Decimal("309"))]
+)
+async def test_scoring_has_explicit_modes_and_no_hidden_environment_switch(monkeypatch, amounts) -> None:
+    """AC-reconciliation.signature-surgery.3: explicit modes retain multi-entry tolerance."""
     assert "is_multi" not in inspect.signature(score_single).parameters
     assert "is_multi" not in inspect.signature(score_group).parameters
     assert "enable_ai_reconciliation" in matching.ReconciliationConfig.__dataclass_fields__
@@ -86,11 +96,109 @@ def test_scoring_has_explicit_modes_and_no_hidden_environment_switch() -> None:
         assert module is not None
         assert "os.getenv" not in inspect.getsource(module)
 
+    config = replace(
+        matching.DEFAULT_CONFIG,
+        weight_amount=Decimal("1"),
+        weight_date=Decimal("0"),
+        weight_description=Decimal("0"),
+        weight_business=Decimal("0"),
+        weight_history=Decimal("0"),
+    )
+    transaction = SimpleNamespace(
+        amount=Decimal("1000"),
+        direction="OUT",
+        txn_date=date(2024, 1, 1),
+        description="split payment",
+    )
+    entries = [SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="split payment") for _ in amounts]
+    amount_by_id = dict(zip((entry.id for entry in entries), amounts, strict=True))
+    monkeypatch.setattr(
+        matching,
+        "entry_bank_side_amount",
+        lambda entry, _direction: amount_by_id[entry.id],
+    )
+    monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
+
+    candidate = await score_single(
+        SimpleNamespace(),
+        transaction,
+        entries,
+        config,
+        uuid4(),
+        history_score=100.0,
+    )
+
+    assert candidate.breakdown["amount"] == 70.0
+    assert config.pending_review <= candidate.score < config.auto_accept
+
+
+@pytest.mark.asyncio
+async def test_group_scoring_keeps_bonus_separate_from_multi_tolerance(monkeypatch) -> None:
+    transaction = SimpleNamespace(
+        amount=Decimal("600"),
+        direction="OUT",
+        txn_date=date(2024, 1, 1),
+        description="batch",
+    )
+    entry = SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="batch")
+    monkeypatch.setattr(matching, "entry_bank_side_amount", lambda _entry, _direction: Decimal("1009"))
+    monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
+
+    candidate = await score_group(
+        SimpleNamespace(),
+        transaction,
+        [entry],
+        matching.DEFAULT_CONFIG,
+        uuid4(),
+        group_amount=Decimal("1000"),
+        history_score=100.0,
+    )
+
+    assert candidate.breakdown["amount"] == 75.0
+    assert candidate.breakdown["many_to_one_bonus"] == 10.0
+
+
+@pytest.mark.asyncio
+async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeypatch) -> None:
+    """AC-ledger.77.2: fail closed instead of reporting a successful no-op run."""
+    transaction = SimpleNamespace(
+        id=uuid4(),
+        description="Transfer to savings",
+        direction="OUT",
+        amount=Decimal("25.00"),
+        txn_date=date(2026, 1, 1),
+    )
+    repository = SimpleNamespace(
+        get_active_match=AsyncMock(return_value=None),
+        add_match=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        transfer_detection,
+        "resolve_custody_account_id",
+        AsyncMock(return_value=uuid4()),
+    )
+    monkeypatch.setattr(
+        transfer_detection,
+        "create_transfer_out_entry",
+        AsyncMock(side_effect=ValidationError("Processing account currency is SGD; got transfer currency USD")),
+    )
+
+    with pytest.raises(ValidationError, match="Processing account currency is SGD"):
+        await transfer_detection.run_transfer_detection_phase(
+            SimpleNamespace(),
+            transactions=[transaction],
+            matched_txn_ids=set(),
+            repository=repository,
+            user_id=uuid4(),
+            currency="USD",
+        )
+
 
 def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
     """AC-reconciliation.signature-surgery.4."""
     assert issubclass(MatchNotFoundError, ReconciliationError)
     assert issubclass(AmountMismatchError, ReconciliationError)
+    assert issubclass(EntryCreationError, ReconciliationError)
     assert set(CheckResolutionAction) == {
         CheckResolutionAction.APPROVE,
         CheckResolutionAction.REJECT,
@@ -102,8 +210,11 @@ def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
 
     router_source = (BACKEND_SRC / "routers" / "reconciliation.py").read_text()
     assert '"not found" in str(exc).lower()' not in router_source
+    assert "except ValueError as exc:" not in router_source
     review_router_source = (BACKEND_SRC / "routers" / "review.py").read_text()
     assert "CheckResolutionAction(request.action)" in review_router_source
+    assert review_router_source.count("except (ReconciliationError, ValueError)") == 1
+    assert "except ReconciliationError as exc:" in review_router_source
 
 
 def test_description_similarity_has_one_owner_and_both_consumers_agree() -> None:

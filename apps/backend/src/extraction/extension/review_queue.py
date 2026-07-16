@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.audit import JournalEntrySourceType, normalize_source_type
+from src.audit import JournalEntrySourceType
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
@@ -29,11 +29,9 @@ from src.ledger import (
     AccountType,
     Direction,
     JournalEntry,
-    JournalEntryStatus,
-    JournalLine,
     ValidationError,
-    validate_journal_balance,
-    validate_journal_posting_invariants,
+    create_journal_entry,
+    post_journal_entry,
 )
 from src.observability import get_logger
 
@@ -187,11 +185,12 @@ async def get_or_create_account(
     return account
 
 
-async def create_entry_from_txn(
+async def _create_entry_from_txn(
     db: AsyncSession,
     txn: AtomicTransaction,
     *,
     user_id: UUID,
+    base_currency: str | None = None,
     auto_post: bool = False,
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
@@ -234,8 +233,8 @@ async def create_entry_from_txn(
     # The transaction's own (human-confirmed at this point) currency is authoritative
     # per AC12.40; the statement currency is only a fallback, then the base SSOT. This
     # preserves a transaction-specific currency in multi-currency statements.
-    currency = (txn.currency or (statement.currency if statement else None) or settings.base_currency).upper()
-    base_currency = settings.base_currency.upper()
+    base_currency = (base_currency or settings.base_currency).upper()
+    currency = (txn.currency or (statement.currency if statement else None) or base_currency).upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
         try:
@@ -317,52 +316,46 @@ async def create_entry_from_txn(
         debit_account = counter_account
         credit_account = bank_account
 
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=txn.txn_date,
-        memo=txn.description,
-        source_type=normalize_source_type(source_type),
-        source_id=txn.id,
-        status=JournalEntryStatus.DRAFT,
-    )
-
-    entry.lines.append(
-        JournalLine(
-            account=debit_account,
-            direction=Direction.DEBIT,
-            amount=txn.amount,
-            currency=currency,
-            fx_rate=line_fx_rate,
-            event_type="bank_txn",
-        )
-    )
-    entry.lines.append(
-        JournalLine(
-            account=credit_account,
-            direction=Direction.CREDIT,
-            amount=txn.amount,
-            currency=currency,
-            fx_rate=line_fx_rate,
-            event_type="bank_txn",
-        )
-    )
-
+    lines_data = [
+        {
+            "account_id": debit_account.id,
+            "direction": Direction.DEBIT,
+            "amount": txn.amount,
+            "currency": currency,
+            "fx_rate": line_fx_rate,
+            "event_type": "bank_txn",
+        },
+        {
+            "account_id": credit_account.id,
+            "direction": Direction.CREDIT,
+            "amount": txn.amount,
+            "currency": currency,
+            "fx_rate": line_fx_rate,
+            "event_type": "bank_txn",
+        },
+    ]
     try:
+        entry = await create_journal_entry(
+            db,
+            user_id,
+            entry_date=txn.txn_date,
+            memo=txn.description,
+            lines_data=lines_data,
+            source_type=source_type,
+            source_id=txn.id,
+            base_currency=base_currency,
+        )
         if auto_post:
-            validate_journal_posting_invariants(entry)
-        else:
-            validate_journal_balance(entry.lines)
+            entry = await post_journal_entry(
+                db,
+                entry.id,
+                user_id,
+                base_currency=base_currency,
+            )
     except ValidationError as exc:
-        if not auto_post:
-            raise ValueError(f"Generated entry does not balance: {exc}") from exc
-        raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
-
-    db.add(entry)
-    await db.flush()
-    if auto_post:
-        entry.status = JournalEntryStatus.POSTED
-        await db.flush()
-    await db.refresh(entry, ["lines"])
+        if auto_post:
+            raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
+        raise ValueError(f"Generated entry does not balance: {exc}") from exc
 
     # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
     # --contains--> JournalLine). Imported lazily to avoid an import cycle.
@@ -388,3 +381,34 @@ async def create_entry_from_txn(
         )
 
     return entry
+
+
+async def create_entry_from_txn(
+    db: AsyncSession,
+    txn: AtomicTransaction,
+    *,
+    user_id: UUID,
+    base_currency: str | None = None,
+    auto_post: bool = False,
+    source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
+    preloaded_statement: StatementSummary | None = None,
+    preloaded_bank_account: Account | None = None,
+) -> JournalEntry:
+    """Create a journal entry, atomically including all auto-post side effects."""
+
+    async def create() -> JournalEntry:
+        return await _create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            base_currency=base_currency,
+            auto_post=auto_post,
+            source_type=source_type,
+            preloaded_statement=preloaded_statement,
+            preloaded_bank_account=preloaded_bank_account,
+        )
+
+    if auto_post:
+        async with db.begin_nested():
+            return await create()
+    return await create()

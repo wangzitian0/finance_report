@@ -67,6 +67,7 @@ class MatchingContext:
     """
 
     config: ReconciliationConfig
+    base_currency: str
     entries_by_id: dict[str, JournalEntry]
     get_candidates_for_date: Callable[[date], list[JournalEntry]]
     get_cached_pattern_score: Callable[[AtomicTransaction], Awaitable[float]]
@@ -140,7 +141,8 @@ async def _calculate_candidate_score(
     entry_dates = [entry.entry_date for entry in entries]
     entry_memo = " / ".join([entry.memo for entry in entries]).strip()
 
-    amount_score = score_amount(amount, total_amount, config, is_multi=is_group)
+    uses_multi_tolerance = is_group or len(entries) > 1
+    amount_score = score_amount(amount, total_amount, config, is_multi=uses_multi_tolerance)
     date_score = max(score_date(transaction.txn_date, d, config) for d in entry_dates)
     description_score = score_description(transaction.description, entry_memo)
     business_score = min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
@@ -368,6 +370,8 @@ def _find_many_to_one_candidates(
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
+    *,
+    base_currency: str,
 ) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find many-to-one match candidates by grouping batch transactions.
 
@@ -404,7 +408,7 @@ def _find_many_to_one_candidates(
 
         best_candidate: MatchCandidate | None = None
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=base_currency):
                 continue
 
             # Inline scoring using pure functions (no DB)
@@ -447,6 +451,8 @@ def _find_normal_candidates(
     atomic_txns: list[JournalEntry],
     pattern_scores: dict[str, float],
     config: ReconciliationConfig,
+    *,
+    base_currency: str,
 ) -> list[tuple[AtomicTransaction, MatchCandidate]]:
     """Find normal 1:1 and 1:N match candidates.
 
@@ -513,7 +519,7 @@ def _find_normal_candidates(
 
         # Single entry matching
         for entry in candidates:
-            if not is_entry_balanced(entry):
+            if not is_entry_balanced(entry, base_currency=base_currency):
                 continue
             candidate = _score_entries(txn, [entry], history_score)
             if best_match is None or candidate.score > best_match.score:
@@ -521,7 +527,10 @@ def _find_normal_candidates(
 
         # Two-entry combinations
         for entry_a, entry_b in combinations(candidates, 2):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=base_currency)
+                and is_entry_balanced(entry_b, base_currency=base_currency)
+            ):
                 continue
             combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
             if not _within_combination_tolerance(combined, txn, config):
@@ -533,7 +542,11 @@ def _find_normal_candidates(
 
         # Three-entry combinations
         for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (is_entry_balanced(entry_a) and is_entry_balanced(entry_b) and is_entry_balanced(entry_c)):
+            if not (
+                is_entry_balanced(entry_a, base_currency=base_currency)
+                and is_entry_balanced(entry_b, base_currency=base_currency)
+                and is_entry_balanced(entry_c, base_currency=base_currency)
+            ):
                 continue
             combined = (
                 entry_bank_side_amount(entry_a, txn.direction)
@@ -605,6 +618,7 @@ async def execute_matching(
 
     context = MatchingContext(
         config=config,
+        base_currency=currency,
         entries_by_id=entries_by_id,
         get_candidates_for_date=get_candidates_for_date,
         get_cached_pattern_score=get_cached_pattern_score,

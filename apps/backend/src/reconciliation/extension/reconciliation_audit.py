@@ -395,6 +395,7 @@ def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) ->
         list(scenario.entries),
         scenario.pattern_scores or {},
         config,
+        base_currency="SGD",
     )
     for group_txn, candidate in many_to_one:
         group_key = f"{group_txn.description}:{group_txn.txn_date.isoformat()}"
@@ -413,6 +414,7 @@ def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) ->
         list(scenario.entries),
         scenario.pattern_scores or {},
         config,
+        base_currency="SGD",
     )
     for txn, candidate in normal:
         actual_by_txn[_transaction_ref(txn)] = {

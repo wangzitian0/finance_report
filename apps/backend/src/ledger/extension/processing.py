@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
-from src.audit.money import Money
+from src.audit.money import Currency, Money
 from src.ledger.base.processing import (
     AUTO_PAIR_THRESHOLD,
     MAX_DATE_DIFF_DAYS,
@@ -42,6 +42,7 @@ from src.ledger.base.processing import (
     _validate_transfer_params,
 )
 from src.ledger.base.types.entry import Entry
+from src.ledger.base.validators import ValidationError
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
@@ -183,6 +184,9 @@ async def create_transfer_out_entry(
     """Create a Transfer OUT journal entry.
 
     Transfer OUT: DEBIT Processing, CREDIT source account
+    ``currency`` is the caller's effective base currency, not an arbitrary
+    statement transaction currency. Foreign-currency transfers require a
+    separate FX-aware posting flow.
 
     Args:
         db: Database session
@@ -220,6 +224,9 @@ async def create_transfer_in_entry(
     """Create a Transfer IN journal entry.
 
     Transfer IN: DEBIT destination account, CREDIT Processing
+    ``currency`` is the caller's effective base currency, not an arbitrary
+    statement transaction currency. Foreign-currency transfers require a
+    separate FX-aware posting flow.
 
     Args:
         db: Database session
@@ -257,11 +264,28 @@ async def _create_transfer_entry(
 ) -> JournalEntry:
     """Build one transfer leg and route persistence through ledger's front door."""
     _validate_transfer_params(amount, description)
+    normalized_currency = Currency.of(currency).code
     processing_account = await get_or_create_processing_account(
         db,
         user_id,
-        currency=currency,
+        currency=normalized_currency,
     )
+    processing_currency = Currency.of(processing_account.currency).code
+    if processing_currency != normalized_currency:
+        raise ValidationError(
+            f"Processing account currency is {processing_currency}; got transfer currency {normalized_currency}"
+        )
+
+    account_result = await db.execute(select(Account).where(Account.id == account_id, Account.user_id == user_id))
+    counterparty = account_result.scalar_one_or_none()
+    if counterparty is None:
+        raise ValidationError(f"Account {account_id} not found")
+    counterparty_currency = Currency.of(counterparty.currency).code
+    if counterparty_currency != processing_currency:
+        raise ValidationError(
+            f"Transfer account currency is {counterparty_currency}; Processing account currency is {processing_currency}"
+        )
+
     if direction == "OUT":
         debit_id, credit_id = processing_account.id, account_id
     else:
@@ -269,7 +293,7 @@ async def _create_transfer_entry(
     entry = Entry.transfer(
         debit=debit_id,
         credit=credit_id,
-        money=Money(amount, currency),
+        money=Money(amount, processing_currency),
     )
     return await post_entry(
         db,
@@ -277,6 +301,7 @@ async def _create_transfer_entry(
         entry_date=txn_date,
         memo=f"Transfer {direction}: {description}",
         entry=entry,
+        base_currency=processing_currency,
         source_type=JournalEntrySourceType.SYSTEM,
     )
 
@@ -398,7 +423,12 @@ async def list_processing_transfer_legs(
         )
         other_account: Account | None = other_line.account if other_line else None
         other_name = other_account.name if other_account else "(unknown)"
-        currency = other_account.currency if other_account else processing_account.currency
+        processing_currency = Currency.of(processing_account.currency).code
+        line_currency = Currency.of(processing_line.currency).code
+        if line_currency != processing_currency:
+            raise ValidationError(
+                f"Processing line currency is {line_currency}; account currency is {processing_currency}"
+            )
 
         if processing_line.direction == Direction.DEBIT:
             from_account = other_name
@@ -413,7 +443,7 @@ async def list_processing_transfer_legs(
                 "from_account": from_account,
                 "to_account": to_account,
                 "amount": processing_line.amount,
-                "currency": currency,
+                "currency": processing_currency,
                 "initiated_date": entry.entry_date,
                 "days_outstanding": (today - entry.entry_date).days,
                 "description": entry.memo or "",

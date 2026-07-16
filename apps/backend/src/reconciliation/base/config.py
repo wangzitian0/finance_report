@@ -100,10 +100,10 @@ def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | Non
     return entry_total_amount(entry)
 
 
-def is_entry_balanced(entry: JournalEntry) -> bool:
+def is_entry_balanced(entry: JournalEntry, *, base_currency: str) -> bool:
     """Return True if entry is balanced."""
     try:
-        validate_journal_balance(entry.lines)
+        validate_journal_balance(entry.lines, base_currency=base_currency)
     except ValidationError:
         return False
     return True

@@ -22,6 +22,7 @@ from src.ledger import (
     find_transfer_pairs,
     get_account_statement_coverage,
     get_opening_balance_readiness,
+    get_or_create_processing_account,
     get_processing_balance,
     get_unpaired_transfers,
     list_processing_transfer_legs,
@@ -67,6 +68,7 @@ async def post_opening_balances(
             entry_date=payload.entry_date,
             balances=payload.balances,
             currency=(payload.currency or base_currency),
+            base_currency=base_currency,
             memo=payload.memo,
         )
         await db.commit()
@@ -145,7 +147,13 @@ async def get_processing_summary(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingSummaryResponse:
-    currency = await get_effective_base_currency(db)
+    requested_currency = await get_effective_base_currency(db)
+    processing_account = await get_or_create_processing_account(
+        db,
+        user_id,
+        currency=requested_currency,
+    )
+    currency = processing_account.currency
     pairs = await find_transfer_pairs(
         db,
         user_id,
@@ -178,7 +186,13 @@ async def list_processing_pending(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingPendingListResponse:
-    currency = await get_effective_base_currency(db)
+    requested_currency = await get_effective_base_currency(db)
+    processing_account = await get_or_create_processing_account(
+        db,
+        user_id,
+        currency=requested_currency,
+    )
+    currency = processing_account.currency
     pairs = await find_transfer_pairs(
         db,
         user_id,

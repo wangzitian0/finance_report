@@ -121,8 +121,8 @@ def test_is_entry_balanced():
             JournalLine(direction=Direction.CREDIT, amount=Decimal("99.00")),
         ]
     )
-    assert is_entry_balanced(balanced) is True
-    assert is_entry_balanced(unbalanced) is False
+    assert is_entry_balanced(balanced, base_currency="SGD") is True
+    assert is_entry_balanced(unbalanced, base_currency="SGD") is False
 
 
 def test_load_reconciliation_config_env_overrides():
@@ -345,6 +345,7 @@ def test_AC4_2_3_normal_candidates_cover_multi_entry_boundaries():
         candidates,
         pattern_scores={"vendor": 90.0},
         config=DEFAULT_CONFIG,
+        base_currency="SGD",
     )
 
     assert len(results) == 1

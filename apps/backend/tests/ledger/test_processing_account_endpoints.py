@@ -3,24 +3,34 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import (
     Account,
     AccountType,
+    ValidationError,
     create_transfer_in_entry,
     create_transfer_out_entry,
+    get_or_create_processing_account,
 )
 
 
-async def _seed_account(db: AsyncSession, user_id, name: str, code: str) -> Account:
+async def _seed_account(
+    db: AsyncSession,
+    user_id,
+    name: str,
+    code: str,
+    *,
+    currency: str = "SGD",
+) -> Account:
     account = Account(
         user_id=user_id,
         name=name,
         code=code,
         type=AccountType.ASSET,
-        currency="SGD",
+        currency=currency,
     )
     db.add(account)
     await db.flush()
@@ -300,3 +310,60 @@ async def test_processing_pending_flags_over_seven_days(client: AsyncClient, db:
     assert len(items) == 1
     assert items[0]["days_outstanding"] == 14
     assert items[0]["days_outstanding"] > 7
+
+
+async def test_usd_transfer_uses_explicit_base_for_python_and_database_invariants(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    cash = await _seed_account(db, test_user.id, "USD Cash", "1001", currency="USD")
+
+    entry = await create_transfer_out_entry(
+        db,
+        user_id=test_user.id,
+        source_account_id=cash.id,
+        amount=Decimal("25.00"),
+        txn_date=date.today(),
+        description="USD sweep",
+        currency="USD",
+    )
+    await db.commit()
+
+    assert entry.status.value == "posted"
+    assert {line.currency for line in entry.lines} == {"USD"}
+
+
+async def test_processing_summary_uses_stored_account_currency_after_config_change(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    assert processing.currency == "SGD"
+    await db.commit()
+    update = await client.put("/app-config/base-currency", json={"base_currency": "USD"})
+    assert update.status_code == 200, update.text
+
+    response = await client.get("/accounts/processing/summary")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["currency"] == "SGD"
+
+
+async def test_transfer_rejects_currency_mismatch_with_existing_processing_account(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    await get_or_create_processing_account(db, test_user.id, currency="SGD")
+    usd_cash = await _seed_account(db, test_user.id, "USD Cash", "1001", currency="USD")
+
+    with pytest.raises(ValidationError, match="Processing account currency is SGD"):
+        await create_transfer_out_entry(
+            db,
+            user_id=test_user.id,
+            source_account_id=usd_cash.id,
+            amount=Decimal("25.00"),
+            txn_date=date.today(),
+            description="invalid USD sweep",
+            currency="USD",
+        )

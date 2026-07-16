@@ -17,6 +17,10 @@ class AmountMismatchError(ReconciliationError):
     """A match cannot be accepted because its ledger amounts disagree."""
 
 
+class EntryCreationError(ReconciliationError):
+    """A match cannot be accepted because its journal entry cannot be created."""
+
+
 class ConsistencyCheckNotFoundError(ReconciliationError):
     """The requested consistency check is not visible to the caller."""
 

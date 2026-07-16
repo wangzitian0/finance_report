@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntryStatus, create_transfer_in_entry, create_transfer_out_entry, detect_transfer_pattern
+from src.ledger import (
+    JournalEntryStatus,
+    ValidationError,
+    create_transfer_in_entry,
+    create_transfer_out_entry,
+    detect_transfer_pattern,
+)
 from src.observability import get_logger
 from src.reconciliation.base import ReconciliationRepository
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -109,6 +115,8 @@ async def run_transfer_detection_phase(
                     entry_id=str(transfer_entry.id),
                     amount=str(txn.amount),
                 )
+        except ValidationError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create Processing account entry for transfer",

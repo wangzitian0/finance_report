@@ -19,10 +19,10 @@ class TestJournalRouterErrors:
         """
         GIVEN invalid journal entry data (unbalanced)
         WHEN creating a journal entry
-        THEN it should return 422 with validation error
+        THEN the ledger service should return 400 with a validation error
         """
-        cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="USD")
-        revenue = Account(user_id=test_user.id, name="Revenue", type=AccountType.INCOME, currency="USD")
+        cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
+        revenue = Account(user_id=test_user.id, name="Revenue", type=AccountType.INCOME, currency="SGD")
         db.add_all([cash, revenue])
         await db.commit()
         await db.refresh(cash)
@@ -36,19 +36,19 @@ class TestJournalRouterErrors:
                     "account_id": str(cash.id),
                     "direction": "DEBIT",
                     "amount": "100.00",
-                    "currency": "USD",
+                    "currency": "SGD",
                 },
                 {
                     "account_id": str(revenue.id),
                     "direction": "CREDIT",
                     "amount": "200.00",
-                    "currency": "USD",
+                    "currency": "SGD",
                 },
             ],
         }
 
         response = await client.post("/journal-entries", json=entry_data)
-        assert response.status_code == 422
+        assert response.status_code == 400
         response_data = response.json()
         assert "detail" in response_data
         error_msg = str(response_data).lower()

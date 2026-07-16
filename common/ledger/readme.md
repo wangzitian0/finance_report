@@ -370,8 +370,8 @@ Both transfer directions construct the same typed `Entry.transfer` value and
 persist it through ledger's `post_entry` front door. They cannot hand-roll a
 `POSTED` ORM row or bypass balance, ownership, FX-rate, and posting validation.
 The effective Processing currency is mandatory at every processing API boundary;
-the delivery layer passes the configured owner value, and ledger has no hidden
-`SGD` default.
+the delivery layer passes the configured owner value, and the processing path has
+no hidden `SGD` default.
 
 ---
 
@@ -746,7 +746,7 @@ ENABLE_TRANSFER_DETECTION = env.bool("ENABLE_TRANSFER_DETECTION", default=False)
 ### Q1: What currency should Processing account use?
 **Answer**: Use the effective base currency passed explicitly from application
 configuration. Multi-currency transfers are handled via FX conversion at the
-destination account; ledger never substitutes a currency default.
+destination account; processing APIs never substitute a currency default.
 
 ### Q2: Should Processing be visible in account balance totals?
 **Answer**: Yes in raw totals, but with explanatory footnote. Hide in user-facing summaries unless balance ≠ 0.

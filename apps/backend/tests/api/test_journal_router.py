@@ -191,7 +191,7 @@ async def test_create_unbalanced_entry(
     test_accounts: list[Account],
 ):
     """AC-ledger.7.2: Test creating an unbalanced entry fails."""
-    # GIVEN: Unbalanced entry data (missing credit side)
+    # GIVEN: Two-line entry that passes transport shape but violates ledger balance.
     invalid_data = {
         "entry_date": "2023-01-15",
         "memo": "Invalid entry",
@@ -200,8 +200,12 @@ async def test_create_unbalanced_entry(
                 "account_id": str(test_accounts[0].id),
                 "direction": "DEBIT",
                 "amount": "100.00",
-                "currency": "SGD",
-            }
+            },
+            {
+                "account_id": str(test_accounts[1].id),
+                "direction": "CREDIT",
+                "amount": "99.00",
+            },
         ],
         "source_type": "manual",
     }
@@ -210,7 +214,40 @@ async def test_create_unbalanced_entry(
     response = await client.post("/journal-entries", json=invalid_data)
 
     # THEN: Request rejected
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Pydantic validation
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "not balanced" in response.json()["detail"].lower()
+
+
+async def test_effective_usd_base_defaults_line_currency_at_ledger_boundary(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    accounts = [
+        Account(user_id=test_user.id, name="USD Cash", type=AccountType.ASSET, currency="USD"),
+        Account(user_id=test_user.id, name="USD Income", type=AccountType.INCOME, currency="USD"),
+    ]
+    db.add_all(accounts)
+    await db.flush()
+    account_ids = [account.id for account in accounts]
+    await db.commit()
+    update = await client.put("/app-config/base-currency", json={"base_currency": "USD"})
+    assert update.status_code == 200, update.text
+
+    response = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": "2026-01-15",
+            "memo": "USD base entry",
+            "lines": [
+                {"account_id": str(account_ids[0]), "direction": "DEBIT", "amount": "100.00"},
+                {"account_id": str(account_ids[1]), "direction": "CREDIT", "amount": "100.00"},
+            ],
+        },
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    assert {line["currency"] for line in response.json()["lines"]} == {"USD"}
 
 
 async def test_list_journal_entries(

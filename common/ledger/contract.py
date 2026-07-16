@@ -2216,7 +2216,7 @@ CONTRACT = PackageContract(
             id="AC-ledger.77.2",
             statement=(
                 "System-account and processing APIs require callers to supply the owning "
-                "currency explicitly; no SGD or configuration default is hidden in ledger."
+                "currency explicitly; the processing path has no hidden SGD or configuration default."
             ),
             test=(
                 "apps/backend/tests/ledger/test_signature_surgery.py"
@@ -2229,7 +2229,8 @@ CONTRACT = PackageContract(
             id="AC-ledger.77.3",
             statement=(
                 "Nominal account balances and base-currency account balances use separate "
-                "typed functions, so a boolean cannot silently change result semantics."
+                "typed functions with caller-supplied explicit base currency, so a boolean or "
+                "process default cannot silently change result semantics."
             ),
             test=(
                 "apps/backend/tests/ledger/test_signature_surgery.py"

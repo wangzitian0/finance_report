@@ -1108,7 +1108,7 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
         ),
         patch(
             "src.reconciliation.extension.phases.normal_matching.is_entry_balanced",
-            side_effect=lambda e: e.id != entry_c.id,
+            side_effect=lambda e, *, base_currency: e.id != entry_c.id,
         ),
         patch(
             "src.reconciliation.extension.phases.normal_matching.score_single",

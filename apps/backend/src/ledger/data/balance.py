@@ -20,7 +20,7 @@ from uuid import UUID
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
+from src.audit.money import Currency
 from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
@@ -109,12 +109,31 @@ async def calculate_account_balances_in_base_currency(
     db: AsyncSession,
     accounts: list[Account],
     user_id: UUID,
+    *,
+    base_currency: str,
 ) -> dict[UUID, Decimal]:
-    """Calculate balances converted into the configured base currency."""
-    base_currency = src.config.settings.base_currency.upper()
+    """Calculate balances converted into the caller's effective base currency."""
+    base_currency = Currency.of(base_currency).code
+    if not accounts:
+        return {}
+
+    account_ids = [account.id for account in accounts]
+    missing_fx = await db.execute(
+        select(JournalLine.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalLine.account_id.in_(account_ids))
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(func.coalesce(func.upper(JournalLine.currency), base_currency) != base_currency)
+        .where(JournalLine.fx_rate.is_(None))
+        .limit(1)
+    )
+    if missing_fx.first() is not None:
+        raise ValidationError(f"fx_rate required for non-base-currency ledger lines (base {base_currency})")
+
     amount_expr: Any = case(
         (func.coalesce(func.upper(JournalLine.currency), base_currency) == base_currency, JournalLine.amount),
-        else_=JournalLine.amount * func.coalesce(JournalLine.fx_rate, Decimal("1")),
+        else_=JournalLine.amount * JournalLine.fx_rate,
     )
     return await _calculate_account_balances(
         db,
@@ -175,7 +194,12 @@ async def _calculate_account_balances(
     return balances
 
 
-async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
+async def verify_accounting_equation(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    base_currency: str,
+) -> bool:
     """
     Verify that the accounting equation holds for a user.
 
@@ -192,7 +216,12 @@ async def verify_accounting_equation(db: AsyncSession, user_id: UUID) -> bool:
     result = await db.execute(select(Account).where(Account.user_id == user_id))
     accounts = list(result.scalars().all())
 
-    balances = await calculate_account_balances_in_base_currency(db, accounts, user_id)
+    balances = await calculate_account_balances_in_base_currency(
+        db,
+        accounts,
+        user_id,
+        base_currency=base_currency,
+    )
 
     totals = {
         AccountType.ASSET: Decimal("0"),

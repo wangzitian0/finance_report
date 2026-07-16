@@ -363,7 +363,7 @@ def test_weighted_total_and_balance_helpers() -> None:
         )
     )
     assert entry_total_amount(entry) == Decimal("50.00")
-    assert is_entry_balanced(entry)
+    assert is_entry_balanced(entry, base_currency="SGD")
 
     entry.lines.append(
         JournalLine(
@@ -374,7 +374,7 @@ def test_weighted_total_and_balance_helpers() -> None:
             currency="SGD",
         )
     )
-    assert not is_entry_balanced(entry)
+    assert not is_entry_balanced(entry, base_currency="SGD")
 
 
 def test_prune_candidates_orders_and_limits() -> None:

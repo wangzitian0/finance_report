@@ -195,11 +195,13 @@ def test_AC12_38_1_journal_line_currency_resolves_to_base_ssot():
     ci_tier="pr_ci",
 )
 def test_AC12_38_2_balance_core_sums_money():
-    """AC-audit.38.2: the journal balance core computes via `line.money` + `Money.sum`
-    (currency-checked), not a raw currency-blind Decimal sum."""
+    """AC-audit.38.2: the balance core builds typed Money in the explicit base context."""
     src = _read("apps/backend/src/ledger/base/validators.py")
-    assert "def _line_base_amount(line: JournalLine) -> Money" in src
-    assert "line.money" in src
+    assert (
+        "def _line_base_amount(line: JournalLine, *, base_currency: str | None = None) -> Money"
+        in src
+    )
+    assert "Money(line.amount, line.currency or base.code)" in src
     assert "Money.sum(" in src
 
 

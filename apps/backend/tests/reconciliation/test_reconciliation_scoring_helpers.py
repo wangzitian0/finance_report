@@ -162,6 +162,7 @@ class TestFindNormalCandidates:
             atomic_txns=[entry],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert len(results) == 1
@@ -190,6 +191,7 @@ class TestFindNormalCandidates:
             atomic_txns=[entry],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert len(results) == 0
@@ -218,6 +220,7 @@ class TestFindNormalCandidates:
             atomic_txns=[entry_a, entry_b],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert len(results) == 1
@@ -234,6 +237,7 @@ class TestFindNormalCandidates:
             atomic_txns=[],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert results == []
@@ -257,6 +261,7 @@ class TestFindNormalCandidates:
             atomic_txns=entries,
             pattern_scores={"vendor": 90.0},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert len(results) == 1
@@ -296,6 +301,7 @@ class TestFindManyToOneCandidates:
             atomic_txns=[entry],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert len(results) == 1
@@ -329,6 +335,7 @@ class TestFindManyToOneCandidates:
             atomic_txns=[entry],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert results == []
@@ -351,6 +358,7 @@ class TestFindManyToOneCandidates:
             atomic_txns=[],
             pattern_scores={},
             config=DEFAULT_CONFIG,
+            base_currency="SGD",
         )
 
         assert results == []

@@ -165,6 +165,7 @@ CONTRACT = PackageContract(
         "DEFAULT_CONFIG",
         "DEFAULT_RATE_TOLERANCE",
         "DEFAULT_TIME_WINDOW",
+        "EntryCreationError",
         "FxTransferError",
         "InvalidCheckActionError",
         "MAX_COMBINATION_CANDIDATES",
@@ -1991,8 +1992,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.signature-surgery.3",
             statement=(
-                "Single-entry and group scoring use distinct typed entry points, and the AI "
-                "switch is supplied through ReconciliationConfig rather than read in scoring."
+                "Normal single-/multi-entry scoring and many-to-one group scoring use distinct typed entry points; "
+                "normal multi-entry candidates retain widened amount tolerance, and the AI switch is supplied "
+                "through ReconciliationConfig rather than read in scoring."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_signature_surgery.py"

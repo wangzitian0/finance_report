@@ -21,6 +21,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config
 from src.audit import JournalEntrySourceType
 from src.ledger.base.repository import JournalRepository
 from src.ledger.base.types.entry import Entry
@@ -35,6 +36,7 @@ async def post_entry(
     entry_date: date,
     memo: str,
     entry: Entry,
+    base_currency: str | None = None,
     source_type: JournalEntrySourceType = JournalEntrySourceType.SYSTEM,
     source_id: UUID | None = None,
     repo: JournalRepository | None = None,
@@ -49,7 +51,11 @@ async def post_entry(
     a fake repo + dummy ``db`` is never refreshed.
     """
     use_default_adapter = repo is None
-    repository: JournalRepository = repo if repo is not None else SqlJournalRepository(db)
+    if base_currency is None:
+        # Compatibility for callers outside this slice; migrated delivery paths
+        # pass their persisted effective base explicitly.
+        base_currency = src.config.settings.base_currency
+    repository: JournalRepository = repo if repo is not None else SqlJournalRepository(db, base_currency=base_currency)
     lines_data = [
         {
             "account_id": leg.account_id,

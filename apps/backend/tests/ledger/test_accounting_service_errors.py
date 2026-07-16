@@ -365,7 +365,7 @@ async def test_verify_accounting_equation_success(db: AsyncSession, test_user_id
     )
     await db.commit()
 
-    assert await verify_accounting_equation(db, test_user_id) is True
+    assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
 
 
 async def test_accounting_utils_coverage(db: AsyncSession, test_user_id):

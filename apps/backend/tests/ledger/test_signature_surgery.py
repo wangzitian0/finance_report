@@ -6,6 +6,7 @@ import inspect
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -42,8 +43,15 @@ async def test_processing_transfers_use_the_post_entry_front_door(monkeypatch) -
     monkeypatch.setattr(processing, "post_entry", fake_post_entry)
 
     source_account_id = uuid4()
+    db = SimpleNamespace(
+        execute=AsyncMock(
+            return_value=SimpleNamespace(
+                scalar_one_or_none=lambda: SimpleNamespace(id=source_account_id, currency="USD")
+            )
+        )
+    )
     result = await create_transfer_out_entry(
-        SimpleNamespace(),
+        db,
         uuid4(),
         source_account_id,
         Decimal("25.00"),
@@ -63,6 +71,7 @@ async def test_processing_transfers_use_the_post_entry_front_door(monkeypatch) -
     )
     assert debits == credits == Decimal("25.00")
     assert {leg.account_id for leg in captured["entry"].legs} == {processing_id, source_account_id}
+    assert captured["base_currency"] == "USD"
 
 
 def test_processing_apis_require_explicit_currency() -> None:
@@ -82,6 +91,8 @@ def test_processing_apis_require_explicit_currency() -> None:
     opening_currency = inspect.signature(get_or_create_opening_balance_equity_account).parameters["currency"]
     assert opening_currency.default is inspect.Parameter.empty
     assert "src.config" not in inspect.getsource(processing)
+    for function in (create_transfer_out_entry, processing.create_transfer_in_entry):
+        assert "effective base currency" in inspect.getdoc(function)
 
 
 def test_account_balance_currency_spaces_are_explicit() -> None:
@@ -89,3 +100,6 @@ def test_account_balance_currency_spaces_are_explicit() -> None:
     assert "use_base_currency" not in inspect.signature(calculate_account_balances).parameters
     assert "use_base_currency" not in inspect.signature(calculate_account_balances_in_base_currency).parameters
     assert calculate_account_balances is not calculate_account_balances_in_base_currency
+    base_currency = inspect.signature(calculate_account_balances_in_base_currency).parameters["base_currency"]
+    assert base_currency.default is inspect.Parameter.empty
+    assert base_currency.kind is inspect.Parameter.KEYWORD_ONLY
