@@ -7,10 +7,17 @@ projection stays in ``data``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from enum import StrEnum
+from typing import Protocol
 
-from common.meta.base.package_contract import PackageContract
+
+class DependencyDeclaration(Protocol):
+    """The contract facts required to construct the dependency graph."""
+
+    name: str
+    depends_on: Sequence[str]
 
 
 class DependencyKind(StrEnum):
@@ -88,10 +95,12 @@ def _find_cycle(providers: dict[str, tuple[str, ...]]) -> tuple[str, ...] | None
     return None
 
 
-def build_dependency_graph(contracts: list[PackageContract]) -> DependencyGraph:
+def build_dependency_graph(
+    contracts: Sequence[DependencyDeclaration],
+) -> DependencyGraph:
     """Validate contracts and compute direct plus transitive consumers."""
 
-    by_name: dict[str, PackageContract] = {}
+    by_name: dict[str, DependencyDeclaration] = {}
     for contract in contracts:
         if contract.name in by_name:
             raise ValueError(f"duplicate package {contract.name!r}")

@@ -161,14 +161,17 @@ acyclic graph and computes direct plus transitive consumers; the pure
 is no authored dependency table alongside the contracts.
 
 `common/meta/extension/dependency_report.py` owns the impure review edge. It
-discovers contracts and public definitions from a checkout, archives the chosen
-Git base ref into an isolated temporary tree, then compares base with the working
-tree. The JSON report includes added/removed typed edges, changed public
-signatures, and the union of base/head direct and transitive consumers. Every
-declared public symbol gets exactly one snapshot record; when AST inspection
-cannot statically resolve a lazy export, the record says so instead of silently
-dropping it. Unreadable refs, empty discovery, duplicate/unknown/self edges, and
-cycles fail closed.
+reads only the dependency-relevant contract literals and public definitions via
+AST, archives the chosen Git base ref into an isolated temporary tree, and
+builds that historical snapshot in a clean `python -I` subprocess before
+comparing it with the working tree. A historical contract is therefore never
+reinterpreted through HEAD's `PackageContract` model. The JSON report includes
+added/removed typed edges, changed public signatures, and the union of base/head
+direct and transitive consumers. Class signatures include their public class
+members and constructor. Every declared public symbol gets exactly one snapshot
+record; when AST inspection cannot statically resolve a lazy export, the record
+says so instead of silently dropping it. Unreadable refs, empty discovery,
+duplicate/unknown/self edges, and cycles fail closed.
 
 The report is ephemeral CI output, not SSOT: `.github/workflows/ci.yml` appends
 its Markdown view to `GITHUB_STEP_SUMMARY`, while the contracts remain the only

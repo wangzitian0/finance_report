@@ -12,16 +12,24 @@ import ast
 import io
 import json
 import subprocess
+import sys
 import tarfile
 import tempfile
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from common.meta.base.dependency_graph import build_dependency_graph
-from common.meta.extension.check_package_contract import (
-    DiscoveredPackage,
-    discover_packages,
-)
+
+
+@dataclass(frozen=True)
+class SnapshotPackage:
+    """Neutral package facts read from a contract without importing its model."""
+
+    name: str
+    depends_on: tuple[str, ...]
+    interface: tuple[str, ...]
+    impl_dir: Path | None
 
 
 def _annotation(node: ast.expr | None) -> str:
@@ -39,9 +47,13 @@ def _class_signature(node: ast.ClassDef) -> str:
     for child in node.body:
         if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
             members.append(f"{child.target.id}: {_annotation(child.annotation)}")
-        elif isinstance(
-            child, (ast.FunctionDef, ast.AsyncFunctionDef)
-        ) and not child.name.startswith("_"):
+        elif isinstance(child, ast.Assign):
+            for target in child.targets:
+                if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                    members.append(f"{target.id}={ast.unparse(child.value)}")
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+            child.name == "__init__" or not child.name.startswith("_")
+        ):
             signature = _function_signature(child)
             suffix = signature.removeprefix("async def").removeprefix("def")
             members.append(f"{child.name}{suffix}")
@@ -99,9 +111,9 @@ def _root_reexport(impl_dir: Path, symbol: str) -> str | None:
 
 
 def _public_symbol_records(
-    package: DiscoveredPackage, repo_root: Path
+    package: SnapshotPackage, repo_root: Path
 ) -> list[dict[str, str]]:
-    if not package.contract.interface:
+    if not package.interface:
         return []
     if package.impl_dir is None or not package.impl_dir.is_dir():
         raise RuntimeError(
@@ -111,7 +123,7 @@ def _public_symbol_records(
 
     definitions = _definition_signatures(package.impl_dir, repo_root)
     records: list[dict[str, str]] = []
-    for symbol in sorted(package.contract.interface):
+    for symbol in sorted(package.interface):
         matches = definitions.get(symbol, [])
         if matches:
             signatures = sorted({signature for _, _, signature in matches})
@@ -142,15 +154,95 @@ def _public_symbol_records(
     return records
 
 
+def _contract_call(contract_path: Path) -> ast.Call:
+    tree = ast.parse(
+        contract_path.read_text(encoding="utf-8"), filename=str(contract_path)
+    )
+    for node in tree.body:
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "CONTRACT"
+            for target in node.targets
+        ):
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "CONTRACT"
+        ):
+            value = node.value
+        if isinstance(value, ast.Call):
+            return value
+    raise RuntimeError(f"{contract_path}: no CONTRACT declaration found")
+
+
+def _literal_keyword(call: ast.Call, name: str, contract_path: Path) -> object:
+    for keyword in call.keywords:
+        if keyword.arg != name:
+            continue
+        try:
+            return ast.literal_eval(keyword.value)
+        except (ValueError, TypeError, SyntaxError) as exc:
+            raise RuntimeError(
+                f"{contract_path}: {name!r} must be a literal for dependency reporting"
+            ) from exc
+    raise RuntimeError(f"{contract_path}: missing {name!r} contract field")
+
+
+def _implementation_dir(be_path: object, repo_root: Path) -> Path | None:
+    if be_path is None:
+        return None
+    if not isinstance(be_path, str):
+        raise RuntimeError("contract implementations['be'] must be a string or null")
+    relative = Path(be_path)
+    if relative.is_absolute():
+        return None
+    resolved = (repo_root / relative).resolve()
+    if resolved != repo_root and repo_root not in resolved.parents:
+        return None
+    return resolved
+
+
+def _snapshot_packages(repo_root: Path) -> list[SnapshotPackage]:
+    packages: list[SnapshotPackage] = []
+    for contract_path in sorted(repo_root.glob("common/*/contract.py")):
+        call = _contract_call(contract_path)
+        name = _literal_keyword(call, "name", contract_path)
+        depends_on = _literal_keyword(call, "depends_on", contract_path)
+        interface = _literal_keyword(call, "interface", contract_path)
+        implementations = _literal_keyword(call, "implementations", contract_path)
+        if not isinstance(name, str):
+            raise RuntimeError(f"{contract_path}: 'name' must be a string")
+        if not isinstance(depends_on, list) or not all(
+            isinstance(value, str) for value in depends_on
+        ):
+            raise RuntimeError(f"{contract_path}: 'depends_on' must be a string list")
+        if not isinstance(interface, list) or not all(
+            isinstance(value, str) for value in interface
+        ):
+            raise RuntimeError(f"{contract_path}: 'interface' must be a string list")
+        if not isinstance(implementations, dict):
+            raise RuntimeError(f"{contract_path}: 'implementations' must be a mapping")
+        packages.append(
+            SnapshotPackage(
+                name=name,
+                depends_on=tuple(depends_on),
+                interface=tuple(interface),
+                impl_dir=_implementation_dir(implementations.get("be"), repo_root),
+            )
+        )
+    return packages
+
+
 def build_dependency_snapshot(repo_root: Path) -> dict[str, object]:
     """Build a deterministic dependency/public-boundary snapshot of a tree."""
 
     root = repo_root.resolve()
-    packages = discover_packages(root)
+    packages = _snapshot_packages(root)
     if not packages:
         raise RuntimeError(f"no package contracts discovered under {root}")
 
-    graph = build_dependency_graph([package.contract for package in packages])
+    graph = build_dependency_graph(packages)
     public_symbols = [
         record
         for package in sorted(packages, key=lambda item: item.name)
@@ -265,7 +357,45 @@ def _snapshot_git_ref(repo_root: Path, ref: str) -> dict[str, object]:
         base_root = Path(temp_dir)
         with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
             tar.extractall(base_root, filter="data")
-        return build_dependency_snapshot(base_root)
+        output_path = base_root / "dependency-snapshot.json"
+        current_root = Path(__file__).resolve().parents[3]
+        runner = """
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from common.meta.extension.dependency_report import build_dependency_snapshot
+
+snapshot = build_dependency_snapshot(Path(sys.argv[2]))
+Path(sys.argv[3]).write_text(json.dumps(snapshot), encoding="utf-8")
+"""
+        load = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                runner,
+                current_root.as_posix(),
+                base_root.as_posix(),
+                output_path.as_posix(),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if load.returncode != 0 or not output_path.is_file():
+            detail = load.stderr.strip() or load.stdout.strip() or "loader failed"
+            raise RuntimeError(f"cannot snapshot base ref {ref!r}: {detail}")
+        try:
+            snapshot = json.loads(output_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"invalid snapshot for base ref {ref!r}: {exc}") from exc
+        if not isinstance(snapshot, dict):
+            raise RuntimeError(
+                f"invalid snapshot for base ref {ref!r}: expected object"
+            )
+        return snapshot
 
 
 def build_impact_report(repo_root: Path, *, base_ref: str) -> dict[str, object]:

@@ -9,6 +9,7 @@ import pytest
 
 from common.meta import PackageContract, dependency_index
 from common.meta.extension import check_package_contract as package_gate
+from common.meta.extension import dependency_report
 from common.meta.extension.dependency_report import (
     build_dependency_snapshot,
     build_impact_report,
@@ -200,6 +201,53 @@ def _seed_repo(tmp_path: Path) -> tuple[Path, str]:
     return repo, _git(repo, "rev-parse", "HEAD")
 
 
+def _write_public_types(
+    repo: Path,
+    *,
+    constructor: str,
+    enum_value: str,
+) -> None:
+    impl = "apps/backend/src/provider"
+    _write(
+        repo / "common/provider/contract.py",
+        f"""
+        from common.meta.package_contract import PackageContract
+
+        CONTRACT = PackageContract(
+            name="provider",
+            klass="meta",
+            tier="CODE-ONLY",
+            depends_on=[],
+            interface=["PublicClass", "PublicEnum"],
+            events=[],
+            invariants=[],
+            roadmap=[],
+            implementations={{"be": {impl!r}, "fe": None}},
+        )
+        """,
+    )
+    _write(
+        repo / f"{impl}/__init__.py",
+        (
+            "from .api import PublicClass, PublicEnum\n\n"
+            '__all__ = ["PublicClass", "PublicEnum"]\n'
+        ),
+    )
+    _write(
+        repo / f"{impl}/api.py",
+        f"""
+        from enum import StrEnum
+
+        class PublicClass:
+            def __init__(self, {constructor}) -> None:
+                self.value = value
+
+        class PublicEnum(StrEnum):
+            FIRST = {enum_value!r}
+        """,
+    )
+
+
 def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
     tmp_path: Path,
 ) -> None:
@@ -276,6 +324,102 @@ def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
     )
     with pytest.raises(RuntimeError, match="no readable BE implementation"):
         build_dependency_snapshot(broken)
+
+
+def test_AC_meta_dependency_governance_2_base_snapshot_uses_clean_interpreter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-meta.dependency-governance.2: HEAD imports cannot contaminate base."""
+
+    repo, base_ref = _seed_repo(tmp_path)
+
+    def contaminated_head_snapshot(_repo_root: Path) -> dict[str, object]:
+        raise AssertionError("HEAD interpreter leaked into the base snapshot")
+
+    monkeypatch.setattr(
+        dependency_report,
+        "build_dependency_snapshot",
+        contaminated_head_snapshot,
+    )
+
+    snapshot = dependency_report._snapshot_git_ref(repo, base_ref)
+
+    assert snapshot["direct_consumers"]["provider"] == ["middle"]
+
+
+def test_AC_meta_dependency_governance_2_base_contract_schema_is_not_reinterpreted(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: base facts survive contract-model drift."""
+
+    repo = tmp_path / "legacy-repo"
+    _write(
+        repo / "common/provider/contract.py",
+        """
+        from common.meta.package_contract import PackageContract
+
+        CONTRACT = PackageContract(
+            name="provider",
+            depends_on=[],
+            interface=[],
+            implementations={"be": None, "fe": None},
+        )
+        """,
+    )
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "dependency-test@example.invalid")
+    _git(repo, "config", "user.name", "Dependency Test")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "legacy package contract")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+
+    snapshot = dependency_report._snapshot_git_ref(repo, base_ref)
+
+    assert snapshot["edges"] == []
+    assert snapshot["direct_consumers"] == {"provider": []}
+
+
+def test_AC_meta_dependency_governance_2_public_class_constructor_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: constructors are public signatures."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_types(repo, constructor="value: str", enum_value="first")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish public types")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_types(
+        repo,
+        constructor="value: str, strict: bool = False",
+        enum_value="first",
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    changes = {record["symbol"]: record for record in report["changed_public_symbols"]}
+    assert changes["PublicClass"]["before"] != changes["PublicClass"]["after"]
+    assert "strict: bool=False" in changes["PublicClass"]["after"]
+
+
+def test_AC_meta_dependency_governance_2_public_enum_members_are_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: enum members are public signatures."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_types(repo, constructor="value: str", enum_value="first")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish public types")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_types(repo, constructor="value: str", enum_value="renamed")
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    changes = {record["symbol"]: record for record in report["changed_public_symbols"]}
+    assert "FIRST='first'" in changes["PublicEnum"]["before"]
+    assert "FIRST='renamed'" in changes["PublicEnum"]["after"]
 
 
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
