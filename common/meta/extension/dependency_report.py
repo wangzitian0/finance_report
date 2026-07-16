@@ -40,7 +40,24 @@ class _ResolvedExport:
     reexported: bool
 
 
+@dataclass(frozen=True)
+class _ImportedValue:
+    source: Path
+    symbol: str
+    binding: str
+
+
+@dataclass(frozen=True)
+class _ExpressionValue:
+    expression: str
+    dependencies: tuple[tuple[str, _ValueBinding], ...]
+
+
+type _ValueBinding = _ExpressionValue | _ImportedValue
+
+
 _ResolutionKey = tuple[Path, str, int | None]
+_ValueKey = tuple[Path, str]
 
 
 def _annotation(node: ast.expr | None) -> str:
@@ -60,84 +77,182 @@ def _type_parameters(
     return f"[{', '.join(ast.unparse(parameter) for parameter in parameters)}]"
 
 
-def _module_values(body: Sequence[ast.stmt]) -> dict[str, ast.expr]:
-    values: dict[str, ast.expr] = {}
+def _capture_expression(
+    node: ast.expr, values: dict[str, _ValueBinding]
+) -> _ExpressionValue:
+    references = sorted(
+        {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name) and child.id in values
+        }
+    )
+    return _ExpressionValue(
+        expression=ast.unparse(node),
+        dependencies=tuple((name, values[name]) for name in references),
+    )
+
+
+def _binding_fingerprint(
+    binding: _ValueBinding,
+    repo_root: Path,
+    seen: frozenset[_ValueKey] = frozenset(),
+) -> str:
+    if isinstance(binding, _ImportedValue):
+        fingerprint = _imported_value_fingerprint(
+            binding.source, binding.symbol, repo_root, seen
+        )
+        return (
+            f"{binding.binding} -> {fingerprint}"
+            if fingerprint is not None
+            else binding.binding
+        )
+    dependencies = [
+        f"{name}={_binding_fingerprint(value, repo_root, seen)}"
+        for name, value in binding.dependencies
+    ]
+    suffix = f" [{', '.join(dependencies)}]" if dependencies else ""
+    return f"{binding.expression}{suffix}"
+
+
+def _expression_fingerprint(
+    node: ast.expr, values: dict[str, _ValueBinding], repo_root: Path
+) -> str:
+    return _binding_fingerprint(_capture_expression(node, values), repo_root)
+
+
+def _imported_value_fingerprint(
+    source: Path,
+    symbol: str,
+    repo_root: Path,
+    seen: frozenset[_ValueKey],
+) -> str | None:
+    key = (source.resolve(), symbol)
+    if key in seen:
+        return None
+    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    values = _module_values(tree.body, source=source, repo_root=repo_root)
+    binding = values.get(symbol)
+    return (
+        _binding_fingerprint(binding, repo_root, seen | {key})
+        if binding is not None
+        else None
+    )
+
+
+def _module_values(
+    body: Sequence[ast.stmt],
+    *,
+    source: Path,
+    repo_root: Path,
+) -> dict[str, _ValueBinding]:
+    values: dict[str, _ValueBinding] = {}
     for node in body:
+        if isinstance(node, ast.ImportFrom):
+            target_source = _import_source(source, node, repo_root)
+            if target_source is None:
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                values[alias.asname or alias.name] = _ImportedValue(
+                    source=target_source,
+                    symbol=alias.name,
+                    binding=_import_binding(node, alias.name),
+                )
+            continue
+        if isinstance(node, ast.Assign):
+            binding = _capture_expression(node.value, values)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    values[target.id] = binding
+            continue
         if (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-        ):
-            values[node.targets[0].id] = node.value
-        elif (
             isinstance(node, ast.AnnAssign)
             and isinstance(node.target, ast.Name)
             and node.value is not None
         ):
-            values[node.target.id] = node.value
+            values[node.target.id] = _capture_expression(node.value, values)
+            continue
+        if isinstance(node, ast.TypeAlias) and isinstance(node.name, ast.Name):
+            values[node.name.id] = _capture_expression(node.value, values)
     return values
 
 
-def _value_fingerprint(
-    name: str, values: dict[str, ast.expr], seen: frozenset[str] = frozenset()
+def _resolved_references(
+    expressions: Iterable[ast.expr],
+    values: dict[str, _ValueBinding],
+    label: str,
+    repo_root: Path,
 ) -> str:
-    value = values[name]
     references = sorted(
         {
             child.id
-            for child in ast.walk(value)
-            if isinstance(child, ast.Name)
-            and child.id in values
-            and child.id not in seen
-            and child.id != name
-        }
-    )
-    dependencies = [
-        f"{reference}={_value_fingerprint(reference, values, seen | {name})}"
-        for reference in references
-    ]
-    suffix = f" [{', '.join(dependencies)}]" if dependencies else ""
-    return f"{ast.unparse(value)}{suffix}"
-
-
-def _resolved_default_values(
-    node: ast.FunctionDef | ast.AsyncFunctionDef,
-    values: dict[str, ast.expr],
-) -> str:
-    defaults = [*node.args.defaults]
-    defaults.extend(default for default in node.args.kw_defaults if default is not None)
-    references = sorted(
-        {
-            child.id
-            for default in defaults
-            for child in ast.walk(default)
+            for expression in expressions
+            for child in ast.walk(expression)
             if isinstance(child, ast.Name) and child.id in values
         }
     )
     if not references:
         return ""
     resolved = ", ".join(
-        f"{name}={_value_fingerprint(name, values)}" for name in references
+        f"{name}={_binding_fingerprint(values[name], repo_root)}" for name in references
     )
-    return f" [defaults: {resolved}]"
+    return f" [{label}: {resolved}]"
+
+
+def _resolved_default_values(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    values: dict[str, _ValueBinding],
+    repo_root: Path,
+) -> str:
+    defaults = [*node.args.defaults]
+    defaults.extend(default for default in node.args.kw_defaults if default is not None)
+    return _resolved_references(defaults, values, "defaults", repo_root)
+
+
+def _resolved_annotation_values(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    values: dict[str, _ValueBinding],
+    repo_root: Path,
+) -> str:
+    arguments = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+    if node.args.vararg is not None:
+        arguments.append(node.args.vararg)
+    if node.args.kwarg is not None:
+        arguments.append(node.args.kwarg)
+    annotations = [argument.annotation for argument in arguments if argument.annotation]
+    if node.returns is not None:
+        annotations.append(node.returns)
+    return _resolved_references(annotations, values, "annotations", repo_root)
 
 
 def _function_signature(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
-    values: dict[str, ast.expr] | None = None,
+    repo_root: Path,
+    values: dict[str, _ValueBinding] | None = None,
 ) -> str:
+    bindings = values or {}
     prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
     return (
         f"{_decorator_prefix(node.decorator_list)}{prefix}{_type_parameters(node)}"
         f"({ast.unparse(node.args)}) -> {_annotation(node.returns)}"
-        f"{_resolved_default_values(node, values or {})}"
+        f"{_resolved_default_values(node, bindings, repo_root)}"
+        f"{_resolved_annotation_values(node, bindings, repo_root)}"
     )
 
 
-def _annotated_assignment_signature(node: ast.AnnAssign) -> str:
+def _annotated_assignment_signature(
+    node: ast.AnnAssign,
+    values: dict[str, _ValueBinding],
+    repo_root: Path,
+) -> str:
     signature = _annotation(node.annotation)
+    signature += _resolved_references(
+        [node.annotation], values, "annotations", repo_root
+    )
     if node.value is not None:
-        signature += f"={ast.unparse(node.value)}"
+        signature += f"={_expression_fingerprint(node.value, values, repo_root)}"
     return signature
 
 
@@ -190,7 +305,7 @@ def _class_signature(
     node: ast.ClassDef,
     *,
     module_body: list[ast.stmt],
-    values: dict[str, ast.expr],
+    values: dict[str, _ValueBinding],
     source: Path,
     repo_root: Path,
     seen: frozenset[_ResolutionKey],
@@ -225,16 +340,20 @@ def _class_signature(
             and not child.target.id.startswith("_")
         ):
             members.append(
-                f"{child.target.id}: {_annotated_assignment_signature(child)}"
+                f"{child.target.id}: "
+                f"{_annotated_assignment_signature(child, values, repo_root)}"
             )
         elif isinstance(child, ast.Assign):
             for target in child.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
-                    members.append(f"{target.id}={ast.unparse(child.value)}")
+                    members.append(
+                        f"{target.id}="
+                        f"{_expression_fingerprint(child.value, values, repo_root)}"
+                    )
         elif isinstance(
             child, (ast.FunctionDef, ast.AsyncFunctionDef)
         ) and _is_public_method(child.name):
-            signature = _function_signature(child, values)
+            signature = _function_signature(child, repo_root, values)
             marker = "async def" if isinstance(child, ast.AsyncFunctionDef) else "def"
             members.append(signature.replace(marker, child.name, 1))
     body = "; ".join(members)
@@ -249,14 +368,18 @@ def _definition_signature(
     symbol: str,
     *,
     module_body: list[ast.stmt],
-    values: dict[str, ast.expr],
+    values: dict[str, _ValueBinding],
     source: Path,
     repo_root: Path,
     seen: frozenset[_ResolutionKey],
     definition_index: int,
 ) -> str | None:
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        return _function_signature(node, values) if node.name == symbol else None
+        return (
+            _function_signature(node, repo_root, values)
+            if node.name == symbol
+            else None
+        )
     if isinstance(node, ast.ClassDef):
         return (
             _class_signature(
@@ -276,11 +399,17 @@ def _definition_signature(
         and isinstance(node.target, ast.Name)
         and node.target.id == symbol
     ):
-        return f"value: {_annotated_assignment_signature(node)}"
+        return f"value: {_annotated_assignment_signature(node, values, repo_root)}"
     if isinstance(node, ast.Assign) and any(
         isinstance(target, ast.Name) and target.id == symbol for target in node.targets
     ):
-        return f"value={ast.unparse(node.value)}"
+        return f"value={_expression_fingerprint(node.value, values, repo_root)}"
+    if (
+        isinstance(node, ast.TypeAlias)
+        and isinstance(node.name, ast.Name)
+        and node.name.id == symbol
+    ):
+        return f"type={_expression_fingerprint(node.value, values, repo_root)}"
     return None
 
 
@@ -307,6 +436,21 @@ def _assigned_alias_target(node: ast.stmt, symbol: str) -> str | None:
     return value.id if isinstance(value, ast.Name) else None
 
 
+def _defines_symbol(node: ast.stmt, symbol: str) -> bool:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return node.name == symbol
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        return node.target.id == symbol
+    if isinstance(node, ast.Assign):
+        return any(
+            isinstance(target, ast.Name) and target.id == symbol
+            for target in node.targets
+        )
+    if isinstance(node, ast.TypeAlias) and isinstance(node.name, ast.Name):
+        return node.name.id == symbol
+    return False
+
+
 def _module_definition_signature(
     body: list[ast.stmt],
     index: int,
@@ -317,7 +461,7 @@ def _module_definition_signature(
     seen: frozenset[_ResolutionKey],
 ) -> str | None:
     node = body[index]
-    values = _module_values(body[:index])
+    values = _module_values(body[:index], source=source, repo_root=repo_root)
     signature = _definition_signature(
         node,
         symbol,
@@ -343,7 +487,7 @@ def _module_definition_signature(
     if _is_overload(node):
         definitions.append(node)
     return " | ".join(
-        _function_signature(definition, values) for definition in definitions
+        _function_signature(definition, repo_root, values) for definition in definitions
     )
 
 
@@ -679,42 +823,43 @@ def _resolve_export(
     # Reverse order reflects the binding left in the module namespace at runtime.
     for index in range(stop - 1, -1, -1):
         node = tree.body[index]
-        alias_target = _assigned_alias_target(node, symbol)
-        if alias_target is not None:
-            resolved = _resolve_export(
-                source,
-                alias_target,
-                repo_root,
-                next_seen,
-                before_index=index,
-            )
-            if resolved is None:
-                raise RuntimeError(
-                    f"{source}: cannot resolve alias {symbol!r} through "
-                    f"{alias_target!r}"
+        if _defines_symbol(node, symbol):
+            alias_target = _assigned_alias_target(node, symbol)
+            if alias_target is not None:
+                resolved = _resolve_export(
+                    source,
+                    alias_target,
+                    repo_root,
+                    next_seen,
+                    before_index=index,
                 )
-            return _ResolvedExport(
-                signature=resolved.signature,
-                binding=f"alias:{alias_target} -> {resolved.binding}",
-                source=resolved.source,
-                reexported=True,
-            )
-        signature = _module_definition_signature(
-            tree.body,
-            index,
-            symbol,
-            source=source,
-            repo_root=repo_root,
-            seen=next_seen,
-        )
-        if signature is not None:
-            relative = source.relative_to(repo_root).as_posix()
-            return _ResolvedExport(
-                signature=signature,
-                binding=f"{relative}::{symbol}",
+                if resolved is None:
+                    raise RuntimeError(
+                        f"{source}: cannot resolve alias {symbol!r} through "
+                        f"{alias_target!r}"
+                    )
+                return _ResolvedExport(
+                    signature=resolved.signature,
+                    binding=f"alias:{alias_target} -> {resolved.binding}",
+                    source=resolved.source,
+                    reexported=True,
+                )
+            signature = _module_definition_signature(
+                tree.body,
+                index,
+                symbol,
                 source=source,
-                reexported=False,
+                repo_root=repo_root,
+                seen=next_seen,
             )
+            if signature is not None:
+                relative = source.relative_to(repo_root).as_posix()
+                return _ResolvedExport(
+                    signature=signature,
+                    binding=f"{relative}::{symbol}",
+                    source=source,
+                    reexported=False,
+                )
         if not isinstance(node, ast.ImportFrom):
             continue
         for alias in reversed(node.names):

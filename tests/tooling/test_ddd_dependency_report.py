@@ -966,6 +966,120 @@ def test_AC_meta_dependency_governance_2_local_alias_target_is_reported(
     assert change["before"] != change["after"]
 
 
+def test_AC_meta_dependency_governance_2_imported_default_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: imported defaults are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        from .constants import DEFAULT
+
+        def public(value: int = DEFAULT) -> int:
+            return value
+        """,
+    )
+    constants = repo / "apps/backend/src/provider/constants.py"
+    _write(constants, "DEFAULT = 5\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish imported default")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(constants, "DEFAULT = 10\n")
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_annotation_alias_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: annotation aliases are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        _Input = int | str
+
+        class Public:
+            value: _Input
+
+            def transform(self, value: _Input) -> _Input:
+                return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish annotation alias")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        _Input = int | str | bytes
+
+        class Public:
+            value: _Input
+
+            def transform(self, value: _Input) -> _Input:
+                return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "Public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_default_uses_assignment_time_value(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: defaults retain captured value bindings."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        A = 1
+        B = A
+        A = 2
+
+        def public(value: int = B) -> int:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish captured default")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        A = 2
+        B = A
+        A = 2
+
+        def public(value: int = B) -> int:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):
