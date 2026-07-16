@@ -26,6 +26,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLING_DIR = REPO_ROOT / "tests" / "tooling"
 BASELINE_PATH = Path(__file__).parent / "mirror-assertion-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 _MIRROR_RE = re.compile(
     r"""assert\s+\(?\s*(?:not\s+)?[frbuFRBU]{0,2}["'].*?["']\s+(?:not\s+)?in\s+""",

@@ -174,13 +174,13 @@ def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
         'BASELINE_UPDATE_MODE = "rewrite"\nparser.add_argument("--rewrite-baseline")\n',
         encoding="utf-8",
     )
-    assert baseline_update_contract.violations(tmp_path) == []
+    assert baseline_update_contract.declaration_violations(tmp_path) == []
 
     rewrite.write_text(
         'BASELINE_UPDATE_MODE = "rewrite"\nparser.add_argument("--update")\n',
         encoding="utf-8",
     )
-    findings = baseline_update_contract.violations(tmp_path)
+    findings = baseline_update_contract.declaration_violations(tmp_path)
     assert len(findings) == 1
     assert "rewrite mode must use --rewrite-baseline" in findings[0]
 
@@ -192,13 +192,17 @@ def test_AC_testing_governance_18_baseline_mutation_flags_are_explicit(
         'BASELINE_UPDATE_MODE = "grow"\nparser.add_argument("--update")\n',
         encoding="utf-8",
     )
+    (package / "manual_without_mode.py").write_text(
+        'def main(args):\n    if "--update" in args:\n        return 0\n',
+        encoding="utf-8",
+    )
     (package / "monotonic_rewrite.py").write_text(
         'BASELINE_UPDATE_MODE = "shrink-only"\n'
         'parser.add_argument("--rewrite-baseline")\n',
         encoding="utf-8",
     )
-    findings = baseline_update_contract.violations(tmp_path)
-    assert len(findings) == 4
+    findings = baseline_update_contract.declaration_violations(tmp_path)
+    assert len(findings) == 5
     assert any("has no mutation flag" in finding for finding in findings)
     assert any("requires BASELINE_UPDATE_MODE" in finding for finding in findings)
     assert any("--rewrite-baseline requires" in finding for finding in findings)
@@ -391,11 +395,43 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert tool_baseline.read_bytes() == tool_before
 
-    assert baseline_update_contract.monotonic_update_paths(ROOT) == {
+    update_paths = baseline_update_contract.monotonic_update_paths(ROOT)
+    assert update_paths == {
         "common/meta/extension/check_ac_tier_baseline.py",
         "common/meta/extension/check_app_boundary.py",
+        "common/testing/api_surface_ratchet.py",
         "common/testing/check_ac_score_baseline.py",
         "common/testing/check_cas" + "sette_graded_eval.py",
+        "common/testing/check_critical_value_proof.py",
+        "common/testing/fe_api_handmock_ratchet.py",
+        "common/testing/fe_fetch_ratchet.py",
         "common/testing/gate_main_contract.py",
+        "common/testing/mirror_ratchet.py",
         "common/testing/tool_shim_contract.py",
     }
+    assert set(baseline_update_contract.MONOTONIC_UPDATE_PROOFS) == update_paths
+    assert baseline_update_contract.proof_violations(ROOT) == []
+
+    synthetic_root = tmp_path / "proof-contract"
+    synthetic_updater = synthetic_root / "common/testing/synthetic.py"
+    synthetic_updater.parent.mkdir(parents=True)
+    synthetic_updater.write_text(
+        'BASELINE_UPDATE_MODE = "shrink-only"\n'
+        'def main(args):\n    return 0 if "--update" in args else 1\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(baseline_update_contract, "MONOTONIC_UPDATE_PROOFS", {})
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py: monotonic --update path lacks a behavioral "
+        "regression proof"
+    ]
+
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {"common/testing/synthetic.py": "tests/tooling/test_missing.py::test_missing"},
+    )
+    assert baseline_update_contract.proof_violations(synthetic_root) == [
+        "common/testing/synthetic.py: behavioral proof node does not exist: "
+        "tests/tooling/test_missing.py::test_missing"
+    ]

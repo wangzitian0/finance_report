@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_SRC = REPO_ROOT / "apps" / "backend" / "src"
 ROUTERS_DIR = BACKEND_SRC / "routers"
 BASELINE_PATH = Path(__file__).parent / "data" / "api-surface-ratchet-baseline.json"
+BASELINE_UPDATE_MODE = "shrink-only"
 
 TERMINAL_API_HOME = "extension/api"
 
