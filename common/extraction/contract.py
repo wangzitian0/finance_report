@@ -139,14 +139,14 @@ CONTRACT = PackageContract(
         ),
         # dual-write persistence verbs (upsert by dedup_hash). Declared as the
         # repository IMPL half only via taxonomy for now: carving the base
-        # port out of the raw-AsyncSession verbs is the documented follow-up
-        # (todo.md); until then the unit is taxonomy-only.
+        # port out of the raw-AsyncSession verbs is an unscheduled design option;
+        # until it receives an AC the unit is taxonomy-only.
         Unit(name="AtomicTransactionRepository", kind=Kind.REPOSITORY),
         # ── data: evidence lineage read-models ──
         # Taxonomy-only: the lineage read/write paths are still entangled
         # (integration instantiates the lineage reader; materialization uses an
         # integration helper), so the physical files sit in extension/ and the
-        # clean data/ split is documented package-internal follow-up (todo.md).
+        # clean data/ split is an unscheduled package-internal design option.
         Unit(name="EvidenceLineageService", kind=Kind.PROJECTION),
         Unit(name="EvidenceGraphMaterializationService", kind=Kind.PROJECTION),
         # ── reserved: the balance-chain violation as a domain event (today it

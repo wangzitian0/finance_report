@@ -203,7 +203,7 @@ Contract in `common/`, implementation in `apps/<runtime>/`. `data` is metadata i
 common/<pkg>/                         spec + review surface
   __init__.py                         re-exports CONTRACT
   contract.py                         interface · units=[Unit(kind=…)] · invariants · roadmap(ACs)
-  readme.md  todo.md                  prose (absorbs the package's SSOT) + worklist
+  readme.md                           prose (absorbs the package's SSOT)
 apps/backend/src/<pkg>/               BE implementation  (implementations["be"])
   __init__.py                         __all__ == contract.interface
   base/        types/ ops/ ports      pure core — downward DAG, no I/O
@@ -221,7 +221,7 @@ additionally keeps BE/FE mirrors honest via `conformance/vectors.json`.
 
 ```
 common/<pkg>/
-  __init__.py  contract.py  readme.md  todo.md
+  __init__.py  contract.py  readme.md
   contract/<pkg>.contract.md          language-neutral interface spec (the cross-runtime contract)
   conformance/vectors.json            shared BE/FE parity vectors (the consistency guarantee)
   base/                               canonical pure value types + ops
@@ -236,7 +236,7 @@ MANIFEST / registry:
 
 ```
 common/meta/
-  __init__.py  contract.py  readme.md  todo.md  migration-standard.md
+  __init__.py  contract.py  readme.md  migration-standard.md
   base/                               the model — PackageContract, tiers, proof matrix
   extension/                          the gate — check_package_contract (governs every package)
   data/                               the computed meta-index (registry · AC index · coverage)

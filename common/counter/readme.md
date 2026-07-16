@@ -2,7 +2,7 @@
 
 > The **canonical worked example of the package model** (a package = DDD bounded
 > context). Model spec: [`../meta/readme.md`](../meta/readme.md).
-> Machine contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
+> Machine contract: [`contract.py`](./contract.py).
 >
 > This `common/counter/` directory is the **spec + review surface**; the
 > conforming implementation lives at
@@ -109,6 +109,10 @@ The ORM/`AsyncSession` lives only in `extension` and never leaks into `base`.
 **Internal** (not importable as public language): `SqlCounterRepository`,
 `CounterTally` (the table model), and module internals. Persistence is an
 implementation detail behind the `CounterRepository` port.
+
+A frontend mirror and a decrement/void operation are explicit non-goals until a
+real consumer requires them. The published async `read_count` facade is the
+typed reporting read surface; any wider surface starts with an issue and AC.
 
 ## Storage
 

@@ -3,7 +3,7 @@
 > **Status: active.** The boundary — value language, manifest, `DependencyCheck`
 > port + adapters — is shipped, and the smoke/health ACs are homed in
 > [`contract.py`](./contract.py)'s roadmap. Remaining work (manifest-driven
-> enforcement, substitutes) is tracked in [`todo.md`](./todo.md).
+> enforcement and substitutes) is complete and contract-backed below.
 > Model spec: [`../meta/readme.md`](../meta/readme.md).
 
 ## Why this package exists
@@ -160,5 +160,5 @@ The package publishes (`contract.interface`) the `base` value language + manifes
 (+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` /
 `DEPENDENCY_MANIFEST`, the `DependencyCheck` port (+ `DependencyStatus` /
 `ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
-`boot.Bootloader` delegates its checks to the adapters. See [`todo.md`](./todo.md)
-for the remaining enforcement work.
+`boot.Bootloader` delegates its checks to the adapters. New enforcement work
+must start in a GitHub issue and the package roadmap rather than a parallel list.

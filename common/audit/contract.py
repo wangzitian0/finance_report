@@ -91,7 +91,7 @@ CONTRACT = PackageContract(
     # apps/backend/src/audit/promotion/gate.py, #1667) — audit's first owned
     # base module. The rest of audit's own base value objects (confidence/
     # provenance, trace records) still arrive in a later fold and are tracked
-    # in readme.md/todo.md, not declared as vapor units here.
+    # in readme.md, not declared as vapor units here.
     units=[
         Unit(name="Money", kind=Kind.VALUE_OBJECT),
         Unit(name="Currency", kind=Kind.VALUE_OBJECT),

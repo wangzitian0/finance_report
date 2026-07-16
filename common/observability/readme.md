@@ -1,7 +1,7 @@
 # `observability` — OTEL runtime contract, audit logging + OpenPanel CLI (infra)
 
 > Model spec: [`../meta/readme.md`](../meta/readme.md). Machine
-> contract: [`contract.py`](./contract.py). Worklist: [`todo.md`](./todo.md).
+> contract: [`contract.py`](./contract.py).
 
 ## What
 

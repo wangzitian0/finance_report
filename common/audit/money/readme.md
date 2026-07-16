@@ -4,8 +4,7 @@
 > [`../../meta/readme.md`](../../meta/readme.md). Machine contract:
 > [`contract.py`](../contract.py). Language-neutral interface + conformance:
 > [`contract/money.contract.md`](./contract/money.contract.md) +
-> [`conformance/vectors.json`](./conformance/vectors.json). Worklist:
-> [`todo.md`](./todo.md).
+> [`conformance/vectors.json`](./conformance/vectors.json).
 >
 > The **audit** package's value-language core (L1 `infra` in the five-layer
 > map). It imports the `ratio` package
@@ -53,10 +52,9 @@ prove themselves against the same vectors.
 
 [`contract.py`](../contract.py) is validated by `tools/check_package_contract.py`:
 `interface` == the BE `__all__`, every invariant pins to a conformance test, and
-no upward/sideways import edge. The money ACs (`AC2.19.x` / `AC2.20.x`) are still
-owned by the EPIC-002 table; moving that AC ownership into the contract `roadmap`
-(so the contract is the single source) is a tracked follow-up — see
-[`todo.md`](./todo.md).
+no upward/sideways import edge. The money ACs formerly named `AC2.19.x` /
+`AC2.20.x` are owned by the audit contract roadmap as `AC-audit.19.*` /
+`AC-audit.20.*`; the EPIC contains no mirrored rows.
 
 ---
 
