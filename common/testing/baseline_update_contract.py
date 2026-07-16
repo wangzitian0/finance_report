@@ -818,8 +818,9 @@ def _updater_baseline_names(
     updater_call: ast.Call,
     updater_aliases: set[str],
     constants: dict[str, str],
-) -> frozenset[str]:
+) -> tuple[frozenset[str], frozenset[str]]:
     names: set[str] = set()
+    captured_names: set[str] = set()
     argv = _call_argv_node(updater_call)
     if isinstance(argv, (ast.List, ast.Tuple)):
         for option_node, value_node in zip(argv.elts, argv.elts[1:]):
@@ -850,10 +851,105 @@ def _updater_baseline_names(
         attribute = attribute.lower()
         if "baseline" in attribute or "floor" in attribute:
             names.update(value_names)
+            if isinstance(value, ast.Lambda):
+                captured_names.update(value_names & mutated_names)
         elif attribute.startswith(("dump", "write")):
-            names.update(value_names & mutated_names)
+            captured_names.update(value_names & mutated_names)
+            names.update(captured_names)
     names -= updater_aliases | _OBSERVER_BUILTINS | {"monkeypatch"}
-    return frozenset(names)
+    captured_names &= names
+    return frozenset(names), frozenset(captured_names)
+
+
+_PERSISTED_STATE_READERS = frozenset({"read_bytes", "read_text"})
+
+
+def _observer_target(
+    observer: ast.expr, tree: ast.Module, function: TestFunction
+) -> ast.AST | None:
+    if not isinstance(observer, ast.Name):
+        return observer
+    observer_function = _named_observer_function(observer.id, tree, function)
+    if observer_function is None:
+        return None
+    return ast.Module(body=observer_function.body, type_ignores=[])
+
+
+def _observer_reads_persisted_state(
+    observer: ast.expr,
+    tree: ast.Module,
+    function: TestFunction,
+    baseline_names: frozenset[str],
+    captured_names: frozenset[str],
+) -> bool:
+    target = _observer_target(observer, tree, function)
+    if target is None:
+        return False
+    if _node_names(target) & captured_names:
+        return True
+    return any(
+        isinstance(node, ast.Attribute)
+        and node.attr in _PERSISTED_STATE_READERS
+        and _root_name(node.value) in baseline_names
+        for node in ast.walk(target)
+    )
+
+
+def _observer_depends_on_regression_state(
+    observer: ast.expr,
+    tree: ast.Module,
+    function: TestFunction,
+    baseline_names: frozenset[str],
+) -> bool:
+    def state_names(
+        target: ast.AST,
+        *,
+        observer_function: TestFunction | None = None,
+        seen: frozenset[tuple[int, int]] = frozenset(),
+    ) -> set[str]:
+        referenced = _node_names(target)
+        for call in ast.walk(target):
+            if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)):
+                continue
+            called_function = _named_observer_function(call.func.id, tree, function)
+            if called_function is None:
+                continue
+            referenced.discard(call.func.id)
+            key = (called_function.lineno, called_function.col_offset)
+            if key not in seen:
+                referenced.update(
+                    state_names(
+                        ast.Module(body=called_function.body, type_ignores=[]),
+                        observer_function=called_function,
+                        seen=seen | {key},
+                    )
+                )
+        if observer_function is not None:
+            referenced -= {
+                name
+                for assignment in _scoped_assignments(observer_function)
+                for target_node in (
+                    assignment.targets
+                    if isinstance(assignment, ast.Assign)
+                    else [assignment.target]
+                )
+                for name in _bound_names(target_node)
+            }
+        return referenced
+
+    target = _observer_target(observer, tree, function)
+    if target is None:
+        return False
+    observer_function = (
+        _named_observer_function(observer.id, tree, function)
+        if isinstance(observer, ast.Name)
+        else None
+    )
+    referenced = state_names(target, observer_function=observer_function)
+    referenced -= baseline_names | _OBSERVER_BUILTINS
+    if isinstance(observer, ast.Name):
+        referenced.discard(observer.id)
+    return bool(referenced)
 
 
 def _proof_status(
@@ -915,7 +1011,7 @@ def _proof_status(
         if bound_updater_call is None:
             continue
         saw_bound_updater = True
-        baseline_names = _updater_baseline_names(
+        baseline_names, captured_names = _updater_baseline_names(
             function,
             bound_updater_call,
             updater_aliases,
@@ -934,6 +1030,19 @@ def _proof_status(
                 function,
                 include_unmutated_containers=name == "baseline_state",
                 required_names=baseline_names if name == "baseline_state" else None,
+            )
+            and (
+                _observer_depends_on_regression_state(
+                    observers[name], tree, function, baseline_names
+                )
+                if name == "regression_debt_present"
+                else _observer_reads_persisted_state(
+                    observers[name],
+                    tree,
+                    function,
+                    baseline_names,
+                    captured_names,
+                )
             )
             for name in ("regression_debt_present", "baseline_state")
         ):

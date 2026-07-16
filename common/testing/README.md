@@ -80,10 +80,12 @@ deliberately louder `--rewrite-baseline` flag. The updater census recognizes bot
 module-level string constants in both forms. Every `(module, mutation flag)`
 command must map to a live test node that uses
 `assert_regression_debt_refused` with non-vacuous debt and baseline-state
-observers, invokes that updater's `main` with that exact flag, and proves the
-baseline remains unchanged. A new mutation command therefore cannot be covered
-by a declaration, another flag's proof, an unrelated test name, constant
-callbacks, or a happy-path call.
+observers. The debt observer must depend on state beyond the baseline path, and
+the baseline observer must read persisted contents (or a captured writer sink),
+not merely check that the path exists. The proof invokes that updater's `main`
+with the exact flag and proves the baseline remains unchanged. A new mutation
+command therefore cannot be covered by a declaration, another flag's proof, an
+unrelated test name, constant callbacks, or a happy-path call.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires
