@@ -54,12 +54,25 @@ class _ImportedModule:
 
 
 @dataclass(frozen=True)
+class _LocalDefinition:
+    source: Path
+    symbol: str
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+    values: tuple[tuple[str, _ValueBinding], ...]
+    body: tuple[ast.stmt, ...]
+    index: int
+    binding: str
+
+
+@dataclass(frozen=True)
 class _ExpressionValue:
     expression: str
     dependencies: tuple[tuple[str, _ValueBinding], ...]
 
 
-type _ValueBinding = _ExpressionValue | _ImportedModule | _ImportedValue
+type _ValueBinding = (
+    _ExpressionValue | _ImportedModule | _ImportedValue | _LocalDefinition
+)
 
 
 _ResolutionKey = tuple[Path, str, int | None]
@@ -148,6 +161,30 @@ def _binding_fingerprint(
 ) -> str:
     if isinstance(binding, _ImportedModule):
         return binding.binding
+    if isinstance(binding, _LocalDefinition):
+        key = (binding.source.resolve(), binding.symbol)
+        if key in seen:
+            return binding.binding
+        definition_seen = seen | {key}
+        if isinstance(binding.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            signature = _function_signature(
+                binding.node,
+                repo_root,
+                dict(binding.values),
+                definition_seen,
+            )
+        else:
+            signature = _class_signature(
+                binding.node,
+                module_body=list(binding.body),
+                values=dict(binding.values),
+                source=binding.source,
+                repo_root=repo_root,
+                seen=frozenset(),
+                definition_index=binding.index,
+                value_seen=definition_seen,
+            )
+        return f"{binding.binding} -> {signature}"
     if isinstance(binding, _ImportedValue):
         fingerprint = _imported_value_fingerprint(
             binding.source, binding.symbol, repo_root, seen
@@ -189,7 +226,8 @@ def _imported_value_fingerprint(
     values = _module_values(tree.body, source=source, repo_root=repo_root)
     binding = values.get(symbol)
     if binding is not None:
-        return _binding_fingerprint(binding, repo_root, seen | {key})
+        binding_seen = seen if isinstance(binding, _LocalDefinition) else seen | {key}
+        return _binding_fingerprint(binding, repo_root, binding_seen)
     return _imported_definition_fingerprint(source, symbol, repo_root, seen | {key})
 
 
@@ -232,13 +270,26 @@ def _module_values(
     initial: dict[str, _ValueBinding] | None = None,
 ) -> dict[str, _ValueBinding]:
     values = dict(initial or {})
-    for node in body:
+    scope_body = tuple(body)
+    for index, node in enumerate(scope_body):
         if isinstance(node, ast.If) and _is_type_checking_test(node.test):
             values = _module_values(
                 node.body,
                 source=source,
                 repo_root=repo_root,
                 initial=values,
+            )
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            relative = source.relative_to(repo_root).as_posix()
+            values[node.name] = _LocalDefinition(
+                source=source,
+                symbol=node.name,
+                node=node,
+                values=tuple(values.items()),
+                body=scope_body,
+                index=index,
+                binding=f"{relative}::{node.name}",
             )
             continue
         if isinstance(node, ast.Import):
@@ -474,7 +525,10 @@ def _class_signature(
             )
         if signature is not None:
             members.append(f"inherits[{ast.unparse(base)}]={signature}")
-    for child in node.body:
+    class_values = dict(values)
+    class_body = tuple(node.body)
+    relative = source.relative_to(repo_root).as_posix()
+    for child_index, child in enumerate(class_body):
         if (
             isinstance(child, ast.AnnAssign)
             and isinstance(child.target, ast.Name)
@@ -482,21 +536,55 @@ def _class_signature(
         ):
             members.append(
                 f"{child.target.id}: "
-                f"{_annotated_assignment_signature(child, values, repo_root, value_seen)}"
+                f"{_annotated_assignment_signature(child, class_values, repo_root, value_seen)}"
             )
         elif isinstance(child, ast.Assign):
             for target in child.targets:
                 if isinstance(target, ast.Name) and not target.id.startswith("_"):
                     members.append(
                         f"{target.id}="
-                        f"{_expression_fingerprint(child.value, values, repo_root, value_seen)}"
+                        f"{_expression_fingerprint(child.value, class_values, repo_root, value_seen)}"
                     )
         elif isinstance(
             child, (ast.FunctionDef, ast.AsyncFunctionDef)
         ) and _is_public_method(child.name):
-            signature = _function_signature(child, repo_root, values, value_seen)
+            signature = _function_signature(child, repo_root, class_values, value_seen)
             marker = "async def" if isinstance(child, ast.AsyncFunctionDef) else "def"
             members.append(signature.replace(marker, child.name, 1))
+        if isinstance(child, ast.Assign):
+            binding = _capture_expression(child.value, class_values)
+            for target in child.targets:
+                if isinstance(target, ast.Name):
+                    class_values[target.id] = binding
+        elif (
+            isinstance(child, ast.AnnAssign)
+            and isinstance(child.target, ast.Name)
+            and child.value is not None
+        ):
+            class_values[child.target.id] = _capture_expression(
+                child.value, class_values
+            )
+        elif isinstance(child, ast.TypeAlias) and isinstance(child.name, ast.Name):
+            class_values[child.name.id] = _capture_expression(child.value, class_values)
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            class_values[child.name] = _LocalDefinition(
+                source=source,
+                symbol=child.name,
+                node=child,
+                values=tuple(class_values.items()),
+                body=class_body,
+                index=child_index,
+                binding=f"{relative}::{node.name}.{child.name}",
+            )
+        elif isinstance(child, (ast.Import, ast.ImportFrom)) or (
+            isinstance(child, ast.If) and _is_type_checking_test(child.test)
+        ):
+            class_values = _module_values(
+                [child],
+                source=source,
+                repo_root=repo_root,
+                initial=class_values,
+            )
     body = "; ".join(members)
     decorator_values = _resolved_references(
         node.decorator_list, values, "decorators", repo_root, value_seen
@@ -665,6 +753,17 @@ def _absolute_module_source(source: Path, module: str, repo_root: Path) -> Path 
             break
         anchor = anchor.parent
     return None
+
+
+def _module_spec_source(source: Path, module: str, repo_root: Path) -> Path | None:
+    level = len(module) - len(module.lstrip("."))
+    if not level:
+        return _absolute_module_source(source, module, repo_root)
+    anchor = source.parent
+    for _ in range(level - 1):
+        anchor = anchor.parent
+    module_parts = module[level:].split(".") if module[level:] else []
+    return _module_source(anchor.joinpath(*module_parts))
 
 
 def _import_source(source: Path, node: ast.ImportFrom, repo_root: Path) -> Path | None:
@@ -841,7 +940,8 @@ def _call_target(
     owner = node.args[0]
     if isinstance(owner, ast.Name) and owner.id in imports:
         module, imported_name = imports[owner.id]
-        return f"{module}.{imported_name}", target_name
+        separator = "" if module.endswith(".") else "."
+        return f"{module}{separator}{imported_name}", target_name
     if (
         isinstance(owner, ast.Call)
         and (
@@ -891,9 +991,10 @@ def _evaluate_lazy_statements(
             if target is not None or terminal:
                 return target, terminal
             continue
-        if isinstance(node, ast.ImportFrom) and node.module:
+        if isinstance(node, ast.ImportFrom):
+            module = "." * node.level + (node.module or "")
             for alias in node.names:
-                imports[alias.asname or alias.name] = (node.module, alias.name)
+                imports[alias.asname or alias.name] = (module, alias.name)
             continue
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             if isinstance(node, ast.Assign):
@@ -1091,8 +1192,9 @@ def _resolve_export(
     lazy_target = _lazy_export_target(tree, symbol)
     if lazy_target is not None:
         module, target_symbol = lazy_target
-        binding = f"lazy:{module}.{target_symbol}"
-        target_source = _absolute_module_source(source, module, repo_root)
+        separator = "" if module.endswith(".") else "."
+        binding = f"lazy:{module}{separator}{target_symbol}"
+        target_source = _module_spec_source(source, module, repo_root)
         if target_source is None:
             raise RuntimeError(
                 f"{source}: cannot resolve export {symbol!r} through {binding}"

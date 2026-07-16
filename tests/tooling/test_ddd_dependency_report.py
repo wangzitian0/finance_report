@@ -1320,6 +1320,154 @@ def test_AC_meta_dependency_governance_2_imported_decorator_is_reported(
     assert change["before"] != change["after"]
 
 
+def test_AC_meta_dependency_governance_2_local_definition_default_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: local definitions are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        def callback(value: str) -> str:
+            return value
+
+        def public(fn=callback):
+            return fn
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish local definition default")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source="""
+        def callback(value: str, strict: bool = False) -> str:
+            return value
+
+        def public(fn=callback):
+            return fn
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_class_local_default_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: class-scope bindings are boundary data."""
+
+    repo, _ = _seed_repo(tmp_path)
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        class Public:
+            _DEFAULT = 1
+
+            def method(self, value: int = _DEFAULT) -> int:
+                return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish class-local default")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source="""
+        class Public:
+            _DEFAULT = 2
+
+            def method(self, value: int = _DEFAULT) -> int:
+                return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "Public"
+    assert change["before"] != change["after"]
+
+
+def test_AC_meta_dependency_governance_2_relative_lazy_import_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.dependency-governance.2: lazy imports preserve relative levels."""
+
+    repo, _ = _seed_repo(tmp_path)
+    impl = "apps/backend/src/provider/lazy"
+    _write(
+        repo / "common/provider/contract.py",
+        f"""
+        from common.meta.package_contract import PackageContract
+
+        CONTRACT = PackageContract(
+            name="provider",
+            klass="meta",
+            tier="CODE-ONLY",
+            depends_on=[],
+            interface=["public"],
+            events=[],
+            invariants=[],
+            roadmap=[],
+            implementations={{"be": {impl!r}, "fe": None}},
+        )
+        """,
+    )
+    _write(
+        repo / f"{impl}/__init__.py",
+        """
+        __all__ = ["public"]
+
+        def __getattr__(name: str) -> object:
+            if name == "public":
+                from ..api import public
+                return public
+            raise AttributeError(name)
+        """,
+    )
+    _write(
+        repo / f"{impl}/api.py",
+        """
+        def public(value: int) -> int:
+            return value
+        """,
+    )
+    parent_api = repo / "apps/backend/src/provider/api.py"
+    _write(
+        parent_api,
+        """
+        def public(value: str) -> str:
+            return value
+        """,
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish relative lazy import")
+    base_ref = _git(repo, "rev-parse", "HEAD")
+    _write(
+        parent_api,
+        """
+        def public(value: str, strict: bool = False) -> str:
+            return value
+        """,
+    )
+
+    report = build_impact_report(repo, base_ref=base_ref)
+
+    [change] = report["changed_public_symbols"]
+    assert change["symbol"] == "public"
+    assert change["before"] != change["after"]
+
+
 def test_AC_meta_dependency_governance_2_snapshot_accounts_for_every_public_symbol() -> (
     None
 ):

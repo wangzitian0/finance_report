@@ -325,8 +325,9 @@ CONTRACT = PackageContract(
                 "module-qualified aliases, inherited APIs, TYPE_CHECKING annotation "
                 "aliases, and local or imported named defaults at binding time "
                 "without importing implementation modules. Referenced project "
-                "definitions and decorator bindings are fingerprinted too; unreadable "
-                "discovery or ambiguous exports fail closed."
+                "definitions, class-scope values, decorator bindings, and relative "
+                "lazy-import levels are fingerprinted too; unreadable discovery or "
+                "ambiguous exports fail closed."
             ),
             test=(
                 "tests/tooling/test_ddd_dependency_report.py"
