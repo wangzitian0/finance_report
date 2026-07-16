@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -52,8 +53,10 @@ ROOT_DIR = Path(__file__).resolve().parents[4]
 
 
 @pytest.fixture(autouse=True)
-def _restore_readiness_read() -> None:
+def _restore_readiness_read() -> Iterator[None]:
     """Keep test-local readiness overrides isolated without a production locator."""
+    workflow_events.get_personal_report_package_readiness = get_personal_report_package_readiness
+    yield
     workflow_events.get_personal_report_package_readiness = get_personal_report_package_readiness
 
 
