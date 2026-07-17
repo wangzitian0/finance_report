@@ -18,6 +18,14 @@ import type {
 type EconomicIntent = components["schemas"]["EconomicIntent"];
 type ReviewedDispositionPayload = components["schemas"]["ReviewedDispositionRequest"];
 
+type ReviewedDispositionDraft = {
+  transactionId: string;
+  intent: EconomicIntent;
+  counterAccountId: string;
+  category: string;
+  rationale: string;
+};
+
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
 
 const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = [
@@ -32,6 +40,16 @@ const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = 
   { value: "transfer", label: "Internal transfer" },
   { value: "unknown", label: "Unknown - needs review" },
 ];
+
+function newReviewedDispositionDraft(transaction: BankStatementTransactionSummary): ReviewedDispositionDraft {
+  return {
+    transactionId: transaction.id,
+    intent: transaction.direction === "IN" ? "income" : "expense",
+    counterAccountId: "",
+    category: "",
+    rationale: "",
+  };
+}
 
 export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
   switch (intent) {
@@ -99,10 +117,7 @@ export default function UnmatchedBoard() {
   const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<BankStatementTransactionSummary | null>(null);
-  const [intent, setIntent] = useState<EconomicIntent>("expense");
-  const [counterAccountId, setCounterAccountId] = useState("");
-  const [category, setCategory] = useState("");
-  const [rationale, setRationale] = useState("");
+  const [draft, setDraft] = useState<ReviewedDispositionDraft | null>(null);
   const [posting, setPosting] = useState(false);
   const [postedEntry, setPostedEntry] = useState<JournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,20 +146,32 @@ export default function UnmatchedBoard() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!selected) return;
-    setIntent(selected.direction === "IN" ? "income" : "expense");
-    setCounterAccountId("");
-    setCategory("");
-    setRationale("");
+    if (!selected) {
+      setDraft(null);
+      return;
+    }
+    setDraft((current) => {
+      return current?.transactionId === selected.id ? current : newReviewedDispositionDraft(selected);
+    });
     setPostedEntry(null);
   }, [selected]);
+
+  const activeDraft = selected && draft?.transactionId === selected.id ? draft : null;
+
+  const updateDraft = (changes: Partial<Omit<ReviewedDispositionDraft, "transactionId">>) => {
+    setDraft((current) => (
+      current && selected && current.transactionId === selected.id
+        ? { ...current, ...changes }
+        : current
+    ));
+  };
 
   const candidateAccounts = useMemo(() => {
     if (!selected) return [];
     const currency = selected.currency || "SGD";
-    const types = compatibleAccountTypes(intent);
+    const types = activeDraft ? compatibleAccountTypes(activeDraft.intent) : [];
     return accounts.filter((account) => account.currency === currency && types.includes(account.type));
-  }, [accounts, intent, selected]);
+  }, [accounts, activeDraft, selected]);
 
   const toggleFlag = (transactionId: string) => {
     setFlagged((previous) => {
@@ -162,14 +189,19 @@ export default function UnmatchedBoard() {
   };
 
   const submitReviewedDisposition = async () => {
-    if (!selected || !isReviewedDispositionComplete(intent, counterAccountId, category, rationale)) return;
+    if (!selected || !activeDraft || !isReviewedDispositionComplete(
+      activeDraft.intent,
+      activeDraft.counterAccountId,
+      activeDraft.category,
+      activeDraft.rationale,
+    )) return;
     setPosting(true);
     try {
       const payload: ReviewedDispositionPayload = {
-        intent,
-        counter_account_id: counterAccountId,
-        rationale: rationale.trim(),
-        ...(needsCategory(intent) ? { category: category.trim() } : {}),
+        intent: activeDraft.intent,
+        counter_account_id: activeDraft.counterAccountId,
+        rationale: activeDraft.rationale.trim(),
+        ...(needsCategory(activeDraft.intent) ? { category: activeDraft.category.trim() } : {}),
       };
       const entry = await apiFetch<JournalEntrySummary>(
         `/api/reconciliation/unmatched/${selected.id}/reviewed-disposition`,
@@ -195,7 +227,12 @@ export default function UnmatchedBoard() {
       `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
     );
   }, [selected]);
-  const canSubmit = Boolean(selected) && isReviewedDispositionComplete(intent, counterAccountId, category, rationale);
+  const canSubmit = activeDraft !== null && isReviewedDispositionComplete(
+    activeDraft.intent,
+    activeDraft.counterAccountId,
+    activeDraft.category,
+    activeDraft.rationale,
+  );
 
   return (
     <div className="p-6">
@@ -250,7 +287,7 @@ export default function UnmatchedBoard() {
 
         <div className="card p-5">
           <h2 className="font-semibold mb-4">Reviewed Disposition</h2>
-          {!selected ? <p className="text-sm text-muted">Select a transaction to review</p> : (
+          {!selected || !activeDraft ? <p className="text-sm text-muted">Select a transaction to review</p> : (
             <div className="space-y-4">
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <p className="font-medium">{selected.description}</p>
@@ -261,16 +298,16 @@ export default function UnmatchedBoard() {
 
               <label className="block text-sm font-medium">
                 Economic intent
-                <select className="input mt-1 w-full" value={intent} onChange={(event) => { setIntent(event.target.value as EconomicIntent); setCounterAccountId(""); }}>
+                <select className="input mt-1 w-full" value={activeDraft.intent} onChange={(event) => updateDraft({ intent: event.target.value as EconomicIntent, counterAccountId: "" })}>
                   {INTENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
 
-              {intent === "transfer" ? (
+              {activeDraft.intent === "transfer" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
                   Internal transfers must be paired in the reconciliation workbench; they cannot be posted as income or expense.
                 </div>
-              ) : intent === "unknown" ? (
+              ) : activeDraft.intent === "unknown" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
                   Unknown economic intent must be resolved from source evidence before it can be posted.
                 </div>
@@ -278,21 +315,21 @@ export default function UnmatchedBoard() {
                 <>
                   <label className="block text-sm font-medium">
                     Counter account
-                    <select className="input mt-1 w-full" value={counterAccountId} onChange={(event) => setCounterAccountId(event.target.value)}>
+                    <select className="input mt-1 w-full" value={activeDraft.counterAccountId} onChange={(event) => updateDraft({ counterAccountId: event.target.value })}>
                       <option value="">Choose a compatible account</option>
                       {candidateAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.type}</option>)}
                     </select>
                   </label>
-                  {candidateAccounts.length === 0 && <p className="text-xs text-muted">Create an active {compatibleAccountTypes(intent).join("/")} account in {selected.currency || "SGD"} before posting.</p>}
-                  {needsCategory(intent) && (
+                  {candidateAccounts.length === 0 && <p className="text-xs text-muted">Create an active {compatibleAccountTypes(activeDraft.intent).join("/")} account in {selected.currency || "SGD"} before posting.</p>}
+                  {needsCategory(activeDraft.intent) && (
                     <label className="block text-sm font-medium">
                       Report category
-                      <input className="input mt-1 w-full" value={category} onChange={(event) => setCategory(event.target.value)} maxLength={100} placeholder="For example, DINING or SALARY" />
+                      <input className="input mt-1 w-full" value={activeDraft.category} onChange={(event) => updateDraft({ category: event.target.value })} maxLength={100} placeholder="For example, DINING or SALARY" />
                     </label>
                   )}
                   <label className="block text-sm font-medium">
                     Review rationale
-                    <textarea className="input mt-1 w-full min-h-20" value={rationale} onChange={(event) => setRationale(event.target.value)} maxLength={500} placeholder="What source evidence supports this decision?" />
+                    <textarea className="input mt-1 w-full min-h-20" value={activeDraft.rationale} onChange={(event) => updateDraft({ rationale: event.target.value })} maxLength={500} placeholder="What source evidence supports this decision?" />
                   </label>
                   <button type="button" onClick={() => void submitReviewedDisposition()} disabled={posting || !canSubmit} className="btn-primary">
                     {posting ? "Posting reviewed entry..." : "Confirm and Post"}

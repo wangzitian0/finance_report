@@ -138,10 +138,10 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    await screen.findByRole("heading", { name: "Unmatched Transactions" });
-    fireEvent.change(screen.getByLabelText("Economic intent"), { target: { value: "transfer" } });
+    const intent = await screen.findByLabelText("Economic intent");
+    fireEvent.change(intent, { target: { value: "transfer" } });
 
-    expect(await screen.findByText(/must be paired in the reconciliation workbench/i)).toBeInTheDocument();
+    expect(screen.getByText(/must be paired in the reconciliation workbench/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
   });
 
@@ -149,10 +149,10 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    await screen.findByRole("heading", { name: "Unmatched Transactions" });
-    fireEvent.change(screen.getByLabelText("Economic intent"), { target: { value: "unknown" } });
+    const intent = await screen.findByLabelText("Economic intent");
+    fireEvent.change(intent, { target: { value: "unknown" } });
 
-    expect(await screen.findByText(/Unknown economic intent must be resolved/i)).toBeInTheDocument();
+    expect(screen.getByText(/Unknown economic intent must be resolved/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
   });
 
