@@ -19,6 +19,7 @@ endpoint", NOT "import on approval".
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -26,7 +27,16 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import (
+    DocumentType,
+    ExtractedPositionFact,
+    ExtractionMethod,
+    SourceProvenance,
+    StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
+    UploadedDocument,
+)
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -57,6 +67,49 @@ def _payload(*, with_positions: bool = True) -> dict:
     }
 
 
+def _statement_extraction_metadata(*, with_positions: bool) -> dict:
+    positions = (
+        (
+            ExtractedPositionFact(
+                fact_id="gated-test-stock-1",
+                symbol=_ASSET,
+                quantity=Decimal("10"),
+                market_value=Decimal("1900.25"),
+                currency="SGD",
+                confidence=Decimal("0.60"),
+                asset_type="stock",
+            ),
+        )
+        if with_positions
+        else ()
+    )
+    result = StatementExtractionResult.create(
+        producer_version="extractor@brokerage-gate-test",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        statement_currency="SGD",
+        institution="Moomoo",
+        account_last4="1234",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 18),
+        balances=(),
+        transactions=(),
+        positions=positions,
+        confidence=Decimal("0.60"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=("position import requires explicit review",),
+        provenance=SourceProvenance(
+            intake_mode="pdf",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            provider="fixture-provider",
+            model="fixture-model-v1",
+        ),
+    )
+    return {"statement_extraction_result": result.to_payload()}
+
+
 async def _make_brokerage_statement(
     db: AsyncSession,
     user_id,
@@ -76,7 +129,7 @@ async def _make_brokerage_statement(
         status=status,
         stage1_status=stage1,
         confidence_score=60,
-        extraction_metadata=_payload(with_positions=with_positions),
+        extraction_metadata=_statement_extraction_metadata(with_positions=with_positions),
     )
     db.add(stmt)
     await db.flush()

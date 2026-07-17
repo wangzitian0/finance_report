@@ -48,6 +48,29 @@ def _dashboard_amount(amount: Decimal) -> str:
     return f"{int(amount):,}"
 
 
+def _declared_statement_csv(
+    *, rows: list[tuple[str, str, Decimal]], closing_balance: Decimal
+) -> str:
+    """Build a CSV whose statement-level facts are declared by its source."""
+    header = (
+        "Statement Currency,Statement Period Start,Statement Period End,"
+        "Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+    )
+    envelope = f"SGD,2026-03-01,2026-03-31,0.00,{closing_balance}"
+    return (
+        "\n".join(
+            [
+                header,
+                *(
+                    f"{envelope},{txn_date},{description},{amount}"
+                    for txn_date, description, amount in rows
+                ),
+            ]
+        )
+        + "\n"
+    )
+
+
 async def _auth_headers(page: Page) -> dict[str, str]:
     cookies = await page.context.cookies(APP_URL)
     auth_cookie = next(
@@ -91,18 +114,20 @@ async def test_business_value_gate_totals_correct_and_open_bal_missing_degrades_
 
     A deployed statement's balance-sheet AND dashboard total equal the known
     net of its transactions (a real business VALUE, not just HTTP 200) AND —
-    because the CSV source carried no opening balance — the aggregate
-    confidence tier reads LOW with an explicit missing_opening_balance
+    because no account opening balance was recorded — the aggregate confidence
+    tier reads LOW with an explicit missing_opening_balance
     warning (#1481's invariant), read through the surface the user actually
     sees, on a live deployed environment."""
     page = authenticated_page_unique
     headers = await _auth_headers(page)
 
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=60.0) as client:
-        csv_content = (
-            "Date,Description,Amount\n"
-            f"2026-03-01,Salary,{_SALARY}\n"
-            f"2026-03-05,Rent,-{_RENT}\n"
+        csv_content = _declared_statement_csv(
+            rows=[
+                ("2026-03-01", "Salary", _SALARY),
+                ("2026-03-05", "Rent", -_RENT),
+            ],
+            closing_balance=_SALARY - _RENT,
         )
         upload_resp = await client.post(
             _api_url("/statements/upload"),
@@ -133,8 +158,8 @@ async def test_business_value_gate_totals_correct_and_open_bal_missing_degrades_
     bank_line = _asset_line(balance_sheet, _INSTITUTION)
     assert Decimal(str(bank_line["amount"])) == net_flow
 
-    # #1481 through the deployed API: no opening balance was ever supplied, so
-    # the aggregate must not read as trusted/HIGH even though every posted
+    # #1481 through the deployed API: no account opening balance was recorded,
+    # so the aggregate must not read as trusted/HIGH even though every posted
     # line is USER_CONFIRMED.
     assert balance_sheet["confidence_tier"] == "LOW", balance_sheet
     assert any(
@@ -172,7 +197,10 @@ async def test_business_value_gate_recording_opening_balance_clears_warning_and_
     headers = await _auth_headers(page)
 
     async with httpx.AsyncClient(headers=headers, verify=False, timeout=60.0) as client:
-        csv_content = f"Date,Description,Amount\n2026-03-01,Salary,{_SALARY}\n"
+        csv_content = _declared_statement_csv(
+            rows=[("2026-03-01", "Salary", _SALARY)],
+            closing_balance=_SALARY,
+        )
         upload_resp = await client.post(
             _api_url("/statements/upload"),
             data={"institution": _INSTITUTION},

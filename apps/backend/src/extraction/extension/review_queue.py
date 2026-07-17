@@ -25,7 +25,6 @@ from src.extraction.base.disposition import DispositionDecision, DispositionStat
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
@@ -281,86 +280,33 @@ async def _create_entry_from_txn(
         )
         bank_account = account_result.scalar_one_or_none()
 
-    if disposition is None:
-        # The raw unmatched-board path is reconciliation-owned and remains until
-        # #1908 replaces it with ReviewedDispositionCommand. It must not become
-        # the automatic ingestion path: StatementIngestionUseCase always supplies
-        # the authoritative disposition branch below.
-        if not bank_account and auto_post:
-            raise ValueError("Account mapping required before posting. Confirm the statement account before posting.")
-        if not bank_account:
-            bank_account = await get_or_create_account(
-                db,
-                name="Bank - Main",
-                account_type=AccountType.ASSET,
-                currency=currency,
-                user_id=user_id,
-            )
+    if not bank_account:
+        raise ValueError("Account mapping required before statement posting")
+    if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
+        raise ValueError("Statement posting account must be an active asset account")
+    if bank_account.currency != currency:
+        raise ValueError("Statement posting account currency must match the transaction currency")
 
-        classified_account: Account | None = None
-        classification_result = await db.execute(
-            select(TransactionClassification)
-            .where(TransactionClassification.atomic_txn_id == txn.id)
-            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
-            .order_by(TransactionClassification.created_at.desc())
-        )
-        classification = classification_result.scalar_one_or_none()
-        if classification and classification.account_id:
-            account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
-            classified_account = account_result.scalar_one_or_none()
+    if (
+        disposition is None
+        or disposition.status is not DispositionStatus.AUTHORITATIVE
+        or disposition.command is None
+        or disposition.transaction_id != txn.id
+    ):
+        raise ValueError("Authoritative economic disposition is required before statement posting")
+    if counter_account is None or counter_account.id != disposition.command.counter_account_id:
+        raise ValueError("Disposition counter-account context is missing or mismatched")
 
-        if txn.direction == TransactionDirection.IN:
-            if classified_account and classified_account.type == AccountType.INCOME:
-                counter_account = classified_account
-            else:
-                counter_account = await get_or_create_account(
-                    db,
-                    name="Income - Uncategorized",
-                    account_type=AccountType.INCOME,
-                    currency=currency,
-                    user_id=user_id,
-                )
-            debit_account = bank_account
-            credit_account = counter_account
-        else:
-            if classified_account and classified_account.type == AccountType.EXPENSE:
-                counter_account = classified_account
-            else:
-                counter_account = await get_or_create_account(
-                    db,
-                    name="Expense - Uncategorized",
-                    account_type=AccountType.EXPENSE,
-                    currency=currency,
-                    user_id=user_id,
-                )
-            debit_account = counter_account
-            credit_account = bank_account
+    if txn.direction == TransactionDirection.IN:
+        if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
+            raise ValueError("Disposition command conflicts with incoming transaction flow")
+        debit_account = bank_account
+        credit_account = counter_account
     else:
-        if not bank_account:
-            raise ValueError("Account mapping required before statement posting")
-        if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
-            raise ValueError("Statement posting account must be an active asset account")
-        if bank_account.currency != currency:
-            raise ValueError("Statement posting account currency must match the transaction currency")
-        if (
-            disposition.status is not DispositionStatus.AUTHORITATIVE
-            or disposition.command is None
-            or disposition.transaction_id != txn.id
-        ):
-            raise ValueError("Authoritative economic disposition is required before statement posting")
-        if counter_account is None or counter_account.id != disposition.command.counter_account_id:
-            raise ValueError("Disposition counter-account context is missing or mismatched")
-
-        if txn.direction == TransactionDirection.IN:
-            if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
-                raise ValueError("Disposition command conflicts with incoming transaction flow")
-            debit_account = bank_account
-            credit_account = counter_account
-        else:
-            if disposition.command.debit_role != "counter" or disposition.command.credit_role != "custody":
-                raise ValueError("Disposition command conflicts with outgoing transaction flow")
-            debit_account = counter_account
-            credit_account = bank_account
+        if disposition.command.debit_role != "counter" or disposition.command.credit_role != "custody":
+            raise ValueError("Disposition command conflicts with outgoing transaction flow")
+        debit_account = counter_account
+        credit_account = bank_account
 
     lines_data = [
         {

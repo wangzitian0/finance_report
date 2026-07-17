@@ -619,5 +619,10 @@ def test_vision_fixture_balances_to_zero_for_stage1_approval() -> None:
     rows = _read_fixture_rows()
     net_cash = sum((money_amount(row["Amount"]) for row in rows), Decimal("0.00"))
 
+    assert {row["Statement Currency"] for row in rows} == {"SGD"}
+    assert {row["Statement Period Start"] for row in rows} == {FIXTURE_PERIOD_START}
+    assert {row["Statement Period End"] for row in rows} == {FIXTURE_PERIOD_END}
+    assert {row["Statement Opening Balance"] for row in rows} == {"0.00"}
+    assert {row["Statement Closing Balance"] for row in rows} == {"0.00"}
     assert net_cash == EXPECTED_TOTALS["ending_cash"]
     assert EXPECTED_TOTALS["total_assets"] == Decimal("0.00")
