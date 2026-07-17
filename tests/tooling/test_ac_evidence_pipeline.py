@@ -267,7 +267,12 @@ def test_update_refuses_to_cement_a_broken_run(tmp_path):
     baseline_path = tmp_path / "baseline.jsonl"
     baseline_format.write_jsonl(
         baseline_path,
-        {"version": 1, "acs": {"AC4.1.4": {"score": 0.9, "metric": "m", "provenance": "deterministic"}}},
+        {
+            "version": 1,
+            "acs": {
+                "AC4.1.4": {"score": 0.9, "metric": "m", "provenance": "deterministic"}
+            },
+        },
     )
     current_path = tmp_path / "current.json"
     current_path.write_text(json.dumps(_payload("AC4.1.4", 0.5)), encoding="utf-8")
@@ -295,6 +300,49 @@ def test_record_ac_evidence_emits_serialised_record():
     )
     assert captured[PROPERTY_KEY] == evidence.to_json()
     assert ACEvidence.from_json(captured[PROPERTY_KEY]).ac_id == "AC1.1.1"
+
+
+def test_record_ac_evidence_can_shadow_the_same_measurement_as_trace_record():
+    from common.audit.extension import TraceJUnitAdapter, TraceRecordCodec
+
+    captured: dict[str, str] = {}
+
+    record_ac_evidence(
+        lambda name, value: captured.__setitem__(name, value),
+        ac_id="AC-testing.1.1",
+        score=0.9,
+        metric="accuracy",
+        comment="fixture",
+        provenance="deterministic",
+    )
+
+    assert ACEvidence.from_json(captured[PROPERTY_KEY]).score == 0.9
+    trace = TraceRecordCodec.decode(captured[TraceJUnitAdapter.PROPERTY_KEY])
+    assert trace.target.id == "AC-testing.1.1"
+    assert trace.assertion.kind == "ac_proof"
+    assert trace.assertion.id == "AC-testing.1.1"
+    assert trace.assertion.id != "accuracy"
+    assert trace.authority.package == "testing"
+    assert trace.authority.tier == "CODE-ONLY"
+    assert trace.scope.kind.value == "repository"
+    # record_property runs before pytest knows the final testcase outcome.
+    assert trace.result.value == "unproven"
+
+
+def test_legacy_ac_evidence_is_not_guessed_into_a_trace_authority():
+    from common.audit.extension import TraceJUnitAdapter
+
+    captured: dict[str, str] = {}
+    record_ac_evidence(
+        lambda name, value: captured.__setitem__(name, value),
+        ac_id="AC1.1.1",
+        score=0.9,
+        metric="accuracy",
+        comment="legacy fixture",
+        provenance="deterministic",
+    )
+
+    assert TraceJUnitAdapter.PROPERTY_KEY not in captured
 
 
 def test_from_json_rejects_invalid_json():

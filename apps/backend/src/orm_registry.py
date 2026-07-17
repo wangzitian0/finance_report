@@ -27,6 +27,7 @@ from __future__ import annotations
 # whole side effect (#1675 — the fact family, statement envelope, and every
 # other domain's ORM all moved out of the former src/models/).
 import src.advisor  # noqa: F401,E402
+import src.audit  # noqa: F401,E402
 import src.extraction  # noqa: F401,E402
 import src.ledger  # noqa: F401,E402
 import src.llm  # noqa: F401,E402

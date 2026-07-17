@@ -24,6 +24,8 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/audit/promotion/__init__.py` | Package marker |
 | `apps/backend/tests/audit/quantity/__init__.py` | Package marker |
 | `apps/backend/tests/audit/ratio/__init__.py` | Package marker |
+| `apps/backend/tests/audit/trace/__init__.py` | Package marker |
+| `apps/backend/tests/audit/trace/conftest.py` | Generated TraceRecord fixtures with no user financial data |
 | `apps/backend/tests/audit/unit_price/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/__init__.py` | Package marker |
 | `apps/backend/tests/ledger/_ledger_helpers.py` | Published ledger test factory (shared posted/void entry builders) |

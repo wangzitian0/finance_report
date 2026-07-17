@@ -352,7 +352,7 @@ async def test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth(
     # the corrected 1,100,000 only; a superseded leak (superseded_by_id IS NULL filter
     # broken) would double-count to 2,100,000.
     ac_evidence(
-        ac_id="AC11.19.2",
+        ac_id="AC-pricing.manualvaluation.2",
         score=1.0,
         metric="superseded_version_excluded_head_total_match",
         comment="net-worth components total_assets == 1,100,000 (head only), not 2,100,000",

@@ -138,9 +138,19 @@ just `assert True` moved up one level.
 
 ```
 test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
+      --package-contract resolver----------------->  canonical trace_record property
       --tools/aggregate_ac_evidence.py-->            per-AC aggregate JSON
       --tools/check_ac_score_baseline.py-->          L2 + L3 ratchet gate
 ```
+
+During Audit PR-A (#1906), package-scoped AC ids also shadow-emit the canonical
+`TraceRecord` property. Tier and proof kind are resolved from the owning package
+contract; callers provide only the measurement and cannot self-declare authority.
+The TraceRecord assertion identity is the package-owned AC proof declaration,
+not the caller's free-form metric label; the full metric remains hashed into the
+evidence manifest.
+Legacy EPIC ids remain without TraceRecord authority rather than being guessed
+into the package graph.
 
 - **L2 (always hard):** every baselined AC must show `code == pass` this run.
 - **L3 (ratchet):** current score ≥ baseline; the baseline only moves up via

@@ -18,16 +18,35 @@ Downstream, :mod:`common.testing.ac_evidence_aggregate` reads it back and
 :mod:`common.testing.check_ac_score_baseline` ratchets it. See
 ``common/testing/README.md`` for the full mechanism rationale.
 
-stdlib-only by design: this module is importable from any test suite without
-pulling in app or framework dependencies.
+This module imports only common-layer assurance values and stdlib at load time;
+it remains importable from any test suite without app or framework dependencies.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
+from datetime import UTC, datetime
+from decimal import Decimal
 from dataclasses import asdict, dataclass
+from hashlib import sha256
+from importlib import import_module, metadata
+from pathlib import Path
 from typing import Any, Callable
+
+from common.audit.base.trace import (
+    TraceAuthorityProfile,
+    TraceRecord,
+    TraceResult,
+    TraceScope,
+    TraceScopeKind,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
+from common.audit.extension import TraceJUnitAdapter
+from common.audit.ratio import Ratio
+from common.meta.base.authority_matrix import TIER_DEFAULT_PROOF_KIND
 
 PROPERTY_KEY = "ac_evidence"
 
@@ -84,6 +103,8 @@ class ACEvidence:
             errors.append(f"score {self.score!r} must be within [0.0, 1.0]")
         if not self.metric or not self.metric.strip():
             errors.append("metric is required (name the yardstick the score measures)")
+        elif len(self.metric) > 200:
+            errors.append("metric must not exceed 200 characters")
         if not self.comment or not self.comment.strip():
             errors.append("comment is required (human/agent-readable rationale)")
         if not _provenance_ok(self.provenance):
@@ -173,4 +194,88 @@ def record_ac_evidence(
         code=code,
     )
     record_property(PROPERTY_KEY, evidence.to_json())
+    trace_record = _trace_observation(evidence)
+    if trace_record is not None:
+        TraceJUnitAdapter.emit(record_property, trace_record)
     return evidence
+
+
+def _trace_observation(evidence: ACEvidence) -> TraceRecord | None:
+    """Resolve package authority for migrated AC ids; never infer legacy HU."""
+    match = re.match(r"^AC-([a-z][a-z0-9_]*)\.", evidence.ac_id)
+    if match is None:
+        return None
+
+    package = match.group(1)
+    try:
+        contract_module = import_module(f"common.{package}.contract")
+        contract = contract_module.CONTRACT
+    except (AttributeError, ImportError) as exc:
+        raise ACEvidenceError(
+            f"cannot resolve owning package contract for {evidence.ac_id}"
+        ) from exc
+
+    ac = next((row for row in contract.roadmap if row.id == evidence.ac_id), None)
+    if ac is None or contract.tier is None:
+        raise ACEvidenceError(
+            f"{evidence.ac_id} has no active package authority declaration"
+        )
+
+    contract_path = Path(contract_module.__file__).resolve()
+    owner_digest = sha256(contract_path.read_bytes()).hexdigest()
+    stage = (
+        "github_ci.merge_authority"
+        if os.environ.get("GITHUB_ACTIONS") == "true"
+        else "local.advisory"
+    )
+    target_version = os.environ.get("GITHUB_SHA", owner_digest)
+    raw_execution_id = os.environ.get(
+        "GITHUB_RUN_ID",
+        os.environ.get("PYTEST_CURRENT_TEST", "local-pytest"),
+    )
+    execution_id = (
+        raw_execution_id
+        if len(raw_execution_id) <= 200
+        else f"pytest@{sha256(raw_execution_id.encode('utf-8')).hexdigest()}"
+    )
+    result = {
+        # This property is emitted before pytest knows the final testcase
+        # outcome. A caller-reported pass therefore remains explicitly unproven
+        # until the post-JUnit testing replacement folds the testcase result.
+        "pass": TraceResult.UNPROVEN,
+        "fail": TraceResult.FAIL,
+        "skip": TraceResult.SKIPPED,
+        "error": TraceResult.ERROR,
+    }[evidence.code]
+    return TraceRecord.observation(
+        scope=TraceScope(
+            kind=TraceScopeKind.REPOSITORY,
+            id=os.environ.get("GITHUB_REPOSITORY", "finance_report"),
+        ),
+        target=VersionedTraceRef(
+            kind="ac",
+            id=evidence.ac_id,
+            version=target_version,
+        ),
+        target_class=TraceTargetClass.GENERAL,
+        assertion=VersionedTraceRef(
+            kind="ac_proof",
+            id=evidence.ac_id,
+            version=owner_digest,
+        ),
+        authority=TraceAuthorityProfile(
+            package=package,
+            tier=contract.tier,
+            proof_kind=ac.proof_kind or TIER_DEFAULT_PROOF_KIND[contract.tier],
+            provenance=evidence.provenance,
+            execution_stage=stage,
+            assertion_owner_digest=owner_digest,
+            producer_version=f"pytest@{metadata.version('pytest')}",
+        ),
+        result=result,
+        execution_id=execution_id,
+        evidence_manifest_digest=sha256(evidence.to_json().encode("utf-8")).hexdigest(),
+        occurred_at=datetime.now(UTC),
+        score=Ratio(Decimal(str(evidence.score))),
+        reason_code=f"caller_reported_ac_evidence_{evidence.code}",
+    )

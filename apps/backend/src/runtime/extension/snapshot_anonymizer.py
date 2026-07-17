@@ -115,6 +115,9 @@ NUMERIC_KEEP_COLUMNS: frozenset[str] = frozenset(
         "investment_transactions.quantity",
         "journal_lines.fx_rate",
         "managed_positions.quantity",
+        # Assurance scores are unitless ratios. TraceRecord identity and digests
+        # remain verifiable only when the snapshot preserves this exact value.
+        "trace_records.score",
     }
 )
 
@@ -205,6 +208,31 @@ STRING_KEEP_COLUMNS: frozenset[str] = frozenset(
         "statement_summaries.status",
         "stock_prices.currency",
         "stock_prices.source",
+        # TraceRecord contains only closed vocabulary, code-owned identifiers,
+        # digests, versions, and opaque composition-boundary ids. Raw document,
+        # user, and financial payloads are forbidden by the audit contract.
+        # Keeping these fields preserves record/content digests and parent graph
+        # verification in an anonymized snapshot.
+        "trace_record_parents.scope_id",
+        "trace_records.assertion_id",
+        "trace_records.assertion_kind",
+        "trace_records.assertion_owner_digest",
+        "trace_records.assertion_version",
+        "trace_records.authority_package",
+        "trace_records.authority_tier",
+        "trace_records.content_digest",
+        "trace_records.evidence_manifest_digest",
+        "trace_records.execution_id",
+        "trace_records.execution_stage",
+        "trace_records.producer_version",
+        "trace_records.proof_kind",
+        "trace_records.provenance",
+        "trace_records.reason_code",
+        "trace_records.schema_version",
+        "trace_records.scope_id",
+        "trace_records.target_id",
+        "trace_records.target_kind",
+        "trace_records.target_version",
         "transaction_classification.status",
         "uploaded_documents.document_type",
         "uploaded_documents.status",
