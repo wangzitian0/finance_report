@@ -210,6 +210,31 @@ def test_run_checks_passes_each_check_cwd_to_the_runner():
     assert seen and all(c.endswith("apps/backend") for c in seen)
 
 
+def test_schema_validation_receives_only_its_matching_changed_paths():
+    """A new schema edit must not fail on unrelated historical schema debt."""
+    commands: list[list[str]] = []
+    schema_check = [c for c in preflight.CHECKS if c.name == "schema-validate"]
+
+    preflight.run_checks(
+        schema_check,
+        changed_files=(
+            "apps/backend/src/schemas/review.py",
+            "apps/backend/src/extraction/extension/service.py",
+        ),
+        runner=lambda argv, cwd: commands.append(list(argv)) or 0,
+        python="python3",
+    )
+
+    assert commands == [
+        [
+            "python3",
+            "tools/validate_schemas.py",
+            "--paths",
+            "apps/backend/src/schemas/review.py",
+        ]
+    ]
+
+
 class TestRunAndMain:
     def test_run_checks_reports_per_check_pass_fail(self):
         checks = preflight.select_checks(["apps/backend/migrations/versions/0099_x.py"])

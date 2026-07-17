@@ -30,6 +30,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Placeholder in a command that is replaced with the running interpreter, so the
 # sub-checks run under the same Python (and therefore the same dependencies).
 PY = "{python}"
+# A command can ask for exactly the paths that selected its check. This keeps
+# debt-aware validators scoped to the diff instead of turning old violations
+# into false failures for an unrelated schema edit.
+MATCHING_PATHS = "{matching_paths}"
 
 Runner = Callable[[Sequence[str], str], int]
 Git = Callable[[Sequence[str]], str]
@@ -131,7 +135,7 @@ CHECKS: tuple[Check, ...] = (
     Check(
         name="schema-validate",
         globs=("apps/backend/src/schemas/*.py",),
-        commands=((PY, "tools/validate_schemas.py"),),
+        commands=((PY, "tools/validate_schemas.py", "--paths", MATCHING_PATHS),),
         why="Pydantic schema changed: validate schema contracts",
     ),
     Check(
@@ -318,40 +322,46 @@ def _default_runner(argv: Sequence[str], cwd: str) -> int:
     return subprocess.run(list(argv), cwd=cwd, check=False).returncode
 
 
-def _resolve(command: tuple[str, ...], python: str) -> list[str]:
-    return [python if part == PY else part for part in command]
+def _resolve(
+    command: tuple[str, ...],
+    python: str,
+    *,
+    matching_paths: Sequence[str] = (),
+) -> list[str]:
+    resolved: list[str] = []
+    for part in command:
+        if part == PY:
+            resolved.append(python)
+        elif part == MATCHING_PATHS:
+            resolved.extend(matching_paths)
+        else:
+            resolved.append(part)
+    return resolved
 
 
 def run_checks(
     checks: Sequence[Check],
     *,
+    changed_files: Sequence[str] = (),
     runner: Runner = _default_runner,
     python: str | None = None,
-    changed_files: Iterable[str] = (),
 ) -> list[CheckResult]:
-    """Run each check's commands; a check fails fast on the first non-zero command.
-
-    Schema validation is intentionally diff-scoped. The validator's full mode
-    reports pre-existing documentation debt, while its ``--paths`` mode is the
-    contract that prevents a changed schema from adding new undocumented fields.
-    """
+    """Run each check's commands; a check fails fast on the first non-zero command."""
     python = python or sys.executable
-    files = tuple(changed_files)
     results: list[CheckResult] = []
     for check in checks:
         cwd = str(REPO_ROOT / check.cwd)
+        matching_paths = tuple(
+            path
+            for path in changed_files
+            if any(_matches(path, glob) for glob in check.globs)
+        )
         ok = True
         for command in check.commands:
-            resolved = _resolve(command, python)
-            if check.name == "schema-validate":
-                schema_paths = [
-                    path
-                    for path in files
-                    if _matches(path, "apps/backend/src/schemas/*.py")
-                ]
-                if schema_paths:
-                    resolved.extend(("--paths", *schema_paths))
-            if runner(resolved, cwd) != 0:
+            if (
+                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
+                != 0
+            ):
                 ok = False
                 break
         results.append(CheckResult(check.name, ok))
@@ -408,7 +418,7 @@ def run(
     print(
         f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
     )
-    results = run_checks(selected, runner=runner, changed_files=files)
+    results = run_checks(selected, changed_files=files, runner=runner)
     for result in results:
         print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
     failed = [r.name for r in results if not r.ok]

@@ -162,6 +162,135 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(approveButton).toBeDisabled();
     });
 
+    it("AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval", async () => {
+        let confirmed = false;
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") {
+                if (confirmed) {
+                    return Promise.resolve({
+                        ...baseStatement,
+                        account_id: "a1",
+                        source_result_digest: "a".repeat(64),
+                        source_missing_facts: ["statement_currency", "period", "balances"],
+                        reviewed_envelope: {
+                            id: "review-1",
+                            source_result_digest: "a".repeat(64),
+                            account_id: "a1",
+                            currency: "SGD",
+                            period_start: "2024-01-01",
+                            period_end: "2024-01-31",
+                            opening_balance: "100.00",
+                            closing_balance: "120.00",
+                            rationale: "The CSV has no statement header.",
+                            review_trace_record_id: "trace-1",
+                            created_at: "2024-02-01T00:00:00Z",
+                        },
+                    });
+                }
+                return Promise.resolve({
+                    ...baseStatement,
+                    account_id: null,
+                    currency: null,
+                    period_start: null,
+                    opening_balance: null,
+                    closing_balance: null,
+                    source_result_digest: "a".repeat(64),
+                    source_missing_facts: ["statement_currency", "period", "balances"],
+                    source_envelope_reviewable: true,
+                    reviewed_envelope: null,
+                });
+            }
+            if (path === "/api/accounts?account_type=ASSET&is_active=true") {
+                return Promise.resolve({
+                    items: [{ id: "a1", name: "DBS Cash", type: "ASSET", currency: "SGD", is_active: true }],
+                    total: 1,
+                });
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/statements/s1/review/envelope") {
+                expect(options).toMatchObject({ method: "POST" });
+                expect(JSON.parse(String(options?.body))).toMatchObject({
+                    source_result_digest: "a".repeat(64),
+                    account_id: "a1",
+                    currency: "SGD",
+                    period_start: "2024-01-01",
+                    period_end: "2024-01-31",
+                    opening_balance: "100",
+                    closing_balance: "120",
+                });
+                confirmed = true;
+                return Promise.resolve({ id: "review-1" });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        const probe = createInvalidationProbe("statements.review.confirm-envelope", ["s1"]);
+        const ProbeWrapper = ({ children }: { children: ReactNode }) => (
+            <probe.wrapper>
+                <ToastProvider>{children}</ToastProvider>
+            </probe.wrapper>
+        );
+        render(<StatementReviewPage /> as never, { wrapper: ProbeWrapper });
+
+        expect(await screen.findByText("Confirm missing source facts")).toBeInTheDocument();
+        expect(screen.getByText(/statement currency, statement period, opening and closing balances/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+        fireEvent.change(screen.getByLabelText("Custody account"), { target: { value: "a1" } });
+        fireEvent.change(screen.getByLabelText("Statement currency"), { target: { value: "SGD" } });
+        fireEvent.change(screen.getByLabelText("Period start"), { target: { value: "2024-01-01" } });
+        fireEvent.change(screen.getByLabelText("Period end"), { target: { value: "2024-01-31" } });
+        fireEvent.change(screen.getByLabelText("Opening balance"), { target: { value: "100" } });
+        fireEvent.change(screen.getByLabelText("Closing balance"), { target: { value: "120" } });
+        fireEvent.change(screen.getByLabelText("Why are these facts confirmed?"), {
+            target: { value: "The CSV has no statement header." },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Confirm source envelope" }));
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/statements/s1/review/envelope",
+                expect.objectContaining({ method: "POST" }),
+            );
+        });
+        await waitFor(() => probe.expectDeclaredInvalidated());
+        await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    });
+
+    it("AC-extraction.reviewed-envelope.6 does not offer a cash envelope for unsupported source facts", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({
+                    ...baseStatement,
+                    source_result_digest: "a".repeat(64),
+                    source_missing_facts: ["transaction_currency"],
+                    source_envelope_reviewable: false,
+                    reviewed_envelope: null,
+                });
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        expect(await screen.findByText("Source review required")).toBeInTheDocument();
+        expect(screen.getByText(/transaction currency cannot be confirmed by a cash statement envelope/i)).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Confirm source envelope" })).not.toBeInTheDocument();
+        expect(screen.queryByLabelText("Custody account")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    });
+
     // AC-extraction.fe-stage1-review.9
     it("AC16.18.6 approves the statement and routes back to statement detail", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {

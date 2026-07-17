@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `137`
-- Schema count: `247`
+- Endpoint count: `138`
+- Schema count: `249`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -33,7 +33,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reconciliation` | 10 |
 | `reports` | 21 |
 | `review` | 9 |
-| `statements` | 14 |
+| `statements` | 15 |
 | `untagged` | 3 |
 | `user-settings` | 2 |
 | `users` | 5 |
@@ -261,6 +261,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review/approve` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
 | `POST` | `/statements/{statement_id}/review/edit` | yes | `statement_id`* (path) | `EditAndApproveRequest` | `200` `Stage1ApprovalResponse` | Edit And Approve Statement |
+| `POST` | `/statements/{statement_id}/review/envelope` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
 | `POST` | `/statements/{statement_id}/review/opening-balance` | yes | `statement_id`* (path) | `SetOpeningBalanceRequest` | `200` `BankStatementResponse` | Set Statement Opening Balance |
 | `POST` | `/statements/{statement_id}/review/reject` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
 | `GET` | `/statements/{statement_id}/transactions` | yes | `statement_id`* (path) | - | `200` `ListResponse_AtomicTransactionResponse_` | List Statement Transactions |

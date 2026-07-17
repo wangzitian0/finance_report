@@ -26,6 +26,7 @@ from src.extraction.base.types import (
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
+from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
@@ -652,6 +653,12 @@ async def _execute_statement_ingestion(
                 occurred_at=trace_occurred_at,
             )
             await trace_emitter_factory(session).emit_many(trace_records)
+            await persist_statement_extraction_result(
+                session,
+                statement=statement,
+                result=persisted_result,
+                source_trace_record_id=trace_records[0].record_id,
+            )
 
             checkpoint("statement_persisted")
             auto_posted_count = await try_auto_approve_high_confidence_statement(

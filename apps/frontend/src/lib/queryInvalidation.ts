@@ -70,6 +70,11 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
     invalidates: [["statement-conflicts"]],
   },
   {
+    flow: "statements.review.confirm-envelope",
+    file: "app/(main)/statements/[id]/review/page.tsx",
+    invalidates: [["statement-review"]],
+  },
+  {
     flow: "statements.review.reparse",
     file: "app/(main)/statements/[id]/review/page.tsx",
     invalidates: [],

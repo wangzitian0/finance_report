@@ -65,6 +65,10 @@ from src.extraction.base.result import (
     StatementExtractionResult,
     StatementSourceType,
 )
+from src.extraction.base.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeCommand,
+    supports_reviewed_statement_envelope,
+)
 from src.extraction.base.types import (
     DocumentSource,
     ExtractedTransactionRow,
@@ -132,6 +136,13 @@ from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsin
 from src.extraction.extension.review_queue import (
     create_entry_from_txn,
     register_fx_rate_provider,
+)
+from src.extraction.extension.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeConflict,
+    confirm_reviewed_statement_envelope,
+    current_reviewed_statement_envelope,
+    get_current_statement_extraction_result,
+    persist_statement_extraction_result,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import (
@@ -204,6 +215,10 @@ from src.extraction.orm.layer3 import (
     RuleType,
     TransactionClassification,
 )
+from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (mapper registration)
+    ReviewedStatementEnvelope,
+    StatementExtractionResultRecord,
+)
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
@@ -253,6 +268,8 @@ __all__ = [
     "ParseJob",
     "RetryableStatementIngestionError",
     "RuleType",
+    "ReviewedStatementEnvelopeCommand",
+    "ReviewedStatementEnvelopeConflict",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
     "SourceCapabilityStatus",
@@ -288,7 +305,9 @@ __all__ = [
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",
     "compute_confidence_score",
+    "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
+    "current_reviewed_statement_envelope",
     "detect_balance_chain_break",
     "dual_write_layer2",
     "emit_disposition_trace_records",
@@ -299,6 +318,7 @@ __all__ = [
     "get_correction_stats",
     "get_known_storage_paths",
     "get_parsing_prompt",
+    "get_current_statement_extraction_result",
     "get_statement_coverage_rows",
     "get_statement_event_sources",
     "get_uploaded_document_filename",
@@ -308,6 +328,7 @@ __all__ = [
     "parse_brokerage_csv_payload",
     "parse_brokerage_positions",
     "pending_stage1_review_filter",
+    "persist_statement_extraction_result",
     "record_correction",
     "register_fx_rate_provider",
     "register_position_reconciler",
@@ -323,6 +344,7 @@ __all__ = [
     "set_opening_balance",
     "snapshot_currencies",
     "submit_parse_pipeline",
+    "supports_reviewed_statement_envelope",
     "validate_balance",
     "validate_balance_chain",
     "validation",

@@ -25,6 +25,7 @@ from sqlalchemy import (
     DateTime,
     Enum as SQLEnum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -47,6 +48,19 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "statement_summaries"
     __table_args__ = (
         UniqueConstraint("user_id", "file_hash", name="uq_statement_summaries_user_file_hash"),
+        # This composite identity lets every result/envelope reference prove
+        # its tenant and statement ownership at the database boundary.
+        UniqueConstraint("user_id", "id", name="uq_statement_summaries_user_id_id"),
+        ForeignKeyConstraint(
+            ["user_id", "id", "current_extraction_result_id"],
+            [
+                "statement_extraction_results.user_id",
+                "statement_extraction_results.statement_id",
+                "statement_extraction_results.id",
+            ],
+            name="fk_statement_summaries_current_result",
+            use_alter=True,
+        ),
         CheckConstraint(
             "period_start IS NULL OR period_end IS NULL OR period_start <= period_end",
             name="ck_statement_summaries_period_order",
@@ -77,6 +91,13 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         PGUUID(as_uuid=True),
         ForeignKey("uploaded_documents.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # The mutable DWD conform points at the current immutable parse snapshot.
+    # Reparse changes only this pointer; historic source results remain auditable.
+    current_extraction_result_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+        comment="Current immutable StatementExtractionResultRecord",
     )
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False, comment="SHA256, canonical document join key")
 

@@ -14,6 +14,7 @@ from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
+from src.extraction.extension.reviewed_statement_envelope import require_current_statement_envelope_trust
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
@@ -252,6 +253,7 @@ async def approve_statement(
     user_id: UUID,
 ) -> StatementSummary:
     statement = await _get_statement_for_update(db, statement_id, user_id)
+    await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
     validation_result = await validate_balance_chain(db, statement_id)
     transactions = await resolve_statement_transactions(db, statement)
