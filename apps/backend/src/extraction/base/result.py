@@ -12,7 +12,9 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid5
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
+_LEGACY_SCHEMA_VERSION = "1"
+_SUPPORTED_SCHEMA_VERSIONS = frozenset((SCHEMA_VERSION, _LEGACY_SCHEMA_VERSION))
 _NAMESPACE = UUID("31c166a8-56ae-4e2b-a5f3-ef169b2b2976")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -20,6 +22,18 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 class StatementSourceType(StrEnum):
     BANK = "bank_statement"
     BROKERAGE = "brokerage_statement"
+
+
+class StatementEvidenceType(StrEnum):
+    """The source-evidence shape that determines required facts.
+
+    Institution class answers where the statement came from; evidence type answers
+    which source facts must exist before the result can cross a promotion boundary.
+    A brokerage cash ledger therefore never pretends to be a position snapshot.
+    """
+
+    TRANSACTION_LEDGER = "transaction_ledger"
+    POSITION_SNAPSHOT = "position_snapshot"
 
 
 class ExtractionMethod(StrEnum):
@@ -203,6 +217,7 @@ class StatementExtractionResult:
     producer_version: str
     source_content_digest: str
     source_type: StatementSourceType
+    evidence_type: StatementEvidenceType
     institution: str
     account_last4: str | None
     period_start: date | None
@@ -215,18 +230,23 @@ class StatementExtractionResult:
     warnings: tuple[str, ...]
     review_reasons: tuple[str, ...]
     provenance: SourceProvenance
+    statement_currency: str | None = None
     schema_version: str = SCHEMA_VERSION
     content_digest: str = field(init=False)
     result_id: UUID = field(init=False)
 
     def __post_init__(self) -> None:
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported statement extraction schema version: {self.schema_version}")
         object.__setattr__(self, "producer_version", _text(self.producer_version, "producer_version"))
         if not _SHA256.fullmatch(self.source_content_digest):
             raise ValueError("source_content_digest must be lowercase sha256")
         if not isinstance(self.source_type, StatementSourceType):
             raise TypeError("source_type must be StatementSourceType")
+        if not isinstance(self.evidence_type, StatementEvidenceType):
+            raise TypeError("evidence_type must be StatementEvidenceType")
+        if self.statement_currency is not None:
+            object.__setattr__(self, "statement_currency", _currency(self.statement_currency))
         object.__setattr__(self, "institution", _text(self.institution, "institution"))
         if self.account_last4 is not None and not re.fullmatch(r"[A-Za-z0-9]{1,4}", self.account_last4):
             raise ValueError("account_last4 must contain one to four ASCII alphanumeric characters")
@@ -236,8 +256,6 @@ class StatementExtractionResult:
             raise ValueError("invalid statement period")
         if len({item.currency for item in self.balances}) != len(self.balances):
             raise ValueError("balances must be unique by currency")
-        if self.source_type is StatementSourceType.BROKERAGE and not self.positions:
-            raise ValueError("brokerage results require at least one exact position fact")
         _confidence(self.confidence, "statement confidence")
         for name in ("warnings", "review_reasons"):
             if any(not item.strip() for item in getattr(self, name)):
@@ -255,17 +273,63 @@ class StatementExtractionResult:
     @property
     def missing_required_facts(self) -> tuple[str, ...]:
         """Facts required before this result may cross the promotion boundary."""
+        return self.required_fact_kinds(
+            evidence_type=self.evidence_type,
+            period_start=self.period_start,
+            period_end=self.period_end,
+            # A multi-currency source may declare units only on its exact
+            # opening/closing buckets; those are source facts, unlike a
+            # transaction-row currency which cannot establish the envelope.
+            has_statement_currency=self.statement_currency is not None or bool(self.balances),
+            has_balances=bool(self.balances),
+            has_positions=bool(self.positions),
+            has_unresolved_transaction_currency=any(item.currency is None for item in self.transactions),
+        )
+
+    @staticmethod
+    def required_fact_kinds(
+        *,
+        evidence_type: StatementEvidenceType,
+        period_start: date | None,
+        period_end: date | None,
+        has_statement_currency: bool,
+        has_balances: bool,
+        has_positions: bool,
+        has_unresolved_transaction_currency: bool,
+    ) -> tuple[str, ...]:
+        """Return the one promotion policy used by every extraction transport."""
         missing: list[str] = []
-        if self.period_start is None:
+        if evidence_type is StatementEvidenceType.TRANSACTION_LEDGER and not has_statement_currency:
+            missing.append("statement_currency")
+        if period_start is None or period_end is None:
             missing.append("period")
-        if self.source_type is StatementSourceType.BANK and not self.balances:
+        if evidence_type is StatementEvidenceType.TRANSACTION_LEDGER and not has_balances:
             missing.append("balances")
-        if any(item.currency is None for item in self.transactions):
+        if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT and not has_positions:
+            missing.append("positions")
+        if has_unresolved_transaction_currency:
             missing.append("transaction_currency")
         return tuple(missing)
 
+    @staticmethod
+    def required_fact_labels(fact_kinds: tuple[str, ...]) -> tuple[str, ...]:
+        """Translate stable fact identifiers into one human review explanation."""
+        labels = {
+            "statement_currency": "statement currency",
+            "period": "statement period",
+            "balances": "opening and closing balances",
+            "positions": "positions",
+            "transaction_currency": "transaction currency",
+        }
+        return tuple(labels[kind] for kind in fact_kinds)
+
+    @property
+    def requires_review(self) -> bool:
+        """Whether source-fact completeness alone blocks automated promotion."""
+        return bool(self.missing_required_facts)
+
     def _semantic_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "producer_version": self.producer_version,
             "source_content_digest": self.source_content_digest,
@@ -315,19 +379,45 @@ class StatementExtractionResult:
                 "model": self.provenance.model,
             },
         }
+        if self.schema_version != _LEGACY_SCHEMA_VERSION:
+            payload["evidence_type"] = self.evidence_type.value
+            payload["statement_currency"] = self.statement_currency
+        return payload
 
     def to_payload(self) -> dict[str, Any]:
         return {**self._semantic_payload(), "content_digest": self.content_digest, "result_id": str(self.result_id)}
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> StatementExtractionResult:
-        if payload["schema_version"] != SCHEMA_VERSION:
-            raise ValueError(f"unsupported statement extraction schema version: {payload['schema_version']}")
+        schema_version = payload["schema_version"]
+        if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
+            raise ValueError(f"unsupported statement extraction schema version: {schema_version}")
+        source_type = StatementSourceType(payload["source_type"])
+        evidence_type_value = payload.get("evidence_type")
+        if evidence_type_value is None:
+            if schema_version != _LEGACY_SCHEMA_VERSION:
+                raise ValueError("statement extraction evidence_type is required")
+            # Legacy payloads did not distinguish a brokerage cash ledger from
+            # an empty position snapshot. Treat the ambiguous historical shape
+            # as a ledger, which keeps it review-bound when balance facts are absent.
+            evidence_type = (
+                StatementEvidenceType.POSITION_SNAPSHOT
+                if source_type is StatementSourceType.BROKERAGE and payload.get("positions")
+                else StatementEvidenceType.TRANSACTION_LEDGER
+            )
+        else:
+            evidence_type = StatementEvidenceType(evidence_type_value)
+        if schema_version == _LEGACY_SCHEMA_VERSION:
+            legacy_balance_currencies = {item["currency"] for item in payload["balances"]}
+            statement_currency = next(iter(legacy_balance_currencies)) if len(legacy_balance_currencies) == 1 else None
+        else:
+            statement_currency = payload["statement_currency"]
         result = cls(
-            schema_version=payload["schema_version"],
+            schema_version=schema_version,
             producer_version=payload["producer_version"],
             source_content_digest=payload["source_content_digest"],
-            source_type=StatementSourceType(payload["source_type"]),
+            source_type=source_type,
+            evidence_type=evidence_type,
             institution=payload["institution"],
             account_last4=payload.get("account_last4"),
             period_start=date.fromisoformat(payload["period_start"]) if payload["period_start"] else None,
@@ -373,6 +463,7 @@ class StatementExtractionResult:
                 provider=payload["provenance"]["provider"],
                 model=payload["provenance"]["model"],
             ),
+            statement_currency=statement_currency,
         )
         if payload.get("content_digest") != result.content_digest or payload.get("result_id") != str(result.result_id):
             raise ValueError("statement extraction identity mismatch")

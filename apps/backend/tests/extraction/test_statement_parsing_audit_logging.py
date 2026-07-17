@@ -7,9 +7,12 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+
 from src.database import create_session_maker_from_db
-from src.extraction import ParseJob
+from src.extraction import ExtractionMethod, ParseJob, StatementEvidenceType
 from src.extraction.extension import statement_parsing
+from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionError
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -48,6 +51,42 @@ async def _create_statement(db, user_id, *, statement_id=None, file_hash="audit-
     return statement
 
 
+async def _persist_fixture_result(*, db, statement_id, source):
+    """Persist a production-shaped result for composition-boundary audit tests."""
+    summary = await db.get(StatementSummary, statement_id)
+    assert summary is not None
+    parsed = _parsed_statement(summary.user_id, summary.file_hash)
+    for field in (
+        "institution",
+        "account_last4",
+        "currency",
+        "period_start",
+        "period_end",
+        "opening_balance",
+        "closing_balance",
+        "status",
+        "confidence_score",
+        "balance_validated",
+    ):
+        setattr(summary, field, getattr(parsed, field))
+    result = build_statement_extraction_result(
+        source=source,
+        file_type="pdf",
+        statement=summary,
+        transactions=[],
+        provider_payload={"transactions": []},
+        model="audit-fixture",
+        provider="audit-fixture",
+        method=ExtractionMethod.GOLDEN_FIXTURE,
+        is_brokerage=False,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        positions=[],
+    )
+    summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
+    await db.flush()
+    return result
+
+
 async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, test_user, monkeypatch):
     """AC-observability.8.2: Async parsing emits replay checkpoints and safe failure context."""
     user_id = test_user.id
@@ -57,8 +96,12 @@ async def test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured(db, te
     mock_warning = MagicMock()
     mock_exception = MagicMock()
 
-    async def fake_parse_document(*_args, **_kwargs):
-        return _parsed_statement(user_id, "success-hash"), []
+    async def fake_parse_document(*args, **kwargs):
+        return await _persist_fixture_result(
+            db=kwargs["db"],
+            statement_id=success.id,
+            source=args[1],
+        )
 
     monkeypatch.setattr(statement_parsing.logger, "info", mock_info)
     monkeypatch.setattr(statement_parsing.logger, "error", mock_error)
@@ -257,37 +300,30 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
     assert completed["broker"] == "Moomoo"
     assert completed["parsed_positions"] == 1
 
-    # Failure path: the routing commit raises -> a replayable failure event is emitted.
+    # Failure path: the routing flush raises -> a replayable failure event is emitted.
     failure_statement = await _create_statement(db, test_user.id, file_hash="brokerage-failure-audit-hash")
     failure_statement.status = BankStatementStatus.PARSED
     await db.commit()
 
-    commit_calls = {"count": 0}
-    real_commit = db.commit
+    flush_calls = {"count": 0}
 
-    async def flaky_commit(*args, **kwargs):
-        commit_calls["count"] += 1
-        if commit_calls["count"] == 1:
-            raise RuntimeError("forced routing commit failure")
-        return await real_commit(*args, **kwargs)
+    async def flaky_flush(*args, **kwargs):
+        flush_calls["count"] += 1
+        raise RuntimeError("forced routing flush failure")
 
-    async def missing_statement(*_args, **_kwargs):
-        return None
+    monkeypatch.setattr(db, "flush", flaky_flush)
 
-    monkeypatch.setattr(db, "commit", flaky_commit)
-    monkeypatch.setattr(db, "rollback", missing_statement)
-    monkeypatch.setattr(db, "get", missing_statement)
-
-    await route_brokerage_for_review_if_present(
-        summary=failure_statement,
-        db=db,
-        user_id=test_user.id,
-        filename="moomoo-positions.pdf",
-        institution="Moomoo",
-        payload=payload,
-        request_id="req-brokerage-failed",
-        model_to_use="glm-5.1",
-    )
+    with pytest.raises(RuntimeError, match="forced routing flush failure"):
+        await route_brokerage_for_review_if_present(
+            summary=failure_statement,
+            db=db,
+            user_id=test_user.id,
+            filename="moomoo-positions.pdf",
+            institution="Moomoo",
+            payload=payload,
+            request_id="req-brokerage-failed",
+            model_to_use="glm-5.1",
+        )
 
     failed = next(
         call.kwargs
@@ -300,7 +336,8 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
     assert failed["phase"] == "brokerage_review_routing_failed"
     assert failed["model_to_use"] == "glm-5.1"
     assert failed["error_type"] == "RuntimeError"
-    assert failed["safe_error_message"] == "forced routing commit failure"
+    assert flush_calls["count"] == 1
+    assert failed["safe_error_message"] == "forced routing flush failure"
 
 
 async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch):
@@ -321,8 +358,12 @@ async def test_AC10_10_4_parse_outcome_metric_emitted(db, test_user, monkeypatch
 
     success = await _create_statement(db, user_id, file_hash="metric-success")
 
-    async def ok_parse_document(*_args, **_kwargs):
-        return _parsed_statement(user_id, "metric-success"), []
+    async def ok_parse_document(*args, **kwargs):
+        return await _persist_fixture_result(
+            db=kwargs["db"],
+            statement_id=success.id,
+            source=args[1],
+        )
 
     monkeypatch.setattr(statement_parsing.ExtractionService, "parse_document", ok_parse_document)
     await parse_statement_background(

@@ -27,6 +27,7 @@ from src.extraction import (
     auto_create_posted_entries_for_statement,
     edit_and_approve,
     pending_stage1_review_filter,
+    register_statement_source,
     reject_statement_workflow,
     resolve_statement_posting_account,
     resolve_statement_transactions,
@@ -373,12 +374,10 @@ async def upload_statement(
     db.add(statement)
     try:
         await db.flush()
-        from src.extraction import EvidenceGraphIntegrationService
-
-        await EvidenceGraphIntegrationService().record_statement_upload(
+        await register_statement_source(
             db,
-            user_id=user_id,
             statement=statement,
+            storage_key=storage_key,
             original_filename=filename,
         )
         await db.commit()

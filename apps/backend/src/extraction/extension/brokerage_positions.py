@@ -64,7 +64,7 @@ def _get_position_reconciler() -> Callable[[AsyncSession, UUID], Awaitable[Posit
 class BrokeragePositionSnapshot:
     """Brokerage position snapshot before persistence."""
 
-    snapshot_date: date
+    snapshot_date: date | None
     asset_identifier: str
     broker: str
     quantity: Decimal
@@ -153,7 +153,7 @@ def _statement_dict(payload: dict[str, Any]) -> dict[str, Any]:
     return statement if isinstance(statement, dict) else {}
 
 
-def _statement_date(payload: dict[str, Any]) -> date:
+def _statement_date(payload: dict[str, Any]) -> date | None:
     statement = _statement_dict(payload)
     for candidate in (
         payload.get("snapshot_date"),
@@ -166,7 +166,7 @@ def _statement_date(payload: dict[str, Any]) -> date:
         parsed = _parse_date(candidate)
         if parsed:
             return parsed
-    return date.today()
+    return None
 
 
 def _payload_currency(payload: dict[str, Any], default: str = "USD") -> str:
@@ -260,7 +260,7 @@ def _iter_structured_positions(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _parse_structured_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     snapshots: list[BrokeragePositionSnapshot] = []
     default_currency = _payload_currency(payload)
@@ -292,7 +292,7 @@ def _parse_structured_positions(
 
 
 def _parse_moomoo_subscription_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     snapshots: list[BrokeragePositionSnapshot] = []
     for event in payload.get("events") or payload.get("transactions") or []:
@@ -337,7 +337,7 @@ def _parse_moomoo_subscription_positions(
 
 
 def _parse_moomoo_margin_history_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     rows = payload.get("margin_history_rows")
     if not isinstance(rows, list):
@@ -394,7 +394,7 @@ def _parse_moomoo_margin_history_positions(
 
 
 def _parse_futu_aggregate_position(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     best_value: Decimal | None = None
     for event in payload.get("events") or payload.get("transactions") or []:
@@ -773,6 +773,8 @@ def brokerage_currency_balances(
 
 
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
+    if snapshot.snapshot_date is None:
+        raise ValueError("Brokerage position snapshot date is required for import")
     material = "|".join(
         [
             str(user_id),
@@ -803,6 +805,8 @@ class BrokeragePositionImportService:
         # short reduces portfolio value instead of being skipped (which dropped real data)
         # or crashing the import (constraint violation → 500).
         snapshots = parse_brokerage_positions(payload, filename=filename)
+        if any(snapshot.snapshot_date is None for snapshot in snapshots):
+            raise ValueError("Brokerage position import requires a source-declared snapshot date")
         created = 0
         existing = 0
         broker = (

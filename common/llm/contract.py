@@ -927,8 +927,8 @@ CONTRACT = PackageContract(
         # re-extracted against today's code or the live provider ──
         ACRecord(
             id="AC-llm.14.1",
-            statement="A cassette-delivered extraction with no period_start/period_end but valid transaction dates degrades gracefully to the transaction-date range (#1449) when it reaches parse_document() through the real cassette transport",
-            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay",
+            statement="A cassette-delivered extraction with no period_start/period_end preserves that absence as a review-required result rather than inferring a transaction-date range when it reaches parse_document() through the real cassette transport",
+            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_remains_review_only_via_replay",
             priority="P1",
             status="done",
             proof_kind="property",

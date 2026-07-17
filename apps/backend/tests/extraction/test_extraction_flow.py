@@ -126,7 +126,9 @@ class TestExtractionServiceFlow:
         assert len(result.transactions) == 2
         assert result.balance_validated is None
         assert result.confidence == Decimal("0.25")
-        assert result.review_reasons == ("Source CSV does not declare opening and closing balances",)
+        assert result.review_reasons == (
+            "Source is missing required facts: statement currency, statement period, opening and closing balances, transaction currency",
+        )
 
     async def test_parse_document_unsupported_type(self, service, tmp_path):
         """[AC-extraction.4.2] Test parse_document raises error for unsupported type."""

@@ -272,6 +272,7 @@ CONTRACT = PackageContract(
         "StatementIngestionStatus",
         "StatementIngestionUseCase",
         "StatementExtractionResult",
+        "StatementEvidenceType",
         "StatementPostingDependencies",
         "StatementSourceType",
         "StatementTransaction",
@@ -2356,16 +2357,15 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.304.13",
             statement=(
-                "AC-B3 A multi-currency brokerage statement persists a per- "
-                "currency NAV array (currency_balances) instead of collapsing to "
-                "a single scalar opening/closing: each currency's NAV is the sum "
-                "of that currency's positions, every currency round-trips "
-                "independently, and no currency is cross-summed into another "
+                "AC-B3 A multi-currency brokerage position snapshot never "
+                "fabricates opening/closing cash balances from position market "
+                "values or cross-sums currencies; a per-currency balance array "
+                "is persisted only when the source declares exact balance facts "
                 "(#1139). Was EPIC-017 AC17.4.13."
             ),
             test=(
                 "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
-                "::test_AC_B3_multi_currency_brokerage_emits_per_currency_balances"
+                "::test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances"
             ),
             priority="P0",
             status="done",
@@ -2406,17 +2406,15 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.2009.4",
             statement=(
-                "LLM-LED tier gate is fail-closed: when a balance invariant "
-                "cannot be evaluated because a bank statement is missing an "
-                "opening or closing balance, the extraction never reaches "
-                "parsed/trusted state (the parse path refuses it) and the pure "
-                "gate quarantines the unevaluable case with a typed reason, "
-                "rather than silently passing on a zero-default chain. Was "
-                "EPIC-020 AC20.9.4."
+                "LLM-LED tier gate is fail-closed without inventing source "
+                "facts: an explicitly missing bank opening/closing balance is "
+                "retained only as a review-required result, never zero-filled "
+                "or promoted; an unevaluable asserted invariant still has a "
+                "typed pure-gate quarantine path. Was EPIC-020 AC20.9.4."
             ),
             test=(
                 "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
-                "::test_AC20_9_4_unevaluable_balance_fails_closed_not_parsed"
+                "::test_AC20_9_4_declared_missing_balance_is_review_only"
             ),
             priority="P0",
             status="done",
@@ -3763,6 +3761,22 @@ CONTRACT = PackageContract(
             proof_kind="invariant",
         ),
         ACRecord(
+            id="AC-extraction.1913.9",
+            statement=(
+                "Accepting a statement upload persists and binds its immutable ODS "
+                "source artifact before asynchronous dispatch, so the 202 response, "
+                "reparse, and subsequent source-to-fact enrichment all resolve the "
+                "same file path and display filename without transient ORM attributes."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_1913_9_upload_registers_source_before_dispatch"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
             id="AC-extraction.ingestion-trace.1",
             statement=(
                 "The typed extraction result, its CODE-only integrity guard, and "
@@ -3798,7 +3812,11 @@ CONTRACT = PackageContract(
                 "Every live, CSV, cassette, and persisted statement fact uses one "
                 "strictly versioned StatementExtractionResult; unknown versions and "
                 "structurally malformed facts fail before review or disposition. "
-                "Truthfully absent source facts remain explicit and review-only; "
+                "Its evidence type, not institution class, determines whether a "
+                "cash ledger requires balances or a position snapshot requires "
+                "positions. The declared statement currency is a distinct ledger "
+                "source fact, not an inferred transaction or balance currency. Truthfully "
+                "absent source facts remain explicit and review-only; "
                 "they can never be promoted or turned into a disposition command."
             ),
             test=(

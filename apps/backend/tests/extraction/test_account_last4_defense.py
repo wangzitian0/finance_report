@@ -26,7 +26,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentSource, ExtractionMethod, ParseJob
+from src.extraction import DocumentSource, ExtractionMethod, ParseJob, StatementEvidenceType
 from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -298,6 +298,8 @@ class TestBackgroundTaskDirtyData:
                 provider="fixture-provider",
                 method=ExtractionMethod.GOLDEN_FIXTURE,
                 is_brokerage=False,
+                evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+                positions=[],
             )
             summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
             await session.flush()
@@ -490,6 +492,8 @@ class TestCascadingFailureRecovery:
                 provider="fixture-provider",
                 method=ExtractionMethod.GOLDEN_FIXTURE,
                 is_brokerage=False,
+                evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+                positions=[],
             )
             summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
             await session.flush()

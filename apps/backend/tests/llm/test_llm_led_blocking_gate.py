@@ -16,6 +16,7 @@ against the ``report_readiness`` trusted-input predicate, which already excludes
 
 from __future__ import annotations
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -160,25 +161,25 @@ class TestDedupConservationBlockingGate:
 
 
 class TestFailClosedGate:
-    async def test_AC20_9_4_unevaluable_balance_fails_closed_not_parsed(self, service, tmp_path):
-        """[AC-extraction.2009.4] A bank statement missing a closing balance never reaches parsed.
+    async def test_AC20_9_4_declared_missing_balance_is_review_only(self, service, tmp_path):
+        """[AC-extraction.2009.4] Missing source facts cannot become trusted truth.
 
-        Fail-closed: a bank statement that lacks a closing balance cannot have its
-        balance invariant evaluated. The parse path refuses it (a hard parse error)
-        rather than substituting a zero-default that would silently 'pass' the chain
-        — it never lands in PARSED/trusted state. The typed-reason quarantine for the
-        unevaluable case is asserted directly on the pure gate below.
+        A source that explicitly omits its closing balance is retained as reviewable
+        evidence, never zero-filled or auto-promoted. The pure gate still quarantines
+        an unevaluable *asserted* balance invariant when no source-gap disposition is
+        supplied by this boundary.
         """
-        from src.extraction.extension.service import ExtractionError
-
         payload = _bank_payload(
             opening="1000.00",
             closing="",
             txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}],
         )
         payload.pop("closing_balance")  # truly absent closing balance
-        with pytest.raises(ExtractionError):
-            await _parse(service, tmp_path, payload)
+        result = await _parse(service, tmp_path, payload)
+
+        assert result.balance_validated is None
+        assert result.confidence <= Decimal("0.59")
+        assert result.review_reasons == ("Source is missing required facts: opening and closing balances",)
 
     def test_AC20_9_4_unevaluable_is_pure_gate_decision(self):
         """[AC-extraction.2009.4] The pure gate quarantines on balance_evaluable=False (bank)."""

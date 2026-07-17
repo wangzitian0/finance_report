@@ -589,6 +589,10 @@ async def dual_write_layer2(
         if existing_doc is not None:
             uploaded_doc = existing_doc
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
+            # The upload registers an artifact before parsing can determine
+            # whether it is a bank or brokerage statement.  Resolve that
+            # semantic type only once the typed parse result exists.
+            uploaded_doc.document_type = doc_type
             if effective_metadata is not None:
                 uploaded_doc.extraction_metadata = effective_metadata
             # ``envelope_only`` persists just the terminal envelope status (a
@@ -686,6 +690,26 @@ async def dual_write_layer2(
         # appears perpetually un-processed.
         uploaded_doc.status = DocumentStatus.COMPLETED
         db.add(uploaded_doc)
+        canonical_statement = existing if existing is not None and existing is not statement else statement
+        try:
+            # The artifact exists before parse dispatch, including brokerage
+            # statements with zero cash rows. Refresh its node independently of
+            # atomic-transaction lineage so the evidence type/status cannot stay
+            # at the provisional upload values.
+            await evidence_graph.record_statement_source(
+                db,
+                user_id=user_id,
+                statement=canonical_statement,
+                uploaded_document=uploaded_doc,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph source artifact refresh failed (ingestion continues)",
+                error=str(evidence_exc),
+                error_type=type(evidence_exc).__name__,
+                user_id=str(user_id),
+                uploaded_document_id=str(uploaded_doc.id),
+            )
         await db.flush()
 
         logger.info(

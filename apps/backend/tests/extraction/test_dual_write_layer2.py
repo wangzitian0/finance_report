@@ -9,9 +9,17 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from src.extraction import DocumentSource, DocumentStatus, DocumentType, ExtractedTransactionRow, UploadedDocument
+from src.extraction import (
+    DocumentSource,
+    DocumentStatus,
+    DocumentType,
+    ExtractedTransactionRow,
+    UploadedDocument,
+    register_statement_source,
+)
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
+from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
@@ -163,9 +171,27 @@ class TestDualWriteLayer2:
     async def test_dual_write_persists_brokerage_extraction_metadata(
         self, db, test_user, sample_file_content, monkeypatch
     ):
-        """AC-extraction.304.7: Brokerage dual-write keeps structured OCR positions available for import."""
+        """AC-extraction.304.7: Brokerage enrichment retains the registered source artifact."""
 
         service = ExtractionService()
+        file_hash = hashlib.sha256(sample_file_content).hexdigest()
+        precreated = StatementSummary(
+            user_id=test_user.id,
+            file_hash=file_hash,
+            institution="Moomoo",
+            status=BankStatementStatus.PARSING,
+        )
+        db.add(precreated)
+        await db.flush()
+        source_document = await register_statement_source(
+            db,
+            statement=precreated,
+            storage_key="statements/moomoo-preparse.pdf",
+            original_filename="moomoo-statement.pdf",
+        )
+        assert source_document.document_type is DocumentType.BANK_STATEMENT
+        assert source_document.status is DocumentStatus.UPLOADED
+
         brokerage_response = {
             "institution": "Moomoo",
             "currency": "SGD",
@@ -199,8 +225,18 @@ class TestDualWriteLayer2:
         assert transactions == []
         assert extraction_result.positions
         assert statement.extraction_metadata == {"statement_extraction_result": extraction_result.to_payload()}
+        assert uploaded_doc.id == source_document.id
         assert uploaded_doc.document_type == DocumentType.BROKERAGE_STATEMENT
+        assert uploaded_doc.status is DocumentStatus.COMPLETED
         assert uploaded_doc.extraction_metadata == {"statement_extraction_result": extraction_result.to_payload()}
+        source_node = (
+            await db.execute(
+                select(EvidenceNode)
+                .where(EvidenceNode.entity_type == "uploaded_document")
+                .where(EvidenceNode.entity_id == source_document.id)
+            )
+        ).scalar_one()
+        assert source_node.properties["document_type"] == DocumentType.BROKERAGE_STATEMENT.value
 
     async def test_dual_write_creates_atomic_transactions(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch

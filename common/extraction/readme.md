@@ -31,6 +31,12 @@ constructs it with immutable ports for the session maker, source-content loader,
 reconciliation transfer facts, FX lookup, brokerage review, and clock; importing
 `src.main` or mutating a package-global provider is never part of worker startup.
 
+The upload transaction first persists one ODS `UploadedDocument`, binds it to the
+`StatementSummary`, and materializes its source-evidence node before it dispatches
+asynchronous parsing. Parsing enriches the same artifact with its typed result and
+resolved bank/brokerage type; it never creates a second source document or relies
+on transient attributes of the DWD summary for a file path or display filename.
+
 Only a typed extraction/source failure may move a statement to `rejected`.
 Missing composition, storage/database failures, and unexpected application
 exceptions raise typed ingestion errors so durable execution can retry without
@@ -41,11 +47,17 @@ is idempotent by statement and atomic-transaction identity.
 
 Every transport receives the same `StatementExtractionResult`; it is the
 versioned source-to-fact record, not an ORM tuple. Its result identity and
-content digest anchor ODS/DWD projection and audit trace records. A source may
-truthfully omit facts: transaction-only CSV is `manual_trusted`, settlement-note
-lot/fee/dividend ingestion is currently a declared `gap`, and bank/brokerage
-statement extraction is `supported`. Capability declarations describe product
-semantics only; test-node coverage belongs to `common/testing`.
+content digest anchor ODS/DWD projection and audit trace records. `source_type`
+states the institution class (bank or brokerage), while `evidence_type` states
+the required source shape (`transaction_ledger` or `position_snapshot`): this
+single entity owns the missing-fact and review-only decision. A brokerage cash
+ledger therefore never requires positions, and a position snapshot never
+manufactures cash balances. Schema-v1 metadata remains readable; schema-v2
+writes require explicit `evidence_type`. A source may truthfully omit facts:
+transaction-only CSV is `manual_trusted`, settlement-note lot/fee/dividend
+ingestion is currently a declared `gap`, and bank/brokerage statement extraction
+is `supported`. Capability declarations describe product semantics only;
+test-node coverage belongs to `common/testing`.
 
 `DispositionPolicy` is the only extraction-owned statement-to-ledger semantic
 boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
@@ -89,7 +101,8 @@ and its EPIC -> AC -> test anchors.
 ```mermaid
 flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
-    S --> P[Create PARSING Statement]
+    S --> O[Create ODS Source Artifact]
+    O --> P[Bind PARSING Statement]
     P --> B{File Type}
     B -->|PDF/Image| C["OCR_MODEL OCR path"]
     C --> C2["PRIMARY_MODEL JSON structuring"]
@@ -171,12 +184,11 @@ rather than runtime signature reflection.
   [common/reconciliation/readme.md#per-currency-balance-reconciliation](../reconciliation/readme.md#per-currency-balance-reconciliation).
   (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
   AC2/AC3/AC4.)
-- A multi-currency **brokerage** statement populates `currency_balances` from its
-  parsed positions: each currency's NAV is the sum of that currency's position
-  market values, persisted as an independent `{currency, opening, closing}` bucket
-  (a position snapshot has no intra-period cash flow, so `opening == closing`). The
-  multi-currency NAV therefore never collapses to a single scalar, and each
-  currency reconciles on its own closed loop. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
+- A multi-currency **brokerage position snapshot** never turns market values into
+  cash opening/closing balances. `currency_balances` is persisted only when the
+  source declares exact per-currency balance facts; otherwise the snapshot remains
+  review-only evidence. Declared multi-currency balances reconcile independently
+  and are never cross-summed. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
   `src/extraction/orm/statement_enums.py`.
 
@@ -189,6 +201,12 @@ CSV transaction exports that do not contain source statement opening and closing
 balances remain missing those source facts. They cannot be auto-approved or
 silently completed from a zero/net-flow calculation; a reviewer must confirm the
 custody currency, source period, and opening/closing facts before approval.
+
+`StatementExtractionResult` separately preserves a scalar statement-declared currency.
+For a transaction ledger, a scalar declaration or an exact source-declared balance
+bucket is required; an individual transaction currency can never fill that gap. A
+multi-currency position snapshot does not require a scalar statement currency when
+each position declares its own.
 
 ## <a id="confidence-scoring"></a>Confidence Scoring
 

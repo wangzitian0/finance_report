@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
-from src.extraction.base.result import ExtractionMethod, StatementExtractionResult
+from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
     bank_currency_balances,
@@ -43,12 +43,13 @@ from src.extraction.extension.brokerage_positions import (
     brokerage_currency_balances,
     looks_like_brokerage_document,
     looks_like_brokerage_payload,
+    parse_brokerage_positions,
 )
 from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
-from src.extraction.extension.result_contract import build_statement_extraction_result
+from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.layer1 import DocumentType
 from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -270,6 +271,20 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 filename=original_filename or (file_path.name if file_path else None),
                 institution=final_institution,
             )
+            brokerage_positions = (
+                parse_brokerage_positions(
+                    extracted,
+                    filename=original_filename or (file_path.name if file_path else None),
+                    institution=final_institution,
+                )
+                if is_brokerage_payload
+                else []
+            )
+            evidence_type = statement_evidence_type(
+                is_brokerage=is_brokerage_payload,
+                provider_payload=extracted,
+                positions=brokerage_positions,
+            )
 
             resolved_file_hash = source.content_hash
             # Raw extracted statement currency (no fallback) — feeds the per-transaction
@@ -284,17 +299,21 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # would otherwise mismatch `normalize_currency_code(statement.currency)` in
             # the posting path and silently block auto-post (CR on #1467).
             statement_currency = normalize_currency_code(raw_statement_currency)
-            if not statement_currency and file_type != "csv":
-                raise ExtractionError("Statement currency is required; extraction cannot default a financial fact")
-            # CSV exports and position snapshots may not contain a statement period.
-            # The result keeps that fact explicitly missing; it is never inferred
-            # from transaction dates.
-            if is_brokerage_payload or file_type == "csv":
-                resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
-                resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
-            else:
-                resolved_period_start = self._safe_date(extracted.get("period_start"))
-                resolved_period_end = self._safe_date(extracted.get("period_end"))
+            # A source can be syntactically parseable while omitting financial facts.
+            # Preserve the omission in the result and force review below; inventing a
+            # base currency or inferring a period would create false source truth.
+            resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
+            resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
+            if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT and (
+                resolved_period_start is None or resolved_period_end is None
+            ):
+                snapshot_dates = {
+                    position.snapshot_date for position in brokerage_positions if position.snapshot_date is not None
+                }
+                if len(snapshot_dates) == 1:
+                    snapshot_date = next(iter(snapshot_dates))
+                    resolved_period_start = snapshot_date
+                    resolved_period_end = snapshot_date
 
             sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
             # Auto-create and link the physical bank account so a high-confidence,
@@ -332,14 +351,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 currency=statement_currency,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
-                opening_balance=self._safe_decimal(
-                    extracted.get("opening_balance"),
-                    required=not is_brokerage_payload and file_type != "csv",
-                ),
-                closing_balance=self._safe_decimal(
-                    extracted.get("closing_balance"),
-                    required=not is_brokerage_payload and file_type != "csv",
-                ),
+                opening_balance=self._safe_decimal(extracted.get("opening_balance")),
+                closing_balance=self._safe_decimal(extracted.get("closing_balance")),
                 extraction_metadata=None,
             )
 
@@ -644,22 +657,53 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # Fail-closed input for the LLM-LED gate (AC20.9.4): the balance chain is only
             # *evaluable* only when the source carries both exact balance facts.
             # Missing values must not turn into the vacuous 0 == 0 proof.
-            balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
+            scalar_balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
+            # A multi-currency bank statement proves the balance invariant via
+            # its declared per-currency ladders, even when no scalar aggregate
+            # exists. Do not confuse that valid proof with an absent balance.
+            balance_evaluable = scalar_balance_evaluable or bank_balances is not None
+            declared_balance_absent = not balance_evaluable
+            source_fact_gaps = StatementExtractionResult.required_fact_kinds(
+                evidence_type=evidence_type,
+                period_start=resolved_period_start,
+                period_end=resolved_period_end,
+                # Exact per-currency balance buckets carry source-declared
+                # units when a multi-currency statement has no scalar header.
+                has_statement_currency=statement_currency is not None or bool(statement.currency_balances),
+                has_balances=bool(statement.currency_balances)
+                or (
+                    statement.currency is not None
+                    and statement.opening_balance is not None
+                    and statement.closing_balance is not None
+                ),
+                has_positions=bool(brokerage_positions),
+                has_unresolved_transaction_currency=any(
+                    transaction.currency_unresolved for transaction in transactions
+                ),
+            )
+            source_review_reason = (
+                "Source is missing required facts: "
+                f"{', '.join(StatementExtractionResult.required_fact_labels(source_fact_gaps))}"
+                if source_fact_gaps
+                else None
+            )
 
-            if csv_balance_missing:
+            if csv_balance_missing or source_review_reason is not None:
                 confidence = compute_confidence_score(
                     extracted,
                     {
                         **balance_result,
-                        "balance_valid": False,
-                        "balance_proof_available": False,
-                        "notes": "Source CSV does not declare opening and closing balances",
+                        "balance_valid": is_valid if balance_evaluable else False,
+                        "balance_proof_available": balance_evaluable,
+                        "notes": source_review_reason or "Source CSV does not declare opening and closing balances",
                     },
                     is_brokerage=is_brokerage_payload,
                     effective_txn_count=len(transactions),
                 )
+                # A review-only source cannot cross the approval threshold even if
+                # its remaining facts happen to score highly.
+                confidence = min(confidence, 59)
                 status = BankStatementStatus.PARSED
-                is_valid = False
             else:
                 # For confidence score, we use the original extracted dict to maintain logic.
                 # ``effective_balance_result`` carries the per-currency-governed verdict
@@ -697,12 +741,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 statement.balance_validated = None
             else:
                 statement.balance_validated = is_valid
-            if csv_balance_missing:
-                statement.validation_error = "Source CSV does not declare opening and closing balances"
-            elif per_currency_invalid_note is not None:
+            if per_currency_invalid_note is not None:
                 statement.validation_error = per_currency_invalid_note
-            elif not is_valid:
+            elif not is_valid and balance_evaluable:
                 statement.validation_error = balance_result["notes"]
+            elif source_review_reason is not None:
+                statement.validation_error = source_review_reason
+            elif csv_balance_missing:
+                statement.validation_error = "Source CSV does not declare opening and closing balances"
             statement.confidence_score = confidence
             statement.status = status
 
@@ -754,7 +800,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 balance_evaluable=balance_evaluable,
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
-                balance_gate_exempt=csv_balance_missing,
+                # An explicit source-fact absence is review-only, not a failed
+                # mathematical claim. The dedup invariant remains blocking.
+                balance_gate_exempt=csv_balance_missing or declared_balance_absent,
             )
             if llm_led_gate.quarantined:
                 reason = llm_led_gate.reason
@@ -809,6 +857,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         else ExtractionMethod.LIVE_LLM
                     ),
                     is_brokerage=is_brokerage_payload,
+                    evidence_type=evidence_type,
+                    positions=brokerage_positions,
                 )
             except (TypeError, ValueError) as exc:
                 raise ExtractionError(f"Incomplete statement extraction result: {exc}") from exc

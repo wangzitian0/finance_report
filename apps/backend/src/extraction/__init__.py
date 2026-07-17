@@ -61,6 +61,7 @@ from src.extraction.base.result import (
     SourceCapabilityStatus,
     SourceProvenance,
     StatementBalanceFact,
+    StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
 )
@@ -130,6 +131,7 @@ from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import (
     StatementIngestionUseCase,
     build_statement_ingestion_use_case,
+    register_statement_source,
 )
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
@@ -255,6 +257,7 @@ __all__ = [
     "StatementIngestionStatus",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
+    "StatementEvidenceType",
     "StatementExtractionResult",
     "StatementPostingDependencies",
     "StatementSourceType",
@@ -298,6 +301,7 @@ __all__ = [
     "register_position_reconciler",
     "reject_statement_workflow",
     "resolve_custody_account_id",
+    "register_statement_source",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
     "resolve_statement_posting_account",

@@ -1,21 +1,28 @@
 """Contract tests for the extraction package's source-to-fact narrow waist."""
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 
 from src.extraction import (
     SOURCE_CAPABILITIES,
+    DocumentSource,
     ExtractedPositionFact,
     ExtractedTransactionFact,
     ExtractionMethod,
     SourceCapabilityStatus,
     SourceProvenance,
     StatementBalanceFact,
+    StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
 )
+from src.extraction.extension.service import ExtractionService
 
 
 def _complete_result() -> StatementExtractionResult:
@@ -23,6 +30,8 @@ def _complete_result() -> StatementExtractionResult:
         producer_version="extractor@abc123",
         source_content_digest="a" * 64,
         source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        statement_currency="USD",
         institution="Example Broker",
         account_last4="4321",
         period_start=date(2026, 1, 1),
@@ -77,7 +86,7 @@ def test_AC_extraction_result_envelope_1_rejects_unknown_versions_and_defaults()
     with pytest.raises(ValueError, match="schema version"):
         StatementExtractionResult.from_payload(payload)
 
-    for field in ("source_type", "confidence"):
+    for field in ("source_type", "confidence", "statement_currency"):
         incomplete = _complete_result().to_payload()
         del incomplete[field]
         with pytest.raises((KeyError, TypeError, ValueError)):
@@ -101,7 +110,42 @@ def test_AC_extraction_result_envelope_2_round_trips_complete_facts():
     assert restored.positions[0].quantity == Decimal("2.5000")
     assert restored.transactions[0].balance_after == Decimal("125.25")
     assert restored.balances[0].closing == Decimal("125.25")
+    assert restored.statement_currency == "USD"
     assert restored.provenance.model == "fixture-model-v1"
+
+
+def test_AC_extraction_result_envelope_2_uses_evidence_type_for_promotion_requirements():
+    """Broker identity does not decide whether a source requires positions or cash balances."""
+    brokerage_cash_ledger = replace(
+        _complete_result(),
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        positions=(),
+    )
+    position_snapshot = replace(
+        brokerage_cash_ledger,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        period_start=None,
+        period_end=None,
+        balances=(),
+    )
+
+    assert brokerage_cash_ledger.missing_required_facts == ()
+    assert position_snapshot.missing_required_facts == ("period", "positions")
+    assert position_snapshot.requires_review is True
+
+
+def test_AC_extraction_result_envelope_2_reads_legacy_payload_without_weakening_new_contract():
+    """Schema-v1 metadata remains readable while schema-v2 requires explicit evidence type."""
+    legacy = replace(_complete_result(), schema_version="1")
+    legacy_payload = legacy.to_payload()
+
+    assert "evidence_type" not in legacy_payload
+    assert StatementExtractionResult.from_payload(legacy_payload) == legacy
+
+    invalid_v2 = _complete_result().to_payload()
+    del invalid_v2["evidence_type"]
+    with pytest.raises(ValueError, match="evidence_type"):
+        StatementExtractionResult.from_payload(invalid_v2)
 
 
 def test_AC_extraction_result_envelope_1_keeps_missing_source_facts_explicit():
@@ -110,6 +154,7 @@ def test_AC_extraction_result_envelope_1_keeps_missing_source_facts_explicit():
         producer_version="csv-parser@1",
         source_content_digest="b" * 64,
         source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
         institution="Example Bank",
         account_last4=None,
         period_start=None,
@@ -140,9 +185,59 @@ def test_AC_extraction_result_envelope_1_keeps_missing_source_facts_explicit():
         ),
     )
 
-    assert result.missing_required_facts == ("period", "balances", "transaction_currency")
+    assert result.missing_required_facts == ("statement_currency", "period", "balances", "transaction_currency")
+    assert result.to_payload()["statement_currency"] is None
     assert result.to_payload()["balances"] == []
     assert result.to_payload()["transactions"][0]["currency"] is None
+
+
+def test_AC_extraction_result_envelope_1_accepts_source_declared_multi_currency_balances():
+    """A ledger's exact balance buckets declare currency without inventing a scalar default."""
+    result = replace(
+        _complete_result(),
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        statement_currency=None,
+        balances=(
+            StatementBalanceFact(currency="USD", opening=Decimal("100.00"), closing=Decimal("125.25")),
+            StatementBalanceFact(currency="SGD", opening=Decimal("200.00"), closing=Decimal("250.00")),
+        ),
+        positions=(),
+    )
+
+    assert result.to_payload()["statement_currency"] is None
+    assert result.missing_required_facts == ()
+
+
+async def test_AC_extraction_result_envelope_1_live_missing_facts_are_review_only():
+    """A partial live parse is retained as source evidence, never rejected or promoted."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "Example Bank",
+            "transactions": [
+                {
+                    "date": "2026-02-01",
+                    "description": "Unqualified live row",
+                    "amount": "10.00",
+                    "direction": "IN",
+                },
+            ],
+        }
+    )
+
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("partial-live.pdf"), content=b"partial-live"),
+        institution="Example Bank",
+        user_id=uuid4(),
+    )
+
+    assert result.missing_required_facts == ("statement_currency", "period", "balances", "transaction_currency")
+    assert result.balance_validated is None
+    assert result.confidence <= Decimal("0.59")
+    assert result.review_reasons == (
+        "Source is missing required facts: statement currency, statement period, opening and closing balances, transaction currency",
+    )
 
 
 def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():

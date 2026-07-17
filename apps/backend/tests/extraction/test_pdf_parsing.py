@@ -12,7 +12,6 @@ These tests cover the Critical and High priority gaps identified in the test aud
 - #12 Gemini retry on timeout
 """
 
-from datetime import date
 from decimal import Decimal
 from io import BytesIO
 from unittest.mock import AsyncMock, patch
@@ -161,23 +160,7 @@ class TestFileSizeLimit:
 
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
-            from tests.factories import StatementSummaryFactory
-
-            stmt = StatementSummaryFactory.build(
-                user_id=kwargs.get("user_id"),
-                file_hash=kwargs.get("file_hash", "hash"),
-                institution="DBS",
-                account_last4="1234",
-                currency="SGD",
-                period_start=date(2025, 1, 1),
-                period_end=date(2025, 1, 31),
-                opening_balance=Decimal("100.00"),
-                closing_balance=Decimal("100.00"),
-                status=BankStatementStatus.PARSED,
-                confidence_score=90,
-                balance_validated=True,
-            )
-            return stmt, []
+            raise ExtractionError("test-only extraction bypass")
 
         from src.extraction.extension.service import ExtractionService
 

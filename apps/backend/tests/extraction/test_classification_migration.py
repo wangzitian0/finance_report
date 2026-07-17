@@ -10,7 +10,7 @@ period's as-reported figures (prospective from its effective_from cutoff).
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -86,7 +86,7 @@ async def _ingest_month(
     closing: Decimal,
 ) -> int:
     csv_bytes = _month_csv(year_month)
-    _result, statement, _txns = await parse_and_load_statement_projection(
+    _result, statement, transactions = await parse_and_load_statement_projection(
         ExtractionService(),
         db=db,
         source=DocumentSource.resolve(path=Path(f"{year_month}.csv"), content=csv_bytes),
@@ -101,6 +101,11 @@ async def _ingest_month(
     statement.period_end = date(year, month, monthrange(year, month)[1])
     statement.opening_balance = opening
     statement.closing_balance = closing
+    for transaction in transactions:
+        transaction.currency = bank.currency
+        transaction.currency_unresolved = False
+        transaction.currency_resolved_by = user_id
+        transaction.currency_resolved_at = datetime.now(UTC)
     await db.flush()
     approved = await approve_statement(db, statement.id, user_id)
     return await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())

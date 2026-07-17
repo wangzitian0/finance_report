@@ -135,10 +135,9 @@ def evaluate_llm_led_extraction_gate(
 
     ``balance_gate_exempt`` exempts the *balance* gate (only) for an extraction that
     is already a known-incomplete, explicitly-flagged review marker rather than a
-    true balance mismatch — specifically the inferred-from-CSV-transactions path,
-    which carries no source opening/closing balance and is routed to review with its
-    own note (AC3.2.5). Such a statement is not silently passing, so blocking it
-    would be a false reject; the dedup gate still applies to it.
+    true balance mismatch. It covers the inferred CSV path and a live source that
+    declares its balance facts absent. Such a statement is not silently passing, so
+    blocking it would be a false reject; the dedup gate still applies to it.
     """
     # Independent dedup-conservation gate (AC-extraction.2009.3) — all document classes.
     if within_doc_collapse > 0:

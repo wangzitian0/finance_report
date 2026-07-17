@@ -246,6 +246,54 @@ async def _find_document_by_hash(db: AsyncSession, user_id: UUID, file_hash: str
     ).scalar_one_or_none()
 
 
+async def register_statement_source(
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    storage_key: str,
+    original_filename: str,
+) -> UploadedDocument:
+    """Durably bind an accepted upload to its source artifact before dispatch.
+
+    The upload request owns source registration; parsing only enriches this same
+    artifact with extraction output and its resolved document type.  The
+    ``(user_id, file_hash)`` identity makes the registration safe to retry
+    without transient attributes on the DWD statement summary.
+    """
+    document = await _find_document_by_hash(db, statement.user_id, statement.file_hash)
+    if document is None:
+        document = UploadedDocument(
+            user_id=statement.user_id,
+            file_path=storage_key,
+            file_hash=statement.file_hash,
+            original_filename=original_filename,
+            document_type=DocumentType.BANK_STATEMENT,
+            status=DocumentStatus.UPLOADED,
+        )
+        try:
+            # A concurrent retry can win the unique source identity.  Isolate
+            # that race so the statement upload transaction remains usable.
+            async with db.begin_nested():
+                db.add(document)
+                await db.flush()
+        except IntegrityError:
+            document = await _find_document_by_hash(db, statement.user_id, statement.file_hash)
+            if document is None:
+                raise
+
+    statement.uploaded_document_id = document.id
+
+    from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+
+    await EvidenceGraphIntegrationService().record_statement_source(
+        db,
+        user_id=statement.user_id,
+        statement=statement,
+        uploaded_document=document,
+    )
+    return document
+
+
 async def _ensure_failed_document_lineage(
     db: AsyncSession,
     statement: StatementSummary,

@@ -19,7 +19,6 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -231,12 +230,10 @@ def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "ai_provider", "openai-compatible-test", raising=False)
 
 
-async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay(
+async def test_AC_llm_14_1_missing_period_remains_review_only_via_replay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-llm.14.1: a cassette response with no period_start/period_end but valid
-    transaction dates degrades gracefully (#1449) — through the real cassette
-    transport into parse_document(), not a unit call to _resolve_required_period."""
+    """AC-llm.14.1: a missing source period remains explicit review-only evidence."""
     from uuid import uuid4
 
     from src.extraction.extension.service import ExtractionService
@@ -251,9 +248,11 @@ async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_re
         user_id=uuid4(),
         file_type="pdf",
     )
-    assert result.balance_validated is True
-    assert result.period_start == date(2026, 3, 2)
-    assert result.period_end == date(2026, 3, 20)
+    assert result.balance_validated is None
+    assert result.period_start is None
+    assert result.period_end is None
+    assert result.missing_required_facts == ("period",)
+    assert result.review_reasons == ("Source is missing required facts: statement period",)
     assert len(result.transactions) == 3
 
 
@@ -271,7 +270,7 @@ async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_repl
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_no_dates_at_all.pdf"
-    with pytest.raises(ExtractionError, match="Date is required"):
+    with pytest.raises(ExtractionError, match="Transaction missing required fields: date or amount"):
         await service.parse_document(
             DocumentSource.resolve(path=pdf, content=pdf.read_bytes()),
             institution="ACME",

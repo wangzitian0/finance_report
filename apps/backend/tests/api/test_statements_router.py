@@ -34,6 +34,7 @@ from src.extraction import (
     DispositionMode,
     DispositionPolicy,
     DocumentSource,
+    DocumentStatus,
     DocumentType,
     EconomicIntent,
     ExtractedTransactionRow,
@@ -42,6 +43,7 @@ from src.extraction import (
     IntentProposal,
     IntentProposalOrigin,
     ParseJob,
+    StatementEvidenceType,
     StatementTransaction,
     UploadedDocument,
 )
@@ -252,6 +254,8 @@ async def persist_mock_result(
         provider="router-fixture",
         method=ExtractionMethod.GOLDEN_FIXTURE,
         is_brokerage=False,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        positions=[],
     )
     await dual_write_layer2(
         db,
@@ -564,6 +568,47 @@ async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage
     assert "statement.pdf" not in storage_key
     assert str(test_user.id) not in storage_key
     assert storage_key.endswith(".pdf")
+
+
+async def test_AC_extraction_1913_9_upload_registers_source_before_dispatch(db, monkeypatch, storage_stub, test_user):
+    """AC-extraction.1913.9: source artifact is durable before asynchronous parse starts."""
+    mock_parse = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_mock_ingestion(mock_parse),
+    )
+
+    upload_file = make_upload_file("june-statement.csv", b"date,amount\n2026-06-01,10.00\n")
+    created = await statements_router.upload_statement(
+        file=upload_file,
+        institution="DBS",
+        account_id=None,
+        model=None,
+        db=db,
+        user_id=test_user.id,
+    )
+    await upload_file.close()
+
+    statement = await db.get(StatementSummary, created.id)
+    assert statement is not None
+    assert statement.uploaded_document_id is not None
+    document = await db.get(UploadedDocument, statement.uploaded_document_id)
+    assert document is not None
+    assert document.original_filename == "june-statement.csv"
+    assert document.file_path == created.file_path
+    assert document.status is DocumentStatus.UPLOADED
+    assert created.original_filename == document.original_filename
+    source_node = (
+        await db.execute(
+            select(EvidenceNode)
+            .where(EvidenceNode.entity_type == "uploaded_document")
+            .where(EvidenceNode.entity_id == document.id)
+        )
+    ).scalar_one()
+    assert source_node.properties["original_filename"] == document.original_filename
+
+    await wait_for_background_tasks()
 
 
 async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
