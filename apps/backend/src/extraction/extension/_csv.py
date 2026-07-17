@@ -21,6 +21,9 @@ from src.observability import detect_pii
 
 
 class _CsvMixin:
+    api_key: str | None
+    primary_model: str
+
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes or string.
 
@@ -188,8 +191,8 @@ class _CsvMixin:
                     )
                     continue
 
-                amount = parse_amount(row.get(amount_col, "")) if amount_col else None
-                if not amount or amount <= 0:
+                parsed_amount = parse_amount(row.get(amount_col, "")) if amount_col else None
+                if not parsed_amount or parsed_amount <= 0:
                     logger.warning(
                         "CSV transaction skipped - no valid amount",
                         institution=institution,
@@ -197,6 +200,7 @@ class _CsvMixin:
                         description=row.get(desc_col, "Wise Transfer"),
                     )
                     continue
+                amount = parsed_amount
 
                 direction_raw = row.get(direction_col, "").lower() if direction_col else ""
                 if "out" in direction_raw or "send" in direction_raw:
@@ -294,10 +298,10 @@ class _CsvMixin:
                     continue
 
                 if amount_col and row.get(amount_col):
-                    amount = parse_amount(row.get(amount_col, ""))
-                    if amount is not None:
-                        direction = "OUT" if amount < 0 else "IN"
-                        amount = abs(amount)
+                    parsed_amount = parse_amount(row.get(amount_col, ""))
+                    if parsed_amount is not None:
+                        direction = "OUT" if parsed_amount < 0 else "IN"
+                        amount = abs(parsed_amount)
                     else:
                         logger.warning(
                             "CSV transaction skipped - no valid amount",
@@ -348,6 +352,7 @@ class _CsvMixin:
                 if period_end is None or txn_date > period_end:
                     period_end = txn_date
 
+        used_ai_mapping = False
         if not transactions:
             # EPIC-018 Phase 4: AI CSV parsing fallback for unknown formats
             logger.info(
@@ -363,6 +368,7 @@ class _CsvMixin:
                     parse_date,
                     parse_amount,
                 )
+                used_ai_mapping = bool(transactions)
             except Exception as ai_err:
                 logger.warning(
                     "AI CSV parsing fallback failed",
@@ -380,14 +386,6 @@ class _CsvMixin:
             )
             raise ExtractionError(f"No valid transactions found in CSV for {institution}")
 
-        inferred_closing_balance = sum(
-            (
-                Decimal(str(txn["amount"])) if txn.get("direction") == "IN" else -Decimal(str(txn["amount"]))
-                for txn in transactions
-            ),
-            Decimal("0.00"),
-        )
-
         logger.info(
             "CSV parsing completed",
             institution=institution,
@@ -397,12 +395,13 @@ class _CsvMixin:
         )
 
         return {
-            "currency": "SGD",
-            "period_start": period_start.isoformat() if period_start else None,
-            "period_end": period_end.isoformat() if period_end else None,
-            "opening_balance": "0.00",
-            "closing_balance": str(inferred_closing_balance),
-            "balance_source": "inferred_from_csv_transactions",
+            # A transaction export does not prove statement currency, period, or
+            # opening/closing balances. Keep those facts absent instead of
+            # laundering SGD/zero/net-flow defaults into the trusted envelope.
+            "balance_source": "missing_from_csv_export",
+            "observed_transaction_start": period_start.isoformat() if period_start else None,
+            "observed_transaction_end": period_end.isoformat() if period_end else None,
+            "extraction_method": "live_llm" if used_ai_mapping else "deterministic",
             "transactions": transactions,
         }
 

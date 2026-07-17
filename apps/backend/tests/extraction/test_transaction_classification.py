@@ -274,27 +274,44 @@ async def test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error(db, test_user, 
     assert outcomes[0].disposition == "applied"
 
 
-# --- AC18.15.8: flag-gated; construct-only (nothing in production consumes it) ---
+# --- AC18.15.8: LLM toggle controls only model proposals ---------------------------
 
 
 @pytest.mark.asyncio
-async def test_AC18_15_8_flag_off_is_a_noop(db, test_user, monkeypatch):
-    """AC-extraction.1815.8: AC18.15.8: with enable_ai_classification off (the default), the node is inert."""
+async def test_AC18_15_8_flag_off_skips_llm_not_deterministic_rules(db, test_user, monkeypatch):
+    """AC-extraction.1815.8: the LLM toggle cannot disable a reviewed rule."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
-    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    db.add(
+        ClassificationRule(
+            user_id=test_user.id,
+            created_by=test_user.id,
+            rule_name="reviewed-coffee-rule",
+            version_number=1,
+            effective_date=date(2020, 1, 1),
+            is_active=True,
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": ["coffee"]},
+            tag_mappings={"category": "DINING"},
+        )
+    )
+    await db.flush()
+    ruled = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="COFFEE SHOP")
+    unmatched = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
     proposer = _stub_proposer(
-        {txn.description: CategoryProposal(category=TransactionCategory.SALARY.value, confidence=95)}
+        {unmatched.description: CategoryProposal(category=TransactionCategory.SALARY.value, confidence=95)}
     )
 
     outcomes = await classify_transactions(
-        db, test_user.id, [txn], policy=_policy(), proposer=proposer, commit_basis=True
+        db, test_user.id, [ruled, unmatched], policy=_policy(), proposer=proposer, commit_basis=True
     )
 
-    assert outcomes == []
+    by_txn = {outcome.atomic_txn_id: outcome for outcome in outcomes}
+    assert by_txn[ruled.id].disposition == "rule"
+    assert by_txn[unmatched.id].disposition == "no_proposal"
     assert proposer.calls == []
-    assert await _count(db, TransactionClassification) == 0
+    assert await _count(db, TransactionClassification) == 1
 
 
 def test_AC18_15_8_production_consumers_are_the_declared_seams():

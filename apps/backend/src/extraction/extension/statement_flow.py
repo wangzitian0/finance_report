@@ -9,16 +9,20 @@ in ``statement_pipeline.py``.
 
 from __future__ import annotations
 
-from fastapi.concurrency import run_in_threadpool
 from prefect import flow
 
 from src.database import async_session_maker
 from src.extraction.base.types import ParseJob
-from src.extraction.extension.statement_parsing import parse_statement_background
 from src.observability import get_logger, run_with_async_parse_tracking
-from src.runtime import StorageService
 
 logger = get_logger(__name__)
+
+
+def compose_statement_ingestion_use_case(*, session_maker):
+    """Lazy composition import keeps worker startup independent from src.main."""
+    from src.composition import compose_statement_ingestion_use_case as compose
+
+    return compose(session_maker=session_maker)
 
 
 @flow(name="parse-statement", retries=2, retry_delay_seconds=30)
@@ -38,14 +42,9 @@ async def parse_statement_flow(
         statement_id=str(parse_job.statement_id),
         request_id=parse_job.request_id,
     )
-    storage = StorageService()
-    content = await run_in_threadpool(storage.get_object, parse_job.storage_key)
+    use_case = compose_statement_ingestion_use_case(session_maker=async_session_maker)
     await run_with_async_parse_tracking(
-        parse_statement_background(
-            job=parse_job,
-            content=content,
-            session_maker=async_session_maker,
-        ),
+        use_case.execute(parse_job),
         statement_id=parse_job.statement_id,
         request_id=parse_job.request_id,
     )

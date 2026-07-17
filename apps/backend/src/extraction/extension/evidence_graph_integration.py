@@ -33,11 +33,12 @@ class EvidenceGraphIntegrationService:
         *,
         user_id: UUID,
         statement: StatementSummary,
+        original_filename: str | None = None,
     ) -> EvidenceNode | None:
         """Record the confirmed ``StatementSummary`` envelope as a source document node.
 
-        The DWD conform does not carry ``original_filename`` (an ODS field); callers
-        may attach it transiently for lineage display only.
+        The DWD conform does not carry ``original_filename`` (an ODS field), so
+        callers provide the upload filename explicitly for lineage display only.
         """
         if statement.id is None:
             return None
@@ -49,7 +50,7 @@ class EvidenceGraphIntegrationService:
             entity_id=statement.id,
             properties={
                 "file_hash": statement.file_hash,
-                "original_filename": getattr(statement, "original_filename", None),
+                "original_filename": original_filename,
                 "institution": statement.institution,
             },
         )

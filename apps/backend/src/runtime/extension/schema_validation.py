@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -131,13 +132,13 @@ def check_config_file(file_path: Path) -> dict:
     }
 
 
-def check_schemas_directory(dir_path: Path) -> dict:
-    """Validate all schema files."""
+def check_schemas_directory(dir_path: Path, *, paths: Iterable[Path] | None = None) -> dict:
+    """Validate every schema file, or only the explicitly changed schema files."""
     issues = []
     all_fields = []
     files_checked = 0
 
-    schema_files = list(dir_path.glob("*.py"))
+    schema_files = list(paths) if paths is not None else list(dir_path.glob("*.py"))
 
     for file_path in schema_files:
         if file_path.name.startswith("__"):
@@ -244,6 +245,12 @@ def generate_fix_suggestions(config_result: dict, schemas_result: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Validate Pydantic schemas and config")
     parser.add_argument("--fix", action="store_true", help="Generate fix suggestions")
+    parser.add_argument(
+        "--paths",
+        nargs="*",
+        metavar="PATH",
+        help="Validate only these changed config/schema paths (used by pre-commit).",
+    )
     args = parser.parse_args()
 
     root = get_project_root()
@@ -251,11 +258,18 @@ def main():
     config_path = root / "apps/backend/src/config.py"
     schemas_dir = root / "apps/backend/src/schemas"
 
-    # Validate config
-    config_result = check_config_file(config_path)
+    selected_paths = [root / path for path in args.paths] if args.paths is not None else None
+    selected_config = selected_paths is None or config_path in selected_paths
+    selected_schemas = (
+        None
+        if selected_paths is None
+        else [path for path in selected_paths if path.parent == schemas_dir and path.suffix == ".py"]
+    )
 
-    # Validate schemas
-    schemas_result = check_schemas_directory(schemas_dir)
+    # Full CLI runs retain the repository-wide audit. Pre-commit passes changed
+    # paths so existing documentation debt cannot mask a regression in one file.
+    config_result = check_config_file(config_path) if selected_config else {"visitor": SchemaVisitor(), "issues": []}
+    schemas_result = check_schemas_directory(schemas_dir, paths=selected_schemas)
 
     # Print report
     is_valid = print_report(config_result, schemas_result)

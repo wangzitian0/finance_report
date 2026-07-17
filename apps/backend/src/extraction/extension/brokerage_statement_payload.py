@@ -9,6 +9,9 @@ layer; behavior unchanged.
 
 from __future__ import annotations
 
+from typing import Any, cast
+
+from src.extraction.base.result import StatementExtractionResult
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -66,23 +69,49 @@ def _brokerage_payload_from_statement(
     }
 
 
-def _extract_brokerage_payload_from_metadata(metadata: dict | None) -> dict | None:
+def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return the structured extraction payload stored in Layer 1 metadata."""
     if not isinstance(metadata, dict):
         return None
-    for key in ("extraction_payload", "parsed_payload", "payload"):
-        payload = metadata.get(key)
-        if isinstance(payload, dict):
-            return payload
-    return metadata if any(key in metadata for key in ("positions", "holdings", "securities")) else None
+    payload = metadata.get("statement_extraction_result")
+    if not isinstance(payload, dict):
+        return None
+    result = StatementExtractionResult.from_payload(payload)
+    return {
+        "institution": result.institution,
+        "statement": {
+            "institution": result.institution,
+            "period_start": result.period_start.isoformat() if result.period_start is not None else None,
+            "period_end": result.period_end.isoformat() if result.period_end is not None else None,
+            "currency": result.balances[0].currency if result.balances else None,
+        },
+        "balances": [
+            {"currency": item.currency, "opening": str(item.opening), "closing": str(item.closing)}
+            for item in result.balances
+        ],
+        "positions": [
+            {
+                "symbol": item.symbol,
+                "quantity": str(item.quantity),
+                "market_value": str(item.market_value),
+                "currency": item.currency,
+                "asset_type": item.asset_type,
+                "sector": item.sector,
+                "geography": item.geography,
+            }
+            for item in result.positions
+        ],
+    }
 
 
-def _enrich_brokerage_payload_from_statement(payload: dict, statement: StatementSummary) -> dict:
+def _enrich_brokerage_payload_from_statement(payload: dict[str, Any], statement: StatementSummary) -> dict[str, Any]:
     """Backfill statement metadata into a recovered extraction payload."""
     enriched = dict(payload)
     enriched.setdefault("institution", statement.institution)
-    statement_payload = enriched.get("statement") if isinstance(enriched.get("statement"), dict) else {}
-    statement_payload = dict(statement_payload)
+    existing_statement_payload = enriched.get("statement")
+    statement_payload = (
+        dict(cast(dict[str, Any], existing_statement_payload)) if isinstance(existing_statement_payload, dict) else {}
+    )
     statement_payload.setdefault("institution", statement.institution)
     statement_payload.setdefault("period_end", statement.period_end.isoformat() if statement.period_end else None)
     statement_payload.setdefault("currency", statement.currency)

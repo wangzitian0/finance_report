@@ -176,8 +176,10 @@ CHECKS: tuple[Check, ...] = (
         name="backend-format",
         globs=("apps/backend/*.py",),
         commands=(
-            ("ruff", "check", "src", "tests"),
-            ("ruff", "format", "--check", "src", "tests"),
+            # Run Ruff from the same venv as the dispatcher.  Resolving a bare
+            # shell command can select an unrelated global Ruff version.
+            (PY, "-m", "ruff", "check", "src", "tests"),
+            (PY, "-m", "ruff", "format", "--check", "src", "tests"),
         ),
         why="backend Python changed: ruff lint + format check",
         cwd="apps/backend",

@@ -1,10 +1,12 @@
 import sys
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.extension.brokerage_positions import _generated_brokerage_positions_payload_from_text
 from src.extraction.extension.service import ExtractionService
 
@@ -116,26 +118,24 @@ async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_t
         lambda _content: MOOMOO_GENERATED_TEXT,
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("test_moomoo_2606_24697.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("test_moomoo_2606_24697.pdf"),
+            content=b"%PDF-1.7",
+            filename="test_moomoo_2606_24697.pdf",
+        ),
         user_id=uuid4(),
         file_type="pdf",
         institution="Moomoo E2E Portfolio",
-        file_content=b"%PDF-1.7",
-        original_filename="test_moomoo_2606_24697.pdf",
     )
 
-    assert transactions == []
-    assert statement._extracted_payload["positions"] == [
-        {
-            "symbol": "Fullerton SGD Money Market Fund",
-            "asset_identifier": "Fullerton SGD Money Market Fund",
-            "quantity": "1",
-            "market_value": "1250.50",
-            "currency": "SGD",
-            "asset_type": "money_market",
-        }
-    ]
+    assert result.transactions == ()
+    assert len(result.positions) == 1
+    assert result.positions[0].symbol == "Fullerton SGD Money Market Fund"
+    assert result.positions[0].quantity == Decimal("1")
+    assert result.positions[0].market_value == Decimal("1250.50")
+    assert result.positions[0].currency == "SGD"
+    assert result.positions[0].asset_type == "money_market"
 
 
 def test_pdf_text_fallback_closes_pymupdf_document(monkeypatch):

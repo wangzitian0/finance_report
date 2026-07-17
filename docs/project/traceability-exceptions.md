@@ -50,6 +50,7 @@ These files are test infrastructure, not behavior proof.
 | `apps/backend/tests/reconciliation/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/__init__.py` | Package marker |
 | `apps/backend/tests/reporting/_report_fixtures.py` | Shared reporting chart-of-accounts test builder |
+| `apps/backend/tests/statement_ingestion.py` | Shared canonical result-to-persisted-statement projection helper for extraction transport tests (#1834) |
 | `apps/backend/tests/tooling/__init__.py` | Package marker |
 | `apps/backend/tests/tooling/test_no_models_facade.py` | Code-contract lint: forbids reintroducing src.models, now fully dissolved (issue #1461, #1675 D6) |
 | `tests/tooling/__init__.py` | Package marker |

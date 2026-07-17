@@ -1293,10 +1293,14 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.stage2-batch.2",
-            statement="A batch approve creates the missing journal entry exactly once on the accepted transition, never on pending_review.",
+            statement=(
+                "A Stage-2 batch approve may reconcile an existing source entry but "
+                "cannot create a journal entry for a pending match without a reviewed "
+                "economic disposition; the match remains pending and no entry is written."
+            ),
             test=(
                 "apps/backend/tests/api/test_statements_router.py"
-                "::test_batch_approve_matches_creates_missing_entry_once"
+                "::test_batch_approve_matches_without_entry_requires_review"
             ),
             priority="P0",
             status="done",

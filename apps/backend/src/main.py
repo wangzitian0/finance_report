@@ -30,7 +30,6 @@ from src.extraction import (
     get_statement_coverage_rows,
     register_fx_rate_provider,
     register_position_reconciler,
-    register_transfer_exclusions_provider,
     run_parsing_supervisor,
 )
 from src.identity import auth_router, register_in_flight_parse_checker, users_router
@@ -68,7 +67,6 @@ from src.pricing import (
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
-from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import (
     register_fx_gateway,
     register_manual_valuation_lines_provider,
@@ -164,13 +162,6 @@ register_known_storage_paths_provider(get_known_storage_paths)
 # direct reverse import would cycle (both are domain, L3, same rank).
 register_statement_coverage_reader(get_statement_coverage_rows)
 register_in_flight_parse_checker(find_in_flight_parse_id)
-
-# Wire extraction's transfer-exclusions port to reconciliation's published
-# read (#1675 D5): statement posting must skip txns an accepted transfer
-# match already covers, but extraction cannot import reconciliation
-# (reconciliation depends_on extraction — the reverse edge would be a cycle),
-# so the composition root closes the loop here, same shape as the ports above.
-register_transfer_exclusions_provider(accepted_transfer_txn_ids)
 
 # Wire extraction's managed-position reconciler port to the real portfolio
 # service (#1675 D5c): extraction and portfolio are same-layer domains, but

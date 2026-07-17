@@ -7,6 +7,7 @@ Environment Variable Strategy:
 """
 
 from functools import cached_property
+from typing import Literal
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -459,8 +460,8 @@ class Settings(BaseSettings):
         """Fast-fail when a deployed env ships telemetry without the contract.
 
         In staging/production, if OTEL export is enabled, the resource MUST carry a
-        ``deployment.environment`` tag (issued by infra2 at deploy — see
-        https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity) whose value EQUALS
+        ``deployment.environment`` tag (issued by infra2 at deploy; see the
+        infra2 telemetry-identity document) whose value EQUALS
         ``settings.environment`` (#1828 G-telemetry-tag-consistent: presence alone
         let "prod telemetry tagged as staging" boot healthy). This catches the
         "untagged or mistagged production telemetry" class before it reaches the
@@ -578,6 +579,15 @@ class Settings(BaseSettings):
             "(default false, opt-in to avoid API costs)."
         ),
         validation_alias="ENABLE_AI_CLASSIFICATION",
+        json_schema_extra={"group": "Feature Flags"},
+    )
+    statement_disposition_mode: Literal["off", "observe", "enforce"] = Field(
+        default="enforce",
+        validation_alias="STATEMENT_DISPOSITION_MODE",
+        description=(
+            "Versioned statement-disposition rollout mode. It controls command "
+            "application only; the shared policy still computes every decision."
+        ),
         json_schema_extra={"group": "Feature Flags"},
     )
 

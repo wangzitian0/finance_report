@@ -15,10 +15,16 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
+from tests.statement_ingestion import (
+    parse_and_load_statement_projection,
+    posting_dependencies,
+)
 
 
 def _balanced_bank_payload() -> dict:
@@ -46,19 +52,54 @@ def _balanced_bank_payload() -> dict:
     }
 
 
-async def test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_manual_mapping(db, test_user):
-    """AC-reporting.full-year.2: was AC8.15.2."""
+async def _apply_reviewed_interest_disposition(db, user_id, transaction) -> None:
+    """Create the reviewed category basis needed for an authoritative posting."""
+    income = Account(
+        user_id=user_id,
+        name="Income - Interest",
+        code="4102",
+        type=AccountType.INCOME,
+        currency=transaction.currency,
+    )
+    db.add(income)
+    await db.flush()
+    rule = ClassificationRule(
+        user_id=user_id,
+        version_number=1,
+        effective_date=transaction.txn_date,
+        rule_name="Reviewed interest disposition",
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["interest"]},
+        default_account_id=income.id,
+        created_by=user_id,
+    )
+    db.add(rule)
+    await db.flush()
+    db.add(
+        TransactionClassification(
+            atomic_txn_id=transaction.id,
+            rule_version_id=rule.id,
+            account_id=income.id,
+            tags={"category": "INTEREST"},
+            confidence_score=100,
+            status=ClassificationStatus.APPLIED,
+        )
+    )
+    await db.flush()
+
+
+async def test_AC8_15_2_bank_statement_auto_creates_account_and_posts_with_reviewed_disposition(db, test_user):
+    """AC-reporting.full-year.2: auto-created custody account posts only with reviewed meaning."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=_balanced_bank_payload())
 
     # No account_id passed — the everyday-user upload path.
-    statement, _txns = await service.parse_document(
-        file_path=Path("mari-2605.pdf"),
+    _result, statement, transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=Path("mari-2605.pdf"), content=b"%PDF-1.7"),
         institution="MariBank",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-8-15-2-auto-account",
-        db=db,
     )
     await db.flush()
 
@@ -70,9 +111,12 @@ async def test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_ma
     assert account.is_active is True
     assert account.currency == "SGD"  # normalized from the lowercase extraction currency
     assert statement.status == BankStatementStatus.APPROVED
+    await _apply_reviewed_interest_disposition(db, test_user.id, transactions[0])
 
-    # And it auto-posts to the ledger (so reports would reflect it).
-    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    # The reviewed income basis gives the posting engine a category and counter-account.
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     assert posted >= 1
 
     posted_entries = (

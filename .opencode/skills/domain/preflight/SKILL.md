@@ -67,10 +67,6 @@ gate there with a test in `tests/tooling/test_preflight.py`.
 - It never runs destructive tools (purge/cleanup/deploy). Those stay manual.
 - For an EPIC/AC change specifically, see the **ac-workflow** skill for the full
   EPIC→AC→test ritual that preflight's `ac-traceability` gate verifies.
-- The `backend-format` gate runs `ruff` from your **PATH**, not the project-pinned
-  one. If your PATH ruff is a different version than the repo pins
-  (`apps/backend/.venv/bin/ruff --version`), it can report false-positive format
-  failures on files **outside your diff**. CI uses the pinned version, so when
-  `backend-format` flags a file you didn't touch, re-check with the pinned ruff from
-  the backend dir — `cd apps/backend && .venv/bin/ruff format --check src tests` —
-  before assuming it's real.
+- The `backend-format` gate executes `python -m ruff` with the same Python
+  interpreter that runs preflight. Run preflight with the backend venv so the
+  local result uses the lockfile-pinned Ruff, matching CI.

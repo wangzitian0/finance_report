@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.base.validation import compute_confidence_score, validate_balance
 from src.extraction.extension.service import ExtractionError, ExtractionService
 
@@ -401,30 +402,22 @@ class TestInstitutionDetection:
 
         with pytest.raises(ExtractionError, match="Institution is required for CSV"):
             await self.service.parse_document(
-                file_path=Path("test.csv"),
+                DocumentSource.resolve(path=Path("test.csv"), content=b"date,amount\n2025-01-01,100"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="csv",
                 account_id=None,
-                file_content=b"date,amount\n2025-01-01,100",
-                file_hash=None,
-                file_url=None,
-                original_filename="test.csv",
             )
 
     async def test_parse_document_accepts_none_institution_for_pdf(self):
         """AC-extraction.106.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
         with pytest.raises(Exception) as exc_info:
             await self.service.parse_document(
-                file_path=Path("test.pdf"),
+                DocumentSource.resolve(path=Path("test.pdf"), content=b"fake pdf content"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="pdf",
                 account_id=None,
-                file_content=b"fake pdf content",
-                file_hash=None,
-                file_url=None,
-                original_filename="test.pdf",
             )
         assert "Institution is required" not in str(exc_info.value)
 
@@ -501,15 +494,13 @@ class TestExtractionServiceHelpers:
         service = ExtractionService()
         with pytest.raises(ExtractionError, match="File content is required"):
             await service.parse_document(
-                file_path=Path("test.pdf"),
+                DocumentSource(
+                    path=Path("test.pdf"), content=None, url=None, content_hash="0" * 64, filename="test.pdf"
+                ),
                 institution="DBS",
                 user_id=uuid4(),
                 file_type="pdf",
                 account_id=None,
-                file_content=None,
-                file_hash=None,
-                file_url=None,
-                original_filename=None,
                 force_model="google/gemini-2.0-flash-exp:free",
             )
 

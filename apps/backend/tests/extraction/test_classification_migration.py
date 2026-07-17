@@ -9,6 +9,7 @@ period's as-reported figures (prospective from its effective_from cutoff).
 
 from __future__ import annotations
 
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +19,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
 from src.extraction.extension.statement_validation import approve_statement
@@ -31,6 +33,7 @@ from src.extraction.extension.transaction_classification import (
 from src.extraction.orm.layer3 import TransactionClassification
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.reporting import generate_income_statement
+from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies
 
 SALARY = Decimal("5000.00")
 RENT = Decimal("1500.00")
@@ -82,20 +85,25 @@ async def _ingest_month(
     opening: Decimal,
     closing: Decimal,
 ) -> int:
-    statement, _txns = await ExtractionService().parse_document(
-        file_path=Path(f"{year_month}.csv"),
+    csv_bytes = _month_csv(year_month)
+    _result, statement, _txns = await parse_and_load_statement_projection(
+        ExtractionService(),
+        db=db,
+        source=DocumentSource.resolve(path=Path(f"{year_month}.csv"), content=csv_bytes),
         institution="DBS",
         user_id=user_id,
         file_type="csv",
-        file_content=_month_csv(year_month),
-        db=db,
     )
     statement.account_id = bank.id
+    statement.currency = bank.currency
+    year, month = (int(part) for part in year_month.split("-"))
+    statement.period_start = date(year, month, 1)
+    statement.period_end = date(year, month, monthrange(year, month)[1])
     statement.opening_balance = opening
     statement.closing_balance = closing
     await db.flush()
     approved = await approve_statement(db, statement.id, user_id)
-    return await auto_create_posted_entries_for_statement(db, approved, user_id)
+    return await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())
 
 
 def _leaf_names(report_lines: list[dict]) -> set[str]:
@@ -198,18 +206,18 @@ async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
 
 
 @pytest.mark.asyncio
-async def test_AC18_16_3_flag_off_is_byte_identical_to_today(db, test_user, stub_proposer, monkeypatch):
-    """AC-extraction.1816.3: AC18.16.3: with the flag off (the default), the import path behaves exactly
-    as before this EPIC: two Uncategorized buckets, zero classification rows."""
+async def test_AC18_16_3_flag_off_routes_unknown_meaning_to_review(db, test_user, stub_proposer, monkeypatch):
+    """AC-extraction.1816.3: disabled proposals cannot synthesize P&L meaning from direction."""
     from src.config import settings
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     bank = await _bank(db, test_user.id)
-    await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
+    created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
 
     report = await _june_report(db, test_user.id)
-    assert _leaf_names(report["income"]) == {"Income - Uncategorized"}
-    assert _leaf_names(report["expenses"]) == {"Expense - Uncategorized"}
+    assert created == 0
+    assert _leaf_names(report["income"]) == set()
+    assert _leaf_names(report["expenses"]) == set()
     count = len((await db.execute(select(TransactionClassification))).scalars().all())
     assert count == 0
 
@@ -291,7 +299,7 @@ async def test_AC18_16_3_flag_off_never_evaluates_policy_even_for_pre_epoch_txns
     bank = await _bank(db, test_user.id)
     created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
 
-    assert created == 2  # posting succeeded; no policy lookup ever ran
+    assert created == 0  # source facts survive, but no economic intent is invented
     count = len((await db.execute(select(TransactionClassification))).scalars().all())
     assert count == 0
 
@@ -320,7 +328,7 @@ async def test_AC18_16_6_uncovered_txn_dates_skip_classification_not_crash_posti
         db, test_user.id, bank, "2026-07", opening=SALARY - RENT, closing=2 * (SALARY - RENT)
     )
 
-    assert created_june == 2  # uncovered => skipped, not crashed
+    assert created_june == 0  # uncovered => review, never direction fallback
     assert created_july == 2
     rows = (await db.execute(select(TransactionClassification))).scalars().all()
     assert len(rows) == 2  # only July's two txns classified

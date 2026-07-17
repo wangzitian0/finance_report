@@ -13,6 +13,8 @@
 > **Dependencies**: EPIC-003 (Statement Parsing), EPIC-004 (Reconciliation Engine), EPIC-006 (AI Advisor), EPIC-013 (Statement Parsing V2)
 > **Usable milestone**: 🎯 gating (G3, partial). Load-bearing confidence — the deterministic promotion gate (#930) over classified facts — is required so the numbers can be trusted. Deep evidence-graph navigation & lineage (AC18.7–18.12) is **deferred** post-Usable. See the [Usable cut](https://github.com/wangzitian0/finance_report/milestone/1).
 
+> **Current policy supersedes this delivered design record:** the extraction package owns the live contract in `common/extraction/contract.py`. `DispositionPolicy` is the only statement-to-ledger boundary; an AI or rule proposal never falls back to `Uncategorized`. Missing or incompatible economic meaning remains review-required, and reconciliation cannot create an entry without a reviewed command. The diagrams and checklist below describe the historical phase, not a permitted compatibility path.
+
 ---
 
 ## 🎯 Objective

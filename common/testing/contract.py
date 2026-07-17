@@ -3269,14 +3269,15 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.toolchain.3",
             statement=(
-                "Local verification entry points fail on the same backend format "
-                "errors and route make test through the root Moon test command "
-                "with explicit application workspace inputs (Was "
+                "Local verification entry points use the project-pinned backend "
+                "environment for format, environment, and schema gates, and route "
+                "make test through the root Moon test command with explicit "
+                "application workspace inputs (Was "
                 "EPIC-008 AC8.13.45)."
             ),
             test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC8_13_45_lint_backend_format_check_is_required"
+                "tests/tooling/test_preflight.py"
+                "::test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment"
             ),
             priority="P0",
             status="done",

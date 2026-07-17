@@ -25,8 +25,8 @@ PRICING_ROOT = PROJECT_ROOT / "apps" / "backend" / "src" / "pricing"
 ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     ("statement_parsing.py", "handle_parse_failure"),
     ("statement_parsing.py", "route_brokerage_for_review_if_present"),
-    ("statement_parsing.py", "parse_statement_background"),
-    ("statement_parsing.py", "parse_statement_background.update_progress"),
+    ("statement_parsing.py", "_execute_statement_ingestion"),
+    ("statement_parsing.py", "_execute_statement_ingestion.update_progress"),
     ("statement_parsing_supervisor.py", "reset_stale_parsing_jobs"),
     # EPIC-025 AC25.2.1 (#1158): the Stage-1 approve/reject workflow owns its
     # transaction boundary at the service layer so the router stays thin.

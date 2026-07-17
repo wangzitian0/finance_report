@@ -12,12 +12,21 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
+    auto_create_posted_entries_for_statement,
+)
 from src.extraction.extension.statement_validation import approve_statement, reject_statement
 from src.extraction.orm.statement_summary import StatementSummary
 
 
-async def approve_statement_workflow(db: AsyncSession, statement_id: UUID, user_id: UUID) -> int:
+async def approve_statement_workflow(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies,
+) -> int:
     """Approve a PARSED statement and post its journal entries as one committed unit.
 
     Owns the PARSED→APPROVED transition, the auto-posting of journal entries, and
@@ -28,7 +37,7 @@ async def approve_statement_workflow(db: AsyncSession, statement_id: UUID, user_
     of journal entries created.
     """
     statement = await approve_statement(db, statement_id, user_id)
-    created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
+    created_count = await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=dependencies)
     await db.commit()
     return created_count
 

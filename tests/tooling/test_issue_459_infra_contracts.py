@@ -155,7 +155,7 @@ def test_epic_012_and_014_tooling_contracts() -> None:
 
     assert "StatementReviewResponse" in review_schemas
     assert "StatementReviewResponse" in statements_router
-    assert "parse_statement_background" in statement_parsing
+    assert "StatementIngestionUseCase" in statement_parsing
     assert "cov-fail-under" in pyproject and "96" in pyproject
     assert "mypy" in precommit
     assert (REPO_ROOT / "tools" / "validate_schemas.py").exists()

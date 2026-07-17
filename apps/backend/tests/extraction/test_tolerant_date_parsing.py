@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+from src.extraction import DocumentSource
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.service import ExtractionService, _tolerant_parse_date
 
@@ -58,14 +59,16 @@ async def test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("zh.pdf"), institution="CMB", user_id=uuid4(), file_content=b"content"
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("zh.pdf"), content=b"content"),
+        institution="CMB",
+        user_id=uuid4(),
     )
 
-    assert statement.period_start == date(2025, 1, 1)
-    assert statement.period_end == date(2025, 1, 31)
-    assert len(transactions) == 1
-    assert transactions[0].txn_date == date(2025, 1, 15)
+    assert result.period_start == date(2025, 1, 1)
+    assert result.period_end == date(2025, 1, 31)
+    assert len(result.transactions) == 1
+    assert result.transactions[0].transaction_date == date(2025, 1, 15)
 
 
 async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
@@ -85,11 +88,13 @@ async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("mixed.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("mixed.pdf"), content=b"content"),
+        institution="DBS",
+        user_id=uuid4(),
     )
 
-    assert statement is not None
-    assert len(transactions) == 1
-    assert transactions[0].description == "Good"
-    assert transactions[0].txn_date == date(2025, 1, 20)
+    assert result is not None
+    assert len(result.transactions) == 1
+    assert result.transactions[0].description == "Good"
+    assert result.transactions[0].transaction_date == date(2025, 1, 20)

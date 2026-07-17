@@ -14,7 +14,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentSource, ExtractedTransactionRow, ParseJob
+from src.extraction import DocumentSource, ParseJob
 from src.extraction.extension import statement_parsing, statement_pipeline
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.service import ExtractionService
@@ -73,8 +73,8 @@ def test_AC_extraction_signature_seams_1_parse_job_round_trips_prefect_params() 
         job.filename = "mutated.pdf"  # type: ignore[misc]
 
 
-async def test_AC_extraction_signature_seams_2_document_source_resolves_once() -> None:
-    """AC-extraction.signature-seams.2: all source aliases resolve into one immutable value."""
+async def test_AC_extraction_signature_seams_2_document_source_is_the_only_parse_input() -> None:
+    """AC-extraction.signature-seams.2: the service accepts one immutable source value."""
     source = DocumentSource.resolve(
         path=Path("statements/storage-key.pdf"),
         content=b"statement-bytes",
@@ -94,21 +94,26 @@ async def test_AC_extraction_signature_seams_2_document_source_resolves_once() -
     service = ExtractionService()
     service._extract_vision_source = AsyncMock(return_value=_valid_payload())
     await service.parse_document(
-        file_path=None,
+        DocumentSource(
+            path=Path("memory.pdf"),
+            content=b"in-memory-pdf",
+            url=None,
+            content_hash="b" * 64,
+            filename="memory.pdf",
+        ),
         institution="DBS",
         user_id=uuid4(),
-        file_content=b"in-memory-pdf",
-        file_hash="b" * 64,
-        original_filename="memory.pdf",
     )
-    compatibility_source = service._extract_vision_source.await_args.args[0]
-    assert compatibility_source == DocumentSource(
+    parsed_source = service._extract_vision_source.await_args.args[0]
+    assert parsed_source == DocumentSource(
         path=Path("memory.pdf"),
         content=b"in-memory-pdf",
         url=None,
         content_hash="b" * 64,
         filename="memory.pdf",
     )
+    with pytest.raises(TypeError, match="requires a DocumentSource"):
+        await service.parse_document(Path("legacy.pdf"), institution="DBS", user_id=uuid4())
 
 
 async def test_AC_extraction_signature_seams_3_csv_and_vision_paths_are_separate() -> None:
@@ -157,28 +162,21 @@ async def test_AC_extraction_signature_seams_4_typed_rows_and_failure_contract()
     ]
     service._extract_csv_source = AsyncMock(return_value=payload)
 
-    _, rows = await service.parse_document(
+    result = await service.parse_document(
         DocumentSource.resolve(path=Path("statement.csv"), content=b"csv"),
         institution="DBS",
         user_id=uuid4(),
         file_type="csv",
     )
 
-    assert rows == [
-        ExtractedTransactionRow(
-            user_id=rows[0].user_id,
-            txn_date=date(2026, 1, 5),
-            amount=Decimal("10.00"),
-            direction=rows[0].direction,
-            description="Deposit",
-            reference=None,
-            currency="SGD",
-            currency_unresolved=False,
-            balance_after=Decimal("10.00"),
-            occurrence_index=0,
-            dedup_hash=rows[0].dedup_hash,
-        )
-    ]
+    assert len(result.transactions) == 1
+    transaction = result.transactions[0]
+    assert transaction.transaction_date == date(2026, 1, 5)
+    assert transaction.amount == Decimal("10.00")
+    assert transaction.direction == "IN"
+    assert transaction.description == "Deposit"
+    assert transaction.currency == "SGD"
+    assert transaction.balance_after == Decimal("10.00")
     assert get_type_hints(dual_write_layer2)["db"] is AsyncSession
     assert get_type_hints(ExtractionService.parse_document)["db"] == AsyncSession | None
     assert "_extracted_balance_after" not in getsource(dual_write_layer2)
@@ -187,6 +185,8 @@ async def test_AC_extraction_signature_seams_4_typed_rows_and_failure_contract()
     assert "signature(" not in getsource(statement_parsing)
     parse_params = signature(ExtractionService.parse_document).parameters
     assert parse_params["source"].kind is Parameter.POSITIONAL_OR_KEYWORD
+    assert get_type_hints(ExtractionService.parse_document)["source"] is DocumentSource
+    assert not any(parameter.kind is Parameter.VAR_KEYWORD for parameter in parse_params.values())
     assert all(
         parse_params[name].kind is Parameter.KEYWORD_ONLY
         for name in ("user_id", "file_type", "account_id", "force_model", "db")

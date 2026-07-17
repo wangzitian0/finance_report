@@ -1581,8 +1581,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.full-year.1",
             statement=(
-                "Multi-month CSV statements parse, approve under the balance-chain guard, "
-                "auto-post, and the assembled period reports tie out end to end."
+                "Multi-month CSV statements with reviewed semantic dispositions parse, "
+                "approve under the balance-chain guard, auto-post without an Uncategorized "
+                "fallback, and tie the assembled period reports out end to end."
             ),
             # was AC8.15.1
             test=(
@@ -1597,12 +1598,13 @@ CONTRACT = PackageContract(
             statement=(
                 "A high-confidence balance-validated bank statement with no pre-selected "
                 "account auto-creates+links its asset account, reaches APPROVED, and auto-posts "
-                "to the ledger."
+                "to the ledger only after a reviewed semantic disposition supplies its "
+                "counter-account."
             ),
             # was AC8.15.2
             test=(
                 "apps/backend/tests/integration/test_bank_statement_auto_account_post.py"
-                "::test_AC8_15_2_bank_statement_auto_creates_account_and_posts_without_manual_mapping"
+                "::test_AC8_15_2_bank_statement_auto_creates_account_and_posts_with_reviewed_disposition"
             ),
             priority="P1",
             status="done",

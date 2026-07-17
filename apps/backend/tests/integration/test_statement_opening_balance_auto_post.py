@@ -20,13 +20,17 @@ from unittest.mock import AsyncMock
 from sqlalchemy import select
 
 from src.config_app import set_base_currency
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
     try_auto_post_statement_opening_balance,
 )
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_enums import BankStatementStatus
-from src.ledger import Account, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine
+from src.reporting import generate_income_statement
+from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies
 
 
 def _drawdown_statement_payload() -> dict:
@@ -42,7 +46,7 @@ def _drawdown_statement_payload() -> dict:
         "transactions": [
             {
                 "date": "2026-06-05",
-                "description": "Transfer out",
+                "description": "Loan principal payment",
                 "amount": "48800.00",
                 "direction": "OUT",
                 "currency": "SGD",
@@ -72,7 +76,7 @@ def _followup_month_payload() -> dict:
         "transactions": [
             {
                 "date": "2026-07-15",
-                "description": "Deposit",
+                "description": "Salary credit",
                 "amount": "100.00",
                 "direction": "IN",
                 "currency": "SGD",
@@ -82,20 +86,74 @@ def _followup_month_payload() -> dict:
     }
 
 
+async def _attach_reviewed_semantic_dispositions(db, user_id, transactions) -> None:
+    """Attach explicit category/intent evidence to this test's source facts."""
+    semantic_specs = {
+        "Loan principal payment": ("Liability - Loan Principal", AccountType.LIABILITY, "loan_principal", None),
+        "Interest": ("Income - Interest", AccountType.INCOME, None, "INTEREST"),
+        "Salary credit": ("Income - Salary", AccountType.INCOME, None, "SALARY"),
+    }
+    for transaction in transactions:
+        name, account_type, intent, category = semantic_specs[transaction.description]
+        counter_account = (
+            await db.execute(select(Account).where(Account.user_id == user_id).where(Account.name == name))
+        ).scalar_one_or_none()
+        if counter_account is None:
+            counter_account = Account(
+                user_id=user_id,
+                name=name,
+                code={
+                    AccountType.LIABILITY: "2101",
+                    AccountType.INCOME: "4102" if category == "INTEREST" else "4101",
+                }[account_type],
+                type=account_type,
+                currency=transaction.currency,
+            )
+            db.add(counter_account)
+            await db.flush()
+        tags = {key: value for key, value in (("intent", intent), ("category", category)) if value is not None}
+        rule = ClassificationRule(
+            user_id=user_id,
+            version_number=1,
+            effective_date=transaction.txn_date,
+            rule_name=f"Reviewed semantic disposition {transaction.id}",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": [transaction.description]},
+            tag_mappings=tags,
+            default_account_id=counter_account.id,
+            created_by=user_id,
+        )
+        db.add(rule)
+        await db.flush()
+        db.add(
+            TransactionClassification(
+                atomic_txn_id=transaction.id,
+                rule_version_id=rule.id,
+                account_id=counter_account.id,
+                tags=tags,
+                confidence_score=100,
+                status=ClassificationStatus.APPLIED,
+            )
+        )
+    await db.flush()
+
+
 async def _parse_and_auto_post(db, test_user, payload: dict, file_hash: str):
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=payload)
-    statement, _txns = await service.parse_document(
-        file_path=Path(f"{file_hash}.pdf"),
+    _result, statement, transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=Path(f"{file_hash}.pdf"), content=b"%PDF-1.7"),
         institution=payload["institution"],
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash=file_hash,
-        db=db,
     )
     await db.flush()
     assert statement.status == BankStatementStatus.APPROVED
-    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    await _attach_reviewed_semantic_dispositions(db, test_user.id, transactions)
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     assert posted >= 1
     return statement
 
@@ -151,6 +209,15 @@ async def test_AC_extraction_1833_1_auto_approve_posts_validated_opening_balance
         "statement closing balance; the validated opening balance was not posted"
     )
     assert await _opening_equity_line_count(db, test_user.id) == 1
+    income_statement = await generate_income_statement(
+        db,
+        test_user.id,
+        start_date=statement.period_start,
+        end_date=statement.period_end,
+        currency="SGD",
+    )
+    assert income_statement["total_income"] == Decimal("22.32")
+    assert income_statement["total_expenses"] == Decimal("0.00")
 
 
 async def test_AC_extraction_1833_2_second_import_does_not_duplicate_opening_balance(db, test_user):
@@ -204,13 +271,12 @@ async def test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balan
 
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=_drawdown_statement_payload())
-    statement, _txns = await service.parse_document(
-        file_path=Path("ac-1833-4.pdf"),
+    _result, statement, transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=Path("ac-1833-4.pdf"), content=b"%PDF-1.7"),
         institution="GXS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1833-4",
-        db=db,
     )
     await db.flush()
     assert statement.status == BankStatementStatus.APPROVED
@@ -220,7 +286,9 @@ async def test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balan
     # created_count gate could not distinguish from "genuinely nothing to post".
     monkeypatch.setattr(statement_posting_module, "auto_create_posted_entries_for_statement", AsyncMock(return_value=0))
 
-    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     assert posted == 0
 
     assert await _opening_equity_line_count(db, test_user.id) == 1
@@ -240,14 +308,13 @@ async def test_same_period_start_second_import_does_not_duplicate_opening_balanc
     duplicate_period_payload["opening_balance"] = "51730.82"
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=duplicate_period_payload)
-    statement, _txns = await service.parse_document(
-        file_path=Path("ac-1833-5b.pdf"),
+    _result, statement, transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=Path("ac-1833-5b.pdf"), content=b"%PDF-1.7"),
         institution="GXS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ac-1833-5b",
         account_id=first.account_id,
-        db=db,
     )
     await db.flush()
 
@@ -263,17 +330,19 @@ async def test_statement_opening_balance_uses_persisted_usd_base(db, test_user) 
         transaction["currency"] = "USD"
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=payload)
-    statement, _txns = await service.parse_document(
-        file_path=Path("effective-usd-opening.pdf"),
+    _result, statement, transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=Path("effective-usd-opening.pdf"), content=b"%PDF-1.7"),
         institution="GXS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="effective-usd-opening",
-        db=db,
     )
     await set_base_currency(db, "USD")
+    await _attach_reviewed_semantic_dispositions(db, test_user.id, transactions)
 
-    posted = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     await db.commit()
 
     assert posted >= 1

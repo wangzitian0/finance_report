@@ -1,4 +1,4 @@
-"""Stage-1 source_type promotion coverage."""
+"""Stage-1 source provenance coverage."""
 
 from datetime import date
 from decimal import Decimal
@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.identity import User
@@ -23,8 +22,8 @@ from tests.factories import (
 pytestmark = pytest.mark.asyncio
 
 
-async def test_stage1_approve_promotes_source_type(db: AsyncSession, test_user: User) -> None:
-    """AC-extraction.110.3: Stage-1 approval creates user_confirmed journal entries."""
+async def test_stage1_approve_preserves_auto_parsed_provenance(db: AsyncSession, test_user: User) -> None:
+    """AC-extraction.110.3: approval cannot manufacture reviewed ledger provenance."""
     bank_account = Account(
         user_id=test_user.id,
         name=f"DBS Confirmed {uuid4()}",
@@ -64,9 +63,8 @@ async def test_stage1_approve_promotes_source_type(db: AsyncSession, test_user: 
 
     result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
 
-    assert result.journal_entries_created == 1
+    assert result.journal_entries_created == 0
     entry_result = await db.execute(
         select(JournalEntry).where(JournalEntry.user_id == test_user.id).where(JournalEntry.source_id == txn.id)
     )
-    entry = entry_result.scalar_one()
-    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
+    assert entry_result.scalar_one_or_none() is None

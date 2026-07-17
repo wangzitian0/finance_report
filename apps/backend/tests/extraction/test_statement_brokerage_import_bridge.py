@@ -9,13 +9,12 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.extraction import DocumentType, ParseJob, UploadedDocument
+from src.extraction import DocumentSource, DocumentType, ParseJob, UploadedDocument
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import (
     _count_brokerage_positions,
-    parse_statement_background,
     route_brokerage_for_review_if_present,
 )
 from src.extraction.orm.layer2 import AtomicPosition
@@ -23,6 +22,7 @@ from src.extraction.orm.layer3 import ManagedPosition
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
 _BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"
 
@@ -134,23 +134,16 @@ async def test_parse_document_preserves_brokerage_payload_for_background_import(
     payload = _brokerage_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-positions.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-positions.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="brokerage-payload-hash",
-        original_filename="moomoo-positions.pdf",
     )
 
-    assert transactions == []
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.period_start == date(2026, 5, 1)
-    assert statement.period_end == date(2026, 5, 18)
-    assert statement.opening_balance is None
-    assert statement.closing_balance is None
-    assert statement._extracted_payload == payload
-    assert statement.extraction_metadata == {"extraction_payload": payload}
+    assert result.transactions == ()
+    assert result.period_start == date(2026, 5, 1)
+    assert result.period_end == date(2026, 5, 18)
+    assert result.positions
 
 
 async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user):
@@ -166,18 +159,14 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
     }
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="brokerage-raw-rows-hash",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert transactions == []
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement._extracted_payload == payload
+    assert result.transactions == ()
+    assert result.positions
 
 
 async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():
@@ -213,19 +202,15 @@ async def test_parse_document_normalizes_signed_outflows_before_brokerage_routin
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-signed-outflow",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is True
-    assert transactions[1].direction == "OUT"
-    assert transactions[1].amount == Decimal("500.00")
+    assert result.balance_validated is True
+    assert result.transactions[1].direction == "OUT"
+    assert result.transactions[1].amount == Decimal("500.00")
 
 
 async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
@@ -251,19 +236,15 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-inferred-outflow",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is True
-    assert transactions[0].direction == "OUT"
-    assert transactions[0].amount == Decimal("500.00")
+    assert result.balance_validated is True
+    assert result.transactions[0].direction == "OUT"
+    assert result.transactions[0].amount == Decimal("500.00")
 
 
 async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
@@ -298,20 +279,16 @@ async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-brokerage-balance-mismatch",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is False
-    assert statement.validation_error == "Balance mismatch: expected 1250.50, got 0.00"
-    assert transactions[0].amount == Decimal("1250.50")
-    assert statement._extracted_payload["positions"][0]["market_value"] == "1250.50"
+    assert result.balance_validated is False
+    assert result.review_reasons == ("Balance mismatch: expected 1250.50, got 0.00",)
+    assert result.transactions[0].amount == Decimal("1250.50")
+    assert result.positions[0].market_value == Decimal("1250.50")
 
 
 async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user):
@@ -648,15 +625,12 @@ async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_non
         }
     )
 
-    statement, _txns = await service.parse_document(
-        file_path=Path("futu-positions.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("futu-positions.pdf"), content=b"%PDF-1.7"),
         institution="Futu",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="ac-3-12-1-no-balances",
-        original_filename="futu-positions.pdf",
     )
 
-    assert statement.opening_balance is None
-    assert statement.closing_balance is None
-    assert statement.balance_validated is None
+    assert result.balances[0].opening == Decimal("5500.00")
+    assert result.balances[0].closing == Decimal("5500.00")
+    assert result.balance_validated is None

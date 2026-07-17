@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -117,7 +118,7 @@ class AtomicTransaction(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         comment="SHA256(user_id|date|amount|dir|desc|ref|disambiguator); disambiguator=balance_after or #occurrence",
     )
 
-    source_documents: Mapped[dict] = mapped_column(
+    source_documents: Mapped[list[dict[str, str]] | dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         comment='[{"doc_id": "uuid", "doc_type": "bank_statement"}]',
@@ -196,7 +197,7 @@ class AtomicPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         comment="SHA256(user_id|date|asset|broker)",
     )
 
-    source_documents: Mapped[dict] = mapped_column(
+    source_documents: Mapped[list[dict[str, str]] | dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         comment='[{"doc_id": "uuid", "doc_type": "brokerage_statement"}]',

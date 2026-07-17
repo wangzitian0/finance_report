@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from enum import StrEnum
 from pathlib import Path
 from typing import TypedDict
 from uuid import UUID
@@ -24,6 +26,36 @@ class PrefectParseParams(TypedDict):
     storage_key: str
     model: str | None
     request_id: str | None
+
+
+class StatementIngestionStatus(StrEnum):
+    """Terminal outcome of one application-level ingestion attempt."""
+
+    COMPLETED = "completed"
+    SOURCE_REJECTED = "source_rejected"
+    STATEMENT_NOT_FOUND = "statement_not_found"
+
+
+class StatementIngestionError(RuntimeError):
+    """Base class for failures owned by the ingestion application boundary."""
+
+
+class StatementIngestionConfigurationError(StatementIngestionError):
+    """Required application composition is incomplete or invalid."""
+
+
+class RetryableStatementIngestionError(StatementIngestionError):
+    """Infrastructure/application failure that durable execution may retry."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StatementIngestionOutcome:
+    """Typed result returned by every statement-ingestion transport."""
+
+    statement_id: UUID
+    status: StatementIngestionStatus
+    transactions_count: int = 0
+    auto_posted_count: int = 0
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -99,11 +131,16 @@ class DocumentSource:
         filename: str | None = None,
     ) -> DocumentSource:
         """Resolve all legacy source aliases exactly once at the call boundary."""
+        resolved_hash = content_hash
+        if resolved_hash is None or re.fullmatch(r"[0-9a-f]{64}", resolved_hash) is None:
+            if content is None:
+                raise ValueError("document source requires a lowercase sha256 content hash")
+            resolved_hash = hashlib.sha256(content).hexdigest()
         return cls(
             path=path,
             content=content,
             url=url,
-            content_hash=content_hash or hashlib.sha256(content or b"").hexdigest(),
+            content_hash=resolved_hash,
             filename=filename or path.name,
         )
 

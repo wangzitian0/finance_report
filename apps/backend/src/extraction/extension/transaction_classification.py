@@ -10,8 +10,9 @@ change is a NEW ``ClassificationPolicy`` version with an explicit ``effective_fr
 cutoff (prospective by default). ``commit_basis=False`` runs the same pass pro-forma —
 compute the verdicts under a candidate policy without writing the basis-of-record.
 
-Construct-only: gated by ``settings.enable_ai_classification`` and consumed by nothing
-in production yet. #1545 (Migrate) wires the import → income-statement path onto it.
+The LLM proposal transport is gated by ``settings.enable_ai_classification``.
+Deterministic user rules are always available: disabling an AI provider must not
+discard a user's already-reviewed economic meaning.
 """
 
 from __future__ import annotations
@@ -158,7 +159,9 @@ class ClassificationOutcome(BaseModel):
     disposition: Disposition
     category: str | None = None
     confidence: int | None = None
-    policy_version: int
+    # Deterministic rules carry their own rule version. Unmatched transactions
+    # with the LLM proposer disabled intentionally have no model policy basis.
+    policy_version: int | None
 
 
 Proposer = Callable[
@@ -364,38 +367,72 @@ async def classify_transactions(
     user_id: UUID,
     transactions: Sequence[AtomicTransaction],
     *,
-    policy: ClassificationPolicy,
+    policy: ClassificationPolicy | None,
     proposer: Proposer | None = None,
     commit_basis: bool = True,
 ) -> list[ClassificationOutcome]:
-    """Classify ``transactions`` under ``policy``.
+    """Classify ``transactions`` under an optional model ``policy``.
 
     Deterministic user rules win first; the model proposes for the rest; the
     confidence gate disposes: >= auto threshold => APPLIED onto a real catalog
     account; review band => DRAFT (the existing ai_feedback 60-84 queue); below =>
-    the genuine Uncategorized tail. ``commit_basis=False`` is pro-forma: same
+    an explicit no-authority tail. ``commit_basis=False`` is pro-forma: same
     verdicts, zero writes.
     """
-    if not await _classification_enabled(db, user_id):
-        return []
     if not transactions:
         return []
-
-    propose = proposer or propose_categories
-    outcomes: list[ClassificationOutcome] = []
 
     # 1) deterministic rules pre-pass (user intent wins; the model is not consulted)
     service = ClassificationService()
     rules = [r for r in await service.get_active_rules(db, user_id) if r.rule_name != POLICY_RULE_NAME]
-    ruled: dict[UUID, AtomicTransaction] = {}
+    ruled: dict[UUID, ClassificationRule] = {}
     if rules:
         for txn in transactions:
-            if any(service._match_rule(txn, rule) for rule in rules):
-                ruled[txn.id] = txn
+            matched_rule = next((rule for rule in rules if service._match_rule(txn, rule)), None)
+            if matched_rule is not None:
+                ruled[txn.id] = matched_rule
         if ruled and commit_basis:
-            await service.apply_rules(db, user_id, list(ruled.values()))
+            await service.apply_rules(
+                db,
+                user_id,
+                [txn for txn in transactions if txn.id in ruled],
+            )
 
     remaining = [t for t in transactions if t.id not in ruled]
+
+    # The toggle controls only the optional LLM proposer. User-authored
+    # deterministic rules remain a valid source of reviewed intent when AI is
+    # disabled or unavailable.
+    if not await _classification_enabled(db, user_id):
+        disabled_outcomes = [
+            ClassificationOutcome(
+                atomic_txn_id=txn.id,
+                disposition="rule",
+                policy_version=ruled[txn.id].version_number,
+            )
+            if txn.id in ruled
+            else ClassificationOutcome(
+                atomic_txn_id=txn.id,
+                disposition="no_proposal",
+                policy_version=None,
+            )
+            for txn in transactions
+        ]
+        if commit_basis:
+            await db.flush()
+        logger.info(
+            "transaction classification pass",
+            policy_version=None,
+            commit_basis=commit_basis,
+            **summarize_outcomes(disabled_outcomes),
+        )
+        return disabled_outcomes
+
+    if policy is None:
+        raise ValueError("classification policy is required when LLM proposals are enabled")
+
+    propose = proposer or propose_categories
+    outcomes: list[ClassificationOutcome] = []
 
     # 2) the model proposes for the rest
     proposals = await propose(remaining, policy) if remaining else []
@@ -433,7 +470,11 @@ async def classify_transactions(
     for txn in transactions:
         if txn.id in ruled:
             outcomes.append(
-                ClassificationOutcome(atomic_txn_id=txn.id, disposition="rule", policy_version=policy.version)
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id,
+                    disposition="rule",
+                    policy_version=ruled[txn.id].version_number,
+                )
             )
             continue
 
@@ -516,9 +557,6 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     policy version (the edit-tags → re-extract direction). Entry point: the
     /classifications/backfill router (#1546).
     """
-    if not await _classification_enabled(db, user_id):
-        return {"classified": 0, "candidates": 0}
-
     classified_txn_ids = select(TransactionClassification.atomic_txn_id)
     candidates = (
         (
@@ -534,6 +572,14 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     )
     if not candidates:
         return {"classified": 0, "candidates": 0}
+
+    if not await _classification_enabled(db, user_id):
+        outcomes = await classify_transactions(db, user_id, candidates, policy=None)
+        return {
+            "classified": sum(1 for outcome in outcomes if outcome.disposition == "rule"),
+            "candidates": len(candidates),
+            "runs": [{"policy_version": None, **summarize_outcomes(outcomes)}],
+        }
 
     # Effective-dated basis: group by the policy in effect on each txn's date, so a
     # later-published version never touches already-covered periods (prospective).
@@ -562,14 +608,16 @@ async def classify_by_effective_policy(
     """The production posting seam (#1545): classify each transaction under the
     policy in effect on its OWN txn_date.
 
-    Contract (CR #1555): the flag gate comes FIRST — with classification disabled
-    this returns immediately without evaluating any policy, so posting behaves
-    exactly as before this EPIC. A transaction whose date no policy covers is
-    SKIPPED (it stays in the Uncategorized tail) rather than crashing the posting
-    path.
+    Deterministic user rules are always evaluated. The AI classification toggle
+    only suppresses model proposals for unmatched transactions, which then reach
+    disposition as explicit no-proposal review cases. A transaction whose date no
+    policy covers is skipped rather than crashing the posting path.
     """
-    if not transactions or not await _classification_enabled(db, user_id):
+    if not transactions:
         return []
+
+    if not await _classification_enabled(db, user_id):
+        return await classify_transactions(db, user_id, transactions, policy=None)
 
     by_version: dict[int, list[AtomicTransaction]] = {}
     policies: dict[int, ClassificationPolicy] = {}

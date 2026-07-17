@@ -22,6 +22,45 @@ This document defines the Single Source of Truth for the document extraction fea
 
 The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-4.6v`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.1`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
+## Statement ingestion application boundary
+
+`StatementIngestionUseCase` is the only production owner of load -> extract ->
+persist -> review/promotion -> posting sequencing. The API fallback and Prefect
+flow are transport adapters around the same object. The app composition root
+constructs it with immutable ports for the session maker, source-content loader,
+reconciliation transfer facts, FX lookup, brokerage review, and clock; importing
+`src.main` or mutating a package-global provider is never part of worker startup.
+
+Only a typed extraction/source failure may move a statement to `rejected`.
+Missing composition, storage/database failures, and unexpected application
+exceptions raise typed ingestion errors so durable execution can retry without
+misrepresenting infrastructure failure as bad user data. Retrying finalization
+is idempotent by statement and atomic-transaction identity.
+
+## Extraction Result And Economic Disposition
+
+Every transport receives the same `StatementExtractionResult`; it is the
+versioned source-to-fact record, not an ORM tuple. Its result identity and
+content digest anchor ODS/DWD projection and audit trace records. A source may
+truthfully omit facts: transaction-only CSV is `manual_trusted`, settlement-note
+lot/fee/dividend ingestion is currently a declared `gap`, and bank/brokerage
+statement extraction is `supported`. Capability declarations describe product
+semantics only; test-node coverage belongs to `common/testing`.
+
+`DispositionPolicy` is the only extraction-owned statement-to-ledger semantic
+boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
+and accepted-transfer context, then returns either a balanced command, an
+already-covered transfer decision, or a review reason. Each proposal records
+its closed origin: a reviewed deterministic rule, a live LLM proposal, or an
+accepted reconciliation fact. Trace authority derives only from that origin;
+economic intent and cash direction never imply either economic meaning or
+authority. Income, expense, refund, and loan-interest may affect P&L; transfer,
+investment purchase/sale, loan principal, and card repayment require their
+matching asset/liability context and cannot be converted into income or expense
+by fallback. `off`, `observe`, and `enforce` calculate the same versioned
+decision; only `enforce` applies a command. Composition resolves the closed
+`STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
+
 ## Upload-First Product Contract
 
 The user-facing input model is upload-first: users provide supported source
@@ -79,12 +118,13 @@ flowchart TB
 
 Ingestion writes the ODS/DWD tables directly. A successful parse persists one
 `UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), and a
-`StatementSummary` envelope (DWD). `parse_document` returns
-`(StatementSummary, list[ExtractedTransactionRow])`; the immutable DTO carries
-`dedup_hash`, `balance_after`, `occurrence_index`, and currency-resolution state
-explicitly until `dual_write_layer2` persists an `AtomicTransaction`. No
-pre-persistence metadata is hidden on transient ORM attributes. There is no
-legacy `BankStatement` write path and no dual-write flag.
+`StatementSummary` envelope (DWD). `parse_document` returns one immutable,
+versioned `StatementExtractionResult`: source digest/type, exact balance facts,
+transactions, positions, confidence, warnings/review reasons, and provenance.
+The persisted ODS/DWD rows are its explicit projection; callers that need those
+rows read them by result identity rather than receiving hidden ORM objects in a
+tuple. No pre-persistence metadata is hidden on transient ORM attributes. There
+is no legacy `BankStatement` write path and no dual-write flag.
 
 The upload, in-process worker, and durable Prefect worker share one frozen
 `ParseJob` value object. Only `ParseJob.to_prefect_params()` crosses the Prefect
@@ -146,11 +186,9 @@ must remain reviewable instead of silently hiding the reason it cannot be
 trusted for auto-accept.
 
 CSV transaction exports that do not contain source statement opening and closing
-balances may use inferred balances for import continuity, but those inferred
-balances are not source balance proof. Such parses must remain reviewable and
-must not be auto-approved solely because `0 + transactions = inferred closing`.
-Their confidence score must not include the balance-validation component because
-no source statement balances were provided.
+balances remain missing those source facts. They cannot be auto-approved or
+silently completed from a zero/net-flow calculation; a reviewer must confirm the
+custody currency, source period, and opening/closing facts before approval.
 
 ## <a id="confidence-scoring"></a>Confidence Scoring
 
@@ -187,11 +225,11 @@ pending review, and expose the guard reason for human correction.
 
 **CSV without source balances never auto-approves.** A CSV export that carries
 no source statement opening/closing balances is parsed with
-`balance_source = inferred_from_csv_transactions`; the parser forces the
-statement to `parsed` (review) with `balance_validated = false`, and the
-confidence score excludes the balance-validation component
-(`balance_proof_available = false`). Inferred `0 + transactions = closing` is
-not balance proof and must not satisfy the auto-approve precondition.
+`balance_source = missing_from_csv_export`; the parser forces the statement to
+`parsed` (review) with `balance_validated = false`, and the confidence score
+excludes the balance-validation component (`balance_proof_available = false`).
+No inferred `0 + transactions = closing` value is source proof or an approval
+precondition.
 
 ## API Endpoints
 
@@ -334,6 +372,7 @@ VISION_FALLBACK_MODELS=glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
+STATEMENT_DISPOSITION_MODE=enforce
 # Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
 # glm-4.6v rejects `seed` with HTTP 400.
 AI_JSON_SEED=

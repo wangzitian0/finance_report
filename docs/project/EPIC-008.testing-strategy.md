@@ -452,7 +452,7 @@ job inventories or scenario counts into this EPIC.
 
 ### AC8.15: Full-Year Statement-to-Report End-to-End Acceptance
 
-Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC-testing.trust-mirrors.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → auto-posted ledger entries → period reports — ties out across **multiple months**. Deterministic by construction (rule-based CSV parse, no LLM; no AI classification, so counter-accounts fall back to `Income - Uncategorized` / `Expense - Uncategorized`).
+Closing gate for the **Usable** milestone (G2∩G3, [#950](https://github.com/wangzitian0/finance_report/issues/950)): AC-testing.trust-mirrors.4 mirrors the ledger→report leg from *manual* entries in a *single* period; this group proves the **assembled** pipeline — statement parse → Stage-1 approval (balance-chain validated) → reviewed semantic disposition → auto-posted ledger entries → period reports — ties out across **multiple months**. It remains deterministic by construction (rule-based CSV parse, no provider call): reviewed rules provide the economic counter-account, while missing or incompatible meaning stays in review rather than falling back to `Income - Uncategorized` or `Expense - Uncategorized`.
 
 > This group's rows removed — migrated to the `reporting` package roadmap as
 > `AC-reporting.full-year.1-2` (migration closeout continuation, #1663 /

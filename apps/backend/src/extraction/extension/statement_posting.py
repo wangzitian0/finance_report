@@ -8,17 +8,35 @@ instead of the legacy statement/transaction pair.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter
 from src.audit.money.currency import normalize_currency_code
 from src.config_app import get_effective_base_currency
-from src.extraction.extension.review_queue import create_entry_from_txn
+from src.extraction.base.disposition import (
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
+    DispositionStatus,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    StatementTransaction,
+)
+from src.extraction.base.types import StatementIngestionConfigurationError
+from src.extraction.extension.disposition_trace import emit_disposition_trace_records
+from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
@@ -32,31 +50,36 @@ HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 # match" is reconciliation-owned knowledge. extraction must not import
 # reconciliation (reconciliation already declares depends_on extraction — the
 # reverse edge would be a dependency cycle), so the read arrives through a
-# provider port: the app composition root (``src/main.py``, L4) registers
-# reconciliation's published ``accepted_transfer_txn_ids`` at startup — the
-# same inversion as ``workflow_events``' readiness provider (#1676, #1762).
-# The edge was invisible while the match ORM lived in the unregistered
-# ``src/models/`` remainder; the #1675 D5 move made it a governed import.
+# provider port carried by immutable ``StatementPostingDependencies``. The app
+# composition root binds reconciliation's published
+# ``accepted_transfer_txn_ids`` for each statement-ingestion use case; extraction
+# never consults worker-process startup state.
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
-
-_transfer_exclusions_provider: TransferExclusionsProvider | None = None
-
-
-def register_transfer_exclusions_provider(provider: TransferExclusionsProvider) -> None:
-    """Register the reconciliation-side transfer-exclusions read (composition root)."""
-    global _transfer_exclusions_provider
-    _transfer_exclusions_provider = provider
+TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
 
 
-def _get_transfer_exclusions_provider() -> TransferExclusionsProvider:
-    if _transfer_exclusions_provider is None:
-        raise RuntimeError(
-            "statement_posting.register_transfer_exclusions_provider() was never "
-            "called — the app composition root (src/main.py) registers "
-            "reconciliation's accepted_transfer_txn_ids at startup; tests that "
-            "bypass app startup must register a provider explicitly."
-        )
-    return _transfer_exclusions_provider
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StatementPostingDependencies:
+    """Cross-domain reads required to turn approved statement facts into entries."""
+
+    transfer_exclusions: TransferExclusionsProvider
+    fx_rate_provider: FxRateProvider
+    fx_rate_error: type[Exception]
+    trace_emitter_factory: TraceEmitterFactory
+    disposition_mode: DispositionMode
+
+    def __post_init__(self) -> None:
+        for name in (
+            "transfer_exclusions",
+            "fx_rate_provider",
+            "fx_rate_error",
+            "trace_emitter_factory",
+            "disposition_mode",
+        ):
+            if getattr(self, name) is None:
+                raise StatementIngestionConfigurationError(f"Missing statement posting dependency: {name}")
+        if not isinstance(self.disposition_mode, DispositionMode):
+            raise StatementIngestionConfigurationError("Statement disposition mode must be explicit")
 
 
 def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
@@ -73,6 +96,8 @@ async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies,
 ) -> int:
     """Create posted journal entries after Stage 1 approval, guarded by mapping and period safety."""
     transactions = await resolve_statement_transactions(db, statement)
@@ -88,31 +113,137 @@ async def auto_create_posted_entries_for_statement(
         .where(JournalEntry.status != JournalEntryStatus.VOID)
     )
     existing_entries = list(existing_entry_result.scalars().all())
-    for entry in existing_entries:
-        promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
     existing_entry_txn_ids = {entry.source_id for entry in existing_entries}
 
-    transfer_txn_ids = await _get_transfer_exclusions_provider()(db, txn_ids)
-
-    txns_to_post = [
-        txn for txn in transactions if txn.id not in existing_entry_txn_ids and txn.id not in transfer_txn_ids
-    ]
+    transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
+    txns_to_post = [txn for txn in transactions if txn.id not in existing_entry_txn_ids]
     if not txns_to_post:
         return 0
 
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
 
-    # Classify BEFORE posting (#1545): ``create_entry_from_txn`` picks the
-    # counter-account from an APPLIED classification, so a categorized txn posts to
-    # its real category account instead of the Uncategorized bucket. The seam is
-    # flag-gated FIRST (no policy evaluation when off => today's behaviour exactly)
-    # and effective-dated per txn_date, so publishing a new basis version never
-    # restates already-covered periods; uncovered dates are skipped, never fatal.
+    # Classification proposes P&L meaning. Disposition is the sole authority that
+    # can turn that proposal plus reconciliation/account context into a command.
     await classify_by_effective_policy(db, user_id, txns_to_post)
     base_currency = await get_effective_base_currency(db)
+    policy = DispositionPolicy()
+    planned: list[
+        tuple[AtomicTransaction, IntentProposal | None, DispositionDecision, Account | None, StatementTransaction]
+    ] = []
 
     for txn in txns_to_post:
+        classification_and_rule = (
+            await db.execute(
+                select(TransactionClassification, ClassificationRule)
+                .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+                .where(TransactionClassification.atomic_txn_id == txn.id)
+                .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+                .order_by(
+                    case(
+                        (
+                            ClassificationRule.rule_type.in_((RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH)),
+                            0,
+                        ),
+                        else_=1,
+                    ),
+                    TransactionClassification.created_at.desc(),
+                )
+            )
+        ).first()
+        counter_account = None
+        proposal = None
+        if classification_and_rule is not None:
+            classification, classification_rule = classification_and_rule
+        else:
+            classification = None
+            classification_rule = None
+        if classification is not None and classification.account_id is not None:
+            counter_account = await db.get(Account, classification.account_id)
+            if counter_account is None:
+                raise ValueError("Applied classification references a missing account")
+            intent = _classification_intent(classification, counter_account)
+            proposal = IntentProposal(
+                schema_version="1",
+                policy_version=str(classification.rule_version_id),
+                origin=_classification_proposal_origin(classification_rule.rule_type),
+                intent=intent,
+                category=str((classification.tags or {}).get("category") or "") or None,
+                confidence=Decimal(classification.confidence_score or 0) / Decimal("100"),
+                evidence=(str(classification.id),),
+            )
+        elif txn.id in transfer_txn_ids:
+            proposal = IntentProposal(
+                schema_version="1",
+                policy_version="reconciliation-match-v1",
+                origin=IntentProposalOrigin.RECONCILIATION_FACT,
+                intent=EconomicIntent.TRANSFER,
+                category=None,
+                confidence=Decimal("1"),
+                evidence=("accepted-transfer-match",),
+            )
+
+        transaction = StatementTransaction(
+            transaction_id=txn.id,
+            transaction_date=txn.txn_date,
+            amount=txn.amount,
+            currency=txn.currency,
+            direction=txn.direction,
+            description=txn.description,
+        )
+        decision = policy.decide(
+            transaction,
+            proposal=proposal,
+            context=DispositionContext(
+                accepted_transfer_match=txn.id in transfer_txn_ids,
+                counter_account_id=counter_account.id if counter_account else None,
+            ),
+            mode=dependencies.disposition_mode,
+        )
+        planned.append((txn, proposal, decision, counter_account, transaction))
+
+    result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
+    result_id = result_payload.get("result_id") if isinstance(result_payload, dict) else None
+    execution_id = f"statement:{statement.id}:result:{result_id or statement.file_hash}"
+    occurred_at = statement.created_at or datetime.now(UTC)
+    if occurred_at.tzinfo is None:
+        occurred_at = occurred_at.replace(tzinfo=UTC)
+    emitter = dependencies.trace_emitter_factory(db)
+    for _txn, proposal, decision, _counter_account, transaction in planned:
+        await emit_disposition_trace_records(
+            emitter=emitter,
+            user_id=user_id,
+            execution_id=execution_id,
+            occurred_at=occurred_at,
+            transaction=transaction,
+            proposal=proposal,
+            decision=decision,
+        )
+
+    review_reasons = [
+        decision.reason_code
+        for _txn, _proposal, decision, _counter_account, _transaction in planned
+        if decision.status is DispositionStatus.REVIEW
+    ]
+    if dependencies.disposition_mode is not DispositionMode.ENFORCE:
+        review_reasons.extend(
+            f"authoritative_command_not_applied_in_{dependencies.disposition_mode.value}"
+            for _txn, _proposal, decision, _counter_account, _transaction in planned
+            if decision.status is DispositionStatus.AUTHORITATIVE
+        )
+    if review_reasons:
+        statement.status = BankStatementStatus.PARSED
+        statement.stage1_status = Stage1Status.PENDING_REVIEW
+        statement.validation_error = f"Economic review required: {', '.join(sorted(set(review_reasons)))}"[:500]
+        await db.flush()
+        return 0
+
+    created = 0
+    for txn, _proposal, decision, counter_account, _transaction in planned:
+        if decision.status is DispositionStatus.ALREADY_COVERED:
+            continue
+        if not decision.should_apply:
+            raise RuntimeError("Disposition command reached application without enforce authority")
         # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
         await create_entry_from_txn(
             db,
@@ -120,11 +251,70 @@ async def auto_create_posted_entries_for_statement(
             user_id=user_id,
             base_currency=base_currency,
             auto_post=True,
-            source_type=JournalEntrySourceType.USER_CONFIRMED,
+            source_type=JournalEntrySourceType.AUTO_PARSED,
             preloaded_bank_account=preloaded_bank_account,
+            fx_rate_provider=dependencies.fx_rate_provider,
+            fx_rate_error=dependencies.fx_rate_error,
+            disposition=decision,
+            counter_account=counter_account,
         )
+        created += 1
 
-    return len(txns_to_post)
+    return created
+
+
+def _classification_intent(
+    classification: TransactionClassification,
+    counter_account: Account,
+) -> EconomicIntent:
+    """Resolve an explicit, account-compatible intent from a trusted classification.
+
+    A category account only implies income or expense. Assets and liabilities are
+    economically ambiguous: an asset counterparty may be an investment purchase,
+    sale, or transfer; a liability may be principal, interest, or a card payment.
+    Those cases therefore require an explicit intent tag supplied by the reviewed
+    classification rather than being inferred from debit/credit direction.
+    """
+    tags = classification.tags if isinstance(classification.tags, dict) else {}
+    tagged_intent = tags.get("intent")
+    if tagged_intent is not None:
+        try:
+            intent = EconomicIntent(str(tagged_intent))
+        except ValueError:
+            return EconomicIntent.UNKNOWN
+        if _intent_matches_counter_account(intent, counter_account.type):
+            return intent
+        return EconomicIntent.UNKNOWN
+    if counter_account.type is AccountType.INCOME:
+        return EconomicIntent.INCOME
+    if counter_account.type is AccountType.EXPENSE:
+        return EconomicIntent.EXPENSE
+    return EconomicIntent.UNKNOWN
+
+
+def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin:
+    """Preserve the producer class instead of inferring it from economic intent."""
+    if rule_type in {RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH}:
+        return IntentProposalOrigin.REVIEWED_RULE
+    if rule_type is RuleType.ML_MODEL:
+        return IntentProposalOrigin.LIVE_LLM
+    raise StatementIngestionConfigurationError(f"Unsupported classification rule type: {rule_type}")
+
+
+def _intent_matches_counter_account(intent: EconomicIntent, account_type: AccountType) -> bool:
+    """Reject classifications whose semantic intent contradicts their account side."""
+    compatible_types = {
+        EconomicIntent.INCOME: {AccountType.INCOME},
+        EconomicIntent.EXPENSE: {AccountType.EXPENSE},
+        EconomicIntent.EXPENSE_REFUND: {AccountType.EXPENSE},
+        EconomicIntent.LOAN_INTEREST: {AccountType.EXPENSE},
+        EconomicIntent.INVESTMENT_PURCHASE: {AccountType.ASSET},
+        EconomicIntent.INVESTMENT_SALE: {AccountType.ASSET},
+        EconomicIntent.LOAN_PRINCIPAL: {AccountType.LIABILITY},
+        EconomicIntent.CARD_REPAYMENT: {AccountType.LIABILITY},
+        EconomicIntent.TRANSFER: {AccountType.ASSET},
+    }
+    return account_type in compatible_types.get(intent, set())
 
 
 async def resolve_statement_posting_account(
@@ -324,6 +514,8 @@ async def try_auto_approve_high_confidence_statement(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies,
 ) -> int:
     """Auto-approve and post a high-confidence parsed statement when all posting guards pass.
 
@@ -340,7 +532,9 @@ async def try_auto_approve_high_confidence_statement(
     try:
         async with db.begin_nested():
             approved = await approve_statement(db, statement_id, user_id)
-            created_count = await auto_create_posted_entries_for_statement(db, approved, user_id)
+            created_count = await auto_create_posted_entries_for_statement(
+                db, approved, user_id, dependencies=dependencies
+            )
             await db.flush()
     except ValueError as exc:
         refreshed = await db.get(StatementSummary, statement_id)
@@ -357,5 +551,7 @@ async def try_auto_approve_high_confidence_statement(
     # review). Idempotency lives in try_auto_post_statement_opening_balance
     # itself (_account_has_opening_balance_entry + post_opening_balance_entry's
     # own guards), not here.
+    if statement.status != BankStatementStatus.APPROVED:
+        return 0
     await try_auto_post_statement_opening_balance(db, statement, user_id)
     return created_count

@@ -29,11 +29,20 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import (
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
     DocumentSource,
     DocumentType,
+    EconomicIntent,
     ExtractedTransactionRow,
     ExtractionError,
+    ExtractionMethod,
+    IntentProposal,
+    IntentProposalOrigin,
     ParseJob,
+    StatementTransaction,
     UploadedDocument,
 )
 from src.extraction.extension import (
@@ -41,6 +50,7 @@ from src.extraction.extension import (
     statement_pipeline,
     statement_validation as statement_validation_mod,
 )
+from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.extension.statement_posting import (
@@ -49,6 +59,7 @@ from src.extraction.extension.statement_posting import (
 )
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import ClassificationRule, RuleType
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
@@ -69,6 +80,21 @@ from src.schemas.review import (
 )
 from tests.factories import AccountFactory, UserFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry
+from tests.statement_ingestion import posting_dependencies
+
+
+def _compose_mock_ingestion(mock_execute):
+    def compose(*, session_maker):
+        assert session_maker is not None
+
+        class FakeUseCase:
+            async def execute(self, job, *, content=None):
+                return await mock_execute(job=job, content=content)
+
+        return FakeUseCase()
+
+    return compose
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -206,6 +232,112 @@ async def seed_uploaded_document(
     return document
 
 
+async def persist_mock_result(
+    db,
+    *,
+    source: DocumentSource,
+    statement: StatementSummary,
+    transactions: list[ExtractedTransactionRow],
+):
+    """Keep router fakes on the production source-to-fact result boundary."""
+    from src.extraction.extension.deduplication import dual_write_layer2
+
+    result = build_statement_extraction_result(
+        source=source,
+        file_type="pdf",
+        statement=statement,
+        transactions=transactions,
+        provider_payload={"transactions": []},
+        model="router-fixture",
+        provider="router-fixture",
+        method=ExtractionMethod.GOLDEN_FIXTURE,
+        is_brokerage=False,
+    )
+    await dual_write_layer2(
+        db,
+        statement.user_id,
+        statement,
+        transactions,
+        original_filename=source.filename,
+        extraction_metadata={"statement_extraction_result": result.to_payload()},
+    )
+    return result
+
+
+async def add_reviewed_disposition_rule(
+    db,
+    *,
+    user_id,
+    keyword: str,
+    account_type: AccountType,
+    category: str,
+) -> None:
+    """Seed explicit user-owned economic meaning for a posting-flow test."""
+    account = Account(
+        user_id=user_id,
+        name=f"{account_type.value.title()} - {category}",
+        type=account_type,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    db.add(
+        ClassificationRule(
+            user_id=user_id,
+            version_number=1,
+            effective_date=date(2025, 1, 1),
+            rule_name=f"Reviewed {category} rule",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": [keyword]},
+            tag_mappings={"category": category},
+            default_account_id=account.id,
+            created_by=user_id,
+        )
+    )
+    await db.flush()
+
+
+async def reviewed_posting_inputs(
+    db,
+    *,
+    user_id,
+    transaction: AtomicTransaction,
+    intent: EconomicIntent,
+) -> tuple[DispositionDecision, Account]:
+    """Create explicit reviewed economic meaning for a ledger-adapter test."""
+    account_type = AccountType.INCOME if intent is EconomicIntent.INCOME else AccountType.EXPENSE
+    counter_account = Account(
+        user_id=user_id,
+        name=f"{account_type.value.title()} - Reviewed Test",
+        type=account_type,
+        currency=transaction.currency,
+    )
+    db.add(counter_account)
+    await db.flush()
+    decision = DispositionPolicy().decide(
+        StatementTransaction(
+            transaction_id=transaction.id,
+            transaction_date=transaction.txn_date,
+            amount=transaction.amount,
+            currency=transaction.currency,
+            direction=transaction.direction,
+            description=transaction.description,
+        ),
+        proposal=IntentProposal(
+            schema_version="1",
+            policy_version="reviewed-test-v1",
+            origin=IntentProposalOrigin.REVIEWED_RULE,
+            intent=intent,
+            category="TEST",
+            confidence=Decimal("1"),
+            evidence=("reviewed-test",),
+        ),
+        context=DispositionContext(counter_account_id=counter_account.id),
+        mode=DispositionMode.ENFORCE,
+    )
+    return decision, counter_account
+
+
 async def add_txn(
     db,
     statement,
@@ -289,7 +421,7 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
         db=None,
     ):
         statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        return statement, []
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -404,7 +536,11 @@ async def test_AC3_5_upload_rejects_cross_user_account_id(db, monkeypatch, test_
 async def test_upload_uses_default_ocr_pipeline_for_pdf(db, monkeypatch, storage_stub, test_user):
     """AC-extraction.5.7: PDF/image uploads may omit model and use the default OCR pipeline."""
     mock_parse = AsyncMock(return_value=None)
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", mock_parse)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_mock_ingestion(mock_parse),
+    )
 
     upload_file = make_upload_file("statement.pdf", b"content")
 
@@ -437,7 +573,11 @@ async def test_AC10_8_1_upload_audit_logs_include_statement_input_provenance(
     content = b"audit-log-input"
     mock_parse = AsyncMock(return_value=None)
     mock_info = MagicMock()
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", mock_parse)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_mock_ingestion(mock_parse),
+    )
     monkeypatch.setattr(statements_router.logger, "info", mock_info)
 
     upload_file = make_upload_file("staging-audit.pdf", content)
@@ -606,7 +746,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     content = b"statement-flow"
 
-    from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
+    from src.extraction.extension.deduplication import DeduplicationService
 
     async def fake_parse_document(
         self,
@@ -643,15 +783,7 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
                 description,
             ),
         )
-        # Persist via the single DWD linker so the statement resolves its Layer-2 facts.
-        await dual_write_layer2(
-            db,
-            test_user.id,
-            statement,
-            [transaction],
-            original_filename=source.filename,
-        )
-        return statement, [transaction]
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[transaction])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -703,8 +835,6 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         hashlib.sha256(contents[1]).hexdigest(): scores[1],
     }
 
-    from src.extraction.extension.deduplication import dual_write_layer2
-
     async def fake_parse_document(
         self,
         source: DocumentSource,
@@ -720,8 +850,7 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         statement = build_statement(test_user.id, source.content_hash, confidence_score=score)
         statement.account_id = account_id
         statement.closing_balance = Decimal("100.00")
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
-        return statement, []
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -783,7 +912,11 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
     async def fake_parse_statement_background(**kwargs):
         queued.update(kwargs)
 
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_parse_statement_background)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_mock_ingestion(fake_parse_statement_background),
+    )
 
     response = await statements_router.reject_statement_stage1(
         statement_id=statement.id,
@@ -987,7 +1120,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
     ):
         statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         statement.status = BankStatementStatus.PARSING
-        return statement, []
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -1125,7 +1258,6 @@ async def test_AC13_21_6_csv_missing_institution_rejected_sync(db, storage_stub,
 
 async def test_retry_statement_success(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC-extraction.5.19: Retry parsing with stronger model succeeds."""
-    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -1144,8 +1276,7 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
         statement = build_statement(test_user.id, source.content_hash, confidence_score=95)
         statement.status = BankStatementStatus.REJECTED
         statement.confidence_score = 60
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
-        return statement, []
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -1189,7 +1320,6 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
 async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
     """AC-extraction.5.20: Retry extraction failure returns 422."""
-    from src.extraction.extension.deduplication import dual_write_layer2
     from src.schemas import RetryParsingRequest
 
     content = b"statement"
@@ -1207,8 +1337,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
     ):
         statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
         statement.status = BankStatementStatus.REJECTED
-        await dual_write_layer2(db, test_user.id, statement, [], original_filename=source.filename)
-        return statement, []
+        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
 
     monkeypatch.setattr(
         statement_parsing_mod.ExtractionService,
@@ -1745,6 +1874,20 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     )
     db.add_all([txn_in, txn_out])
     await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="lunch",
+        account_type=AccountType.EXPENSE,
+        category="MEALS",
+    )
     bank_account_id = bank_account.id
     txn_ids = [txn_in.id, txn_out.id]
     await db.commit()
@@ -1804,6 +1947,13 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     )
     db.add(txn)
     await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
     bank_account_id = bank_account.id
     txn_id = txn.id
     await db.commit()
@@ -1845,10 +1995,19 @@ async def test_auto_approve_high_confidence_statement_creates_posted_entries(db,
     )
     db.add(txn)
     await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
     txn_id = txn.id
     await db.commit()
 
-    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    created_count = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     assert created_count == 1
 
     await db.refresh(statement)
@@ -1870,7 +2029,9 @@ async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candi
     db.add(statement)
     await db.commit()
 
-    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    created_count = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
 
     assert created_count == 0
 
@@ -1903,7 +2064,9 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     )
     await db.commit()
 
-    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    created_count = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
 
     assert created_count == 0
     await db.refresh(statement)
@@ -1941,7 +2104,9 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     db.add(txn)
     await db.flush()
 
-    created_count = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id)
+    created_count = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
 
     assert created_count == 0
 
@@ -1956,7 +2121,7 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_txns[0].description == "Uncommitted Salary"
 
 
-async def test_approve_statement_stage1_promotes_existing_statement_entries_without_reposting(db, test_user):
+async def test_approve_statement_stage1_preserves_existing_statement_entry_provenance_without_reposting(db, test_user):
     bank_account = await create_statement_account(db, test_user.id, "DBS Existing Entry Promotion")
     statement = build_statement(test_user.id, "hash_s1_existing_entry_promotion", 90)
     statement.status = BankStatementStatus.PARSED
@@ -1989,7 +2154,7 @@ async def test_approve_statement_stage1_promotes_existing_statement_entries_with
 
     assert result.journal_entries_created == 0
     await db.refresh(existing_entry)
-    assert existing_entry.source_type == JournalEntrySourceType.USER_CONFIRMED
+    assert existing_entry.source_type == JournalEntrySourceType.AUTO_PARSED
 
     entries_result = await db.execute(
         select(JournalEntry)
@@ -2332,6 +2497,13 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     )
     db.add(txn)
     await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=user_id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
     txn_id = txn.id
     await db.commit()
 
@@ -2496,6 +2668,13 @@ async def test_approve_statement_stage1_ignores_rejected_matches_for_skip_logic(
         entry_date=date(2025, 1, 4),
         memo="Stale candidate",
         source_type=JournalEntrySourceType.SYSTEM,
+    )
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="payment",
+        account_type=AccountType.EXPENSE,
+        category="BILLS",
     )
 
     db.add(
@@ -3073,6 +3252,13 @@ async def test_AC16_34_1_resolve_unblocks_stage1_approval(db, test_user):
             amount=Decimal("20.00"),
             direction="IN",
         )
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=user_id,
+        keyword="duplicate deposit",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
     await db.commit()
 
     # Before resolving, approval is blocked.
@@ -3231,6 +3417,23 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
     await db.refresh(txn_in_run)
     await db.refresh(txn_other_run)
 
+    # Reconciliation confirms an existing, economically reviewed entry. It no
+    # longer manufactures one from a pending match without semantic context.
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn_in_run,
+        intent=EconomicIntent.EXPENSE,
+    )
+    await create_entry_from_txn(
+        db,
+        txn_in_run,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
+
     in_run_match = ReconciliationMatch(
         atomic_txn_id=txn_in_run.id,
         run_id="run-123",
@@ -3303,6 +3506,22 @@ async def test_batch_approve_matches_success(db, test_user):
     await db.commit()
     await db.refresh(txn)
 
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
+    await db.flush()
+
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         match_score=75,
@@ -3343,7 +3562,20 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     await db.commit()
     await db.refresh(txn)
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
@@ -3371,10 +3603,11 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
-    """AC-reconciliation.stage2-batch.2: AC16.22.4 AC16.24.4: Accepted Stage 2 match creates the missing journal entry once."""
-    account = await create_statement_account(db, test_user.id, "DBS Batch Missing")
-    statement = build_statement(test_user.id, "hash_batch_create_once", 90)
+async def test_batch_approve_matches_without_entry_requires_review(db, test_user):
+    """AC-reconciliation.stage2-batch.2: Stage 2 cannot invent economic meaning."""
+    user_id = test_user.id
+    account = await create_statement_account(db, user_id, "DBS Batch Missing")
+    statement = build_statement(user_id, "hash_batch_create_once", 90)
     statement.status = BankStatementStatus.APPROVED
     statement.account_id = account.id
     db.add(statement)
@@ -3391,6 +3624,7 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
+    txn_id = txn.id
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -3402,47 +3636,26 @@ async def test_batch_approve_matches_creates_missing_entry_once(db, test_user):
     db.add(match)
     await db.commit()
 
-    result = await review_router.batch_approve_matches(
-        request=BatchApproveRequest(match_ids=[match.id]),
-        db=db,
-        user_id=test_user.id,
-    )
-    assert result.approved_count == 1
-    assert result.journal_entries_created == 1
-    assert result.journal_entries_reconciled == 1
+    with pytest.raises(HTTPException) as exc_info:
+        await review_router.batch_approve_matches(
+            request=BatchApproveRequest(match_ids=[match.id]),
+            db=db,
+            user_id=user_id,
+        )
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Authoritative economic disposition" in str(exc_info.value.detail)
 
     await db.refresh(match)
-    await db.refresh(txn)
-    assert match.status == ReconciliationStatus.ACCEPTED
-    # AtomicTransaction has no per-txn status; the ReconciliationMatch status is the truth.
-    assert len(match.journal_entry_ids) == 1
+    assert match.status == ReconciliationStatus.PENDING_REVIEW
+    assert match.journal_entry_ids == []
 
     entry_result = await db.execute(
         select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
+        .where(JournalEntry.source_id == txn_id)
     )
-    entries = list(entry_result.scalars().all())
-    assert len(entries) == 1
-    assert entries[0].status == JournalEntryStatus.RECONCILED
-
-    second_result = await review_router.batch_approve_matches(
-        request=BatchApproveRequest(match_ids=[match.id]),
-        db=db,
-        user_id=test_user.id,
-    )
-    assert second_result.approved_count == 0
-    assert second_result.journal_entries_created == 0
-    assert second_result.journal_entries_reconciled == 0
-
-    second_entry_result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == test_user.id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
-    )
-    assert len(list(second_entry_result.scalars().all())) == 1
+    assert list(entry_result.scalars().all()) == []
 
 
 async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
@@ -3465,6 +3678,22 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
+
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
+    await db.flush()
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -3518,7 +3747,20 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
     await db.commit()
     await db.refresh(txn)
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[],
@@ -3573,13 +3815,22 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
-    fallback_query = (
-        select(Account.id).where(Account.user_id == test_user.id).where(Account.name == "Expense - Uncategorized")
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
     )
-    fallback_ids_before = set((await db.scalars(fallback_query)).all())
 
-    with pytest.raises(ValueError, match="not active"):
-        await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    with pytest.raises(ValueError, match="active asset"):
+        await create_entry_from_txn(
+            db,
+            txn,
+            user_id=test_user.id,
+            auto_post=True,
+            disposition=decision,
+            counter_account=counter_account,
+        )
 
     entry_result = await db.execute(
         select(JournalEntry)
@@ -3588,7 +3839,14 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
         .where(JournalEntry.source_id == txn.id)
     )
     assert list(entry_result.scalars().all()) == []
-    assert set((await db.scalars(fallback_query)).all()) == fallback_ids_before
+    assert (
+        await db.scalar(
+            select(Account.id)
+            .where(Account.user_id == test_user.id)
+            .where(Account.name.in_(("Income - Uncategorized", "Expense - Uncategorized")))
+            .limit(1)
+        )
+    ) is None
 
 
 async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledger_graph(
@@ -3614,16 +3872,24 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     db.add(txn)
     await db.flush()
 
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.INCOME,
+    )
     entry = await create_entry_from_txn(
         db,
         txn,
         user_id=test_user.id,
         auto_post=True,
-        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        disposition=decision,
+        counter_account=counter_account,
     )
     await db.commit()
 
-    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
+    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert entry.source_id == txn.id
 
     # Statement->ledger lineage is materialized lazily; trigger it for the posted entry.
@@ -3683,7 +3949,20 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
     await db.refresh(txn)
     await db.refresh(entry_source_txn)
 
-    entry = await create_entry_from_txn(db, entry_source_txn, user_id=test_user.id, auto_post=True)
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=entry_source_txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        entry_source_txn,
+        user_id=test_user.id,
+        auto_post=True,
+        disposition=decision,
+        counter_account=counter_account,
+    )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],

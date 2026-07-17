@@ -40,7 +40,40 @@ from __future__ import annotations
 # monkeypatch its functions (``validation.validate_balance = …``) and need one
 # canonical module object to patch.
 from src.extraction.base import validation
-from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, ParseJob
+from src.extraction.base.disposition import (
+    DispositionCommand,
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
+    DispositionStatus,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    StatementTransaction,
+)
+from src.extraction.base.result import (
+    SOURCE_CAPABILITIES,
+    ExtractedPositionFact,
+    ExtractedTransactionFact,
+    ExtractionMethod,
+    SourceCapability,
+    SourceCapabilityStatus,
+    SourceProvenance,
+    StatementBalanceFact,
+    StatementExtractionResult,
+    StatementSourceType,
+)
+from src.extraction.base.types import (
+    DocumentSource,
+    ExtractedTransactionRow,
+    ParseJob,
+    RetryableStatementIngestionError,
+    StatementIngestionConfigurationError,
+    StatementIngestionError,
+    StatementIngestionOutcome,
+    StatementIngestionStatus,
+)
 from src.extraction.base.validation import (
     compute_confidence_score,
     detect_balance_chain_break,
@@ -86,6 +119,7 @@ from src.extraction.extension.evidence_lineage import (
     EvidenceLineageService,
     EvidenceTraversalStep,
 )
+from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
 from src.extraction.extension.review_queue import (
@@ -93,13 +127,17 @@ from src.extraction.extension.review_queue import (
     register_fx_rate_provider,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing import (
+    StatementIngestionUseCase,
+    build_statement_ingestion_use_case,
+)
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
     auto_create_posted_entries_for_statement,
-    register_transfer_exclusions_provider,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_summary import (
@@ -173,6 +211,12 @@ __all__ = [
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
+    "DispositionCommand",
+    "DispositionContext",
+    "DispositionDecision",
+    "DispositionMode",
+    "DispositionPolicy",
+    "DispositionStatus",
     "DocumentSource",
     "DocumentStatus",
     "DocumentType",
@@ -184,7 +228,13 @@ __all__ = [
     "EvidenceTraversalStep",
     "ExtractionError",
     "ExtractionService",
+    "EconomicIntent",
+    "ExtractionMethod",
+    "ExtractedPositionFact",
     "ExtractedTransactionRow",
+    "ExtractedTransactionFact",
+    "IntentProposal",
+    "IntentProposalOrigin",
     "ManagedPosition",
     "ManualValuationBasis",
     "ManualValuationComponentType",
@@ -192,8 +242,23 @@ __all__ = [
     "ManualValuationSnapshot",
     "PositionStatus",
     "ParseJob",
+    "RetryableStatementIngestionError",
+    "SourceCapability",
+    "SOURCE_CAPABILITIES",
+    "SourceCapabilityStatus",
+    "SourceProvenance",
     "SYSTEM_PROMPT",
     "Stage1Status",
+    "StatementIngestionConfigurationError",
+    "StatementIngestionError",
+    "StatementIngestionOutcome",
+    "StatementIngestionStatus",
+    "StatementIngestionUseCase",
+    "StatementBalanceFact",
+    "StatementExtractionResult",
+    "StatementPostingDependencies",
+    "StatementSourceType",
+    "StatementTransaction",
     "StatementEventSource",
     "StatementSummary",
     "TransactionClassification",
@@ -207,10 +272,12 @@ __all__ = [
     "auto_create_posted_entries_for_statement",
     "backfill_classifications",
     "build_csv_mapping_prompt",
+    "build_statement_ingestion_use_case",
     "compute_confidence_score",
     "create_entry_from_txn",
     "detect_balance_chain_break",
     "dual_write_layer2",
+    "extraction_trace_policy_registry",
     "edit_and_approve",
     "find_in_flight_parse_id",
     "find_uploaded_document_filename_by_hash",
@@ -233,7 +300,6 @@ __all__ = [
     "resolve_custody_account_id",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
-    "register_transfer_exclusions_provider",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "resolve_transaction_currency",

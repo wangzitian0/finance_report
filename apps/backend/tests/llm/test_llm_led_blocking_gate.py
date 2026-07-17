@@ -22,13 +22,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from src.extraction import DocumentSource
 from src.extraction.extension._llm_led_gate import (
     LlmLedQuarantineReason,
     evaluate_llm_led_extraction_gate,
 )
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 
 
@@ -54,7 +55,9 @@ async def _parse(service: ExtractionService, tmp_path, payload: dict):
     pdf = tmp_path / "stmt.pdf"
     pdf.write_bytes(b"dummy")
     with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=payload)):
-        return await service.parse_document(pdf, institution="UOB", user_id=uuid4(), file_content=pdf.read_bytes())
+        return await service.parse_document(
+            DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution="UOB", user_id=uuid4()
+        )
 
 
 # --- AC-extraction.2009.2: balance-chain failure is a blocking gate ---------------------------
@@ -69,14 +72,13 @@ class TestBalanceChainBlockingGate:
             closing="9999.00",
             txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}],
         )
-        stmt, _events = await _parse(service, tmp_path, payload)
+        result = await _parse(service, tmp_path, payload)
 
-        assert stmt.status == BankStatementStatus.REJECTED
-        assert stmt.status != BankStatementStatus.PARSED
-        assert stmt.balance_validated is False
-        # Terminal stage1 marker, not pending review.
-        assert stmt.stage1_status == Stage1Status.REJECTED
-        assert LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value in (stmt.validation_error or "")
+        assert result.balance_validated is False
+        assert any(
+            reason.startswith(LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value)
+            for reason in result.review_reasons
+        )
 
     async def test_AC20_9_2_quarantined_extraction_absent_from_trusted_report_input(self, service, tmp_path):
         """[AC-extraction.2009.2] The quarantine status is excluded from trusted report input.
@@ -90,11 +92,13 @@ class TestBalanceChainBlockingGate:
             closing="100000.00",
             txns=[{"date": "2025-01-10", "description": "Fee", "amount": "5.00", "direction": "OUT"}],
         )
-        stmt, _events = await _parse(service, tmp_path, payload)
+        result = await _parse(service, tmp_path, payload)
 
-        trusted_input_statuses = {BankStatementStatus.PARSED, BankStatementStatus.APPROVED}
-        assert stmt.status not in trusted_input_statuses
-        assert stmt.status == BankStatementStatus.REJECTED
+        assert result.balance_validated is False
+        assert any(
+            reason.startswith(LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED.value)
+            for reason in result.review_reasons
+        )
 
 
 # --- AC-extraction.2009.3: independent dedup gate, distinct reason -----------------------------
@@ -130,12 +134,14 @@ class TestDedupConservationBlockingGate:
                 return_value=1,
             ),
         ):
-            stmt, _events = await service.parse_document(
-                pdf, institution="UOB", user_id=uuid4(), file_content=pdf.read_bytes()
+            result = await service.parse_document(
+                DocumentSource.resolve(path=pdf, content=pdf.read_bytes()), institution="UOB", user_id=uuid4()
             )
 
-        assert stmt.status == BankStatementStatus.REJECTED
-        assert LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value in (stmt.validation_error or "")
+        assert any(
+            reason.startswith(LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION.value)
+            for reason in result.review_reasons
+        )
 
     def test_AC20_9_3_dedup_reason_code_distinct_from_balance(self):
         """[AC-extraction.2009.3] The dedup reason code is DISTINCT from the balance reason code."""
@@ -194,11 +200,11 @@ class TestOldPathRemoved:
             closing="500.00",  # chain would require -1500 net; only +200 emitted
             txns=[{"date": "2025-01-20", "description": "Refund", "amount": "200.00", "direction": "IN"}],
         )
-        stmt, _events = await _parse(service, tmp_path, payload)
+        result = await _parse(service, tmp_path, payload)
 
         # The pre-#1352 behavior was PARSED + pending_review; that must be gone.
-        assert stmt.status is not BankStatementStatus.PARSED
-        assert stmt.stage1_status is not Stage1Status.PENDING_REVIEW
+        assert result.balance_validated is False
+        assert result.review_reasons
 
 
 # --- AC-extraction.2009.6: no false reject of a valid extraction ------------------------------
@@ -212,11 +218,10 @@ class TestNoFalseReject:
             closing="1100.00",
             txns=[{"date": "2025-01-15", "description": "Salary", "amount": "100.00", "direction": "IN"}],
         )
-        stmt, _events = await _parse(service, tmp_path, payload)
+        result = await _parse(service, tmp_path, payload)
 
-        assert stmt.status != BankStatementStatus.REJECTED
-        assert stmt.status in {BankStatementStatus.PARSED, BankStatementStatus.APPROVED, BankStatementStatus.UPLOADED}
-        assert stmt.balance_validated is True
+        assert result.balance_validated is True
+        assert result.review_reasons == ()
 
     def test_AC20_9_6_valid_pure_gate_passes(self):
         """[AC-extraction.2009.6] The pure gate passes a valid, evaluable, conserved extraction."""
@@ -316,18 +321,6 @@ class TestQuarantinePersistsStatus:
         envelope must now persist as REJECTED while still writing no Layer-2
         financial rows.
         """
-        file_hash = "qa1452" + uuid4().hex
-        envelope = StatementSummary(
-            user_id=test_user.id,
-            file_hash=file_hash,
-            institution="UOB",
-            currency="SGD",
-            status=BankStatementStatus.PARSING,
-        )
-        db.add(envelope)
-        await db.flush()
-        envelope_id = envelope.id
-
         payload = _bank_payload(
             opening="1000.00",
             closing="9999.00",
@@ -336,17 +329,21 @@ class TestQuarantinePersistsStatus:
         pdf = tmp_path / "stmt.pdf"
         pdf.write_bytes(b"dummy")
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=payload)):
-            await service.parse_document(
-                pdf,
+            result = await service.parse_document(
+                DocumentSource.resolve(path=pdf, content=pdf.read_bytes()),
                 institution="UOB",
                 user_id=test_user.id,
-                file_content=pdf.read_bytes(),
-                file_hash=file_hash,
                 db=db,
             )
         await db.commit()
 
-        persisted = await db.get(StatementSummary, envelope_id)
+        persisted = (
+            await db.execute(
+                select(StatementSummary)
+                .where(StatementSummary.user_id == test_user.id)
+                .where(StatementSummary.file_hash == result.source_content_digest)
+            )
+        ).scalar_one()
         assert persisted.status == BankStatementStatus.REJECTED
         # A quarantined extraction must not persist any Layer-2 financial rows.
         txns = (

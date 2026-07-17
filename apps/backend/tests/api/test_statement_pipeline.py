@@ -39,15 +39,30 @@ def _dispatch_kwargs() -> dict:
     }
 
 
+def _compose_fake_use_case(seen: dict):
+    def compose(*, session_maker):
+        seen["session_maker"] = session_maker
+
+        class FakeUseCase:
+            async def execute(self, job, *, content=None):
+                seen["job"] = job
+                seen["content"] = content
+
+        return FakeUseCase()
+
+    return compose
+
+
 async def test_AC19_13_1_dispatch_falls_back_to_asyncio_when_prefect_unset(monkeypatch):
     """AC-extraction.1913.1: AC19.13.1: PREFECT_API_URL unset → in-process asyncio fallback, no Prefect."""
     monkeypatch.setattr(statement_pipeline.settings, "prefect_api_url", None)
     seen: dict = {}
 
-    async def fake_background(**kwargs):
-        seen.update(kwargs)
-
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_fake_use_case(seen),
+    )
     monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
 
     task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
@@ -73,9 +88,6 @@ async def test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback(monke
 
     task = FakeTask()
 
-    async def fake_background(**_kwargs):
-        return None
-
     def fake_tracking(awaitable, **_kwargs):
         awaitable.close()
 
@@ -88,7 +100,11 @@ async def test_AC19_13_1_dispatch_registers_exception_consumer_on_fallback(monke
         coro.close()
         return task
 
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_fake_use_case({}),
+    )
     monkeypatch.setattr(statement_pipeline, "run_with_async_parse_tracking", fake_tracking)
     monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
     monkeypatch.setattr(statement_pipeline.asyncio, "create_task", fake_create_task)
@@ -131,10 +147,11 @@ async def test_AC19_13_1_dispatch_falls_back_when_prefect_client_absent(monkeypa
     monkeypatch.setitem(sys.modules, "prefect.deployments", None)
     seen: dict = {}
 
-    async def fake_background(**kwargs):
-        seen.update(kwargs)
-
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_fake_use_case(seen),
+    )
     monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
 
     task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
@@ -156,10 +173,11 @@ async def test_AC19_13_1_dispatch_falls_back_when_prefect_submit_fails(monkeypat
     monkeypatch.setitem(sys.modules, "prefect.deployments", fake_deployments)
     seen: dict = {}
 
-    async def fake_background(**kwargs):
-        seen.update(kwargs)
-
-    monkeypatch.setattr(statement_pipeline, "parse_statement_background", fake_background)
+    monkeypatch.setattr(
+        statement_pipeline,
+        "compose_statement_ingestion_use_case",
+        _compose_fake_use_case(seen),
+    )
     monkeypatch.setattr(statement_pipeline, "create_session_maker_from_db", lambda db: "session-maker")
 
     task = await statement_pipeline.submit_parse_pipeline(**_dispatch_kwargs())
@@ -175,14 +193,11 @@ async def test_AC_extraction_signature_seams_1_prefect_worker_rehydrates_parse_j
     job = _dispatch_kwargs()["job"]
     seen: dict = {}
 
-    async def fake_background(**kwargs):
-        seen.update(kwargs)
-
-    async def fake_run_in_threadpool(function, *args, **kwargs):
-        return b"stored-content"
-
-    monkeypatch.setattr(statement_flow, "parse_statement_background", fake_background)
-    monkeypatch.setattr(statement_flow, "run_in_threadpool", fake_run_in_threadpool)
+    monkeypatch.setattr(
+        statement_flow,
+        "compose_statement_ingestion_use_case",
+        _compose_fake_use_case(seen),
+    )
     monkeypatch.setattr(
         statement_flow,
         "run_with_async_parse_tracking",
@@ -192,5 +207,5 @@ async def test_AC_extraction_signature_seams_1_prefect_worker_rehydrates_parse_j
     await statement_flow.parse_statement_flow.fn(job=job.to_prefect_params())
 
     assert seen["job"] == job
-    assert seen["content"] == b"stored-content"
+    assert seen["content"] is None
     assert seen["session_maker"] is statement_flow.async_session_maker

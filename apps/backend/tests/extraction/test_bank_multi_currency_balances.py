@@ -14,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 
 
@@ -52,24 +53,23 @@ async def test_AC4_13_9_bank_multi_currency_statement_persists_balances_and_per_
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(return_value=_multi_currency_bank_payload())
 
-    statement, _ = await service.parse_document(
-        file_path=Path("dbs-statement-2506.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("dbs-statement-2506.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="dbs-multicurrency-hash",
+            filename="dbs-statement-2506.pdf",
+        ),
         institution="DBS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="dbs-multicurrency-hash",
-        original_filename="dbs-statement-2506.pdf",
     )
 
-    # Per-currency balances persisted, not collapsed into one scalar currency.
-    assert statement.currency_balances is not None
-    by_ccy = {b["currency"]: b for b in statement.currency_balances}
+    # Per-currency balances are canonical source facts, not a scalar collapse.
+    by_ccy = {balance.currency: balance for balance in result.balances}
     assert set(by_ccy) == {"SGD", "USD"}
-    assert Decimal(by_ccy["USD"]["closing"]) == Decimal("500.00")
-    # The presentation currency stays SGD; it does not force the USD leg to SGD.
-    assert statement.currency == "SGD"
+    assert by_ccy["USD"].closing == Decimal("500.00")
     # Each currency reconciles -> the statement is validated (per-currency governs).
-    assert statement.balance_validated is True
+    assert result.balance_validated is True
 
 
 async def test_AC4_13_9_bank_multi_currency_per_currency_mismatch_flags_invalid(test_user, monkeypatch):
@@ -92,18 +92,20 @@ async def test_AC4_13_9_bank_multi_currency_per_currency_mismatch_flags_invalid(
 
     monkeypatch.setattr("src.extraction.extension.service.validate_balance_per_currency", _failing_per_currency)
 
-    statement, _ = await service.parse_document(
-        file_path=Path("dbs-statement-2506.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("dbs-statement-2506.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="dbs-multicurrency-fail-hash",
+            filename="dbs-statement-2506.pdf",
+        ),
         institution="DBS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="dbs-multicurrency-fail-hash",
-        original_filename="dbs-statement-2506.pdf",
     )
 
-    assert statement.currency_balances is not None  # evidence still persisted
-    assert statement.balance_validated is False  # per-currency governs; never silently valid
-    assert statement.validation_error  # carries a typed failure reason, not silence
+    assert len(result.balances) == 2  # evidence survives quarantine
+    assert result.balance_validated is False  # per-currency governs; never silently valid
+    assert result.review_reasons  # carries a typed failure reason, not silence
 
 
 async def test_AC4_13_9_single_currency_bank_statement_keeps_scalar_path(test_user):
@@ -124,14 +126,17 @@ async def test_AC4_13_9_single_currency_bank_statement_keeps_scalar_path(test_us
     }
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, _ = await service.parse_document(
-        file_path=Path("dbs-statement-2506.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("dbs-statement-2506.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="dbs-singlecurrency-hash",
+            filename="dbs-statement-2506.pdf",
+        ),
         institution="DBS",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="dbs-singlecurrency-hash",
-        original_filename="dbs-statement-2506.pdf",
     )
 
-    assert statement.currency_balances is None
-    assert statement.balance_validated is True
+    assert len(result.balances) == 1
+    assert result.balances[0].currency == "SGD"
+    assert result.balance_validated is True

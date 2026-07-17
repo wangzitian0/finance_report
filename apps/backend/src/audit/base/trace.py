@@ -36,6 +36,7 @@ _VALID_STAGES = frozenset(
         "prod.release_integrity",
         "ops.scheduled_cleanup",
         "manual.adjudication",
+        "product.runtime",
     }
 )
 

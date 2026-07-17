@@ -23,7 +23,7 @@ from sqlalchemy.pool import NullPool
 # side effect; issue #1461).
 import src.orm_registry  # noqa: F401
 from src.config import settings
-from src.extraction import register_fx_rate_provider, register_transfer_exclusions_provider
+from src.extraction import register_fx_rate_provider
 from src.ledger import register_fx_revaluation_provider
 from src.observability import get_logger
 from src.pricing import (
@@ -35,7 +35,6 @@ from src.pricing import (
     get_average_rate,
     get_exchange_rate,
 )
-from src.reconciliation import accepted_transfer_txn_ids
 from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 
 # Wire reporting's composition-root ports for direct (no-app) test runs — the
@@ -65,7 +64,6 @@ register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
 # read, mirroring the app composition root (src/main.py, #1675 D5): tests
 # that call statement-posting helpers directly bypass app startup and would
 # otherwise hit the unwired-port RuntimeError.
-register_transfer_exclusions_provider(accepted_transfer_txn_ids)
 
 # Make the repo's ``common/`` importable at collection time (not just inside the
 # ``ac_evidence`` fixture). conftest.py is imported before the test modules in

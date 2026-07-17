@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.composition import compose_statement_posting_dependencies
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
@@ -374,13 +375,11 @@ async def upload_statement(
         await db.flush()
         from src.extraction import EvidenceGraphIntegrationService
 
-        # ``record_statement_upload`` reads ``original_filename`` (an ODS field that
-        # the DWD envelope does not carry); supply it transiently for lineage only.
-        statement.original_filename = filename
         await EvidenceGraphIntegrationService().record_statement_upload(
             db,
             user_id=user_id,
             statement=statement,
+            original_filename=filename,
         )
         await db.commit()
         await db.refresh(statement)
@@ -796,7 +795,12 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
-        created_count = await approve_statement_workflow(db, statement_id, user_id)
+        created_count = await approve_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            dependencies=compose_statement_posting_dependencies(),
+        )
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -837,7 +841,12 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
+        created_count = await auto_create_posted_entries_for_statement(
+            db,
+            statement,
+            user_id,
+            dependencies=compose_statement_posting_dependencies(),
+        )
         await db.commit()
     except ValueError as e:
         await db.rollback()

@@ -7,9 +7,6 @@ from typing import Any
 from src.observability import get_logger
 
 logger = get_logger(__name__)
-CSV_INFERRED_BALANCE_REVIEW_NOTE = (
-    "CSV import does not include source statement opening/closing balances; manual review required"
-)
 
 
 # Date formats seen across real bank/brokerage statements, beyond strict ISO.

@@ -314,7 +314,7 @@ async def accepted_transfer_txn_ids(
     statement posting skips txns an accepted/auto-accepted, non-superseded
     match already anchors to journal entries. Published on the package root;
     the app composition root (``src/main.py``) registers it into
-    ``extraction.register_transfer_exclusions_provider`` at startup
+    the extraction-owned statement ingestion use case at composition time
     (reconciliation depends on extraction, never the reverse).
     """
     ids = list(txn_ids)
@@ -434,7 +434,7 @@ def _find_many_to_one_candidates(
             candidate = MatchCandidate(
                 journal_entry_ids=[str(entry.id)],
                 score=total,
-                breakdown={**scores, "group_total": str(group_total)},
+                breakdown={**scores, "group_total": float(group_total)},
             )
             if candidate.score >= config.pending_review and (
                 best_candidate is None or candidate.score > best_candidate.score
