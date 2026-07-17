@@ -2620,12 +2620,13 @@ CONTRACT = PackageContract(
             id="AC-testing.acgates.8",
             statement=(
                 "E2E EPIC traceability fails E2E-root test functions missing "
-                "function-level EPIC IDs or project EPICs without E2E owners (Was "
-                "EPIC-008 AC8.13.68)."
+                "function-level EPIC IDs or residue EPICs without E2E owners; "
+                "typed design-doc and goal-stub EPICs remain known but do not demand "
+                "a fabricated product E2E owner (Was EPIC-008 AC8.13.68)."
             ),
             test=(
                 "tests/tooling/test_check_e2e_epic_traceability.py"
-                "::test_AC8_13_68_discovery_handles_missing_roots_and_external_paths"
+                "::test_AC_testing_acgates_8_design_docs_do_not_require_product_e2e"
             ),
             priority="P0",
             status="done",
