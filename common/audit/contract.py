@@ -10,10 +10,10 @@ numbers are expressed in: the cross-runtime Shared-Kernel value types
 ``CurrencyBalances`` / ``Ratio`` / ``Quantity`` / ``Unit`` / ``UnitPrice``), plus
 audit's own first base value objects: the promotion gate (``InvariantResult`` /
 ``PromotionDecision`` / ``PromotionVerdict`` / ``evaluate_promotion`` /
-``tier_rank``, relocated from ``services/promotion_gate.py`` by #1667). The rest
-of audit's own base value objects (confidence / provenance, trace records) still
-arrive in a later fold. audit's cross-package numeric-governance reach into the
-financial flow (``ledger`` / ``extraction`` / ``portfolio`` / ``reporting``) is
+``tier_rank``, relocated from ``services/promotion_gate.py`` by #1667), plus the
+immutable TraceRecord assurance boundary introduced by #1906. audit's
+cross-package numeric-governance reach into the financial flow (``ledger`` /
+``extraction`` / ``portfolio`` / ``reporting``) is
 formalized in ``roadmap`` below as ``AC-audit.global-invariant.1``-``.4``
 (closeout #1429, umbrella #1416, per the 2026-07-12 scope freeze on #1429):
 each id re-homes an already-green, already-existing cross-package test as its
@@ -85,13 +85,14 @@ CONTRACT = PackageContract(
     depends_on=[],
     # The Shared Kernel value language audit governs, declared as value-object
     # units (the taxonomy; no module path — audit has no physical base/extension
-    # split of its own yet, and the canonical code lives in the value packages'
+    # split of its own except for the TraceRecord boundary, and the canonical
+    # code lives in the value packages'
     # cross-runtime reference, so the gate skips placement). The promotion-gate
     # units below DO declare a module path (they physically live at
     # apps/backend/src/audit/promotion/gate.py, #1667) — audit's first owned
     # base module. The rest of audit's own base value objects (confidence/
-    # provenance, trace records) still arrive in a later fold and are tracked
-    # in readme.md/todo.md, not declared as vapor units here.
+    # provenance rollups remain incremental; TraceRecord is now a declared,
+    # physical base/extension/data boundary rather than a vapor unit.
     units=[
         Unit(name="Money", kind=Kind.VALUE_OBJECT),
         Unit(name="Currency", kind=Kind.VALUE_OBJECT),
@@ -112,22 +113,80 @@ CONTRACT = PackageContract(
         # The first slice of audit's OWN base value objects (the "later fold"
         # this file's docstring flagged): the promotion gate (#930, relocated
         # from services/promotion_gate.py by #1667). Confidence/provenance/
-        # trace records still arrive in a later fold (#1429).
+        # TraceRecord arrives below as #1906 Audit PR-A.
         Unit(
-            name="InvariantResult", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+            name="InvariantResult", kind=Kind.VALUE_OBJECT, module="base/promotion.py"
         ),
         Unit(
-            name="PromotionDecision", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+            name="PromotionDecision", kind=Kind.VALUE_OBJECT, module="base/promotion.py"
         ),
         Unit(
-            name="PromotionVerdict", kind=Kind.VALUE_OBJECT, module="promotion/gate.py"
+            name="PromotionVerdict", kind=Kind.VALUE_OBJECT, module="base/promotion.py"
         ),
         Unit(
             name="evaluate_promotion",
             kind=Kind.DOMAIN_SERVICE,
-            module="promotion/gate.py",
+            module="extension/promotion.py",
         ),
-        Unit(name="tier_rank", kind=Kind.DOMAIN_SERVICE, module="promotion/gate.py"),
+        Unit(
+            name="tier_rank", kind=Kind.DOMAIN_SERVICE, module="extension/promotion.py"
+        ),
+        Unit(name="TraceRecord", kind=Kind.AGGREGATE_ROOT, module="base/trace.py"),
+        Unit(name="TraceLineage", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="TraceScope", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="TraceScopeKind", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="TraceTargetClass", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="TraceCausality", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(
+            name="TraceDecisionOutcome", kind=Kind.VALUE_OBJECT, module="base/trace.py"
+        ),
+        Unit(
+            name="TraceDecisionPolicyRegistry",
+            kind=Kind.VALUE_OBJECT,
+            module="base/trace.py",
+        ),
+        Unit(name="TraceRecordType", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="TraceResult", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(name="VersionedTraceRef", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
+        Unit(
+            name="TraceAuthorityProfile", kind=Kind.VALUE_OBJECT, module="base/trace.py"
+        ),
+        Unit(
+            name="TraceRecordCodec",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_codec.py",
+        ),
+        Unit(
+            name="TraceEmitter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_emitter.py",
+        ),
+        Unit(
+            name="TraceJUnitAdapter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_adapters.py",
+        ),
+        Unit(
+            name="PromotionTraceAdapter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/promotion_trace.py",
+        ),
+        Unit(
+            name="PromotionTracePolicy",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/promotion_trace.py",
+        ),
+        Unit(
+            name="TraceRecordRepository",
+            kind=Kind.REPOSITORY,
+            module="base/trace_repository.py",
+            impl="extension/trace_repository.py",
+        ),
+        Unit(
+            name="TraceConfidenceProjection",
+            kind=Kind.PROJECTION,
+            module="data/trace_confidence.py",
+        ),
     ],
     implementations={
         "be": "apps/backend/src/audit",
@@ -162,6 +221,31 @@ CONTRACT = PackageContract(
         "PromotionVerdict",
         "evaluate_promotion",
         "tier_rank",
+        "TraceRecord",
+        "TraceLineage",
+        "TraceScope",
+        "TraceScopeKind",
+        "TraceTargetClass",
+        "TraceCausality",
+        "TraceDecisionOutcome",
+        "TraceDecisionPolicy",
+        "TraceDecisionPolicyRegistry",
+        "TraceRecordType",
+        "TraceResult",
+        "VersionedTraceRef",
+        "TraceAuthorityProfile",
+        "TraceRecordCodec",
+        "TraceEmitter",
+        "TraceJUnitAdapter",
+        "JsonlTraceRecordStore",
+        "PromotionTraceAdapter",
+        "PromotionTraceContext",
+        "PromotionTracePolicy",
+        "TraceRecordRepository",
+        "TraceRecordValidationError",
+        "TraceRecordPersistenceError",
+        "SqlTraceRecordRepository",
+        "TraceConfidenceProjection",
         "Ratio",
         "Quantity",
         "Unit",
@@ -1394,6 +1478,94 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py"
                 "::test_AC18_11_6_migration_preflights_and_risk_contract_are_declared"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.1",
+            statement=(
+                "One immutable, versioned, Decimal-safe TraceRecord schema and canonical "
+                "codec represent OBSERVATION and DECISION without financial payloads or "
+                "unvalidated type-specific truth."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_record.py"
+                "::test_AC_audit_trace_record_1_schema_and_codec_are_canonical"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.2",
+            statement=(
+                "Every TraceRecord carries a resolved package authority, proof-kind, execution "
+                "stage, and target-class profile that stays parity-locked to the canonical "
+                "CODE/LLM and execution vocabularies; human evidence uses manual.adjudication "
+                "and never invents a package tier."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_record.py"
+                "::test_AC_audit_trace_record_2_authority_profile_reuses_canonical_matrix"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.3",
+            statement=(
+                "A DECISION is constructible only through a registered versioned policy over "
+                "complete, successful same-scope parents: DIRECT requires the same target "
+                "version and execution, while MANIFEST permits only the policy-declared exact "
+                "cross-target/cross-execution parent set."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_causality.py"
+                "::test_AC_audit_trace_record_3_decision_causality_fails_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.4",
+            statement=(
+                "Trace persistence is typed-scope, append-only, content-idempotent, and linear "
+                "for each stable authoritative decision lineage while independent observations "
+                "may coexist; cross-scope links, mutation, authority forks, or persistence "
+                "failure cannot be treated as an authoritative write."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_repository.py"
+                "::test_AC_audit_trace_record_4_repository_is_append_only_and_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.5",
+            statement=(
+                "An LLM-produced financial observation can become authoritative only through "
+                "a final CODE-ONLY DECISION that includes an authoritative CODE-ONLY invariant "
+                "or promotion DECISION over the same exact target; an LLM-ONLY record can never "
+                "own the persisted financial-number decision."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_causality.py"
+                "::test_AC_audit_trace_record_5_financial_authority_requires_code_parent"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-projection.1",
+            statement=(
+                "Confidence projects from a fixed machine-produced cohort of stable "
+                "target/assertion lineages and their current version-pinned supersession "
+                "heads; manual or system volume cannot change its denominator."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_confidence.py"
+                "::test_AC_audit_trace_projection_1_uses_fixed_machine_cohort_heads"
             ),
             priority="P0",
             status="done",

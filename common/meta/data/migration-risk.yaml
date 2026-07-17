@@ -113,3 +113,11 @@ migrations:
     production_preflight: Confirm atomic_valuation_facts and valuation_classifications are empty (row count 0) before applying; no producer exists so they are guaranteed empty.
     rollback_strategy: downgrade() recreates both tables and their enums exactly as revision 0046 defined them (no data is restored because none ever existed). Restore from pre-migration snapshot only if the drop is interrupted.
     destructive_confirmation: Confirmed destructive drop of two empty, never-populated orphan tables; no production data exists and no consumer references them.
+  0054_trace_records:
+    file: 0054_trace_records.py
+    risk: high
+    issue: "#1906"
+    proof: Additive audit-plane tables plus direct PostgreSQL mutation, sealed/acyclic causal-link, singleton-head, current-parent, and financial-guard rejection proofs in AC-audit.trace-record.4-.5; Alembic upgrade/check proves model parity.
+    staging_validation: Deploy PR-A and append/read duplicate and superseding TraceRecords through the SQL repository; verify direct mutation, late-parent insertion, and cyclic-parent writes are rejected while legacy consumers remain unchanged.
+    production_preflight: Confirm no pre-existing trace_records or trace_record_parents tables/types/functions exist; this revision has no data rewrite or consumer read cutover.
+    rollback_strategy: Before any package consumer cutover, downgrade drops only PR-A shadow records and additive schema. After a consumer cutover, restore the database snapshot and roll back that package PR before downgrading PR-A.

@@ -12,8 +12,8 @@
 - **`audit.base`** — the value language: the cross-runtime Shared-Kernel value
   types (`Money` / `Currency` / `ExchangeRate` / `MoneyTolerance` /
   `CurrencyBalances` / `Ratio` / `Quantity` / `Unit` / `UnitPrice`), plus audit's
-  own base value objects (financial invariants, confidence / provenance, trace
-  records — the "governs number" core, a later fold).
+  own base value objects (financial invariants, confidence / provenance, and the
+  `TraceRecord` assurance boundary).
 - **`audit.extension`** — reaches the financial flow (`ledger` / `extraction` /
   `portfolio` / `reporting`) to assert global numeric correctness and end-to-end
   traceability. The four cross-package invariants are formalized (closeout
@@ -21,13 +21,62 @@
   each pinned to an already-green cross-package test in `ledger`/`reporting`/
   the e2e suite — a physical `audit.extension` module is not required for
   this, since the invariants are proven by tests that already span packages.
-- **`audit.data`** — confidence / provenance rollups and the trace-record index
-  (a later fold).
+- **`audit.data`** — fixed-cohort confidence projections over current
+  `TraceRecord` supersession heads.
 
 Everyone's `base` ultimately depends on `audit.base` (the value types), so
 `audit.extension` reaching the whole flow is what lets audit govern the numbers —
 the symmetric mirror of `meta.extension` reaching every package to govern
 structure.
+
+## TraceRecord assurance boundary
+
+`TraceRecord` is the single append-only language for executable assurance. An
+`OBSERVATION` records an actual measurement; a `DECISION` is a fail-closed fold
+over exact parent records. Static contracts, workflow conclusions, mutable
+labels, and file existence cannot construct authority by themselves.
+
+Every record pins a typed tenant/repository/environment scope, target and
+assertion versions, target class, the existing CODE/LLM tier and proof-kind
+profile, provenance, execution stage/id, causality mode, evidence
+manifest digest, result, producer version, parent ids, and optional supersession.
+Scores use `Ratio`; raw financial values, documents, prompts, identities, and
+secrets are not valid record fields. Package composition adapters must use only
+opaque technical ids, never user or document text, for scope, target, assertion,
+execution, version, provenance, and reason fields. The canonical JSON codec is
+shared by JSONL and JUnit observation adapters. It rejects decision restore;
+the SQL repository reconstructs decisions from typed columns only while replaying
+their registered policy over the complete parent graph.
+
+Record ids are UUID5 values derived from the canonical semantic digest. Rewriting
+the same observation therefore stays idempotent, while changing any assurance
+input creates a new id. Correction appends a record whose `supersedes_id` points
+to the prior head; the prior row is never mutated. A head is a record not named
+by another record's `supersedes_id`. Stable target kind/id plus assertion kind/id
+form a `TraceLineage`; their versions remain exact pins and may advance through
+supersession. Observations may coexist across executions. Only authoritative
+decision heads are singleton, serialized under a transaction-scoped advisory
+lock so authority cannot fork.
+
+The production repository stores common fields in typed columns and parents in
+scope-bound link rows. ORM guards and PostgreSQL triggers reject update/delete,
+and a sealed parent count prevents a later link insert from rewriting a decision.
+The persisted graph is acyclic. Repository validation rejects missing,
+cross-scope, stale, skipped, or unproven decision parents. DIRECT rejects
+cross-target/cross-execution parents;
+MANIFEST accepts them only through a versioned policy's complete parent set. An
+LLM-produced financial observation requires a same-target CODE-ONLY
+invariant/promotion decision parent before an authoritative decision can exist.
+
+Audit PR-A retains legacy readers and provides the explicit repository, emitter,
+and shadow adapters. Each package replacement then injects `TraceEmitter` at its
+composition boundary and flushes the complete causal set into the same
+caller-owned transaction as the authoritative side effect; the emitter never
+commits or rolls back independently. Any append failure propagates so the
+package UoW must roll back both. There is no process-global emitter or mutable
+authority registry. Shadow paths are deleted by Audit PR-Z. See the
+language-neutral contract at
+[`trace/contract/trace_record.contract.md`](trace/contract/trace_record.contract.md).
 
 ## The Shared Kernel now lives inside audit
 
@@ -89,8 +138,8 @@ Three-step sequence, each a separate merge-gated PR:
   enforces it).
 - **Step 3 (next, separate PR)** — close out any remaining residual references
   (docs/SSOT cross-links, historical mentions) issue #1419 surfaces.
-- **Also deferred, unrelated to #1419's 3-step sequence** — audit's own base
-  value objects (confidence / provenance / trace records). The `extension`
+- **Also deferred, unrelated to #1419's 3-step sequence** — remaining audit
+  confidence/provenance folds. TraceRecord landed under #1906. The `extension`
   reach into the financial flow is no longer fully deferred: its four
   cross-package numeric-governance invariants are formalized as
   `AC-audit.global-invariant.1`-`.4` (closeout #1429, see [What audit

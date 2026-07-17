@@ -15,13 +15,14 @@ edges, BE/FE traceability docstrings, and `common/meta/data/ac-tier-baseline.jso
 Whatever residual references step 2 surfaces (docs/SSOT cross-links, historical
 mentions) — tracked in the issue, not yet itemized here.
 
-## Later: audit's own base + extension + data
+## Audit assurance migration (#1906)
 
-- `base` — audit's own value objects: financial invariants, confidence /
-  provenance, trace records (the "governs number" core).
-- `extension` — reach into `ledger` / `extraction` / `portfolio` / `reporting`
-  to assert global numeric correctness + end-to-end traceability (closeout #1429).
-- `data` — confidence / provenance rollups + the trace-record index (projection).
+- PR-A establishes the TraceRecord model, codec, repository, shadow adapters,
+  and fixed-cohort projection.
+- Package replacement PRs cut consumers over and delete their local authority
+  inference paths.
+- PR-Z deletes the explicitly composed shadow compatibility seams and legacy
+  trust projections after every package replacement is green.
 
 ## Will not do here
 

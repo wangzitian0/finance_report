@@ -1,22 +1,46 @@
-"""``src.audit`` — the number-governor's flat value-object surface.
+"""``src.audit`` — the number-governor's published package surface.
 
-Re-exports the 10 Shared-Kernel value-object classes (``common/audit/contract.py``'s
-``units``) flat at the package root, so a consumer that only needs the class can
-write ``from src.audit import Money``. Each domain's errors, wire codecs, and
-helper functions are mostly NOT re-exported here (several names collide across
-domains, e.g. ``FloatNotAllowedError`` is defined independently in every domain)
-— reach those via the domain submodule instead: ``from src.audit.money import
-FloatNotAllowedError, money_to_wire``. The six collision-free helpers other
-PACKAGES consume (``to_money`` / ``balance_check`` / ``normalize_currency_code``
-/ ``InvalidCurrencyError`` / ``convert`` / ``MoneyError``) ARE published,
-because the cross-package rule requires every cross-domain-imported name to be
-in this ``__all__`` (#1421, #1610).
+Re-exports the Shared-Kernel value objects and the TraceRecord assurance
+boundary declared by ``common/audit/contract.py``. Domain-specific errors and
+wire helpers mostly stay under their submodules because names collide; only the
+collision-free cross-package interface is published here (#1421, #1610).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# Eager mapper registration for Base.metadata discovery.
+from src.audit import orm as _orm  # noqa: F401
+from src.audit.base.trace import (
+    TraceAuthorityProfile,
+    TraceCausality,
+    TraceDecisionOutcome,
+    TraceDecisionPolicy,
+    TraceDecisionPolicyRegistry,
+    TraceLineage,
+    TraceRecord,
+    TraceRecordType,
+    TraceRecordValidationError,
+    TraceResult,
+    TraceScope,
+    TraceScopeKind,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
+from src.audit.base.trace_repository import TraceRecordRepository
+from src.audit.data import TraceConfidenceProjection
+from src.audit.extension import (
+    JsonlTraceRecordStore,
+    PromotionTraceAdapter,
+    PromotionTraceContext,
+    PromotionTracePolicy,
+    SqlTraceRecordRepository,
+    TraceEmitter,
+    TraceJUnitAdapter,
+    TraceRecordCodec,
+    TraceRecordPersistenceError,
+)
 from src.audit.money import (
     Currency,
     CurrencyBalance,
@@ -82,6 +106,31 @@ __all__ = [
     "PromotionVerdict",
     "evaluate_promotion",
     "tier_rank",
+    "JsonlTraceRecordStore",
+    "PromotionTraceAdapter",
+    "PromotionTraceContext",
+    "PromotionTracePolicy",
+    "TraceAuthorityProfile",
+    "TraceCausality",
+    "TraceConfidenceProjection",
+    "TraceDecisionOutcome",
+    "TraceDecisionPolicy",
+    "TraceDecisionPolicyRegistry",
+    "TraceRecord",
+    "TraceRecordCodec",
+    "TraceRecordPersistenceError",
+    "TraceRecordRepository",
+    "TraceRecordType",
+    "TraceRecordValidationError",
+    "TraceResult",
+    "TraceScope",
+    "TraceScopeKind",
+    "TraceTargetClass",
+    "TraceEmitter",
+    "TraceJUnitAdapter",
+    "TraceLineage",
+    "SqlTraceRecordRepository",
+    "VersionedTraceRef",
     "Quantity",
     "Ratio",
     "Unit",
