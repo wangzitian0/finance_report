@@ -70,7 +70,7 @@ class ReconciliationMatchResponse(BaseModel):
     transaction: BankTransactionSummary | None = None
     entries: list[JournalEntrySummary] = Field(
         default_factory=list,
-        description="Journal entries proposed or linked for this reconciliation match.",
+        description="Posted journal entries currently linked to this reconciliation match.",
     )
 
 
@@ -85,7 +85,7 @@ class ReconciliationRunRequest(BaseModel):
         default=None,
         ge=1,
         le=10000,
-        description="Maximum number of source transactions to consider.",
+        description="Maximum number of candidate matches to evaluate.",
     )
 
 

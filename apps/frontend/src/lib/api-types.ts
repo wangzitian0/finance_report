@@ -6042,7 +6042,7 @@ export interface components {
             created_at: string;
             /**
              * Entries
-             * @description Journal entries proposed or linked for this reconciliation match.
+             * @description Posted journal entries currently linked to this reconciliation match.
              */
             entries?: components["schemas"]["JournalEntrySummary"][];
             /**
@@ -6077,7 +6077,7 @@ export interface components {
         ReconciliationRunRequest: {
             /**
              * Limit
-             * @description Maximum number of source transactions to consider.
+             * @description Maximum number of candidate matches to evaluate.
              */
             limit?: number | null;
             /** Statement Id */

@@ -8029,7 +8029,7 @@
             "type": "string"
           },
           "entries": {
-            "description": "Journal entries proposed or linked for this reconciliation match.",
+            "description": "Posted journal entries currently linked to this reconciliation match.",
             "items": {
               "$ref": "#/components/schemas/JournalEntrySummary"
             },
@@ -8129,7 +8129,7 @@
                 "type": "null"
               }
             ],
-            "description": "Maximum number of source transactions to consider.",
+            "description": "Maximum number of candidate matches to evaluate.",
             "title": "Limit"
           },
           "statement_id": {
