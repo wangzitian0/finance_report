@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.extraction.base.disposition import EconomicIntent
 from src.schemas.base import ListResponse
 
 
@@ -60,14 +61,17 @@ class ReconciliationMatchResponse(BaseModel):
     atomic_txn_id: UUID | None = None
     journal_entry_ids: list[str]
     match_score: int
-    score_breakdown: dict[str, float]
+    score_breakdown: dict[str, float | str]
     status: ReconciliationStatusEnum
     version: int
     superseded_by_id: UUID | None
     created_at: datetime
     updated_at: datetime
     transaction: BankTransactionSummary | None = None
-    entries: list[JournalEntrySummary] = Field(default_factory=list)
+    entries: list[JournalEntrySummary] = Field(
+        default_factory=list,
+        description="Journal entries proposed or linked for this reconciliation match.",
+    )
 
 
 ReconciliationMatchListResponse = ListResponse[ReconciliationMatchResponse]
@@ -77,7 +81,12 @@ class ReconciliationRunRequest(BaseModel):
     """Request body to run reconciliation."""
 
     statement_id: UUID | None = None
-    limit: int | None = Field(default=None, ge=1, le=10000)
+    limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=10000,
+        description="Maximum number of source transactions to consider.",
+    )
 
 
 class ReconciliationRunResponse(BaseModel):
@@ -95,17 +104,22 @@ class BatchAcceptRequest(BaseModel):
     match_ids: list[str]
 
 
-class BatchCreateEntriesRequest(BaseModel):
-    """Request body for batch creating journal entries from unmatched transactions."""
+class ReviewedDispositionRequest(BaseModel):
+    """Explicit human-reviewed economic meaning for one unmatched source transaction."""
 
-    txn_ids: list[UUID] = Field(default_factory=list)
-    all: bool = False
-
-
-class BatchCreateEntriesResponse(BaseModel):
-    """Response for batch create entries."""
-
-    created_count: int
+    intent: EconomicIntent
+    counter_account_id: UUID
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Required accounting category for P&L intents.",
+    )
+    rationale: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Reviewer rationale tied to the source evidence.",
+    )
 
 
 class ReconciliationStatsResponse(BaseModel):

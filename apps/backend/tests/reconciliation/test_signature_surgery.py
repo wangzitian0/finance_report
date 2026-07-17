@@ -45,7 +45,7 @@ def _public_functions(path: Path):
     for source_path in path.rglob("*.py"):
         tree = ast.parse(source_path.read_text())
         for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and not node.name.startswith("_"):
                 yield source_path, node
 
 
@@ -59,6 +59,22 @@ def test_public_reconciliation_signatures_are_typed_and_bounded() -> None:
         if untyped or count > 8:
             violations.append(f"{path.relative_to(BACKEND_SRC)}:{node.lineno} {node.name}: {count=} {untyped=}")
     assert violations == []
+
+
+def test_unmatched_posting_has_one_reviewed_writer_boundary() -> None:
+    """AC-reconciliation.reviewed-disposition.5: no reconciliation route bypasses reviewed semantics."""
+    router_source = (BACKEND_SRC / "routers" / "reconciliation.py").read_text()
+    match_review_source = (RECONCILIATION_EXTENSION / "review_queue.py").read_text()
+    reviewed_writer_source = (RECONCILIATION_EXTENSION / "reviewed_disposition.py").read_text()
+
+    assert "create_entry_from_txn" not in router_source
+    assert "create_entry_from_txn" not in match_review_source
+    assert '"/unmatched/{txn_id}/create-entry"' not in router_source
+    assert '"/unmatched/batch-create"' not in router_source
+    assert "submit_reviewed_disposition" in router_source
+    assert reviewed_writer_source.index("DispositionPolicy().decide") < reviewed_writer_source.index(
+        "create_entry_from_txn("
+    )
 
 
 def test_matching_phases_return_created_matches() -> None:

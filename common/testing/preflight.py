@@ -327,15 +327,31 @@ def run_checks(
     *,
     runner: Runner = _default_runner,
     python: str | None = None,
+    changed_files: Iterable[str] = (),
 ) -> list[CheckResult]:
-    """Run each check's commands; a check fails fast on the first non-zero command."""
+    """Run each check's commands; a check fails fast on the first non-zero command.
+
+    Schema validation is intentionally diff-scoped. The validator's full mode
+    reports pre-existing documentation debt, while its ``--paths`` mode is the
+    contract that prevents a changed schema from adding new undocumented fields.
+    """
     python = python or sys.executable
+    files = tuple(changed_files)
     results: list[CheckResult] = []
     for check in checks:
         cwd = str(REPO_ROOT / check.cwd)
         ok = True
         for command in check.commands:
-            if runner(_resolve(command, python), cwd) != 0:
+            resolved = _resolve(command, python)
+            if check.name == "schema-validate":
+                schema_paths = [
+                    path
+                    for path in files
+                    if _matches(path, "apps/backend/src/schemas/*.py")
+                ]
+                if schema_paths:
+                    resolved.extend(("--paths", *schema_paths))
+            if runner(resolved, cwd) != 0:
                 ok = False
                 break
         results.append(CheckResult(check.name, ok))
@@ -392,7 +408,7 @@ def run(
     print(
         f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
     )
-    results = run_checks(selected, runner=runner)
+    results = run_checks(selected, runner=runner, changed_files=files)
     for result in results:
         print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
     failed = [r.name for r in results if not r.ok]

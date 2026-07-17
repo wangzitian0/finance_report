@@ -20,12 +20,14 @@ from src.reconciliation.base.errors import (
     InvalidCheckActionError,
     MatchNotFoundError,
     ReconciliationError,
+    ReviewedDispositionError,
 )
 from src.reconciliation.base.prompts import (
     RECONCILIATION_SEMANTIC_PROMPT,
     build_reconciliation_prompt,
 )
 from src.reconciliation.base.repository import ReconciliationRepository
+from src.reconciliation.base.reviewed_disposition import ReviewedDispositionCommand
 
 __all__ = [
     "AmountMismatchError",
@@ -40,7 +42,9 @@ __all__ = [
     "RECONCILIATION_SEMANTIC_PROMPT",
     "ReconciliationConfig",
     "ReconciliationError",
+    "ReviewedDispositionError",
     "ReconciliationRepository",
+    "ReviewedDispositionCommand",
     "_candidate_is_better",
     "_candidate_source_rank",
     "build_reconciliation_prompt",

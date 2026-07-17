@@ -16,7 +16,7 @@ Endpoints:
 - POST /reconciliation/batch-accept - Batch accept matches
 - GET /reconciliation/stats - Get reconciliation statistics
 - GET /reconciliation/unmatched - List unmatched transactions
-- POST /reconciliation/unmatched/{txn_id}/create-entry - Create journal entry from unmatched transaction
+- POST /reconciliation/unmatched/{txn_id}/reviewed-disposition - Confirm economic meaning and post
 - GET /reconciliation/transactions/{txn_id}/anomalies - List anomalies for a transaction
 """
 
@@ -24,20 +24,21 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import ClassificationRule, DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.ledger import Account, AccountType, JournalEntry
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
-from src.schemas.reconciliation import ReconciliationStatusEnum
-from tests.ledger._ledger_helpers import create_valid_posted_entry
+from src.routers import reconciliation as reconciliation_router
+from src.schemas.reconciliation import ReconciliationStatusEnum, ReviewedDispositionRequest
 
 
 async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:
@@ -352,31 +353,57 @@ class TestReconciliationEndpoints:
         db.add_all([txn1, txn2])
         await db.commit()
 
-        entry1 = await create_valid_posted_entry(
-            db,
-            test_user.id,
-            amount=txn1.amount,
-            source_type=JournalEntrySourceType.AUTO_PARSED,
-            source_id=txn1.id,
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Batch Expense {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
         )
-        entry2 = await create_valid_posted_entry(
-            db,
-            test_user.id,
-            amount=txn2.amount,
-            source_type=JournalEntrySourceType.AUTO_PARSED,
-            source_id=txn2.id,
-        )
+        db.add(expense)
+        await db.flush()
+        entries = []
+        for transaction in (txn1, txn2):
+            entry = JournalEntry(
+                user_id=test_user.id,
+                entry_date=transaction.txn_date,
+                memo="Pre-existing batch candidate",
+                source_type=JournalEntrySourceType.MANUAL,
+                status=JournalEntryStatus.POSTED,
+            )
+            db.add(entry)
+            await db.flush()
+            db.add_all(
+                [
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=expense.id,
+                        direction=Direction.DEBIT,
+                        amount=transaction.amount,
+                        currency="SGD",
+                    ),
+                    JournalLine(
+                        journal_entry_id=entry.id,
+                        account_id=account.id,
+                        direction=Direction.CREDIT,
+                        amount=transaction.amount,
+                        currency="SGD",
+                    ),
+                ]
+            )
+            entries.append(entry)
+        await db.flush()
+
         match1 = create_test_match(
             db,
             txn1,
             status=ReconciliationStatus.PENDING_REVIEW,
-            journal_entry_ids=[str(entry1.id)],
+            journal_entry_ids=[str(entries[0].id)],
         )
         match2 = create_test_match(
             db,
             txn2,
             status=ReconciliationStatus.PENDING_REVIEW,
-            journal_entry_ids=[str(entry2.id)],
+            journal_entry_ids=[str(entries[1].id)],
         )
         db.add_all([match1, match2])
         await db.commit()
@@ -445,54 +472,32 @@ class TestReconciliationEndpoints:
         assert "items" in data
         assert "total" in data
 
-    async def test_create_entry_from_unmatched_requires_economic_disposition(
-        self, client: AsyncClient, db, test_user: User
-    ):
-        """AC-reconciliation.review-queue.9: unmatched facts cannot create a default entry."""
-        account = await create_test_asset_account(db, test_user)
-        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
-        db.add(statement)
-        await db.commit()
-
+    async def test_submit_reviewed_disposition_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
+        """AC-reconciliation.review-queue.9: a reviewed command is the only unmatched-entry write path."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Dining {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        db.add(expense)
         transaction = create_test_transaction(db, statement)
         db.add(transaction)
         await db.commit()
 
-        # WHEN calling create entry without reviewed economic meaning
-        response = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+        payload = {
+            "intent": "expense",
+            "counter_account_id": str(expense.id),
+            "category": "DINING",
+            "rationale": "Reviewed against the merchant and receipt.",
+        }
+        response = await client.post(f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition", json=payload)
 
-        # THEN it fails closed rather than posting an Uncategorized fallback.
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Authoritative economic disposition" in response.json()["detail"]
-
-    async def test_create_entry_from_unmatched_not_found(self, client: AsyncClient, test_user: User):
-        """AC-reconciliation.review-queue.10: AC4.3.11: Test creating entry from non-existent transaction."""
-        # GIVEN non-existent transaction ID
-        non_existent_id = uuid4()
-
-        # WHEN calling create entry endpoint
-        response = await client.post(f"/reconciliation/unmatched/{non_existent_id}/create-entry")
-
-        # THEN returns 404 Not Found
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "Transaction" in response.json()["detail"]
-
-    async def test_create_entry_from_unmatched_rejection_is_zero_write(self, client: AsyncClient, db, test_user: User):
-        """Repeating a denied create-entry request must not leave a partial journal entry."""
-        account = await create_test_asset_account(db, test_user)
-        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        first = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
-        second = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
-
-        assert first.status_code == status.HTTP_400_BAD_REQUEST
-        assert second.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert {"id", "entry_date", "memo", "status", "total_amount"} <= data.keys()
 
         entries_result = await db.execute(
             select(JournalEntry)
@@ -500,58 +505,175 @@ class TestReconciliationEndpoints:
             .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
             .where(JournalEntry.source_id == transaction.id)
         )
-        entries = entries_result.scalars().all()
-        assert entries == []
+        assert len(entries_result.scalars().all()) == 1
 
-    async def test_batch_create_entries_requires_economic_disposition(self, client: AsyncClient, db, test_user: User):
-        """AC-reconciliation.review-queue.13: batch creation cannot bypass review."""
-        account = await create_test_asset_account(db, test_user)
-        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
-        db.add(statement)
+    async def test_submit_reviewed_disposition_not_found(self, client: AsyncClient):
+        """AC-reconciliation.review-queue.10: unknown source transactions cannot be reviewed or posted."""
+        response = await client.post(
+            f"/reconciliation/unmatched/{uuid4()}/reviewed-disposition",
+            json={
+                "intent": "expense",
+                "counter_account_id": str(uuid4()),
+                "category": "DINING",
+                "rationale": "Reviewed source evidence.",
+            },
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "Transaction" in response.json()["detail"]
+
+    async def test_reviewed_disposition_is_idempotent_and_rejects_account_intent_conflict(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.reviewed-disposition.1: the command digest anchors exactly one valid entry."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Transport {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        income = Account(
+            user_id=test_user.id,
+            name=f"Income - Invalid {uuid4().hex[:8]}",
+            type=AccountType.INCOME,
+            currency="SGD",
+        )
+        transaction = create_test_transaction(db, statement)
+        db.add_all([expense, income, transaction])
         await db.commit()
 
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
+        payload = {
+            "intent": "expense",
+            "counter_account_id": str(expense.id),
+            "category": "TRANSPORT",
+            "rationale": "Reviewed transit charge.",
+        }
+        first = await client.post(f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition", json=payload)
+        second = await client.post(f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition", json=payload)
+        assert first.status_code == status.HTTP_200_OK
+        assert second.status_code == status.HTTP_200_OK
+        assert second.json()["id"] == first.json()["id"]
+
+        conflict = await client.post(
+            f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition",
+            json={
+                **payload,
+                "counter_account_id": str(income.id),
+            },
+        )
+        assert conflict.status_code == status.HTTP_400_BAD_REQUEST
+        assert "incompatible" in conflict.json()["detail"].lower()
+
+    async def test_reviewed_disposition_rejects_unmatched_bypasses_without_persisting(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.reviewed-disposition.3: only a genuinely unmatched, postable command may write."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        asset = Account(
+            user_id=test_user.id,
+            name=f"Asset - Transfer Target {uuid4().hex[:8]}",
+            type=AccountType.ASSET,
+            currency="SGD",
+        )
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Matched Target {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        transfer_txn = create_test_transaction(db, statement)
+        matched_txn = create_test_transaction(db, statement)
+        match = create_test_match(db, matched_txn)
+        db.add_all([asset, expense, transfer_txn, matched_txn, match])
         await db.commit()
 
-        response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+        transfer = await client.post(
+            f"/reconciliation/unmatched/{transfer_txn.id}/reviewed-disposition",
+            json={
+                "intent": "transfer",
+                "counter_account_id": str(asset.id),
+                "rationale": "The account-to-account transfer requires a matched pair.",
+            },
+        )
+        matched = await client.post(
+            f"/reconciliation/unmatched/{matched_txn.id}/reviewed-disposition",
+            json={
+                "intent": "expense",
+                "counter_account_id": str(expense.id),
+                "category": "DINING",
+                "rationale": "This transaction already has a reconciliation decision.",
+            },
+        )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Authoritative economic disposition" in response.json()["detail"]
+        assert transfer.status_code == status.HTTP_400_BAD_REQUEST
+        assert "transfer_unmatched" in transfer.json()["detail"]
+        assert matched.status_code == status.HTTP_400_BAD_REQUEST
+        assert "already has a reconciliation match" in matched.json()["detail"]
+        for transaction_id in (transfer_txn.id, matched_txn.id):
+            entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id))
+            assert entries.scalars().all() == []
 
-        entries_result = await db.execute(select(JournalEntry).where(JournalEntry.source_id.in_([txn1.id, txn2.id])))
-        entries = entries_result.scalars().all()
-        assert entries == []
-
-    async def test_batch_create_entries_requires_filter(self, client: AsyncClient):
-        """AC-reconciliation.review-queue.14: AC4.3.15: Test batch create returns 400 without all/txn_ids filter."""
-        response = await client.post("/reconciliation/unmatched/batch-create", json={})
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "txn_ids" in response.json()["detail"]
-
-    async def test_batch_create_entries_all_respects_max_limit(
+    async def test_reviewed_disposition_rolls_back_its_decision_when_posting_fails(
         self, client: AsyncClient, db, test_user: User, monkeypatch
     ):
-        """all=True batch create should reject oversized unmatched sets."""
-        from src.routers import reconciliation as reconciliation_router
+        """AC-reconciliation.reviewed-disposition.4: semantic review and posting commit atomically."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Fault Injection {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        transaction = create_test_transaction(db, statement)
+        db.add_all([expense, transaction])
+        await db.commit()
+        transaction_id = transaction.id
 
-        with monkeypatch.context() as local_monkeypatch:
-            local_monkeypatch.setattr(reconciliation_router, "MAX_BATCH_CREATE_ALL", 1)
-            statement = await create_test_statement(db, test_user)
-            db.add(statement)
-            await db.commit()
+        async def fail_after_decision(*_args, **_kwargs):
+            raise RuntimeError("journal posting fault")
 
-            txn1 = create_test_transaction(db, statement)
-            txn2 = create_test_transaction(db, statement)
-            db.add_all([txn1, txn2])
-            await db.commit()
+        monkeypatch.setattr(
+            "src.reconciliation.extension.reviewed_disposition.create_entry_from_txn",
+            fail_after_decision,
+        )
+        with pytest.raises(RuntimeError, match="journal posting fault"):
+            await reconciliation_router.submit_unmatched_reviewed_disposition(
+                transaction_id,
+                ReviewedDispositionRequest(
+                    intent="expense",
+                    counter_account_id=expense.id,
+                    category="DINING",
+                    rationale="A deterministic posting fault tests transaction rollback.",
+                ),
+                db=db,
+                user_id=test_user.id,
+            )
 
-            response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+        rule_name = f"reviewed-disposition:{transaction_id}"
+        rules = await db.execute(select(ClassificationRule).where(ClassificationRule.rule_name == rule_name))
+        entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id))
+        assert rules.scalars().all() == []
+        assert entries.scalars().all() == []
 
-            assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "Too many unmatched transactions" in response.json()["detail"]
+    async def test_legacy_unmatched_entry_routes_are_absent(self, client: AsyncClient, db, test_user: User):
+        """AC-reconciliation.review-queue.13: no parameterless path may invent a ledger entry."""
+        statement = await create_test_statement(db, test_user)
+        transaction = create_test_transaction(db, statement)
+        db.add(transaction)
+        await db.commit()
+
+        single = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
+        batch = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
+
+        assert single.status_code == status.HTTP_404_NOT_FOUND
+        assert batch.status_code == status.HTTP_404_NOT_FOUND
+        assert (
+            await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
+        ).scalars().all() == []
 
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
         """AC4.5.1: Test listing anomalies for a transaction."""

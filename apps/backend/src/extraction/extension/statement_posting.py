@@ -30,6 +30,7 @@ from src.extraction.base.disposition import (
     IntentProposal,
     IntentProposalOrigin,
     StatementTransaction,
+    intent_matches_counter_account,
 )
 from src.extraction.base.types import StatementIngestionConfigurationError
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
@@ -228,6 +229,7 @@ async def auto_create_posted_entries_for_statement(
             context=DispositionContext(
                 accepted_transfer_match=txn.id in transfer_txn_ids,
                 counter_account_id=counter_account.id if counter_account else None,
+                counter_account_type=counter_account.type.value if counter_account else None,
             ),
             mode=dependencies.disposition_mode,
         )
@@ -318,7 +320,7 @@ def _classification_intent(
             intent = EconomicIntent(str(tagged_intent))
         except ValueError:
             return EconomicIntent.UNKNOWN
-        if _intent_matches_counter_account(intent, counter_account.type):
+        if intent_matches_counter_account(intent, counter_account.type.value):
             return intent
         return EconomicIntent.UNKNOWN
     if counter_account.type is AccountType.INCOME:
@@ -335,22 +337,6 @@ def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin
     if rule_type is RuleType.ML_MODEL:
         return IntentProposalOrigin.LIVE_LLM
     raise StatementIngestionConfigurationError(f"Unsupported classification rule type: {rule_type}")
-
-
-def _intent_matches_counter_account(intent: EconomicIntent, account_type: AccountType) -> bool:
-    """Reject classifications whose semantic intent contradicts their account side."""
-    compatible_types = {
-        EconomicIntent.INCOME: {AccountType.INCOME},
-        EconomicIntent.EXPENSE: {AccountType.EXPENSE},
-        EconomicIntent.EXPENSE_REFUND: {AccountType.EXPENSE},
-        EconomicIntent.LOAN_INTEREST: {AccountType.EXPENSE},
-        EconomicIntent.INVESTMENT_PURCHASE: {AccountType.ASSET},
-        EconomicIntent.INVESTMENT_SALE: {AccountType.ASSET},
-        EconomicIntent.LOAN_PRINCIPAL: {AccountType.LIABILITY},
-        EconomicIntent.CARD_REPAYMENT: {AccountType.LIABILITY},
-        EconomicIntent.TRANSFER: {AccountType.ASSET},
-    }
-    return account_type in compatible_types.get(intent, set())
 
 
 async def resolve_statement_posting_account(

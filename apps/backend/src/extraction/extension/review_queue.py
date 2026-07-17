@@ -1,13 +1,9 @@
 """Journal-entry creation from an atomic transaction (posting/classification seam).
 
-Shared by extraction's own posting/classification call sites and by
-reconciliation's review queue (``src.reconciliation.extension.review_queue``),
-which posts the entry a match is accepted against. Lives in extraction because
-``AtomicTransaction`` is extraction's aggregate; reconciliation depends on
-extraction (never the reverse), so the accept/reject/batch review-queue
-operations that also need ``entry_total_amount`` /
-``sync_reconciliation_match_journal_entry_links`` live in reconciliation
-instead, calling back into ``create_entry_from_txn`` here.
+Shared by extraction's statement-posting use case and by reconciliation's
+explicit reviewed-disposition command. It lives in extraction because
+``AtomicTransaction`` is extraction's aggregate; no caller can use it to
+invent an account or an economic meaning.
 """
 
 from collections.abc import Awaitable
@@ -18,10 +14,11 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 import src.config
 from src.audit import JournalEntrySourceType
-from src.extraction.base.disposition import DispositionDecision, DispositionStatus
+from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
@@ -286,7 +283,6 @@ async def _create_entry_from_txn(
         raise ValueError("Statement posting account must be an active asset account")
     if bank_account.currency != currency:
         raise ValueError("Statement posting account currency must match the transaction currency")
-
     if (
         disposition is None
         or disposition.status is not DispositionStatus.AUTHORITATIVE
@@ -296,7 +292,12 @@ async def _create_entry_from_txn(
         raise ValueError("Authoritative economic disposition is required before statement posting")
     if counter_account is None or counter_account.id != disposition.command.counter_account_id:
         raise ValueError("Disposition counter-account context is missing or mismatched")
-
+    if counter_account.user_id != user_id or not counter_account.is_active:
+        raise ValueError("Disposition counter-account must be an active account owned by the user")
+    if counter_account.currency != currency:
+        raise ValueError("Disposition counter-account currency must match the transaction currency")
+    if not intent_matches_counter_account(disposition.intent, counter_account.type.value):
+        raise ValueError("Disposition intent is incompatible with the counter-account type")
     if txn.direction == TransactionDirection.IN:
         if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
             raise ValueError("Disposition command conflicts with incoming transaction flow")
@@ -348,6 +349,14 @@ async def _create_entry_from_txn(
         if auto_post:
             raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
         raise ValueError(f"Generated entry does not balance: {exc}") from exc
+
+    # ``post_journal_entry`` returns an aggregate whose lines are not guaranteed
+    # to be loaded. The evidence write and every caller need the same complete
+    # entry boundary, rather than triggering unsupported async lazy loads.
+    entry_result = await db.execute(
+        select(JournalEntry).where(JournalEntry.id == entry.id).options(selectinload(JournalEntry.lines))
+    )
+    entry = entry_result.scalar_one()
 
     # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
     # --contains--> JournalLine). Imported lazily to avoid an import cycle.

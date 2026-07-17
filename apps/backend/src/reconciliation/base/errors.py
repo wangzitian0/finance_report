@@ -21,6 +21,10 @@ class EntryCreationError(ReconciliationError):
     """A match cannot be accepted because its journal entry cannot be created."""
 
 
+class ReviewedDispositionError(ReconciliationError):
+    """A reviewed source-posting command fails policy or posting validation."""
+
+
 class ConsistencyCheckNotFoundError(ReconciliationError):
     """The requested consistency check is not visible to the caller."""
 

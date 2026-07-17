@@ -256,8 +256,7 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     assert unmatched_resp.json()["total"] >= 1
 
     create_entry_resp = await client.post(f"/reconciliation/unmatched/{txn_unmatched.id}/create-entry")
-    assert create_entry_resp.status_code == 400
-    assert "Account mapping required" in create_entry_resp.json()["detail"]
+    assert create_entry_resp.status_code == 404
 
     anomalies_resp = await client.get(f"/reconciliation/transactions/{txn_unmatched.id}/anomalies")
     assert anomalies_resp.status_code == 200

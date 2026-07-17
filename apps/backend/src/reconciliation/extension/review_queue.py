@@ -1,9 +1,4 @@
-"""Reconciliation-match review queue: accept/reject/batch-accept + Stage 2 listing.
-
-Journal-entry creation itself lives in extraction (``AtomicTransaction`` is
-extraction's aggregate; reconciliation depends on extraction, never the
-reverse) — see ``src.extraction.extension.review_queue.create_entry_from_txn``.
-"""
+"""Reconciliation-match review queue: accept/reject/batch-accept + Stage 2 listing."""
 
 from decimal import Decimal
 from typing import cast
@@ -14,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
-from src.extraction import CurrencyUnresolvedError, create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
@@ -51,7 +45,6 @@ async def accept_match(
     match_id: UUID,
     *,
     user_id: UUID,
-    base_currency: str | None = None,
 ) -> ReconciliationMatch:
     """Accept a pending reconciliation match.
 
@@ -97,19 +90,7 @@ async def accept_match(
         if existing_entry:
             match.journal_entry_ids = [str(existing_entry.id)]
         else:
-            try:
-                created_entry = await create_entry_from_txn(
-                    db,
-                    txn,
-                    user_id=user_id,
-                    base_currency=base_currency,
-                    auto_post=True,
-                )
-            except CurrencyUnresolvedError:
-                raise
-            except ValueError as exc:
-                raise EntryCreationError(str(exc)) from exc
-            match.journal_entry_ids = [str(created_entry.id)]
+            raise EntryCreationError("A pre-existing journal entry is required before accepting a reconciliation match")
 
     # Validate that journal entry amounts match transaction amount
     if match.journal_entry_ids and txn:
@@ -137,10 +118,10 @@ async def accept_match(
 
     if match.journal_entry_ids:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
-        result = await db.execute(
+        reconciled_entries_result = await db.execute(
             select(JournalEntry).where(JournalEntry.id.in_(entry_ids)).where(JournalEntry.user_id == user_id)
         )
-        for entry in result.scalars():
+        for entry in reconciled_entries_result.scalars():
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
                 promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
@@ -183,7 +164,6 @@ async def batch_accept(
     match_ids: list[str],
     *,
     user_id: UUID,
-    base_currency: str | None = None,
     min_score: int = 80,
 ) -> list[ReconciliationMatch]:
     """Batch accept high-score matches."""
@@ -220,7 +200,6 @@ async def batch_accept(
                 db,
                 match.id,
                 user_id=user_id,
-                base_currency=base_currency,
             )
         )
 

@@ -197,6 +197,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
+    RuleType,
     TransactionClassification,
 )
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -247,6 +248,7 @@ __all__ = [
     "PositionStatus",
     "ParseJob",
     "RetryableStatementIngestionError",
+    "RuleType",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
     "SourceCapabilityStatus",
