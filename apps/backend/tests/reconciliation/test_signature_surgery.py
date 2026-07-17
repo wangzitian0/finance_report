@@ -301,13 +301,7 @@ def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
         if handlers:
             raw_entry_value_error_handlers[route.name] = handlers
 
-    assert set(raw_entry_value_error_handlers) == {"create_entry", "batch_create_entries"}
-    for handlers in raw_entry_value_error_handlers.values():
-        assert len(handlers) == 1
-        handler_source = ast.get_source_segment(router_source, handlers[0])
-        assert handler_source is not None
-        assert "await db.rollback()" in handler_source
-        assert "raise_bad_request(str(exc), cause=exc)" in handler_source
+    assert raw_entry_value_error_handlers == {}
 
     review_router_source = (BACKEND_SRC / "routers" / "review.py").read_text()
     assert "CheckResolutionAction(request.action)" in review_router_source
