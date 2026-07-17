@@ -51,6 +51,7 @@ async def test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting():
         return_value={
             "period_start": "2025年01月01日",
             "period_end": "2025年01月31日",
+            "currency": "CNY",
             "opening_balance": "100.00",
             "closing_balance": "150.00",
             "transactions": [
@@ -79,6 +80,7 @@ async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
         return_value={
             "period_start": "2025-01-01",
             "period_end": "2025-01-31",
+            "currency": "SGD",
             "opening_balance": "100.00",
             "closing_balance": "150.00",
             "transactions": [
