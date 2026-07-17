@@ -18,7 +18,6 @@ MONEY_FIXTURE_FILES = [
     Path("tests/e2e/test_personal_financial_report_package.py"),
     Path("tests/e2e/test_four_asset_net_worth_golden_path.py"),
     Path("tests/e2e/test_brokerage_upload_to_portfolio_value.py"),
-    Path("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"),
     Path("tools/_lib/fixtures/personal_report_package.py"),
     Path("tools/_lib/fixtures/portfolio_audit_package.py"),
 ]

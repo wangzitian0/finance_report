@@ -74,6 +74,8 @@ from src.extraction.base.types import (
     StatementIngestionError,
     StatementIngestionOutcome,
     StatementIngestionStatus,
+    StatementPostingOutcome,
+    StatementPostingStatus,
 )
 from src.extraction.base.validation import (
     compute_confidence_score,
@@ -139,8 +141,6 @@ from src.extraction.extension.statement_parsing_supervisor import (
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
-    StatementPostingOutcome,
-    StatementPostingStatus,
     auto_create_posted_entries_for_statement,
     resolve_statement_posting_account,
 )

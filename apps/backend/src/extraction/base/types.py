@@ -58,6 +58,36 @@ class StatementIngestionOutcome:
     auto_posted_count: int = 0
 
 
+class StatementPostingStatus(StrEnum):
+    """Terminal result of applying an already-decided statement posting plan."""
+
+    POSTED = "posted"
+    REVIEW_REQUIRED = "review_required"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StatementPostingOutcome:
+    """Transport result for posting, not a second economic decision model.
+
+    ``DispositionDecision`` remains the sole statement-to-ledger authority. This
+    value object only preserves whether the fully evaluated plan was applied or
+    deliberately returned to review, so callers cannot mistake zero created
+    entries for a successful approval.
+    """
+
+    status: StatementPostingStatus
+    created_count: int
+    review_reasons: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.created_count < 0:
+            raise ValueError("created_count cannot be negative")
+        if self.status is StatementPostingStatus.POSTED and self.review_reasons:
+            raise ValueError("posted outcome cannot carry review reasons")
+        if self.status is StatementPostingStatus.REVIEW_REQUIRED and not self.review_reasons:
+            raise ValueError("review-required outcome needs at least one reason")
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ParseJob:
     """Immutable identity and routing context for one statement parse."""

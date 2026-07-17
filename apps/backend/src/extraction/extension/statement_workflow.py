@@ -12,9 +12,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.types import StatementPostingOutcome
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
-    StatementPostingOutcome,
     auto_create_posted_entries_for_statement,
 )
 from src.extraction.extension.statement_validation import approve_statement, reject_statement

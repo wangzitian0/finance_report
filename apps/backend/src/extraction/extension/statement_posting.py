@@ -11,7 +11,6 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import case, func, select
@@ -31,7 +30,11 @@ from src.extraction.base.disposition import (
     IntentProposalOrigin,
     StatementTransaction,
 )
-from src.extraction.base.types import StatementIngestionConfigurationError
+from src.extraction.base.types import (
+    StatementIngestionConfigurationError,
+    StatementPostingOutcome,
+    StatementPostingStatus,
+)
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
@@ -57,36 +60,6 @@ HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 # never consults worker-process startup state.
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
-
-
-class StatementPostingStatus(StrEnum):
-    """Terminal result of evaluating the approved statement's posting plan."""
-
-    POSTED = "posted"
-    REVIEW_REQUIRED = "review_required"
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class StatementPostingOutcome:
-    """Transport result for posting, not a second economic decision model.
-
-    ``DispositionDecision`` remains the sole statement-to-ledger authority. This
-    value object only preserves whether the fully evaluated plan was applied or
-    deliberately returned to review, so callers cannot mistake zero created
-    entries for a successful approval.
-    """
-
-    status: StatementPostingStatus
-    created_count: int
-    review_reasons: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.created_count < 0:
-            raise ValueError("created_count cannot be negative")
-        if self.status is StatementPostingStatus.POSTED and self.review_reasons:
-            raise ValueError("posted outcome cannot carry review reasons")
-        if self.status is StatementPostingStatus.REVIEW_REQUIRED and not self.review_reasons:
-            raise ValueError("review-required outcome needs at least one reason")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
