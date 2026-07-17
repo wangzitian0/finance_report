@@ -125,7 +125,7 @@ migrations:
     file: 0055_reviewed_statement_envelope.py
     risk: high
     issue: "#1912"
-    proof: Adds immutable raw extraction-result and reviewed-envelope records, tenant/statement-scoped referential constraints, and PostgreSQL append-only triggers; covered by AC-extraction.reviewed-envelope.1-.5, the Alembic clean-schema contract, and the router/UI source-confirmation flow.
+    proof: Adds immutable raw extraction-result and reviewed-envelope records, tenant/statement-scoped referential constraints, and PostgreSQL append-only triggers; covered by AC-extraction.reviewed-envelope.1-.7, the Alembic clean-schema contract, and the router/UI source-confirmation flow.
     staging_validation: Deploy the pinned PR commit to staging; parse a transaction-only CSV, confirm its envelope, complete economic review and approval, reopen it, reparse it, and verify the previous review cannot approve the new source result while the trace and prior record remain readable.
     production_preflight: Confirm statement_extraction_results, reviewed_statement_envelopes, and reject_reviewed_statement_envelope_mutation do not already exist; no historical row rewrite occurs and pre-existing StatementSummary rows remain on the legacy no-pointer path until reparsed.
     rollback_strategy: Before dependent report consumption, roll back the application and downgrade the additive tables, pointer, constraints, and triggers. After reviewed records have been used for approval, restore the database snapshot rather than deleting append-only audit facts.

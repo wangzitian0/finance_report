@@ -19,9 +19,9 @@ from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BrokeragePositionImportService,
     ParseJob,
-    StatementPostingOutcome,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
+    StatementPostingOutcome,
     StatementPostingStatus,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
