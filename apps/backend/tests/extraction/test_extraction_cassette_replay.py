@@ -248,7 +248,9 @@ async def test_AC_llm_14_1_missing_period_remains_review_only_via_replay(
         user_id=uuid4(),
         file_type="pdf",
     )
-    assert result.balance_validated is None
+    # Balance arithmetic is independently evaluable from source-declared
+    # balances. The missing period still blocks promotion below.
+    assert result.balance_validated is True
     assert result.period_start is None
     assert result.period_end is None
     assert result.missing_required_facts == ("period",)

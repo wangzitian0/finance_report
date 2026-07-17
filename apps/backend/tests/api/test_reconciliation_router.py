@@ -233,8 +233,11 @@ class TestReconciliationEndpoints:
         assert "total" in data
 
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
-        """AC-reconciliation.review-queue.3: AC4.3.4: Test accepting a reconciliation match."""
-        # GIVEN existing match
+        """AC-reconciliation.review-queue.3: Accept a match against an existing entry."""
+        # GIVEN an existing, balanced entry that the matcher has already selected
+        from src.audit import JournalEntrySourceType
+        from src.ledger import Direction, JournalEntryStatus, JournalLine
+
         account = await create_test_asset_account(db, test_user)
         statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
@@ -244,7 +247,41 @@ class TestReconciliationEndpoints:
         db.add(transaction)
         await db.commit()
 
-        match = create_test_match(db, transaction)
+        counter_account = Account(
+            user_id=test_user.id,
+            name=f"Matched expense {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        entry = JournalEntry(
+            user_id=test_user.id,
+            entry_date=transaction.txn_date,
+            memo=transaction.description,
+            source_type=JournalEntrySourceType.AUTO_MATCHED,
+            source_id=transaction.id,
+            status=JournalEntryStatus.POSTED,
+        )
+        db.add_all([counter_account, entry])
+        await db.flush()
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=counter_account.id,
+                    direction=Direction.DEBIT,
+                    amount=transaction.amount,
+                    currency=transaction.currency,
+                ),
+                JournalLine(
+                    journal_entry_id=entry.id,
+                    account_id=account.id,
+                    direction=Direction.CREDIT,
+                    amount=transaction.amount,
+                    currency=transaction.currency,
+                ),
+            ]
+        )
+        match = create_test_match(db, transaction, journal_entry_ids=[str(entry.id)])
         db.add(match)
         await db.commit()
 

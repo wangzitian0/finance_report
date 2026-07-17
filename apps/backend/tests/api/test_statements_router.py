@@ -2365,6 +2365,35 @@ async def test_approve_statement_stage1_blocks_missing_statement_currency_before
     assert "Statement currency required" in str(exc.value.detail)
 
 
+async def test_approve_statement_stage1_does_not_create_account_without_source_currency(db, test_user):
+    """Explicit account confirmation cannot manufacture a statement currency."""
+    user_id = test_user.id
+    existing_account_ids = {
+        account.id for account in (await db.execute(select(Account).where(Account.user_id == user_id))).scalars()
+    }
+    statement = build_statement(user_id, "hash_s1_missing_currency_account", 90)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = None
+    statement.currency = ""
+    db.add(statement)
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id,
+            db=db,
+            user_id=user_id,
+            request=Stage1ApprovalRequest(create_account_if_missing=True),
+        )
+
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Statement currency required" in str(exc.value.detail)
+    account_ids = {
+        account.id for account in (await db.execute(select(Account).where(Account.user_id == user_id))).scalars()
+    }
+    assert account_ids == existing_account_ids
+
+
 async def test_approve_statement_stage1_blocks_unmapped_account_without_fallback(db, test_user):
     """AC-extraction.6.2: Stage 1 posting blocks first uploads without an explicit account mapping."""
     user_id = test_user.id

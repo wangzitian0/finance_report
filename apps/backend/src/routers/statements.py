@@ -186,7 +186,9 @@ async def _create_statement_account_from_confirmation(
             return account
         raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
 
-    currency = (statement.currency or "SGD").strip().upper()
+    currency = (statement.currency or "").strip().upper()
+    if not currency:
+        raise ValueError("Statement currency required before creating an account. Confirm the source currency first.")
     institution = (statement.institution or "").strip()
     account_name = institution or "Statement Account"
     if statement.account_last4:

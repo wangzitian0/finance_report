@@ -22,7 +22,7 @@ from src.extraction import (
     StatementExtractionResult,
     StatementSourceType,
 )
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 
 def _complete_result() -> StatementExtractionResult:
@@ -207,6 +207,47 @@ def test_AC_extraction_result_envelope_1_accepts_source_declared_multi_currency_
 
     assert result.to_payload()["statement_currency"] is None
     assert result.missing_required_facts == ()
+
+
+def test_AC_extraction_11_1_partial_period_rejects_without_copying():
+    """AC-extraction.11.1: a lone period bound is malformed source evidence."""
+    with pytest.raises(ValueError, match="period bounds must both be present or both be absent"):
+        replace(_complete_result(), period_start=None)
+
+
+def test_AC_extraction_11_2_transaction_dates_do_not_establish_statement_period():
+    """AC-extraction.11.2: dated rows cannot promote an absent source period."""
+    result = replace(_complete_result(), period_start=None, period_end=None)
+
+    assert result.transactions[0].transaction_date == date(2026, 1, 12)
+    assert result.period_start is None
+    assert result.period_end is None
+    assert result.missing_required_facts == ("period",)
+    assert result.requires_review is True
+
+
+async def test_AC_extraction_11_3_missing_transaction_date_rejects():
+    """AC-extraction.11.3: row dates are source facts and cannot be synthesized."""
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "Example Bank",
+            "transactions": [
+                {
+                    "description": "Undated row",
+                    "amount": "10.00",
+                    "direction": "IN",
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ExtractionError, match="date or amount"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("undated-live.pdf"), content=b"undated-live"),
+            institution="Example Bank",
+            user_id=uuid4(),
+        )
 
 
 async def test_AC_extraction_result_envelope_1_live_missing_facts_are_review_only():

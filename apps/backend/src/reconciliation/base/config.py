@@ -43,9 +43,9 @@ class MatchCandidate:
 
     journal_entry_ids: list[str]
     score: int
-    # Score components are 0-100 percentages, not monetary values.
-    # Float is acceptable per AGENTS.md which requires Decimal only for money.
-    breakdown: dict[str, float]
+    # Scores are 0-100 percentages; exact money diagnostics such as
+    # ``group_total`` are serialized as strings, never floats.
+    breakdown: dict[str, float | str]
 
 
 def _candidate_source_rank(candidate: MatchCandidate, entries_by_id: dict[str, JournalEntry]) -> int:

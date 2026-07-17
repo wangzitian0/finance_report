@@ -302,6 +302,7 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
     # 3. Generic application failures are retryable and must not corrupt the
     # source-quality state by presenting infrastructure failure as rejection.
     statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
     await db.commit()
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value

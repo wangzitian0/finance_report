@@ -8,7 +8,16 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import (
+    DocumentType,
+    ExtractedPositionFact,
+    ExtractionMethod,
+    SourceProvenance,
+    StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
+    UploadedDocument,
+)
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     _asset_type,
@@ -668,6 +677,40 @@ async def test_statement_scoped_brokerage_import_uses_parsed_transactions(client
 async def test_statement_scoped_brokerage_import_uses_persisted_extraction_positions(client, db, test_user):
     """AC-extraction.813.10/AC-extraction.304.7: Statement import recovers structured OCR positions from metadata."""
     file_hash = "issue-653-moomoo-structured"
+    extraction_result = StatementExtractionResult.create(
+        producer_version="extractor@brokerage-test",
+        source_content_digest="b" * 64,
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        statement_currency="SGD",
+        institution="Moomoo",
+        account_last4="1582",
+        period_start=date(2026, 5, 1),
+        period_end=date(2026, 5, 31),
+        balances=(),
+        transactions=(),
+        positions=(
+            ExtractedPositionFact(
+                fact_id="moomoo-position-1",
+                symbol="Fullerton SGD Money Market Fund",
+                quantity=Decimal("1"),
+                market_value=Decimal("1250.50"),
+                currency="SGD",
+                confidence=Decimal("0.95"),
+                asset_type="money_market",
+            ),
+        ),
+        confidence=Decimal("0.95"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=("position import requires explicit review",),
+        provenance=SourceProvenance(
+            intake_mode="pdf",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            provider="fixture-provider",
+            model="fixture-model-v1",
+        ),
+    )
     statement = await _seed_statement(
         db,
         test_user.id,
@@ -681,21 +724,7 @@ async def test_statement_scoped_brokerage_import_uses_persisted_extraction_posit
         closing_balance=None,
         confidence_score=95,
         balance_validated=False,
-        extraction_metadata={
-            "extraction_payload": {
-                "institution": "Moomoo",
-                "statement": {"period_end": "2026-05-31", "currency": "SGD"},
-                "positions": [
-                    {
-                        "symbol": "Fullerton SGD Money Market Fund",
-                        "quantity": "1",
-                        "market_value": "1250.50",
-                        "currency": "SGD",
-                        "asset_type": "money_market",
-                    }
-                ],
-            }
-        },
+        extraction_metadata={"statement_extraction_result": extraction_result.to_payload()},
         transactions=[],
     )
     statement_id = statement.id

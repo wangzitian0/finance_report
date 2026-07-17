@@ -184,10 +184,11 @@ async def _calculate_candidate_score(
             scores["ai_semantic"] = float(semantic)
             scores["hybrid_applied"] = 1.0
 
+    breakdown: dict[str, float | str] = dict(scores)
     return MatchCandidate(
         journal_entry_ids=[str(entry.id) for entry in entries],
         score=total,
-        breakdown=scores,
+        breakdown=breakdown,
     )
 
 
@@ -434,7 +435,7 @@ def _find_many_to_one_candidates(
             candidate = MatchCandidate(
                 journal_entry_ids=[str(entry.id)],
                 score=total,
-                breakdown={**scores, "group_total": float(group_total)},
+                breakdown={**scores, "group_total": str(group_total)},
             )
             if candidate.score >= config.pending_review and (
                 best_candidate is None or candidate.score > best_candidate.score
@@ -495,10 +496,11 @@ def _find_normal_candidates(
             "history": history_score,
         }
         total = weighted_total(scores, config)
+        breakdown: dict[str, float | str] = dict(scores)
         return MatchCandidate(
             journal_entry_ids=[str(e.id) for e in entries],
             score=total,
-            breakdown=scores,
+            breakdown=breakdown,
         )
 
     results: list[tuple[AtomicTransaction, MatchCandidate]] = []

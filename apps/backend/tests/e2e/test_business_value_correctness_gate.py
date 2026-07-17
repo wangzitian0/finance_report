@@ -24,6 +24,21 @@ _OPENING_BALANCE = Decimal("1000.00")
 _PARSE_TIMEOUT_S = 15.0
 
 
+def _declared_statement_csv(*, rows: list[tuple[str, str, Decimal]], closing_balance: Decimal) -> str:
+    """Build a synthetic CSV statement with explicit, repeated source facts."""
+    header = (
+        "Statement Currency,Statement Period Start,Statement Period End,"
+        "Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+    )
+    envelope = f"SGD,2026-03-01,2026-03-31,0.00,{closing_balance}"
+    return (
+        "\n".join(
+            [header, *(f"{envelope},{txn_date},{description},{amount}" for txn_date, description, amount in rows)]
+        )
+        + "\n"
+    )
+
+
 async def _wait_for_parsed(client, stmt_id: str) -> dict:
     """Poll a just-uploaded statement until CSV parsing (async, but LLM-free and
     fast) lands it in a terminal status. Matches the established polling
@@ -66,7 +81,13 @@ async def test_AC_reporting_business_value_gate_1_total_matches_transactions_and
     entries" — the source CSV's transactions flow through
     parse -> review-approve -> post, and the ledger-derived balance-sheet line
     equals the known net of the source transactions end to end."""
-    csv_content = f"Date,Description,Amount\n2026-03-01,Salary,{_SALARY}\n2026-03-05,Rent,-{_RENT}\n"
+    csv_content = _declared_statement_csv(
+        rows=[
+            ("2026-03-01", "Salary", _SALARY),
+            ("2026-03-05", "Rent", -_RENT),
+        ],
+        closing_balance=_SALARY - _RENT,
+    )
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("business_gate.csv", csv_content.encode(), "text/csv")},
@@ -116,7 +137,10 @@ async def test_AC_reporting_business_value_gate_2_recording_opening_balance_clea
     and the total correctly includes the opening balance — proving the gate
     responds to real state in both directions rather than being permanently
     stuck LOW (a vacuous gate that never clears is not a real signal either)."""
-    csv_content = f"Date,Description,Amount\n2026-03-01,Salary,{_SALARY}\n"
+    csv_content = _declared_statement_csv(
+        rows=[("2026-03-01", "Salary", _SALARY)],
+        closing_balance=_SALARY,
+    )
     upload_resp = await client.post(
         "/statements/upload",
         files={"file": ("business_gate_2.csv", csv_content.encode(), "text/csv")},

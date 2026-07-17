@@ -312,6 +312,7 @@ CONTRACT = PackageContract(
         "record_correction",
         "register_fx_rate_provider",
         "register_position_reconciler",
+        "register_statement_source",
         "reject_json_floats",
         "reject_statement_workflow",
         "resolve_custody_account_id",
@@ -956,24 +957,24 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.11.1",
-            statement="A missing `period_start` falls back to `period_end` instead of hard-failing the parse",  # was AC3.11.1
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_1_period_start_falls_back_to_period_end",
+            statement="A source with only one statement-period bound is rejected rather than copying the present bound",  # was AC3.11.1
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_1_partial_period_rejects_without_copying",
             priority="P1",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.11.2",
-            statement="With no period bounds, the statement period is derived from the transaction-date range",  # was AC3.11.2
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_2_period_derived_from_transaction_dates",
+            statement="Transaction-row dates remain observations and cannot establish an absent statement period",  # was AC3.11.2
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_2_transaction_dates_do_not_establish_statement_period",
             priority="P1",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.11.3",
-            statement="A statement with no period and no transaction dates still rejects (no silent zero-date)",  # was AC3.11.3
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_3_no_resolvable_date_still_raises",
+            statement="A transaction without a source-declared transaction date is rejected instead of receiving a synthetic date",  # was AC3.11.3
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_3_missing_transaction_date_rejects",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -4331,7 +4332,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/extraction/test_signature_seams.py"
-                "::test_AC_extraction_signature_seams_2_document_source_resolves_once"
+                "::test_AC_extraction_signature_seams_2_document_source_is_the_only_parse_input"
             ),
             priority="P0",
             status="done",

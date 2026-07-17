@@ -111,6 +111,57 @@ class _CsvMixin:
                     return headers[idx]
             return None
 
+        def declared_statement_fact(
+            label: str,
+            candidates: list[str],
+            parse,
+        ) -> Any | None:
+            """Read one redundant CSV statement-envelope column without inference.
+
+            A transaction export remains row evidence. A CSV becomes a statement
+            source only when it repeats an explicit envelope fact consistently
+            across its rows; conflicting declarations are malformed source data.
+            """
+            header = find_header(candidates)
+            if header is None:
+                return None
+            values = [str(row[header]).strip() for row in rows if row.get(header) and str(row[header]).strip()]
+            if not values:
+                return None
+            parsed = [parse(value) for value in values]
+            if any(value is None for value in parsed):
+                raise ExtractionError(f"CSV has an invalid declared {label}")
+            unique = {value for value in parsed if value is not None}
+            if len(unique) != 1:
+                raise ExtractionError(f"CSV has conflicting declared {label}")
+            return next(iter(unique))
+
+        source_currency = declared_statement_fact(
+            "statement currency",
+            ["Statement Currency"],
+            lambda value: value.upper() if len(value) == 3 and value.isalpha() else None,
+        )
+        source_period_start = declared_statement_fact(
+            "statement period start",
+            ["Statement Period Start"],
+            parse_date,
+        )
+        source_period_end = declared_statement_fact(
+            "statement period end",
+            ["Statement Period End"],
+            parse_date,
+        )
+        source_opening_balance = declared_statement_fact(
+            "statement opening balance",
+            ["Statement Opening Balance"],
+            parse_amount,
+        )
+        source_closing_balance = declared_statement_fact(
+            "statement closing balance",
+            ["Statement Closing Balance"],
+            parse_amount,
+        )
+
         if institution_lower in ("dbs", "posb"):
             date_col = find_header(["Transaction Date", "Date", "Value Date"])
             debit_col = find_header(["Debit Amount", "Withdrawal", "Debit"])
@@ -394,7 +445,20 @@ class _CsvMixin:
             period_end=period_end.isoformat() if period_end else None,
         )
 
+        source_facts: dict[str, Any] = {}
+        if source_currency is not None:
+            source_facts["currency"] = source_currency
+        if source_period_start is not None:
+            source_facts["period_start"] = source_period_start.isoformat()
+        if source_period_end is not None:
+            source_facts["period_end"] = source_period_end.isoformat()
+        if source_opening_balance is not None:
+            source_facts["opening_balance"] = str(source_opening_balance)
+        if source_closing_balance is not None:
+            source_facts["closing_balance"] = str(source_closing_balance)
+
         return {
+            **source_facts,
             # A transaction export does not prove statement currency, period, or
             # opening/closing balances. Keep those facts absent instead of
             # laundering SGD/zero/net-flow defaults into the trusted envelope.
