@@ -3335,7 +3335,7 @@ export interface components {
         BatchApproveRequest: {
             /**
              * Match Ids
-             * @description Reconciliation match identifiers to approve
+             * @description Stage-2 reconciliation match identifiers to approve
              */
             match_ids?: string[];
             /** Run Id */
@@ -3362,7 +3362,7 @@ export interface components {
         BatchRejectRequest: {
             /**
              * Match Ids
-             * @description Reconciliation match identifiers to reject
+             * @description Stage-2 reconciliation match identifiers to reject
              */
             match_ids?: string[];
         };
@@ -3936,7 +3936,7 @@ export interface components {
         EditAndApproveRequest: {
             /**
              * Edits
-             * @description Reviewer transaction corrections to validate before approval
+             * @description Reviewer corrections applied before approving the statement
              */
             edits?: components["schemas"]["TransactionEditRequest"][];
         };
@@ -6338,7 +6338,7 @@ export interface components {
         ReviewConflictsResponse: {
             /**
              * Duplicates
-             * @description Transaction candidates that may be duplicate entries
+             * @description Transactions that may duplicate another statement transaction
              */
             duplicates?: components["schemas"]["ReviewConflictCandidate"][];
             /**
@@ -6348,7 +6348,7 @@ export interface components {
             resolved: boolean;
             /**
              * Transfer Pairs
-             * @description Opposite-direction transaction candidates that may be transfers
+             * @description Opposite-direction transactions that may form a transfer pair
              */
             transfer_pairs?: components["schemas"]["ReviewConflictCandidate"][];
         };
@@ -6479,7 +6479,7 @@ export interface components {
         SetOpeningBalanceRequest: {
             /**
              * Opening Balance
-             * @description Manual opening balance used for the statement chain
+             * @description Reviewer-confirmed non-negative opening balance in the statement currency
              */
             opening_balance: number | string;
         };
@@ -6580,7 +6580,7 @@ export interface components {
              */
             id: string;
             /** Match Score */
-            match_score: string;
+            match_score: number;
             /** Status */
             status: string;
             /** Txn Date */
@@ -6664,7 +6664,7 @@ export interface components {
             status: components["schemas"]["BankStatementStatus"];
             /**
              * Transactions
-             * @description Transactions extracted for this statement review
+             * @description Transactions extracted from this statement for reviewer inspection
              */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**

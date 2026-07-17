@@ -129,7 +129,7 @@ export function Stage2ReviewQueue() {
     const toggleAll = () => {
         if (!data) return;
         const visibleIds = data.pending_matches
-            .filter((m) => Number(m.match_score) >= minScore)
+            .filter((m) => m.match_score >= minScore)
             .map((m) => m.id);
         if (visibleIds.every((id) => selectedMatches.has(id)) && visibleIds.length > 0) {
             setSelectedMatches((prev) => {
@@ -301,7 +301,7 @@ export function Stage2ReviewQueue() {
     const unresolvedTransferCount = unresolvedChecks.filter((check) => check.check_type === "transfer_pair").length;
     const unresolvedDuplicateCount = unresolvedChecks.filter((check) => check.check_type === "duplicate").length;
     const unresolvedAnomalyCount = unresolvedChecks.filter((check) => check.check_type === "anomaly").length;
-    const matchesFilteredByScore = data.pending_matches.filter(m => Number(m.match_score) >= minScore);
+    const matchesFilteredByScore = data.pending_matches.filter((match) => match.match_score >= minScore);
     const processingPendingCount = processingSummary?.pending_count ?? 0;
     const approveRunDisabled = actionLoading || data.has_unresolved_checks || processingPendingCount > 0 || data.pending_matches.length === 0;
     const runApprovalTitle = data.has_unresolved_checks

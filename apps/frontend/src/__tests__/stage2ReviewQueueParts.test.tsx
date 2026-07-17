@@ -15,7 +15,7 @@ vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }));
 function makeMatch(overrides: Partial<PendingMatch> = {}): PendingMatch {
     return {
         id: "m1",
-        match_score: "88",
+        match_score: 88,
         confidence_tier: "HIGH",
         status: "pending_review",
         created_at: "2026-01-01T00:00:00Z",
@@ -105,9 +105,9 @@ describe("Stage2 extracted parts", () => {
         expect(screen.getByText("0 total")).toBeInTheDocument();
 
         const matches: PendingMatch[] = [
-            makeMatch({ id: "high", match_score: "90", amount: "10.00", description: "High score" }),
-            makeMatch({ id: "mid", match_score: "70", amount: undefined, txn_date: undefined, description: undefined }),
-            makeMatch({ id: "low", match_score: "30", amount: "5.00", description: "Low score" }),
+            makeMatch({ id: "high", match_score: 90, amount: "10.00", description: "High score" }),
+            makeMatch({ id: "mid", match_score: 70, amount: undefined, txn_date: undefined, description: undefined }),
+            makeMatch({ id: "low", match_score: 30, amount: "5.00", description: "Low score" }),
         ];
         const selected = new Set<string>(["high", "mid", "low"]);
         rerender(
