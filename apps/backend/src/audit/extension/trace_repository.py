@@ -265,15 +265,17 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 f"unsupported persisted TraceRecord schema_version {row.schema_version!r}"
             )
         parent_ids = tuple(
-            (
-                await self._db.execute(
-                    select(TraceRecordParentRow.parent_id)
-                    .where(TraceRecordParentRow.scope_kind == row.scope_kind)
-                    .where(TraceRecordParentRow.scope_id == row.scope_id)
-                    .where(TraceRecordParentRow.record_id == row.id)
-                    .order_by(TraceRecordParentRow.parent_id)
-                )
-            ).scalars()
+            sorted(
+                (
+                    await self._db.execute(
+                        select(TraceRecordParentRow.parent_id)
+                        .where(TraceRecordParentRow.scope_kind == row.scope_kind)
+                        .where(TraceRecordParentRow.scope_id == row.scope_id)
+                        .where(TraceRecordParentRow.record_id == row.id)
+                    )
+                ).scalars(),
+                key=str,
+            )
         )
         if len(parent_ids) != row.parent_count:
             raise TraceRecordPersistenceError("persisted TraceRecord parent count mismatch")

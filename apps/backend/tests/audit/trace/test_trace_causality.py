@@ -127,7 +127,6 @@ def test_manifest_fold_allows_declared_cross_target_execution_but_not_missing_or
 
 
 def test_AC_audit_trace_record_5_financial_authority_requires_code_parent():
-    """AC-audit.trace-record.5: financial authority requires CODE causality."""
     """AC-audit.trace-record.5: financial LLM authority requires a CODE guard."""
 
     llm_observation = observation(

@@ -673,6 +673,33 @@ async def test_repository_rejects_corrupt_persisted_rows_and_policy_replay(db):
         await replaying.get(record.scope, decision.record_id)
 
 
+async def test_repository_restore_uses_the_model_parent_order():
+    first = observation(assertion_id="first-parent")
+    second = observation(scope=first.scope, assertion_id="second-parent")
+    policy = decision_policy(assertion_id="ordered-restore")
+    decision = TraceRecord.decision(
+        scope=first.scope,
+        target=first.target,
+        policy=policy,
+        execution_id=first.execution_id,
+        occurred_at=first.occurred_at,
+        parents=[first, second],
+    )
+
+    result = MagicMock()
+    result.scalars.return_value = tuple(reversed(decision.parent_ids))
+    fake_db = AsyncMock()
+    fake_db.execute.return_value = result
+    repository = SqlTraceRecordRepository(
+        fake_db,
+        TraceDecisionPolicyRegistry((policy,)),
+    )
+    parents = {parent.record_id: parent for parent in (first, second)}
+    repository._get = AsyncMock(side_effect=lambda _scope, record_id, _visiting: parents[record_id])
+
+    assert await repository._restore(_row_from_record(decision), frozenset()) == decision
+
+
 async def test_repository_current_ancestry_handles_missing_and_parentless_records(db):
     repository = SqlTraceRecordRepository(db)
     assert not await repository._has_current_ancestry(
