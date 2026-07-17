@@ -8,7 +8,7 @@ import { ChevronLeft } from "lucide-react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
-import { apiFetch } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { MoneyValue } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
@@ -129,7 +129,15 @@ export default function StatementReviewPage() {
                     : `/statements/${statementId}?approved=1&entriesCreated=${createdCount}`,
             );
         },
-        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to approve", "error")
+        onError: (err) => {
+            if (err instanceof ApiError && err.status === 409) {
+                setApproveDialogOpen(false);
+                showToast("Economic classification needs review before entries can be posted.", "error");
+                void refetch();
+                return;
+            }
+            showToast(err instanceof Error ? err.message : "Failed to approve", "error");
+        }
     });
 
     const rejectMutation = useMutation({

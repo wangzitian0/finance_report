@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { ToastProvider } from "@/components/ui/Toast";
-import { apiFetch } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 import { createInvalidationProbe } from "./fixtures/invalidationProbe";
@@ -18,7 +18,8 @@ const navigationState = vi.hoisted(() => ({
 const pushMock = navigationState.push;
 const replaceMock = navigationState.replace;
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/api")>()),
     apiFetch: vi.fn(),
     // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
     apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
@@ -226,6 +227,39 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
                 expect.objectContaining({ statement_id: "s1" }),
             );
         });
+    });
+
+    it("AC-extraction.disposition.5 keeps the review open when economic classification is required", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/statements/s1/review/approve") {
+                return Promise.reject(new ApiError("Economic review required: intent_missing", 409));
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+        const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+        fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(screen.getByText("Economic classification needs review before entries can be posted.")).toBeInTheDocument();
+        });
+        expect(pushMock).not.toHaveBeenCalled();
+        expect(track).not.toHaveBeenCalledWith(
+            ANALYTICS_EVENTS.REVIEW_APPROVED,
+            expect.objectContaining({ statement_id: "s1" }),
+        );
     });
 
     it("AC16.34.3 resolves Stage-1 conflicts and unblocks approval", async () => {

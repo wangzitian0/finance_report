@@ -212,6 +212,16 @@ CONTRACT = PackageContract(
             kind=Kind.VALUE_OBJECT,
             module="base/types.py",
         ),
+        Unit(
+            name="StatementPostingOutcome",
+            kind=Kind.VALUE_OBJECT,
+            module="extension/statement_posting.py",
+        ),
+        Unit(
+            name="StatementPostingStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="extension/statement_posting.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/extraction", "fe": None},
     interface=[
@@ -274,6 +284,8 @@ CONTRACT = PackageContract(
         "StatementExtractionResult",
         "StatementEvidenceType",
         "StatementPostingDependencies",
+        "StatementPostingOutcome",
+        "StatementPostingStatus",
         "StatementSourceType",
         "StatementTransaction",
         "StatementEventSource",
@@ -3917,6 +3929,21 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/extraction/test_disposition_policy.py"
                 "::test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_origin"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.5",
+            statement=(
+                "Stage 1 source confirmation returns a committed pending-review "
+                "outcome, never a successful approval, when DispositionPolicy "
+                "has no authoritative command for any statement transaction."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_disposition_5_stage1_requires_economic_review"
             ),
             priority="P0",
             status="open",

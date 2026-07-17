@@ -148,7 +148,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> None:
-    """AC-extraction.813.11: EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018.
+    """AC-extraction.813.11 AC-audit.global-invariant.2: EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018.
 
     AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5 AC8.13.7: DBS PDF to balance sheet.
     """

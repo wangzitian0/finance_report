@@ -19,6 +19,7 @@ from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BrokeragePositionImportService,
     ParseJob,
+    StatementPostingStatus,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -796,7 +797,7 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
-        created_count = await approve_statement_workflow(
+        outcome = await approve_statement_workflow(
             db,
             statement_id,
             user_id,
@@ -806,9 +807,15 @@ async def approve_statement_stage1(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Economic review required: {', '.join(outcome.review_reasons)}",
+        )
+
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
-    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
+    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=outcome.created_count)
 
 
 @router.post("/{statement_id}/review/reject", response_model=BankStatementResponse)
@@ -842,7 +849,7 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        created_count = await auto_create_posted_entries_for_statement(
+        outcome = await auto_create_posted_entries_for_statement(
             db,
             statement,
             user_id,
@@ -853,9 +860,15 @@ async def edit_and_approve_statement(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Economic review required: {', '.join(outcome.review_reasons)}",
+        )
+
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
-    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
+    return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=outcome.created_count)
 
 
 @router.post("/{statement_id}/review/opening-balance", response_model=BankStatementResponse)

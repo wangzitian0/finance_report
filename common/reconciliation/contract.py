@@ -497,12 +497,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.9",
             statement=(
-                "POST /reconciliation/unmatched/{txn_id}/create-entry returns 200 with a created "
-                "journal entry (id/entry_date/memo/status/total_amount)."
+                "POST /reconciliation/unmatched/{txn_id}/create-entry returns 400 without a "
+                "reviewed economic disposition; an unmatched transaction cannot create an "
+                "Uncategorized journal entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_create_entry_from_unmatched_success"
+                "::test_create_entry_from_unmatched_requires_economic_disposition"
             ),
             priority="P1",
             status="done",
@@ -543,12 +544,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.13",
             statement=(
-                "POST /reconciliation/unmatched/batch-create with all=True creates journal entries "
-                "for every unmatched transaction and reports the created_count."
+                "POST /reconciliation/unmatched/batch-create with all=True returns 400 when its "
+                "transactions lack reviewed economic dispositions; batch execution cannot bypass review."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_batch_create_entries_for_all_unmatched"
+                "::test_batch_create_entries_requires_economic_disposition"
             ),
             priority="P1",
             status="done",

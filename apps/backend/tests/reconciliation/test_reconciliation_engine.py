@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import DocumentType, EconomicIntent, UploadedDocument
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
@@ -40,6 +40,7 @@ from src.reconciliation import (
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, reject_match
 from tests.ledger._ledger_helpers import create_valid_posted_entry
+from tests.statement_ingestion import reviewed_posting_inputs
 
 
 async def _seed_summary(
@@ -621,7 +622,16 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
             source="test",
         )
     )
-    summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 4, 10), currency="USD")
+    bank = Account(user_id=user_id, name="Bank - USD", type=AccountType.ASSET, currency="USD")
+    db.add(bank)
+    await db.flush()
+    summary = await _seed_summary(
+        db,
+        owner_id=user_id,
+        base_date=date(2024, 4, 10),
+        account_id=bank.id,
+        currency="USD",
+    )
 
     txn = _atomic(
         owner_id=user_id,
@@ -635,15 +645,24 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     db.add(txn)
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=user_id)
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=user_id,
+        transaction=txn,
+        intent=EconomicIntent.INCOME,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=user_id,
+        disposition=decision,
+        counter_account=counter_account,
+    )
     assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
     assert all(line.currency == "USD" for line in entry.lines)
     assert all(line.fx_rate == Decimal("1.350000") for line in entry.lines)
 
-    result = await db.execute(
-        select(Account).where(Account.name == "Income - Uncategorized").where(Account.user_id == user_id)
-    )
-    assert result.scalar_one_or_none() is not None
+    assert any(line.account_id == counter_account.id for line in entry.lines)
 
 
 async def test_create_entry_from_txn_requires_fx_rate_for_foreign_statement_currency(
@@ -680,7 +699,10 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     )
     db.add(user)
     await db.flush()
-    summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 1))
+    bank = Account(user_id=user_id, name="Bank - Main", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
+    summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 1), account_id=bank.id)
 
     txn_accept = _atomic(
         owner_id=user_id,
@@ -709,17 +731,24 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     db.add_all([txn_accept, txn_reject, txn_batch])
     await db.commit()
 
-    entry_accept = await create_entry_from_txn(db, txn_accept, user_id=user_id)
+    decision, expense = await reviewed_posting_inputs(
+        db,
+        user_id=user_id,
+        transaction=txn_accept,
+        intent=EconomicIntent.EXPENSE,
+    )
+    entry_accept = await create_entry_from_txn(
+        db,
+        txn_accept,
+        user_id=user_id,
+        disposition=decision,
+        counter_account=expense,
+    )
     entry_result = await db.execute(
         select(JournalEntry).where(JournalEntry.id == entry_accept.id).options(selectinload(JournalEntry.lines))
     )
     entry_accept = entry_result.scalar_one()
     validate_journal_balance(entry_accept.lines)
-
-    accounts_result = await db.execute(select(Account).where(Account.user_id == user_id))
-    accounts = {account.name: account for account in accounts_result.scalars().all()}
-    bank = accounts["Bank - Main"]
-    expense = accounts["Expense - Uncategorized"]
 
     entry_reject = JournalEntry(
         user_id=user_id,

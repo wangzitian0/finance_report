@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import case, func, select
@@ -58,6 +59,36 @@ TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
 
 
+class StatementPostingStatus(StrEnum):
+    """Terminal result of evaluating the approved statement's posting plan."""
+
+    POSTED = "posted"
+    REVIEW_REQUIRED = "review_required"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StatementPostingOutcome:
+    """Transport result for posting, not a second economic decision model.
+
+    ``DispositionDecision`` remains the sole statement-to-ledger authority. This
+    value object only preserves whether the fully evaluated plan was applied or
+    deliberately returned to review, so callers cannot mistake zero created
+    entries for a successful approval.
+    """
+
+    status: StatementPostingStatus
+    created_count: int
+    review_reasons: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.created_count < 0:
+            raise ValueError("created_count cannot be negative")
+        if self.status is StatementPostingStatus.POSTED and self.review_reasons:
+            raise ValueError("posted outcome cannot carry review reasons")
+        if self.status is StatementPostingStatus.REVIEW_REQUIRED and not self.review_reasons:
+            raise ValueError("review-required outcome needs at least one reason")
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class StatementPostingDependencies:
     """Cross-domain reads required to turn approved statement facts into entries."""
@@ -98,12 +129,12 @@ async def auto_create_posted_entries_for_statement(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
-) -> int:
-    """Create posted journal entries after Stage 1 approval, guarded by mapping and period safety."""
+) -> StatementPostingOutcome:
+    """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
     transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
     if not txn_ids:
-        return 0
+        return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     existing_entry_result = await db.execute(
         select(JournalEntry)
@@ -118,7 +149,7 @@ async def auto_create_posted_entries_for_statement(
     transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     txns_to_post = [txn for txn in transactions if txn.id not in existing_entry_txn_ids]
     if not txns_to_post:
-        return 0
+        return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
     await validate_statement_period_unique(db, statement, user_id, preloaded_bank_account.id)
@@ -234,9 +265,14 @@ async def auto_create_posted_entries_for_statement(
     if review_reasons:
         statement.status = BankStatementStatus.PARSED
         statement.stage1_status = Stage1Status.PENDING_REVIEW
-        statement.validation_error = f"Economic review required: {', '.join(sorted(set(review_reasons)))}"[:500]
+        normalized_reasons = tuple(sorted(set(review_reasons)))
+        statement.validation_error = f"Economic review required: {', '.join(normalized_reasons)}"[:500]
         await db.flush()
-        return 0
+        return StatementPostingOutcome(
+            status=StatementPostingStatus.REVIEW_REQUIRED,
+            created_count=0,
+            review_reasons=normalized_reasons,
+        )
 
     created = 0
     for txn, _proposal, decision, counter_account, _transaction in planned:
@@ -260,7 +296,7 @@ async def auto_create_posted_entries_for_statement(
         )
         created += 1
 
-    return created
+    return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
 
 
 def _classification_intent(
@@ -532,9 +568,7 @@ async def try_auto_approve_high_confidence_statement(
     try:
         async with db.begin_nested():
             approved = await approve_statement(db, statement_id, user_id)
-            created_count = await auto_create_posted_entries_for_statement(
-                db, approved, user_id, dependencies=dependencies
-            )
+            outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=dependencies)
             await db.flush()
     except ValueError as exc:
         refreshed = await db.get(StatementSummary, statement_id)
@@ -551,7 +585,7 @@ async def try_auto_approve_high_confidence_statement(
     # review). Idempotency lives in try_auto_post_statement_opening_balance
     # itself (_account_has_opening_balance_entry + post_opening_balance_entry's
     # own guards), not here.
-    if statement.status != BankStatementStatus.APPROVED:
+    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
         return 0
     await try_auto_post_statement_opening_balance(db, statement, user_id)
-    return created_count
+    return outcome.created_count

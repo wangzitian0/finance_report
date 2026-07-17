@@ -1692,8 +1692,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.product-gates.2",
             statement=(
-                "Deterministic upload-to-dashboard gate runs as a critical fresh-user "
-                "staging E2E (Was EPIC-008 AC8.13.28)."
+                "A deterministic CSV upload runs as a critical fresh-user staging E2E: "
+                "source facts parse, but a missing authoritative economic disposition "
+                "returns the statement to pending review with zero journal entries "
+                "instead of a false successful approval."
             ),
             test=(
                 "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
@@ -1701,72 +1703,6 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
-        ),
-        ACRecord(
-            id="AC-testing.product-gates.3",
-            statement=(
-                "Stage 1 review auto-posts journal entries from the deterministic "
-                "fixture: entry count and memos equal the fixture rows exactly "
-                "(Was EPIC-008 AC8.13.29)."
-            ),
-            test=(
-                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-                "::test_statement_upload_to_dashboard_vision_hard_gate"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: the e2e asserts exact posted-entry counts and
-            # memo sets against the fixture's own rows (independent oracle).
-            proof_kind="exact",
-        ),
-        ACRecord(
-            id="AC-testing.product-gates.4",
-            statement=(
-                "Reconciliation rerun is idempotent and Stage 2 run review reaches a "
-                "cleared completion state, with exact match/auto-accept counts and "
-                "a 100.0 match rate (Was EPIC-008 AC8.13.30)."
-            ),
-            test=(
-                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-                "::test_statement_upload_to_dashboard_vision_hard_gate"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: run results and reconciliation stats are
-            # asserted as exact payload equality, not just status flags.
-            proof_kind="exact",
-        ),
-        ACRecord(
-            id="AC-testing.product-gates.5",
-            statement=(
-                "Processing Account summary and pending page stay visible and correct "
-                "for the cleared run (Was EPIC-008 AC8.13.31)."
-            ),
-            test=(
-                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-                "::test_statement_upload_to_dashboard_vision_hard_gate"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-testing.product-gates.6",
-            statement=(
-                "Dashboard, balance sheet, income statement, and cash-flow totals "
-                "exactly match the deterministic upload fixture, per-bucket line "
-                "sums re-add to every pinned total, and the per-row category "
-                "amounts stay pinned to hand-derived fixture ground truth (Was "
-                "EPIC-008 AC8.13.32)."
-            ),
-            test=(
-                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-                "::test_statement_upload_to_dashboard_vision_hard_gate"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: exact-Decimal report totals + bucket line
-            # sums + per-category pins derived from the source CSV fixture.
-            proof_kind="exact",
         ),
         ACRecord(
             id="AC-testing.product-gates.7",

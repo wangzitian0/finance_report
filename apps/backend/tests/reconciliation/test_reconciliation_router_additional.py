@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import CurrencyUnresolvedError, DocumentType, UploadedDocument
+from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
@@ -23,6 +23,8 @@ from src.schemas.reconciliation import (
     ReconciliationStatusEnum,
 )
 from tests.factories import UserFactory
+from tests.ledger._ledger_helpers import create_valid_posted_entry
+from tests.statement_ingestion import reviewed_posting_inputs
 
 
 async def _create_statement(db: AsyncSession, user_id, account_id=None) -> StatementSummary:
@@ -415,9 +417,23 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     txn_accept = await _create_transaction(db, statement, amount=Decimal("7.00"), status=None)
     txn_reject = await _create_transaction(db, statement, amount=Decimal("8.00"), status=None)
     txn_batch = await _create_transaction(db, statement, amount=Decimal("9.00"), status=None)
+    entry_accept = await create_valid_posted_entry(
+        db,
+        test_user.id,
+        amount=txn_accept.amount,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        source_id=txn_accept.id,
+    )
+    entry_batch = await create_valid_posted_entry(
+        db,
+        test_user.id,
+        amount=txn_batch.amount,
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        source_id=txn_batch.id,
+    )
     match_accept = ReconciliationMatch(
         atomic_txn_id=txn_accept.id,
-        journal_entry_ids=[],
+        journal_entry_ids=[str(entry_accept.id)],
         match_score=85,
         score_breakdown={},
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -431,7 +447,7 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     )
     match_batch = ReconciliationMatch(
         atomic_txn_id=txn_batch.id,
-        journal_entry_ids=[],
+        journal_entry_ids=[str(entry_batch.id)],
         match_score=90,
         score_breakdown={},
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -453,15 +469,20 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
 
 
 async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> None:
-    statement = await _create_statement(db, test_user.id)
+    account = Account(user_id=test_user.id, name="Mapped Unmatched Account", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    statement = await _create_statement(db, test_user.id, account_id=account.id)
     txn = await _create_transaction(db, statement, amount=Decimal("4.00"), status=None)
     await db.commit()
 
     unmatched = await reconciliation_router.list_unmatched(limit=50, offset=0, db=db, user_id=test_user.id)
     assert unmatched.total == 1
 
-    entry = await reconciliation_router.create_entry(txn_id=str(txn.id), db=db, user_id=test_user.id)
-    assert entry.total_amount == Decimal("4.00")
+    with pytest.raises(HTTPException) as exc:
+        await reconciliation_router.create_entry(txn_id=str(txn.id), db=db, user_id=test_user.id)
+    assert exc.value.status_code == 400
+    assert "Authoritative economic disposition" in str(exc.value.detail)
 
 
 async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
@@ -767,7 +788,19 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
 
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=txn,
+        intent=EconomicIntent.EXPENSE,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=test_user.id,
+        disposition=decision,
+        counter_account=counter_account,
+    )
 
     # Verify entry uses the linked bank account
     assert entry is not None

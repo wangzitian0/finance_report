@@ -108,7 +108,9 @@ async def _ingest_month(
         transaction.currency_resolved_at = datetime.now(UTC)
     await db.flush()
     approved = await approve_statement(db, statement.id, user_id)
-    return await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())
+    outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())
+    assert outcome.review_reasons == ()
+    return outcome.created_count
 
 
 def _leaf_names(report_lines: list[dict]) -> set[str]:

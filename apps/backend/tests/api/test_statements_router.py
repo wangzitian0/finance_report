@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
+from src.config import settings
 from src.extraction import (
     DispositionContext,
     DispositionDecision,
@@ -1952,6 +1953,43 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     assert len(entries) == 2
     assert all(entry.status == JournalEntryStatus.POSTED for entry in entries)
     assert all(any(line.account_id == bank_account_id for line in entry.lines) for entry in entries)
+
+
+async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, test_user, monkeypatch):
+    """AC-extraction.disposition.5: source confirmation cannot imply an economic command."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    bank_account = await create_statement_account(db, test_user.id, "DBS Economic Review")
+    statement = build_statement(test_user.id, "hash_s1_economic_review", 88)
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    transaction = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 2),
+        description="Opaque merchant",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    await db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id,
+            db=db,
+            user_id=test_user.id,
+        )
+
+    assert exc.value.status_code == status.HTTP_409_CONFLICT
+    assert exc.value.detail == "Economic review required: intent_missing"
+    await db.refresh(statement)
+    assert statement.status is BankStatementStatus.PARSED
+    assert statement.stage1_status is Stage1Status.PENDING_REVIEW
+    assert statement.validation_error == "Economic review required: intent_missing"
+    entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
+    assert entries.scalars().all() == []
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):

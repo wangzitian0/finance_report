@@ -319,10 +319,9 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.26 removed, canonical: migrated to `AC-testing.ci-structure.2`.)
 > (AC8.13.27 removed, canonical: migrated to `AC-testing.coverage.2`.)
 > (AC8.13.28 removed, canonical: migrated to `AC-testing.product-gates.2`.)
-> (AC8.13.29 removed, canonical: migrated to `AC-testing.product-gates.3`.)
-> (AC8.13.30 removed, canonical: migrated to `AC-testing.product-gates.4`.)
-> (AC8.13.31 removed, canonical: migrated to `AC-testing.product-gates.5`.)
-> (AC8.13.32 removed, canonical: migrated to `AC-testing.product-gates.6`.)
+> (AC8.13.29 through AC8.13.32 removed: direction-only automatic posting is
+> no longer a valid product proof; the extraction disposition boundary owns the
+> replacement contract.)
 > (AC8.13.33 removed, canonical: migrated to `AC-testing.ci-structure.3`.)
 > (AC8.13.34 removed, canonical: migrated to `AC-testing.ci-structure.4`.)
 > (AC8.13.35 removed, canonical: migrated to `AC-testing.acgates.3`.)
@@ -713,7 +712,6 @@ Product E2E ownership index:
 | File | Ownership anchor |
 |---|---|
 | `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
-| `apps/backend/tests/e2e/test_business_value_correctness_gate.py` | #1505 Tier-1 twin: `AC-reporting.business-value-gate.1`/`.2` (real business-value totals + the #1481 invariant), `common/reporting/contract.py` |
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
@@ -732,11 +730,10 @@ Product E2E ownership index:
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `AC-pricing.marketdata.13`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC-reporting.fe-viz-reports.2, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC-reporting.annualized-dashboard.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-reporting.package-annualized.3, AC-reporting.package-annualized.4, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
-| `tests/e2e/test_business_value_correctness_gate.py` | #1505 Tier-2/3 deploy-gate twin (in-runner preview lane, no LLM/market-data/persistent-env dependency): `AC-reporting.business-value-gate.1`/`.2`, `common/reporting/contract.py` |
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
-| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2, AC-testing.product-gates.3, AC-testing.product-gates.4, AC-testing.product-gates.5, AC-testing.product-gates.6 |
+| `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2; source facts without authoritative economic meaning return to Stage 1 review with zero journal entries |
 
 Product E2E files under `tests/e2e/test_*.py` and
 `apps/backend/tests/e2e/test_*.py` must carry AC references directly. They are

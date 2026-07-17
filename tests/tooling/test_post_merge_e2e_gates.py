@@ -3909,10 +3909,7 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
 def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> (
     None
 ):
-    """AC-testing.product-gates.2 AC-testing.product-gates.3 AC-testing.product-gates.4
-    AC-testing.product-gates.5 (were AC8.13.28/29/30/31): deterministic
-    upload-to-dashboard gate covers the full fresh-user flow.
-    """
+    """AC-testing.product-gates.2: deterministic source facts stop at economic review."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     contract = read("common/testing/contract.py")
 
@@ -3924,9 +3921,10 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     assert "vision_hard_gate_statement.csv" in gate
     assert "pytest.skip(" in gate
     assert "AC-testing.product-gates.2" in contract
-    assert "AC-testing.product-gates.3" in contract
-    assert "AC-testing.product-gates.4" in contract
-    assert "AC-testing.product-gates.5" in contract
+    assert "AC-testing.product-gates.3" not in contract
+    assert "AC-testing.product-gates.4" not in contract
+    assert "AC-testing.product-gates.5" not in contract
+    assert "AC-testing.product-gates.6" not in contract
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in contract
 
 
@@ -3938,14 +3936,13 @@ def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
     )[1]
 
     assert "f'a[href=\"/statements/{statement_id}\"]'" in test_body
-    assert "statement_card" in test_body
     assert "fixture_path.name" in test_body
     assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
     assert 'page.locator("a").filter(has_text=INSTITUTION_LABEL)' not in test_body
 
 
-def test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval() -> None:
-    """AC8.13.28: staging hard gate waits for Stage 1 review data before approving."""
+def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -> None:
+    """AC-testing.product-gates.2: Stage 1 review must not fake successful posting."""
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     test_body = gate.split(
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
@@ -3954,52 +3951,11 @@ def test_AC8_13_28_vision_hard_gate_waits_for_review_payload_before_approval() -
     assert 'review_path = f"/statements/{statement_id}/review"' in test_body
     assert "f\"a[href='{review_path}']\"" in test_body
     assert "page.expect_response(" in test_body
-    assert 'r.request.method == "GET"' in test_body
-    assert 'f"/api/statements/{statement_id}/review"' in test_body
-    assert "review_resp.status == 200" in test_body
-    assert "(await review_resp.text())[:1_000]" in test_body
     assert 'get_by_role("button", name="Approve", exact=True)' in test_body
-    assert 'get_by_role("link", name=re.compile("Start Review"))' not in test_body
-
-
-def test_AC8_13_30_vision_hard_gate_waits_for_stage2_queue_page_payload() -> None:
-    """AC-testing.product-gates.4: AC8.13.30: staging hard gate waits for Stage 2 queue data before UI assertions."""
-    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
-    test_body = gate.split(
-        "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
-    )[1]
-
-    assert 'stage2_queue_path = "/api/statements/stage2/queue"' in test_body
-    assert 'r.request.method == "GET"' in test_body
-    assert "stage2_page_resp.status == 200" in test_body
-    assert "stage2_page_info" in test_body
-    assert "(await stage2_page_resp.text())[:1_000]" in test_body
-
-
-def test_AC8_13_32_vision_hard_gate_proves_trusted_reporting_totals() -> None:
-    """AC-testing.product-gates.6: AC8.13.32: deterministic vision gate asserts exact trusted accounting/report totals."""
-    gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
-    ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-
-    for token in (
-        "journal_entries_created",
-        "/api/reconciliation/runs",
-        "/api/statements/stage2/queue",
-        "/api/accounts/processing/summary",
-        "/dashboard",
-        "/reports/balance-sheet",
-        "/reports/income-statement",
-        "/api/reports/cash-flow",
-        '"total_income": Decimal("5600.00")',
-        '"total_expenses": Decimal("5600.00")',
-        '"net_income": Decimal("0.00")',
-        '"No pending matches"',
-        '"No pending transfers found."',
-    ):
-        assert token in gate
-    assert 'f"/reports/cash-flow' not in gate
-    assert '"Cash Flow Statement"' not in gate
-    assert "upload-to-dashboard vision hard gate" in ci_cd
+    assert "approve_response.status == 409" in test_body
+    assert '"Economic review required: intent_missing"' in test_body
+    assert 'reviewed_statement["stage1_status"] == "pending_review"' in test_body
+    assert 'journal_body["total"] == 0' in test_body
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:

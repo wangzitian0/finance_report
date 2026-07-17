@@ -27,18 +27,16 @@ outcomes:
       - EPIC-011
       - EPIC-017
     proof_ids:
-      - deterministic-upload-to-dashboard
       - four-asset-as-of-net-worth
     issue: "#444"
 
   - id: monthly-income-spending
     question: "How much did I earn and spend this month?"
-    status: covered
+    status: gap
     owner_epics:
       - EPIC-005
       - EPIC-008
-    proof_ids:
-      - deterministic-upload-to-dashboard
+    issue: "#950"
 
   - id: investment-performance
     question: "How are my investments performing?"
@@ -75,4 +73,3 @@ outcomes:
       - EPIC-018
     proof_ids:
       - dbs-pdf-full-journey
-      - deterministic-upload-to-dashboard

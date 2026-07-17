@@ -28,7 +28,7 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.audit import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -37,6 +37,7 @@ from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.schemas.reconciliation import ReconciliationStatusEnum
+from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
 async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:
@@ -351,8 +352,32 @@ class TestReconciliationEndpoints:
         db.add_all([txn1, txn2])
         await db.commit()
 
-        match1 = create_test_match(db, txn1, status=ReconciliationStatus.PENDING_REVIEW)
-        match2 = create_test_match(db, txn2, status=ReconciliationStatus.PENDING_REVIEW)
+        entry1 = await create_valid_posted_entry(
+            db,
+            test_user.id,
+            amount=txn1.amount,
+            source_type=JournalEntrySourceType.AUTO_PARSED,
+            source_id=txn1.id,
+        )
+        entry2 = await create_valid_posted_entry(
+            db,
+            test_user.id,
+            amount=txn2.amount,
+            source_type=JournalEntrySourceType.AUTO_PARSED,
+            source_id=txn2.id,
+        )
+        match1 = create_test_match(
+            db,
+            txn1,
+            status=ReconciliationStatus.PENDING_REVIEW,
+            journal_entry_ids=[str(entry1.id)],
+        )
+        match2 = create_test_match(
+            db,
+            txn2,
+            status=ReconciliationStatus.PENDING_REVIEW,
+            journal_entry_ids=[str(entry2.id)],
+        )
         db.add_all([match1, match2])
         await db.commit()
 
@@ -420,10 +445,12 @@ class TestReconciliationEndpoints:
         assert "items" in data
         assert "total" in data
 
-    async def test_create_entry_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
-        """AC-reconciliation.review-queue.9: AC4.3.10: Test creating journal entry from unmatched transaction."""
-        # GIVEN unmatched transaction
-        statement = await create_test_statement(db, test_user)
+    async def test_create_entry_from_unmatched_requires_economic_disposition(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.review-queue.9: unmatched facts cannot create a default entry."""
+        account = await create_test_asset_account(db, test_user)
+        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -431,17 +458,12 @@ class TestReconciliationEndpoints:
         db.add(transaction)
         await db.commit()
 
-        # WHEN calling create entry endpoint
+        # WHEN calling create entry without reviewed economic meaning
         response = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
 
-        # THEN returns 200 with created entry
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "id" in data
-        assert "entry_date" in data
-        assert "memo" in data
-        assert "status" in data
-        assert "total_amount" in data
+        # THEN it fails closed rather than posting an Uncategorized fallback.
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Authoritative economic disposition" in response.json()["detail"]
 
     async def test_create_entry_from_unmatched_not_found(self, client: AsyncClient, test_user: User):
         """AC-reconciliation.review-queue.10: AC4.3.11: Test creating entry from non-existent transaction."""
@@ -455,9 +477,10 @@ class TestReconciliationEndpoints:
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Transaction" in response.json()["detail"]
 
-    async def test_create_entry_from_unmatched_is_idempotent(self, client: AsyncClient, db, test_user: User):
-        """AC4.3.10: Repeating create-entry returns existing BANK_STATEMENT entry."""
-        statement = await create_test_statement(db, test_user)
+    async def test_create_entry_from_unmatched_rejection_is_zero_write(self, client: AsyncClient, db, test_user: User):
+        """Repeating a denied create-entry request must not leave a partial journal entry."""
+        account = await create_test_asset_account(db, test_user)
+        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -468,9 +491,8 @@ class TestReconciliationEndpoints:
         first = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
         second = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
 
-        assert first.status_code == status.HTTP_200_OK
-        assert second.status_code == status.HTTP_200_OK
-        assert second.json()["id"] == first.json()["id"]
+        assert first.status_code == status.HTTP_400_BAD_REQUEST
+        assert second.status_code == status.HTTP_400_BAD_REQUEST
 
         entries_result = await db.execute(
             select(JournalEntry)
@@ -479,11 +501,12 @@ class TestReconciliationEndpoints:
             .where(JournalEntry.source_id == transaction.id)
         )
         entries = entries_result.scalars().all()
-        assert len(entries) == 1
+        assert entries == []
 
-    async def test_batch_create_entries_for_all_unmatched(self, client: AsyncClient, db, test_user: User):
-        """AC-reconciliation.review-queue.13: AC4.3.14: Test batch creating entries for all unmatched transactions."""
-        statement = await create_test_statement(db, test_user)
+    async def test_batch_create_entries_requires_economic_disposition(self, client: AsyncClient, db, test_user: User):
+        """AC-reconciliation.review-queue.13: batch creation cannot bypass review."""
+        account = await create_test_asset_account(db, test_user)
+        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
         await db.commit()
 
@@ -494,13 +517,12 @@ class TestReconciliationEndpoints:
 
         response = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
 
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["created_count"] == 2
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Authoritative economic disposition" in response.json()["detail"]
 
         entries_result = await db.execute(select(JournalEntry).where(JournalEntry.source_id.in_([txn1.id, txn2.id])))
         entries = entries_result.scalars().all()
-        assert len(entries) == 2
+        assert entries == []
 
     async def test_batch_create_entries_requires_filter(self, client: AsyncClient):
         """AC-reconciliation.review-queue.14: AC4.3.15: Test batch create returns 400 without all/txn_ids filter."""

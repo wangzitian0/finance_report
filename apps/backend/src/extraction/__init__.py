@@ -139,6 +139,8 @@ from src.extraction.extension.statement_parsing_supervisor import (
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
+    StatementPostingOutcome,
+    StatementPostingStatus,
     auto_create_posted_entries_for_statement,
     resolve_statement_posting_account,
 )
@@ -260,6 +262,8 @@ __all__ = [
     "StatementEvidenceType",
     "StatementExtractionResult",
     "StatementPostingDependencies",
+    "StatementPostingOutcome",
+    "StatementPostingStatus",
     "StatementSourceType",
     "StatementTransaction",
     "StatementEventSource",
