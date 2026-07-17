@@ -31,6 +31,8 @@ const expenseAccount = {
   is_active: true,
 };
 
+const findReadyReviewDraft = () => screen.findByLabelText("Economic intent");
+
 describe("UnmatchedBoard", () => {
   const mockedApiFetch = vi.mocked(apiFetch);
 
@@ -138,7 +140,7 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    const intent = await screen.findByLabelText("Economic intent");
+    const intent = await findReadyReviewDraft();
     fireEvent.change(intent, { target: { value: "transfer" } });
 
     expect(screen.getByText(/must be paired in the reconciliation workbench/i)).toBeInTheDocument();
@@ -149,7 +151,7 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    const intent = await screen.findByLabelText("Economic intent");
+    const intent = await findReadyReviewDraft();
     fireEvent.change(intent, { target: { value: "unknown" } });
 
     expect(screen.getByText(/Unknown economic intent must be resolved/i)).toBeInTheDocument();
@@ -167,7 +169,7 @@ describe("UnmatchedBoard", () => {
     await screen.findByText("Salary");
     fireEvent.click(screen.getByRole("button", { name: /Salary/ }));
 
-    expect(screen.getByLabelText("Economic intent")).toHaveValue("income");
+    expect(await findReadyReviewDraft()).toHaveValue("income");
     expect(await screen.findByRole("option", { name: /Income - Salary/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();
   });
@@ -185,7 +187,7 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    await screen.findByRole("heading", { name: "Unmatched Transactions" });
+    await findReadyReviewDraft();
     fireEvent.click(screen.getByRole("button", { name: "Flag local" }));
     expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hide locally" }));
