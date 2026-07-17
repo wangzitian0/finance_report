@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import type { components } from "@/lib/api-types";
 import type {
   Account,
   AccountListResponse,
@@ -14,23 +15,8 @@ import type {
   UnmatchedTransactionsResponse,
 } from "@/lib/types";
 
-type EconomicIntent =
-  | "income"
-  | "expense"
-  | "expense_refund"
-  | "investment_purchase"
-  | "investment_sale"
-  | "loan_principal"
-  | "loan_interest"
-  | "card_repayment"
-  | "transfer";
-
-type ReviewedDispositionPayload = {
-  intent: EconomicIntent;
-  counter_account_id: string;
-  category?: string;
-  rationale: string;
-};
+type EconomicIntent = components["schemas"]["EconomicIntent"];
+type ReviewedDispositionPayload = components["schemas"]["ReviewedDispositionRequest"];
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
 
@@ -44,6 +30,7 @@ const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = 
   { value: "loan_interest", label: "Loan interest" },
   { value: "card_repayment", label: "Card repayment" },
   { value: "transfer", label: "Internal transfer" },
+  { value: "unknown", label: "Unknown - needs review" },
 ];
 
 export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
@@ -61,11 +48,28 @@ export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][
     case "loan_principal":
     case "card_repayment":
       return ["LIABILITY"];
+    case "unknown":
+      return [];
   }
 }
 
 function needsCategory(intent: EconomicIntent): boolean {
   return ["income", "expense", "expense_refund", "loan_interest"].includes(intent);
+}
+
+export function isReviewedDispositionComplete(
+  intent: EconomicIntent,
+  counterAccountId: string,
+  category: string,
+  rationale: string,
+): boolean {
+  return Boolean(
+    counterAccountId
+    && rationale.trim()
+    && intent !== "transfer"
+    && intent !== "unknown"
+    && (!needsCategory(intent) || category.trim()),
+  );
 }
 
 function loadFlaggedFromStorage(): Set<string> {
@@ -158,7 +162,7 @@ export default function UnmatchedBoard() {
   };
 
   const submitReviewedDisposition = async () => {
-    if (!selected || !counterAccountId || !rationale.trim() || intent === "transfer") return;
+    if (!selected || !isReviewedDispositionComplete(intent, counterAccountId, category, rationale)) return;
     setPosting(true);
     try {
       const payload: ReviewedDispositionPayload = {
@@ -191,9 +195,7 @@ export default function UnmatchedBoard() {
       `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
     );
   }, [selected]);
-  const canSubmit = Boolean(
-    selected && counterAccountId && rationale.trim() && intent !== "transfer" && (!needsCategory(intent) || category.trim()),
-  );
+  const canSubmit = Boolean(selected) && isReviewedDispositionComplete(intent, counterAccountId, category, rationale);
 
   return (
     <div className="p-6">
@@ -267,6 +269,10 @@ export default function UnmatchedBoard() {
               {intent === "transfer" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
                   Internal transfers must be paired in the reconciliation workbench; they cannot be posted as income or expense.
+                </div>
+              ) : intent === "unknown" ? (
+                <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
+                  Unknown economic intent must be resolved from source evidence before it can be posted.
                 </div>
               ) : (
                 <>

@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import UnmatchedBoard, { compatibleAccountTypes } from "@/components/reconciliation/UnmatchedBoard";
+import UnmatchedBoard, {
+  compatibleAccountTypes,
+  isReviewedDispositionComplete,
+} from "@/components/reconciliation/UnmatchedBoard";
 import { apiFetch } from "@/lib/api";
 
 const navigationState = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
@@ -52,6 +55,13 @@ describe("UnmatchedBoard", () => {
     expect(compatibleAccountTypes("income")).toEqual(["INCOME"]);
     expect(compatibleAccountTypes("loan_principal")).toEqual(["LIABILITY"]);
     expect(compatibleAccountTypes("card_repayment")).toEqual(["LIABILITY"]);
+    expect(compatibleAccountTypes("unknown")).toEqual([]);
+  });
+
+  it("AC-reconciliation.reviewed-disposition.2 rejects incomplete or unknown commands before a submit handler can send them", () => {
+    expect(isReviewedDispositionComplete("expense", expenseAccount.id, "", "Reviewed source evidence.")).toBe(false);
+    expect(isReviewedDispositionComplete("unknown", expenseAccount.id, "", "Reviewed source evidence.")).toBe(false);
+    expect(isReviewedDispositionComplete("investment_purchase", "asset-1", "", "Trade confirmation reviewed.")).toBe(true);
   });
 
   it("restores persisted local flags without treating them as an accounting decision", async () => {
@@ -132,6 +142,17 @@ describe("UnmatchedBoard", () => {
     fireEvent.change(screen.getByLabelText("Economic intent"), { target: { value: "transfer" } });
 
     expect(screen.getByText(/must be paired in the reconciliation workbench/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an unknown generated intent out of direct posting", async () => {
+    mockInitialLoad();
+    render(<UnmatchedBoard />);
+
+    await screen.findByRole("heading", { name: "Unmatched Transactions" });
+    fireEvent.change(screen.getByLabelText("Economic intent"), { target: { value: "unknown" } });
+
+    expect(screen.getByText(/Unknown economic intent must be resolved/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
   });
 
