@@ -8,8 +8,10 @@ import { ChevronLeft } from "lucide-react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { ApiError, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
 import type { MoneyValue } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
 
@@ -54,6 +56,40 @@ interface StatementReview {
     balance_validation_result: BalanceValidationResult | null;
     pdf_url: string | null;
     transactions: Transaction[];
+    source_result_digest?: string | null;
+    source_missing_facts?: string[];
+    source_envelope_reviewable?: boolean;
+    reviewed_envelope?: {
+        id: string;
+        source_result_digest: string;
+        account_id: string;
+        currency: string;
+        period_start: string;
+        period_end: string;
+        opening_balance: MoneyValue;
+        closing_balance: MoneyValue;
+        rationale: string;
+        review_trace_record_id: string;
+        created_at: string;
+    } | null;
+}
+
+interface CustodyAccount {
+    id: string;
+    name: string;
+    type: "ASSET";
+    currency: string;
+    is_active: boolean;
+}
+
+interface EnvelopeDraft {
+    accountId: string;
+    currency: string;
+    periodStart: string;
+    periodEnd: string;
+    openingBalance: string;
+    closingBalance: string;
+    rationale: string;
 }
 
 interface ConflictCandidate {
@@ -88,6 +124,15 @@ export default function StatementReviewPage() {
     const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
     const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
     const [conflictsResolved, setConflictsResolved] = useState(false);
+    const [envelopeDraft, setEnvelopeDraft] = useState<EnvelopeDraft>({
+        accountId: "",
+        currency: "",
+        periodStart: "",
+        periodEnd: "",
+        openingBalance: "",
+        closingBalance: "",
+        rationale: "",
+    });
     const queryClient = useQueryClient();
 
     // Queries
@@ -109,6 +154,20 @@ export default function StatementReviewPage() {
     const pendingStatements = pendingStatementsData?.items || [];
     const duplicateCandidates = conflicts?.duplicates || [];
     const transferPairCandidates = conflicts?.transfer_pairs || [];
+    const sourceMissingFacts = data?.source_missing_facts || [];
+    const sourceEnvelopeReviewable = Boolean(data?.source_envelope_reviewable);
+    const requiresEnvelopeConfirmation =
+        sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !data?.reviewed_envelope;
+    const requiresOtherSourceReview =
+        !sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !data?.reviewed_envelope;
+
+    const { data: custodyAccountsData } = useApiQuery<{ items: CustodyAccount[] }>(
+        ["statement-review-custody-accounts", statementId],
+        "/api/accounts?account_type=ASSET&is_active=true",
+        {
+            enabled: requiresEnvelopeConfirmation,
+        },
+    );
 
     // Mutations
     const approveMutation = useMutation({
@@ -138,6 +197,29 @@ export default function StatementReviewPage() {
             }
             showToast(err instanceof Error ? err.message : "Failed to approve", "error");
         }
+    });
+
+    const envelopeMutation = useMutation({
+        mutationFn: () => {
+            if (!data?.source_result_digest) {
+                return Promise.reject(new Error("The source result is unavailable. Re-parse the statement before confirming it."));
+            }
+            return confirmStatementReviewEnvelope(statementId, {
+                source_result_digest: data.source_result_digest,
+                account_id: envelopeDraft.accountId,
+                currency: envelopeDraft.currency,
+                period_start: envelopeDraft.periodStart,
+                period_end: envelopeDraft.periodEnd,
+                opening_balance: envelopeDraft.openingBalance,
+                closing_balance: envelopeDraft.closingBalance,
+                rationale: envelopeDraft.rationale,
+            });
+        },
+        onSuccess: () => {
+            showToast("Source envelope confirmed. You can now continue the review.", "success");
+            queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
+        },
+        onError: (err) => showToast(err instanceof Error ? err.message : "Failed to confirm source facts", "error"),
     });
 
     const rejectMutation = useMutation({
@@ -190,6 +272,19 @@ export default function StatementReviewPage() {
             setConflictDialogOpen(true);
         }
     }, [duplicateCandidates.length, transferPairCandidates.length, conflicts?.resolved]);
+
+    useEffect(() => {
+        if (!data || !requiresEnvelopeConfirmation) return;
+        setEnvelopeDraft({
+            accountId: data.account_id || "",
+            currency: data.currency || "",
+            periodStart: data.period_start || "",
+            periodEnd: data.period_end || "",
+            openingBalance: data.opening_balance?.toString() || "",
+            closingBalance: data.closing_balance?.toString() || "",
+            rationale: "",
+        });
+    }, [data, requiresEnvelopeConfirmation]);
 
     if (loading) {
         return (
@@ -244,7 +339,17 @@ export default function StatementReviewPage() {
     const conflictsAreResolved = conflictsResolved || Boolean(conflicts?.resolved);
     const hasUnresolvedConflicts =
         !conflictsAreResolved && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
-    const approvalBlockedReason = hasUnresolvedConflicts
+    const missingFactLabels: Record<string, string> = {
+        statement_currency: "statement currency",
+        period: "statement period",
+        balances: "opening and closing balances",
+        transaction_currency: "transaction currency",
+    };
+    const approvalBlockedReason = requiresEnvelopeConfirmation
+        ? "Confirm the missing source facts before approving this statement."
+        : requiresOtherSourceReview
+        ? "This source has facts that a cash statement envelope cannot confirm."
+        : hasUnresolvedConflicts
         ? "Resolve duplicate and transfer-pair candidates before approval"
         : null;
 
@@ -306,7 +411,7 @@ export default function StatementReviewPage() {
                     actionLoading={approveMutation.isPending || rejectMutation.isPending}
                     balanceValid={balanceValid}
                     approvalBlockedReason={approvalBlockedReason}
-                    onResolveConflicts={() => setConflictDialogOpen(true)}
+                    onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined}
                     onReparse={() => reparseMutation.mutate()}
                     reparsePending={reparseMutation.isPending}
                 />
@@ -318,6 +423,128 @@ export default function StatementReviewPage() {
                 validationResult={data.balance_validation_result}
                 currency={data.currency || "SGD"}
             />
+
+            {requiresEnvelopeConfirmation && (
+                <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4" aria-labelledby="source-envelope-heading">
+                    <div className="mb-3">
+                        <h2 id="source-envelope-heading" className="font-semibold">Confirm missing source facts</h2>
+                        <p className="mt-1 text-sm text-muted">
+                            This source did not declare {sourceMissingFacts.map((fact) => missingFactLabels[fact] || fact).join(", ")}. Confirm only facts you can support from the original document or export.
+                        </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <label className="text-sm font-medium" htmlFor="custody-account">
+                            Custody account
+                            <select
+                                id="custody-account"
+                                value={envelopeDraft.accountId}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, accountId: event.target.value }))}
+                                className="input mt-1 w-full"
+                            >
+                                <option value="">Select an asset account</option>
+                                {(custodyAccountsData?.items || []).map((account) => (
+                                    <option key={account.id} value={account.id}>
+                                        {account.name} ({account.currency})
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="text-sm font-medium" htmlFor="statement-currency">
+                            Statement currency
+                            <input
+                                id="statement-currency"
+                                value={envelopeDraft.currency}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                                className="input mt-1 w-full"
+                                maxLength={3}
+                                placeholder="SGD"
+                            />
+                        </label>
+                        <label className="text-sm font-medium" htmlFor="period-start">
+                            Period start
+                            <input
+                                id="period-start"
+                                type="date"
+                                value={envelopeDraft.periodStart}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, periodStart: event.target.value }))}
+                                className="input mt-1 w-full"
+                            />
+                        </label>
+                        <label className="text-sm font-medium" htmlFor="period-end">
+                            Period end
+                            <input
+                                id="period-end"
+                                type="date"
+                                value={envelopeDraft.periodEnd}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, periodEnd: event.target.value }))}
+                                className="input mt-1 w-full"
+                            />
+                        </label>
+                        <label className="text-sm font-medium" htmlFor="opening-balance">
+                            Opening balance
+                            <input
+                                id="opening-balance"
+                                inputMode="decimal"
+                                value={envelopeDraft.openingBalance}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, openingBalance: event.target.value }))}
+                                className="input mt-1 w-full"
+                            />
+                        </label>
+                        <label className="text-sm font-medium" htmlFor="closing-balance">
+                            Closing balance
+                            <input
+                                id="closing-balance"
+                                inputMode="decimal"
+                                value={envelopeDraft.closingBalance}
+                                onChange={(event) => setEnvelopeDraft((current) => ({ ...current, closingBalance: event.target.value }))}
+                                className="input mt-1 w-full"
+                            />
+                        </label>
+                    </div>
+                    <label className="mt-3 block text-sm font-medium" htmlFor="envelope-rationale">
+                        Why are these facts confirmed?
+                        <textarea
+                            id="envelope-rationale"
+                            value={envelopeDraft.rationale}
+                            onChange={(event) => setEnvelopeDraft((current) => ({ ...current, rationale: event.target.value }))}
+                            className="input mt-1 min-h-20 w-full"
+                            placeholder="State the page, export header, or other source evidence used."
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => envelopeMutation.mutate()}
+                        disabled={
+                            envelopeMutation.isPending ||
+                            !envelopeDraft.accountId ||
+                            !envelopeDraft.currency ||
+                            !envelopeDraft.periodStart ||
+                            !envelopeDraft.periodEnd ||
+                            !envelopeDraft.openingBalance ||
+                            !envelopeDraft.closingBalance ||
+                            !envelopeDraft.rationale.trim()
+                        }
+                        className="btn-primary mt-3 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {envelopeMutation.isPending ? "Confirming..." : "Confirm source envelope"}
+                    </button>
+                </section>
+            )}
+
+            {requiresOtherSourceReview && (
+                <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4" aria-labelledby="source-review-required-heading">
+                    <h2 id="source-review-required-heading" className="font-semibold">Source review required</h2>
+                    <p className="mt-1 text-sm text-muted">
+                        {sourceMissingFacts.map((fact) => missingFactLabels[fact] || fact).join(", ")} cannot be confirmed by a cash statement envelope. Re-parse the source or use the review path that owns those facts.
+                    </p>
+                </section>
+            )}
+
+            {data.reviewed_envelope && (
+                <p className="mb-4 rounded-md border border-[var(--success)]/30 bg-[var(--success-muted)] p-3 text-sm">
+                    Source envelope confirmed and anchored to the current extraction result.
+                </p>
+            )}
 
             <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">
                 <PdfPreviewPane statementId={statementId} hasDocument={Boolean(data.original_filename)} />

@@ -2257,6 +2257,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/statements/{statement_id}/review/envelope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Statement Review Envelope
+         * @description Append a typed human confirmation over the statement's current source result.
+         */
+        post: operations["confirm_statement_review_envelope_statements__statement_id__review_envelope_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/statements/{statement_id}/review/opening-balance": {
         parameters: {
             query?: never;
@@ -3327,7 +3347,10 @@ export interface components {
         };
         /** BatchApproveRequest */
         BatchApproveRequest: {
-            /** Match Ids */
+            /**
+             * Match Ids
+             * @description Reconciliation match identifiers to approve
+             */
             match_ids?: string[];
             /** Run Id */
             run_id?: string | null;
@@ -3372,7 +3395,10 @@ export interface components {
         };
         /** BatchRejectRequest */
         BatchRejectRequest: {
-            /** Match Ids */
+            /**
+             * Match Ids
+             * @description Reconciliation match identifiers to reject
+             */
             match_ids?: string[];
         };
         /**
@@ -3938,7 +3964,10 @@ export interface components {
         };
         /** EditAndApproveRequest */
         EditAndApproveRequest: {
-            /** Edits */
+            /**
+             * Edits
+             * @description Reviewer transaction corrections to validate before approval
+             */
             edits?: components["schemas"]["TransactionEditRequest"][];
         };
         /**
@@ -6331,15 +6360,113 @@ export interface components {
          * @description Conflict candidates for a statement.
          */
         ReviewConflictsResponse: {
-            /** Duplicates */
+            /**
+             * Duplicates
+             * @description Transaction candidates that may be duplicate entries
+             */
             duplicates?: components["schemas"]["ReviewConflictCandidate"][];
             /**
              * Resolved
              * @default false
              */
             resolved: boolean;
-            /** Transfer Pairs */
+            /**
+             * Transfer Pairs
+             * @description Opposite-direction transaction candidates that may be transfers
+             */
             transfer_pairs?: components["schemas"]["ReviewConflictCandidate"][];
+        };
+        /**
+         * ReviewedStatementEnvelopeRequest
+         * @description Human-confirmed facts for one exact immutable extraction result.
+         */
+        ReviewedStatementEnvelopeRequest: {
+            /**
+             * Account Id
+             * Format: uuid
+             * @description User-owned asset account that holds the statement cash
+             */
+            account_id: string;
+            /**
+             * Closing Balance
+             * @description Confirmed closing balance in statement currency
+             */
+            closing_balance: number | string;
+            /**
+             * Currency
+             * @description ISO-4217 currency confirmed for the statement envelope
+             */
+            currency: string;
+            /**
+             * Opening Balance
+             * @description Confirmed opening balance in statement currency
+             */
+            opening_balance: number | string;
+            /**
+             * Period End
+             * Format: date
+             * @description Confirmed inclusive statement period end
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             * @description Confirmed inclusive statement period start
+             */
+            period_start: string;
+            /**
+             * Rationale
+             * @description Reviewer evidence for confirming facts absent from the source result
+             */
+            rationale: string;
+            /**
+             * Source Result Digest
+             * @description SHA-256 digest of the current immutable extraction result
+             */
+            source_result_digest: string;
+        };
+        /** ReviewedStatementEnvelopeResponse */
+        ReviewedStatementEnvelopeResponse: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Closing Balance */
+            closing_balance: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Opening Balance */
+            opening_balance: string;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /** Rationale */
+            rationale: string;
+            /**
+             * Review Trace Record Id
+             * Format: uuid
+             */
+            review_trace_record_id: string;
+            /** Source Result Digest */
+            source_result_digest: string;
         };
         /**
          * Scene
@@ -6352,7 +6479,10 @@ export interface components {
         Scene: "extraction.ocr" | "extraction.vision" | "extraction.json" | "advisor.chat" | "statement.summary";
         /** SetOpeningBalanceRequest */
         SetOpeningBalanceRequest: {
-            /** Opening Balance */
+            /**
+             * Opening Balance
+             * @description Manual opening balance used for the statement chain
+             */
             opening_balance: number | string;
         };
         SourceDocumentProperties: {
@@ -6516,11 +6646,28 @@ export interface components {
             period_end: string | null;
             /** Period Start */
             period_start: string | null;
+            reviewed_envelope?: components["schemas"]["ReviewedStatementEnvelopeResponse"] | null;
+            /**
+             * Source Envelope Reviewable
+             * @description Whether the current source's missing facts can be confirmed by a cash statement envelope
+             * @default false
+             */
+            source_envelope_reviewable: boolean;
+            /**
+             * Source Missing Facts
+             * @description Current source facts that require a reviewed-envelope confirmation
+             */
+            source_missing_facts?: string[];
+            /** Source Result Digest */
+            source_result_digest?: string | null;
             /** Stage1 Reviewed At */
             stage1_reviewed_at?: string | null;
             stage1_status?: components["schemas"]["Stage1Status"] | null;
             status: components["schemas"]["BankStatementStatus"];
-            /** Transactions */
+            /**
+             * Transactions
+             * @description Transactions extracted for this statement review
+             */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**
              * Updated At
@@ -18399,6 +18546,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Stage1ApprovalResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_statement_review_envelope_statements__statement_id__review_envelope_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewedStatementEnvelopeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewedStatementEnvelopeResponse"];
                 };
             };
             /** @description Bad request */

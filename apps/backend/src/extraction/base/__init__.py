@@ -31,6 +31,10 @@ from src.extraction.base.result import (
     StatementExtractionResult,
     StatementSourceType,
 )
+from src.extraction.base.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeCommand,
+    supports_reviewed_statement_envelope,
+)
 from src.extraction.base.types import (
     DocumentSource,
     ExtractedTransactionRow,
@@ -59,6 +63,7 @@ __all__ = [
     "IntentProposalOrigin",
     "ParseJob",
     "RetryableStatementIngestionError",
+    "ReviewedStatementEnvelopeCommand",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
     "SourceCapabilityStatus",
@@ -71,4 +76,5 @@ __all__ = [
     "StatementIngestionStatus",
     "StatementSourceType",
     "StatementTransaction",
+    "supports_reviewed_statement_envelope",
 ]

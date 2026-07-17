@@ -121,3 +121,11 @@ migrations:
     staging_validation: Deploy PR-A and append/read duplicate and superseding TraceRecords through the SQL repository; verify direct mutation, late-parent insertion, and cyclic-parent writes are rejected while legacy consumers remain unchanged.
     production_preflight: Confirm no pre-existing trace_records or trace_record_parents tables/types/functions exist; this revision has no data rewrite or consumer read cutover.
     rollback_strategy: Before any package consumer cutover, downgrade drops only PR-A shadow records and additive schema. After a consumer cutover, restore the database snapshot and roll back that package PR before downgrading PR-A.
+  0055_reviewed_stmt_envelope:
+    file: 0055_reviewed_statement_envelope.py
+    risk: high
+    issue: "#1912"
+    proof: Adds immutable raw extraction-result and reviewed-envelope records, tenant/statement-scoped referential constraints, and PostgreSQL append-only triggers; covered by AC-extraction.reviewed-envelope.1-.5, the Alembic clean-schema contract, and the router/UI source-confirmation flow.
+    staging_validation: Deploy the pinned PR commit to staging; parse a transaction-only CSV, confirm its envelope, complete economic review and approval, reopen it, reparse it, and verify the previous review cannot approve the new source result while the trace and prior record remain readable.
+    production_preflight: Confirm statement_extraction_results, reviewed_statement_envelopes, and reject_reviewed_statement_envelope_mutation do not already exist; no historical row rewrite occurs and pre-existing StatementSummary rows remain on the legacy no-pointer path until reparsed.
+    rollback_strategy: Before dependent report consumption, roll back the application and downgrade the additive tables, pointer, constraints, and triggers. After reviewed records have been used for approval, restore the database snapshot rather than deleting append-only audit facts.

@@ -179,6 +179,16 @@ CONTRACT = PackageContract(
             module="base/result.py",
         ),
         Unit(
+            name="ReviewedStatementEnvelopeCommand",
+            kind=Kind.VALUE_OBJECT,
+            module="base/reviewed_statement_envelope.py",
+        ),
+        Unit(
+            name="confirm_reviewed_statement_envelope",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/reviewed_statement_envelope.py",
+        ),
+        Unit(
             name="SourceCapability",
             kind=Kind.VALUE_OBJECT,
             module="base/result.py",
@@ -262,6 +272,8 @@ CONTRACT = PackageContract(
         "PositionStatus",
         "ParseJob",
         "RetryableStatementIngestionError",
+        "ReviewedStatementEnvelopeCommand",
+        "ReviewedStatementEnvelopeConflict",
         "DispositionDecision",
         "DispositionMode",
         "DispositionPolicy",
@@ -302,7 +314,9 @@ CONTRACT = PackageContract(
         "build_csv_mapping_prompt",
         "build_statement_ingestion_use_case",
         "compute_confidence_score",
+        "confirm_reviewed_statement_envelope",
         "create_entry_from_txn",
+        "current_reviewed_statement_envelope",
         "detect_balance_chain_break",
         "dual_write_layer2",
         "edit_and_approve",
@@ -310,6 +324,7 @@ CONTRACT = PackageContract(
         "find_in_flight_parse_id",
         "find_uploaded_document_filename_by_hash",
         "get_correction_stats",
+        "get_current_statement_extraction_result",
         "get_known_storage_paths",
         "get_parsing_prompt",
         "get_statement_coverage_rows",
@@ -321,6 +336,7 @@ CONTRACT = PackageContract(
         "parse_brokerage_csv_payload",
         "parse_brokerage_positions",
         "pending_stage1_review_filter",
+        "persist_statement_extraction_result",
         "record_correction",
         "register_fx_rate_provider",
         "register_position_reconciler",
@@ -337,6 +353,7 @@ CONTRACT = PackageContract(
         "set_opening_balance",
         "snapshot_currencies",
         "submit_parse_pipeline",
+        "supports_reviewed_statement_envelope",
         "validate_balance",
         "validate_balance_chain",
         "validation",
@@ -3850,6 +3867,114 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/extraction/test_statement_result_contract.py"
                 "::test_AC_extraction_result_envelope_2_round_trips_complete_facts"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        # ── group reviewed-envelope: human confirmation is a separate,
+        # version-bound fact, never an edit of the immutable extraction result
+        # (#1912, extraction child of #1834 / #950). ──
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.1",
+            statement=(
+                "Absent source currency, period, and balances remain explicit "
+                "source absence until a typed reviewer command confirms one complete "
+                "envelope; parser, router, and account defaults cannot fabricate them."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_1_preserves_source_absence_until_typed_command"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.2",
+            statement=(
+                "A reviewed-envelope command is pinned to the exact current source-result "
+                "digest and a user-owned custody account; stale, cross-user, partial, "
+                "invalid, or balance-inconsistent input changes no source, review, or ledger fact."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_2_rejects_invalid_or_stale_commands_atomically"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.3",
+            statement=(
+                "A successful command appends an auditable review decision with the exact "
+                "immutable source-result trace as parent and exposes a confirmed-envelope "
+                "projection without mutating the source payload."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_3_appends_trace_and_preserves_source_payload"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.4",
+            statement=(
+                "Stage-1 approval consumes complete source facts or a current valid "
+                "reviewed-envelope decision, while server-derived economic disposition "
+                "remains a separate mandatory posting guard."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.5",
+            statement=(
+                "A reparse invalidates a prior confirmation for a different source-result "
+                "digest; identical command retries are idempotent and changed retries "
+                "conflict or append an explicit superseding review fact, never overwrite one."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_5_reparse_and_retry_are_explicit"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.6",
+            statement=(
+                "Stage-1 review exposes required envelope confirmation and validation "
+                "reasons, offers a cash envelope only for source facts it can prove, "
+                "and enables approval only after a current valid reviewed envelope exists."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+                "::AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.7",
+            statement=(
+                "The database rejects direct UPDATE or DELETE of persisted source-result "
+                "and reviewed-envelope facts; their tenant/statement references are "
+                "restrictive rather than cross-domain cascading writes."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_7_database_rejects_fact_mutation"
             ),
             priority="P0",
             status="open",

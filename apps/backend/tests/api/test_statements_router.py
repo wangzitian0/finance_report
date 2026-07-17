@@ -14,7 +14,7 @@ Tests all endpoints in src/routers/statements.py covering:
 from __future__ import annotations
 
 import hashlib
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
@@ -27,7 +27,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
 from src.config import settings
 from src.extraction import (
     DispositionContext,
@@ -38,21 +38,28 @@ from src.extraction import (
     DocumentStatus,
     DocumentType,
     EconomicIntent,
+    ExtractedTransactionFact,
     ExtractedTransactionRow,
     ExtractionError,
     ExtractionMethod,
     IntentProposal,
     IntentProposalOrigin,
     ParseJob,
+    SourceProvenance,
     StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
     StatementTransaction,
     UploadedDocument,
+    extraction_trace_policy_registry,
+    persist_statement_extraction_result,
 )
 from src.extraction.extension import (
     statement_parsing as statement_parsing_mod,
     statement_pipeline,
     statement_validation as statement_validation_mod,
 )
+from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.review_queue import create_entry_from_txn
 from src.extraction.extension.statement_parsing import handle_parse_failure
@@ -79,6 +86,7 @@ from src.schemas.review import (
     BatchRejectRequest,
     ResolveCheckRequest,
     ResolveConflictsRequest,
+    ReviewedStatementEnvelopeRequest,
     Stage1ApprovalRequest,
 )
 from tests.factories import AccountFactory, UserFactory
@@ -1990,6 +1998,126 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     assert statement.validation_error == "Economic review required: intent_missing"
     entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
     assert entries.scalars().all() == []
+
+
+async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition(db, test_user):
+    """AC-extraction.reviewed-envelope.4: source confirmation remains separate from economic authority."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "hash_reviewed_envelope_approval", 80)
+    statement.currency = None
+    statement.period_start = None
+    statement.period_end = None
+    statement.opening_balance = None
+    statement.closing_balance = None
+    db.add(statement)
+    await db.flush()
+
+    source_result = StatementExtractionResult.create(
+        producer_version="csv-parser@1",
+        source_content_digest="a" * 64,
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        institution="DBS",
+        account_last4="1234",
+        period_start=None,
+        period_end=None,
+        balances=(),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="row-1",
+                transaction_date=date(2025, 1, 2),
+                description="Salary",
+                amount=Decimal("10.00"),
+                direction="IN",
+                currency="SGD",
+                balance_after=None,
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.90"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=("source facts require confirmation",),
+        provenance=SourceProvenance(
+            intake_mode="csv",
+            method=ExtractionMethod.DETERMINISTIC,
+            provider="csv-parser",
+            model="csv-parser@1",
+        ),
+        statement_currency=None,
+    )
+    trace_records = build_extraction_trace_records(
+        source_result,
+        user_id=user_id,
+        execution_id=f"test:{statement.id}:result:{source_result.result_id}",
+        occurred_at=datetime.now(UTC),
+    )
+    emitter = TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry()))
+    await emitter.emit_many(trace_records)
+    await persist_statement_extraction_result(
+        db,
+        statement=statement,
+        result=source_result,
+        source_trace_record_id=trace_records[0].record_id,
+    )
+    transaction = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 2),
+        description="Salary",
+        amount=Decimal("10.00"),
+        direction="IN",
+    )
+    account = await create_statement_account(db, user_id, "Reviewed CSV Custody")
+    await db.commit()
+
+    envelope = await statements_router.confirm_statement_review_envelope(
+        statement_id=statement.id,
+        request=ReviewedStatementEnvelopeRequest(
+            source_result_digest=source_result.content_digest,
+            account_id=account.id,
+            currency="SGD",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("110.00"),
+            rationale="The CSV export omits source header and balance facts.",
+        ),
+        db=db,
+        user_id=user_id,
+    )
+    assert envelope.source_result_digest == source_result.content_digest
+
+    # The projection is mutable for reporting, but cannot become a second
+    # unreviewed source of truth after this version-bound confirmation.
+    statement.closing_balance = Decimal("999.00")
+    with pytest.raises(HTTPException, match="diverges from its current reviewed envelope") as exc:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id,
+            db=db,
+            user_id=user_id,
+        )
+    assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
+    await db.refresh(statement)
+
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=user_id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
+    await db.commit()
+    approved = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        db=db,
+        user_id=user_id,
+    )
+    assert approved.status is BankStatementStatus.APPROVED
+    assert approved.journal_entries_created == 1
+    entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
+    assert len(entries.scalars().all()) == 1
 
 
 async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account(db, test_user):

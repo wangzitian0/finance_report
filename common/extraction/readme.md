@@ -130,13 +130,16 @@ flowchart TB
 ### Ingestion Writes (EPIC-011)
 
 Ingestion writes the ODS/DWD tables directly. A successful parse persists one
-`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), and a
-`StatementSummary` envelope (DWD). `parse_document` returns one immutable,
-versioned `StatementExtractionResult`: source digest/type, exact balance facts,
+`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), a
+`StatementExtractionResultRecord` append-only snapshot, and a `StatementSummary`
+effective envelope (DWD). `parse_document` returns one immutable, versioned
+`StatementExtractionResult`: source digest/type, exact balance facts,
 transactions, positions, confidence, warnings/review reasons, and provenance.
-The persisted ODS/DWD rows are its explicit projection; callers that need those
-rows read them by result identity rather than receiving hidden ORM objects in a
-tuple. No pre-persistence metadata is hidden on transient ORM attributes. There
+The summary points only to the current immutable result; reparse advances that
+pointer instead of overwriting prior source evidence. The persisted ODS/DWD rows
+are its explicit projection; callers that need those rows read them by result
+identity rather than receiving hidden ORM objects in a tuple. No pre-persistence
+metadata is hidden on transient ORM attributes. There
 is no legacy `BankStatement` write path and no dual-write flag.
 
 The upload, in-process worker, and durable Prefect worker share one frozen
@@ -171,8 +174,9 @@ rather than runtime signature reflection.
 - Immutable once written (except for appending sources)
 
 **DWD: Statement Envelope (`StatementSummary`)**
-- One envelope per parsed statement, carrying period, opening/closing balances,
-  institution metadata, `file_hash`, and the resolved custody `account_id`.
+- One effective envelope per parsed statement, carrying period, opening/closing
+  balances, institution metadata, `file_hash`, the resolved custody `account_id`,
+  and a pointer to the current immutable source result.
 - Carries review/workflow state: `status`, `stage1_status`,
   `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
 - Multi-currency statements (Wise / IBKR / Futu) additionally carry
@@ -201,6 +205,32 @@ CSV transaction exports that do not contain source statement opening and closing
 balances remain missing those source facts. They cannot be auto-approved or
 silently completed from a zero/net-flow calculation; a reviewer must confirm the
 custody currency, source period, and opening/closing facts before approval.
+
+### Reviewed statement envelope
+
+`ReviewedStatementEnvelope` is an append-only reviewer fact, never a mutation
+of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope`
+accepts one complete, typed command pinned to the current result digest: a
+user-owned asset account, ISO currency, ordered period, Decimal opening/closing
+balances, and a rationale. The service verifies the exact result version,
+account currency, and the source transaction balance chain before it materializes
+the effective `StatementSummary` projection. It appends a review trace whose
+parent is the exact source-result observation.
+
+An identical retry returns the existing review fact. A different command for the
+same source result conflicts; after reparse, the prior review is not current and
+a new command appends an explicit successor. No parser default, transaction-date
+range, JSON sidecar, or in-place source edit can stand in for this decision.
+PostgreSQL triggers reject direct updates and deletes of both fact tables; their
+statement references are restrictive, so deletion requires an explicit owning
+domain purge rather than an implicit cross-domain cascade.
+Only a transaction-ledger result missing solely currency, period, or balances
+is envelope-reviewable. Position or transaction-currency gaps remain blocked
+for the source-specific review path; the API exposes this capability so clients
+never present a cash-envelope form for facts it cannot prove.
+Stage-1 approval rechecks that the mutable projection still equals the current
+complete source result or its current reviewed envelope, so no route or worker
+can promote a diverged projection.
 
 `StatementExtractionResult` separately preserves a scalar statement-declared currency.
 For a transaction ledger, a scalar declaration or an exact source-declared balance
@@ -259,6 +289,7 @@ precondition.
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |
 | GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues |
+| POST | `/api/statements/{id}/review/envelope` | Append a version-pinned reviewer confirmation for missing/corrected envelope facts |
 | POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |

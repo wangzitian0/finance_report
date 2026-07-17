@@ -26,6 +26,7 @@ from src.extraction.extension.disposition_trace import (
     DispositionDecisionTracePolicy,
     DispositionInvariantTracePolicy,
 )
+from src.extraction.extension.reviewed_statement_envelope import reviewed_envelope_trace_policies
 
 
 def _digest(value: str) -> str:
@@ -114,6 +115,7 @@ def extraction_trace_policy_registry() -> TraceDecisionPolicyRegistry:
             ExtractionPromotionTracePolicy(),
             DispositionInvariantTracePolicy(),
             DispositionDecisionTracePolicy(),
+            *reviewed_envelope_trace_policies(),
         )
     )
 

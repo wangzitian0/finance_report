@@ -20,6 +20,8 @@ from src.extraction import (
     BrokeragePositionImportService,
     ParseJob,
     StatementPostingOutcome,
+    ReviewedStatementEnvelopeCommand,
+    ReviewedStatementEnvelopeConflict,
     StatementPostingStatus,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
@@ -27,7 +29,10 @@ from src.extraction import (
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
+    confirm_reviewed_statement_envelope,
+    current_reviewed_statement_envelope,
     edit_and_approve,
+    get_current_statement_extraction_result,
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
@@ -35,6 +40,7 @@ from src.extraction import (
     resolve_statement_transactions,
     set_opening_balance,
     submit_parse_pipeline,
+    supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -65,6 +71,8 @@ from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
     EditAndApproveRequest,
+    ReviewedStatementEnvelopeRequest,
+    ReviewedStatementEnvelopeResponse,
     SetOpeningBalanceRequest,
     Stage1ApprovalRequest,
     Stage1ApprovalResponse,
@@ -751,6 +759,23 @@ async def get_statement_for_review(
             )
 
     validation_result = await validate_balance_chain(db, statement_id)
+    source_result_digest = None
+    source_missing_facts: list[str] = []
+    source_envelope_reviewable = False
+    reviewed_envelope = await current_reviewed_statement_envelope(
+        db,
+        user_id=user_id,
+        statement_id=statement.id,
+    )
+    source_result = await get_current_statement_extraction_result(
+        db,
+        user_id=user_id,
+        statement_id=statement.id,
+    )
+    if source_result is not None:
+        source_result_digest = source_result.content_digest
+        source_missing_facts = list(source_result.missing_required_facts)
+        source_envelope_reviewable = supports_reviewed_statement_envelope(source_result)
 
     response_data = {
         "id": statement.id,
@@ -772,6 +797,26 @@ async def get_statement_for_review(
         "stage1_status": statement.stage1_status,
         "stage1_reviewed_at": statement.stage1_reviewed_at,
         "manual_opening_balance": statement.manual_opening_balance,
+        "source_result_digest": source_result_digest,
+        "source_missing_facts": source_missing_facts,
+        "source_envelope_reviewable": source_envelope_reviewable,
+        "reviewed_envelope": (
+            ReviewedStatementEnvelopeResponse(
+                id=reviewed_envelope.id,
+                source_result_digest=source_result_digest or "",
+                account_id=reviewed_envelope.account_id,
+                currency=reviewed_envelope.currency,
+                period_start=reviewed_envelope.period_start,
+                period_end=reviewed_envelope.period_end,
+                opening_balance=reviewed_envelope.opening_balance,
+                closing_balance=reviewed_envelope.closing_balance,
+                rationale=reviewed_envelope.rationale,
+                review_trace_record_id=reviewed_envelope.review_trace_record_id,
+                created_at=reviewed_envelope.created_at,
+            )
+            if reviewed_envelope is not None
+            else None
+        ),
         "created_at": statement.created_at,
         "updated_at": statement.updated_at,
         "transactions": [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions],
@@ -788,6 +833,48 @@ async def get_statement_for_review(
         ),
     }
     return StatementReviewResponse.model_validate(response_data)
+
+
+@router.post(
+    "/{statement_id}/review/envelope",
+    response_model=ReviewedStatementEnvelopeResponse,
+)
+async def confirm_statement_review_envelope(
+    statement_id: UUID,
+    request: ReviewedStatementEnvelopeRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewedStatementEnvelopeResponse:
+    """Append a typed human confirmation over the statement's current source result."""
+    try:
+        envelope = await confirm_reviewed_statement_envelope(
+            db,
+            user_id=user_id,
+            statement_id=statement_id,
+            command=ReviewedStatementEnvelopeCommand(**request.model_dump()),
+            trace_emitter=compose_statement_posting_dependencies().trace_emitter_factory(db),
+        )
+        await db.commit()
+    except ReviewedStatementEnvelopeConflict as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except (TypeError, ValueError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    return ReviewedStatementEnvelopeResponse(
+        id=envelope.id,
+        source_result_digest=request.source_result_digest,
+        account_id=envelope.account_id,
+        currency=envelope.currency,
+        period_start=envelope.period_start,
+        period_end=envelope.period_end,
+        opening_balance=envelope.opening_balance,
+        closing_balance=envelope.closing_balance,
+        rationale=envelope.rationale,
+        review_trace_record_id=envelope.review_trace_record_id,
+        created_at=envelope.created_at,
+    )
 
 
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
