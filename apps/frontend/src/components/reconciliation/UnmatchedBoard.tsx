@@ -46,7 +46,7 @@ const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = 
   { value: "transfer", label: "Internal transfer" },
 ];
 
-function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
+export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
   switch (intent) {
     case "income":
       return ["INCOME"];

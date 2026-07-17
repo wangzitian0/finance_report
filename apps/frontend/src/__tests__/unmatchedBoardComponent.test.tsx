@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
+import UnmatchedBoard, { compatibleAccountTypes } from "@/components/reconciliation/UnmatchedBoard";
 import { apiFetch } from "@/lib/api";
 
 const navigationState = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
@@ -48,6 +48,48 @@ describe("UnmatchedBoard", () => {
     });
   });
 
+  it("keeps intent-to-account compatibility explicit for income and liability dispositions", () => {
+    expect(compatibleAccountTypes("income")).toEqual(["INCOME"]);
+    expect(compatibleAccountTypes("loan_principal")).toEqual(["LIABILITY"]);
+    expect(compatibleAccountTypes("card_repayment")).toEqual(["LIABILITY"]);
+  });
+
+  it("restores persisted local flags without treating them as an accounting decision", async () => {
+    localStorage.setItem("finance-unmatched-flagged", JSON.stringify([unmatchedItem.id]));
+    mockInitialLoad();
+
+    render(<UnmatchedBoard />);
+
+    expect(await screen.findByText("Flagged locally")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument();
+  });
+
+  it("keeps review available when local flag storage is malformed or unavailable", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("localStorage", {
+      getItem: () => "not-json",
+      setItem: () => {
+        throw new Error("quota exceeded");
+      },
+      removeItem: vi.fn(),
+    });
+    mockInitialLoad();
+
+    render(<UnmatchedBoard />);
+
+    await screen.findByRole("button", { name: "Flag local" });
+    fireEvent.click(screen.getByRole("button", { name: "Flag local" }));
+    expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument();
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows an initial load failure instead of presenting a fabricated empty queue", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("unmatched queue unavailable"));
+    render(<UnmatchedBoard />);
+
+    expect(await screen.findByText("unmatched queue unavailable")).toBeInTheDocument();
+  });
+
   it("AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action", async () => {
     mockInitialLoad();
     mockedApiFetch
@@ -91,6 +133,22 @@ describe("UnmatchedBoard", () => {
 
     expect(screen.getByText(/must be paired in the reconciliation workbench/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
+  });
+
+  it("selects a different transaction and resets its reviewed disposition", async () => {
+    const incomingItem = { ...unmatchedItem, id: "u2", description: "Salary", direction: "IN" as const };
+    const incomeAccount = { ...expenseAccount, id: "income-1", name: "Income - Salary", type: "INCOME" as const };
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem, incomingItem], total: 2 })
+      .mockResolvedValueOnce({ items: [expenseAccount, incomeAccount], total: 2 });
+    render(<UnmatchedBoard />);
+
+    await screen.findByText("Salary");
+    fireEvent.click(screen.getByRole("button", { name: /Salary/ }));
+
+    expect(screen.getByLabelText("Economic intent")).toHaveValue("income");
+    expect(await screen.findByRole("option", { name: /Income - Salary/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();
   });
 
   it("AC22.11.3 returns attention-origin unmatched review to the attention queue", async () => {
