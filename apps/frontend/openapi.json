@@ -1950,6 +1950,7 @@
             "type": "boolean"
           },
           "txn_ids": {
+            "description": "Transaction IDs to create entries for when all is false.",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -8047,6 +8048,7 @@
             "type": "string"
           },
           "entries": {
+            "description": "Posted journal entries currently linked to this reconciliation match.",
             "items": {
               "$ref": "#/components/schemas/JournalEntrySummary"
             },
@@ -8071,7 +8073,14 @@
           },
           "score_breakdown": {
             "additionalProperties": {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
             },
             "title": "Score Breakdown",
             "type": "object"
@@ -8139,6 +8148,7 @@
                 "type": "null"
               }
             ],
+            "description": "Maximum number of candidate matches to evaluate.",
             "title": "Limit"
           },
           "statement_id": {

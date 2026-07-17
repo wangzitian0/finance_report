@@ -129,7 +129,7 @@ async def test_build_match_response_includes_entries(db: AsyncSession, test_user
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
         match_score=85,
-        score_breakdown={"amount": 90.0},
+        score_breakdown={"amount": 90.0, "group_total": "100.00"},
         status=ReconciliationStatus.PENDING_REVIEW,
     )
     db.add(match)
@@ -151,6 +151,7 @@ async def test_build_match_response_includes_entries(db: AsyncSession, test_user
     assert response.entries[0].entry_date == entry.entry_date
     assert response.entries[0].memo == "Test entry"
     assert response.entries[0].id == entry.id
+    assert response.score_breakdown == {"amount": 90.0, "group_total": "100.00"}
 
 
 async def test_run_reconciliation_statement_not_found(db: AsyncSession, test_user) -> None:

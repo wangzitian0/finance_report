@@ -62,9 +62,19 @@ def upgrade() -> None:
         "statement_extraction_results",
         ["user_id", "statement_id", "created_at"],
     )
+    op.create_index(
+        "ix_statement_extraction_results_user_id",
+        "statement_extraction_results",
+        ["user_id"],
+    )
     op.add_column(
         "statement_summaries",
-        sa.Column("current_extraction_result_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column(
+            "current_extraction_result_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=True,
+            comment="Current immutable StatementExtractionResultRecord",
+        ),
     )
     op.create_foreign_key(
         "fk_statement_summaries_current_result",
@@ -137,6 +147,11 @@ def upgrade() -> None:
         "reviewed_statement_envelopes",
         ["user_id", "statement_id", "source_result_id", "created_at"],
     )
+    op.create_index(
+        "ix_reviewed_statement_envelopes_user_id",
+        "reviewed_statement_envelopes",
+        ["user_id"],
+    )
     op.execute(
         """
         CREATE FUNCTION reject_reviewed_statement_envelope_mutation() RETURNS trigger AS $$
@@ -167,6 +182,7 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER statement_extraction_results_append_only ON statement_extraction_results")
     op.execute("DROP FUNCTION reject_reviewed_statement_envelope_mutation")
     op.drop_index("idx_reviewed_statement_envelopes_current", table_name="reviewed_statement_envelopes")
+    op.drop_index("ix_reviewed_statement_envelopes_user_id", table_name="reviewed_statement_envelopes")
     op.drop_table("reviewed_statement_envelopes")
     op.drop_constraint(
         "fk_statement_summaries_current_result",
@@ -175,5 +191,6 @@ def downgrade() -> None:
     )
     op.drop_column("statement_summaries", "current_extraction_result_id")
     op.drop_index("idx_statement_extraction_results_statement_created", table_name="statement_extraction_results")
+    op.drop_index("ix_statement_extraction_results_user_id", table_name="statement_extraction_results")
     op.drop_table("statement_extraction_results")
     op.drop_constraint("uq_statement_summaries_user_id_id", "statement_summaries", type_="unique")

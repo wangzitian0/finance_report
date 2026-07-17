@@ -472,7 +472,7 @@ export interface ReconciliationMatchResponse {
   bank_txn_id: string;
   journal_entry_ids: string[];
   match_score: number;
-  score_breakdown: Record<string, number>;
+  score_breakdown: Record<string, number | string>;
   status:
     | "auto_accepted"
     | "pending_review"

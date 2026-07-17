@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -106,7 +105,7 @@ def _build_match_response(
         atomic_txn_id=match.atomic_txn_id,
         journal_entry_ids=match.journal_entry_ids,
         match_score=match.match_score,
-        score_breakdown=cast(dict[str, float], match.score_breakdown),
+        score_breakdown=match.score_breakdown,
         status=ReconciliationStatusEnum(match.status.value),
         version=match.version,
         superseded_by_id=match.superseded_by_id,

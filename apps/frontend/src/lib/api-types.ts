@@ -3382,7 +3382,10 @@ export interface components {
              * @default false
              */
             all: boolean;
-            /** Txn Ids */
+            /**
+             * Txn Ids
+             * @description Transaction IDs to create entries for when all is false.
+             */
             txn_ids?: string[];
         };
         /**
@@ -6070,7 +6073,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** Entries */
+            /**
+             * Entries
+             * @description Posted journal entries currently linked to this reconciliation match.
+             */
             entries?: components["schemas"]["JournalEntrySummary"][];
             /**
              * Id
@@ -6083,7 +6089,7 @@ export interface components {
             match_score: number;
             /** Score Breakdown */
             score_breakdown: {
-                [key: string]: number;
+                [key: string]: number | string;
             };
             status: components["schemas"]["ReconciliationStatusEnum"];
             /** Superseded By Id */
@@ -6102,7 +6108,10 @@ export interface components {
          * @description Request body to run reconciliation.
          */
         ReconciliationRunRequest: {
-            /** Limit */
+            /**
+             * Limit
+             * @description Maximum number of candidate matches to evaluate.
+             */
             limit?: number | null;
             /** Statement Id */
             statement_id?: string | null;
