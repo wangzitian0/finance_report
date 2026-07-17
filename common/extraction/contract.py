@@ -214,6 +214,16 @@ CONTRACT = PackageContract(
             module="base/disposition.py",
         ),
         Unit(
+            name="build_disposition_trace_records",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/disposition_trace.py",
+        ),
+        Unit(
+            name="emit_disposition_trace_records",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/disposition_trace.py",
+        ),
+        Unit(
             name="StatementIngestionOutcome",
             kind=Kind.VALUE_OBJECT,
             module="base/types.py",
@@ -314,6 +324,7 @@ CONTRACT = PackageContract(
         "auto_create_posted_entries_for_statement",
         "backfill_classifications",
         "build_csv_mapping_prompt",
+        "build_disposition_trace_records",
         "build_statement_ingestion_use_case",
         "compute_confidence_score",
         "confirm_reviewed_statement_envelope",
@@ -321,6 +332,7 @@ CONTRACT = PackageContract(
         "current_reviewed_statement_envelope",
         "detect_balance_chain_break",
         "dual_write_layer2",
+        "emit_disposition_trace_records",
         "edit_and_approve",
         "extraction_trace_policy_registry",
         "find_in_flight_parse_id",
