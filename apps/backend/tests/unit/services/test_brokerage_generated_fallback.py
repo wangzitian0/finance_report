@@ -135,7 +135,7 @@ async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_t
     assert result.positions[0].quantity == Decimal("1")
     assert result.positions[0].market_value == Decimal("1250.50")
     assert result.positions[0].currency == "SGD"
-    assert result.positions[0].asset_type == "money_market"
+    assert result.positions[0].asset_type == "mutual_fund"
 
 
 def test_pdf_text_fallback_closes_pymupdf_document(monkeypatch):
