@@ -90,7 +90,10 @@ async def accept_match(
         if existing_entry:
             match.journal_entry_ids = [str(existing_entry.id)]
         else:
-            raise EntryCreationError("A pre-existing journal entry is required before accepting a reconciliation match")
+            raise EntryCreationError(
+                "Authoritative economic disposition is required before accepting a reconciliation match; "
+                "a pre-existing journal entry must exist, so post the source transaction first"
+            )
 
     # Validate that journal entry amounts match transaction amount
     if match.journal_entry_ids and txn:

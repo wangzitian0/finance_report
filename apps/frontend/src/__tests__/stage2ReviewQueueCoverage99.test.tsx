@@ -25,7 +25,7 @@ const originalMatchMedia = window.matchMedia
 
 const pendingMatch = {
   id: "m1",
-  match_score: "88",
+  match_score: 88,
   confidence_tier: "HIGH",
   status: "pending_review",
   created_at: "2026-01-01T00:00:00Z",
@@ -36,7 +36,7 @@ const pendingMatch = {
 
 const lowMatch = {
   id: "m2",
-  match_score: "55",
+  match_score: 55,
   confidence_tier: "HIGH",
   status: "pending_review",
   created_at: "2026-01-02T00:00:00Z",

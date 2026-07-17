@@ -3313,7 +3313,10 @@ export interface components {
         };
         /** BatchApproveRequest */
         BatchApproveRequest: {
-            /** Match Ids */
+            /**
+             * Match Ids
+             * @description Stage-2 reconciliation match identifiers to approve
+             */
             match_ids?: string[];
             /** Run Id */
             run_id?: string | null;
@@ -3337,7 +3340,10 @@ export interface components {
         };
         /** BatchRejectRequest */
         BatchRejectRequest: {
-            /** Match Ids */
+            /**
+             * Match Ids
+             * @description Stage-2 reconciliation match identifiers to reject
+             */
             match_ids?: string[];
         };
         /**
@@ -3908,7 +3914,10 @@ export interface components {
         EconomicIntent: "income" | "expense" | "expense_refund" | "transfer" | "investment_purchase" | "investment_sale" | "loan_principal" | "loan_interest" | "card_repayment" | "unknown";
         /** EditAndApproveRequest */
         EditAndApproveRequest: {
-            /** Edits */
+            /**
+             * Edits
+             * @description Reviewer corrections applied before approving the statement
+             */
             edits?: components["schemas"]["TransactionEditRequest"][];
         };
         /**
@@ -6307,14 +6316,20 @@ export interface components {
          * @description Conflict candidates for a statement.
          */
         ReviewConflictsResponse: {
-            /** Duplicates */
+            /**
+             * Duplicates
+             * @description Transactions that may duplicate another statement transaction
+             */
             duplicates?: components["schemas"]["ReviewConflictCandidate"][];
             /**
              * Resolved
              * @default false
              */
             resolved: boolean;
-            /** Transfer Pairs */
+            /**
+             * Transfer Pairs
+             * @description Opposite-direction transactions that may form a transfer pair
+             */
             transfer_pairs?: components["schemas"]["ReviewConflictCandidate"][];
         };
         /**
@@ -6350,7 +6365,10 @@ export interface components {
         Scene: "extraction.ocr" | "extraction.vision" | "extraction.json" | "advisor.chat" | "statement.summary";
         /** SetOpeningBalanceRequest */
         SetOpeningBalanceRequest: {
-            /** Opening Balance */
+            /**
+             * Opening Balance
+             * @description Reviewer-confirmed non-negative opening balance in the statement currency
+             */
             opening_balance: number | string;
         };
         SourceDocumentProperties: {
@@ -6450,7 +6468,7 @@ export interface components {
              */
             id: string;
             /** Match Score */
-            match_score: string;
+            match_score: number;
             /** Status */
             status: string;
             /** Txn Date */
@@ -6518,7 +6536,10 @@ export interface components {
             stage1_reviewed_at?: string | null;
             stage1_status?: components["schemas"]["Stage1Status"] | null;
             status: components["schemas"]["BankStatementStatus"];
-            /** Transactions */
+            /**
+             * Transactions
+             * @description Transactions extracted from this statement for reviewer inspection
+             */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**
              * Updated At

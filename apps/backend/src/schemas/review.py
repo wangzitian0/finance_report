@@ -54,7 +54,10 @@ class StatementReviewResponse(BaseModel):
     manual_opening_balance: Decimal | None = None
     created_at: datetime
     updated_at: datetime
-    transactions: list[AtomicTransactionResponse] = Field(default_factory=list)
+    transactions: list[AtomicTransactionResponse] = Field(
+        default_factory=list,
+        description="Transactions extracted from this statement for reviewer inspection",
+    )
     pdf_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -70,7 +73,10 @@ class TransactionEditRequest(BaseModel):
 
 
 class EditAndApproveRequest(BaseModel):
-    edits: list[TransactionEditRequest] = Field(default_factory=list)
+    edits: list[TransactionEditRequest] = Field(
+        default_factory=list,
+        description="Reviewer corrections applied before approving the statement",
+    )
 
 
 class Stage1ApprovalRequest(BaseModel):
@@ -78,7 +84,11 @@ class Stage1ApprovalRequest(BaseModel):
 
 
 class SetOpeningBalanceRequest(BaseModel):
-    opening_balance: Decimal = Field(..., ge=Decimal("0"))
+    opening_balance: Decimal = Field(
+        ...,
+        ge=Decimal("0"),
+        description="Reviewer-confirmed non-negative opening balance in the statement currency",
+    )
 
 
 class StatementReviewListResponse(BaseModel):
@@ -144,12 +154,18 @@ class ResolveCurrencyResponse(BaseModel):
 
 
 class BatchApproveRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Stage-2 reconciliation match identifiers to approve",
+    )
     run_id: str | None = None
 
 
 class BatchRejectRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Stage-2 reconciliation match identifiers to reject",
+    )
 
 
 class Stage2PendingMatch(BaseModel):
@@ -161,7 +177,7 @@ class Stage2PendingMatch(BaseModel):
     """
 
     id: UUID
-    match_score: Decimal
+    match_score: int
     status: str
     created_at: datetime | None = None
     description: str | None = None
@@ -209,8 +225,14 @@ class ReviewConflictCandidate(BaseModel):
 class ReviewConflictsResponse(BaseModel):
     """Conflict candidates for a statement."""
 
-    duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
-    transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)
+    duplicates: list[ReviewConflictCandidate] = Field(
+        default_factory=list,
+        description="Transactions that may duplicate another statement transaction",
+    )
+    transfer_pairs: list[ReviewConflictCandidate] = Field(
+        default_factory=list,
+        description="Opposite-direction transactions that may form a transfer pair",
+    )
     # #962: whether the reviewer has already resolved these candidates. Lets the UI
     # derive the approval-blocked state from the persisted marker instead of
     # ephemeral client state, so a refresh (or another tab/session) stays correct.

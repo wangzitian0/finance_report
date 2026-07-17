@@ -1894,6 +1894,7 @@
       "BatchApproveRequest": {
         "properties": {
           "match_ids": {
+            "description": "Stage-2 reconciliation match identifiers to approve",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -1943,6 +1944,7 @@
       "BatchRejectRequest": {
         "properties": {
           "match_ids": {
+            "description": "Stage-2 reconciliation match identifiers to reject",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -3194,6 +3196,7 @@
       "EditAndApproveRequest": {
         "properties": {
           "edits": {
+            "description": "Reviewer corrections applied before approving the statement",
             "items": {
               "$ref": "#/components/schemas/TransactionEditRequest"
             },
@@ -8684,6 +8687,7 @@
         "description": "Conflict candidates for a statement.",
         "properties": {
           "duplicates": {
+            "description": "Transactions that may duplicate another statement transaction",
             "items": {
               "$ref": "#/components/schemas/ReviewConflictCandidate"
             },
@@ -8696,6 +8700,7 @@
             "type": "boolean"
           },
           "transfer_pairs": {
+            "description": "Opposite-direction transactions that may form a transfer pair",
             "items": {
               "$ref": "#/components/schemas/ReviewConflictCandidate"
             },
@@ -8772,6 +8777,7 @@
                 "type": "string"
               }
             ],
+            "description": "Reviewer-confirmed non-negative opening balance in the statement currency",
             "title": "Opening Balance"
           }
         },
@@ -9043,9 +9049,8 @@
             "type": "string"
           },
           "match_score": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Match Score",
-            "type": "string"
+            "type": "integer"
           },
           "status": {
             "title": "Status",
@@ -9307,6 +9312,7 @@
             "$ref": "#/components/schemas/BankStatementStatus"
           },
           "transactions": {
+            "description": "Transactions extracted from this statement for reviewer inspection",
             "items": {
               "$ref": "#/components/schemas/AtomicTransactionResponse"
             },
