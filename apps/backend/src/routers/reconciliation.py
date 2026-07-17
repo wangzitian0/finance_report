@@ -12,10 +12,9 @@ from sqlalchemy.orm import selectinload
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.extraction import create_entry_from_txn
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Direction, JournalEntry, ValidationError
+from src.ledger import Direction, JournalEntry, JournalEntryStatus, ValidationError
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
@@ -23,6 +22,8 @@ from src.reconciliation import (
     ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
+    ReviewedDispositionCommand,
+    ReviewedDispositionError,
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,
     detect_anomalies,
@@ -30,13 +31,12 @@ from src.reconciliation import (
     get_pending_items,
     get_reconciliation_stats,
     reject_match as reject_match_service,
+    submit_reviewed_disposition,
 )
 from src.schemas.reconciliation import (
     AnomalyResponse,
     BankTransactionSummary,
     BatchAcceptRequest,
-    BatchCreateEntriesRequest,
-    BatchCreateEntriesResponse,
     JournalEntrySummary,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
@@ -44,22 +44,31 @@ from src.schemas.reconciliation import (
     ReconciliationRunResponse,
     ReconciliationStatsResponse,
     ReconciliationStatusEnum,
+    ReviewedDispositionRequest,
     UnmatchedTransactionsResponse,
 )
 
 router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
-MAX_BATCH_CREATE_ALL = 200
 
 
 def _unmatched_atomic_txn_query():
-    """Select Layer-2 atomic transactions that have no active reconciliation match.
+    """Select Layer-2 atomic transactions that still require economic review.
 
-    "Unmatched" mirrors the matching engine: an atomic transaction is unmatched
-    when it is absent from ``reconciliation_matches`` (via ``atomic_txn_id``).
+    A source entry created from a reviewed disposition is already resolved; it
+    must not keep reappearing in the unmatched queue merely because it has no
+    separate reconciliation-match row.
     """
     matched_subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.is_not(None))
-    return select(AtomicTransaction).where(AtomicTransaction.id.notin_(matched_subquery))
+    posted_source_subquery = (
+        select(JournalEntry.source_id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
+    return select(AtomicTransaction).where(
+        AtomicTransaction.id.notin_(matched_subquery),
+        AtomicTransaction.id.notin_(posted_source_subquery),
+    )
 
 
 async def _statement_atomic_txn_ids(db: AsyncSession, statement: StatementSummary) -> list[UUID]:
@@ -345,12 +354,10 @@ async def accept_match(
     user_id: CurrentUserId,
 ) -> ReconciliationMatchResponse:
     try:
-        base_currency = await get_effective_base_currency(db)
         match = await accept_match_service(
             db,
             match_id,
             user_id=user_id,
-            base_currency=base_currency,
         )
         await db.commit()
     except MatchNotFoundError as exc:
@@ -405,13 +412,11 @@ async def batch_accept(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReconciliationMatchListResponse:
-    base_currency = await get_effective_base_currency(db)
     try:
         matches = await batch_accept_service(
             db,
             payload.match_ids,
             user_id=user_id,
-            base_currency=base_currency,
         )
         await db.commit()
     except ReconciliationError as exc:
@@ -478,7 +483,7 @@ async def list_unmatched(
         .limit(limit)
         .offset(offset)
     )
-    items = [BankTransactionSummary.model_validate(transaction) for transaction in result.scalars().all()]
+    items = [BankTransactionSummary.model_validate(item) for item in result.scalars().all()]
 
     total_result = await db.execute(
         select(func.count()).select_from(
@@ -490,114 +495,46 @@ async def list_unmatched(
     return UnmatchedTransactionsResponse(items=items, total=total)
 
 
-@router.post("/unmatched/{txn_id}/create-entry", response_model=JournalEntrySummary)
-async def create_entry(
+@router.post("/unmatched/{txn_id}/reviewed-disposition", response_model=JournalEntrySummary)
+async def submit_unmatched_reviewed_disposition(
     txn_id: UUID,
+    payload: ReviewedDispositionRequest,
     *,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> JournalEntrySummary:
-    # Lock txn row first to serialize create-entry requests for the same source txn.
-    result = await db.execute(
-        select(AtomicTransaction)
-        .where(AtomicTransaction.id == txn_id)
-        .where(AtomicTransaction.user_id == user_id)
-        .with_for_update(of=AtomicTransaction)
-    )
-    txn = result.scalar_one_or_none()
-    if not txn:
-        raise_not_found("Transaction")
-
-    existing_entry_result = await db.execute(
-        select(JournalEntry)
-        .options(selectinload(JournalEntry.lines))
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id == txn.id)
-        .limit(1)
-    )
-    existing_entry = existing_entry_result.scalar_one_or_none()
-    if existing_entry:
-        return _build_entry_summary(existing_entry)
-
-    base_currency = await get_effective_base_currency(db)
+    """Post one unmatched source transaction from explicit reviewed economic meaning."""
     try:
-        entry = await create_entry_from_txn(
+        entry = await submit_reviewed_disposition(
             db,
-            txn,
+            transaction_id=txn_id,
             user_id=user_id,
-            base_currency=base_currency,
+            command=ReviewedDispositionCommand(
+                intent=payload.intent,
+                counter_account_id=payload.counter_account_id,
+                category=payload.category,
+                rationale=payload.rationale,
+            ),
         )
-    except ValueError as exc:
+        entry_with_lines = (
+            await db.execute(
+                select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.id == entry.id)
+            )
+        ).scalar_one()
+        response = _build_entry_summary(entry_with_lines)
+        await db.commit()
+    except LookupError as exc:
+        await db.rollback()
+        raise_not_found("Transaction", cause=exc)
+    except ReviewedDispositionError as exc:
         await db.rollback()
         raise_bad_request(str(exc), cause=exc)
-    await db.commit()
-    return _build_entry_summary(entry)
-
-
-@router.post("/unmatched/batch-create", response_model=BatchCreateEntriesResponse)
-async def batch_create_entries(
-    payload: BatchCreateEntriesRequest,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> BatchCreateEntriesResponse:
-    if not payload.all and not payload.txn_ids:
-        raise_bad_request("Provide txn_ids or set all=True")
-
-    if payload.all:
-        total_unmatched_result = await db.execute(
-            select(func.count()).select_from(
-                _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id).subquery()
-            )
-        )
-        total_unmatched = total_unmatched_result.scalar_one()
-        if total_unmatched > MAX_BATCH_CREATE_ALL:
-            raise_bad_request(
-                f"Too many unmatched transactions for all=True "
-                f"(max {MAX_BATCH_CREATE_ALL}). Use txn_ids for smaller batches."
-            )
-
-    query = _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id)
-    if not payload.all:
-        query = query.where(AtomicTransaction.id.in_(payload.txn_ids))
-
-    result = await db.execute(
-        query.order_by(AtomicTransaction.txn_date.desc()).with_for_update(of=AtomicTransaction, skip_locked=True)
-    )
-    txns = result.scalars().all()
-
-    if not txns:
-        return BatchCreateEntriesResponse(created_count=0)
-
-    txn_ids = [txn.id for txn in txns]
-    existing_entries_result = await db.execute(
-        select(JournalEntry.source_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.source_id.in_(txn_ids))
-    )
-    existing_source_ids = set(existing_entries_result.scalars().all())
-
-    created_count = 0
-    base_currency = await get_effective_base_currency(db)
-    try:
-        for txn in txns:
-            if txn.id in existing_source_ids:
-                continue
-            await create_entry_from_txn(
-                db,
-                txn,
-                user_id=user_id,
-                base_currency=base_currency,
-            )
-            created_count += 1
-    except ValueError as exc:
+    except Exception:
+        # The reviewed rule, classification, and source entry form one decision.
+        # Do not leave its semantic basis behind if downstream posting fails.
         await db.rollback()
-        raise_bad_request(str(exc), cause=exc)
-
-    await db.commit()
-    return BatchCreateEntriesResponse(created_count=created_count)
+        raise
+    return response
 
 
 @router.get("/transactions/{txn_id}/anomalies", response_model=list[AnomalyResponse])

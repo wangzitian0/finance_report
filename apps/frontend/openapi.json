@@ -1941,41 +1941,6 @@
         "title": "BatchApproveResponse",
         "type": "object"
       },
-      "BatchCreateEntriesRequest": {
-        "description": "Request body for batch creating journal entries from unmatched transactions.",
-        "properties": {
-          "all": {
-            "default": false,
-            "title": "All",
-            "type": "boolean"
-          },
-          "txn_ids": {
-            "description": "Transaction IDs to create entries for when all is false.",
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Txn Ids",
-            "type": "array"
-          }
-        },
-        "title": "BatchCreateEntriesRequest",
-        "type": "object"
-      },
-      "BatchCreateEntriesResponse": {
-        "description": "Response for batch create entries.",
-        "properties": {
-          "created_count": {
-            "title": "Created Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "created_count"
-        ],
-        "title": "BatchCreateEntriesResponse",
-        "type": "object"
-      },
       "BatchRejectRequest": {
         "properties": {
           "match_ids": {
@@ -3211,6 +3176,22 @@
         ],
         "title": "DividendEventResponse",
         "type": "object"
+      },
+      "EconomicIntent": {
+        "enum": [
+          "income",
+          "expense",
+          "expense_refund",
+          "transfer",
+          "investment_purchase",
+          "investment_sale",
+          "loan_principal",
+          "loan_interest",
+          "card_repayment",
+          "unknown"
+        ],
+        "title": "EconomicIntent",
+        "type": "string"
       },
       "EditAndApproveRequest": {
         "properties": {
@@ -8048,7 +8029,7 @@
             "type": "string"
           },
           "entries": {
-            "description": "Posted journal entries currently linked to this reconciliation match.",
+            "description": "Journal entries proposed or linked for this reconciliation match.",
             "items": {
               "$ref": "#/components/schemas/JournalEntrySummary"
             },
@@ -8148,7 +8129,7 @@
                 "type": "null"
               }
             ],
-            "description": "Maximum number of candidate matches to evaluate.",
+            "description": "Maximum number of source transactions to consider.",
             "title": "Limit"
           },
           "statement_id": {
@@ -8728,6 +8709,47 @@
           }
         },
         "title": "ReviewConflictsResponse",
+        "type": "object"
+      },
+      "ReviewedDispositionRequest": {
+        "description": "Explicit human-reviewed economic meaning for one unmatched source transaction.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required accounting category for P&L intents.",
+            "title": "Category"
+          },
+          "counter_account_id": {
+            "format": "uuid",
+            "title": "Counter Account Id",
+            "type": "string"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/EconomicIntent"
+          },
+          "rationale": {
+            "description": "Reviewer rationale tied to the source evidence.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "counter_account_id",
+          "rationale"
+        ],
+        "title": "ReviewedDispositionRequest",
         "type": "object"
       },
       "ReviewedStatementEnvelopeRequest": {
@@ -20518,125 +20540,10 @@
         ]
       }
     },
-    "/reconciliation/unmatched/batch-create": {
+    "/reconciliation/unmatched/{txn_id}/reviewed-disposition": {
       "post": {
-        "operationId": "batch_create_entries_reconciliation_unmatched_batch_create_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchCreateEntriesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchCreateEntriesResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Batch Create Entries",
-        "tags": [
-          "reconciliation"
-        ]
-      }
-    },
-    "/reconciliation/unmatched/{txn_id}/create-entry": {
-      "post": {
-        "operationId": "create_entry_reconciliation_unmatched__txn_id__create_entry_post",
+        "description": "Post one unmatched source transaction from explicit reviewed economic meaning.",
+        "operationId": "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post",
         "parameters": [
           {
             "in": "path",
@@ -20649,6 +20556,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewedDispositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -20746,7 +20663,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Create Entry",
+        "summary": "Submit Unmatched Reviewed Disposition",
         "tags": [
           "reconciliation"
         ]

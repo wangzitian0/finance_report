@@ -15,7 +15,14 @@ from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
-from src.reconciliation import AmountMismatchError, EntryCreationError, ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import (
+    AmountMismatchError,
+    EntryCreationError,
+    ReconciliationMatch,
+    ReconciliationStatus,
+    ReviewedDispositionCommand,
+    submit_reviewed_disposition,
+)
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import (
     BatchAcceptRequest,
@@ -23,8 +30,6 @@ from src.schemas.reconciliation import (
     ReconciliationStatusEnum,
 )
 from tests.factories import UserFactory
-from tests.ledger._ledger_helpers import create_valid_posted_entry
-from tests.statement_ingestion import reviewed_posting_inputs
 
 
 async def _create_statement(db: AsyncSession, user_id, account_id=None) -> StatementSummary:
@@ -87,6 +92,46 @@ async def _create_transaction(
     db.add(txn)
     await db.flush()
     return txn
+
+
+async def _create_match_entry(
+    db: AsyncSession,
+    *,
+    user_id,
+    bank_account: Account,
+    counter_account: Account,
+    amount: Decimal,
+) -> JournalEntry:
+    """Create a pre-existing entry for a reconciliation-only acceptance test."""
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date.today(),
+        memo="Reviewed candidate",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=counter_account.id,
+                direction=Direction.DEBIT,
+                amount=amount,
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank_account.id,
+                direction=Direction.CREDIT,
+                amount=amount,
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.flush()
+    return entry
 
 
 async def test_build_match_response_includes_entries(db: AsyncSession, test_user) -> None:
@@ -414,23 +459,38 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     )
     db.add(account)
     await db.flush()
+    expense = Account(
+        user_id=test_user.id,
+        name="Expense - Reconciliation Candidate",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+    )
+    db.add(expense)
+    await db.flush()
     statement = await _create_statement(db, test_user.id, account_id=account.id)
     txn_accept = await _create_transaction(db, statement, amount=Decimal("7.00"), status=None)
     txn_reject = await _create_transaction(db, statement, amount=Decimal("8.00"), status=None)
     txn_batch = await _create_transaction(db, statement, amount=Decimal("9.00"), status=None)
-    entry_accept = await create_valid_posted_entry(
+    entry_accept = await _create_match_entry(
         db,
-        test_user.id,
+        user_id=test_user.id,
+        bank_account=account,
+        counter_account=expense,
         amount=txn_accept.amount,
-        source_type=JournalEntrySourceType.AUTO_PARSED,
-        source_id=txn_accept.id,
     )
-    entry_batch = await create_valid_posted_entry(
+    entry_reject = await _create_match_entry(
         db,
-        test_user.id,
+        user_id=test_user.id,
+        bank_account=account,
+        counter_account=expense,
+        amount=txn_reject.amount,
+    )
+    entry_batch = await _create_match_entry(
+        db,
+        user_id=test_user.id,
+        bank_account=account,
+        counter_account=expense,
         amount=txn_batch.amount,
-        source_type=JournalEntrySourceType.AUTO_PARSED,
-        source_id=txn_batch.id,
     )
     match_accept = ReconciliationMatch(
         atomic_txn_id=txn_accept.id,
@@ -441,7 +501,7 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     )
     match_reject = ReconciliationMatch(
         atomic_txn_id=txn_reject.id,
-        journal_entry_ids=[],
+        journal_entry_ids=[str(entry_reject.id)],
         match_score=75,
         score_breakdown={},
         status=ReconciliationStatus.PENDING_REVIEW,
@@ -469,21 +529,15 @@ async def test_accept_reject_batch_accept(db: AsyncSession, test_user) -> None:
     assert batch.total == 1
 
 
-async def test_list_unmatched_and_create_entry(db: AsyncSession, test_user) -> None:
-    account = Account(user_id=test_user.id, name="Mapped Unmatched Account", type=AccountType.ASSET, currency="SGD")
-    db.add(account)
-    await db.flush()
-    statement = await _create_statement(db, test_user.id, account_id=account.id)
-    txn = await _create_transaction(db, statement, amount=Decimal("4.00"), status=None)
+async def test_list_unmatched_has_no_raw_entry_creator(db: AsyncSession, test_user) -> None:
+    statement = await _create_statement(db, test_user.id)
+    await _create_transaction(db, statement, amount=Decimal("4.00"), status=None)
     await db.commit()
 
     unmatched = await reconciliation_router.list_unmatched(limit=50, offset=0, db=db, user_id=test_user.id)
     assert unmatched.total == 1
 
-    with pytest.raises(HTTPException) as exc:
-        await reconciliation_router.create_entry(txn_id=str(txn.id), db=db, user_id=test_user.id)
-    assert exc.value.status_code == 400
-    assert "Authoritative economic disposition" in str(exc.value.detail)
+    assert not hasattr(reconciliation_router, "create_entry")
 
 
 async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
@@ -770,10 +824,8 @@ async def test_batch_accept_router_preserves_currency_unresolved_error(db, test_
     assert exc_info.value is error
 
 
-async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, test_user) -> None:
-    """create_entry_from_txn should use statement's linked account when available."""
-    from src.extraction.extension.review_queue import create_entry_from_txn
-
+async def test_reviewed_disposition_uses_statement_account(db: AsyncSession, test_user) -> None:
+    """A reviewed statement posting uses the source statement's linked account."""
     # Create a bank account to link to the statement
     bank_account = Account(
         user_id=test_user.id,
@@ -783,24 +835,30 @@ async def test_create_entry_from_txn_uses_statement_account(db: AsyncSession, te
     )
     db.add(bank_account)
     await db.flush()
+    expense_account = Account(
+        user_id=test_user.id,
+        name="Reviewed Expense Account",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+    )
+    db.add(expense_account)
+    await db.flush()
 
     # Create statement conform with linked account_id
     statement = await _create_statement(db, test_user.id, account_id=bank_account.id)
 
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    entry = await submit_reviewed_disposition(
         db,
+        transaction_id=txn.id,
         user_id=test_user.id,
-        transaction=txn,
-        intent=EconomicIntent.EXPENSE,
-    )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        disposition=decision,
-        counter_account=counter_account,
+        command=ReviewedDispositionCommand(
+            intent=EconomicIntent.EXPENSE,
+            counter_account_id=expense_account.id,
+            category="GENERAL",
+            rationale="Reviewed source transaction.",
+        ),
     )
 
     # Verify entry uses the linked bank account

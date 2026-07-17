@@ -267,14 +267,38 @@ detection, and anomaly checks before batch approval.
 | `anomaly` | Large amount, frequency spike, new merchant | varies |
 
 Batch approve is blocked while unresolved checks exist. Accepted-match
-transitions are idempotent: `pending_review -> accepted` is the only
-transition that may create or reconcile journal entries; retrying
-`accept_match()` or a Stage-2 batch approval after a match is already
-`accepted` returns the existing state without incrementing `version` or
-creating duplicate statement-derived journal entries. Any missing
-auto-created entry is created through the same posting invariants as regular
-journal posting (double-entry balance, FX-rate requirements, active
-accounts, system-account restrictions).
+transitions are idempotent: `pending_review -> accepted` only reconciles a
+pre-existing linked journal entry. `accept_match()` and a Stage-2 batch
+approval never invent an account, category, or source entry; retrying either
+after a match is already `accepted` returns the existing state without
+incrementing `version`.
+
+### Reviewed source disposition
+
+Only a statement transaction with no reconciliation match becomes a
+source-anchored ledger entry through `ReviewedDispositionCommand` and
+`POST /reconciliation/unmatched/{txn_id}/reviewed-disposition`. The command
+contains the reviewer-selected economic intent, compatible active counter
+account, P&L category when applicable, and a bounded source-evidence
+rationale. It is deliberately separate from reconciliation confirmation:
+
+1. Lock the user-owned `AtomicTransaction` and validate the statement custody
+   account, transaction currency, counter-account type, and double-entry roles.
+2. Persist the immutable reviewed semantic basis as an inactive per-transaction
+   classification rule plus its `TransactionClassification`, including a
+   semantic digest and rationale.
+3. Create exactly one `USER_CONFIRMED` source entry, with normal balance and FX
+   validation, then materialize its evidence lineage.
+
+The transaction lock and semantic digest make a retry of the same decision
+idempotent; an incompatible retry is rejected rather than rewriting accounting
+history. A direct API call for a transaction with an existing reconciliation
+match is rejected at the same service boundary, so it cannot bypass the match
+review. Internal transfers are not accepted by this command: they must be
+paired in the reconciliation workbench. The former unparameterized
+`create-entry` and `batch-create` endpoints do not exist, so no unmatched
+transaction can silently fall back to a default bank or `Uncategorized`
+account.
 
 The Stage-2 queue response derives `confidence_tier` from the actual
 `ReconciliationMatch.match_score`: `>= 85` → `HIGH`, `60-84` → `MEDIUM`,

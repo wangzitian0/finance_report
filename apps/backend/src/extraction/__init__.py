@@ -208,6 +208,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationLiquidityClass,
     ManualValuationSnapshot,
     PositionStatus,
+    RuleType,
     TransactionClassification,
 )
 from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (mapper registration)
@@ -264,6 +265,7 @@ __all__ = [
     "RetryableStatementIngestionError",
     "ReviewedStatementEnvelopeCommand",
     "ReviewedStatementEnvelopeConflict",
+    "RuleType",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
     "SourceCapabilityStatus",

@@ -358,10 +358,7 @@ def run_checks(
         )
         ok = True
         for command in check.commands:
-            if (
-                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
-                != 0
-            ):
+            if runner(_resolve(command, python, matching_paths=matching_paths), cwd) != 0:
                 ok = False
                 break
         results.append(CheckResult(check.name, ok))

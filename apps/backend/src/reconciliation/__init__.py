@@ -15,6 +15,8 @@ from src.reconciliation.base import (
     MatchNotFoundError,
     ReconciliationConfig,
     ReconciliationError,
+    ReviewedDispositionCommand,
+    ReviewedDispositionError,
     _candidate_is_better,
     build_reconciliation_prompt,
     entry_bank_side_amount,
@@ -65,6 +67,7 @@ from src.reconciliation.extension.review_queue import (
     get_stage2_queue,
     reject_match,
 )
+from src.reconciliation.extension.reviewed_disposition import submit_reviewed_disposition
 from src.reconciliation.extension.scoring import (
     extract_merchant_tokens,
     is_cross_period,
@@ -110,6 +113,8 @@ __all__ = [
     "ReconciliationMatchJournalEntry",
     "ReconciliationStats",
     "ReconciliationStatus",
+    "ReviewedDispositionCommand",
+    "ReviewedDispositionError",
     "TransferLeg",
     "_candidate_is_better",
     "_find_many_to_one_candidates",
@@ -154,6 +159,7 @@ __all__ = [
     "score_group",
     "score_single",
     "score_pattern",
+    "submit_reviewed_disposition",
     "sync_reconciliation_match_journal_entry_links",
     "weighted_total",
 ]

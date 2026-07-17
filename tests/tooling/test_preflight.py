@@ -268,6 +268,22 @@ class TestRunAndMain:
         rc = preflight.run(["--changed", ".env.example"], runner=lambda argv, cwd: 0)
         assert rc == 0
 
+    def test_schema_validation_is_limited_to_changed_schema_paths(self):
+        calls: list[list[str]] = []
+
+        def runner(argv, _cwd):
+            calls.append(list(argv))
+            return 0
+
+        changed_path = "apps/backend/src/schemas/reconciliation.py"
+        rc = preflight.run(["--changed", changed_path], runner=runner)
+
+        assert rc == 0
+        schema_command = next(
+            command for command in calls if "tools/validate_schemas.py" in command
+        )
+        assert schema_command[-2:] == ["--paths", changed_path]
+
     def test_main_no_relevant_gates_is_clean(self):
         rc = preflight.run(["--changed", "Makefile"], runner=lambda argv, cwd: 1)
         assert rc == 0

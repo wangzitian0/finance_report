@@ -32,15 +32,16 @@ from src.reconciliation import (
     MatchNotFoundError,
     ReconciliationMatch,
     ReconciliationStatus,
+    ReviewedDispositionCommand,
     auto_accept,
     build_many_to_one_groups,
     execute_matching,
     normalize_text,
+    submit_reviewed_disposition,
 )
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, reject_match
 from tests.ledger._ledger_helpers import create_valid_posted_entry
-from tests.statement_ingestion import reviewed_posting_inputs
 
 
 async def _seed_summary(
@@ -623,7 +624,8 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
         )
     )
     bank = Account(user_id=user_id, name="Bank - USD", type=AccountType.ASSET, currency="USD")
-    db.add(bank)
+    income = Account(user_id=user_id, name="Income - USD", type=AccountType.INCOME, currency="USD")
+    db.add_all([bank, income])
     await db.flush()
     summary = await _seed_summary(
         db,
@@ -645,24 +647,21 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
     db.add(txn)
     await db.commit()
 
-    decision, counter_account = await reviewed_posting_inputs(
+    entry = await submit_reviewed_disposition(
         db,
+        transaction_id=txn.id,
         user_id=user_id,
-        transaction=txn,
-        intent=EconomicIntent.INCOME,
+        command=ReviewedDispositionCommand(
+            intent=EconomicIntent.INCOME,
+            counter_account_id=income.id,
+            category="CLIENT_DEPOSIT",
+            rationale="Reviewed as client income.",
+        ),
     )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=user_id,
-        disposition=decision,
-        counter_account=counter_account,
-    )
-    assert entry.source_type == JournalEntrySourceType.AUTO_PARSED
+    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
     assert all(line.currency == "USD" for line in entry.lines)
     assert all(line.fx_rate == Decimal("1.350000") for line in entry.lines)
-
-    assert any(line.account_id == counter_account.id for line in entry.lines)
+    assert income.id in {line.account_id for line in entry.lines}
 
 
 async def test_create_entry_from_txn_requires_fx_rate_for_foreign_statement_currency(
@@ -699,8 +698,9 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     )
     db.add(user)
     await db.flush()
-    bank = Account(user_id=user_id, name="Bank - Main", type=AccountType.ASSET, currency="SGD")
-    db.add(bank)
+    bank = Account(user_id=user_id, name="Bank - Review Queue", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=user_id, name="Expense - Review Queue", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([bank, expense])
     await db.flush()
     summary = await _seed_summary(db, owner_id=user_id, base_date=date(2024, 3, 1), account_id=bank.id)
 
@@ -731,18 +731,16 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     db.add_all([txn_accept, txn_reject, txn_batch])
     await db.commit()
 
-    decision, expense = await reviewed_posting_inputs(
+    entry_accept = await submit_reviewed_disposition(
         db,
+        transaction_id=txn_accept.id,
         user_id=user_id,
-        transaction=txn_accept,
-        intent=EconomicIntent.EXPENSE,
-    )
-    entry_accept = await create_entry_from_txn(
-        db,
-        txn_accept,
-        user_id=user_id,
-        disposition=decision,
-        counter_account=expense,
+        command=ReviewedDispositionCommand(
+            intent=EconomicIntent.EXPENSE,
+            counter_account_id=expense.id,
+            category="DINING",
+            rationale="Reviewed as a business meal.",
+        ),
     )
     entry_result = await db.execute(
         select(JournalEntry).where(JournalEntry.id == entry_accept.id).options(selectinload(JournalEntry.lines))
