@@ -284,18 +284,22 @@ rationale. It is deliberately separate from reconciliation confirmation:
 
 1. Lock the user-owned `AtomicTransaction` and validate the statement custody
    account, transaction currency, counter-account type, and double-entry roles.
-2. Persist the immutable reviewed semantic basis as an inactive per-transaction
-   classification rule plus its `TransactionClassification`, including a
-   semantic digest and rationale.
-3. Create exactly one `USER_CONFIRMED` source entry, with normal balance and FX
-   validation, then materialize its evidence lineage.
+2. Append one manual-adjudication `OBSERVATION` and its CODE-ONLY
+   disposition/invariant `DECISION` TraceRecord causal set. The normalized
+   command digest includes intent, counter account, applicable category, and
+   rationale/evidence; manual review has no machine-confidence score.
+3. Create exactly one source entry with normal balance and FX validation in the
+   same caller-owned transaction as the trace records.
 
-The transaction lock and semantic digest make a retry of the same decision
-idempotent; an incompatible retry is rejected rather than rewriting accounting
-history. A direct API call for a transaction with an existing reconciliation
-match is rejected at the same service boundary, so it cannot bypass the match
-review. Internal transfers are not accepted by this command: they must be
-paired in the reconciliation workbench. The former unparameterized
+The transaction lock and full command digest make a retry of the same decision
+idempotent; changing the rationale or any other semantic field is rejected
+rather than superseding accounting history. Trace append and posting failure
+both roll back the complete unit of work. Match acceptance changes only match
+and reconciliation status; it never rewrites immutable source provenance. A
+direct API call for a transaction with an existing reconciliation match is
+rejected at the same service boundary, so it cannot bypass the match review.
+Internal transfers are not accepted by this command: they must be paired in the
+reconciliation workbench. The former unparameterized
 `create-entry` and `batch-create` endpoints do not exist, so no unmatched
 transaction can silently fall back to a default bank or `Uncategorized`
 account.

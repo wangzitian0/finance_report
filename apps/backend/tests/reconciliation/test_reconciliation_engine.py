@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
+from src.composition import compose_reviewed_disposition_dependencies
 from src.extraction import DocumentType, EconomicIntent, UploadedDocument
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
@@ -657,6 +658,7 @@ async def test_create_entry_from_txn_inflow_uses_statement_currency(
             category="CLIENT_DEPOSIT",
             rationale="Reviewed as client income.",
         ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
     )
     assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
     assert all(line.currency == "USD" for line in entry.lines)
@@ -741,6 +743,7 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
             category="DINING",
             rationale="Reviewed as a business meal.",
         ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
     )
     entry_result = await db.execute(
         select(JournalEntry).where(JournalEntry.id == entry_accept.id).options(selectinload(JournalEntry.lines))

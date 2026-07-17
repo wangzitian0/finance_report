@@ -36,26 +36,63 @@ def _digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def _authority(*, tier: str, proof_kind: str, provenance: str, producer_version: str) -> TraceAuthorityProfile:
+def _authority(
+    *,
+    tier: str,
+    proof_kind: str,
+    provenance: str,
+    producer_version: str,
+    package: str = "extraction",
+    execution_stage: str = "product.runtime",
+) -> TraceAuthorityProfile:
     return TraceAuthorityProfile(
-        package="extraction",
+        package=package,
         tier=tier,
         proof_kind=proof_kind,
         provenance=provenance,
-        execution_stage="product.runtime",
+        execution_stage=execution_stage,
         assertion_owner_digest=_digest(f"disposition:{tier}:{proof_kind}:v1"),
         producer_version=producer_version,
     )
 
 
-def _proposal_authority(proposal: IntentProposal | None) -> tuple[str, str, str, str]:
+def _proposal_authority(proposal: IntentProposal | None) -> tuple[str, str, str, str, str, str]:
     """Map the proposal's closed origin to the existing audit vocabulary."""
     if proposal is None:
-        return "CODE-ONLY", "exact", "deterministic", "no-proposal"
+        return "extraction", "CODE-ONLY", "exact", "deterministic", "product.runtime", "no-proposal"
     return {
-        IntentProposalOrigin.REVIEWED_RULE: ("CODE-ONLY", "exact", "deterministic", proposal.policy_version),
-        IntentProposalOrigin.LIVE_LLM: ("LLM-LED", "invariant", "live_llm", proposal.policy_version),
-        IntentProposalOrigin.RECONCILIATION_FACT: ("CODE-LED", "property", "deterministic", proposal.policy_version),
+        IntentProposalOrigin.REVIEWED_RULE: (
+            "extraction",
+            "CODE-ONLY",
+            "exact",
+            "deterministic",
+            "product.runtime",
+            proposal.policy_version,
+        ),
+        IntentProposalOrigin.LIVE_LLM: (
+            "extraction",
+            "LLM-LED",
+            "invariant",
+            "live_llm",
+            "product.runtime",
+            proposal.policy_version,
+        ),
+        IntentProposalOrigin.RECONCILIATION_FACT: (
+            "extraction",
+            "CODE-LED",
+            "property",
+            "deterministic",
+            "product.runtime",
+            proposal.policy_version,
+        ),
+        IntentProposalOrigin.MANUAL_ADJUDICATION: (
+            "reconciliation",
+            "CODE-ONLY",
+            "exact",
+            "manual",
+            "manual.adjudication",
+            proposal.policy_version,
+        ),
     }[proposal.origin]
 
 
@@ -147,7 +184,7 @@ def build_disposition_trace_records(
     )
     scope = TraceScope.tenant(user_id)
     evidence_digest = _digest("|".join(proposal.evidence) if proposal else "no-intent-proposal")
-    tier, proof_kind, provenance, producer_version = _proposal_authority(proposal)
+    package, tier, proof_kind, provenance, execution_stage, producer_version = _proposal_authority(proposal)
     candidate = TraceRecord.observation(
         scope=scope,
         target=target,
@@ -158,16 +195,18 @@ def build_disposition_trace_records(
             version=proposal.policy_version if proposal else "none",
         ),
         authority=_authority(
+            package=package,
             tier=tier,
             proof_kind=proof_kind,
             provenance=provenance,
+            execution_stage=execution_stage,
             producer_version=producer_version,
         ),
         result=TraceResult.PASS,
         execution_id=execution_id,
         evidence_manifest_digest=evidence_digest,
         occurred_at=occurred_at,
-        score=Ratio(proposal.confidence if proposal else Decimal("0")),
+        score=Ratio(proposal.confidence) if proposal and proposal.confidence is not None else None,
         reason_code=f"disposition_candidate_{decision.status.value}",
     )
     invariant = TraceRecord.observation(

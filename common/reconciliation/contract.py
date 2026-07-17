@@ -511,8 +511,9 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.review-queue.9",
             statement=(
                 "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition creates one source-anchored "
-                "journal entry only when the user supplies an explicit economic intent, compatible "
-                "counter-account, category where P&L applies, and review rationale."
+                "journal entry only when the user supplies an explicit economic intent, compatible active "
+                "counter-account, category where P&L applies, and non-blank review rationale; invalid semantic "
+                "input fails closed at the API boundary."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
@@ -572,7 +573,7 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.review-queue.14",
             statement=(
                 "accept_match reconciles only a pre-existing linked source entry; without one it leaves "
-                "the match pending and never creates a journal entry."
+                "the match pending and never creates a journal entry or rewrites immutable source provenance."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_review_queue.py"
@@ -584,9 +585,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.reviewed-disposition.1",
             statement=(
-                "A reviewed-disposition command is idempotent only for the same immutable semantic "
-                "digest and rejects an incompatible intent/counter-account retry without changing the "
-                "already-posted source entry."
+                "A reviewed-disposition command is idempotent only for the same immutable normalized intent, "
+                "counter-account, applicable category, and rationale/evidence digest; changing any semantic "
+                "field after posting conflicts without superseding its TraceRecord decision or entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
@@ -625,8 +626,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.reviewed-disposition.4",
             statement=(
-                "If reviewed source posting fails after its semantic decision has been persisted, the request "
-                "rolls back both the decision record and journal entry rather than leaving partial state."
+                "The injected TraceEmitter appends the manual observation and CODE-ONLY disposition/invariant "
+                "TraceRecord causal set in the same caller-owned transaction as posting; trace or posting "
+                "failure rolls back the complete causal set and journal entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
@@ -638,8 +640,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.reviewed-disposition.5",
             statement=(
-                "The reviewed-disposition writer is the only reconciliation UI/API path to "
-                "create_entry_from_txn; it evaluates DispositionPolicy before it can post."
+                "A capability-level structural lock enumerates reconciliation posting and match side effects: "
+                "the reviewed-disposition service requires an injected TraceEmitter and DispositionPolicy, "
+                "while raw posting, match-side source promotion, and fabricated-confidence classification "
+                "surrogates are absent."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_signature_surgery.py"

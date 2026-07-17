@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.extraction.base.disposition import EconomicIntent
 from src.schemas.base import ListResponse
@@ -120,6 +120,16 @@ class ReviewedDispositionRequest(BaseModel):
         max_length=500,
         description="Reviewer rationale tied to the source evidence.",
     )
+
+    @field_validator("category", "rationale")
+    @classmethod
+    def normalize_semantic_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("semantic text cannot be blank")
+        return normalized
 
 
 class ReconciliationStatsResponse(BaseModel):

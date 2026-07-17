@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES
+from src.composition import compose_reviewed_disposition_dependencies
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -515,6 +516,7 @@ async def submit_unmatched_reviewed_disposition(
                 category=payload.category,
                 rationale=payload.rationale,
             ),
+            dependencies=compose_reviewed_disposition_dependencies(db),
         )
         entry_with_lines = (
             await db.execute(
@@ -530,8 +532,7 @@ async def submit_unmatched_reviewed_disposition(
         await db.rollback()
         raise_bad_request(str(exc), cause=exc)
     except Exception:
-        # The reviewed rule, classification, and source entry form one decision.
-        # Do not leave its semantic basis behind if downstream posting fails.
+        # The TraceRecord causal set and source entry are one caller-owned UoW.
         await db.rollback()
         raise
     return response

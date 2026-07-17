@@ -32,6 +32,7 @@ class IntentProposalOrigin(StrEnum):
     REVIEWED_RULE = "reviewed_rule"
     LIVE_LLM = "live_llm"
     RECONCILIATION_FACT = "reconciliation_fact"
+    MANUAL_ADJUDICATION = "manual_adjudication"
 
 
 class DispositionStatus(StrEnum):
@@ -95,7 +96,7 @@ class IntentProposal:
     origin: IntentProposalOrigin
     intent: EconomicIntent
     category: str | None
-    confidence: Decimal
+    confidence: Decimal | None
     evidence: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -107,8 +108,11 @@ class IntentProposal:
             raise TypeError("intent proposal origin must be IntentProposalOrigin")
         if not isinstance(self.intent, EconomicIntent):
             raise TypeError("intent must be EconomicIntent")
-        if not isinstance(self.confidence, Decimal) or not Decimal("0") <= self.confidence <= Decimal("1"):
-            raise ValueError("intent confidence must be a Decimal within [0, 1]")
+        if self.origin is IntentProposalOrigin.MANUAL_ADJUDICATION:
+            if self.confidence is not None:
+                raise ValueError("manual adjudication cannot claim machine confidence")
+        elif not isinstance(self.confidence, Decimal) or not Decimal("0") <= self.confidence <= Decimal("1"):
+            raise ValueError("machine intent confidence must be a Decimal within [0, 1]")
         if not self.evidence or any(not value.strip() for value in self.evidence):
             raise ValueError("intent evidence is required")
 
@@ -186,7 +190,11 @@ class DispositionPolicy:
     ) -> DispositionDecision:
         if proposal is None:
             return self._review(transaction, EconomicIntent.UNKNOWN, "intent_missing", mode=mode)
-        if proposal.confidence < self.authoritative_threshold:
+        if (
+            proposal.origin is not IntentProposalOrigin.MANUAL_ADJUDICATION
+            and proposal.confidence is not None
+            and proposal.confidence < self.authoritative_threshold
+        ):
             return self._review(transaction, proposal.intent, "intent_below_threshold", proposal.category, mode)
         if proposal.intent is EconomicIntent.TRANSFER:
             return DispositionDecision(

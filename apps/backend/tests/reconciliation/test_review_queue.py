@@ -23,6 +23,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.extraction import (
     DispositionContext,
     DispositionMode,
@@ -279,7 +280,12 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
 async def test_accept_match_reconciles_journal_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
+    entry, _, _ = await JournalEntryFactory.create_balanced_async(
+        db,
+        user_id=test_user.id,
+        amount=Decimal("100.00"),
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+    )
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -291,6 +297,7 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
     await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
+    assert entry.source_type is JournalEntrySourceType.AUTO_PARSED
 
 
 async def test_accept_match_without_reviewed_disposition_requires_entry_context(db, test_user):
