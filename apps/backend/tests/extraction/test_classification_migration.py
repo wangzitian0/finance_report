@@ -19,7 +19,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentSource
+from src.extraction import DocumentSource, StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
 from src.extraction.extension.statement_validation import approve_statement
@@ -84,7 +84,7 @@ async def _ingest_month(
     *,
     opening: Decimal,
     closing: Decimal,
-) -> int:
+) -> StatementPostingOutcome:
     csv_bytes = _month_csv(year_month)
     _result, statement, transactions = await parse_and_load_statement_projection(
         ExtractionService(),
@@ -109,8 +109,7 @@ async def _ingest_month(
     await db.flush()
     approved = await approve_statement(db, statement.id, user_id)
     outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())
-    assert outcome.review_reasons == ()
-    return outcome.created_count
+    return outcome
 
 
 def _leaf_names(report_lines: list[dict]) -> set[str]:
@@ -134,8 +133,9 @@ async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_u
     has categorized leaf lines beyond the two Uncategorized buckets, with non-null
     confidence tiers — the exact #1483 QA symptom, now a permanent regression lock."""
     bank = await _bank(db, test_user.id)
-    created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
-    assert created == 2
+    outcome = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
+    assert outcome.status is StatementPostingStatus.POSTED
+    assert outcome.created_count == 2
 
     report = await _june_report(db, test_user.id)
     income_names = _leaf_names(report["income"])
@@ -219,10 +219,12 @@ async def test_AC18_16_3_flag_off_routes_unknown_meaning_to_review(db, test_user
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     bank = await _bank(db, test_user.id)
-    created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
+    outcome = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
 
     report = await _june_report(db, test_user.id)
-    assert created == 0
+    assert outcome.status is StatementPostingStatus.REVIEW_REQUIRED
+    assert outcome.created_count == 0
+    assert outcome.review_reasons == ("intent_missing",)
     assert _leaf_names(report["income"]) == set()
     assert _leaf_names(report["expenses"]) == set()
     count = len((await db.execute(select(TransactionClassification))).scalars().all())
@@ -304,9 +306,11 @@ async def test_AC18_16_3_flag_off_never_evaluates_policy_even_for_pre_epoch_txns
     monkeypatch.setattr(tc, "POLICY_VERSIONS", (narrow,))
 
     bank = await _bank(db, test_user.id)
-    created = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
+    outcome = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
 
-    assert created == 0  # source facts survive, but no economic intent is invented
+    assert outcome.status is StatementPostingStatus.REVIEW_REQUIRED
+    assert outcome.created_count == 0
+    assert outcome.review_reasons == ("intent_missing",)
     count = len((await db.execute(select(TransactionClassification))).scalars().all())
     assert count == 0
 
@@ -328,15 +332,18 @@ async def test_AC18_16_6_uncovered_txn_dates_skip_classification_not_crash_posti
     monkeypatch.setattr(tc, "POLICY_VERSIONS", (narrow,))
 
     bank = await _bank(db, test_user.id)
-    created_june = await _ingest_month(
+    june_outcome = await _ingest_month(
         db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT
     )
-    created_july = await _ingest_month(
+    july_outcome = await _ingest_month(
         db, test_user.id, bank, "2026-07", opening=SALARY - RENT, closing=2 * (SALARY - RENT)
     )
 
-    assert created_june == 0  # uncovered => review, never direction fallback
-    assert created_july == 2
+    assert june_outcome.status is StatementPostingStatus.REVIEW_REQUIRED
+    assert june_outcome.created_count == 0
+    assert june_outcome.review_reasons == ("intent_missing",)
+    assert july_outcome.status is StatementPostingStatus.POSTED
+    assert july_outcome.created_count == 2
     rows = (await db.execute(select(TransactionClassification))).scalars().all()
     assert len(rows) == 2  # only July's two txns classified
 

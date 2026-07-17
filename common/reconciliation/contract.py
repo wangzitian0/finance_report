@@ -2109,7 +2109,9 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.signature-surgery.4",
             statement=(
                 "Reconciliation failures use typed domain errors, router status mapping does "
-                "not inspect exception text, and consistency-check actions are enum-typed."
+                "not inspect exception text, and consistency-check actions are enum-typed; "
+                "the legacy raw-entry routes are the only ValueError handlers and must "
+                "roll back before returning a bad request."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_signature_surgery.py"

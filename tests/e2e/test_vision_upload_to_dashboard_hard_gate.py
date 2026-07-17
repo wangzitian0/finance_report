@@ -134,7 +134,12 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         )
     ).to_be_visible(timeout=15_000)
 
-    reviewed_statement = await _wait_for_statement_status(page, statement_id, "parsed")
+    reviewed_response = await page.request.get(
+        _get_url(f"/api/statements/{statement_id}/review")
+    )
+    reviewed_statement = await reviewed_response.json()
+    assert reviewed_response.status == 200, reviewed_statement
+    assert reviewed_statement["status"] == "parsed"
     assert reviewed_statement["stage1_status"] == "pending_review"
     assert (
         reviewed_statement["validation_error"]

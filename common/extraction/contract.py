@@ -216,12 +216,12 @@ CONTRACT = PackageContract(
         Unit(
             name="StatementPostingOutcome",
             kind=Kind.VALUE_OBJECT,
-            module="extension/statement_posting.py",
+            module="base/types.py",
         ),
         Unit(
             name="StatementPostingStatus",
             kind=Kind.VALUE_OBJECT,
-            module="extension/statement_posting.py",
+            module="base/types.py",
         ),
     ],
     implementations={"be": "apps/backend/src/extraction", "fe": None},

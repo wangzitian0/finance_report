@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock
 from sqlalchemy import select
 
 from src.config_app import set_base_currency
-from src.extraction import DocumentSource
+from src.extraction import DocumentSource, StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
@@ -284,7 +284,11 @@ async def test_AC_extraction_1833_3_zero_created_count_still_posts_opening_balan
     # Force created_count == 0 as if every transaction were excluded (internal
     # transfer match, or already posted by a prior call) — the scenario the
     # created_count gate could not distinguish from "genuinely nothing to post".
-    monkeypatch.setattr(statement_posting_module, "auto_create_posted_entries_for_statement", AsyncMock(return_value=0))
+    monkeypatch.setattr(
+        statement_posting_module,
+        "auto_create_posted_entries_for_statement",
+        AsyncMock(return_value=StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)),
+    )
 
     posted = await try_auto_approve_high_confidence_statement(
         db, statement.id, test_user.id, dependencies=posting_dependencies()

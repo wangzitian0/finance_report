@@ -270,7 +270,7 @@ async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(mon
 
 
 def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
-    """AC-reconciliation.signature-surgery.4."""
+    """AC-reconciliation.signature-surgery.4: legacy raw-entry routes fail closed."""
     assert issubclass(MatchNotFoundError, ReconciliationError)
     assert issubclass(AmountMismatchError, ReconciliationError)
     assert issubclass(EntryCreationError, ReconciliationError)
@@ -285,7 +285,30 @@ def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
 
     router_source = (BACKEND_SRC / "routers" / "reconciliation.py").read_text()
     assert '"not found" in str(exc).lower()' not in router_source
-    assert "except ValueError as exc:" not in router_source
+    router_tree = ast.parse(router_source)
+    raw_entry_value_error_handlers: dict[str, list[ast.ExceptHandler]] = {}
+    for route in router_tree.body:
+        if not isinstance(route, ast.AsyncFunctionDef):
+            continue
+        handlers = [
+            handler
+            for handler in ast.walk(route)
+            if isinstance(handler, ast.ExceptHandler)
+            and isinstance(handler.type, ast.Name)
+            and handler.type.id == "ValueError"
+            and handler.name == "exc"
+        ]
+        if handlers:
+            raw_entry_value_error_handlers[route.name] = handlers
+
+    assert set(raw_entry_value_error_handlers) == {"create_entry", "batch_create_entries"}
+    for handlers in raw_entry_value_error_handlers.values():
+        assert len(handlers) == 1
+        handler_source = ast.get_source_segment(router_source, handlers[0])
+        assert handler_source is not None
+        assert "await db.rollback()" in handler_source
+        assert "raise_bad_request(str(exc), cause=exc)" in handler_source
+
     review_router_source = (BACKEND_SRC / "routers" / "review.py").read_text()
     assert "CheckResolutionAction(request.action)" in review_router_source
     assert review_router_source.count("except (ReconciliationError, ValueError)") == 1
