@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.composition import compose_reviewed_disposition_dependencies
 from src.deps import PaginationParams
 from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
@@ -859,6 +860,7 @@ async def test_reviewed_disposition_uses_statement_account(db: AsyncSession, tes
             category="GENERAL",
             rationale="Reviewed source transaction.",
         ),
+        dependencies=compose_reviewed_disposition_dependencies(db),
     )
 
     # Verify entry uses the linked bank account

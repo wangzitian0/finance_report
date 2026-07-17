@@ -4051,7 +4051,9 @@ CONTRACT = PackageContract(
                 "is derived only from that origin: reviewed deterministic rules are "
                 "CODE-ONLY, live model proposals are LLM-LED and require the existing "
                 "CODE-ONLY promotion guard, and accepted reconciliation facts are "
-                "CODE-LED. Economic intent never infers authority."
+                "CODE-LED. Manual adjudication is reconciliation-owned CODE-ONLY/manual "
+                "evidence without a machine-confidence score. Economic intent never "
+                "infers authority."
             ),
             test=(
                 "apps/backend/tests/extraction/test_disposition_policy.py"

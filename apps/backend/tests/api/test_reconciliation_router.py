@@ -29,14 +29,15 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
-from src.extraction import ClassificationRule, DocumentType, UploadedDocument
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceRecordType, TraceResult
+from src.audit.orm import TraceRecordRow
+from src.extraction import DispositionPolicy, DocumentType, TransactionClassification, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import ReconciliationMatch, ReconciliationStatus, ReviewedDispositionDependencies
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import ReconciliationStatusEnum, ReviewedDispositionRequest
 
@@ -507,6 +508,36 @@ class TestReconciliationEndpoints:
         )
         assert len(entries_result.scalars().all()) == 1
 
+        traces = (
+            (
+                await db.execute(
+                    select(TraceRecordRow)
+                    .where(TraceRecordRow.scope_id == str(test_user.id))
+                    .where(TraceRecordRow.target_id == str(transaction.id))
+                    .order_by(TraceRecordRow.occurred_at, TraceRecordRow.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(traces) == 4
+        manual = next(row for row in traces if row.assertion_kind == "economic_intent")
+        assert manual.record_type is TraceRecordType.OBSERVATION
+        assert manual.authority_package == "reconciliation"
+        assert manual.authority_tier == "CODE-ONLY"
+        assert manual.provenance == "manual"
+        assert manual.execution_stage == "manual.adjudication"
+        assert manual.score is None
+        assert sum(row.record_type is TraceRecordType.DECISION for row in traces) == 2
+        assert all(
+            row.result is TraceResult.AUTHORITATIVE for row in traces if row.record_type is TraceRecordType.DECISION
+        )
+
+        classifications = await db.execute(
+            select(TransactionClassification).where(TransactionClassification.atomic_txn_id == transaction.id)
+        )
+        assert classifications.scalars().all() == []
+
     async def test_submit_reviewed_disposition_not_found(self, client: AsyncClient):
         """AC-reconciliation.review-queue.10: unknown source transactions cannot be reviewed or posted."""
         response = await client.post(
@@ -560,11 +591,20 @@ class TestReconciliationEndpoints:
             f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition",
             json={
                 **payload,
-                "counter_account_id": str(income.id),
+                "rationale": "A different evidence review must not rewrite the posted decision.",
             },
         )
         assert conflict.status_code == status.HTTP_400_BAD_REQUEST
         assert "incompatible" in conflict.json()["detail"].lower()
+
+        traces = await db.execute(select(TraceRecordRow).where(TraceRecordRow.target_id == str(transaction.id)))
+        assert len(traces.scalars().all()) == 4
+
+        incompatible_account = await client.post(
+            f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition",
+            json={**payload, "counter_account_id": str(income.id)},
+        )
+        assert incompatible_account.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_reviewed_disposition_rejects_unmatched_bypasses_without_persisting(
         self, client: AsyncClient, db, test_user: User
@@ -653,11 +693,97 @@ class TestReconciliationEndpoints:
                 user_id=test_user.id,
             )
 
-        rule_name = f"reviewed-disposition:{transaction_id}"
-        rules = await db.execute(select(ClassificationRule).where(ClassificationRule.rule_name == rule_name))
+        traces = await db.execute(select(TraceRecordRow).where(TraceRecordRow.target_id == str(transaction_id)))
         entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id))
-        assert rules.scalars().all() == []
+        assert traces.scalars().all() == []
         assert entries.scalars().all() == []
+
+    async def test_reviewed_disposition_rolls_back_when_trace_append_fails(self, db, test_user: User, monkeypatch):
+        """AC-reconciliation.reviewed-disposition.4: trace persistence is fail-closed in the posting UoW."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Trace Fault {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        transaction = create_test_transaction(db, statement)
+        db.add_all([expense, transaction])
+        await db.commit()
+        transaction_id = transaction.id
+
+        class FailingRepository:
+            async def current_decision(self, *_args):
+                return None
+
+        class FailingEmitter:
+            repository = FailingRepository()
+
+            async def emit_many(self, _records):
+                raise RuntimeError("trace append fault")
+
+        dependencies = ReviewedDispositionDependencies(
+            trace_emitter=FailingEmitter(),
+            disposition_policy=DispositionPolicy(),
+        )
+        monkeypatch.setattr(
+            reconciliation_router,
+            "compose_reviewed_disposition_dependencies",
+            lambda _db: dependencies,
+        )
+
+        with pytest.raises(RuntimeError, match="trace append fault"):
+            await reconciliation_router.submit_unmatched_reviewed_disposition(
+                transaction_id,
+                ReviewedDispositionRequest(
+                    intent="expense",
+                    counter_account_id=expense.id,
+                    category="DINING",
+                    rationale="Trace failure must abort posting.",
+                ),
+                db=db,
+                user_id=test_user.id,
+            )
+
+        traces = await db.execute(select(TraceRecordRow).where(TraceRecordRow.target_id == str(transaction_id)))
+        entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction_id))
+        assert traces.scalars().all() == []
+        assert entries.scalars().all() == []
+
+    @pytest.mark.parametrize("field", ["category", "rationale"])
+    async def test_reviewed_disposition_rejects_blank_semantic_fields(
+        self, field: str, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.review-queue.9: whitespace semantic input fails at schema validation."""
+        statement = await create_test_statement(db, test_user)
+        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Blank Input {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        transaction = create_test_transaction(db, statement)
+        db.add_all([expense, transaction])
+        await db.commit()
+        payload = {
+            "intent": "expense",
+            "counter_account_id": str(expense.id),
+            "category": "DINING",
+            "rationale": "Reviewed source evidence.",
+            field: "   ",
+        }
+
+        response = await client.post(
+            f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition",
+            json=payload,
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert (
+            await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
+        ).scalars().all() == []
 
     async def test_legacy_unmatched_entry_routes_are_absent(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.13: no parameterless path may invent a ledger entry."""

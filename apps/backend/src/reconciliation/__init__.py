@@ -67,7 +67,10 @@ from src.reconciliation.extension.review_queue import (
     get_stage2_queue,
     reject_match,
 )
-from src.reconciliation.extension.reviewed_disposition import submit_reviewed_disposition
+from src.reconciliation.extension.reviewed_disposition import (
+    ReviewedDispositionDependencies,
+    submit_reviewed_disposition,
+)
 from src.reconciliation.extension.scoring import (
     extract_merchant_tokens,
     is_cross_period,
@@ -114,6 +117,7 @@ __all__ = [
     "ReconciliationStats",
     "ReconciliationStatus",
     "ReviewedDispositionCommand",
+    "ReviewedDispositionDependencies",
     "ReviewedDispositionError",
     "TransferLeg",
     "_candidate_is_better",

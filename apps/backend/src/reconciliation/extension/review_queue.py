@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, promote_entry_source_type
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
@@ -127,7 +127,6 @@ async def accept_match(
         for entry in reconciled_entries_result.scalars():
             if entry.status != JournalEntryStatus.VOID:
                 entry.status = JournalEntryStatus.RECONCILED
-                promote_entry_source_type(entry, JournalEntrySourceType.USER_CONFIRMED)
 
     await db.flush()
     await sync_reconciliation_match_journal_entry_links(db, match)

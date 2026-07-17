@@ -24,8 +24,9 @@ flowchart TB
     F --> I[Manual Review]
     I -->|Accept| H
     I -->|Reject| G
-    G --> J[Create Entry or Investigate]
-    J --> H
+    G --> J[Review Economic Meaning]
+    J --> K[Trace Decision and Create Entry]
+    K --> H
 ```
 
 ## Step 1: Upload Bank Statement
@@ -203,28 +204,26 @@ curl https://report.zitian.party/api/reconciliation/unmatched
 
 | Cause | Solution |
 |-------|----------|
-| Missing entry | Create journal entry |
-| Wrong date | Adjust entry date |
-| Wrong amount | Void and recreate entry |
-| Fee/interest | Create fee/interest entry |
+| Missing economic meaning | Review intent, counter account, category, and evidence |
+| Wrong date or amount | Correct the source or investigate before posting |
+| Fee/interest | Review as an expense or income with the applicable category |
 | Duplicate | Void duplicate entry |
 
-### Create Entry for Unmatched
+### Review and Post an Unmatched Transaction
 
 ```bash
-# Create entry and link to bank transaction
-curl -X POST https://report.zitian.party/api/journal-entries \
+# Confirm economic meaning; the server validates disposition and records its trace.
+curl -X POST https://report.zitian.party/api/reconciliation/unmatched/{transaction-id}/reviewed-disposition \
   -d '{
-    "entry_date": "2026-01-06",
-    "memo": "Bank fee",
-    "source_type": "reconciliation",
-    "bank_transaction_id": "<transaction-id>",
-    "lines": [
-      {"account_id": "<fee-expense-id>", "direction": "DEBIT", "amount": "15.00"},
-      {"account_id": "<checking-id>", "direction": "CREDIT", "amount": "15.00"}
-    ]
+    "intent": "expense",
+    "counter_account_id": "<fee-expense-id>",
+    "category": "BANK_FEES",
+    "rationale": "Reviewed against the statement fee description"
   }'
 ```
+
+Accepting a proposed match never creates an entry or changes its source
+provenance. If no reviewed source entry exists, complete this command first.
 
 ## Match Types
 

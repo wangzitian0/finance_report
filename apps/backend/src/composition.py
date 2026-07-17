@@ -26,6 +26,7 @@ from src.config import settings
 from src.database import async_session_maker
 from src.extraction import (
     DispositionMode,
+    DispositionPolicy,
     StatementIngestionUseCase,
     StatementPostingDependencies,
     build_statement_ingestion_use_case,
@@ -35,7 +36,7 @@ from src.extraction import (
 from src.ledger import used_currencies
 from src.portfolio import active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
-from src.reconciliation import accepted_transfer_txn_ids
+from src.reconciliation import ReviewedDispositionDependencies, accepted_transfer_txn_ids
 from src.runtime import StorageService
 
 
@@ -53,6 +54,14 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
         fx_rate_error=PricingError,
         trace_emitter_factory=lambda db: TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
+    )
+
+
+def compose_reviewed_disposition_dependencies(db: AsyncSession) -> ReviewedDispositionDependencies:
+    """Bind reconciliation's manual command to the canonical trace repository and policy."""
+    return ReviewedDispositionDependencies(
+        trace_emitter=TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
+        disposition_policy=DispositionPolicy(),
     )
 
 
