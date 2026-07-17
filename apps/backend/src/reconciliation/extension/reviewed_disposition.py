@@ -21,10 +21,8 @@ from src.extraction import (
     IntentProposal,
     IntentProposalOrigin,
     StatementTransaction,
-    create_entry_from_txn,
-)
-from src.extraction.extension.disposition_trace import (
     build_disposition_trace_records,
+    create_entry_from_txn,
     emit_disposition_trace_records,
 )
 from src.extraction.orm.layer2 import AtomicTransaction

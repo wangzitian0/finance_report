@@ -111,6 +111,10 @@ from src.extraction.extension.deduplication import (
     DeduplicationService,
     dual_write_layer2,
 )
+from src.extraction.extension.disposition_trace import (
+    build_disposition_trace_records,
+    emit_disposition_trace_records,
+)
 from src.extraction.extension.evidence_graph_integration import (
     EvidenceGraphIntegrationService,
 )
@@ -281,11 +285,13 @@ __all__ = [
     "auto_create_posted_entries_for_statement",
     "backfill_classifications",
     "build_csv_mapping_prompt",
+    "build_disposition_trace_records",
     "build_statement_ingestion_use_case",
     "compute_confidence_score",
     "create_entry_from_txn",
     "detect_balance_chain_break",
     "dual_write_layer2",
+    "emit_disposition_trace_records",
     "extraction_trace_policy_registry",
     "edit_and_approve",
     "find_in_flight_parse_id",

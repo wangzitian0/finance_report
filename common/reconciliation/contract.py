@@ -159,6 +159,11 @@ CONTRACT = PackageContract(
             module="base/reviewed_disposition.py",
         ),
         Unit(
+            name="ReviewedDispositionDependencies",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/reviewed_disposition.py",
+        ),
+        Unit(
             name="submit_reviewed_disposition",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/reviewed_disposition.py",
@@ -190,6 +195,7 @@ CONTRACT = PackageContract(
         "ReconciliationStats",
         "ReconciliationStatus",
         "ReviewedDispositionCommand",
+        "ReviewedDispositionDependencies",
         "ReviewedDispositionError",
         "TransferLeg",
         "_candidate_is_better",
