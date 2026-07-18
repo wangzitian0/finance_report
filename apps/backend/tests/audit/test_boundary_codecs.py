@@ -48,7 +48,7 @@ pytestmark = pytest.mark.no_db
     issue="#950",
 )
 def test_AC_audit_31_4_boundary_codecs_preserve_typed_decimal_values():
-    """Codec boundaries use exact decimal strings and reject malformed payloads."""
+    """AC-audit.31.4 / AC-audit.33.1: codecs preserve exact typed decimal values."""
     money = Money(Decimal("12.3400"), "USD")
     assert money_to_wire(money) == {"amount": "12.34", "currency": "USD"}
     assert money_from_wire({"amount": "12.34", "currency": "USD"}) == money
@@ -114,7 +114,7 @@ def test_AC_audit_31_4_boundary_codecs_preserve_typed_decimal_values():
     issue="#950",
 )
 def test_AC_audit_33_1_money_tolerance_validates_and_scales_exactly():
-    """Tolerance is typed, currency-aware, and scales its full band exactly."""
+    """AC-audit.33.1: tolerance is typed, currency-aware, and scales exactly."""
     tolerance = MoneyTolerance(Money(Decimal("1.00"), "USD"), Ratio.from_percent(Decimal("5")))
     assert tolerance.threshold_for(Money(Decimal("10.00"), "USD")) == Money(Decimal("1.00"), "USD")
     assert tolerance.threshold_for(Money(Decimal("100.00"), "USD")) == Money(Decimal("5.00"), "USD")

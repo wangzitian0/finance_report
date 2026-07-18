@@ -299,7 +299,7 @@ def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
     issue="#950",
 )
 def test_AC_extraction_result_envelope_1_rejects_malformed_source_facts():
-    """A result cannot create trusted source facts from malformed primitive values."""
+    """AC-extraction.result-envelope.1: malformed primitive source facts fail closed."""
     complete = _complete_result()
 
     with pytest.raises(ValueError, match="provider is required"):
