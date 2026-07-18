@@ -220,6 +220,8 @@ describe("UnmatchedBoard", () => {
       .mockResolvedValueOnce({ items: [], total: 0 });
     render(<UnmatchedBoard />);
 
-    expect(await screen.findAllByText("$12,345,678,901,234,567,890.12")).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.getAllByText("$12,345,678,901,234,567,890.12")).toHaveLength(2);
+    });
   });
 });
