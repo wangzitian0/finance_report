@@ -123,7 +123,10 @@ columns, before an external consumer treats a fact as resolved or reconciled.
 The append-only TraceRecord remains the sole owner of tenant, target, policy,
 and CODE/LLM authority metadata. Historical rows without this
 immutable evidence are `legacy_unproven`; no migration fabricates a decision for
-them.
+them. The schema migration assigns that historical state through a temporary
+server default while adding the column, not a row `UPDATE`, so posted and
+reconciled entries stay immutable; it then removes the default before any new
+write can occur.
 
 ---
 

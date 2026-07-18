@@ -2439,6 +2439,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-ledger.79.8",
+            statement=(
+                "An Alembic upgrade over a balanced, posted legacy journal entry "
+                "preserves the immutable accounting fact while assigning explicit "
+                "legacy-unproven authority, and leaves no server default that could "
+                "silently authorize future rows (#1909)."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_historical_authority_migration.py"
+                "::test_AC_ledger_79_8_posted_legacy_entry_upgrades_without_mutation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-ledger.80.1",
             statement=(
                 "list_journal_contributions publishes posted or reconciled journal facts "

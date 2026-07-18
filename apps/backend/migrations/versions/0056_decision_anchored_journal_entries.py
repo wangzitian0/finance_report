@@ -20,12 +20,20 @@ authority_state = postgresql.ENUM(
 def upgrade() -> None:
     authority_state.create(op.get_bind(), checkfirst=True)
     op.add_column("journal_entries", sa.Column("decision_anchor_id", postgresql.UUID(as_uuid=True), nullable=True))
-    op.add_column("journal_entries", sa.Column("decision_authority_state", authority_state, nullable=True))
-
-    # Existing records are intentionally not granted a synthetic decision. This
-    # one-time backfill is explicit and there is no server default for new rows.
-    op.execute("UPDATE journal_entries SET decision_authority_state = 'legacy_unproven'")
-    op.alter_column("journal_entries", "decision_authority_state", nullable=False)
+    # Existing posted/reconciled entries are immutable before this revision. A
+    # PostgreSQL fast default expresses their explicit legacy state without an
+    # UPDATE that would fire the immutability trigger. Drop it immediately so
+    # future writers must choose authority state through the anchored boundary.
+    op.add_column(
+        "journal_entries",
+        sa.Column(
+            "decision_authority_state",
+            authority_state,
+            nullable=False,
+            server_default=sa.text("'legacy_unproven'::journal_entry_authority_state_enum"),
+        ),
+    )
+    op.alter_column("journal_entries", "decision_authority_state", server_default=None)
     op.create_foreign_key(
         "fk_journal_entries_decision_anchor",
         "journal_entries",
