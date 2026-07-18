@@ -244,6 +244,34 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/ingest.py",
         ),
+        # #1915: the package boundary that carries a selected valuation and
+        # its exact current TraceRecord decision to reporting. The DTO keeps
+        # storage models and authority inference out of package assembly.
+        Unit(
+            name="ResolvedValuationContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="resolve_valuation_contribution",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
+        Unit(
+            name="resolve_manual_valuation_contributions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
+        Unit(
+            name="ManualValuationAttestationPolicy",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
+        Unit(
+            name="ResolvedMarketValuationPolicy",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
         # ── ORM entities: taxonomy-only (module unset — the gate skips
         # placement, the #1675 idiom). MarketDataOverride (orm/
         # market_data_override.py, moved from models/portfolio.py in D5) is a
@@ -289,6 +317,7 @@ CONTRACT = PackageContract(
         "MarketDataScopes",
         "MarketDataSyncResult",
         "MarketDataSyncState",
+        "ManualValuationAttestationPolicy",
         "ObservationRepository",
         "ObservationSource",
         "PrefetchedFxRates",
@@ -298,6 +327,8 @@ CONTRACT = PackageContract(
         "PriceableSubject",
         "PricingError",
         "ResolutionPolicy",
+        "ResolvedMarketValuationPolicy",
+        "ResolvedValuationContribution",
         "SqlObservationRepository",
         "StatementPriceObservation",
         "StockPrice",
@@ -317,7 +348,10 @@ CONTRACT = PackageContract(
         "next_market_data_sync_at",
         "record_manual_valuation",
         "record_override",
+        "pricing_trace_policy_registry",
         "resolve",
+        "resolve_manual_valuation_contributions",
+        "resolve_valuation_contribution",
         "resolve_missing_fx_rate",
         "run_daily_market_data_sync",
         "run_market_data_scheduler",
@@ -835,11 +869,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-pricing.manualvaluation.5",
             statement=(
-                "POST/GET/PATCH/DELETE /api/assets/valuation-snapshots "
+                "POST/GET/PATCH /api/assets/valuation-snapshots "
                 "records property value, mortgage/loan balance, CPF/"
                 "long-term savings, tax payable/refund, insurance cash "
                 "value, ESOP/RSU/options, source, notes, reminder cadence, "
-                "and audit timestamps."
+                "and audit timestamps; PATCH appends a correction and DELETE "
+                "is rejected for a decision-backed snapshot."
             ),
             # was AC11.9.1
             test=(
@@ -945,6 +980,79 @@ CONTRACT = PackageContract(
             # was AC12.39.3
             test="apps/frontend/src/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited",
             priority="P1",
+            status="done",
+        ),
+        # ── group valuation-contribution: decision-backed values consumed by
+        # the reporting package (#1915, child of #950) ──
+        ACRecord(
+            id="AC-pricing.valuation-contribution.1",
+            statement=(
+                "Recording or correcting a manual valuation appends its immutable "
+                "observation and a current, target-matching TraceRecord decision in "
+                "the same caller-owned transaction; the correction supersedes the "
+                "prior valuation decision."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.2",
+            statement=(
+                "resolve_valuation_contribution returns the exact selected "
+                "observation identity/version, resolution policy, and current "
+                "TraceRecord decision required by a package manifest."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.3",
+            statement=(
+                "An absent, stale, rejected, superseded, cross-tenant, or "
+                "target-mismatched valuation decision returns an explicit unproven "
+                "contribution; source, basis, rank, or freshness never grants trust."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.4",
+            statement=(
+                "Rolling back a manual valuation write leaves neither the valuation "
+                "row nor its TraceRecord observation/decision durable."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_4_rollback_is_atomic"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.5",
+            statement=(
+                "Pricing resolves every current manual valuation lineage into the same "
+                "ResolvedValuationContribution shape, preserving multiple sources for one "
+                "component type independently; package-facing line builders expose no "
+                "source-derived confidence or trusted field."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust"
+            ),
+            priority="P0",
             status="done",
         ),
     ],
