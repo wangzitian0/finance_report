@@ -17,9 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import src.config
-from src.audit import JournalEntrySourceType
+from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
 from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
+from src.extraction.extension.disposition_trace import authorize_financial_command
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
@@ -29,9 +30,9 @@ from src.ledger import (
     Direction,
     JournalEntry,
     ValidationError,
-    create_journal_entry,
-    post_journal_entry,
+    submit_anchored_journal_entry,
 )
+from src.ledger.extension.anchored_posting import AnchoredJournalCommand
 from src.observability import get_logger
 
 
@@ -207,6 +208,8 @@ async def _create_entry_from_txn(
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
+    source_decision: TraceRecord | None = None,
+    trace_emitter: TraceEmitter | None = None,
 ) -> JournalEntry:
     """Create a journal entry from an atomic transaction.
 
@@ -328,23 +331,34 @@ async def _create_entry_from_txn(
         },
     ]
     try:
-        entry = await create_journal_entry(
-            db,
-            user_id,
+        if source_decision is None or trace_emitter is None:
+            raise ValueError("Statement posting requires a source-owned authoritative decision")
+        decision_anchor = await authorize_financial_command(
+            emitter=trace_emitter,
+            user_id=user_id,
+            upstream_decision=source_decision,
             entry_date=txn.txn_date,
             memo=txn.description,
             lines_data=lines_data,
-            source_type=source_type,
-            source_id=txn.id,
             base_currency=base_currency,
+            source_id=txn.id,
         )
-        if auto_post:
-            entry = await post_journal_entry(
-                db,
-                entry.id,
-                user_id,
-                base_currency=base_currency,
-            )
+        entry = await submit_anchored_journal_entry(
+            db,
+            user_id=user_id,
+            command=AnchoredJournalCommand(
+                entry_date=txn.txn_date,
+                memo=txn.description,
+                lines_data=lines_data,
+                source_type=source_type,
+                source_id=txn.id,
+                source_identity=f"statement-transaction:{txn.id}",
+                decision_anchor=decision_anchor,
+                post_immediately=auto_post,
+            ),
+            base_currency=base_currency,
+            trace_repository=trace_emitter.repository,
+        )
     except ValidationError as exc:
         if auto_post:
             raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
@@ -398,6 +412,8 @@ async def create_entry_from_txn(
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
+    source_decision: TraceRecord | None = None,
+    trace_emitter: TraceEmitter | None = None,
 ) -> JournalEntry:
     """Create a journal entry, atomically including all auto-post side effects."""
 
@@ -415,6 +431,8 @@ async def create_entry_from_txn(
             fx_rate_error=fx_rate_error,
             disposition=disposition,
             counter_account=counter_account,
+            source_decision=source_decision,
+            trace_emitter=trace_emitter,
         )
 
     if auto_post:

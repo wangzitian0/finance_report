@@ -1615,8 +1615,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.110.6",
-            statement="All four source_type values accepted by API",  # was AC13.10.6
-            test="apps/backend/tests/reconciliation/test_source_type.py::test_all_four_source_type_values_accepted_by_api",
+            statement="The manual journal API rejects caller-selected source_type values",  # was AC13.10.6
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_public_journal_api_rejects_caller_selected_source_type",
             priority="P1",
             status="done",
             proof_kind="property",

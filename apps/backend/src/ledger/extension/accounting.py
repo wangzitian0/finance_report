@@ -15,9 +15,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.audit import JournalEntrySourceType
 from src.ledger.base.validators import ValidationError
-from src.ledger.extension.repository import create_journal_entry, post_journal_entry
+from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
@@ -132,26 +131,20 @@ async def post_opening_balance_entry(
     # Guarantee the double-entry balance as a TYPE before persistence: if the
     # equity-plug logic above is wrong, Entry construction raises here rather than
     # producing an unbalanced opening entry (Axiom D / double-entry integrity).
-    Entry.of(
+    opening_entry = Entry.of(
         *(Leg(line["account_id"], line["direction"], Money(line["amount"], line["currency"])) for line in lines_data)
     )
 
     # SYSTEM-typed: the guided flow orchestrates this entry and it offsets into
     # the system Opening Balance Equity account, which manual entries may not touch.
-    entry = await create_journal_entry(
+    return await post_entry(
         db,
-        user_id,
+        user_id=user_id,
         entry_date=entry_date,
         memo=memo,
-        lines_data=lines_data,
-        source_type=JournalEntrySourceType.SYSTEM,
+        entry=opening_entry,
         base_currency=normalized_base_currency,
-    )
-    return await post_journal_entry(
-        db,
-        entry.id,
-        user_id,
-        base_currency=normalized_base_currency,
+        operation="opening-balance",
     )
 
 

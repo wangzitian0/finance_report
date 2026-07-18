@@ -28,7 +28,6 @@ from src.ledger import (
     ValidationError,
     calculate_account_balance,
     calculate_account_balances,
-    create_journal_entry,
     post_journal_entry,
     validate_journal_posting_invariants,
     validate_line_account_ownership,
@@ -36,6 +35,7 @@ from src.ledger import (
     void_journal_entry,
 )
 from tests.factories import UserFactory
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
 
 @pytest.fixture

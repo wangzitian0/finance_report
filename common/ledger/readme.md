@@ -110,15 +110,20 @@ metadata and fails closed when no FX-free line identifies the historical base,
 or when multiple FX-free currencies make it ambiguous.
 
 Ledger immutability protects accounting facts: entry ownership/date/memo/source
-identity, status correction path, and all journal-line amounts, directions,
-accounts, currencies, and FX rates. The only non-fact metadata update allowed on
-a posted/reconciled entry is the source-type-priority promotion from
-`auto_parsed` or `auto_matched` to `user_confirmed`, with `source_id` and every
-accounting fact unchanged. The same promotion is allowed when the entry moves
-from `posted` to `reconciled`. (The immutability trigger's text guard also
-retains the retired legacy value `bank_statement` — see migration 0040 / #896 —
-so any historical row in that state can still be promoted, though no write path
-produces it anymore.)
+identity, decision-anchor id, status correction path, and all journal-line
+amounts, directions, accounts, currencies, and FX rates. `source_type` is presentation provenance only; it is never a caller
+selectable authority or a mutable trust promotion. A source-derived or manual
+financial write must pass the single `submit_anchored_journal_entry` boundary,
+which re-checks that its tenant-scoped `TraceRecord` decision is current,
+authoritative, and pins the exact target and policy versions. The journal stores
+only the immutable decision id and explicit `anchored|legacy_unproven` state.
+`current_anchored_journal_entries` joins that id to audit's public current
+authority projection, never audit's private ORM or duplicated target/policy
+columns, before an external consumer treats a fact as resolved or reconciled.
+The append-only TraceRecord remains the sole owner of tenant, target, policy,
+and CODE/LLM authority metadata. Historical rows without this
+immutable evidence are `legacy_unproven`; no migration fabricates a decision for
+them.
 
 ---
 
@@ -136,7 +141,10 @@ produces it anymore.)
 - **Pattern D**: Multi-currency entries validate debit/credit balance after base-currency conversion.
 - **Pattern E**: Journal line account authorization is a domain invariant. Accounting services must validate that every `JournalLine.account_id` belongs to the same `user_id` as the `JournalEntry`; HTTP middleware is not sufficient because service calls and background tasks can write ledger records without a request object.
 - **Pattern F**: Posted/reconciled ledger invariants are enforced at both service and database boundaries.
-- **Pattern G**: Posted/reconciled source-type promotion may only increase trust from auto/statement-derived provenance to `user_confirmed`; it must not change source identity or accounting facts.
+- **Pattern G**: A manual HTTP command creates a manual-attestation decision over
+  its exact payload. The client cannot choose `source_type` or `source_id`, and a
+  source/reviewed producer can only submit the `DecisionAnchor` issued by its
+  owning trace policy.
 
 ### ⛔ Prohibited Patterns
 

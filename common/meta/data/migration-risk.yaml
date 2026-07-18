@@ -129,3 +129,11 @@ migrations:
     staging_validation: Deploy the pinned PR commit to staging; parse a transaction-only CSV, confirm its envelope, complete economic review and approval, reopen it, reparse it, and verify the previous review cannot approve the new source result while the trace and prior record remain readable.
     production_preflight: Confirm statement_extraction_results, reviewed_statement_envelopes, and reject_reviewed_statement_envelope_mutation do not already exist; no historical row rewrite occurs and pre-existing StatementSummary rows remain on the legacy no-pointer path until reparsed.
     rollback_strategy: Before dependent report consumption, roll back the application and downgrade the additive tables, pointer, constraints, and triggers. After reviewed records have been used for approval, restore the database snapshot rather than deleting append-only audit facts.
+  0056_decision_anchored_journal:
+    file: 0056_decision_anchored_journal_entries.py
+    risk: high
+    issue: "#1909"
+    proof: Adds immutable decision-anchor provenance and explicitly backfills every historical journal entry to legacy_unproven without granting synthetic trust; AC-ledger.79 proves target-bound anchor validation, idempotency, public provenance rejection, and immutable persistence.
+    staging_validation: Deploy with representative manual, statement, transfer, portfolio, FX-revaluation, and void commands; verify each new entry stores a current decision anchor, while a pre-upgrade row remains legacy_unproven and cannot be promoted by a source-type mutation.
+    production_preflight: Count journal_entries by status and source_type, and confirm the deploy owner accepts that every existing row will remain legacy_unproven until independently re-established through a correction workflow; take a database snapshot before applying the backfill and trigger replacement.
+    rollback_strategy: Before trusted-ledger/report consumers depend on anchors, downgrade restores the previous immutability trigger and drops additive anchor columns; after that cutover, restore the pre-migration snapshot rather than discarding anchor provenance.

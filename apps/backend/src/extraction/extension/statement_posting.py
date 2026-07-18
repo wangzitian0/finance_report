@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, TraceResult
 from src.audit.money.currency import normalize_currency_code
 from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import (
@@ -44,7 +44,16 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
+from src.ledger import (
+    Account,
+    AccountType,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    JournalLine,
+    ValidationError,
+    current_anchored_journal_entries,
+)
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -110,15 +119,39 @@ async def auto_create_posted_entries_for_statement(
     if not txn_ids:
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
+    statement_targets = {f"statement-transaction:{txn_id}": txn_id for txn_id in txn_ids}
     existing_entry_result = await db.execute(
-        select(JournalEntry)
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_ids=statement_targets,
+        ).where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
+    existing_entries = list(existing_entry_result.scalars().all())
+    existing_entry_txn_ids = {entry.source_id for entry in existing_entries if entry.source_id in txn_ids}
+
+    # Pre-anchor historical rows are not evidence that this source command is
+    # accepted. Do not silently skip them or generate a duplicate; route the
+    # operator to the correction/void lifecycle instead.
+    legacy_result = await db.execute(
+        select(JournalEntry.id)
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id.in_(txn_ids))
+        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN)
         .where(JournalEntry.status != JournalEntryStatus.VOID)
+        .limit(1)
     )
-    existing_entries = list(existing_entry_result.scalars().all())
-    existing_entry_txn_ids = {entry.source_id for entry in existing_entries}
+    if legacy_result.scalar_one_or_none() is not None:
+        statement.status = BankStatementStatus.PARSED
+        statement.stage1_status = Stage1Status.PENDING_REVIEW
+        statement.validation_error = "Economic review required: legacy_unanchored_source_entry"
+        await db.flush()
+        return StatementPostingOutcome(
+            status=StatementPostingStatus.REVIEW_REQUIRED,
+            created_count=0,
+            review_reasons=("legacy_unanchored_source_entry",),
+        )
 
     transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     txns_to_post = [txn for txn in transactions if txn.id not in existing_entry_txn_ids]
@@ -215,8 +248,9 @@ async def auto_create_posted_entries_for_statement(
     if occurred_at.tzinfo is None:
         occurred_at = occurred_at.replace(tzinfo=UTC)
     emitter = dependencies.trace_emitter_factory(db)
-    for _txn, proposal, decision, _counter_account, transaction in planned:
-        await emit_disposition_trace_records(
+    source_decisions = {}
+    for txn, proposal, decision, _counter_account, transaction in planned:
+        records = await emit_disposition_trace_records(
             emitter=emitter,
             user_id=user_id,
             execution_id=execution_id,
@@ -225,6 +259,8 @@ async def auto_create_posted_entries_for_statement(
             proposal=proposal,
             decision=decision,
         )
+        if records[-1].result is TraceResult.AUTHORITATIVE:
+            source_decisions[txn.id] = records[-1]
 
     review_reasons = [
         decision.reason_code
@@ -268,6 +304,8 @@ async def auto_create_posted_entries_for_statement(
             fx_rate_error=dependencies.fx_rate_error,
             disposition=decision,
             counter_account=counter_account,
+            source_decision=source_decisions[txn.id],
+            trace_emitter=emitter,
         )
         created += 1
 

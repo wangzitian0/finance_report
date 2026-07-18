@@ -1,9 +1,8 @@
-"""``ledger.extension`` — the impure edges: the posting service + the SQL adapter.
+"""``ledger.extension`` — impure edges: anchored commands + private SQL persistence.
 
 Depends on ``src.database``-backed ORM models and an ``AsyncSession``. This is
-where the package reaches I/O and persistence; the ``base`` layer stays pure behind
-the :class:`~src.ledger.base.repository.JournalRepository` port this layer satisfies
-(``SqlJournalRepository``). ``post_entry`` is the typed posting verb.
+where the package reaches I/O and persistence. ``post_entry`` is the typed posting
+verb; all new financial facts enter through the decision-anchored command boundary.
 """
 
 from __future__ import annotations
@@ -13,6 +12,13 @@ from src.ledger.extension.account_service import AccountNotFoundError
 from src.ledger.extension.accounting import (
     get_opening_balance_readiness,
     post_opening_balance_entry,
+)
+from src.ledger.extension.anchored_posting import (
+    AnchoredJournalCommand,
+    current_anchored_journal_entries,
+    submit_anchored_journal_entry,
+    submit_manual_journal_entry,
+    validate_manual_journal_entry_for_post,
 )
 from src.ledger.extension.currencies import used_currencies
 from src.ledger.extension.fx_revaluation import (
@@ -31,8 +37,6 @@ from src.ledger.extension.processing import (
     list_processing_transfer_legs,
 )
 from src.ledger.extension.repository import (
-    SqlJournalRepository,
-    create_journal_entry,
     post_journal_entry,
     validate_line_account_ownership,
     void_journal_entry,
@@ -40,11 +44,11 @@ from src.ledger.extension.repository import (
 
 __all__ = [
     "AccountNotFoundError",
+    "AnchoredJournalCommand",
+    "current_anchored_journal_entries",
     "RevaluationError",
-    "SqlJournalRepository",
     "account_service",
     "calculate_unrealized_fx_gains",
-    "create_journal_entry",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
     "find_transfer_pairs",
@@ -54,6 +58,9 @@ __all__ = [
     "get_unpaired_transfers",
     "list_processing_transfer_legs",
     "post_entry",
+    "submit_anchored_journal_entry",
+    "submit_manual_journal_entry",
+    "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "post_opening_balance_entry",
     "register_fx_revaluation_provider",

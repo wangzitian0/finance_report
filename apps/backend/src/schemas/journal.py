@@ -5,10 +5,10 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.audit import JournalEntrySourceType, normalize_source_type
-from src.ledger import ConfidenceTier, Direction, JournalEntryStatus
+from src.ledger import ConfidenceTier, Direction, JournalEntryAuthorityState, JournalEntryStatus
 from src.schemas.base import BaseResponse, CurrencyCode, ListResponse
 
 
@@ -24,10 +24,16 @@ class JournalLineBase(BaseModel):
     tags: dict | None = None
 
 
-class JournalLineCreate(JournalLineBase):
+class JournalLineCreate(BaseModel):
     """Schema for creating a journal line."""
 
+    account_id: UUID
+    direction: Direction
+    amount: Annotated[Decimal, Field(gt=0, decimal_places=2)]
     currency: CurrencyCode | None = None
+    fx_rate: Annotated[Decimal | None, Field(None, gt=0, decimal_places=6)] = None
+    event_type: Annotated[str | None, Field(None, max_length=100)] = None
+    tags: dict | None = None
 
 
 class JournalLineResponse(JournalLineBase, BaseResponse):
@@ -54,8 +60,14 @@ class JournalEntryBase(BaseModel):
         return normalize_source_type(value)
 
 
-class JournalEntryCreate(JournalEntryBase):
-    """Schema for creating a journal entry."""
+class JournalEntryCreate(BaseModel):
+    """Manual entry command; source provenance is never accepted from the caller."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_date: date
+    memo: Annotated[str, Field(min_length=1, max_length=500)]
+    rationale: Annotated[str, Field(min_length=1, max_length=500)] = "Manual entry submitted by account owner."
 
     lines: Annotated[list[JournalLineCreate], Field(min_length=2)]
 
@@ -67,6 +79,8 @@ class JournalEntryResponse(JournalEntryBase, BaseResponse):
     user_id: UUID
     status: JournalEntryStatus
     confidence_tier: ConfidenceTier | None = None
+    decision_authority_state: JournalEntryAuthorityState
+    decision_anchor_id: UUID | None = None
     void_reason: str | None = None
     void_reversal_entry_id: UUID | None = None
     lines: list[JournalLineResponse]

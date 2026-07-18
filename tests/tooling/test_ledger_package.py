@@ -4,9 +4,9 @@
 tests prove its **structural invariants** (declared in ``common/ledger/contract.py``
 ``invariants`` and resolved by ``check_package_contract`` via ``invariants[].test``):
 the package converges into base/extension/data, base stays pure (never reaches its
-own extension/data, the ORM session, or transport), the JournalRepository splits
-into a base port + an extension adapter, the published language equals ``__all__``,
-and the governance gate passes for ledger. They are invariant proofs, NOT AC
+own extension/data, the ORM session, or transport), only the anchored-command
+service reaches the private persistence sink, the published language equals
+``__all__``, and the governance gate passes for ledger. They are invariant proofs, NOT AC
 critical-proofs, so they carry no ``@ac_proof`` (the double-entry behavior ACs are
 proven by the tests under ``apps/backend/tests/ledger/``).
 """
@@ -40,12 +40,11 @@ def _imported_modules(path: Path) -> set[str]:
 
 def test_ledger_converges_by_layer():
     """Invariant converges-by-layer: ledger is structured base/ + extension/ + data/."""
-    # base: pure types + validators + the repository port.
+    # base: pure types + validators + command-target identity.
     assert (LEDGER / "base/types/entry.py").exists()
     assert (LEDGER / "base/types/errors.py").exists()
     assert (LEDGER / "base/validators.py").exists()
-    assert (LEDGER / "base/repository.py").exists()
-    # extension: the posting service + the AsyncSession adapter.
+    # extension: the anchored command boundary + private persistence sink.
     assert (LEDGER / "extension/post.py").exists()
     assert (LEDGER / "extension/repository.py").exists()
     # data: the account-balance projection (read-model sink).
@@ -59,7 +58,7 @@ def test_ledger_converges_by_layer():
         "Entry",
         "Leg",
         "post_entry",
-        "JournalRepository",
+        "journal_command_target",
         "calculate_account_balance",
     ):
         assert name in exports, f"ledger must export {name}"
@@ -123,21 +122,21 @@ def test_ledger_base_layer_is_pure():
     )
 
 
-def test_ledger_repository_splits():
-    """Invariant repository-splits: the JournalRepository port is in base/, its adapter
-    in extension/ (dependency inversion, mechanism B)."""
-    port = (LEDGER / "base/repository.py").read_text(encoding="utf-8")
-    assert "class JournalRepository(Protocol)" in port, (
-        "the port must be a Protocol in base/"
+def test_ledger_anchored_persistence_boundary():
+    """Invariant anchored-persistence-boundary: raw creation is private to its guard."""
+    published = (LEDGER / "__init__.py").read_text(encoding="utf-8")
+    extension_published = (LEDGER / "extension/__init__.py").read_text(encoding="utf-8")
+    anchor = (LEDGER / "extension/anchored_posting.py").read_text(encoding="utf-8")
+
+    # The physical writer is deliberately not a public package export. The only
+    # production call site is the generic command boundary after anchor validation.
+    assert '"_create_anchored_journal_entry"' not in published
+    assert '"_create_anchored_journal_entry"' not in extension_published
+    assert (
+        "from src.ledger.extension.repository import _create_anchored_journal_entry"
+        in anchor
     )
-    adapter = (LEDGER / "extension/repository.py").read_text(encoding="utf-8")
-    assert "class SqlJournalRepository" in adapter, (
-        "the adapter must live in extension/"
-    )
-    # the adapter implements the port over an AsyncSession; the pure service depends
-    # on the port, not the session.
-    post = (LEDGER / "extension/post.py").read_text(encoding="utf-8")
-    assert "from src.ledger.base.repository import JournalRepository" in post
+    assert "await validate_decision_anchor(" in anchor
 
 
 def test_ledger_only_all_is_the_published_language():

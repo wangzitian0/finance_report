@@ -187,6 +187,11 @@ CONTRACT = PackageContract(
             kind=Kind.PROJECTION,
             module="data/trace_confidence.py",
         ),
+        Unit(
+            name="current_authoritative_trace_decision_projection",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_decision_projection.py",
+        ),
     ],
     implementations={
         "be": "apps/backend/src/audit",
@@ -244,6 +249,8 @@ CONTRACT = PackageContract(
         "TraceRecordRepository",
         "TraceRecordValidationError",
         "TraceRecordPersistenceError",
+        "current_authoritative_trace_decision_projection",
+        "trace_decision_projection",
         "SqlTraceRecordRepository",
         "TraceConfidenceProjection",
         "Ratio",
@@ -1552,6 +1559,20 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/audit/trace/test_trace_causality.py"
                 "::test_AC_audit_trace_record_5_financial_authority_requires_code_parent"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.6",
+            statement=(
+                "The public current-authoritative TraceRecord projection returns only "
+                "financial decisions whose complete parent graph is current, so a "
+                "cross-package read can fail closed without importing audit ORM internals."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_decision_projection.py"
+                "::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry"
             ),
             priority="P0",
             status="done",

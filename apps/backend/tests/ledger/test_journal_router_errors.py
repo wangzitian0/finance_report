@@ -72,11 +72,11 @@ class TestJournalRouterErrors:
         assert response.status_code == 400
         assert "not found" in response.json()["detail"].lower()
 
-    async def test_post_entry_validation_error(self, client, db, test_user):
+    async def test_legacy_unproven_draft_cannot_reach_posting_sink(self, client, db, test_user):
         """
-        GIVEN a draft journal entry that fails validation on posting
+        GIVEN a historical draft without a decision anchor
         WHEN posting the entry
-        THEN it should return 400 with validation error
+        THEN it fails closed before the raw posting sink
         """
         # Create a draft entry
         entry = JournalEntry(
@@ -89,13 +89,11 @@ class TestJournalRouterErrors:
         await db.commit()
         await db.refresh(entry)
 
-        # Mock the post_journal_entry service to raise ValidationError
         with patch("src.routers.journal.post_journal_entry", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = ValidationError("Entry has no lines")
-
             response = await client.post(f"/journal-entries/{entry.id}/postings")
             assert response.status_code == 400
-            assert "no lines" in response.json()["detail"].lower()
+            assert "legacy-unproven" in response.json()["detail"].lower()
+            mock_post.assert_not_awaited()
 
     async def test_void_entry_validation_error(self, client, db, test_user):
         """

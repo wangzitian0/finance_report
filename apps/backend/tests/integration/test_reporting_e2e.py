@@ -7,9 +7,10 @@ from uuid import UUID
 from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Account, AccountType, create_journal_entry, post_journal_entry
+from src.ledger import Account, AccountType, post_journal_entry
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
 
 async def _account(
