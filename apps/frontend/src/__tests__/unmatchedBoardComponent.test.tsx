@@ -72,8 +72,8 @@ describe("UnmatchedBoard", () => {
 
     render(<UnmatchedBoard />);
 
-    // The flag badge is rendered in the list before the selected-detail pane
-    // commits. Wait for the user action this proof needs instead of that proxy.
+    // The list badge may render before or after the selected-detail pane commits.
+    // Wait for the user action this proof needs instead of using the badge as a proxy.
     expect(await screen.findByRole("button", { name: "Unflag local" })).toBeInTheDocument();
     expect(screen.getByText("Flagged locally")).toBeInTheDocument();
   });
