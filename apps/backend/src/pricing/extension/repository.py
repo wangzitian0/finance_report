@@ -20,12 +20,13 @@ user's data to a caller who didn't ask for that user.
 from __future__ import annotations
 
 from datetime import date
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
+from src.pricing.base.observation import Authority, ObservationSource, PriceObservation, pricing_valuation_lineage_id
 from src.pricing.base.subject import PriceableSubject, SubjectKind
 from src.pricing.orm.market_data import FxRate, StockPrice
 from src.pricing.orm.market_data_override import MarketDataOverride
@@ -74,7 +75,7 @@ class SqlObservationRepository:
         )
         return [
             PriceObservation(
-                id=row.id,
+                id=cast(UUID, row.id),
                 subject=subject,
                 value=row.value,
                 as_of=row.as_of,
@@ -82,6 +83,7 @@ class SqlObservationRepository:
                 source=ObservationSource.STATEMENT,
                 authority=Authority.STATEMENT,
                 currency=row.currency,
+                lineage_id=f"statement-price:{row.source_observation_id}",
             )
             for row in rows
         ]
@@ -102,7 +104,7 @@ class SqlObservationRepository:
         )
         return [
             PriceObservation(
-                id=row.id,
+                id=cast(UUID, row.id),
                 subject=subject,
                 value=row.rate,
                 as_of=row.rate_date,
@@ -110,6 +112,7 @@ class SqlObservationRepository:
                 source=ObservationSource.CRAWLER,
                 authority=Authority.CRAWLER,
                 currency=None,
+                lineage_id=f"fx-rate:{row.id}",
             )
             for row in rows
         ]
@@ -128,7 +131,7 @@ class SqlObservationRepository:
         )
         observations = [
             PriceObservation(
-                id=row.id,
+                id=cast(UUID, row.id),
                 subject=subject,
                 value=row.price,
                 as_of=row.price_date,
@@ -136,6 +139,7 @@ class SqlObservationRepository:
                 source=ObservationSource.CRAWLER,
                 authority=Authority.CRAWLER,
                 currency=row.currency,
+                lineage_id=f"stock-price:{row.id}",
             )
             for row in price_rows
         ]
@@ -162,6 +166,11 @@ class SqlObservationRepository:
                     source=ObservationSource.OVERRIDE,
                     authority=Authority.OVERRIDE,
                     currency=row.currency,
+                    lineage_id=pricing_valuation_lineage_id(
+                        subject=subject,
+                        source="override",
+                        as_of=row.price_date,
+                    ),
                 )
                 for row in override_rows
             )
@@ -209,6 +218,11 @@ class SqlObservationRepository:
                 source=ObservationSource.MANUAL,
                 authority=Authority.MANUAL,
                 currency=row.currency,
+                lineage_id=pricing_valuation_lineage_id(
+                    subject=subject,
+                    source=row.source,
+                    as_of=row.as_of_date,
+                ),
             )
             for row in rows
         ]

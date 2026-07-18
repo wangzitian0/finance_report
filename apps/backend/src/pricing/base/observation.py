@@ -15,6 +15,8 @@ reproducible even after later corrections arrive (AC-pricing.bitemporal.1).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -23,6 +25,27 @@ from uuid import UUID, uuid4
 
 from src.pricing.base.errors import InvalidObservationError
 from src.pricing.base.subject import PriceableSubject
+
+
+def pricing_valuation_lineage_id(
+    *,
+    subject: PriceableSubject,
+    source: str,
+    as_of: date,
+) -> str:
+    """Stable identity for one corrigible user-owned valuation fact.
+
+    This is an identity key only. It is deliberately not a trust conclusion:
+    the matching TraceRecord decision is required separately.
+    """
+    payload = {
+        "as_of": as_of.isoformat(),
+        "source": source,
+        "subject_key": subject.key,
+        "subject_kind": subject.kind.value,
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return f"manual-valuation:{digest}"
 
 
 class ObservationSource(StrEnum):
@@ -65,6 +88,11 @@ class PriceObservation:
     authority: Authority
     currency: str | None = None
     id: UUID = field(default_factory=uuid4)
+    # Stable identity of a corrigible observation lineage. It is populated by
+    # pricing's storage adapter and lets the decision layer supersede a prior
+    # version without treating a row id, source label, or latest timestamp as
+    # authority.
+    lineage_id: str | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.value, bool) or not isinstance(self.value, Decimal):

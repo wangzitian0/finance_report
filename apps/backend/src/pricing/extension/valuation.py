@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Any
-from uuid import UUID, uuid4
+from typing import Any, cast
+from uuid import UUID
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
@@ -24,6 +24,7 @@ from src.extraction.orm.layer3 import (
     ManualValuationSnapshot,
 )
 from src.observability import get_logger
+from src.pricing.extension.manual import record_manual_valuation
 from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
@@ -125,53 +126,24 @@ class ValuationService:
         recurrence_days: int | None = None,
         reminder_date: date | None = None,
     ) -> ManualValuationSnapshot:
-        """Record a manual valuation as an append-only versioned fact.
-
-        Vision Axiom A: a recorded fact is never edited in place. If a current
-        version already exists for the same (component_type, source, as_of_date),
-        this appends a new version and supersedes the prior one instead of
-        overwriting it, so the full correction history stays retrievable.
-        """
-        normalized_currency = currency.upper()
-        head = await self._current_valuation_head(
+        """Record through the sole decision-backed manual valuation command."""
+        observation = await record_manual_valuation(
             db,
             user_id,
             component_type=component_type,
-            source=source,
-            as_of_date=as_of_date,
-        )
-
-        snapshot = ManualValuationSnapshot(
-            id=uuid4(),
-            user_id=user_id,
-            component_type=component_type,
             liquidity_class=liquidity_class or _DEFAULT_LIQUIDITY_CLASS[component_type],
-            as_of_date=as_of_date,
-            value=to_money(value),
-            currency=normalized_currency,
+            as_of=as_of_date,
+            value=value,
+            currency=currency,
             source=source,
             valuation_basis=valuation_basis,
             notes=notes,
             recurrence_days=recurrence_days,
             reminder_date=reminder_date,
-            version=(head.version + 1) if head is not None else 1,
-            # Park the new row under the prior head so there is never a moment with
-            # two current heads for the same key (the partial unique index is
-            # checked per statement). Promoted to head below once the prior head
-            # has been demoted to point at it.
-            superseded_by_id=head.id if head is not None else None,
         )
-        db.add(snapshot)
-        await db.flush()
-        if head is not None:
-            # Ordered hand-off, each flush valid under both the self-FK and the
-            # partial unique index: demote the old head (0 heads), then promote
-            # the new row (1 head).
-            head.superseded_by_id = snapshot.id
-            await db.flush()
-            snapshot.superseded_by_id = None
-            await db.flush()
-        await db.refresh(snapshot)
+        snapshot = await self.get_valuation_snapshot(db, user_id, observation.id)
+        if snapshot is None:  # pragma: no cover - the command flushes before returning.
+            raise ValuationServiceError("decision-backed valuation write did not produce a snapshot")
         return snapshot
 
     async def _current_valuation_head(
@@ -281,51 +253,59 @@ class ValuationService:
         *,
         values: dict,
     ) -> ManualValuationSnapshot | None:
-        """Update a manual valuation snapshot.
-
-        Superseded versions are frozen history (vision Axiom A): a recorded fact is
-        never edited in place. Editing one is rejected; corrections re-submit a new
-        version via create_valuation_snapshot.
-        """
+        """Append a correction through the sole decision-backed write command."""
         snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
         if not snapshot:
             return None
         if snapshot.superseded_by_id is not None:
             raise ValuationServiceError("Cannot edit a superseded valuation version; submit a correction instead")
 
-        if "component_type" in values and values["component_type"] is not None:
-            snapshot.component_type = values["component_type"]
-            if values.get("liquidity_class") is None:
-                snapshot.liquidity_class = _DEFAULT_LIQUIDITY_CLASS[snapshot.component_type]
-        if "liquidity_class" in values and values["liquidity_class"] is not None:
-            snapshot.liquidity_class = values["liquidity_class"]
-        if "as_of_date" in values and values["as_of_date"] is not None:
-            snapshot.as_of_date = values["as_of_date"]
-        if "value" in values and values["value"] is not None:
-            snapshot.value = to_money(values["value"])
-        if "currency" in values and values["currency"] is not None:
-            snapshot.currency = values["currency"].upper()
-        if "source" in values and values["source"] is not None:
-            snapshot.source = values["source"]
-        if "notes" in values:
-            snapshot.notes = values["notes"]
-        if "recurrence_days" in values:
-            snapshot.recurrence_days = values["recurrence_days"]
-        if "reminder_date" in values:
-            snapshot.reminder_date = values["reminder_date"]
+        identity_changes = {
+            "component_type": snapshot.component_type,
+            "as_of_date": snapshot.as_of_date,
+            "source": snapshot.source,
+        }
+        for identity_field, current in identity_changes.items():
+            requested = values.get(identity_field)
+            if requested is not None and requested != current:
+                raise ValuationServiceError(
+                    f"Cannot change valuation {identity_field} in place; record a separate valuation instead"
+                )
 
-        await db.flush()
-        await db.refresh(snapshot)
-        return snapshot
+        value = snapshot.value
+        if values.get("value") is not None:
+            value = to_money(cast(Decimal, values["value"]))
+        currency = snapshot.currency
+        if values.get("currency") is not None:
+            currency = cast(str, values["currency"])
+
+        observation = await record_manual_valuation(
+            db,
+            user_id,
+            component_type=snapshot.component_type,
+            liquidity_class=values.get("liquidity_class") or snapshot.liquidity_class,
+            as_of=snapshot.as_of_date,
+            value=value,
+            currency=currency,
+            source=snapshot.source,
+            valuation_basis=(values["valuation_basis"] if "valuation_basis" in values else snapshot.valuation_basis),
+            notes=values["notes"] if "notes" in values else snapshot.notes,
+            recurrence_days=(values["recurrence_days"] if "recurrence_days" in values else snapshot.recurrence_days),
+            reminder_date=values["reminder_date"] if "reminder_date" in values else snapshot.reminder_date,
+        )
+        corrected = await self.get_valuation_snapshot(db, user_id, observation.id)
+        if corrected is None:  # pragma: no cover - the command flushes before returning.
+            raise ValuationServiceError("decision-backed valuation correction did not produce a snapshot")
+        return corrected
 
     async def delete_valuation_snapshot(self, db: AsyncSession, user_id: UUID, snapshot_id: UUID) -> bool:
-        """Delete a manual valuation snapshot by id."""
+        """Reject destructive deletion of an immutable decision-backed input."""
         snapshot = await self.get_valuation_snapshot(db, user_id, snapshot_id)
-        if not snapshot:
+        if snapshot is None:
             return False
-        await db.delete(snapshot)
-        await db.flush()
-        return True
+        raise ValuationServiceError(
+            "Cannot delete a decision-backed valuation snapshot; submit a correcting valuation instead"
+        )
 
     async def get_latest_valuation_components(
         self,

@@ -27,8 +27,8 @@ policy)` call.
 ## Ubiquitous language
 
 - **`PriceObservation`** — the aggregate root: a subject was worth X at time
-  T, from a source, with an authority rank. Append-only (Axiom A) — an
-  override is a new higher-authority observation, never a mutation; deleting
+  T, from a source, with a resolution precedence. Append-only (Axiom A) — an
+  override is a new higher-precedence observation, never a mutation; deleting
   one re-exposes the prior observation.
 - **`PriceableSubject`** — unifies the 3 legacy key vocabularies (currency
   pair / listed security / valued component) into one subject identity.
@@ -42,6 +42,10 @@ policy)` call.
   platform outbox, atomically with the write) whenever a new observation is
   recorded; `extraction` is one producer (`source=statement`), the manual
   recorders another (`source=manual-override`).
+- **`ResolvedValuationContribution`** — the package-facing value object: one
+  selected observation, its immutable digest, the resolution policy, exact
+  `TraceRecord` decision id, and an explicit `authoritative` or `unproven`
+  state. It is the only valuation input a report package may freeze.
 
 ## Boundary rulings (record, don't relitigate — see #1610)
 
@@ -73,6 +77,31 @@ consumer: extraction's `source=statement` `PriceObserved` publications land as
 id-referenced copies in `statement_price_observations`, idempotent on the
 upstream fact id, no FK, wired by the app composition root), and the FX
 lookup + `convert_*` + average-rate wrappers (`extension/fx.py`).
+
+## Decision-backed valuation contributions (#1915)
+
+`resolve_valuation_contribution()` is the package boundary. It returns the
+selected value together with its `observation_id`, immutable observation
+version, resolution-policy identity, `input_refs`, and current pricing
+`TraceRecord` decision. Reporting consumes this DTO; it does not import a
+manual-valuation, override, price, or statement-observation table and may not
+turn `source`, `valuation_basis`, an authority rank, `created_at`, or a
+freshness label into trust.
+
+Manual valuations and overrides emit a `ManualValuationAttestationPolicy`
+decision in the same caller-owned transaction as the append-only snapshot.
+Corrections create a new snapshot and replace the previous decision while the
+prior observation remains immutable evidence. Provider/statement selections
+receive a deterministic `ResolvedMarketValuationPolicy` decision that pins the
+exact selected observation and policy; it certifies selection, not economic
+correctness of an external provider.
+
+An observation without its required current target-matching decision is
+returned as `unproven`. This includes legacy manual rows and any stale,
+superseded, rejected, cross-tenant, or target-mismatched decision. A package
+may display the value as a draft input but cannot call the resulting document
+trusted. A frozen package stores the returned IDs/digests and never re-runs
+this resolution when it is reopened or exported.
 
 Reserved (declared in [`contract.py`](./contract.py), no `module=` yet): the
 `LatestPriceView`/`StalenessView` read projections.
@@ -119,6 +148,13 @@ separate user-trust signal from the snapshot's `source` basis string:
 `source` describes where the user says the value came from, while
 `provenance` states that the value was user-entered rather than imported
 or derived by the system.
+
+The create and correction paths share `record_manual_valuation()`: `PATCH`
+creates a new version for the same `(component_type, source, as_of_date)`
+identity and returns that new snapshot. Changing that identity requires a new
+valuation rather than mutating a decision target. Destructive `DELETE` is
+rejected for a decision-backed snapshot; the historical fact and its frozen
+package references remain auditable.
 
 ### Guided evidence intake contract (#706)
 

@@ -59,6 +59,13 @@ from src.pricing.extension.scheduler import (
     run_daily_market_data_sync,
     run_market_data_scheduler,
 )
+from src.pricing.extension.valuation_contribution import (
+    ManualValuationAttestationPolicy,
+    ResolvedMarketValuationPolicy,
+    ResolvedValuationContribution,
+    pricing_trace_policy_registry,
+    resolve_valuation_contribution,
+)
 
 __all__ = [
     "FxWarning",
@@ -68,6 +75,7 @@ __all__ = [
     "MarketDataScopeStatus",
     "MarketDataScopes",
     "MarketDataSyncResult",
+    "ManualValuationAttestationPolicy",
     "PrefetchedFxRates",
     "SqlObservationRepository",
     "convert_amount",
@@ -81,10 +89,14 @@ __all__ = [
     "next_market_data_sync_at",
     "record_manual_valuation",
     "record_override",
+    "ResolvedValuationContribution",
+    "ResolvedMarketValuationPolicy",
     "resolve",
+    "resolve_valuation_contribution",
     "resolve_missing_fx_rate",
     "run_daily_market_data_sync",
     "run_market_data_scheduler",
+    "pricing_trace_policy_registry",
     "subscribe_price_ingest",
     "sync_fx_rates",
     "sync_stock_prices",

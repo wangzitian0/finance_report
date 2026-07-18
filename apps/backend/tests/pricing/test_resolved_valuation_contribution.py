@@ -1,0 +1,190 @@
+"""Decision-backed pricing inputs for a frozen personal-report package (#1915)."""
+
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import select
+
+from src.audit.orm.trace_record import TraceRecordRow
+from src.extraction.orm.layer3 import ManualValuationSnapshot
+from src.pricing import (
+    PriceableSubject,
+    ResolutionPolicy,
+    StockPrice,
+    record_manual_valuation,
+    resolve_valuation_contribution,
+)
+
+pytestmark = pytest.mark.asyncio
+
+
+async def test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision(db, test_user):
+    """AC-pricing.valuation-contribution.1: a correction replaces the prior decision."""
+    subject = PriceableSubject.component("property_value")
+    first = await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of=date(2026, 6, 1),
+        value=Decimal("500000"),
+        currency="SGD",
+        source="operator-appraisal",
+    )
+    first_contribution = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=subject,
+        as_of=date(2026, 6, 1),
+        policy=ResolutionPolicy(),
+    )
+    assert first_contribution.is_authoritative
+    assert first_contribution.observation_id == first.id
+    assert first_contribution.decision_id is not None
+
+    second = await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of=date(2026, 6, 1),
+        value=Decimal("510000"),
+        currency="SGD",
+        source="operator-appraisal",
+    )
+    second_contribution = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=subject,
+        as_of=date(2026, 6, 1),
+        policy=ResolutionPolicy(),
+    )
+
+    assert second_contribution.is_authoritative
+    assert second_contribution.observation_id == second.id
+    assert second_contribution.decision_id != first_contribution.decision_id
+    assert second_contribution.observation_version != first_contribution.observation_version
+    second_decision = await db.get(TraceRecordRow, second_contribution.decision_id)
+    assert second_decision is not None
+    assert second_decision.supersedes_id == first_contribution.decision_id
+
+
+async def test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision(db, test_user):
+    """AC-pricing.valuation-contribution.2: the DTO is the complete package input."""
+    observation = await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type="cpf_balance",
+        liquidity_class="restricted",
+        as_of=date(2026, 6, 1),
+        value=Decimal("100000"),
+        currency="SGD",
+        source="cpf-portal",
+    )
+
+    contribution = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=observation.subject,
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=30),
+    )
+
+    assert contribution.is_authoritative
+    assert contribution.observation_id == observation.id
+    assert contribution.observation_version
+    assert contribution.decision_id
+    assert contribution.input_refs == (f"pricing_observation:{observation.id}",)
+    assert contribution.resolution_policy == "max_age_days=30;min_authority=CRAWLER"
+
+    # A provider row is not trusted because it says "crawler". Pricing emits
+    # a deterministic decision that pins the selected row and this exact
+    # resolution policy before it can become a package contribution.
+    db.add(
+        StockPrice(
+            symbol="AAPL",
+            price=Decimal("185.50"),
+            currency="USD",
+            price_date=date(2026, 6, 15),
+            source="recorded-provider",
+        )
+    )
+    await db.flush()
+    market = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=PriceableSubject.security("AAPL"),
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=1),
+    )
+    assert market.is_authoritative
+    assert market.source is not None
+    assert market.decision_id is not None
+
+
+async def test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven(db, test_user):
+    """AC-pricing.valuation-contribution.3: missing authority stays explicitly unproven."""
+    legacy = ManualValuationSnapshot(
+        user_id=test_user.id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of_date=date(2026, 6, 1),
+        value=Decimal("500000.00"),
+        currency="SGD",
+        source="legacy-import",
+    )
+    db.add(legacy)
+    await db.flush()
+
+    missing = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=PriceableSubject.component("property_value"),
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=30),
+    )
+    assert not missing.is_authoritative
+    assert missing.decision_id is None
+    assert missing.reason_code == "missing_observation_decision"
+
+    cross_tenant = await resolve_valuation_contribution(
+        db,
+        user_id=uuid4(),
+        subject=PriceableSubject.component("property_value"),
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=30),
+    )
+    assert not cross_tenant.is_authoritative
+    assert cross_tenant.reason_code == "no_eligible_observation"
+
+
+async def test_AC_pricing_valuation_contribution_4_rollback_is_atomic(db, test_user):
+    """AC-pricing.valuation-contribution.4: a failed write leaves no durable trace."""
+    user_id = test_user.id
+    await record_manual_valuation(
+        db,
+        user_id,
+        component_type="property_value",
+        liquidity_class="illiquid",
+        as_of=date(2026, 6, 1),
+        value=Decimal("500000"),
+        currency="SGD",
+        source="operator-appraisal",
+    )
+    await db.flush()
+    await db.rollback()
+
+    snapshots = (
+        (await db.execute(select(ManualValuationSnapshot.id).where(ManualValuationSnapshot.user_id == user_id)))
+        .scalars()
+        .all()
+    )
+    traces = (
+        (await db.execute(select(TraceRecordRow.id).where(TraceRecordRow.scope_id == str(user_id)))).scalars().all()
+    )
+    assert snapshots == []
+    assert traces == []

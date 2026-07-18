@@ -8,6 +8,7 @@ build against the ``ObservationRepository`` port declared here.
 
 from __future__ import annotations
 
+from src.pricing.base.contribution import ResolvedValuationContribution, resolution_policy_identity
 from src.pricing.base.errors import (
     InvalidObservationError,
     InvalidSubjectError,
@@ -15,7 +16,7 @@ from src.pricing.base.errors import (
     PricingError,
 )
 from src.pricing.base.events import PriceObserved
-from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
+from src.pricing.base.observation import Authority, ObservationSource, PriceObservation, pricing_valuation_lineage_id
 from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.repository import ObservationRepository
 from src.pricing.base.subject import PriceableSubject, SubjectKind
@@ -32,5 +33,8 @@ __all__ = [
     "PriceableSubject",
     "PricingError",
     "ResolutionPolicy",
+    "ResolvedValuationContribution",
     "SubjectKind",
+    "pricing_valuation_lineage_id",
+    "resolution_policy_identity",
 ]

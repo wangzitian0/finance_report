@@ -31,8 +31,11 @@ from src.audit.money import to_money
 from src.audit.money.currency import normalize_currency_code
 from src.platform import OutboxEventBus
 from src.pricing.base.events import PriceObserved
-from src.pricing.base.observation import Authority, ObservationSource, PriceObservation
+from src.pricing.base.observation import Authority, ObservationSource, PriceObservation, pricing_valuation_lineage_id
 from src.pricing.base.subject import PriceableSubject
+from src.pricing.extension.valuation_contribution import (
+    emit_manual_valuation_decision,
+)
 from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
 
 if TYPE_CHECKING:
@@ -64,15 +67,16 @@ async def record_manual_valuation(
     source: str,
     valuation_basis: ManualValuationBasis | None = None,
     notes: str | None = None,
+    recurrence_days: int | None = None,
+    reminder_date: date | None = None,
 ) -> PriceObservation:
     """Record a manual valuation as an append-only versioned fact (Axiom A).
 
     If a current version already exists for
     ``(user_id, component_type, source, as_of)``, this appends a new version
-    and supersedes the prior one instead of overwriting it — the same
-    3-flush ordered hand-off ``ValuationService.create_valuation_snapshot``
-    (``pricing/extension/valuation.py``) uses, valid under both the self-referencing FK
-    and the partial-unique index (never two current heads at once).
+    and supersedes the prior one instead of overwriting it. The ordered
+    three-flush hand-off keeps the self-referencing FK and partial unique
+    index valid at every statement boundary (never two current heads at once).
     """
     # Deferred import: see the module-level TYPE_CHECKING note above.
     from src.extraction.orm.layer3 import ManualValuationSnapshot
@@ -101,6 +105,8 @@ async def record_manual_valuation(
         source=source,
         valuation_basis=valuation_basis,
         notes=notes,
+        recurrence_days=recurrence_days,
+        reminder_date=reminder_date,
         version=(head.version + 1) if head is not None else 1,
         # Park under the prior head so there is never a moment with two
         # current heads for the same key (checked per statement).
@@ -130,7 +136,7 @@ async def record_manual_valuation(
         )
     )
 
-    return PriceObservation(
+    observation = PriceObservation(
         id=snapshot.id,
         subject=subject,
         value=snapshot.value,
@@ -139,7 +145,14 @@ async def record_manual_valuation(
         source=ObservationSource.MANUAL,
         authority=Authority.MANUAL,
         currency=snapshot.currency,
+        lineage_id=pricing_valuation_lineage_id(
+            subject=subject,
+            source=source,
+            as_of=snapshot.as_of_date,
+        ),
     )
+    await emit_manual_valuation_decision(db, user_id=user_id, observation=observation)
+    return observation
 
 
 async def record_override(
@@ -188,7 +201,7 @@ async def record_override(
         )
     )
 
-    return PriceObservation(
+    observation = PriceObservation(
         id=override.id,
         subject=subject,
         value=override.price,
@@ -197,4 +210,11 @@ async def record_override(
         source=ObservationSource.OVERRIDE,
         authority=Authority.OVERRIDE,
         currency=override.currency,
+        lineage_id=pricing_valuation_lineage_id(
+            subject=subject,
+            source="override",
+            as_of=override.price_date,
+        ),
     )
+    await emit_manual_valuation_decision(db, user_id=user_id, observation=observation)
+    return observation
