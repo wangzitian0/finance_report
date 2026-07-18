@@ -542,9 +542,6 @@ async def build_manual_valuation_lines(
             "type": "LIABILITY" if is_liability else "ASSET",
             "parent_id": None,
             "amount": to_money(amount),
-            # Manual valuations are user-supplied, explicitly trusted data (vision:
-            # "manual data is explicitly trusted"), mirroring source_type=manual.
-            "confidence_tier": "TRUSTED",
             "provenance": "manual",
             "source_currency": source_currency,
             "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),

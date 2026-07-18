@@ -88,6 +88,13 @@ manual-valuation, override, price, or statement-observation table and may not
 turn `source`, `valuation_basis`, an authority rank, `created_at`, or a
 freshness label into trust.
 
+`resolve_manual_valuation_contributions()` applies the same DTO to every
+current manual component/source lineage. Component type is presentation, not
+identity: two properties of the same type remain two independently selected
+observations and two independently current decisions. Package-facing line
+builders may expose provenance for display, but never a confidence/trusted
+field inferred from that provenance.
+
 Manual valuations and overrides emit a `ManualValuationAttestationPolicy`
 decision in the same caller-owned transaction as the append-only snapshot.
 Corrections create a new snapshot and replace the previous decision while the
@@ -119,8 +126,9 @@ consumer wiring is tracked in #1610 PR2.
 — this is now the single owner; do not re-add a separate SSOT copy.
 `ManualValuationSnapshot` is the shipped pre-migration shape; it retires
 into the unified append-only `PriceObservation` model above at the #1610
-consumer-wiring cutover — a manual valuation becomes a high-authority
-observation. This section describes the shipped behavior in the meantime.)*
+consumer-wiring cutover — a manual valuation becomes a manual-ranked
+observation whose package use still requires its exact TraceRecord decision.
+This section describes the shipped behavior in the meantime.)*
 
 Manual snapshots (`ManualValuationSnapshot`, `manual_valuation_snapshots`
 table, `apps/backend/src/extraction/orm/layer3.py`, #1675 D5c) cover property value,

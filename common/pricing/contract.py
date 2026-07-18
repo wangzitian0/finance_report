@@ -258,6 +258,11 @@ CONTRACT = PackageContract(
             module="extension/valuation_contribution.py",
         ),
         Unit(
+            name="resolve_manual_valuation_contributions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
+        Unit(
             name="ManualValuationAttestationPolicy",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/valuation_contribution.py",
@@ -345,6 +350,7 @@ CONTRACT = PackageContract(
         "record_override",
         "pricing_trace_policy_registry",
         "resolve",
+        "resolve_manual_valuation_contributions",
         "resolve_valuation_contribution",
         "resolve_missing_fx_rate",
         "run_daily_market_data_sync",
@@ -1030,6 +1036,21 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
                 "::test_AC_pricing_valuation_contribution_4_rollback_is_atomic"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.5",
+            statement=(
+                "Pricing resolves every current manual valuation lineage into the same "
+                "ResolvedValuationContribution shape, preserving multiple sources for one "
+                "component type independently; package-facing line builders expose no "
+                "source-derived confidence or trusted field."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust"
             ),
             priority="P0",
             status="done",

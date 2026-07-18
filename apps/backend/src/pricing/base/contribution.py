@@ -22,6 +22,7 @@ class ResolvedValuationContribution:
     resolution_policy: str
     state: Literal["authoritative", "unproven"]
     reason_code: str | None
+    lineage_id: str | None
     observation_id: UUID | None
     observation_version: str | None
     observation_as_of: date | None

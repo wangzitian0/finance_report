@@ -372,7 +372,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Valuation Snapshot
-         * @description Delete a manual valuation snapshot.
+         * @description Reject destructive deletion of an immutable manual valuation snapshot.
          */
         delete: operations["delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete"];
         options?: never;

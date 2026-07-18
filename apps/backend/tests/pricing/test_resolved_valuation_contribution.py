@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -15,7 +16,9 @@ from src.pricing import (
     PriceableSubject,
     ResolutionPolicy,
     StockPrice,
+    build_manual_valuation_lines,
     record_manual_valuation,
+    resolve_manual_valuation_contributions,
     resolve_valuation_contribution,
 )
 
@@ -188,3 +191,43 @@ async def test_AC_pricing_valuation_contribution_4_rollback_is_atomic(db, test_u
     )
     assert snapshots == []
     assert traces == []
+
+
+async def test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust(db, test_user):
+    """AC-pricing.valuation-contribution.5: one component may have many exact lineages."""
+    observations = []
+    for source, value in (("home-a", "500000"), ("home-b", "750000")):
+        observations.append(
+            await record_manual_valuation(
+                db,
+                test_user.id,
+                component_type="property_value",
+                liquidity_class="illiquid",
+                as_of=date(2026, 6, 1),
+                value=Decimal(value),
+                currency="SGD",
+                source=source,
+            )
+        )
+
+    contributions = await resolve_manual_valuation_contributions(
+        db,
+        user_id=test_user.id,
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=30),
+    )
+
+    assert {item.observation_id for item in contributions} == {item.id for item in observations}
+    assert len({item.lineage_id for item in contributions}) == 2
+    assert all(item.is_authoritative and item.decision_id for item in contributions)
+
+    asset_lines, _ = await build_manual_valuation_lines(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 6, 15),
+        target_currency="SGD",
+    )
+    assert len(asset_lines) == 2
+    assert all("confidence_tier" not in line and "trusted" not in line for line in asset_lines)
+    pricing_source = Path(__file__).parents[2] / "src" / "pricing"
+    assert all("confidence_tier" not in path.read_text() for path in pricing_source.rglob("*.py"))

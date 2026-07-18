@@ -13211,7 +13211,7 @@
     },
     "/assets/valuation-snapshots/{snapshot_id}": {
       "delete": {
-        "description": "Delete a manual valuation snapshot.",
+        "description": "Reject destructive deletion of an immutable manual valuation snapshot.",
         "operationId": "delete_valuation_snapshot_assets_valuation_snapshots__snapshot_id__delete",
         "parameters": [
           {

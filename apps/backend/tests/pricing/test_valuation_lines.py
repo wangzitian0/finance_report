@@ -71,7 +71,7 @@ async def test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify(db:
     assert asset["type"] == "ASSET"
     assert asset["amount"] == Decimal("1350000.00")
     assert asset["source_currency"] == "USD"
-    assert asset["confidence_tier"] == "TRUSTED"
+    assert "confidence_tier" not in asset
     assert asset["provenance"] == "manual"
     assert asset["allocation_asset_class"] == "real_estate"
     assert asset["allocation_source_type"] == "manual_valuation"

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -33,7 +34,12 @@ from src.audit import (
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.pricing.base.contribution import ResolvedValuationContribution, resolution_policy_identity
 from src.pricing.base.errors import NoObservationError
-from src.pricing.base.observation import ObservationSource, PriceObservation
+from src.pricing.base.observation import (
+    Authority,
+    ObservationSource,
+    PriceObservation,
+    pricing_valuation_lineage_id,
+)
 from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
@@ -213,6 +219,7 @@ def _unproven(
         resolution_policy=resolution_policy_identity(policy),
         state="unproven",
         reason_code=reason_code,
+        lineage_id=observation.lineage_id if observation else None,
         observation_id=observation.id if observation else None,
         observation_version=valuation_observation_version(observation) if observation else None,
         observation_as_of=observation.as_of if observation else None,
@@ -330,6 +337,7 @@ async def _resolved_market_contribution(
         resolution_policy=resolution_policy_identity(policy),
         state="authoritative",
         reason_code=None,
+        lineage_id=observation.lineage_id,
         observation_id=observation.id,
         observation_version=valuation_observation_version(observation),
         observation_as_of=observation.as_of,
@@ -366,20 +374,39 @@ async def resolve_valuation_contribution(
         return await _resolved_market_contribution(
             db,
             user_id=user_id,
-            subject=subject,
+            subject=observation.subject,
             requested_as_of=as_of,
             policy=policy,
             observation=observation,
         )
 
+    return await _manual_observation_contribution(
+        db,
+        user_id=user_id,
+        observation=observation,
+        as_of=as_of,
+        policy=policy,
+    )
+
+
+async def _manual_observation_contribution(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    observation: PriceObservation,
+    as_of: date,
+    policy: ResolutionPolicy,
+) -> ResolvedValuationContribution:
+    """Validate one exact manual lineage head independently of sibling assets."""
     try:
+        resolve(observation.subject, as_of, policy, [observation])
         target = manual_valuation_target(observation)
-    except ValueError:
+    except (NoObservationError, ValueError):
         return _unproven(
-            subject=subject,
+            subject=observation.subject,
             as_of=as_of,
             policy=policy,
-            reason_code="missing_observation_decision",
+            reason_code="missing_or_ineligible_observation_decision",
             observation=observation,
         )
     policy_record = ManualValuationAttestationPolicy()
@@ -390,18 +417,19 @@ async def resolve_valuation_contribution(
     )
     if decision is None or decision.result is not TraceResult.AUTHORITATIVE or decision.target != target:
         return _unproven(
-            subject=subject,
+            subject=observation.subject,
             as_of=as_of,
             policy=policy,
             reason_code="missing_observation_decision",
             observation=observation,
         )
     return ResolvedValuationContribution(
-        subject=subject,
+        subject=observation.subject,
         requested_as_of=as_of,
         resolution_policy=resolution_policy_identity(policy),
         state="authoritative",
         reason_code=None,
+        lineage_id=observation.lineage_id,
         observation_id=observation.id,
         observation_version=target.version,
         observation_as_of=observation.as_of,
@@ -410,3 +438,65 @@ async def resolve_valuation_contribution(
         source=observation.source,
         decision_id=decision.record_id,
     )
+
+
+async def resolve_manual_valuation_contributions(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    as_of: date,
+    policy: ResolutionPolicy,
+) -> tuple[ResolvedValuationContribution, ...]:
+    """Resolve each current component/source lineage selected for package use."""
+    from src.extraction.orm.layer3 import ManualValuationSnapshot
+
+    rows = (
+        (
+            await db.execute(
+                select(ManualValuationSnapshot)
+                .where(ManualValuationSnapshot.user_id == user_id)
+                .where(ManualValuationSnapshot.as_of_date <= as_of)
+                .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+                .order_by(
+                    ManualValuationSnapshot.component_type,
+                    ManualValuationSnapshot.source,
+                    ManualValuationSnapshot.as_of_date.desc(),
+                    ManualValuationSnapshot.created_at.desc(),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    selected: dict[tuple[str, str], ManualValuationSnapshot] = {}
+    for row in rows:
+        selected.setdefault((row.component_type.value, row.source), row)
+
+    contributions = []
+    for row in selected.values():
+        subject = PriceableSubject.component(row.component_type.value)
+        observation = PriceObservation(
+            id=row.id,
+            subject=subject,
+            value=row.value,
+            as_of=row.as_of_date,
+            observed_at=row.created_at,
+            source=ObservationSource.MANUAL,
+            authority=Authority.MANUAL,
+            currency=row.currency,
+            lineage_id=pricing_valuation_lineage_id(
+                subject=subject,
+                source=row.source,
+                as_of=row.as_of_date,
+            ),
+        )
+        contributions.append(
+            await _manual_observation_contribution(
+                db,
+                user_id=user_id,
+                observation=observation,
+                as_of=as_of,
+                policy=policy,
+            )
+        )
+    return tuple(contributions)
