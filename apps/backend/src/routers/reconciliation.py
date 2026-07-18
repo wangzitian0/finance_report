@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import compose_reviewed_disposition_dependencies
@@ -53,20 +53,28 @@ router = APIRouter(prefix="/reconciliation", tags=["reconciliation"])
 logger = get_logger(__name__)
 
 
-def _unmatched_atomic_txn_query():
+def _unmatched_atomic_txn_query(user_id: UUID):
     """Select Layer-2 atomic transactions that still require economic review.
 
     A source entry created from a reviewed disposition is already resolved; it
     must not keep reappearing in the unmatched queue merely because it has no
     separate reconciliation-match row.
     """
-    matched_subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.is_not(None))
+    matched_transaction = aliased(AtomicTransaction)
+    matched_subquery = (
+        select(ReconciliationMatch.atomic_txn_id)
+        .join(matched_transaction, matched_transaction.id == ReconciliationMatch.atomic_txn_id)
+        .where(matched_transaction.user_id == user_id)
+        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
+    )
     posted_source_subquery = (
         select(JournalEntry.source_id)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.status != JournalEntryStatus.VOID)
     )
     return select(AtomicTransaction).where(
+        AtomicTransaction.user_id == user_id,
         AtomicTransaction.id.notin_(matched_subquery),
         AtomicTransaction.id.notin_(posted_source_subquery),
     )
@@ -235,7 +243,7 @@ async def run_reconciliation(
     auto_accepted = sum(1 for match in matches if match.status.value == "auto_accepted")
     pending_review = sum(1 for match in matches if match.status.value == "pending_review")
 
-    unmatched_query = _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id)
+    unmatched_query = _unmatched_atomic_txn_query(user_id)
     if statement is not None:
         statement_txn_ids = await _statement_atomic_txn_ids(db, statement)
         if not statement_txn_ids:
@@ -478,19 +486,11 @@ async def list_unmatched(
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
     result = await db.execute(
-        _unmatched_atomic_txn_query()
-        .where(AtomicTransaction.user_id == user_id)
-        .order_by(AtomicTransaction.txn_date.desc())
-        .limit(limit)
-        .offset(offset)
+        _unmatched_atomic_txn_query(user_id).order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset)
     )
     items = [BankTransactionSummary.model_validate(item) for item in result.scalars().all()]
 
-    total_result = await db.execute(
-        select(func.count()).select_from(
-            _unmatched_atomic_txn_query().where(AtomicTransaction.user_id == user_id).subquery()
-        )
-    )
+    total_result = await db.execute(select(func.count()).select_from(_unmatched_atomic_txn_query(user_id).subquery()))
     total = total_result.scalar_one()
 
     return UnmatchedTransactionsResponse(items=items, total=total)

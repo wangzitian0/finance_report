@@ -541,6 +541,41 @@ async def test_list_unmatched_has_no_raw_entry_creator(db: AsyncSession, test_us
     assert not hasattr(reconciliation_router, "create_entry")
 
 
+async def test_unmatched_exclusions_are_tenant_scoped(db: AsyncSession, test_user) -> None:
+    """AC-reconciliation.review-queue.12: another tenant cannot hide this user's source facts."""
+    statement = await _create_statement(db, test_user.id)
+    source_collision = await _create_transaction(db, statement, amount=Decimal("4.00"))
+    visible_transaction = await _create_transaction(db, statement, amount=Decimal("5.00"))
+    other_user = await UserFactory.create_async(db)
+    other_statement = await _create_statement(db, other_user.id)
+    other_transaction = await _create_transaction(db, other_statement, amount=Decimal("6.00"))
+    db.add_all(
+        [
+            JournalEntry(
+                user_id=other_user.id,
+                entry_date=date.today(),
+                memo="Foreign source-id collision",
+                source_type=JournalEntrySourceType.AUTO_PARSED,
+                source_id=source_collision.id,
+                status=JournalEntryStatus.DRAFT,
+            ),
+            ReconciliationMatch(
+                atomic_txn_id=other_transaction.id,
+                journal_entry_ids=[],
+                match_score=Decimal("80"),
+                score_breakdown={},
+                status=ReconciliationStatus.PENDING_REVIEW,
+            ),
+        ]
+    )
+    await db.commit()
+
+    unmatched = await reconciliation_router.list_unmatched(limit=50, offset=0, db=db, user_id=test_user.id)
+
+    assert unmatched.total == 2
+    assert {item.id for item in unmatched.items} == {source_collision.id, visible_transaction.id}
+
+
 async def test_list_anomalies_returns_list(db: AsyncSession, test_user) -> None:
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("10.00"), status=None)
