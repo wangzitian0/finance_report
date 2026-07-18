@@ -154,18 +154,16 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
     # Record-only (blocking=false) must NOT fail the job: a non-zero exit is
     # guarded by BLOCKING == "true", and the record-only path exits 0 so it keeps
     # the old inline continue-on-error semantics (#1365 Copilot fix).
-    assert (
-        'if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then' in reusable_text
-    )
+    assert 'if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then' in reusable_text
     assert "exit 0" in reusable_text
 
-    # Both deploy.yml entrances are uses: callers of the reusable workflow that
-    # differ only by the blocking input (and checkout/expected_sha).
+    # Both deploy.yml entrances use the reusable workflow and fail closed. The
+    # separate audit-replay workflow owns the only record-only invocation.
     ref = "./.github/workflows/staging-ai-ocr-gate.yml"
-    for job_id, blocking in (("ai-ocr-gate", False), ("manual-ai-ocr-gate", True)):
+    for job_id in ("ai-ocr-gate", "manual-ai-ocr-gate"):
         job = deploy["jobs"][job_id]
         assert job["uses"] == ref
-        assert job["with"]["blocking"] is blocking
+        assert job["with"]["blocking"] is True
         assert job.get("secrets") == "inherit"
         # A caller cannot also inline steps — the body must not be duplicated.
         assert "steps" not in job
@@ -183,7 +181,10 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
 
 def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
     """AC-testing.gate-inventory.5: AC8.13.154: production release split into release.yml; deploy.yml keeps staging + promote."""
-    from common.meta.extension.workflow_contract import APP_WORKFLOW_FILES, WORKFLOW_CONTRACT
+    from common.meta.extension.workflow_contract import (
+        APP_WORKFLOW_FILES,
+        WORKFLOW_CONTRACT,
+    )
 
     release = _load_yaml(WORKFLOWS / "release.yml")
     deploy = _load_yaml(WORKFLOWS / "deploy.yml")
