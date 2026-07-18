@@ -44,6 +44,7 @@ not contend with the operator's machine).
 | You touched | It runs |
 |---|---|
 | `docs/project/EPIC*.md`, `docs/ac_registry*.yaml`, `docs/infra_registry*.yaml` | `generate_ac_registry.py` → `check_ac_index.py` |
+| `tests/*.py`, `apps/backend/tests/*.py`, frontend `*.test.*` / `*.spec.*` | `check_ac_index.py` (AC proof traceability) |
 | `common/meta/data/MANIFEST.yaml` | `check_ssot_ownership.py`, `check_manifest.py` |
 | `docs/*`, `mkdocs.yml`, `vision.md`, `README.md` | `lint_doc_consistency.py` |
 | `*.md`, `common/meta/data/*.yaml`, `tests/*.py`, `common/*`, `tools/*.py` | `check_taxonomy_drift.py` (retired taxonomy vocabulary gate, AC-meta.vocab.1) |
