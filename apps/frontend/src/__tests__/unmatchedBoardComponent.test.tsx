@@ -72,8 +72,10 @@ describe("UnmatchedBoard", () => {
 
     render(<UnmatchedBoard />);
 
-    expect(await screen.findByText("Flagged locally")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unflag local" })).toBeInTheDocument();
+    // The flag badge is rendered in the list before the selected-detail pane
+    // commits. Wait for the user action this proof needs instead of that proxy.
+    expect(await screen.findByRole("button", { name: "Unflag local" })).toBeInTheDocument();
+    expect(screen.getByText("Flagged locally")).toBeInTheDocument();
   });
 
   it("keeps review available when local flag storage is malformed or unavailable", async () => {
