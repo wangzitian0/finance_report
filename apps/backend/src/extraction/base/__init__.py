@@ -7,6 +7,7 @@ No ORM, no network, no LLM — the extension pipeline calls DOWN into these.
 
 from __future__ import annotations
 
+from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.disposition import (
     DispositionCommand,
     DispositionContext,
@@ -63,6 +64,7 @@ __all__ = [
     "IntentProposalOrigin",
     "ParseJob",
     "RetryableStatementIngestionError",
+    "ResolvedStatementContribution",
     "ReviewedStatementEnvelopeCommand",
     "SourceCapability",
     "SOURCE_CAPABILITIES",

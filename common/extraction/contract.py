@@ -179,6 +179,24 @@ CONTRACT = PackageContract(
             kind=Kind.VALUE_OBJECT,
             module="base/result.py",
         ),
+        # #1681: the only source-result/position payload reporting may consume.
+        # It resolves an immutable source version and its current TraceRecord
+        # decision before the reporting package can freeze either.
+        Unit(
+            name="ResolvedStatementContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="resolve_statement_contribution",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/statement_contribution.py",
+        ),
+        Unit(
+            name="list_statement_contributions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/statement_contribution.py",
+        ),
         Unit(
             name="ReviewedStatementEnvelopeCommand",
             kind=Kind.VALUE_OBJECT,
@@ -306,6 +324,7 @@ CONTRACT = PackageContract(
         "StatementIngestionStatus",
         "StatementIngestionUseCase",
         "StatementExtractionResult",
+        "ResolvedStatementContribution",
         "StatementEvidenceType",
         "StatementPostingDependencies",
         "StatementPostingOutcome",
@@ -352,6 +371,8 @@ CONTRACT = PackageContract(
         "pending_stage1_review_filter",
         "persist_statement_extraction_result",
         "record_correction",
+        "resolve_statement_contribution",
+        "list_statement_contributions",
         "register_fx_rate_provider",
         "register_position_reconciler",
         "register_statement_source",
@@ -3992,6 +4013,55 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="open",
+            proof_kind="invariant",
+        ),
+        # ── group statement-contribution: source-to-package boundary (#1681) ──
+        ACRecord(
+            id="AC-extraction.statement-contribution.1",
+            statement=(
+                "resolve_statement_contribution publishes the exact current immutable "
+                "StatementExtractionResult, including its transaction and position facts, "
+                "record identity, digest, uploaded-document reference, and decision id without reconstructing a cassette "
+                "or exposing extraction ORM rows to consumers."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_contribution.py"
+                "::test_AC_extraction_statement_contribution_1_preserves_exact_position_source_result"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.statement-contribution.2",
+            statement=(
+                "A contribution is authoritative only when its exact current source version "
+                "has a current authoritative extraction-promotion or reviewed-envelope "
+                "TraceRecord decision; provenance, confidence, source class, or import time "
+                "cannot substitute for that decision."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_contribution.py"
+                "::test_AC_extraction_statement_contribution_2_reviewed_envelope_pins_exact_decision"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.statement-contribution.3",
+            statement=(
+                "Malformed, missing, non-authoritative, stale, cross-tenant, or target-mismatched "
+                "source facts or decisions return an explicit unproven contribution and never grant "
+                "trust to a package consumer; authoritative contributions carry no reason code and "
+                "unproven contributions carry no decision id."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_contribution.py"
+                "::test_AC_extraction_statement_contribution_3_fails_closed_without_current_decision"
+            ),
+            priority="P0",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(

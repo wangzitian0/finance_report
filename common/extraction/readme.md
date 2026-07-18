@@ -232,6 +232,25 @@ Stage-1 approval rechecks that the mutable projection still equals the current
 complete source result or its current reviewed envelope, so no route or worker
 can promote a diverged projection.
 
+### Package-facing statement contributions (#1681)
+
+`resolve_statement_contribution()` and `list_statement_contributions()` are
+the only extraction interfaces a report package may use for statement source
+facts. A `ResolvedStatementContribution` contains the exact immutable current
+`StatementExtractionResult`, persisted source-result id, immutable
+uploaded-document reference when one is present, input refs, and current
+promotion or reviewed-envelope `TraceRecord` decision. It carries transaction
+and position facts exactly as persisted; it never reconstructs a cassette or
+exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a
+consumer.
+
+The contribution is `authoritative` only when its exact source version has its
+current target-matching decision. A missing, non-authoritative, stale,
+cross-tenant, or target-mismatched decision returns `unproven`. Source type,
+parser confidence, import time, and provenance remain display/diagnostic facts,
+not an authority shortcut. Report assembly freezes the contribution's ids and
+digest; it never resolves a replacement after reopen or export.
+
 `StatementExtractionResult` separately preserves a scalar statement-declared currency.
 For a transaction ledger, a scalar declaration or an exact source-declared balance
 bucket is required; an individual transaction currency can never fill that gap. A
