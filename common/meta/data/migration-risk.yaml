@@ -133,7 +133,7 @@ migrations:
     file: 0056_decision_anchored_journal_entries.py
     risk: high
     issue: "#1909"
-    proof: Adds immutable decision-anchor provenance and explicitly backfills every historical journal entry to legacy_unproven without granting synthetic trust; AC-ledger.79 proves target-bound anchor validation, idempotency, public provenance rejection, and immutable persistence.
-    staging_validation: Deploy with representative manual, statement, transfer, portfolio, FX-revaluation, and void commands; verify each new entry stores a current decision anchor, while a pre-upgrade row remains legacy_unproven and cannot be promoted by a source-type mutation.
-    production_preflight: Count journal_entries by status and source_type, and confirm the deploy owner accepts that every existing row will remain legacy_unproven until independently re-established through a correction workflow; take a database snapshot before applying the backfill and trigger replacement.
-    rollback_strategy: Before trusted-ledger/report consumers depend on anchors, downgrade restores the previous immutability trigger and drops additive anchor columns; after that cutover, restore the pre-migration snapshot rather than discarding anchor provenance.
+    proof: AC-ledger.79.8 upgrades a generated balanced posted entry from revision 0055, verifies the explicit legacy_unproven state and absent anchor, confirms no server default remains, and re-proves the PostgreSQL immutability trigger.
+    staging_validation: Deploy one immutable release tag to staging; the backend must complete the upgrade and report healthy before the pinned statement canary runs, proving the historical staging ledger did not block migration.
+    production_preflight: None required. The revision adds legacy_unproven through PostgreSQL's column default rather than scanning or updating journal_entries; verify the release's migration log records successful revision 0056 before any production promotion.
+    rollback_strategy: A failed upgrade rolls back transactionally before revision 0056 is recorded. After a successful upgrade, roll back application code only if necessary; restore the database snapshot before downgrading once anchored entries exist, because dropping their authority columns would discard audit references.
