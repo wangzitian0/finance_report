@@ -1,5 +1,6 @@
 """Reconciliation API router."""
 
+from collections.abc import Sequence
 from decimal import Decimal
 from uuid import UUID
 
@@ -32,6 +33,7 @@ from src.reconciliation import (
 )
 from src.schemas.reconciliation import (
     AnomalyResponse,
+    BankTransactionSummary,
     BatchAcceptRequest,
     BatchCreateEntriesRequest,
     BatchCreateEntriesResponse,
@@ -74,7 +76,7 @@ async def _statement_atomic_txn_ids(db: AsyncSession, statement: StatementSummar
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
-    return sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
+    return sum((line.amount for line in entry.lines if line.direction == Direction.DEBIT), Decimal("0"))
 
 
 def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
@@ -109,14 +111,14 @@ def _build_match_response(
         superseded_by_id=match.superseded_by_id,
         created_at=match.created_at,
         updated_at=match.updated_at,
-        transaction=transaction,
+        transaction=BankTransactionSummary.model_validate(transaction) if transaction else None,
         entries=entries,
     )
 
 
 async def _load_entry_summaries(
     db: AsyncSession,
-    matches: list[ReconciliationMatch],
+    matches: Sequence[ReconciliationMatch],
     user_id: UUID,
 ) -> dict[str, JournalEntrySummary]:
     entry_ids: set[UUID] = set()
@@ -146,7 +148,7 @@ async def _load_entry_summaries(
 
 async def _load_transactions(
     db: AsyncSession,
-    matches: list[ReconciliationMatch],
+    matches: Sequence[ReconciliationMatch],
 ) -> dict[UUID, AtomicTransaction]:
     """Batch-fetch each match's ``AtomicTransaction`` by id (#1675 D4: no
     relationship() eager-load across the reconciliation -> extraction
@@ -476,7 +478,7 @@ async def list_unmatched(
         .limit(limit)
         .offset(offset)
     )
-    items = result.scalars().all()
+    items = [BankTransactionSummary.model_validate(transaction) for transaction in result.scalars().all()]
 
     total_result = await db.execute(
         select(func.count()).select_from(
@@ -519,12 +521,16 @@ async def create_entry(
         return _build_entry_summary(existing_entry)
 
     base_currency = await get_effective_base_currency(db)
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=user_id,
-        base_currency=base_currency,
-    )
+    try:
+        entry = await create_entry_from_txn(
+            db,
+            txn,
+            user_id=user_id,
+            base_currency=base_currency,
+        )
+    except ValueError as exc:
+        await db.rollback()
+        raise_bad_request(str(exc), cause=exc)
     await db.commit()
     return _build_entry_summary(entry)
 
@@ -575,16 +581,20 @@ async def batch_create_entries(
 
     created_count = 0
     base_currency = await get_effective_base_currency(db)
-    for txn in txns:
-        if txn.id in existing_source_ids:
-            continue
-        await create_entry_from_txn(
-            db,
-            txn,
-            user_id=user_id,
-            base_currency=base_currency,
-        )
-        created_count += 1
+    try:
+        for txn in txns:
+            if txn.id in existing_source_ids:
+                continue
+            await create_entry_from_txn(
+                db,
+                txn,
+                user_id=user_id,
+                base_currency=base_currency,
+            )
+            created_count += 1
+    except ValueError as exc:
+        await db.rollback()
+        raise_bad_request(str(exc), cause=exc)
 
     await db.commit()
     return BatchCreateEntriesResponse(created_count=created_count)

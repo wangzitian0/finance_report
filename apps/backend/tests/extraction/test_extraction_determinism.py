@@ -19,13 +19,13 @@ Covers AC-extraction.113.1 / AC-extraction.113.2 / AC-extraction.113.3 (EPIC-013
 
 from __future__ import annotations
 
-import hashlib
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.base.validation import (
     compute_confidence_score,
     route_by_threshold,
@@ -33,6 +33,7 @@ from src.extraction.base.validation import (
 )
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_enums import BankStatementStatus
+from tests.statement_ingestion import parse_and_load_statement_projection
 
 # Number of repeated runs/parses used to surface non-determinism. Small enough to
 # stay fast in CI, large enough that order-dependent flakiness shows up reliably.
@@ -165,16 +166,13 @@ class TestRepeatedParseDeterminism:
         """
         service = ExtractionService()
         content = f"PDF-{tag}".encode()
-        file_hash = hashlib.sha256(content).hexdigest()
         with patch.object(service, "extract_financial_data", return_value=payload):
-            statement, transactions = await service.parse_document(
-                file_path=Path(f"{tag}.pdf"),
+            _result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path(f"{tag}.pdf"), content=content),
                 institution=payload.get("institution"),
                 user_id=user_id,
-                file_content=content,
-                file_hash=file_hash,
-                original_filename=f"{tag}.pdf",
-                db=db,
             )
         await db.commit()
         return statement, transactions

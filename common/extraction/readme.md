@@ -22,6 +22,57 @@ This document defines the Single Source of Truth for the document extraction fea
 
 The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-4.6v`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.1`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
+## Statement ingestion application boundary
+
+`StatementIngestionUseCase` is the only production owner of load -> extract ->
+persist -> review/promotion -> posting sequencing. The API fallback and Prefect
+flow are transport adapters around the same object. The app composition root
+constructs it with immutable ports for the session maker, source-content loader,
+reconciliation transfer facts, FX lookup, brokerage review, and clock; importing
+`src.main` or mutating a package-global provider is never part of worker startup.
+
+The upload transaction first persists one ODS `UploadedDocument`, binds it to the
+`StatementSummary`, and materializes its source-evidence node before it dispatches
+asynchronous parsing. Parsing enriches the same artifact with its typed result and
+resolved bank/brokerage type; it never creates a second source document or relies
+on transient attributes of the DWD summary for a file path or display filename.
+
+Only a typed extraction/source failure may move a statement to `rejected`.
+Missing composition, storage/database failures, and unexpected application
+exceptions raise typed ingestion errors so durable execution can retry without
+misrepresenting infrastructure failure as bad user data. Retrying finalization
+is idempotent by statement and atomic-transaction identity.
+
+## Extraction Result And Economic Disposition
+
+Every transport receives the same `StatementExtractionResult`; it is the
+versioned source-to-fact record, not an ORM tuple. Its result identity and
+content digest anchor ODS/DWD projection and audit trace records. `source_type`
+states the institution class (bank or brokerage), while `evidence_type` states
+the required source shape (`transaction_ledger` or `position_snapshot`): this
+single entity owns the missing-fact and review-only decision. A brokerage cash
+ledger therefore never requires positions, and a position snapshot never
+manufactures cash balances. Schema-v1 metadata remains readable; schema-v2
+writes require explicit `evidence_type`. A source may truthfully omit facts:
+transaction-only CSV is `manual_trusted`, settlement-note lot/fee/dividend
+ingestion is currently a declared `gap`, and bank/brokerage statement extraction
+is `supported`. Capability declarations describe product semantics only;
+test-node coverage belongs to `common/testing`.
+
+`DispositionPolicy` is the only extraction-owned statement-to-ledger semantic
+boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
+and accepted-transfer context, then returns either a balanced command, an
+already-covered transfer decision, or a review reason. Each proposal records
+its closed origin: a reviewed deterministic rule, a live LLM proposal, or an
+accepted reconciliation fact. Trace authority derives only from that origin;
+economic intent and cash direction never imply either economic meaning or
+authority. Income, expense, refund, and loan-interest may affect P&L; transfer,
+investment purchase/sale, loan principal, and card repayment require their
+matching asset/liability context and cannot be converted into income or expense
+by fallback. `off`, `observe`, and `enforce` calculate the same versioned
+decision; only `enforce` applies a command. Composition resolves the closed
+`STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
+
 ## Upload-First Product Contract
 
 The user-facing input model is upload-first: users provide supported source
@@ -50,7 +101,8 @@ and its EPIC -> AC -> test anchors.
 ```mermaid
 flowchart TB
     A[Upload PDF/Image/CSV] --> S[Store to Object Storage]
-    S --> P[Create PARSING Statement]
+    S --> O[Create ODS Source Artifact]
+    O --> P[Bind PARSING Statement]
     P --> B{File Type}
     B -->|PDF/Image| C["OCR_MODEL OCR path"]
     C --> C2["PRIMARY_MODEL JSON structuring"]
@@ -78,13 +130,17 @@ flowchart TB
 ### Ingestion Writes (EPIC-011)
 
 Ingestion writes the ODS/DWD tables directly. A successful parse persists one
-`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), and a
-`StatementSummary` envelope (DWD). `parse_document` returns
-`(StatementSummary, list[ExtractedTransactionRow])`; the immutable DTO carries
-`dedup_hash`, `balance_after`, `occurrence_index`, and currency-resolution state
-explicitly until `dual_write_layer2` persists an `AtomicTransaction`. No
-pre-persistence metadata is hidden on transient ORM attributes. There is no
-legacy `BankStatement` write path and no dual-write flag.
+`UploadedDocument` (ODS), the deduplicated `AtomicTransaction` rows (DWD), a
+`StatementExtractionResultRecord` append-only snapshot, and a `StatementSummary`
+effective envelope (DWD). `parse_document` returns one immutable, versioned
+`StatementExtractionResult`: source digest/type, exact balance facts,
+transactions, positions, confidence, warnings/review reasons, and provenance.
+The summary points only to the current immutable result; reparse advances that
+pointer instead of overwriting prior source evidence. The persisted ODS/DWD rows
+are its explicit projection; callers that need those rows read them by result
+identity rather than receiving hidden ORM objects in a tuple. No pre-persistence
+metadata is hidden on transient ORM attributes. There
+is no legacy `BankStatement` write path and no dual-write flag.
 
 The upload, in-process worker, and durable Prefect worker share one frozen
 `ParseJob` value object. Only `ParseJob.to_prefect_params()` crosses the Prefect
@@ -118,8 +174,9 @@ rather than runtime signature reflection.
 - Immutable once written (except for appending sources)
 
 **DWD: Statement Envelope (`StatementSummary`)**
-- One envelope per parsed statement, carrying period, opening/closing balances,
-  institution metadata, `file_hash`, and the resolved custody `account_id`.
+- One effective envelope per parsed statement, carrying period, opening/closing
+  balances, institution metadata, `file_hash`, the resolved custody `account_id`,
+  and a pointer to the current immutable source result.
 - Carries review/workflow state: `status`, `stage1_status`,
   `balance_validation_result`, `stage1_reviewed_at`, and `manual_opening_balance`.
 - Multi-currency statements (Wise / IBKR / Futu) additionally carry
@@ -131,12 +188,11 @@ rather than runtime signature reflection.
   [common/reconciliation/readme.md#per-currency-balance-reconciliation](../reconciliation/readme.md#per-currency-balance-reconciliation).
   (#1123 AC1; FX pairing / transfer net-worth / FX P&L deferred as #1123
   AC2/AC3/AC4.)
-- A multi-currency **brokerage** statement populates `currency_balances` from its
-  parsed positions: each currency's NAV is the sum of that currency's position
-  market values, persisted as an independent `{currency, opening, closing}` bucket
-  (a position snapshot has no intra-period cash flow, so `opening == closing`). The
-  multi-currency NAV therefore never collapses to a single scalar, and each
-  currency reconciles on its own closed loop. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
+- A multi-currency **brokerage position snapshot** never turns market values into
+  cash opening/closing balances. `currency_balances` is persisted only when the
+  source declares exact per-currency balance facts; otherwise the snapshot remains
+  review-only evidence. Declared multi-currency balances reconcile independently
+  and are never cross-summed. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
   `src/extraction/orm/statement_enums.py`.
 
@@ -146,11 +202,41 @@ must remain reviewable instead of silently hiding the reason it cannot be
 trusted for auto-accept.
 
 CSV transaction exports that do not contain source statement opening and closing
-balances may use inferred balances for import continuity, but those inferred
-balances are not source balance proof. Such parses must remain reviewable and
-must not be auto-approved solely because `0 + transactions = inferred closing`.
-Their confidence score must not include the balance-validation component because
-no source statement balances were provided.
+balances remain missing those source facts. They cannot be auto-approved or
+silently completed from a zero/net-flow calculation; a reviewer must confirm the
+custody currency, source period, and opening/closing facts before approval.
+
+### Reviewed statement envelope
+
+`ReviewedStatementEnvelope` is an append-only reviewer fact, never a mutation
+of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope`
+accepts one complete, typed command pinned to the current result digest: a
+user-owned asset account, ISO currency, ordered period, Decimal opening/closing
+balances, and a rationale. The service verifies the exact result version,
+account currency, and the source transaction balance chain before it materializes
+the effective `StatementSummary` projection. It appends a review trace whose
+parent is the exact source-result observation.
+
+An identical retry returns the existing review fact. A different command for the
+same source result conflicts; after reparse, the prior review is not current and
+a new command appends an explicit successor. No parser default, transaction-date
+range, JSON sidecar, or in-place source edit can stand in for this decision.
+PostgreSQL triggers reject direct updates and deletes of both fact tables; their
+statement references are restrictive, so deletion requires an explicit owning
+domain purge rather than an implicit cross-domain cascade.
+Only a transaction-ledger result missing solely currency, period, or balances
+is envelope-reviewable. Position or transaction-currency gaps remain blocked
+for the source-specific review path; the API exposes this capability so clients
+never present a cash-envelope form for facts it cannot prove.
+Stage-1 approval rechecks that the mutable projection still equals the current
+complete source result or its current reviewed envelope, so no route or worker
+can promote a diverged projection.
+
+`StatementExtractionResult` separately preserves a scalar statement-declared currency.
+For a transaction ledger, a scalar declaration or an exact source-declared balance
+bucket is required; an individual transaction currency can never fill that gap. A
+multi-currency position snapshot does not require a scalar statement currency when
+each position declares its own.
 
 ## <a id="confidence-scoring"></a>Confidence Scoring
 
@@ -187,11 +273,11 @@ pending review, and expose the guard reason for human correction.
 
 **CSV without source balances never auto-approves.** A CSV export that carries
 no source statement opening/closing balances is parsed with
-`balance_source = inferred_from_csv_transactions`; the parser forces the
-statement to `parsed` (review) with `balance_validated = false`, and the
-confidence score excludes the balance-validation component
-(`balance_proof_available = false`). Inferred `0 + transactions = closing` is
-not balance proof and must not satisfy the auto-approve precondition.
+`balance_source = missing_from_csv_export`; the parser forces the statement to
+`parsed` (review) with `balance_validated = false`, and the confidence score
+excludes the balance-validation component (`balance_proof_available = false`).
+No inferred `0 + transactions = closing` value is source proof or an approval
+precondition.
 
 ## API Endpoints
 
@@ -203,6 +289,7 @@ not balance proof and must not satisfy the auto-approve precondition.
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |
 | GET | `/api/accounts/coverage` | Account-level latest confirmed source date, stale status, and statement period continuity issues |
+| POST | `/api/statements/{id}/review/envelope` | Append a version-pinned reviewer confirmation for missing/corrected envelope facts |
 | POST | `/api/statements/{id}/review/approve` | Stage 1 approve with balance-chain validation (canonical) |
 | POST | `/api/statements/{id}/review/reject` | Stage 1 reject (canonical) |
 | POST | `/api/statements/{id}/approve` | Deprecated compatibility endpoint (proxies to Stage 1 approve) |
@@ -334,6 +421,7 @@ VISION_FALLBACK_MODELS=glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
+STATEMENT_DISPOSITION_MODE=enforce
 # Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
 # glm-4.6v rejects `seed` with HTTP 400.
 AI_JSON_SEED=

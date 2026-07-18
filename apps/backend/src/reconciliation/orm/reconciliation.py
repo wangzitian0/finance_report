@@ -43,7 +43,7 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     journal_entry_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     match_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    score_breakdown: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
+    score_breakdown: Mapped[dict[str, float | str]] = mapped_column(JSONB, default=dict)
     status: Mapped[ReconciliationStatus] = mapped_column(
         SQLEnum(
             ReconciliationStatus,

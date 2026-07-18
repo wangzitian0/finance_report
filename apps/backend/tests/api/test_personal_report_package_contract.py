@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.deps import PaginationParams
-from src.extraction import DocumentType, ExtractedTransactionRow, UploadedDocument
+from src.extraction import DocumentType, EconomicIntent, ExtractedTransactionRow, UploadedDocument
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
@@ -68,6 +68,7 @@ from src.schemas import (
     PersonalReportPackageReadinessResponse,
 )
 from tests.factories import UserFactory
+from tests.statement_ingestion import reviewed_posting_inputs
 
 
 @pytest.fixture(autouse=True)
@@ -1698,6 +1699,12 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     atomic_txn = (
         await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
     ).scalar_one()
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=atomic_txn,
+        intent=EconomicIntent.INCOME,
+    )
     entry = await create_entry_from_txn(
         db,
         atomic_txn,
@@ -1706,6 +1713,8 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
         source_type=JournalEntrySourceType.USER_CONFIRMED,
         preloaded_statement=statement,
         preloaded_bank_account=bank,
+        disposition=decision,
+        counter_account=counter_account,
     )
     await db.flush()
     await db.refresh(entry, ["lines"])

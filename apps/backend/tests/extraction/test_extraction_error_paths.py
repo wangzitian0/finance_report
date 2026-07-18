@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from src.extraction import (
+    DocumentSource,
     DocumentStatus,
     ExtractedTransactionRow,
     ParseJob,
@@ -74,11 +75,10 @@ async def test_parse_document_csv_no_content():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="File content is required for CSV parsing"):
         await service.parse_document(
-            file_path=Path("test.csv"),
+            DocumentSource(path=Path("test.csv"), content=None, url=None, content_hash="0" * 64, filename="test.csv"),
             institution="DBS",
             user_id=uuid4(),
             file_type="csv",
-            file_content=None,
         )
 
 
@@ -86,11 +86,10 @@ async def test_parse_document_unsupported_type():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="Unsupported file type: exe"):
         await service.parse_document(
-            file_path=Path("test.exe"),
+            DocumentSource.resolve(path=Path("test.exe"), content=b"content"),
             institution="DBS",
             user_id=uuid4(),
             file_type="exe",
-            file_content=b"content",
         )
 
 
@@ -615,7 +614,7 @@ async def test_parse_document_with_transaction_missing_fields():
 
     with pytest.raises(ExtractionError, match="Transaction missing required fields"):
         await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
         )
 
 
@@ -647,11 +646,11 @@ async def test_parse_document_with_invalid_date_formats():
     # #1086: an unparseable transaction-row date is non-fatal — the row is skipped
     # and the rest of the document still parses, instead of rejecting the whole
     # (often multi-month) statement.
-    statement, transactions = await service.parse_document(
-        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
     )
-    assert statement is not None
-    assert len(transactions) == 0
+    assert result is not None
+    assert len(result.transactions) == 0
 
 
 async def test_parse_document_unexpected_exception():
@@ -661,7 +660,7 @@ async def test_parse_document_unexpected_exception():
 
     with pytest.raises(ExtractionError, match="Failed to parse document: Boom"):
         await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
         )
 
 
@@ -715,8 +714,8 @@ async def test_handle_parse_failure(db, test_user):
 
 async def test_parse_statement_background_storage_error(db, test_user, monkeypatch):
     from src.database import create_session_maker_from_db
-    from src.extraction.extension.statement_parsing import parse_statement_background
     from src.runtime import StorageError
+    from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
     sid = uuid4()
     uid = test_user.id
@@ -944,11 +943,11 @@ async def test_parse_document_non_string_date():
     )
     # str(True) -> 'True' is not a parseable date. #1086: the row is skipped
     # (non-fatal) rather than aborting the document.
-    statement, transactions = await service.parse_document(
-        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
     )
-    assert statement is not None
-    assert len(transactions) == 0
+    assert result is not None
+    assert len(result.transactions) == 0
 
 
 async def test_parse_document_skips_none_date_string():
@@ -983,11 +982,11 @@ async def test_parse_document_skips_none_date_string():
         }
     )
     # 'None' and 'null' dates should be skipped, only valid one remains
-    statement, transactions = await service.parse_document(
-        file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
     )
-    assert len(transactions) == 1
-    assert transactions[0].description == "Valid"
+    assert len(result.transactions) == 1
+    assert result.transactions[0].description == "Valid"
 
 
 async def test_parse_document_invalid_amount():
@@ -1011,7 +1010,7 @@ async def test_parse_document_invalid_amount():
     )
     with pytest.raises(ExtractionError, match="Invalid transaction amount"):
         await service.parse_document(
-            file_path=Path("test.pdf"), institution="DBS", user_id=uuid4(), file_content=b"content"
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
         )
 
 
@@ -1237,14 +1236,13 @@ async def test_parse_document_out_direction():
             ],
         }
     )
-    statement, transactions = await service.parse_document(
-        file_path=Path("test.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"),
         institution="DBS",
         user_id=uuid4(),
-        file_content=b"content",
     )
-    assert len(transactions) == 1
-    assert transactions[0].direction == "OUT"
+    assert len(result.transactions) == 1
+    assert result.transactions[0].direction == "OUT"
 
 
 async def test_extract_non_dict_json_response():
@@ -1373,11 +1371,10 @@ async def test_parse_document_csv_no_institution():
     service = ExtractionService()
     with pytest.raises(ExtractionError, match="Institution is required for CSV parsing"):
         await service.parse_document(
-            file_path=Path("test.csv"),
+            DocumentSource.resolve(path=Path("test.csv"), content=b"some,csv,data"),
             institution=None,
             user_id=uuid4(),
             file_type="csv",
-            file_content=b"some,csv,data",
         )
 
 

@@ -27,29 +27,28 @@ class EvidenceGraphIntegrationService:
     def __init__(self) -> None:
         self.lineage = EvidenceLineageService()
 
-    async def record_statement_upload(
+    async def record_statement_source(
         self,
         db: AsyncSession,
         *,
         user_id: UUID,
         statement: StatementSummary,
+        uploaded_document: UploadedDocument,
     ) -> EvidenceNode | None:
-        """Record the confirmed ``StatementSummary`` envelope as a source document node.
-
-        The DWD conform does not carry ``original_filename`` (an ODS field); callers
-        may attach it transiently for lineage display only.
-        """
-        if statement.id is None:
+        """Materialize the ODS source artifact's current lifecycle facts."""
+        if statement.id is None or uploaded_document.id is None:
             return None
         return await self.lineage.upsert_node(
             db,
             user_id=user_id,
             node_kind="source_document",
-            entity_type="statement_summary",
-            entity_id=statement.id,
+            entity_type="uploaded_document",
+            entity_id=uploaded_document.id,
             properties={
-                "file_hash": statement.file_hash,
-                "original_filename": getattr(statement, "original_filename", None),
+                "document_type": uploaded_document.document_type.value,
+                "file_hash": uploaded_document.file_hash,
+                "original_filename": uploaded_document.original_filename,
+                "status": uploaded_document.status.value,
                 "institution": statement.institution,
             },
         )

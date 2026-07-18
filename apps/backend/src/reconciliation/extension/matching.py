@@ -184,10 +184,11 @@ async def _calculate_candidate_score(
             scores["ai_semantic"] = float(semantic)
             scores["hybrid_applied"] = 1.0
 
+    breakdown: dict[str, float | str] = dict(scores)
     return MatchCandidate(
         journal_entry_ids=[str(entry.id) for entry in entries],
         score=total,
-        breakdown=scores,
+        breakdown=breakdown,
     )
 
 
@@ -314,7 +315,7 @@ async def accepted_transfer_txn_ids(
     statement posting skips txns an accepted/auto-accepted, non-superseded
     match already anchors to journal entries. Published on the package root;
     the app composition root (``src/main.py``) registers it into
-    ``extraction.register_transfer_exclusions_provider`` at startup
+    the extraction-owned statement ingestion use case at composition time
     (reconciliation depends on extraction, never the reverse).
     """
     ids = list(txn_ids)
@@ -495,10 +496,11 @@ def _find_normal_candidates(
             "history": history_score,
         }
         total = weighted_total(scores, config)
+        breakdown: dict[str, float | str] = dict(scores)
         return MatchCandidate(
             journal_entry_ids=[str(e.id) for e in entries],
             score=total,
-            breakdown=scores,
+            breakdown=breakdown,
         )
 
     results: list[tuple[AtomicTransaction, MatchCandidate]] = []

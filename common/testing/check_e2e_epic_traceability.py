@@ -9,6 +9,7 @@ import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
@@ -37,6 +38,29 @@ EXCLUDED_SCAN_DIRS = {
 E2E_MARKERS = {"e2e", "smoke"}
 EPIC_RE = re.compile(r"\bEPIC-\d{3}\b")
 README_EPIC_LINK_RE = re.compile(r"\[(EPIC-\d{3})\]\(([^)]+)\)")
+EPIC_FILE_KIND_RE = re.compile(r"<!--\s*epic-file:\s*(design-doc|goal-stub)\s*-->")
+
+
+class ProjectEpicKind(StrEnum):
+    """E2E ownership requirement derived from the EPIC's declared file type."""
+
+    RESIDUE = "residue"
+    DESIGN_DOC = "design-doc"
+    GOAL_STUB = "goal-stub"
+
+
+@dataclass(frozen=True)
+class ProjectEpic:
+    """One project EPIC and whether its remaining scope needs a product E2E."""
+
+    id: str
+    path: str
+    kind: ProjectEpicKind
+    has_epic_residue: bool
+
+    @property
+    def requires_product_e2e(self) -> bool:
+        return self.kind is ProjectEpicKind.RESIDUE or self.has_epic_residue
 
 
 @dataclass(frozen=True)
@@ -60,7 +84,7 @@ class ParseError:
 
 @dataclass
 class TraceabilityResult:
-    project_epics: list[str]
+    project_epics: list[ProjectEpic]
     readme_epics: list[str]
     tests: list[E2ETest]
     e2e_assets: list[str]
@@ -70,7 +94,7 @@ class TraceabilityResult:
 
     @property
     def covered_epics(self) -> list[str]:
-        known = set(self.project_epics)
+        known = set(self.project_epic_ids)
         return sorted(
             {epic for test in self.tests for epic in test.epic_ids if epic in known}
         )
@@ -81,11 +105,19 @@ class TraceabilityResult:
 
     @property
     def missing_epics(self) -> list[str]:
-        return sorted(set(self.project_epics) - set(self.covered_epics))
+        return sorted(set(self.required_project_epics) - set(self.covered_epics))
+
+    @property
+    def project_epic_ids(self) -> list[str]:
+        return [epic.id for epic in self.project_epics]
+
+    @property
+    def required_project_epics(self) -> list[str]:
+        return [epic.id for epic in self.project_epics if epic.requires_product_e2e]
 
     @property
     def unknown_epic_refs(self) -> dict[str, list[E2ETest]]:
-        known = set(self.project_epics)
+        known = set(self.project_epic_ids)
         refs: dict[str, list[E2ETest]] = {}
         for test in self.tests:
             for epic in test.epic_ids:
@@ -96,7 +128,7 @@ class TraceabilityResult:
     @property
     def readme_epic_map_errors(self) -> list[str]:
         errors = list(self.readme_errors)
-        project = set(self.project_epics)
+        project = set(self.project_epic_ids)
         readme = set(self.readme_epics)
         missing = sorted(project - readme)
         unknown = sorted(readme - project)
@@ -139,13 +171,26 @@ def _rel(path: Path, repo_root: Path) -> str:
         return path.as_posix()
 
 
-def discover_project_epics(repo_root: Path) -> list[str]:
+def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
     project_root = repo_root / "docs" / "project"
     if not project_root.exists():
         return []
-    return sorted(
-        {path.name.split(".", 1)[0] for path in project_root.glob("EPIC-*.md")}
-    )
+    epics: dict[str, ProjectEpic] = {}
+    for path in sorted(project_root.glob("EPIC-*.md")):
+        epic_id = path.name.split(".", 1)[0]
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        marker = EPIC_FILE_KIND_RE.search(text)
+        kind = ProjectEpicKind(marker.group(1)) if marker else ProjectEpicKind.RESIDUE
+        has_epic_residue = "<!-- epic-owned:" in text
+        existing = epics.get(epic_id)
+        if existing is None or kind is ProjectEpicKind.RESIDUE or has_epic_residue:
+            epics[epic_id] = ProjectEpic(
+                id=epic_id,
+                path=_rel(path, repo_root),
+                kind=kind,
+                has_epic_residue=has_epic_residue,
+            )
+    return [epics[epic_id] for epic_id in sorted(epics)]
 
 
 def _markdown_cells(line: str) -> list[str]:
@@ -399,6 +444,7 @@ def render_report(result: TraceabilityResult) -> str:
         "# E2E EPIC Traceability Report",
         "",
         f"Project EPICs: {len(result.project_epics)}",
+        f"E2E-required EPICs: {len(result.required_project_epics)}",
         f"README EPIC Map entries: {len(result.readme_epics)}",
         f"Product E2E test functions: {len(result.tests)}",
         f"E2E-like assets scanned: {len(result.e2e_assets)}",

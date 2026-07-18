@@ -1,7 +1,7 @@
-Date,Description,Amount
-2026-05-02,Salary,5000.00
-2026-05-03,Freelance,600.00
-2026-05-05,Rent,-1500.00
-2026-05-12,Groceries,-250.00
-2026-05-18,Utilities,-120.00
-2026-05-19,Travel,-3730.00
+Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-02,Salary,5000.00
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-03,Freelance,600.00
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-05,Rent,-1500.00
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-12,Groceries,-250.00
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-18,Utilities,-120.00
+SGD,2026-05-01,2026-05-31,0.00,0.00,2026-05-19,Travel,-3730.00

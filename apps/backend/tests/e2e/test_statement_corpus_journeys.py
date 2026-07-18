@@ -29,8 +29,10 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.extraction.orm.layer2 import TransactionDirection
-from tests.factories import seed_parsed_statement
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.ledger import AccountType
+from tests.factories import AccountFactory, seed_parsed_statement
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
@@ -175,6 +177,76 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
     )
 
 
+async def attach_reviewed_corpus_semantics(
+    db,
+    user_id,
+    transactions: list[AtomicTransaction],
+) -> None:
+    """Attach one explicit reviewer decision per corpus row without a reusable default.
+
+    The corpus freezes extraction output, not economic meaning. These disabled
+    rule anchors model an individual human confirmation for this journey only:
+    they cannot match a future transaction or mask missing model classification.
+    The journey proves confirmed semantics reach ledger and reports, while
+    classification quality remains a separate proof concern.
+    """
+    if not transactions:
+        return
+    currency = transactions[0].currency
+    accounts = {
+        TransactionDirection.IN: await AccountFactory.create_async(
+            db,
+            user_id=user_id,
+            name="Income - Corpus Reviewed",
+            type=AccountType.INCOME,
+            currency=currency,
+        ),
+        TransactionDirection.OUT: await AccountFactory.create_async(
+            db,
+            user_id=user_id,
+            name="Expense - Corpus Reviewed",
+            type=AccountType.EXPENSE,
+            currency=currency,
+        ),
+    }
+    reviewed: list[tuple[AtomicTransaction, ClassificationRule, str]] = []
+    for transaction in transactions:
+        category = (
+            "CORPUS_REVIEWED_INCOME" if transaction.direction is TransactionDirection.IN else "CORPUS_REVIEWED_EXPENSE"
+        )
+        rule = ClassificationRule(
+            user_id=user_id,
+            created_by=user_id,
+            version_number=1,
+            effective_date=transaction.txn_date,
+            is_active=False,
+            rule_name=f"corpus-reviewed-{transaction.id}",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": []},
+            tag_mappings={"category": category, "rationale": "corpus reviewer confirmation"},
+            default_account_id=accounts[transaction.direction].id,
+        )
+        db.add(rule)
+        reviewed.append((transaction, rule, category))
+    await db.flush()
+
+    for transaction, rule, category in reviewed:
+        db.add(
+            TransactionClassification(
+                atomic_txn_id=transaction.id,
+                rule_version_id=rule.id,
+                account_id=rule.default_account_id,
+                tags={"category": category, "rationale": "corpus reviewer confirmation"},
+                confidence_score=100,
+                status=ClassificationStatus.APPLIED,
+            )
+        )
+    await db.flush()
+    # The API client uses a distinct session, so reviewer facts must cross the
+    # same commit boundary as a real review before it can approve the statement.
+    await db.commit()
+
+
 @pytest.mark.e2e
 def test_corpus_manifest_is_diverse():
     """EPIC-023 / AC-llm.11.1: the corpus manifest's diversity invariants hold in code.
@@ -236,6 +308,7 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
     corpus data.
 
     GIVEN a corpus cassette's frozen extraction output seeded as a parsed statement
+    AND each parsed row has an explicit reviewer-confirmed economic classification
     WHEN driving transactions → review → approve → reconciliation → reports via the API
     THEN each stage reports the exact corpus-derived numbers with zero provider calls,
     including the balance sheet AND income statement.
@@ -249,6 +322,7 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
         opening_balance=case.opening_balance,
         transactions=[dict(row) for row in case.rows],
     )
+    await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
     stmt_id = str(seeded.id)
     n = len(case.rows)
 
@@ -321,9 +395,8 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
 
     # AC-llm.11.4: the income statement ties to the same corpus data by a
     # double-entry identity, not a name heuristic. auto_create_posted_entries
-    # always posts the transaction's contra side to an Income or Expense
-    # account (a classified category, or the Income/Expense "Uncategorized"
-    # default) — never equity or another asset — so total_income minus
+    # posts its reviewer-confirmed contra side to an Income or Expense account
+    # — never an implicit "Uncategorized" default — so total_income minus
     # total_expenses equals the posting account's net movement exactly, for
     # every corpus case regardless of institution class or category
     # granularity.
@@ -484,6 +557,7 @@ async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user
             opening_balance=case.opening_balance,
             transactions=[dict(row) for row in case.rows],
         )
+        await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
         stmt_id = str(seeded.id)
 
         review_resp = await client.get(f"/statements/{stmt_id}/review")

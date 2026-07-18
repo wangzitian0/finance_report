@@ -3,7 +3,6 @@
 import asyncio
 import json
 from decimal import Decimal, InvalidOperation
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
+from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
     bank_currency_balances,
@@ -27,7 +27,6 @@ from src.extraction.base.validation import (
     validate_balance_per_currency,
 )
 from src.extraction.extension._base import (
-    CSV_INFERRED_BALANCE_REVIEW_NOTE,
     ExtractionError,
     _tolerant_parse_date,
     accumulate_stream,
@@ -44,11 +43,13 @@ from src.extraction.extension.brokerage_positions import (
     brokerage_currency_balances,
     looks_like_brokerage_document,
     looks_like_brokerage_payload,
+    parse_brokerage_positions,
 )
 from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
+from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.layer1 import DocumentType
 from src.extraction.orm.layer2 import TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -218,7 +219,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
 
     async def parse_document(
         self,
-        source: DocumentSource | Path | None = None,
+        source: DocumentSource,
         institution: str | None = None,
         *,
         user_id: UUID,
@@ -226,52 +227,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         account_id: UUID | None = None,
         force_model: str | None = None,
         db: AsyncSession | None = None,
-        **legacy_source: object,
-    ) -> tuple[StatementSummary, list[ExtractedTransactionRow]]:
+    ) -> StatementExtractionResult:
         """Parse document using AI vision models or CSV parser.
 
-        Builds a DWD ``StatementSummary`` envelope and a list of Layer-2
-        typed extracted transaction rows. The rows carry a precomputed
-        ``dedup_hash`` (with the extracted running ``balance_after`` threaded in so
-        otherwise-identical transactions stay distinct). ``dual_write_layer2``
-        creates the ``UploadedDocument``, upserts the rows with their source link,
-        links the summary's ``uploaded_document_id``, and persists the summary.
+        Every transport returns the same immutable source-to-fact result. When a
+        session is supplied, the ODS/DWD projection is persisted as a side effect,
+        but mutable ORM rows are never a second return contract.
         """
-        legacy_path = legacy_source.pop("file_path", None)
-        if source is None and isinstance(legacy_path, Path):
-            source = legacy_path
-        legacy_content = legacy_source.get("file_content")
-        legacy_url = legacy_source.get("file_url")
-        if isinstance(source, Path) or (
-            source is None and (isinstance(legacy_content, bytes) or isinstance(legacy_url, str))
-        ):
-            content = legacy_source.pop("file_content", None)
-            file_url = legacy_source.pop("file_url", None)
-            file_hash = legacy_source.pop("file_hash", None)
-            original_filename = legacy_source.pop("original_filename", None)
-            path = (
-                source
-                if isinstance(source, Path)
-                else Path(
-                    original_filename
-                    if isinstance(original_filename, str)
-                    else file_hash
-                    if isinstance(file_hash, str)
-                    else "in-memory-document"
-                )
-            )
-            source = DocumentSource.resolve(
-                path=path,
-                content=content if isinstance(content, bytes) else None,
-                url=file_url if isinstance(file_url, str) else None,
-                content_hash=file_hash if isinstance(file_hash, str) else None,
-                filename=original_filename if isinstance(original_filename, str) else None,
-            )
         if not isinstance(source, DocumentSource):
-            raise TypeError("parse_document requires a DocumentSource or Path")
-        if legacy_source:
-            names = ", ".join(sorted(legacy_source))
-            raise TypeError(f"Unexpected document source arguments: {names}")
+            raise TypeError("parse_document requires a DocumentSource")
 
         file_path = source.path
         original_filename = source.filename
@@ -299,35 +263,57 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 raise ExtractionError(f"Unsupported file type: {file_type}")
 
             detected_institution = extracted.get("institution")
-            final_institution = institution or detected_institution or "Unknown"
+            final_institution = institution or detected_institution
+            if not final_institution:
+                raise ExtractionError("Institution is required; extraction cannot invent source identity")
             is_brokerage_payload = looks_like_brokerage_payload(
                 extracted,
                 filename=original_filename or (file_path.name if file_path else None),
                 institution=final_institution,
+            )
+            brokerage_positions = (
+                parse_brokerage_positions(
+                    extracted,
+                    filename=original_filename or (file_path.name if file_path else None),
+                    institution=final_institution,
+                )
+                if is_brokerage_payload
+                else []
+            )
+            evidence_type = statement_evidence_type(
+                is_brokerage=is_brokerage_payload,
+                provider_payload=extracted,
+                positions=brokerage_positions,
             )
 
             resolved_file_hash = source.content_hash
             # Raw extracted statement currency (no fallback) — feeds the per-transaction
             # ingest-boundary resolution (AC12.40) so a genuinely-missing currency is
             # flagged for review rather than masked by the StatementSummary default.
-            raw_statement_currency = extracted.get("currency")
+            statement_payload = extracted.get("statement")
+            nested_currency = statement_payload.get("currency") if isinstance(statement_payload, dict) else None
+            raw_statement_currency = extracted.get("currency") or nested_currency
             # Normalize the envelope currency (strip/upper) so the StatementSummary,
             # the auto-created bank account, and the posting-account currency check all
             # agree on a canonical ISO code. A non-normalized extraction ("sgd"/"SGD ")
             # would otherwise mismatch `normalize_currency_code(statement.currency)` in
             # the posting path and silently block auto-post (CR on #1467).
-            statement_currency = normalize_currency_code(raw_statement_currency) or settings.base_currency
-            # A bank statement requires a period; resolve it tolerantly (a missing
-            # bound falls back to the transaction-date range, then the other bound)
-            # so a single missing ``period_start`` no longer hard-fails an
-            # otherwise-good parse (#1449).
-            # Brokerage payloads import via Layer-2 positions and carry no required
-            # period, so they keep the optional treatment.
-            if is_brokerage_payload:
-                resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
-                resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
-            else:
-                resolved_period_start, resolved_period_end = self._resolve_required_period(extracted)
+            statement_currency = normalize_currency_code(raw_statement_currency)
+            # A source can be syntactically parseable while omitting financial facts.
+            # Preserve the omission in the result and force review below; inventing a
+            # base currency or inferring a period would create false source truth.
+            resolved_period_start = self._safe_optional_date(extracted.get("period_start"))
+            resolved_period_end = self._safe_optional_date(extracted.get("period_end"))
+            if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT and (
+                resolved_period_start is None or resolved_period_end is None
+            ):
+                snapshot_dates = {
+                    position.snapshot_date for position in brokerage_positions if position.snapshot_date is not None
+                }
+                if len(snapshot_dates) == 1:
+                    snapshot_date = next(iter(snapshot_dates))
+                    resolved_period_start = snapshot_date
+                    resolved_period_end = snapshot_date
 
             sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
             # Auto-create and link the physical bank account so a high-confidence,
@@ -344,8 +330,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 and db is not None
                 and not is_brokerage_payload
                 and final_institution
-                and final_institution != "Unknown"
                 and sanitized_account_last4
+                and statement_currency
             ):
                 bank_account, bank_account_created = await self._get_or_create_bank_account(
                     db,
@@ -365,17 +351,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 currency=statement_currency,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
-                opening_balance=self._safe_decimal(
-                    extracted.get("opening_balance"),
-                    required=not is_brokerage_payload,
-                ),
-                closing_balance=self._safe_decimal(
-                    extracted.get("closing_balance"),
-                    required=not is_brokerage_payload,
-                ),
-                extraction_metadata={"extraction_payload": extracted},
+                opening_balance=self._safe_decimal(extracted.get("opening_balance")),
+                closing_balance=self._safe_decimal(extracted.get("closing_balance")),
+                extraction_metadata=None,
             )
-            statement._extracted_payload = extracted
 
             # Per-currency brokerage NAV (#1139 AC-B3): a multi-currency brokerage
             # statement holds positions in several currencies at once. Persisting
@@ -674,32 +653,57 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     "difference": "0.00",
                     "notes": None,
                 }
-            has_inferred_csv_balances = extracted.get("balance_source") == "inferred_from_csv_transactions"
+            csv_balance_missing = extracted.get("balance_source") == "missing_from_csv_export"
             # Fail-closed input for the LLM-LED gate (AC20.9.4): the balance chain is only
-            # *evaluable* when the bank statement actually carries both an opening and a
-            # closing balance. Without them ``validate_balance_explicit`` silently
-            # substitutes ``0.00`` and a zero-chain "passes" — exactly the silent pass
-            # the blocking gate must reject. The inferred-CSV path is an explicit,
-            # already-flagged review marker (not a silent pass) so it keeps its own
-            # routing and is excluded from this evaluability check.
-            balance_evaluable = has_inferred_csv_balances or (
-                statement.opening_balance is not None and statement.closing_balance is not None
+            # *evaluable* only when the source carries both exact balance facts.
+            # Missing values must not turn into the vacuous 0 == 0 proof.
+            scalar_balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
+            # A multi-currency bank statement proves the balance invariant via
+            # its declared per-currency ladders, even when no scalar aggregate
+            # exists. Do not confuse that valid proof with an absent balance.
+            balance_evaluable = scalar_balance_evaluable or bank_balances is not None
+            declared_balance_absent = not balance_evaluable
+            source_fact_gaps = StatementExtractionResult.required_fact_kinds(
+                evidence_type=evidence_type,
+                period_start=resolved_period_start,
+                period_end=resolved_period_end,
+                # Exact per-currency balance buckets carry source-declared
+                # units when a multi-currency statement has no scalar header.
+                has_statement_currency=statement_currency is not None or bool(statement.currency_balances),
+                has_balances=bool(statement.currency_balances)
+                or (
+                    statement.currency is not None
+                    and statement.opening_balance is not None
+                    and statement.closing_balance is not None
+                ),
+                has_positions=bool(brokerage_positions),
+                has_unresolved_transaction_currency=any(
+                    transaction.currency_unresolved for transaction in transactions
+                ),
+            )
+            source_review_reason = (
+                "Source is missing required facts: "
+                f"{', '.join(StatementExtractionResult.required_fact_labels(source_fact_gaps))}"
+                if source_fact_gaps
+                else None
             )
 
-            if has_inferred_csv_balances:
+            if csv_balance_missing or source_review_reason is not None:
                 confidence = compute_confidence_score(
                     extracted,
                     {
                         **balance_result,
-                        "balance_valid": False,
-                        "balance_proof_available": False,
-                        "notes": CSV_INFERRED_BALANCE_REVIEW_NOTE,
+                        "balance_valid": is_valid if balance_evaluable else False,
+                        "balance_proof_available": balance_evaluable,
+                        "notes": source_review_reason or "Source CSV does not declare opening and closing balances",
                     },
                     is_brokerage=is_brokerage_payload,
                     effective_txn_count=len(transactions),
                 )
+                # A review-only source cannot cross the approval threshold even if
+                # its remaining facts happen to score highly.
+                confidence = min(confidence, 59)
                 status = BankStatementStatus.PARSED
-                is_valid = False
             else:
                 # For confidence score, we use the original extracted dict to maintain logic.
                 # ``effective_balance_result`` carries the per-currency-governed verdict
@@ -737,12 +741,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 statement.balance_validated = None
             else:
                 statement.balance_validated = is_valid
-            if has_inferred_csv_balances:
-                statement.validation_error = CSV_INFERRED_BALANCE_REVIEW_NOTE
-            elif per_currency_invalid_note is not None:
+            if per_currency_invalid_note is not None:
                 statement.validation_error = per_currency_invalid_note
-            elif not is_valid:
+            elif not is_valid and balance_evaluable:
                 statement.validation_error = balance_result["notes"]
+            elif source_review_reason is not None:
+                statement.validation_error = source_review_reason
+            elif csv_balance_missing:
+                statement.validation_error = "Source CSV does not declare opening and closing balances"
             statement.confidence_score = confidence
             statement.status = status
 
@@ -751,7 +757,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # results; they add observability ONLY and do not change is_valid,
             # status, or the validation_error set above.
             institution_class = _institution_class(is_brokerage=is_brokerage_payload)
-            if not is_valid and per_currency_invalid_note is None and not has_inferred_csv_balances:
+            if not is_valid and per_currency_invalid_note is None and not csv_balance_missing:
                 # Scalar running-balance reconciliation failed. (The per-currency
                 # NAV failure already emits its own counter at detection time, and
                 # the inferred-CSV path is a review marker, not a true mismatch.)
@@ -794,23 +800,29 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 balance_evaluable=balance_evaluable,
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
-                balance_gate_exempt=has_inferred_csv_balances,
+                # An explicit source-fact absence is review-only, not a failed
+                # mathematical claim. The dedup invariant remains blocking.
+                balance_gate_exempt=csv_balance_missing or declared_balance_absent,
             )
             if llm_led_gate.quarantined:
+                reason = llm_led_gate.reason
+                metric_kind = llm_led_gate.metric_kind
+                if reason is None or metric_kind is None:
+                    raise ExtractionError("quarantined extraction gate requires a typed reason and metric")
                 status = BankStatementStatus.REJECTED
                 statement.status = status
                 statement.balance_validated = False
                 statement.stage1_status = Stage1Status.REJECTED
                 # The reason CODE is included verbatim so the terminal state is
                 # queryable by failure mode; the human message follows it.
-                statement.validation_error = f"{llm_led_gate.reason.value}: {llm_led_gate.message}"
+                statement.validation_error = f"{reason.value}: {llm_led_gate.message}"
                 record_financial_invariant_violation(
-                    kind=llm_led_gate.metric_kind,
+                    kind=metric_kind,
                     institution_class=institution_class,
                 )
                 logger.warning(
                     "LLM-LED invariant gate quarantined extraction (blocked from trusted truth)",
-                    reason=llm_led_gate.reason.value,
+                    reason=reason.value,
                     is_brokerage=is_brokerage_payload,
                     # Log the non-PII content hash, never the real statement filename
                     # or local path (red-lines.md): the hash is enough to correlate
@@ -829,6 +841,29 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # transitions for APPROVED rows, so only set this for review-bound PARSED statements.
             if status == BankStatementStatus.PARSED:
                 statement.stage1_status = Stage1Status.PENDING_REVIEW
+
+            try:
+                extraction_result = build_statement_extraction_result(
+                    source=source,
+                    file_type=file_type,
+                    statement=statement,
+                    transactions=[] if llm_led_gate.quarantined else transactions,
+                    provider_payload=extracted,
+                    model=model,
+                    provider=settings.ai_provider,
+                    method=(
+                        ExtractionMethod(extracted.get("extraction_method", "live_llm"))
+                        if file_type == "csv"
+                        else ExtractionMethod.LIVE_LLM
+                    ),
+                    is_brokerage=is_brokerage_payload,
+                    evidence_type=evidence_type,
+                    positions=brokerage_positions,
+                )
+            except (TypeError, ValueError) as exc:
+                raise ExtractionError(f"Incomplete statement extraction result: {exc}") from exc
+            result_metadata = {"statement_extraction_result": extraction_result.to_payload()}
+            statement.extraction_metadata = result_metadata
 
             logger.info(
                 "Parsing validation completed",
@@ -859,14 +894,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     document_type=(
                         DocumentType.BROKERAGE_STATEMENT if is_brokerage_payload else DocumentType.BANK_STATEMENT
                     ),
-                    extraction_metadata={"extraction_payload": extracted} if is_brokerage_payload else None,
+                    extraction_metadata=result_metadata,
                     # A quarantined extraction persists only its terminal rejected
                     # envelope: no new Layer-2 rows, and (on re-parse) no detaching
                     # of a prior good parse's existing Layer-2 facts (#1452 CR).
                     envelope_only=llm_led_gate.quarantined,
                 )
 
-            return statement, transactions
+            return extraction_result
 
         except Exception as e:
             if not isinstance(e, ExtractionError):
@@ -956,7 +991,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     diff = Decimal(str(result.get("difference", "0") or "0"))
                 except (ValueError, TypeError, InvalidOperation):
                     diff = None
-                if diff is not None and (best is None or diff < best_diff):
+                if diff is not None and (best is None or best_diff is None or diff < best_diff):
                     best, best_diff = extracted, diff
 
         if best is not None:

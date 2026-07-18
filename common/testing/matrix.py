@@ -307,17 +307,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
-        "tests/e2e/test_business_value_correctness_gate.py",
-        needs=(),
-        audited=True,
-        reason=(
-            "#1505: CSV-only journey (upload/approve/reconcile/opening-balance), "
-            "no LLM/market-data/persistent-staging dependency — same audited shape "
-            "as test_vision_upload_to_dashboard_hard_gate.py, just no provider call "
-            "at all (CSV parsing is fully deterministic)."
-        ),
-    ),
-    E2ERow(
         "tests/e2e/test_ac_authority_tiers_epic026.py",
         needs=(),
         audited=True,

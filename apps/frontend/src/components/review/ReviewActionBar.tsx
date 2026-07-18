@@ -23,12 +23,15 @@ export function ReviewActionBar({
     onReparse,
     reparsePending = false,
 }: ReviewActionBarProps) {
-    const blockedByConflicts = Boolean(approvalBlockedReason);
-    const blockedByBalance = !blockedByConflicts && !balanceValid;
-    const isBlocked = blockedByConflicts || blockedByBalance;
+    const blockedByReview = Boolean(approvalBlockedReason);
+    const blockedByConflicts = blockedByReview && Boolean(onResolveConflicts);
+    const blockedByBalance = !blockedByReview && !balanceValid;
+    const isBlocked = blockedByReview || blockedByBalance;
 
     const reason = blockedByConflicts
         ? "Approve is paused — we found possible duplicate or transfer-pair transactions. Review them before approving."
+        : blockedByReview
+          ? approvalBlockedReason || "Approve is paused until the required review is complete."
         : blockedByBalance
           ? "Approve is paused — this statement's closing balance doesn't match its transactions. Re-parsing usually fixes this."
           : "";

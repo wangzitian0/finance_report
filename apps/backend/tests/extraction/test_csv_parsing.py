@@ -18,9 +18,13 @@ class TestCSVParsing:
 
         result = await self.service._parse_csv_content(csv_content, "DBS")
 
-        assert result["currency"] == "SGD"
-        assert result["period_start"] == "2025-01-15"
-        assert result["period_end"] == "2025-01-17"
+        # The export declares transaction rows only. Its date range and any
+        # conventional bank currency must not be promoted into statement facts.
+        assert "currency" not in result
+        assert "period_start" not in result
+        assert "period_end" not in result
+        assert result["observed_transaction_start"] == "2025-01-15"
+        assert result["observed_transaction_end"] == "2025-01-17"
         assert len(result["transactions"]) == 3
 
         txn0 = result["transactions"][0]
@@ -32,6 +36,19 @@ class TestCSVParsing:
         txn1 = result["transactions"][1]
         assert txn1["direction"] == "OUT"
         assert txn1["amount"] == "100.00"
+
+    async def test_parse_csv_preserves_explicit_statement_envelope(self):
+        """A CSV may carry statement facts only in dedicated, consistent columns."""
+        csv_content = b"""Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount
+SGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00"""
+
+        result = await self.service._parse_csv_content(csv_content, "Example Bank")
+
+        assert result["currency"] == "SGD"
+        assert result["period_start"] == "2025-01-01"
+        assert result["period_end"] == "2025-01-31"
+        assert result["opening_balance"] == "100.00"
+        assert result["closing_balance"] == "125.00"
 
     async def test_parse_posb_csv(self):
         csv_content = b"""Transaction Date,Debit Amount,Credit Amount,Transaction Ref1
@@ -53,8 +70,12 @@ class TestCSVParsing:
         result = await self.service._parse_csv_content(csv_content, "Wise")
 
         assert len(result["transactions"]) == 2
-        assert result["period_start"] == "2025-01-10"
-        assert result["period_end"] == "2025-01-12"
+        # Transaction-export dates are observations, not a source-declared
+        # statement period. The ingest boundary must preserve that distinction.
+        assert result["observed_transaction_start"] == "2025-01-10"
+        assert result["observed_transaction_end"] == "2025-01-12"
+        assert "period_start" not in result
+        assert "period_end" not in result
 
         assert result["transactions"][0]["direction"] == "OUT"
         assert result["transactions"][0]["amount"] == "250.00"

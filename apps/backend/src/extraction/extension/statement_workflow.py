@@ -12,25 +12,36 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+from src.extraction.base.types import StatementPostingOutcome
+from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
+    auto_create_posted_entries_for_statement,
+)
 from src.extraction.extension.statement_validation import approve_statement, reject_statement
 from src.extraction.orm.statement_summary import StatementSummary
 
 
-async def approve_statement_workflow(db: AsyncSession, statement_id: UUID, user_id: UUID) -> int:
+async def approve_statement_workflow(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies,
+) -> StatementPostingOutcome:
     """Approve a PARSED statement and post its journal entries as one committed unit.
 
     Owns the PARSED→APPROVED transition, the auto-posting of journal entries, and
     the single ``commit`` that makes them durable together. The posting account
     must already be resolved/bound by the caller within the same DB session.
     Domain errors (``ValueError``) propagate uncommitted so the caller can map
-    them to HTTP 400 (and roll back the surrounding session). Returns the number
-    of journal entries created.
+    them to HTTP 400 (and roll back the surrounding session). A completed
+    economic plan returns ``POSTED``; an incomplete plan is committed back to
+    pending review and returns ``REVIEW_REQUIRED``.
     """
     statement = await approve_statement(db, statement_id, user_id)
-    created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
+    outcome = await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=dependencies)
     await db.commit()
-    return created_count
+    return outcome
 
 
 async def reject_statement_workflow(

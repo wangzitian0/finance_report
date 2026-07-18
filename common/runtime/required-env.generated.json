@@ -438,6 +438,14 @@
       "has_default": true
     },
     {
+      "field": "statement_disposition_mode",
+      "env": "STATEMENT_DISPOSITION_MODE",
+      "aliases": [],
+      "group": "Feature Flags",
+      "vault": false,
+      "has_default": true
+    },
+    {
       "field": "statement_review_presign_expiry_seconds",
       "env": "STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS",
       "aliases": [],

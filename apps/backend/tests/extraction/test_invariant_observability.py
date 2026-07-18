@@ -16,9 +16,9 @@ from uuid import uuid4
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.base.validation import count_within_document_dedup_collapse
 from src.extraction.extension.service import ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.observability import telemetry_metrics
 
 pytestmark = pytest.mark.no_db
@@ -162,21 +162,19 @@ async def test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric(monke
     # Patch the symbol imported into the extraction service module.
     monkeypatch.setattr("src.extraction.extension.service.record_financial_invariant_violation", capture)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("dbs.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("dbs.pdf"), content=b"fake pdf"),
         institution="DBS",
         user_id=uuid4(),
         file_type="pdf",
         account_id=uuid4(),
-        file_content=b"fake pdf",
         db=None,  # no persistence; we only assert routing + metric
     )
 
     # BLOCKING (AC-extraction.2009.2): balance-invalid bank statement -> REJECTED quarantine.
-    assert statement.status == BankStatementStatus.REJECTED
-    assert statement.balance_validated is False
-    assert statement.validation_error is not None
-    assert len(transactions) == 1
+    assert result.balance_validated is False
+    assert result.review_reasons
+    assert len(result.transactions) == 0
 
     # Detection (AC26.8.1) still fires: the balance-mismatch counter is queryable,
     # and the blocking gate adds its own distinct quarantine counter (AC-extraction.2009.7).

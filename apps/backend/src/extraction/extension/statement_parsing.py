@@ -1,7 +1,9 @@
 """Background task functions for statement parsing."""
 
 import time
-from dataclasses import replace
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -12,10 +14,24 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction.base.types import DocumentSource, ParseJob
+from src.audit import TraceEmitter
+from src.extraction.base.types import (
+    DocumentSource,
+    ParseJob,
+    RetryableStatementIngestionError,
+    StatementIngestionConfigurationError,
+    StatementIngestionOutcome,
+    StatementIngestionStatus,
+)
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
+from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
+from src.extraction.extension.extraction_trace import build_extraction_trace_records
+from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
+    try_auto_approve_high_confidence_statement,
+)
 from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
@@ -27,6 +43,80 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+ContentLoader = Callable[[str], Awaitable[bytes]]
+ExtractionServiceFactory = Callable[[], ExtractionService]
+BrokerageRouter = Callable[..., Awaitable[None]]
+Clock = Callable[[], float]
+TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StatementIngestionUseCase:
+    """The single application boundary for one statement ingestion attempt."""
+
+    session_maker: async_sessionmaker[AsyncSession]
+    content_loader: ContentLoader
+    extraction_service_factory: ExtractionServiceFactory
+    posting_dependencies: StatementPostingDependencies
+    brokerage_router: BrokerageRouter
+    trace_emitter_factory: TraceEmitterFactory
+    clock: Clock
+
+    def __post_init__(self) -> None:
+        for name in (
+            "session_maker",
+            "content_loader",
+            "extraction_service_factory",
+            "posting_dependencies",
+            "brokerage_router",
+            "trace_emitter_factory",
+            "clock",
+        ):
+            if getattr(self, name) is None:
+                raise StatementIngestionConfigurationError(f"Missing statement ingestion dependency: {name}")
+
+    async def execute(
+        self,
+        job: ParseJob,
+        *,
+        content: bytes | None = None,
+    ) -> StatementIngestionOutcome:
+        """Load missing content and execute the package-owned ingestion sequence."""
+        if content is None:
+            try:
+                content = await self.content_loader(job.storage_key)
+            except Exception as exc:
+                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
+        return await _execute_statement_ingestion(
+            job=job,
+            content=content,
+            session_maker=self.session_maker,
+            extraction_service_factory=self.extraction_service_factory,
+            posting_dependencies=self.posting_dependencies,
+            brokerage_router=self.brokerage_router,
+            trace_emitter_factory=self.trace_emitter_factory,
+            clock=self.clock,
+        )
+
+
+def build_statement_ingestion_use_case(
+    *,
+    session_maker: async_sessionmaker[AsyncSession],
+    content_loader: ContentLoader,
+    posting_dependencies: StatementPostingDependencies,
+    trace_emitter_factory: TraceEmitterFactory,
+) -> StatementIngestionUseCase:
+    """Bind extraction-internal implementations around composed cross-domain ports."""
+    return StatementIngestionUseCase(
+        session_maker=session_maker,
+        content_loader=content_loader,
+        extraction_service_factory=ExtractionService,
+        posting_dependencies=posting_dependencies,
+        brokerage_router=route_brokerage_for_review_if_present,
+        trace_emitter_factory=trace_emitter_factory,
+        clock=time.perf_counter,
+    )
 
 
 def _redacted(message: str | None, *, limit: int = 500) -> str | None:
@@ -116,7 +206,7 @@ async def route_brokerage_for_review_if_present(
         # which remains the sole path that creates AtomicPosition/ManagedPosition rows.
         if summary.status == BankStatementStatus.PARSED and summary.stage1_status != Stage1Status.APPROVED:
             summary.stage1_status = Stage1Status.PENDING_REVIEW
-        await db.commit()
+        await db.flush()
         logger.info(
             "statement.brokerage_review_routing.completed",
             audit_event="statement.brokerage_review_routing.completed",
@@ -138,15 +228,7 @@ async def route_brokerage_for_review_if_present(
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
-        await db.rollback()
-        refreshed = await db.get(StatementSummary, summary.id)
-        if refreshed is None:
-            return
-        refreshed.validation_error = _append_validation_note(
-            refreshed.validation_error,
-            "Brokerage review routing failed: parsed statement was saved but was not routed for review",
-        )
-        await db.commit()
+        raise
 
 
 def _mark_document_failed_unless_completed(document: UploadedDocument) -> None:
@@ -163,6 +245,54 @@ async def _find_document_by_hash(db: AsyncSession, user_id: UUID, file_hash: str
             .where(UploadedDocument.file_hash == file_hash)
         )
     ).scalar_one_or_none()
+
+
+async def register_statement_source(
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    storage_key: str,
+    original_filename: str,
+) -> UploadedDocument:
+    """Durably bind an accepted upload to its source artifact before dispatch.
+
+    The upload request owns source registration; parsing only enriches this same
+    artifact with extraction output and its resolved document type.  The
+    ``(user_id, file_hash)`` identity makes the registration safe to retry
+    without transient attributes on the DWD statement summary.
+    """
+    document = await _find_document_by_hash(db, statement.user_id, statement.file_hash)
+    if document is None:
+        document = UploadedDocument(
+            user_id=statement.user_id,
+            file_path=storage_key,
+            file_hash=statement.file_hash,
+            original_filename=original_filename,
+            document_type=DocumentType.BANK_STATEMENT,
+            status=DocumentStatus.UPLOADED,
+        )
+        try:
+            # A concurrent retry can win the unique source identity.  Isolate
+            # that race so the statement upload transaction remains usable.
+            async with db.begin_nested():
+                db.add(document)
+                await db.flush()
+        except IntegrityError:
+            document = await _find_document_by_hash(db, statement.user_id, statement.file_hash)
+            if document is None:
+                raise
+
+    statement.uploaded_document_id = document.id
+
+    from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+
+    await EvidenceGraphIntegrationService().record_statement_source(
+        db,
+        user_id=statement.user_id,
+        statement=statement,
+        uploaded_document=document,
+    )
+    return document
 
 
 async def _ensure_failed_document_lineage(
@@ -334,12 +464,17 @@ async def handle_parse_failure(
         )
 
 
-async def parse_statement_background(
+async def _execute_statement_ingestion(
     job: ParseJob,
     *,
     content: bytes,
     session_maker: async_sessionmaker[AsyncSession],
-) -> None:
+    extraction_service_factory: ExtractionServiceFactory,
+    posting_dependencies: StatementPostingDependencies,
+    brokerage_router: BrokerageRouter,
+    trace_emitter_factory: TraceEmitterFactory,
+    clock: Clock,
+) -> StatementIngestionOutcome:
     """Background task to parse a bank statement document.
 
     This function runs asynchronously to:
@@ -379,7 +514,7 @@ async def parse_statement_background(
         model_to_use=model_to_use,
         file_type=file_type,
     )
-    start_time = time.perf_counter()
+    start_time = clock()
 
     async with session_maker() as session:
         statement = await session.get(StatementSummary, statement_id)
@@ -389,7 +524,10 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
                 request_id=request_id,
             )
-            return
+            return StatementIngestionOutcome(
+                statement_id=statement_id,
+                status=StatementIngestionStatus.STATEMENT_NOT_FOUND,
+            )
 
         current_phase = "parse_started"
 
@@ -427,7 +565,7 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
             )
 
-        service = ExtractionService()
+        service = extraction_service_factory()
         try:
             checkpoint("extraction_started")
             # file_path must be the STORAGE key, not the display filename: it
@@ -436,7 +574,7 @@ async def parse_statement_background(
             # filename every post-success reparse 404'd against storage
             # (caught by the #1520 real-storage pipeline test). The display
             # name travels separately as original_filename.
-            parsed_statement, transactions = await service.parse_document(
+            extraction_result = await service.parse_document(
                 DocumentSource.resolve(
                     path=Path(storage_key),
                     content=content,
@@ -472,7 +610,10 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
-            return
+            return StatementIngestionOutcome(
+                statement_id=statement_id,
+                status=StatementIngestionStatus.SOURCE_REJECTED,
+            )
         except Exception as exc:
             logger.exception(
                 "Background parsing failed unexpectedly",
@@ -482,17 +623,8 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
-            await handle_parse_failure(
-                statement,
-                session,
-                job=job,
-                message=f"Parsing failed: {exc}",
-                phase=current_phase,
-                progress=None,
-                model_to_use=model_to_use,
-                error_type=type(exc).__name__,
-            )
-            return
+            await session.rollback()
+            raise RetryableStatementIngestionError(f"Statement extraction application failure: {exc}") from exc
 
         try:
             # `parse_document(db=session)` already persisted the DWD result via
@@ -500,27 +632,57 @@ async def parse_statement_background(
             # facts, and the confirmed envelope/status updated onto this pre-created
             # StatementSummary row (reused by `(user_id, file_hash)`), including
             # `uploaded_document_id`. Refresh so the in-memory row reflects that write.
-            await session.commit()
+            await session.flush()
             await session.refresh(statement)
 
+            result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
+            if not isinstance(result_payload, dict):
+                raise RuntimeError("statement extraction result was not persisted")
+            from src.extraction.base.result import StatementExtractionResult
+
+            persisted_result = StatementExtractionResult.from_payload(result_payload)
+            if persisted_result != extraction_result:
+                raise RuntimeError("persisted statement extraction result changed source facts")
+            trace_occurred_at = statement.created_at or datetime.now(UTC)
+            if trace_occurred_at.tzinfo is None:
+                trace_occurred_at = trace_occurred_at.replace(tzinfo=UTC)
+            trace_records = build_extraction_trace_records(
+                extraction_result,
+                user_id=user_id,
+                execution_id=f"statement:{statement.id}:result:{extraction_result.result_id}",
+                occurred_at=trace_occurred_at,
+            )
+            await trace_emitter_factory(session).emit_many(trace_records)
+            await persist_statement_extraction_result(
+                session,
+                statement=statement,
+                result=persisted_result,
+                source_trace_record_id=trace_records[0].record_id,
+            )
+
             checkpoint("statement_persisted")
-            auto_posted_count = await try_auto_approve_high_confidence_statement(session, statement.id, user_id)
-            await session.commit()
+            auto_posted_count = await try_auto_approve_high_confidence_statement(
+                session,
+                statement.id,
+                user_id,
+                dependencies=posting_dependencies,
+            )
             # #1408: detect a brokerage statement and route it to Stage-1 review WITHOUT
             # importing positions. Positions are created only by the explicit, user-initiated
             # POST /statements/{id}/brokerage/import endpoint, so a pending-review brokerage
             # statement never inflates holdings/summary/net-worth before human review.
-            await route_brokerage_for_review_if_present(
+            await brokerage_router(
                 summary=statement,
                 db=session,
                 user_id=user_id,
                 filename=filename,
                 institution=institution,
-                payload=getattr(parsed_statement, "_extracted_payload", None),
+                payload=_extract_brokerage_payload_from_metadata(statement.extraction_metadata),
                 request_id=request_id,
                 model_to_use=model_to_use,
             )
-            duration = time.perf_counter() - start_time
+            await session.commit()
+            duration = clock() - start_time
             logger.info(
                 "statement.parse.completed",
                 audit_event="statement.parse.completed",
@@ -528,11 +690,17 @@ async def parse_statement_background(
                 statement_id=str(statement_id),
                 phase="parse_completed",
                 duration_ms=round(duration * 1000, 2),
-                transactions_count=len(transactions),
+                transactions_count=len(extraction_result.transactions),
                 auto_posted_count=auto_posted_count,
             )
             # AC-observability.10.4: business metric for the parse outcome (success path).
             record_statement_parse_outcome(outcome="success")
+            return StatementIngestionOutcome(
+                statement_id=statement_id,
+                status=StatementIngestionStatus.COMPLETED,
+                transactions_count=len(extraction_result.transactions),
+                auto_posted_count=auto_posted_count,
+            )
         except Exception as exc:
             logger.exception(
                 "Failed to finalize statement parsing",
@@ -542,13 +710,5 @@ async def parse_statement_background(
                 model_to_use=model_to_use,
                 error_type=type(exc).__name__,
             )
-            await handle_parse_failure(
-                statement,
-                session,
-                job=job,
-                message=f"Finalize failed: {exc}",
-                phase=current_phase,
-                progress=None,
-                model_to_use=model_to_use,
-                error_type=type(exc).__name__,
-            )
+            await session.rollback()
+            raise RetryableStatementIngestionError(f"Statement finalization application failure: {exc}") from exc

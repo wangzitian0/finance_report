@@ -632,7 +632,10 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-meta.foundation-tooling.3",
-            statement="validate_schemas.py exits non-zero when a Pydantic Field() lacks a description. Was AC14.1.3.",
+            statement=(
+                "validate_schemas.py checks only changed schema paths in pre-commit and exits non-zero "
+                "when a selected Pydantic Field() lacks a description. Was AC14.1.3."
+            ),
             test="tests/tooling/test_issue_493_foundation_ttd_behavior.py::test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions",
             priority="P0",
             status="done",

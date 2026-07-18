@@ -9,13 +9,20 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.extraction import DocumentType, ParseJob, UploadedDocument
+from src.extraction import (
+    DocumentSource,
+    DocumentType,
+    ExtractionMethod,
+    ParseJob,
+    StatementEvidenceType,
+    UploadedDocument,
+)
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
+from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import (
     _count_brokerage_positions,
-    parse_statement_background,
     route_brokerage_for_review_if_present,
 )
 from src.extraction.orm.layer2 import AtomicPosition
@@ -23,6 +30,7 @@ from src.extraction.orm.layer3 import ManagedPosition
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
 _BRIDGE_ASSET_IDENTIFIER = "BRIDGE_TEST_STOCK"
 
@@ -87,6 +95,24 @@ def _brokerage_payload_json_safe() -> dict:
     return payload
 
 
+def _brokerage_result(*, source: DocumentSource, summary: StatementSummary, payload: dict):
+    """Build the same immutable result the production parse path persists."""
+    positions = parse_brokerage_positions(payload, filename=source.filename, institution=summary.institution)
+    return build_statement_extraction_result(
+        source=source,
+        file_type="pdf",
+        statement=summary,
+        transactions=[],
+        provider_payload=payload,
+        model="fixture-model",
+        provider="fixture-provider",
+        method=ExtractionMethod.GOLDEN_FIXTURE,
+        is_brokerage=True,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        positions=positions,
+    )
+
+
 def test_looks_like_brokerage_payload_detection_paths():
     """AC-extraction.304.7: Brokerage detection handles structured, nested, and non-broker payloads."""
     assert looks_like_brokerage_payload({"positions": []}, filename="unknown.pdf")
@@ -134,23 +160,16 @@ async def test_parse_document_preserves_brokerage_payload_for_background_import(
     payload = _brokerage_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-positions.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-positions.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="brokerage-payload-hash",
-        original_filename="moomoo-positions.pdf",
     )
 
-    assert transactions == []
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.period_start == date(2026, 5, 1)
-    assert statement.period_end == date(2026, 5, 18)
-    assert statement.opening_balance is None
-    assert statement.closing_balance is None
-    assert statement._extracted_payload == payload
-    assert statement.extraction_metadata == {"extraction_payload": payload}
+    assert result.transactions == ()
+    assert result.period_start == date(2026, 5, 1)
+    assert result.period_end == date(2026, 5, 18)
+    assert result.positions
 
 
 async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user):
@@ -166,18 +185,19 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
     }
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="brokerage-raw-rows-hash",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert transactions == []
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement._extracted_payload == payload
+    assert result.transactions == ()
+    assert result.positions == ()
+    assert result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+    assert result.missing_required_facts == ("statement_currency", "period", "balances")
+    assert result.review_reasons == (
+        "Source is missing required facts: statement currency, statement period, opening and closing balances",
+    )
 
 
 async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():
@@ -213,19 +233,15 @@ async def test_parse_document_normalizes_signed_outflows_before_brokerage_routin
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-signed-outflow",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is True
-    assert transactions[1].direction == "OUT"
-    assert transactions[1].amount == Decimal("500.00")
+    assert result.balance_validated is True
+    assert result.transactions[1].direction == "OUT"
+    assert result.transactions[1].amount == Decimal("500.00")
 
 
 async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
@@ -251,19 +267,15 @@ async def test_parse_document_infers_direction_from_signed_brokerage_amounts():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-inferred-outflow",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is True
-    assert transactions[0].direction == "OUT"
-    assert transactions[0].amount == Decimal("500.00")
+    assert result.balance_validated is True
+    assert result.transactions[0].direction == "OUT"
+    assert result.transactions[0].amount == Decimal("500.00")
 
 
 async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
@@ -298,20 +310,16 @@ async def test_parse_document_routes_brokerage_balance_mismatch_to_parsed():
         }
     )
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("moomoo-statement.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
         institution="Moomoo",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="issue-409-brokerage-balance-mismatch",
-        original_filename="moomoo-statement.pdf",
     )
 
-    assert statement.status == BankStatementStatus.PARSED
-    assert statement.balance_validated is False
-    assert statement.validation_error == "Balance mismatch: expected 1250.50, got 0.00"
-    assert transactions[0].amount == Decimal("1250.50")
-    assert statement._extracted_payload["positions"][0]["market_value"] == "1250.50"
+    assert result.balance_validated is False
+    assert result.review_reasons == ("Balance mismatch: expected 1250.50, got 0.00",)
+    assert result.transactions[0].amount == Decimal("1250.50")
+    assert result.positions[0].market_value == Decimal("1250.50")
 
 
 async def test_route_brokerage_for_review_ignores_bank_payload(db, test_user):
@@ -400,56 +408,6 @@ async def test_route_brokerage_for_review_uses_nested_statement_institution(db, 
     assert statement.stage1_status == Stage1Status.PENDING_REVIEW
 
 
-async def test_route_brokerage_for_review_stops_when_failed_statement_is_missing():
-    """AC-extraction.304.7/#1408: Review-routing failure handling tolerates deleted statements.
-
-    If the routing commit raises, the function rolls back and tries to attach a
-    validation note to a re-fetched row; when that row is gone it must exit cleanly.
-    """
-    statement_id = uuid4()
-    statement = StatementSummaryFactory.build(
-        id=statement_id,
-        user_id=uuid4(),
-        status=BankStatementStatus.PARSED,
-        file_hash="missing-after-failure-hash",
-        institution="Moomoo",
-    )
-
-    class MissingStatementDb:
-        def __init__(self):
-            self.rolled_back = False
-            self.lookup = None
-            self._commits = 0
-
-        async def commit(self):
-            # First commit (the routing write) fails; a second commit (post-rollback
-            # note) would only run if the re-fetched row exists, which it does not.
-            self._commits += 1
-            if self._commits == 1:
-                raise RuntimeError("forced commit failure")
-
-        async def rollback(self):
-            self.rolled_back = True
-
-        async def get(self, model, lookup_id):
-            self.lookup = (model, lookup_id)
-            return None
-
-    db = MissingStatementDb()
-
-    await route_brokerage_for_review_if_present(
-        summary=statement,
-        db=db,
-        user_id=statement.user_id,
-        filename="moomoo-statement.pdf",
-        institution="Moomoo",
-        payload={"institution": "Moomoo", "positions": [{"symbol": "AAPL"}]},
-    )
-
-    assert db.rolled_back is True
-    assert db.lookup == (StatementSummary, statement_id)
-
-
 async def test_parse_statement_background_imports_brokerage_positions(client, db, test_user, monkeypatch):
     """AC-extraction.304.7/AC17.5.4/AC-extraction.813.10: Background brokerage import reaches reports."""
     statement_id = uuid4()
@@ -466,12 +424,13 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
     await db.commit()
 
     async def fake_parse_document(*args, **kwargs):
+        source = args[1]
         session = kwargs["db"]
         summary = await session.get(StatementSummary, statement_id)
         _apply_parsed_envelope(summary)
-        # The real parse_document persists the OCR payload here; the explicit import
-        # endpoint (#1408) recovers positions from extraction_metadata.
-        summary.extraction_metadata = {"extraction_payload": _brokerage_payload_json_safe()}
+        result = _brokerage_result(source=source, summary=summary, payload=_brokerage_payload_json_safe())
+        # The explicit import endpoint recovers the typed facts from this durable result.
+        summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
         # Link an ODS document so the explicit import resolves a source filename.
         doc = UploadedDocument(
             user_id=user_id,
@@ -484,8 +443,7 @@ async def test_parse_statement_background_imports_brokerage_positions(client, db
         await session.flush()
         summary.uploaded_document_id = doc.id
         await session.flush()
-        summary._extracted_payload = _brokerage_payload()
-        return summary, []
+        return result
 
     monkeypatch.setattr(
         "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
@@ -592,12 +550,14 @@ async def test_parse_statement_background_routes_brokerage_to_review_without_imp
     await db.commit()
 
     async def fake_parse_document(*args, **kwargs):
+        source = args[1]
         session = kwargs["db"]
         summary = await session.get(StatementSummary, statement_id)
         _apply_parsed_envelope(summary, validation_error="existing parser note")
+        result = _brokerage_result(source=source, summary=summary, payload=_brokerage_payload_json_safe())
+        summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
         await session.flush()
-        summary._extracted_payload = _brokerage_payload()
-        return summary, []
+        return result
 
     monkeypatch.setattr(
         "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
@@ -648,15 +608,14 @@ async def test_AC3_12_1_brokerage_without_balances_reports_balance_validated_non
         }
     )
 
-    statement, _txns = await service.parse_document(
-        file_path=Path("futu-positions.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("futu-positions.pdf"), content=b"%PDF-1.7"),
         institution="Futu",
         user_id=uuid4(),
-        file_content=b"%PDF-1.7",
-        file_hash="ac-3-12-1-no-balances",
-        original_filename="futu-positions.pdf",
     )
 
-    assert statement.opening_balance is None
-    assert statement.closing_balance is None
-    assert statement.balance_validated is None
+    assert result.evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+    assert result.balances == ()
+    assert result.period_start is None
+    assert result.missing_required_facts == ("period",)
+    assert result.balance_validated is None

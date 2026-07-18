@@ -774,7 +774,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-llm.11.2",
-            statement="Every corpus cassette's frozen extraction output seeds a parsed statement that completes the provider-free downstream journey: transactions endpoint returns the exact cassette row count with Decimal amounts, Stage-1 review reports a validated balance chain, duplicate/transfer-pair candidates are resolved through the reviewer path, approve auto-creates one posted journal entry per transaction, a statement-scoped reconciliation run reaches unmatched=0, and the balance sheet reflects the statement's net movement on the posting account with the accounting equation balanced",
+            statement="Every corpus cassette's frozen extraction output seeds a parsed statement whose rows receive explicit, non-reusable reviewer-confirmed semantic anchors before approval. The provider-free downstream journey then returns the exact cassette row count with Decimal amounts, reports a validated balance chain, resolves duplicate/transfer-pair candidates through the reviewer path, creates one posted journal entry per transaction, reaches unmatched=0 in a statement-scoped reconciliation run, and reflects the posting account's net movement with the accounting equation balanced. This proves confirmed-semantics propagation, not model classification quality.",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
             priority="P0",
             status="done",
@@ -793,14 +793,13 @@ CONTRACT = PackageContract(
         # sheet's single posting-account line. This closes the residual gap
         # #950 recorded ("fixture exists only in parsing unit tests, never
         # wired into full E2E acceptance") for the income statement: every
-        # posted transaction's contra side is Income or Expense by
-        # construction (auto_create_posted_entries_for_statement's
-        # Uncategorized-bucket fallback), so net_income ties to the corpus
-        # data across every institution class, not just accounts whose name
-        # happens to match a heuristic.
+        # reviewer-confirmed transaction's contra side is Income or Expense by
+        # deterministic disposition, so net_income ties to the corpus data
+        # across every institution class. It does not make a claim about LLM
+        # classification quality or reintroduce an Uncategorized fallback.
         ACRecord(
             id="AC-llm.11.4",
-            statement="Every non-empty corpus statement's income statement (queried over the statement's own transaction date range) reports total_income minus total_expenses, and net_income, exactly equal to the corpus case's net movement — proving the auto-posted double entry always lands its contra side on Income/Expense, independent of category granularity or institution class",
+            statement="Every non-empty corpus statement's income statement (queried over the statement's own transaction date range) reports total_income minus total_expenses, and net_income, exactly equal to the corpus case's net movement — proving each reviewer-confirmed auto-posted double entry lands its contra side on Income/Expense, independent of institution class without relying on an Uncategorized fallback",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
             priority="P0",
             status="done",
@@ -927,8 +926,8 @@ CONTRACT = PackageContract(
         # re-extracted against today's code or the live provider ──
         ACRecord(
             id="AC-llm.14.1",
-            statement="A cassette-delivered extraction with no period_start/period_end but valid transaction dates degrades gracefully to the transaction-date range (#1449) when it reaches parse_document() through the real cassette transport",
-            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay",
+            statement="A cassette-delivered extraction with no period_start/period_end preserves that absence as a review-required result rather than inferring a transaction-date range when it reaches parse_document() through the real cassette transport",
+            test="apps/backend/tests/extraction/test_extraction_cassette_replay.py::test_AC_llm_14_1_missing_period_remains_review_only_via_replay",
             priority="P1",
             status="done",
             proof_kind="property",

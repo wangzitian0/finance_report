@@ -26,12 +26,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import ParseJob
+from src.extraction import DocumentSource, ExtractionMethod, ParseJob, StatementEvidenceType
+from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import parse_and_load_statement_projection
 
 
 async def _make_statement_account(db: AsyncSession, user_id) -> Account:
@@ -94,15 +96,13 @@ class TestDirtyAccountLast4Integration:
         }
 
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
-            stmt, txns = await service.parse_document(
-                file_path=Path("/tmp/test_sanitize.pdf"),
+            result = await service.parse_document(
+                DocumentSource.resolve(path=Path("/tmp/test_sanitize.pdf"), content=b"dummy"),
                 institution="DBS",
                 user_id=uuid4(),
-                file_content=b"dummy",
-                file_hash="abc123",
             )
 
-        assert stmt.account_last4 == expected_sanitized
+        assert result.account_last4 == expected_sanitized
         if expected_sanitized is not None:
             assert len(expected_sanitized) <= 4
             assert all(c in string.ascii_letters + string.digits for c in expected_sanitized)
@@ -132,16 +132,14 @@ class TestDirtyAccountLast4Integration:
 
         uid = test_user.id
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
-            stmt, _ = await service.parse_document(
-                file_path=Path("/tmp/test_persist.pdf"),
+            result, stmt, _ = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("/tmp/test_persist.pdf"), content=b"dummy"),
                 institution="DBS",
                 user_id=uid,
-                file_content=b"dummy",
-                file_hash=f"persist_test_{uuid4().hex[:8]}",
                 account_id=account.id,
             )
-
-        db.add(stmt)
         await db.commit()
 
         saved = await db.get(StatementSummary, stmt.id)
@@ -149,9 +147,8 @@ class TestDirtyAccountLast4Integration:
         assert saved.account_last4 == "5533"
         assert len(saved.account_last4) <= 4
 
-    @pytest.mark.no_db
     async def test_parse_document_without_account_stays_parsed_before_approval(self):
-        """High-confidence extraction without a custody account cannot become APPROVED."""
+        """A source result stays factual when custody-account context is absent."""
         service = ExtractionService()
 
         mock_data = {
@@ -173,16 +170,14 @@ class TestDirtyAccountLast4Integration:
         }
 
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
-            stmt, _ = await service.parse_document(
-                file_path=Path("/tmp/test_requires_account.pdf"),
+            result = await service.parse_document(
+                DocumentSource.resolve(path=Path("/tmp/test_requires_account.pdf"), content=b"dummy"),
                 institution="DBS",
                 user_id=uuid4(),
-                file_content=b"dummy",
-                file_hash=f"requires_account_{uuid4().hex[:8]}",
             )
 
-        assert stmt.balance_validated is True
-        assert stmt.status == BankStatementStatus.PARSED
+        assert result.balance_validated is True
+        assert result.account_last4 == "5533"
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +255,7 @@ class TestBackgroundTaskDirtyData:
     async def test_background_task_with_dirty_account_last4_succeeds(self, db, test_user, monkeypatch):
         """Full background task flow: dirty AI response → sanitized → saved → PARSED/APPROVED."""
         from src.database import create_session_maker_from_db
-        from src.extraction.extension.statement_parsing import parse_statement_background
+        from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
         sid = uuid4()
         uid = test_user.id
@@ -279,6 +274,7 @@ class TestBackgroundTaskDirtyData:
         # session and updates the pre-created StatementSummary row in place with the
         # sanitized account_last4 and approved envelope, then returns it.
         async def mock_parse(*args, **kwargs):
+            source = args[1]
             session = kwargs["db"]
             summary = await session.get(StatementSummary, sid)
             summary.account_last4 = "5533"  # Already sanitized by _sanitize_account_last4
@@ -292,8 +288,22 @@ class TestBackgroundTaskDirtyData:
             summary.balance_validated = True
             summary.validation_error = None
             summary.status = BankStatementStatus.APPROVED
+            result = build_statement_extraction_result(
+                source=source,
+                file_type="pdf",
+                statement=summary,
+                transactions=[],
+                provider_payload={"transactions": []},
+                model="fixture-model",
+                provider="fixture-provider",
+                method=ExtractionMethod.GOLDEN_FIXTURE,
+                is_brokerage=False,
+                evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+                positions=[],
+            )
+            summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
             await session.flush()
-            return summary, []
+            return result
 
         monkeypatch.setattr("src.extraction.extension.service.ExtractionService.parse_document", mock_parse)
 
@@ -427,16 +437,9 @@ class TestCascadingFailureRecovery:
         assert result.status == BankStatementStatus.REJECTED
         assert result.validation_error == "Integrity violation test"
 
-    async def test_background_task_commit_failure_falls_through_to_handler(self, db, test_user, monkeypatch):
-        """Verify that when commit() fails at finalize, _handle_parse_failure is invoked.
-
-        We cannot use a real VARCHAR violation because the dirty data persists
-        in SQLAlchemy's identity map, causing the handler's own commit() to
-        re-fail (known limitation — _sanitize_account_last4 prevents this
-        in production).  Instead we verify the handler is called with the
-        correct arguments.
-        """
-        from src.extraction.extension.statement_parsing import handle_parse_failure
+    async def test_background_task_commit_failure_is_retryable(self, db, test_user, monkeypatch):
+        """A finalize commit failure is not misreported as source rejection."""
+        from src.extraction import RetryableStatementIngestionError
 
         sid = uuid4()
         uid = test_user.id
@@ -451,16 +454,6 @@ class TestCascadingFailureRecovery:
         db.add(stmt)
         await db.commit()
 
-        handler_called_with: dict | None = None
-
-        async def spy_handler(statement, db_session, **failure_context):
-            nonlocal handler_called_with
-            message = failure_context["message"]
-            handler_called_with = {"statement_id": statement.id, "message": message}
-            return await handle_parse_failure(statement, db_session, **failure_context)
-
-        monkeypatch.setattr("src.extraction.extension.statement_parsing.handle_parse_failure", spy_handler)
-
         original_commit = AsyncSession.commit
         fail_next_commit = False
 
@@ -473,27 +466,39 @@ class TestCascadingFailureRecovery:
 
         monkeypatch.setattr(AsyncSession, "commit", conditional_failing_commit)
 
-        parsed_stmt = StatementSummaryFactory.build(
-            user_id=uid,
-            institution="DBS",
-            account_id=account.id,
-            account_last4="1234",
-            currency="SGD",
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 31),
-            opening_balance=Decimal("1000.00"),
-            closing_balance=Decimal("1100.00"),
-            confidence_score=90,
-            balance_validated=True,
-            validation_error=None,
-            status=BankStatementStatus.APPROVED,
-            file_hash="dummy",
-        )
-
         async def parse_then_arm_failure(*args, **kwargs):
             nonlocal fail_next_commit
+            source = args[1]
+            session = kwargs["db"]
+            summary = await session.get(StatementSummary, sid)
+            summary.account_id = account.id
+            summary.account_last4 = "1234"
+            summary.currency = "SGD"
+            summary.period_start = date(2025, 1, 1)
+            summary.period_end = date(2025, 1, 31)
+            summary.opening_balance = Decimal("1000.00")
+            summary.closing_balance = Decimal("1100.00")
+            summary.confidence_score = 90
+            summary.balance_validated = True
+            summary.validation_error = None
+            summary.status = BankStatementStatus.APPROVED
+            result = build_statement_extraction_result(
+                source=source,
+                file_type="pdf",
+                statement=summary,
+                transactions=[],
+                provider_payload={"transactions": []},
+                model="fixture-model",
+                provider="fixture-provider",
+                method=ExtractionMethod.GOLDEN_FIXTURE,
+                is_brokerage=False,
+                evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+                positions=[],
+            )
+            summary.extraction_metadata = {"statement_extraction_result": result.to_payload()}
+            await session.flush()
             fail_next_commit = True
-            return (parsed_stmt, [])
+            return result
 
         monkeypatch.setattr(
             "src.extraction.extension.service.ExtractionService.parse_document",
@@ -506,9 +511,9 @@ class TestCascadingFailureRecovery:
         monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_run_in_threadpool)
 
         from src.database import create_session_maker_from_db
-        from src.extraction.extension.statement_parsing import parse_statement_background
+        from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
-        try:
+        with pytest.raises(RetryableStatementIngestionError, match="Simulated DB commit failure"):
             await parse_statement_background(
                 job=ParseJob(
                     statement_id=sid,
@@ -523,17 +528,12 @@ class TestCascadingFailureRecovery:
                 content=b"dummy content",
                 session_maker=create_session_maker_from_db(db),
             )
-        except Exception:
-            pass
-
-        assert handler_called_with is not None, "_handle_parse_failure was never called"
-        assert handler_called_with["statement_id"] == sid
-        assert "Simulated DB commit failure" in handler_called_with["message"]
 
         db.expire_all()
         saved = await db.get(StatementSummary, sid)
         assert saved is not None
-        assert saved.status == BankStatementStatus.REJECTED
+        assert saved.status == BankStatementStatus.PARSING
+        assert saved.validation_error is None
 
 
 # ---------------------------------------------------------------------------

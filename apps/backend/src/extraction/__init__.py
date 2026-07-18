@@ -40,7 +40,47 @@ from __future__ import annotations
 # monkeypatch its functions (``validation.validate_balance = …``) and need one
 # canonical module object to patch.
 from src.extraction.base import validation
-from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, ParseJob
+from src.extraction.base.disposition import (
+    DispositionCommand,
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
+    DispositionStatus,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    StatementTransaction,
+)
+from src.extraction.base.result import (
+    SOURCE_CAPABILITIES,
+    ExtractedPositionFact,
+    ExtractedTransactionFact,
+    ExtractionMethod,
+    SourceCapability,
+    SourceCapabilityStatus,
+    SourceProvenance,
+    StatementBalanceFact,
+    StatementEvidenceType,
+    StatementExtractionResult,
+    StatementSourceType,
+)
+from src.extraction.base.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeCommand,
+    supports_reviewed_statement_envelope,
+)
+from src.extraction.base.types import (
+    DocumentSource,
+    ExtractedTransactionRow,
+    ParseJob,
+    RetryableStatementIngestionError,
+    StatementIngestionConfigurationError,
+    StatementIngestionError,
+    StatementIngestionOutcome,
+    StatementIngestionStatus,
+    StatementPostingOutcome,
+    StatementPostingStatus,
+)
 from src.extraction.base.validation import (
     compute_confidence_score,
     detect_balance_chain_break,
@@ -86,20 +126,33 @@ from src.extraction.extension.evidence_lineage import (
     EvidenceLineageService,
     EvidenceTraversalStep,
 )
+from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
 from src.extraction.extension.review_queue import (
     create_entry_from_txn,
     register_fx_rate_provider,
 )
+from src.extraction.extension.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeConflict,
+    confirm_reviewed_statement_envelope,
+    current_reviewed_statement_envelope,
+    get_current_statement_extraction_result,
+    persist_statement_extraction_result,
+)
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_parsing import (
+    StatementIngestionUseCase,
+    build_statement_ingestion_use_case,
+    register_statement_source,
+)
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
     auto_create_posted_entries_for_statement,
-    register_transfer_exclusions_provider,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_summary import (
@@ -157,6 +210,10 @@ from src.extraction.orm.layer3 import (
     PositionStatus,
     TransactionClassification,
 )
+from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (mapper registration)
+    ReviewedStatementEnvelope,
+    StatementExtractionResultRecord,
+)
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
@@ -173,6 +230,12 @@ __all__ = [
     "CurrencyUnresolvedError",
     "DEFAULT_MAX_DEPTH",
     "DeduplicationService",
+    "DispositionCommand",
+    "DispositionContext",
+    "DispositionDecision",
+    "DispositionMode",
+    "DispositionPolicy",
+    "DispositionStatus",
     "DocumentSource",
     "DocumentStatus",
     "DocumentType",
@@ -184,7 +247,13 @@ __all__ = [
     "EvidenceTraversalStep",
     "ExtractionError",
     "ExtractionService",
+    "EconomicIntent",
+    "ExtractionMethod",
+    "ExtractedPositionFact",
     "ExtractedTransactionRow",
+    "ExtractedTransactionFact",
+    "IntentProposal",
+    "IntentProposalOrigin",
     "ManagedPosition",
     "ManualValuationBasis",
     "ManualValuationComponentType",
@@ -192,8 +261,28 @@ __all__ = [
     "ManualValuationSnapshot",
     "PositionStatus",
     "ParseJob",
+    "RetryableStatementIngestionError",
+    "ReviewedStatementEnvelopeCommand",
+    "ReviewedStatementEnvelopeConflict",
+    "SourceCapability",
+    "SOURCE_CAPABILITIES",
+    "SourceCapabilityStatus",
+    "SourceProvenance",
     "SYSTEM_PROMPT",
     "Stage1Status",
+    "StatementIngestionConfigurationError",
+    "StatementIngestionError",
+    "StatementIngestionOutcome",
+    "StatementIngestionStatus",
+    "StatementIngestionUseCase",
+    "StatementBalanceFact",
+    "StatementEvidenceType",
+    "StatementExtractionResult",
+    "StatementPostingDependencies",
+    "StatementPostingOutcome",
+    "StatementPostingStatus",
+    "StatementSourceType",
+    "StatementTransaction",
     "StatementEventSource",
     "StatementSummary",
     "TransactionClassification",
@@ -207,16 +296,21 @@ __all__ = [
     "auto_create_posted_entries_for_statement",
     "backfill_classifications",
     "build_csv_mapping_prompt",
+    "build_statement_ingestion_use_case",
     "compute_confidence_score",
+    "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
+    "current_reviewed_statement_envelope",
     "detect_balance_chain_break",
     "dual_write_layer2",
+    "extraction_trace_policy_registry",
     "edit_and_approve",
     "find_in_flight_parse_id",
     "find_uploaded_document_filename_by_hash",
     "get_correction_stats",
     "get_known_storage_paths",
     "get_parsing_prompt",
+    "get_current_statement_extraction_result",
     "get_statement_coverage_rows",
     "get_statement_event_sources",
     "get_uploaded_document_filename",
@@ -226,14 +320,15 @@ __all__ = [
     "parse_brokerage_csv_payload",
     "parse_brokerage_positions",
     "pending_stage1_review_filter",
+    "persist_statement_extraction_result",
     "record_correction",
     "register_fx_rate_provider",
     "register_position_reconciler",
     "reject_statement_workflow",
     "resolve_custody_account_id",
+    "register_statement_source",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
-    "register_transfer_exclusions_provider",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "resolve_transaction_currency",
@@ -241,6 +336,7 @@ __all__ = [
     "set_opening_balance",
     "snapshot_currencies",
     "submit_parse_pipeline",
+    "supports_reviewed_statement_envelope",
     "validate_balance",
     "validate_balance_chain",
     "validation",

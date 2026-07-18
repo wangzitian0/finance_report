@@ -19,9 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # the repo-root-relative common/config into apps/backend/src/runtime).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend"))
 
-from src.runtime.extension import env_keys as check_env_keys  # noqa: E402
-from src.runtime.extension import schema_validation as validate_schemas  # noqa: E402
 from common.meta.extension import generate_ac_registry as gar  # noqa: E402
+
+from src.runtime.extension import (
+    env_keys as check_env_keys,  # noqa: E402
+    schema_validation as validate_schemas,  # noqa: E402
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -168,20 +171,40 @@ def test_AC14_1_3_validate_schemas_exits_nonzero_for_missing_field_descriptions(
     config_path.write_text(
         "class Settings:\n    debug: bool = False\n", encoding="utf-8"
     )
-    (schemas_dir / "bad.py").write_text(
+    bad_schema = schemas_dir / "bad.py"
+    bad_schema.write_text(
+        "from pydantic import BaseModel, Field\n\nclass BadSchema(BaseModel):\n    name: str = Field()\n",
+        encoding="utf-8",
+    )
+
+    good_schema = schemas_dir / "good.py"
+    good_schema.write_text(
         "from pydantic import BaseModel, Field\n\n"
-        "class BadSchema(BaseModel):\n"
-        "    name: str = Field()\n",
+        "class GoodSchema(BaseModel):\n"
+        "    name: str = Field(description='Name')\n",
         encoding="utf-8",
     )
 
     monkeypatch.setattr(validate_schemas, "get_project_root", lambda: root)
-    monkeypatch.setattr(sys, "argv", ["validate_schemas.py"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["validate_schemas.py", "--paths", str(bad_schema.relative_to(root))],
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         validate_schemas.main()
 
     assert exc_info.value.code == 1
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["validate_schemas.py", "--paths", str(good_schema.relative_to(root))],
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        validate_schemas.main()
+    assert exc_info.value.code == 0
 
 
 def test_AC14_1_4_check_env_keys_exits_nonzero_for_config_documentation_drift(
@@ -277,8 +300,7 @@ def test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap
     project_dir = tmp_path / "docs" / "project"
     project_dir.mkdir(parents=True)
     (project_dir / "EPIC-001.phase0-setup.md").write_text(
-        "| AC1.1.1 | Feature setup AC |\n"
-        "Reference-only prose mentions AC1.99.1 but must not create it.\n",
+        "| AC1.1.1 | Feature setup AC |\nReference-only prose mentions AC1.99.1 but must not create it.\n",
         encoding="utf-8",
     )
     (project_dir / "EPIC-014.ttd-transformation.md").write_text(

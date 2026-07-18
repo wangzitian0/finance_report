@@ -497,12 +497,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.9",
             statement=(
-                "POST /reconciliation/unmatched/{txn_id}/create-entry returns 200 with a created "
-                "journal entry (id/entry_date/memo/status/total_amount)."
+                "POST /reconciliation/unmatched/{txn_id}/create-entry returns 400 without a "
+                "reviewed economic disposition; an unmatched transaction cannot create an "
+                "Uncategorized journal entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_create_entry_from_unmatched_success"
+                "::test_create_entry_from_unmatched_requires_economic_disposition"
             ),
             priority="P1",
             status="done",
@@ -543,12 +544,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.13",
             statement=(
-                "POST /reconciliation/unmatched/batch-create with all=True creates journal entries "
-                "for every unmatched transaction and reports the created_count."
+                "POST /reconciliation/unmatched/batch-create with all=True returns 400 when its "
+                "transactions lack reviewed economic dispositions; batch execution cannot bypass review."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_batch_create_entries_for_all_unmatched"
+                "::test_batch_create_entries_requires_economic_disposition"
             ),
             priority="P1",
             status="done",
@@ -1293,10 +1294,14 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.stage2-batch.2",
-            statement="A batch approve creates the missing journal entry exactly once on the accepted transition, never on pending_review.",
+            statement=(
+                "A Stage-2 batch approve may reconcile an existing source entry but "
+                "cannot create a journal entry for a pending match without a reviewed "
+                "economic disposition; the match remains pending and no entry is written."
+            ),
             test=(
                 "apps/backend/tests/api/test_statements_router.py"
-                "::test_batch_approve_matches_creates_missing_entry_once"
+                "::test_batch_approve_matches_without_entry_requires_review"
             ),
             priority="P0",
             status="done",
@@ -2007,7 +2012,9 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.signature-surgery.4",
             statement=(
                 "Reconciliation failures use typed domain errors, router status mapping does "
-                "not inspect exception text, and consistency-check actions are enum-typed."
+                "not inspect exception text, and consistency-check actions are enum-typed; "
+                "the legacy raw-entry routes are the only ValueError handlers and must "
+                "roll back before returning a bad request."
             ),
             test=(
                 "apps/backend/tests/reconciliation/test_signature_surgery.py"

@@ -33,7 +33,7 @@ async def test_statement_workflow_service(monkeypatch):
     statement_id = uuid4()
     user_id = uuid4()
 
-    # --- approve: transition -> post -> commit, returns entries created ---
+    # --- approve: transition -> post -> commit, returns posting outcome ---
     approve_calls: list = []
     approved_statement = SimpleNamespace(id=statement_id, name="approved")
 
@@ -42,16 +42,23 @@ async def test_statement_workflow_service(monkeypatch):
         approve_calls.append(("approve_statement",))
         return approved_statement
 
-    async def fake_post(db, statement, uid):
+    async def fake_post(db, statement, uid, *, dependencies):
         assert statement is approved_statement
+        assert dependencies is posting_dependencies
         approve_calls.append(("auto_post",))
-        return 3
+        return SimpleNamespace(created_count=3)
 
     monkeypatch.setattr(statement_workflow, "approve_statement", fake_approve)
     monkeypatch.setattr(statement_workflow, "auto_create_posted_entries_for_statement", fake_post)
 
-    created = await statement_workflow.approve_statement_workflow(_FakeSession(approve_calls), statement_id, user_id)
-    assert created == 3
+    posting_dependencies = object()
+    outcome = await statement_workflow.approve_statement_workflow(
+        _FakeSession(approve_calls),
+        statement_id,
+        user_id,
+        dependencies=posting_dependencies,
+    )
+    assert outcome.created_count == 3
     assert approve_calls == [("approve_statement",), ("auto_post",), ("commit",)]
 
     # --- reject: transition -> commit -> refresh, returns refreshed statement ---

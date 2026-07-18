@@ -9,12 +9,21 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 
-from src.extraction import DocumentStatus, DocumentType, ExtractedTransactionRow, UploadedDocument
+from src.extraction import (
+    DocumentSource,
+    DocumentStatus,
+    DocumentType,
+    ExtractedTransactionRow,
+    UploadedDocument,
+    register_statement_source,
+)
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
+from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
+from tests.statement_ingestion import parse_and_load_statement_projection
 
 
 @pytest.fixture
@@ -58,16 +67,15 @@ class TestDualWriteLayer2:
         service = ExtractionService()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+            extraction_result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=hashlib.sha256(sample_file_content).hexdigest(),
-                original_filename="test_statement.pdf",
-                db=db,
             )
 
+        assert extraction_result.transactions
         assert statement is not None
         assert len(transactions) == 2
 
@@ -86,14 +94,12 @@ class TestDualWriteLayer2:
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+            _extraction_result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
-                db=db,
             )
 
         await db.commit()
@@ -104,7 +110,7 @@ class TestDualWriteLayer2:
         assert uploaded_doc.file_hash == file_hash
         assert uploaded_doc.original_filename == "test_statement.pdf"
         assert uploaded_doc.document_type == DocumentType.BANK_STATEMENT
-        assert uploaded_doc.extraction_metadata is None
+        assert uploaded_doc.extraction_metadata == {"statement_extraction_result": _extraction_result.to_payload()}
 
     async def test_dual_write_marks_document_completed(self, db, test_user, mock_ai_response, sample_file_content):
         """AC-extraction.1622.9: a successfully parsed-and-persisted document advances to status=completed
@@ -113,12 +119,9 @@ class TestDualWriteLayer2:
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+                DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=hashlib.sha256(sample_file_content).hexdigest(),
-                original_filename="test_statement.pdf",
                 db=db,
             )
 
@@ -152,12 +155,9 @@ class TestDualWriteLayer2:
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+                DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
                 db=db,
             )
         await db.commit()
@@ -171,10 +171,27 @@ class TestDualWriteLayer2:
     async def test_dual_write_persists_brokerage_extraction_metadata(
         self, db, test_user, sample_file_content, monkeypatch
     ):
-        """AC-extraction.304.7: Brokerage dual-write keeps structured OCR positions available for import."""
+        """AC-extraction.304.7: Brokerage enrichment retains the registered source artifact."""
 
         service = ExtractionService()
         file_hash = hashlib.sha256(sample_file_content).hexdigest()
+        precreated = StatementSummary(
+            user_id=test_user.id,
+            file_hash=file_hash,
+            institution="Moomoo",
+            status=BankStatementStatus.PARSING,
+        )
+        db.add(precreated)
+        await db.flush()
+        source_document = await register_statement_source(
+            db,
+            statement=precreated,
+            storage_key="statements/moomoo-preparse.pdf",
+            original_filename="moomoo-statement.pdf",
+        )
+        assert source_document.document_type is DocumentType.BANK_STATEMENT
+        assert source_document.status is DocumentStatus.UPLOADED
+
         brokerage_response = {
             "institution": "Moomoo",
             "currency": "SGD",
@@ -192,14 +209,12 @@ class TestDualWriteLayer2:
         }
 
         with patch.object(service, "extract_financial_data", return_value=brokerage_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("moomoo-statement.pdf"),
+            extraction_result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=sample_file_content),
                 institution="Moomoo",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="moomoo-statement.pdf",
-                db=db,
             )
 
         await db.commit()
@@ -208,25 +223,33 @@ class TestDualWriteLayer2:
         uploaded_doc = result.scalar_one()
 
         assert transactions == []
-        assert statement.extraction_metadata == {"extraction_payload": brokerage_response}
+        assert extraction_result.positions
+        assert statement.extraction_metadata == {"statement_extraction_result": extraction_result.to_payload()}
+        assert uploaded_doc.id == source_document.id
         assert uploaded_doc.document_type == DocumentType.BROKERAGE_STATEMENT
-        assert uploaded_doc.extraction_metadata == {"extraction_payload": brokerage_response}
+        assert uploaded_doc.status is DocumentStatus.COMPLETED
+        assert uploaded_doc.extraction_metadata == {"statement_extraction_result": extraction_result.to_payload()}
+        source_node = (
+            await db.execute(
+                select(EvidenceNode)
+                .where(EvidenceNode.entity_type == "uploaded_document")
+                .where(EvidenceNode.entity_id == source_document.id)
+            )
+        ).scalar_one()
+        assert source_node.properties["document_type"] == DocumentType.BROKERAGE_STATEMENT.value
 
     async def test_dual_write_creates_atomic_transactions(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
         service = ExtractionService()
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+            _extraction_result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
-                db=db,
             )
 
         await db.commit()
@@ -259,16 +282,12 @@ class TestDualWriteLayer2:
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
         service = ExtractionService()
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+                DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
                 db=db,
             )
             await db.commit()
@@ -277,16 +296,11 @@ class TestDualWriteLayer2:
         atomic_txns_before = result.scalars().all()
         assert len(atomic_txns_before) == 2
 
-        file_hash_2 = hashlib.sha256(b"DIFFERENT_FILE").hexdigest()
-
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             await service.parse_document(
-                file_path=Path("test_statement_v2.pdf"),
+                DocumentSource.resolve(path=Path("test_statement_v2.pdf"), content=b"DIFFERENT_FILE"),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=b"DIFFERENT_FILE",
-                file_hash=file_hash_2,
-                original_filename="test_statement_v2.pdf",
                 db=db,
             )
             await db.commit()
@@ -303,24 +317,20 @@ class TestDualWriteLayer2:
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
         service = ExtractionService()
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+            extraction_result = await service.parse_document(
+                DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
                 db=db,
             )
 
-        assert statement.institution == "DBS"
-        assert statement.currency == "SGD"
-        assert statement.opening_balance == Decimal("1000.00")
-        assert statement.closing_balance == Decimal("1500.00")
-        assert len(transactions) == 2
+        assert extraction_result.institution == "DBS"
+        assert extraction_result.balances[0].currency == "SGD"
+        assert extraction_result.balances[0].opening == Decimal("1000.00")
+        assert extraction_result.balances[0].closing == Decimal("1500.00")
+        assert len(extraction_result.transactions) == 2
 
     async def test_dual_write_failure_raises_error(
         self, db, test_user, mock_ai_response, sample_file_content, monkeypatch
@@ -328,7 +338,6 @@ class TestDualWriteLayer2:
         """Test that dual-write failures (non-IntegrityError) raise RuntimeError."""
 
         service = ExtractionService()
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         from src.extraction.extension.service import ExtractionError
 
@@ -339,12 +348,9 @@ class TestDualWriteLayer2:
             ):
                 with pytest.raises(ExtractionError) as exc_info:
                     await service.parse_document(
-                        file_path=Path("test_statement.pdf"),
+                        DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                         institution="DBS",
                         user_id=test_user.id,
-                        file_content=sample_file_content,
-                        file_hash=file_hash,
-                        original_filename="test_statement.pdf",
                         db=db,
                     )
 
@@ -355,21 +361,17 @@ class TestDualWriteLayer2:
         self, test_user, mock_ai_response, sample_file_content, monkeypatch
     ):
         service = ExtractionService()
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_statement.pdf"),
+            extraction_result = await service.parse_document(
+                DocumentSource.resolve(path=Path("test_statement.pdf"), content=sample_file_content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=sample_file_content,
-                file_hash=file_hash,
-                original_filename="test_statement.pdf",
                 db=None,
             )
 
-        assert statement is not None
-        assert len(transactions) == 2
+        assert extraction_result is not None
+        assert len(extraction_result.transactions) == 2
 
     async def test_dual_write_integrity_error_silent(self, db, test_user, sample_file_content, monkeypatch):
         """Test that IntegrityError (duplicate upload) is silently handled."""
@@ -449,7 +451,6 @@ class TestDualWriteLayer2:
         per-document occurrence ordinal."""
         service = ExtractionService()
         file_content = b"SYNTHETIC-PAGE-BOUNDARY-STATEMENT"
-        file_hash = hashlib.sha256(file_content).hexdigest()
 
         # opening 1000 -> +250 -> +250 -> -100 -> closing 1400. The two +250 deposits are genuinely
         # distinct but both carry the SAME extracted balance_after (1250) because the OCR/LLM reads
@@ -489,19 +490,18 @@ class TestDualWriteLayer2:
         }
 
         with patch.object(service, "extract_financial_data", return_value=page_boundary_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("synthetic_statement.pdf"),
+            extraction_result, statement, transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("synthetic_statement.pdf"), content=file_content),
                 institution="SynthBank",
                 user_id=test_user.id,
-                file_content=file_content,
-                file_hash=file_hash,
-                original_filename="synthetic_statement.pdf",
-                db=db,
             )
 
         await db.commit()
 
         # Both same-amount deposits survived extraction (the parser appends every row).
+        assert len(extraction_result.transactions) == 3
         assert len(transactions) == 3
 
         # Both deposits persisted to Layer 2 — the dedup layer must NOT collapse them.

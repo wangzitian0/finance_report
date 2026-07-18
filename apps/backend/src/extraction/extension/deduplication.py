@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.base.types import ExtractedTransactionRow
@@ -21,6 +21,21 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger
 
 logger = get_logger(__name__)
+
+
+def _source_document_list(value: object) -> list[dict[str, str]]:
+    """Normalize legacy JSON lineage into the only shape this module writes."""
+    if not isinstance(value, list):
+        return []
+    documents: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        doc_id = item.get("doc_id")
+        doc_type = item.get("doc_type")
+        if isinstance(doc_id, str) and isinstance(doc_type, str):
+            documents.append({"doc_id": doc_id, "doc_type": doc_type})
+    return documents
 
 
 def _decimal_key(value: Decimal) -> str:
@@ -147,7 +162,7 @@ class DeduplicationService:
             description = str(legacy_fields.pop("description"))
             reference = cast(str | None, legacy_fields.pop("reference", None))
             balance_after = cast(Decimal | None, legacy_fields.pop("balance_after", None))
-            occurrence_index = int(legacy_fields.pop("occurrence_index", 0))
+            occurrence_index = int(cast(int | str, legacy_fields.pop("occurrence_index", 0)))
             currency = str(legacy_fields.pop("currency"))
             row = ExtractedTransactionRow(
                 user_id=user_id,
@@ -218,9 +233,7 @@ class DeduplicationService:
             if existing.balance_after is None and balance_after is not None:
                 existing.balance_after = balance_after
 
-            source_docs = existing.source_documents
-            if not isinstance(source_docs, list):
-                source_docs = []
+            source_docs = _source_document_list(existing.source_documents)
 
             if source_doc not in source_docs:
                 source_docs.append(source_doc)
@@ -313,9 +326,7 @@ class DeduplicationService:
         }
 
         if existing:
-            source_docs = existing.source_documents
-            if not isinstance(source_docs, list):
-                source_docs = []
+            source_docs = _source_document_list(existing.source_documents)
 
             if source_doc not in source_docs:
                 source_docs.append(source_doc)
@@ -487,7 +498,7 @@ async def _detach_document_from_atomic_transactions(db: AsyncSession, user_id: U
         .all()
     )
     for txn in rows:
-        sources = txn.source_documents if isinstance(txn.source_documents, list) else []
+        sources = _source_document_list(txn.source_documents)
         remaining = [s for s in sources if s.get("doc_id") != doc_id_str]
         if remaining:
             txn.source_documents = remaining
@@ -495,7 +506,7 @@ async def _detach_document_from_atomic_transactions(db: AsyncSession, user_id: U
         else:
             await db.delete(txn)
         await db.execute(
-            AtomicTransactionSourceDocument.__table__.delete().where(
+            delete(AtomicTransactionSourceDocument).where(
                 AtomicTransactionSourceDocument.atomic_txn_id == txn.id,
                 AtomicTransactionSourceDocument.uploaded_document_id == doc_id,
             )
@@ -555,6 +566,12 @@ async def dual_write_layer2(
     }
     doc_type = document_type or doc_type_map.get((statement.institution or "").lower(), DocumentType.BANK_STATEMENT)
     file_hash = statement.file_hash
+    # The immutable result is passed as persistence metadata. Keep the DWD
+    # envelope and its ODS document on that same source-to-fact identity; a
+    # reused upload must not retain stale or absent result metadata.
+    effective_metadata = extraction_metadata if extraction_metadata is not None else statement.extraction_metadata
+    if effective_metadata is not None:
+        statement.extraction_metadata = effective_metadata
 
     try:
         # Get-or-create the ODS document. Reparse re-runs ingestion for the same
@@ -572,8 +589,12 @@ async def dual_write_layer2(
         if existing_doc is not None:
             uploaded_doc = existing_doc
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
-            if extraction_metadata is not None:
-                uploaded_doc.extraction_metadata = extraction_metadata
+            # The upload registers an artifact before parsing can determine
+            # whether it is a bank or brokerage statement.  Resolve that
+            # semantic type only once the typed parse result exists.
+            uploaded_doc.document_type = doc_type
+            if effective_metadata is not None:
+                uploaded_doc.extraction_metadata = effective_metadata
             # ``envelope_only`` persists just the terminal envelope status (a
             # quarantined/rejected re-parse, #1452): it must NOT detach the
             # document's previously-ingested Layer-2 facts, or a re-parse that
@@ -588,7 +609,7 @@ async def dual_write_layer2(
                 file_hash=file_hash,
                 original_filename=original_filename or file_hash,
                 document_type=doc_type,
-                extraction_metadata=extraction_metadata,
+                extraction_metadata=effective_metadata,
             )
 
         # Lazily import to avoid an import cycle (evidence_graph_integration imports
@@ -648,7 +669,7 @@ async def dual_write_layer2(
             existing.period_end = statement.period_end
             existing.opening_balance = statement.opening_balance
             existing.closing_balance = statement.closing_balance
-            existing.extraction_metadata = statement.extraction_metadata
+            existing.extraction_metadata = effective_metadata
             existing.confidence_score = statement.confidence_score
             existing.balance_validated = statement.balance_validated
             existing.validation_error = statement.validation_error
@@ -669,6 +690,26 @@ async def dual_write_layer2(
         # appears perpetually un-processed.
         uploaded_doc.status = DocumentStatus.COMPLETED
         db.add(uploaded_doc)
+        canonical_statement = existing if existing is not None and existing is not statement else statement
+        try:
+            # The artifact exists before parse dispatch, including brokerage
+            # statements with zero cash rows. Refresh its node independently of
+            # atomic-transaction lineage so the evidence type/status cannot stay
+            # at the provisional upload values.
+            await evidence_graph.record_statement_source(
+                db,
+                user_id=user_id,
+                statement=canonical_statement,
+                uploaded_document=uploaded_doc,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph source artifact refresh failed (ingestion continues)",
+                error=str(evidence_exc),
+                error_type=type(evidence_exc).__name__,
+                user_id=str(user_id),
+                uploaded_document_id=str(uploaded_doc.id),
+            )
         await db.flush()
 
         logger.info(

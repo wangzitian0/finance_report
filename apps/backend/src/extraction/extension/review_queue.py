@@ -21,10 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit import JournalEntrySourceType
+from src.extraction.base.disposition import DispositionDecision, DispositionStatus
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.orm.layer1 import DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
@@ -206,6 +206,10 @@ async def _create_entry_from_txn(
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
+    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_error: type[Exception] | None = None,
+    disposition: DispositionDecision | None = None,
+    counter_account: Account | None = None,
 ) -> JournalEntry:
     """Create a journal entry from an atomic transaction.
 
@@ -256,8 +260,9 @@ async def _create_entry_from_txn(
             # it. Only when that chain also comes up empty does this still fail
             # closed below -- a journal entry cannot post without a real rate,
             # unlike a report line, which can just omit the value.
-            line_fx_rate = await _require_fx_rate_provider()(db, currency, base_currency, txn.txn_date, lazy_load=True)
-        except FxRateError as exc:
+            provider = fx_rate_provider or _require_fx_rate_provider()
+            line_fx_rate = await provider(db, currency, base_currency, txn.txn_date, lazy_load=True)
+        except fx_rate_error or FxRateError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.
@@ -275,55 +280,31 @@ async def _create_entry_from_txn(
         )
         bank_account = account_result.scalar_one_or_none()
 
-    if not bank_account and auto_post:
-        raise ValueError("Account mapping required before posting. Confirm the statement account before posting.")
-
     if not bank_account:
-        # Fallback: create or get default bank account
-        bank_account = await get_or_create_account(
-            db,
-            name="Bank - Main",
-            account_type=AccountType.ASSET,
-            currency=currency,
-            user_id=user_id,
-        )
+        raise ValueError("Account mapping required before statement posting")
+    if bank_account.type is not AccountType.ASSET or not bank_account.is_active:
+        raise ValueError("Statement posting account must be an active asset account")
+    if bank_account.currency != currency:
+        raise ValueError("Statement posting account currency must match the transaction currency")
 
-    classified_account: Account | None = None
-    classification_result = await db.execute(
-        select(TransactionClassification)
-        .where(TransactionClassification.atomic_txn_id == txn.id)
-        .where(TransactionClassification.status == ClassificationStatus.APPLIED)
-        .order_by(TransactionClassification.created_at.desc())
-    )
-    classification = classification_result.scalar_one_or_none()
-    if classification and classification.account_id:
-        account_result = await db.execute(select(Account).where(Account.id == classification.account_id))
-        classified_account = account_result.scalar_one_or_none()
+    if (
+        disposition is None
+        or disposition.status is not DispositionStatus.AUTHORITATIVE
+        or disposition.command is None
+        or disposition.transaction_id != txn.id
+    ):
+        raise ValueError("Authoritative economic disposition is required before statement posting")
+    if counter_account is None or counter_account.id != disposition.command.counter_account_id:
+        raise ValueError("Disposition counter-account context is missing or mismatched")
 
     if txn.direction == TransactionDirection.IN:
-        if classified_account and classified_account.type == AccountType.INCOME:
-            counter_account = classified_account
-        else:
-            counter_account = await get_or_create_account(
-                db,
-                name="Income - Uncategorized",
-                account_type=AccountType.INCOME,
-                currency=currency,
-                user_id=user_id,
-            )
+        if disposition.command.debit_role != "custody" or disposition.command.credit_role != "counter":
+            raise ValueError("Disposition command conflicts with incoming transaction flow")
         debit_account = bank_account
         credit_account = counter_account
     else:
-        if classified_account and classified_account.type == AccountType.EXPENSE:
-            counter_account = classified_account
-        else:
-            counter_account = await get_or_create_account(
-                db,
-                name="Expense - Uncategorized",
-                account_type=AccountType.EXPENSE,
-                currency=currency,
-                user_id=user_id,
-            )
+        if disposition.command.debit_role != "counter" or disposition.command.credit_role != "custody":
+            raise ValueError("Disposition command conflicts with outgoing transaction flow")
         debit_account = counter_account
         credit_account = bank_account
 
@@ -404,6 +385,10 @@ async def create_entry_from_txn(
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
+    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_error: type[Exception] | None = None,
+    disposition: DispositionDecision | None = None,
+    counter_account: Account | None = None,
 ) -> JournalEntry:
     """Create a journal entry, atomically including all auto-post side effects."""
 
@@ -417,6 +402,10 @@ async def create_entry_from_txn(
             source_type=source_type,
             preloaded_statement=preloaded_statement,
             preloaded_bank_account=preloaded_bank_account,
+            fx_rate_provider=fx_rate_provider,
+            fx_rate_error=fx_rate_error,
+            disposition=disposition,
+            counter_account=counter_account,
         )
 
     if auto_post:

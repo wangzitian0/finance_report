@@ -1,5 +1,8 @@
 """Tests for configuration helpers."""
 
+import pytest
+from pydantic import ValidationError
+
 from src.config import Settings, parse_comma_list, parse_key_value_pairs
 
 
@@ -37,3 +40,12 @@ def test_ai_base_url_defaults_to_zai_coding_endpoint(monkeypatch) -> None:
     monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
     settings = Settings(_env_file=None)
     assert settings.ai_base_url == "https://api.z.ai/api/coding/paas/v4"
+
+
+def test_statement_disposition_mode_is_closed_configuration(monkeypatch) -> None:
+    monkeypatch.setenv("STATEMENT_DISPOSITION_MODE", "observe")
+    assert Settings(_env_file=None).statement_disposition_mode == "observe"
+
+    monkeypatch.setenv("STATEMENT_DISPOSITION_MODE", "unsafe-default")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

@@ -7,6 +7,74 @@ No ORM, no network, no LLM — the extension pipeline calls DOWN into these.
 
 from __future__ import annotations
 
-from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, ParseJob
+from src.extraction.base.disposition import (
+    DispositionCommand,
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
+    DispositionStatus,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    StatementTransaction,
+)
+from src.extraction.base.result import (
+    SOURCE_CAPABILITIES,
+    ExtractedPositionFact,
+    ExtractedTransactionFact,
+    ExtractionMethod,
+    SourceCapability,
+    SourceCapabilityStatus,
+    SourceProvenance,
+    StatementBalanceFact,
+    StatementExtractionResult,
+    StatementSourceType,
+)
+from src.extraction.base.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeCommand,
+    supports_reviewed_statement_envelope,
+)
+from src.extraction.base.types import (
+    DocumentSource,
+    ExtractedTransactionRow,
+    ParseJob,
+    RetryableStatementIngestionError,
+    StatementIngestionConfigurationError,
+    StatementIngestionError,
+    StatementIngestionOutcome,
+    StatementIngestionStatus,
+)
 
-__all__ = ["DocumentSource", "ExtractedTransactionRow", "ParseJob"]
+__all__ = [
+    "DispositionCommand",
+    "DispositionContext",
+    "DispositionDecision",
+    "DispositionMode",
+    "DispositionPolicy",
+    "DispositionStatus",
+    "DocumentSource",
+    "EconomicIntent",
+    "ExtractionMethod",
+    "ExtractedPositionFact",
+    "ExtractedTransactionRow",
+    "ExtractedTransactionFact",
+    "IntentProposal",
+    "IntentProposalOrigin",
+    "ParseJob",
+    "RetryableStatementIngestionError",
+    "ReviewedStatementEnvelopeCommand",
+    "SourceCapability",
+    "SOURCE_CAPABILITIES",
+    "SourceCapabilityStatus",
+    "SourceProvenance",
+    "StatementBalanceFact",
+    "StatementExtractionResult",
+    "StatementIngestionConfigurationError",
+    "StatementIngestionError",
+    "StatementIngestionOutcome",
+    "StatementIngestionStatus",
+    "StatementSourceType",
+    "StatementTransaction",
+    "supports_reviewed_statement_envelope",
+]

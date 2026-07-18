@@ -115,6 +115,19 @@ CONTRACT = PackageContract(
             module="extension/service.py",
         ),
         Unit(
+            name="StatementIngestionUseCase",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/statement_parsing.py",
+        ),
+        Unit(
+            name="build_statement_ingestion_use_case",
+            kind=Kind.FACTORY,
+        ),
+        Unit(
+            name="extraction_trace_policy_registry",
+            kind=Kind.FACTORY,
+        ),
+        Unit(
             name="DeduplicationService",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/deduplication.py",
@@ -160,6 +173,65 @@ CONTRACT = PackageContract(
             module="base/types.py",
         ),
         Unit(name="ParseJob", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(
+            name="StatementExtractionResult",
+            kind=Kind.VALUE_OBJECT,
+            module="base/result.py",
+        ),
+        Unit(
+            name="ReviewedStatementEnvelopeCommand",
+            kind=Kind.VALUE_OBJECT,
+            module="base/reviewed_statement_envelope.py",
+        ),
+        Unit(
+            name="confirm_reviewed_statement_envelope",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/reviewed_statement_envelope.py",
+        ),
+        Unit(
+            name="SourceCapability",
+            kind=Kind.VALUE_OBJECT,
+            module="base/result.py",
+        ),
+        Unit(
+            name="DispositionPolicy",
+            kind=Kind.DOMAIN_SERVICE,
+        ),
+        Unit(
+            name="DispositionDecision",
+            kind=Kind.VALUE_OBJECT,
+            module="base/disposition.py",
+        ),
+        Unit(
+            name="IntentProposal",
+            kind=Kind.VALUE_OBJECT,
+            module="base/disposition.py",
+        ),
+        Unit(
+            name="IntentProposalOrigin",
+            kind=Kind.VALUE_OBJECT,
+            module="base/disposition.py",
+        ),
+        Unit(
+            name="StatementIngestionOutcome",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="StatementIngestionStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="StatementPostingOutcome",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="StatementPostingStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/extraction", "fe": None},
     interface=[
@@ -175,6 +247,8 @@ CONTRACT = PackageContract(
         "CurrencyUnresolvedError",
         "DEFAULT_MAX_DEPTH",
         "DeduplicationService",
+        "DispositionCommand",
+        "DispositionContext",
         "DocumentSource",
         "DocumentStatus",
         "DocumentType",
@@ -184,9 +258,12 @@ CONTRACT = PackageContract(
         "EvidenceLineageService",
         "EvidenceNode",
         "EvidenceTraversalStep",
+        "ExtractedPositionFact",
         "ExtractionError",
         "ExtractionService",
+        "ExtractedTransactionFact",
         "ExtractedTransactionRow",
+        "ExtractionMethod",
         "ManagedPosition",
         "ManualValuationBasis",
         "ManualValuationComponentType",
@@ -194,8 +271,35 @@ CONTRACT = PackageContract(
         "ManualValuationSnapshot",
         "PositionStatus",
         "ParseJob",
+        "RetryableStatementIngestionError",
+        "ReviewedStatementEnvelopeCommand",
+        "ReviewedStatementEnvelopeConflict",
+        "DispositionDecision",
+        "DispositionMode",
+        "DispositionPolicy",
+        "DispositionStatus",
+        "EconomicIntent",
+        "IntentProposal",
+        "IntentProposalOrigin",
+        "SourceCapability",
+        "SourceCapabilityStatus",
+        "SOURCE_CAPABILITIES",
+        "SourceProvenance",
         "SYSTEM_PROMPT",
         "Stage1Status",
+        "StatementBalanceFact",
+        "StatementIngestionConfigurationError",
+        "StatementIngestionError",
+        "StatementIngestionOutcome",
+        "StatementIngestionStatus",
+        "StatementIngestionUseCase",
+        "StatementExtractionResult",
+        "StatementEvidenceType",
+        "StatementPostingDependencies",
+        "StatementPostingOutcome",
+        "StatementPostingStatus",
+        "StatementSourceType",
+        "StatementTransaction",
         "StatementEventSource",
         "StatementSummary",
         "TransactionClassification",
@@ -208,14 +312,19 @@ CONTRACT = PackageContract(
         "auto_create_posted_entries_for_statement",
         "backfill_classifications",
         "build_csv_mapping_prompt",
+        "build_statement_ingestion_use_case",
         "compute_confidence_score",
+        "confirm_reviewed_statement_envelope",
         "create_entry_from_txn",
+        "current_reviewed_statement_envelope",
         "detect_balance_chain_break",
         "dual_write_layer2",
         "edit_and_approve",
+        "extraction_trace_policy_registry",
         "find_in_flight_parse_id",
         "find_uploaded_document_filename_by_hash",
         "get_correction_stats",
+        "get_current_statement_extraction_result",
         "get_known_storage_paths",
         "get_parsing_prompt",
         "get_statement_coverage_rows",
@@ -227,15 +336,16 @@ CONTRACT = PackageContract(
         "parse_brokerage_csv_payload",
         "parse_brokerage_positions",
         "pending_stage1_review_filter",
+        "persist_statement_extraction_result",
         "record_correction",
         "register_fx_rate_provider",
         "register_position_reconciler",
+        "register_statement_source",
         "reject_json_floats",
         "reject_statement_workflow",
         "resolve_custody_account_id",
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
-        "register_transfer_exclusions_provider",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
         "resolve_transaction_currency",
@@ -243,6 +353,7 @@ CONTRACT = PackageContract(
         "set_opening_balance",
         "snapshot_currencies",
         "submit_parse_pipeline",
+        "supports_reviewed_statement_envelope",
         "validate_balance",
         "validate_balance_chain",
         "validation",
@@ -875,24 +986,24 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.11.1",
-            statement="A missing `period_start` falls back to `period_end` instead of hard-failing the parse",  # was AC3.11.1
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_1_period_start_falls_back_to_period_end",
+            statement="A source with only one statement-period bound is rejected rather than copying the present bound",  # was AC3.11.1
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_1_partial_period_rejects_without_copying",
             priority="P1",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.11.2",
-            statement="With no period bounds, the statement period is derived from the transaction-date range",  # was AC3.11.2
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_2_period_derived_from_transaction_dates",
+            statement="Transaction-row dates remain observations and cannot establish an absent statement period",  # was AC3.11.2
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_2_transaction_dates_do_not_establish_statement_period",
             priority="P1",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.11.3",
-            statement="A statement with no period and no transaction dates still rejects (no silent zero-date)",  # was AC3.11.3
-            test="apps/backend/tests/extraction/test_extraction.py::test_AC3_11_3_no_resolvable_date_still_raises",
+            statement="A transaction without a source-declared transaction date is rejected instead of receiving a synthetic date",  # was AC3.11.3
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_11_3_missing_transaction_date_rejects",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -1459,8 +1570,15 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.110.3",
-            statement="Stage-1 approve promotes to user_confirmed",  # was AC13.10.3
-            test="apps/backend/tests/extraction/test_source_type_promotion.py::test_stage1_approve_promotes_source_type",
+            statement=(
+                "Stage-1 approval preserves AUTO_PARSED provenance and never "
+                "manufactures USER_CONFIRMED trust; later reviewed reconciliation "
+                "is the only source-type promotion boundary."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_type_promotion.py"
+                "::test_stage1_approve_preserves_auto_parsed_provenance"
+            ),
             priority="P0",
             status="done",
             proof_kind="property",
@@ -2269,16 +2387,15 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.304.13",
             statement=(
-                "AC-B3 A multi-currency brokerage statement persists a per- "
-                "currency NAV array (currency_balances) instead of collapsing to "
-                "a single scalar opening/closing: each currency's NAV is the sum "
-                "of that currency's positions, every currency round-trips "
-                "independently, and no currency is cross-summed into another "
+                "AC-B3 A multi-currency brokerage position snapshot never "
+                "fabricates opening/closing cash balances from position market "
+                "values or cross-sums currencies; a per-currency balance array "
+                "is persisted only when the source declares exact balance facts "
                 "(#1139). Was EPIC-017 AC17.4.13."
             ),
             test=(
                 "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
-                "::test_AC_B3_multi_currency_brokerage_emits_per_currency_balances"
+                "::test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances"
             ),
             priority="P0",
             status="done",
@@ -2319,17 +2436,15 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.2009.4",
             statement=(
-                "LLM-LED tier gate is fail-closed: when a balance invariant "
-                "cannot be evaluated because a bank statement is missing an "
-                "opening or closing balance, the extraction never reaches "
-                "parsed/trusted state (the parse path refuses it) and the pure "
-                "gate quarantines the unevaluable case with a typed reason, "
-                "rather than silently passing on a zero-default chain. Was "
-                "EPIC-020 AC20.9.4."
+                "LLM-LED tier gate is fail-closed without inventing source "
+                "facts: an explicitly missing bank opening/closing balance is "
+                "retained only as a review-required result, never zero-filled "
+                "or promoted; an unevaluable asserted invariant still has a "
+                "typed pure-gate quarantine path. Was EPIC-020 AC20.9.4."
             ),
             test=(
                 "apps/backend/tests/llm/test_llm_led_blocking_gate.py"
-                "::test_AC20_9_4_unevaluable_balance_fails_closed_not_parsed"
+                "::test_AC20_9_4_declared_missing_balance_is_review_only"
             ),
             priority="P0",
             status="done",
@@ -2841,8 +2956,9 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1801.2",
             statement=(
-                "Classification priority is KEYWORD > REGEX > Uncategorized "
-                "(the ML tier moved to the classify node, AC18.15)."
+                "Classification priority is KEYWORD > REGEX; an absent "
+                "classification supplies no posting command (the ML tier moved "
+                "to the classify node, AC18.15)."
             ),
             test=(
                 "apps/backend/tests/extraction/test_classification_service.py"
@@ -2855,7 +2971,8 @@ CONTRACT = PackageContract(
             id="AC-extraction.1801.3",
             statement=(
                 "create_entry_from_txn reads the Layer-3 classification and "
-                "debits/credits its account before falling back to Uncategorized."
+                "requires its reviewed account and authoritative disposition "
+                "command before it can create a statement entry."
             ),  # was EPIC-018 AC18.1.5
             test=(
                 "apps/backend/tests/reconciliation/test_review_queue.py"
@@ -2867,13 +2984,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1801.4",
             statement=(
-                "Without a Layer-3 classification, an outflow debits the "
-                "auto-created Expense - Uncategorized account, scoped to the "
-                "transaction's user."
-            ),  # was EPIC-018 AC18.1.6 (outflow half)
+                "Without a Layer-3 classification and authoritative disposition, "
+                "an outflow is routed to review and creates no ledger entry."
+            ),
             test=(
                 "apps/backend/tests/reconciliation/test_review_queue.py"
-                "::test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense"
+                "::test_create_entry_from_txn_outflow_without_disposition_requires_review"
             ),
             priority="P1",
             status="done",
@@ -2881,13 +2997,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1801.5",
             statement=(
-                "Without a Layer-3 classification, an inflow credits the "
-                "auto-created Income - Uncategorized account, scoped to the "
-                "transaction's user."
-            ),  # was EPIC-018 AC18.1.6 (inflow half)
+                "Without a Layer-3 classification and authoritative disposition, "
+                "an inflow is routed to review and creates no ledger entry."
+            ),
             test=(
                 "apps/backend/tests/reconciliation/test_review_queue.py"
-                "::test_create_entry_from_txn_inflow_defaults_to_uncategorized_income"
+                "::test_create_entry_from_txn_inflow_without_disposition_requires_review"
             ),
             priority="P1",
             status="done",
@@ -3078,7 +3193,7 @@ CONTRACT = PackageContract(
                 "The confidence gate disposes deterministically: >= auto "
                 "threshold becomes an APPLIED classification, the review "
                 "band becomes a DRAFT visible to the ai_feedback 60-84 "
-                "queue, below stays in the genuine Uncategorized tail."
+                "queue, and lower confidence writes no posting authority."
             ),
             test=(
                 "apps/backend/tests/extraction/test_transaction_classification.py"
@@ -3137,15 +3252,16 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1815.8",
             statement=(
-                "The node is inert with enable_ai_classification off (the "
-                "default), and its production consumers are exactly the "
-                "two declared seams — the posting path and the backfill/"
-                "re-extract router; no other module may grow a side-door "
-                "into classification."
+                "enable_ai_classification controls only live model proposals. "
+                "Reviewed deterministic rules still classify their matching "
+                "transactions; unmatched transactions become explicit no-proposal "
+                "review cases rather than receiving a fallback category. Its "
+                "production consumers are exactly the posting path and the "
+                "backfill/re-extract router."
             ),
             test=(
                 "apps/backend/tests/extraction/test_transaction_classification.py"
-                "::test_AC18_15_8_flag_off_is_a_noop"
+                "::test_AC18_15_8_flag_off_skips_llm_not_deterministic_rules"
             ),
             priority="P1",
             status="done",
@@ -3174,8 +3290,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.1816.2",
             statement=(
                 "After a real statement import with the flag on, the "
-                "income statement has categorized leaf lines beyond the "
-                "two Uncategorized buckets, each with a non-null "
+                "income statement has reviewed categorized leaf lines, each with a non-null "
                 "confidence tier."
             ),
             test=(
@@ -3189,13 +3304,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1816.3",
             statement=(
-                "With enable_ai_classification off (the default), the "
-                "import path behaves exactly as before this EPIC: only "
-                "the two Uncategorized buckets, zero classification rows."
+                "With enable_ai_classification off and no matching reviewed "
+                "rule, the import path writes zero classification rows and routes "
+                "unknown economic meaning to review without ledger promotion."
             ),
             test=(
                 "apps/backend/tests/extraction/test_classification_migration.py"
-                "::test_AC18_16_3_flag_off_is_byte_identical_to_today"
+                "::test_AC18_16_3_flag_off_routes_unknown_meaning_to_review"
             ),
             priority="P1",
             status="done",
@@ -3602,6 +3717,378 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-extraction.1913.4",
+            statement=(
+                "API fallback and Prefect durable execution both invoke the same "
+                "explicitly composed StatementIngestionUseCase; their adapters own "
+                "transport only and never call a parallel parsing pipeline."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_1913_4_api_and_prefect_use_same_composed_use_case"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.5",
+            statement=(
+                "Statement ingestion dependencies are immutable constructor fields, "
+                "and incomplete composition fails before a ParseJob starts without "
+                "consulting mutable module-global provider registrations."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_1913_5_incomplete_composition_fails_before_job"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.6",
+            statement=(
+                "Unexpected application or infrastructure failures raise a typed "
+                "retryable ingestion error and never rewrite the statement as a "
+                "source-quality rejection."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_1913_6_application_error_does_not_reject_source"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.7",
+            statement=(
+                "A fresh worker interpreter composes every required statement-ingestion "
+                "port without importing src.main or relying on API-process side effects."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_1913_7_fresh_worker_composes_without_main"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.8",
+            statement=(
+                "Retrying the same statement finalization is idempotent by statement and "
+                "atomic-transaction identity and cannot duplicate ledger effects."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.1913.9",
+            statement=(
+                "Accepting a statement upload persists and binds its immutable ODS "
+                "source artifact before asynchronous dispatch, so the 202 response, "
+                "reparse, and subsequent source-to-fact enrichment all resolve the "
+                "same file path and display filename without transient ORM attributes."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_1913_9_upload_registers_source_before_dispatch"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.ingestion-trace.1",
+            statement=(
+                "The typed extraction result, its CODE-only integrity guard, and "
+                "its promotion decision flush in the same unit of work as statement "
+                "facts; trace persistence failure rolls back every financial effect."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.ingestion-trace.2",
+            statement=(
+                "Re-emitting the same extraction or disposition decision is "
+                "content-idempotent, while a changed decision appends an explicit "
+                "superseding head over the same stable target/assertion lineage."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_ingestion_use_case.py"
+                "::test_AC_extraction_ingestion_trace_2_retries_are_idempotent_and_changes_supersede"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.result-envelope.1",
+            statement=(
+                "Every live, CSV, cassette, and persisted statement fact uses one "
+                "strictly versioned StatementExtractionResult; unknown versions and "
+                "structurally malformed facts fail before review or disposition. "
+                "Its evidence type, not institution class, determines whether a "
+                "cash ledger requires balances or a position snapshot requires "
+                "positions. The declared statement currency is a distinct ledger "
+                "source fact, not an inferred transaction or balance currency. Truthfully "
+                "absent source facts remain explicit and review-only; "
+                "they can never be promoted or turned into a disposition command."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_result_contract.py"
+                "::test_AC_extraction_result_envelope_1_rejects_unknown_versions_and_defaults"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.result-envelope.2",
+            statement=(
+                "A StatementExtractionResult round-trips exact bank and brokerage "
+                "balances, transactions, positions, confidence, warnings, provenance, "
+                "source closing values, stable identity, and content digest."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_result_contract.py"
+                "::test_AC_extraction_result_envelope_2_round_trips_complete_facts"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        # ── group reviewed-envelope: human confirmation is a separate,
+        # version-bound fact, never an edit of the immutable extraction result
+        # (#1912, extraction child of #1834 / #950). ──
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.1",
+            statement=(
+                "Absent source currency, period, and balances remain explicit "
+                "source absence until a typed reviewer command confirms one complete "
+                "envelope; parser, router, and account defaults cannot fabricate them."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_1_preserves_source_absence_until_typed_command"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.2",
+            statement=(
+                "A reviewed-envelope command is pinned to the exact current source-result "
+                "digest and a user-owned custody account; stale, cross-user, partial, "
+                "invalid, or balance-inconsistent input changes no source, review, or ledger fact."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_2_rejects_invalid_or_stale_commands_atomically"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.3",
+            statement=(
+                "A successful command appends an auditable review decision with the exact "
+                "immutable source-result trace as parent and exposes a confirmed-envelope "
+                "projection without mutating the source payload."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_3_appends_trace_and_preserves_source_payload"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.4",
+            statement=(
+                "Stage-1 approval consumes complete source facts or a current valid "
+                "reviewed-envelope decision, while server-derived economic disposition "
+                "remains a separate mandatory posting guard."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.5",
+            statement=(
+                "A reparse invalidates a prior confirmation for a different source-result "
+                "digest; identical command retries are idempotent and changed retries "
+                "conflict or append an explicit superseding review fact, never overwrite one."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_5_reparse_and_retry_are_explicit"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.6",
+            statement=(
+                "Stage-1 review exposes required envelope confirmation and validation "
+                "reasons, offers a cash envelope only for source facts it can prove, "
+                "and enables approval only after a current valid reviewed envelope exists."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+                "::AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.reviewed-envelope.7",
+            statement=(
+                "The database rejects direct UPDATE or DELETE of persisted source-result "
+                "and reviewed-envelope facts; their tenant/statement references are "
+                "restrictive rather than cross-domain cascading writes."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_7_database_rejects_fact_mutation"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.source-capability.1",
+            statement=(
+                "Extraction publishes one stable semantic SourceCapability per source "
+                "class without pytest paths; manual-trusted and gap capabilities cannot "
+                "masquerade as automatic statement parsing."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_result_contract.py"
+                "::test_AC_extraction_source_capability_1_declares_semantics_not_test_paths"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.1",
+            statement=(
+                "DispositionPolicy is the only statement-to-ledger semantic boundary: "
+                "it returns balanced command intent, explicit review, or exclusion and "
+                "never infers economic meaning from cash direction."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_disposition_policy.py"
+                "::test_AC_extraction_disposition_1_never_uses_direction_as_intent"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.2",
+            statement=(
+                "Transfers, investment and liability principal, and card repayment "
+                "cannot enter profit or loss; missing account context or unsupported "
+                "intent is routed to review instead of Uncategorized."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_disposition_policy.py"
+                "::test_AC_extraction_disposition_2_principal_and_transfer_never_enter_pnl"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.3",
+            statement=(
+                "Salary, grocery, expense refund, dividend, fee, transfer, "
+                "investment purchase/sale, loan principal/interest, and card "
+                "repayment map to exact balanced custody/counter commands or an "
+                "explicit already-covered decision; only declared P&L intents "
+                "may affect profit or loss."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_disposition_policy.py"
+                "::test_AC_extraction_disposition_3_semantic_oracle_yields_exact_commands"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.4",
+            statement=(
+                "IntentProposal carries one closed proposal origin. Trace authority "
+                "is derived only from that origin: reviewed deterministic rules are "
+                "CODE-ONLY, live model proposals are LLM-LED and require the existing "
+                "CODE-ONLY promotion guard, and accepted reconciliation facts are "
+                "CODE-LED. Economic intent never infers authority."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_disposition_policy.py"
+                "::test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_origin"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.5",
+            statement=(
+                "Stage 1 source confirmation returns a committed pending-review "
+                "outcome, never a successful approval, when DispositionPolicy "
+                "has no authoritative command for any statement transaction."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_disposition_5_stage1_requires_economic_review"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition-rollout.1",
+            statement=(
+                "Off, observe, and enforce execute the same versioned disposition "
+                "calculation; rollout mode controls command application only and "
+                "cannot change or bypass the decision."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_disposition_policy.py"
+                "::test_AC_extraction_disposition_rollout_1_modes_share_one_decision"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
         # ── group api-vectors: backend-owned API response conformance
         # vectors (#1827 G-contract-reddens, pattern from #1167). The wire
         # shape of the POST /api/statements/upload 202 envelope and the
@@ -3997,7 +4484,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/extraction/test_signature_seams.py"
-                "::test_AC_extraction_signature_seams_2_document_source_resolves_once"
+                "::test_AC_extraction_signature_seams_2_document_source_is_the_only_parse_input"
             ),
             priority="P0",
             status="done",

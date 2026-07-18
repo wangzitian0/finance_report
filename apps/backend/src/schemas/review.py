@@ -31,6 +31,48 @@ class BalanceValidationResult(BaseModel):
     validated_at: str
 
 
+class ReviewedStatementEnvelopeRequest(BaseModel):
+    """Human-confirmed facts for one exact immutable extraction result."""
+
+    source_result_digest: str = Field(
+        ...,
+        min_length=64,
+        max_length=64,
+        description="SHA-256 digest of the current immutable extraction result",
+    )
+    account_id: UUID = Field(description="User-owned asset account that holds the statement cash")
+    currency: str = Field(
+        ...,
+        min_length=3,
+        max_length=3,
+        description="ISO-4217 currency confirmed for the statement envelope",
+    )
+    period_start: date = Field(description="Confirmed inclusive statement period start")
+    period_end: date = Field(description="Confirmed inclusive statement period end")
+    opening_balance: Decimal = Field(description="Confirmed opening balance in statement currency")
+    closing_balance: Decimal = Field(description="Confirmed closing balance in statement currency")
+    rationale: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Reviewer evidence for confirming facts absent from the source result",
+    )
+
+
+class ReviewedStatementEnvelopeResponse(BaseModel):
+    id: UUID
+    source_result_digest: str
+    account_id: UUID
+    currency: str
+    period_start: date
+    period_end: date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    rationale: str
+    review_trace_record_id: UUID
+    created_at: datetime
+
+
 class StatementReviewResponse(BaseModel):
     id: UUID
     user_id: UUID
@@ -52,9 +94,22 @@ class StatementReviewResponse(BaseModel):
     balance_validation_result: BalanceValidationResult | None = None
     stage1_reviewed_at: datetime | None = None
     manual_opening_balance: Decimal | None = None
+    source_result_digest: str | None = None
+    source_missing_facts: list[str] = Field(
+        default_factory=list,
+        description="Current source facts that require a reviewed-envelope confirmation",
+    )
+    source_envelope_reviewable: bool = Field(
+        default=False,
+        description="Whether the current source's missing facts can be confirmed by a cash statement envelope",
+    )
+    reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
     created_at: datetime
     updated_at: datetime
-    transactions: list[AtomicTransactionResponse] = Field(default_factory=list)
+    transactions: list[AtomicTransactionResponse] = Field(
+        default_factory=list,
+        description="Transactions extracted for this statement review",
+    )
     pdf_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -70,7 +125,10 @@ class TransactionEditRequest(BaseModel):
 
 
 class EditAndApproveRequest(BaseModel):
-    edits: list[TransactionEditRequest] = Field(default_factory=list)
+    edits: list[TransactionEditRequest] = Field(
+        default_factory=list,
+        description="Reviewer transaction corrections to validate before approval",
+    )
 
 
 class Stage1ApprovalRequest(BaseModel):
@@ -78,7 +136,11 @@ class Stage1ApprovalRequest(BaseModel):
 
 
 class SetOpeningBalanceRequest(BaseModel):
-    opening_balance: Decimal = Field(..., ge=Decimal("0"))
+    opening_balance: Decimal = Field(
+        ...,
+        ge=Decimal("0"),
+        description="Manual opening balance used for the statement chain",
+    )
 
 
 class StatementReviewListResponse(BaseModel):
@@ -144,12 +206,18 @@ class ResolveCurrencyResponse(BaseModel):
 
 
 class BatchApproveRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Reconciliation match identifiers to approve",
+    )
     run_id: str | None = None
 
 
 class BatchRejectRequest(BaseModel):
-    match_ids: list[UUID] = Field(default_factory=list)
+    match_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Reconciliation match identifiers to reject",
+    )
 
 
 class Stage2PendingMatch(BaseModel):
@@ -209,8 +277,14 @@ class ReviewConflictCandidate(BaseModel):
 class ReviewConflictsResponse(BaseModel):
     """Conflict candidates for a statement."""
 
-    duplicates: list[ReviewConflictCandidate] = Field(default_factory=list)
-    transfer_pairs: list[ReviewConflictCandidate] = Field(default_factory=list)
+    duplicates: list[ReviewConflictCandidate] = Field(
+        default_factory=list,
+        description="Transaction candidates that may be duplicate entries",
+    )
+    transfer_pairs: list[ReviewConflictCandidate] = Field(
+        default_factory=list,
+        description="Opposite-direction transaction candidates that may be transfers",
+    )
     # #962: whether the reviewer has already resolved these candidates. Lets the UI
     # derive the approval-blocked state from the persisted marker instead of
     # ephemeral client state, so a refresh (or another tab/session) stays correct.

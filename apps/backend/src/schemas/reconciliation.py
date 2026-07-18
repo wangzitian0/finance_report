@@ -60,14 +60,17 @@ class ReconciliationMatchResponse(BaseModel):
     atomic_txn_id: UUID | None = None
     journal_entry_ids: list[str]
     match_score: int
-    score_breakdown: dict[str, float]
+    score_breakdown: dict[str, float | str]
     status: ReconciliationStatusEnum
     version: int
     superseded_by_id: UUID | None
     created_at: datetime
     updated_at: datetime
     transaction: BankTransactionSummary | None = None
-    entries: list[JournalEntrySummary] = Field(default_factory=list)
+    entries: list[JournalEntrySummary] = Field(
+        default_factory=list,
+        description="Posted journal entries currently linked to this reconciliation match.",
+    )
 
 
 ReconciliationMatchListResponse = ListResponse[ReconciliationMatchResponse]
@@ -77,7 +80,12 @@ class ReconciliationRunRequest(BaseModel):
     """Request body to run reconciliation."""
 
     statement_id: UUID | None = None
-    limit: int | None = Field(default=None, ge=1, le=10000)
+    limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=10000,
+        description="Maximum number of candidate matches to evaluate.",
+    )
 
 
 class ReconciliationRunResponse(BaseModel):
@@ -98,7 +106,10 @@ class BatchAcceptRequest(BaseModel):
 class BatchCreateEntriesRequest(BaseModel):
     """Request body for batch creating journal entries from unmatched transactions."""
 
-    txn_ids: list[UUID] = Field(default_factory=list)
+    txn_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Transaction IDs to create entries for when all is false.",
+    )
     all: bool = False
 
 

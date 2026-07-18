@@ -181,6 +181,20 @@ def test_backend_gates_run_in_the_backend_directory():
     assert by_name["transaction-boundary"].cwd == "apps/backend"
 
 
+def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment():
+    """Local backend gates must use the project environment, never shell/global Python."""
+    backend_format = next(c for c in preflight.CHECKS if c.name == "backend-format")
+    assert backend_format.commands == (
+        (preflight.PY, "-m", "ruff", "check", "src", "tests"),
+        (preflight.PY, "-m", "ruff", "format", "--check", "src", "tests"),
+    )
+    precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
+    assert (
+        "cd apps/backend && uv run python ../../tools/validate_schemas.py" in precommit
+    )
+
+
 def test_run_checks_passes_each_check_cwd_to_the_runner():
     seen: list[str] = []
 
@@ -194,6 +208,31 @@ def test_run_checks_passes_each_check_cwd_to_the_runner():
         python="python3",
     )
     assert seen and all(c.endswith("apps/backend") for c in seen)
+
+
+def test_schema_validation_receives_only_its_matching_changed_paths():
+    """A new schema edit must not fail on unrelated historical schema debt."""
+    commands: list[list[str]] = []
+    schema_check = [c for c in preflight.CHECKS if c.name == "schema-validate"]
+
+    preflight.run_checks(
+        schema_check,
+        changed_files=(
+            "apps/backend/src/schemas/review.py",
+            "apps/backend/src/extraction/extension/service.py",
+        ),
+        runner=lambda argv, cwd: commands.append(list(argv)) or 0,
+        python="python3",
+    )
+
+    assert commands == [
+        [
+            "python3",
+            "tools/validate_schemas.py",
+            "--paths",
+            "apps/backend/src/schemas/review.py",
+        ]
+    ]
 
 
 class TestRunAndMain:

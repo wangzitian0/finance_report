@@ -13,8 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
-from src.extraction import ParseJob
-from src.extraction.extension.statement_parsing import parse_statement_background
+from src.extraction import ParseJob, RetryableStatementIngestionError
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
@@ -29,6 +28,7 @@ from src.routers.statements import (
 )
 from src.runtime import StorageError, StorageService
 from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -299,8 +299,10 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         assert statement.status == BankStatementStatus.REJECTED
         assert "Parse Fail" in statement.validation_error
 
-    # 3. Generic Exception in background
+    # 3. Generic application failures are retryable and must not corrupt the
+    # source-quality state by presenting infrastructure failure as rejection.
     statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
     await db.commit()
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
@@ -309,24 +311,25 @@ async def test_parse_statement_background_error_paths(db, test_user, monkeypatch
         mock_parse = AsyncMock(side_effect=Exception("Unknown"))
         monkeypatch.setattr("src.extraction.extension.statement_parsing.ExtractionService.parse_document", mock_parse)
 
-        await parse_statement_background(
-            job=ParseJob(
-                statement_id=sid,
-                filename="f",
-                institution="i",
-                user_id=uid,
-                account_id=None,
-                file_hash="h2",
-                storage_key="k",
-                model=None,
-            ),
-            content=b"",
-            session_maker=session_maker,
-        )
+        with pytest.raises(RetryableStatementIngestionError, match="Unknown"):
+            await parse_statement_background(
+                job=ParseJob(
+                    statement_id=sid,
+                    filename="f",
+                    institution="i",
+                    user_id=uid,
+                    account_id=None,
+                    file_hash="h2",
+                    storage_key="k",
+                    model=None,
+                ),
+                content=b"",
+                session_maker=session_maker,
+            )
 
         await db.refresh(statement)
-        assert statement.status == BankStatementStatus.REJECTED
-        assert "Unknown" in statement.validation_error
+        assert statement.status == BankStatementStatus.PARSING
+        assert statement.validation_error is None
 
 
 async def test_retry_statement_parsing_error_paths(db, test_user):

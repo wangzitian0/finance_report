@@ -64,7 +64,7 @@ def _get_position_reconciler() -> Callable[[AsyncSession, UUID], Awaitable[Posit
 class BrokeragePositionSnapshot:
     """Brokerage position snapshot before persistence."""
 
-    snapshot_date: date
+    snapshot_date: date | None
     asset_identifier: str
     broker: str
     quantity: Decimal
@@ -153,7 +153,7 @@ def _statement_dict(payload: dict[str, Any]) -> dict[str, Any]:
     return statement if isinstance(statement, dict) else {}
 
 
-def _statement_date(payload: dict[str, Any]) -> date:
+def _statement_date(payload: dict[str, Any]) -> date | None:
     statement = _statement_dict(payload)
     for candidate in (
         payload.get("snapshot_date"),
@@ -166,7 +166,7 @@ def _statement_date(payload: dict[str, Any]) -> date:
         parsed = _parse_date(candidate)
         if parsed:
             return parsed
-    return date.today()
+    return None
 
 
 def _payload_currency(payload: dict[str, Any], default: str = "USD") -> str:
@@ -260,7 +260,7 @@ def _iter_structured_positions(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _parse_structured_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     snapshots: list[BrokeragePositionSnapshot] = []
     default_currency = _payload_currency(payload)
@@ -292,7 +292,7 @@ def _parse_structured_positions(
 
 
 def _parse_moomoo_subscription_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     snapshots: list[BrokeragePositionSnapshot] = []
     for event in payload.get("events") or payload.get("transactions") or []:
@@ -337,7 +337,7 @@ def _parse_moomoo_subscription_positions(
 
 
 def _parse_moomoo_margin_history_positions(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     rows = payload.get("margin_history_rows")
     if not isinstance(rows, list):
@@ -394,7 +394,7 @@ def _parse_moomoo_margin_history_positions(
 
 
 def _parse_futu_aggregate_position(
-    payload: dict[str, Any], broker: str, snapshot_date: date
+    payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
     best_value: Decimal | None = None
     for event in payload.get("events") or payload.get("transactions") or []:
@@ -746,33 +746,13 @@ def brokerage_currency_balances(
     filename: str | None = None,
     institution: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Derive the per-currency NAV array for a brokerage statement (#1139 AC-B3).
+    """Return only source-declared brokerage balance ladders.
 
-    A multi-currency brokerage statement (IBKR / Futu / Wise) holds positions in
-    several currencies at once. Collapsing them into a single scalar
-    ``opening_balance`` / ``closing_balance`` would cross-sum unrelated currencies
-    into a meaningless number. Instead each currency is an independent closed loop:
-    its closing NAV is the sum of that currency's position market values, and —
-    because a position snapshot carries no intra-period cash flow — its opening
-    equals its closing (net == 0, so ``open + ΣIN − ΣOUT ≈ close`` holds per
-    currency). The result is the ``[{currency, opening, closing}]`` shape consumed
-    by :func:`src.extraction.base.validation.validate_balance_per_currency` and persisted
-    on ``StatementSummary.currency_balances``.
-
-    An explicitly declared ``balances`` array on the payload (a broker that prints
-    a real opening/closing cash ladder per currency) is authoritative and returned
-    as-is — the derived position NAV only fills currencies that ladder omits, so a
-    declared opening is never overwritten by the snapshot-equals-NAV degenerate.
-
-    Currencies are NEVER summed across; the array is empty when no positions and no
-    declared balances exist, so callers can leave ``currency_balances`` NULL.
+    A position snapshot is not a cash statement: summing market values and calling
+    the result both opening and closing balance fabricates a financial fact. Callers
+    retain an empty array when a broker supplied positions but no exact balance
+    ladder, which routes the result to review rather than pseudo-reconciliation.
     """
-    by_currency: dict[str, Decimal] = {}
-    for snapshot in parse_brokerage_positions(payload, filename=filename, institution=institution):
-        ccy = (snapshot.currency or "*").strip().upper() or "*"
-        by_currency[ccy] = by_currency.get(ccy, Decimal("0")) + snapshot.market_value
-
-    # Explicit per-currency cash ladders win over the derived snapshot NAV.
     declared: dict[str, dict[str, Any]] = {}
     raw_balances = payload.get("balances")
     if isinstance(raw_balances, list):
@@ -780,25 +760,21 @@ def brokerage_currency_balances(
             if not isinstance(entry, dict):
                 continue
             ccy = (entry.get("currency") or "*").strip().upper() or "*"
+            opening = _clean_decimal(entry.get("opening"))
+            closing = _clean_decimal(entry.get("closing"))
+            if opening is None or closing is None:
+                continue
             declared[ccy] = {
                 "currency": ccy,
-                "opening": to_money(_clean_decimal(entry.get("opening")) or Decimal("0")),
-                "closing": to_money(_clean_decimal(entry.get("closing")) or Decimal("0")),
+                "opening": to_money(opening),
+                "closing": to_money(closing),
             }
-
-    balances: list[dict[str, Any]] = []
-    for ccy in sorted({*by_currency, *declared}):
-        if ccy in declared:
-            balances.append(declared[ccy])
-            continue
-        nav = to_money(by_currency[ccy])
-        # Snapshot statement: opening == closing == NAV (no intra-period cash flow),
-        # so the per-currency reconciliation is a zero-net closed loop.
-        balances.append({"currency": ccy, "opening": nav, "closing": nav})
-    return balances
+    return [declared[ccy] for ccy in sorted(declared)]
 
 
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
+    if snapshot.snapshot_date is None:
+        raise ValueError("Brokerage position snapshot date is required for import")
     material = "|".join(
         [
             str(user_id),
@@ -829,6 +805,8 @@ class BrokeragePositionImportService:
         # short reduces portfolio value instead of being skipped (which dropped real data)
         # or crashing the import (constraint violation → 500).
         snapshots = parse_brokerage_positions(payload, filename=filename)
+        if any(snapshot.snapshot_date is None for snapshot in snapshots):
+            raise ValueError("Brokerage position import requires a source-declared snapshot date")
         created = 0
         existing = 0
         broker = (

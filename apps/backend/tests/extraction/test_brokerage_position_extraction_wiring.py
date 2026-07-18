@@ -23,7 +23,14 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
-from src.extraction import DocumentType, ParseJob, UploadedDocument
+from src.extraction import (
+    DocumentSource,
+    DocumentType,
+    ExtractionMethod,
+    ParseJob,
+    StatementEvidenceType,
+    UploadedDocument,
+)
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     brokerage_currency_balances,
@@ -35,12 +42,14 @@ from src.extraction.extension.prompts.statement import (
     SYSTEM_PROMPT,
     get_parsing_prompt,
 )
+from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionService
-from src.extraction.extension.statement_parsing import parse_statement_background, route_brokerage_for_review_if_present
+from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background
 
 
 def _synthetic_moomoo_positions_payload() -> dict:
@@ -258,6 +267,7 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
     await db.commit()
 
     async def fake_parse_document(*args, **kwargs):
+        source = args[1]
         session = kwargs["db"]
         summary = await session.get(StatementSummary, statement_id)
         summary.institution = "Moomoo"
@@ -265,22 +275,37 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
         summary.status = BankStatementStatus.PARSED
         summary.confidence_score = 90
         summary.balance_validated = True
+        summary.currency_balances = [{"currency": "USD", "opening": "350.00", "closing": "350.00"}]
         # The real parse_document persists the OCR payload; the explicit import endpoint
         # (#1408) recovers positions from extraction_metadata.
-        summary.extraction_metadata = {"extraction_payload": fixture}
+        extraction_result = build_statement_extraction_result(
+            source=source,
+            file_type="pdf",
+            statement=summary,
+            transactions=[],
+            provider_payload=fixture,
+            model="fixture-model",
+            provider="fixture-provider",
+            method=ExtractionMethod.GOLDEN_FIXTURE,
+            is_brokerage=True,
+            evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+            positions=parse_brokerage_positions(fixture, filename=source.filename, institution="Moomoo"),
+        )
+        result_metadata = {"statement_extraction_result": extraction_result.to_payload()}
+        summary.extraction_metadata = result_metadata
         doc = UploadedDocument(
             user_id=user_id,
             file_path="statements/moomoo-positions.pdf",
             file_hash=file_hash,
             original_filename="moomoo-positions-2506.pdf",
-            document_type=DocumentType.BANK_STATEMENT,
+            document_type=DocumentType.BROKERAGE_STATEMENT,
+            extraction_metadata=result_metadata,
         )
         session.add(doc)
         await session.flush()
         summary.uploaded_document_id = doc.id
         await session.flush()
-        summary._extracted_payload = fixture
-        return summary, []
+        return extraction_result
 
     monkeypatch.setattr(
         "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
@@ -367,68 +392,37 @@ async def test_AC_B6_positions_payload_imports_via_service(db, test_user):
 # --------------------------------------------------------------------------- AC-B3
 
 
-def test_AC_B3_multi_currency_brokerage_emits_per_currency_balances():
-    """AC-extraction.304.13 (AC-B3): A multi-currency brokerage snapshot yields one NAV bucket per currency.
-
-    USD = 2124 + 2276 = 4400, HKD = 80500, SGD = 3810. The currencies must NOT be
-    cross-summed into a single scalar (88710) — each currency is an independent
-    closed loop whose opening == closing == its own position NAV.
-    """
+def test_AC_B3_multi_currency_brokerage_does_not_fabricate_cash_balances():
+    """AC-extraction.304.13 (AC-B3): Position NAV never becomes an invented cash ladder."""
     fixture = _synthetic_ibkr_multicurrency_payload()
 
     balances = brokerage_currency_balances(fixture, filename="ibkr-multicurrency-2506.pdf")
 
-    by_currency = {b["currency"]: b for b in balances}
-    # Every distinct position currency round-trips as its own bucket.
-    assert set(by_currency) == {"USD", "HKD", "SGD"}
-    assert by_currency["USD"]["closing"] == Decimal("4400.00")
-    assert by_currency["HKD"]["closing"] == Decimal("80500.00")
-    assert by_currency["SGD"]["closing"] == Decimal("3810.00")
-    # Snapshot has no cash flow: opening == closing per currency (zero-net loop).
-    for bucket in balances:
-        assert bucket["opening"] == bucket["closing"]
-    # No cross-sum: no bucket carries the meaningless 88710 aggregate, and the
-    # number of buckets equals the number of distinct currencies.
-    assert all(b["closing"] != Decimal("88710.00") for b in balances)
-    assert len(balances) == 3
+    # USD = 4400, HKD = 80500, SGD = 3810 in market value, but a holding snapshot
+    # declares no cash opening/closing facts. No per-currency ladder is invented.
+    assert balances == []
 
 
 async def test_AC_B3_parse_document_persists_currency_balances_without_cross_sum(test_user):
-    """AC-extraction.304.13 (AC-B3): parse_document persists the per-currency NAV array on the statement.
-
-    The scalar opening/closing stay None for the position snapshot (no running-balance
-    chain), while ``currency_balances`` carries the independent per-currency NAV — the
-    multi-currency NAV no longer collapses to one scalar. Decimal-safe round-trip: the
-    JSONB values are strings that parse back to the exact per-currency NAV.
-    """
+    """AC-extraction.304.13 (AC-B3): a position snapshot keeps cash facts absent."""
     from unittest.mock import AsyncMock
 
     service = ExtractionService()
     payload = _synthetic_ibkr_multicurrency_payload()
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    statement, transactions = await service.parse_document(
-        file_path=Path("ibkr-multicurrency-2506.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("ibkr-multicurrency-2506.pdf"), content=b"%PDF-1.7"),
         institution="Interactive Brokers",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ibkr-multicurrency-hash",
-        original_filename="ibkr-multicurrency-2506.pdf",
     )
 
-    assert transactions == []
-    assert statement.status == BankStatementStatus.PARSED
-    # The per-currency NAV is persisted; it does not collapse to a single scalar.
-    assert statement.currency_balances is not None
-    by_currency = {b["currency"]: b for b in statement.currency_balances}
-    assert set(by_currency) == {"USD", "HKD", "SGD"}
-    # Decimal round-trip: stored strings parse back to the exact per-currency NAV.
-    assert Decimal(by_currency["USD"]["closing"]) == Decimal("4400.00")
-    assert Decimal(by_currency["HKD"]["closing"]) == Decimal("80500.00")
-    assert Decimal(by_currency["SGD"]["closing"]) == Decimal("3810.00")
-    # No cross-sum into one scalar: three independent buckets, none equal to 88710.
-    assert len(statement.currency_balances) == 3
-    assert all(Decimal(b["closing"]) != Decimal("88710.00") for b in statement.currency_balances)
+    assert result.transactions == ()
+    assert result.evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+    assert result.period_start == date(2026, 6, 30)
+    assert result.period_end == date(2026, 6, 30)
+    assert result.balances == ()
+    assert result.missing_required_facts == ()
 
 
 async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_user, monkeypatch):
@@ -444,6 +438,11 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
 
     service = ExtractionService()
     payload = _synthetic_ibkr_multicurrency_payload()
+    payload["balances"] = [
+        {"currency": "USD", "opening": "4400.00", "closing": "4400.00"},
+        {"currency": "HKD", "opening": "80500.00", "closing": "80500.00"},
+        {"currency": "SGD", "opening": "3810.00", "closing": "3810.00"},
+    ]
     service.extract_financial_data = AsyncMock(return_value=payload)
 
     # Force the per-currency self-check to fail for one currency.
@@ -464,20 +463,16 @@ async def test_per_currency_nav_self_check_failure_marks_statement_invalid(test_
 
     monkeypatch.setattr("src.extraction.extension.service.validate_balance_per_currency", _failing_per_currency)
 
-    statement, _ = await service.parse_document(
-        file_path=Path("ibkr-multicurrency-2506.pdf"),
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("ibkr-multicurrency-2506.pdf"), content=b"%PDF-1.7"),
         institution="Interactive Brokers",
         user_id=test_user.id,
-        file_content=b"%PDF-1.7",
-        file_hash="ibkr-multicurrency-invalid-hash",
-        original_filename="ibkr-multicurrency-2506.pdf",
     )
 
     # The per-currency evidence array is still persisted (it is the audit trail)...
-    assert statement.currency_balances is not None
-    assert len(statement.currency_balances) == 3
+    assert len(result.balances) == 3
     # ...but the statement is NOT marked balance-valid, and the failure is surfaced.
-    assert statement.balance_validated is False
-    assert statement.validation_error is not None
-    assert "USD" in statement.validation_error
-    assert "self-check failed" in statement.validation_error.lower()
+    assert result.balance_validated is False
+    assert result.review_reasons
+    assert "USD" in result.review_reasons[0]
+    assert "self-check failed" in result.review_reasons[0].lower()

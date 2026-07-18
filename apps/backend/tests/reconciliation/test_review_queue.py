@@ -17,20 +17,27 @@ import inspect
 from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
-from src.extraction import CurrencyUnresolvedError
+from src.extraction import (
+    CurrencyUnresolvedError,
+    DispositionContext,
+    DispositionMode,
+    DispositionPolicy,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    StatementTransaction,
+)
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
+from src.ledger import AccountType, JournalEntryStatus, ValidationError
 from src.pricing import PricingError
 from src.reconciliation import AmountMismatchError, EntryCreationError, MatchNotFoundError, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
@@ -46,12 +53,30 @@ from tests.factories import (
 from tests.ledger._ledger_helpers import create_valid_void_entry
 
 
-async def _make_statement(db: AsyncSession, user_id, *, account_id=None, currency: str = "SGD"):
+async def _make_statement(
+    db: AsyncSession,
+    user_id,
+    *,
+    account_id=None,
+    currency: str = "SGD",
+    create_mapped_account: bool = False,
+):
     """Create a linked UploadedDocument + StatementSummary conform.
 
     Returns the StatementSummary; its ``uploaded_document_id`` is what atomic
     transactions reference via ``source_documents``.
     """
+    if create_mapped_account:
+        if account_id is not None:
+            raise ValueError("create_mapped_account and account_id are mutually exclusive")
+        account = await AccountFactory.create_async(
+            db,
+            user_id=user_id,
+            name="Test statement custody account",
+            type=AccountType.ASSET,
+            currency=currency,
+        )
+        account_id = account.id
     doc = await UploadedDocumentFactory.create_async(db, user_id=user_id)
     summary = await StatementSummaryFactory.create_async(
         db,
@@ -85,6 +110,61 @@ async def _make_txn(
         txn_date=txn_date or date.today(),
         description=description,
         currency=currency,
+    )
+
+
+async def _reviewed_posting_command(db: AsyncSession, user_id, txn: AtomicTransaction, *, counter_account=None):
+    """Build explicit reviewed semantic input for entry-creation tests."""
+    if counter_account is None:
+        intent = EconomicIntent.INCOME if txn.direction is TransactionDirection.IN else EconomicIntent.EXPENSE
+        counter_account = await get_or_create_account(
+            db,
+            name="Income - Test" if intent is EconomicIntent.INCOME else "Expense - Test",
+            account_type=AccountType.INCOME if intent is EconomicIntent.INCOME else AccountType.EXPENSE,
+            currency=txn.currency,
+            user_id=user_id,
+        )
+    else:
+        intent = EconomicIntent.INCOME if counter_account.type is AccountType.INCOME else EconomicIntent.EXPENSE
+    decision = DispositionPolicy().decide(
+        StatementTransaction(
+            transaction_id=txn.id,
+            transaction_date=txn.txn_date,
+            amount=txn.amount,
+            currency=txn.currency,
+            direction=txn.direction,
+            description=txn.description,
+        ),
+        proposal=IntentProposal(
+            schema_version="1",
+            policy_version="reviewed-test-v1",
+            origin=IntentProposalOrigin.REVIEWED_RULE,
+            intent=intent,
+            category="TEST",
+            confidence=Decimal("1"),
+            evidence=("reviewed-test",),
+        ),
+        context=DispositionContext(counter_account_id=counter_account.id),
+        mode=DispositionMode.ENFORCE,
+    )
+    return decision, counter_account
+
+
+async def _create_reviewed_entry(db: AsyncSession, txn: AtomicTransaction, *, user_id, **kwargs):
+    counter_account = kwargs.pop("counter_account", None)
+    decision, counter_account = await _reviewed_posting_command(
+        db,
+        user_id,
+        txn,
+        counter_account=counter_account,
+    )
+    return await create_entry_from_txn(
+        db,
+        txn,
+        user_id=user_id,
+        disposition=decision,
+        counter_account=counter_account,
+        **kwargs,
     )
 
 
@@ -214,8 +294,8 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-async def test_accept_match_creates_missing_journal_entry(db, test_user):
-    """AC16.24.4: Accepting a Stage 2 match without entries creates and reconciles one journal entry."""
+async def test_accept_match_without_reviewed_disposition_requires_entry_context(db, test_user):
+    """A match cannot invent a new statement entry without reviewed economic meaning."""
     account = await AccountFactory.create_async(
         db,
         user_id=test_user.id,
@@ -233,15 +313,11 @@ async def test_accept_match_creates_missing_journal_entry(db, test_user):
     )
     await db.commit()
 
-    result = await accept_match(db, match.id, user_id=test_user.id)
-
-    assert result.status == ReconciliationStatus.ACCEPTED
-    assert len(result.journal_entry_ids) == 1
-    entry = await db.get(JournalEntry, UUID(result.journal_entry_ids[0]))
-    assert entry is not None
-    assert entry.source_type == JournalEntrySourceType.USER_CONFIRMED
-    assert entry.source_id == txn.id
-    assert entry.status == JournalEntryStatus.RECONCILED
+    with pytest.raises(EntryCreationError, match="Authoritative economic disposition"):
+        await accept_match(db, match.id, user_id=test_user.id)
+    await db.refresh(match)
+    assert match.status == ReconciliationStatus.PENDING_REVIEW
+    assert match.journal_entry_ids == []
 
 
 async def test_accept_match_maps_entry_creation_failure_to_domain_error(db, test_user):
@@ -450,7 +526,7 @@ async def test_get_or_create_account_returns_existing(db, test_user):
 
 
 async def test_create_entry_from_txn_in_direction(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(
         db,
         test_user.id,
@@ -462,7 +538,7 @@ async def test_create_entry_from_txn_in_direction(db, test_user):
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     assert entry.status == JournalEntryStatus.DRAFT
     assert len(entry.lines) == 2
 
@@ -473,7 +549,7 @@ async def test_create_entry_from_txn_in_direction(db, test_user):
 
 
 async def test_create_entry_from_txn_out_direction(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(
         db,
         test_user.id,
@@ -485,7 +561,7 @@ async def test_create_entry_from_txn_out_direction(db, test_user):
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     assert entry.status == JournalEntryStatus.DRAFT
     assert len(entry.lines) == 2
 
@@ -508,7 +584,7 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
     assert entry.status == JournalEntryStatus.POSTED
 
 
@@ -524,7 +600,7 @@ async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test
     )
     await db.commit()
 
-    with pytest.raises(ValueError, match="Account mapping required before posting"):
+    with pytest.raises(ValueError, match="Account mapping required before statement posting"):
         await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
 
 
@@ -623,7 +699,7 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     account_ids = {line.account_id for line in entry.lines}
     assert linked_account.id in account_ids
 
@@ -643,7 +719,7 @@ async def test_statement_summary_rejects_linked_account_not_owned(db, test_user)
 
 
 async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(
         db,
         test_user.id,
@@ -657,7 +733,7 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
         "src.extraction.extension.review_queue.create_journal_entry", side_effect=ValidationError("not balanced")
     ):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
-            await create_entry_from_txn(db, txn, user_id=test_user.id)
+            await _create_reviewed_entry(db, txn, user_id=test_user.id)
 
 
 async def test_create_entry_from_txn_uses_layer3_classification_account(db, test_user):
@@ -669,7 +745,12 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
         type=AccountType.EXPENSE,
         currency="SGD",
     )
-    stmt = await _make_statement(db, test_user.id, currency="SGD")
+    stmt = await _make_statement(
+        db,
+        test_user.id,
+        currency="SGD",
+        create_mapped_account=True,
+    )
     txn = await _make_txn(
         db,
         test_user.id,
@@ -709,15 +790,25 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+    entry = await _create_reviewed_entry(
+        db,
+        txn,
+        user_id=test_user.id,
+        counter_account=classified_account,
+    )
 
     debit_line = next(line for line in entry.lines if line.direction.value == "DEBIT")
     assert debit_line.account_id == classified_account.id
 
 
-async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(db, test_user):
-    """AC-extraction.1801.4: Without a Layer-3 classification, an outflow debits Expense - Uncategorized."""
-    stmt = await _make_statement(db, test_user.id, currency="SGD")
+async def test_create_entry_from_txn_outflow_without_disposition_requires_review(db, test_user):
+    """AC-extraction.1801.4: an outflow cannot manufacture an expense category."""
+    stmt = await _make_statement(
+        db,
+        test_user.id,
+        currency="SGD",
+        create_mapped_account=True,
+    )
     txn = await _make_txn(
         db,
         test_user.id,
@@ -728,20 +819,18 @@ async def test_create_entry_from_txn_outflow_defaults_to_uncategorized_expense(d
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
-    debit_line = next(line for line in entry.lines if line.direction.value == "DEBIT")
-
-    account_result = await db.execute(select(Account).where(Account.id == debit_line.account_id))
-    account = account_result.scalar_one()
-
-    assert account.name == "Expense - Uncategorized"
-    assert account.type == AccountType.EXPENSE
-    assert account.user_id == test_user.id
+    with pytest.raises(ValueError, match="Authoritative economic disposition"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id)
 
 
-async def test_create_entry_from_txn_inflow_defaults_to_uncategorized_income(db, test_user):
-    """AC-extraction.1801.5: Without a Layer-3 classification, an inflow credits Income - Uncategorized."""
-    stmt = await _make_statement(db, test_user.id, currency="SGD")
+async def test_create_entry_from_txn_inflow_without_disposition_requires_review(db, test_user):
+    """AC-extraction.1801.5: an inflow cannot manufacture an income category."""
+    stmt = await _make_statement(
+        db,
+        test_user.id,
+        currency="SGD",
+        create_mapped_account=True,
+    )
     txn = await _make_txn(
         db,
         test_user.id,
@@ -752,15 +841,8 @@ async def test_create_entry_from_txn_inflow_defaults_to_uncategorized_income(db,
     )
     await db.commit()
 
-    entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
-    credit_line = next(line for line in entry.lines if line.direction.value == "CREDIT")
-
-    account_result = await db.execute(select(Account).where(Account.id == credit_line.account_id))
-    account = account_result.scalar_one()
-
-    assert account.name == "Income - Uncategorized"
-    assert account.type == AccountType.INCOME
-    assert account.user_id == test_user.id
+    with pytest.raises(ValueError, match="Authoritative economic disposition"):
+        await create_entry_from_txn(db, txn, user_id=test_user.id)
 
 
 async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
@@ -769,7 +851,12 @@ async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
     closed immediately -- a date->rate fact is immutable once resolved, so
     consulting the same lazy chain reporting/internal-transfer/revaluation
     already use is safe here too (#1779)."""
-    stmt = await _make_statement(db, test_user.id, currency="CNY")
+    stmt = await _make_statement(
+        db,
+        test_user.id,
+        currency="CNY",
+        create_mapped_account=True,
+    )
     txn = await _make_txn(
         db,
         test_user.id,
@@ -793,7 +880,7 @@ async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
         "src.extraction.extension.review_queue._get_exchange_rate",
     ) as mock_get_rate:
         mock_get_rate.return_value = Decimal("0.19")
-        entry = await create_entry_from_txn(db, txn, user_id=test_user.id)
+        entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
 
     mock_get_rate.assert_awaited_once_with(db, "CNY", "SGD", date(2025, 1, 15), lazy_load=True)
     assert entry.status == JournalEntryStatus.DRAFT

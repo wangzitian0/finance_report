@@ -21,6 +21,9 @@ from src.observability import detect_pii
 
 
 class _CsvMixin:
+    api_key: str | None
+    primary_model: str
+
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes or string.
 
@@ -108,6 +111,57 @@ class _CsvMixin:
                     return headers[idx]
             return None
 
+        def declared_statement_fact(
+            label: str,
+            candidates: list[str],
+            parse,
+        ) -> Any | None:
+            """Read one redundant CSV statement-envelope column without inference.
+
+            A transaction export remains row evidence. A CSV becomes a statement
+            source only when it repeats an explicit envelope fact consistently
+            across its rows; conflicting declarations are malformed source data.
+            """
+            header = find_header(candidates)
+            if header is None:
+                return None
+            values = [str(row[header]).strip() for row in rows if row.get(header) and str(row[header]).strip()]
+            if not values:
+                return None
+            parsed = [parse(value) for value in values]
+            if any(value is None for value in parsed):
+                raise ExtractionError(f"CSV has an invalid declared {label}")
+            unique = {value for value in parsed if value is not None}
+            if len(unique) != 1:
+                raise ExtractionError(f"CSV has conflicting declared {label}")
+            return next(iter(unique))
+
+        source_currency = declared_statement_fact(
+            "statement currency",
+            ["Statement Currency"],
+            lambda value: value.upper() if len(value) == 3 and value.isalpha() else None,
+        )
+        source_period_start = declared_statement_fact(
+            "statement period start",
+            ["Statement Period Start"],
+            parse_date,
+        )
+        source_period_end = declared_statement_fact(
+            "statement period end",
+            ["Statement Period End"],
+            parse_date,
+        )
+        source_opening_balance = declared_statement_fact(
+            "statement opening balance",
+            ["Statement Opening Balance"],
+            parse_amount,
+        )
+        source_closing_balance = declared_statement_fact(
+            "statement closing balance",
+            ["Statement Closing Balance"],
+            parse_amount,
+        )
+
         if institution_lower in ("dbs", "posb"):
             date_col = find_header(["Transaction Date", "Date", "Value Date"])
             debit_col = find_header(["Debit Amount", "Withdrawal", "Debit"])
@@ -188,8 +242,8 @@ class _CsvMixin:
                     )
                     continue
 
-                amount = parse_amount(row.get(amount_col, "")) if amount_col else None
-                if not amount or amount <= 0:
+                parsed_amount = parse_amount(row.get(amount_col, "")) if amount_col else None
+                if not parsed_amount or parsed_amount <= 0:
                     logger.warning(
                         "CSV transaction skipped - no valid amount",
                         institution=institution,
@@ -197,6 +251,7 @@ class _CsvMixin:
                         description=row.get(desc_col, "Wise Transfer"),
                     )
                     continue
+                amount = parsed_amount
 
                 direction_raw = row.get(direction_col, "").lower() if direction_col else ""
                 if "out" in direction_raw or "send" in direction_raw:
@@ -294,10 +349,10 @@ class _CsvMixin:
                     continue
 
                 if amount_col and row.get(amount_col):
-                    amount = parse_amount(row.get(amount_col, ""))
-                    if amount is not None:
-                        direction = "OUT" if amount < 0 else "IN"
-                        amount = abs(amount)
+                    parsed_amount = parse_amount(row.get(amount_col, ""))
+                    if parsed_amount is not None:
+                        direction = "OUT" if parsed_amount < 0 else "IN"
+                        amount = abs(parsed_amount)
                     else:
                         logger.warning(
                             "CSV transaction skipped - no valid amount",
@@ -348,6 +403,7 @@ class _CsvMixin:
                 if period_end is None or txn_date > period_end:
                     period_end = txn_date
 
+        used_ai_mapping = False
         if not transactions:
             # EPIC-018 Phase 4: AI CSV parsing fallback for unknown formats
             logger.info(
@@ -363,6 +419,7 @@ class _CsvMixin:
                     parse_date,
                     parse_amount,
                 )
+                used_ai_mapping = bool(transactions)
             except Exception as ai_err:
                 logger.warning(
                     "AI CSV parsing fallback failed",
@@ -380,14 +437,6 @@ class _CsvMixin:
             )
             raise ExtractionError(f"No valid transactions found in CSV for {institution}")
 
-        inferred_closing_balance = sum(
-            (
-                Decimal(str(txn["amount"])) if txn.get("direction") == "IN" else -Decimal(str(txn["amount"]))
-                for txn in transactions
-            ),
-            Decimal("0.00"),
-        )
-
         logger.info(
             "CSV parsing completed",
             institution=institution,
@@ -396,13 +445,27 @@ class _CsvMixin:
             period_end=period_end.isoformat() if period_end else None,
         )
 
+        source_facts: dict[str, Any] = {}
+        if source_currency is not None:
+            source_facts["currency"] = source_currency
+        if source_period_start is not None:
+            source_facts["period_start"] = source_period_start.isoformat()
+        if source_period_end is not None:
+            source_facts["period_end"] = source_period_end.isoformat()
+        if source_opening_balance is not None:
+            source_facts["opening_balance"] = str(source_opening_balance)
+        if source_closing_balance is not None:
+            source_facts["closing_balance"] = str(source_closing_balance)
+
         return {
-            "currency": "SGD",
-            "period_start": period_start.isoformat() if period_start else None,
-            "period_end": period_end.isoformat() if period_end else None,
-            "opening_balance": "0.00",
-            "closing_balance": str(inferred_closing_balance),
-            "balance_source": "inferred_from_csv_transactions",
+            **source_facts,
+            # A transaction export does not prove statement currency, period, or
+            # opening/closing balances. Keep those facts absent instead of
+            # laundering SGD/zero/net-flow defaults into the trusted envelope.
+            "balance_source": "missing_from_csv_export",
+            "observed_transaction_start": period_start.isoformat() if period_start else None,
+            "observed_transaction_end": period_end.isoformat() if period_end else None,
+            "extraction_method": "live_llm" if used_ai_mapping else "deterministic",
             "transactions": transactions,
         }
 

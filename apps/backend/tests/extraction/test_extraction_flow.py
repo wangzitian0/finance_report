@@ -1,11 +1,12 @@
 import json
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 
 
 async def mock_stream_generator(content: str):
@@ -44,15 +45,14 @@ class TestExtractionServiceFlow:
         }
 
         with patch.object(service, "extract_financial_data", new=AsyncMock(return_value=mock_data)):
-            stmt, events = await service.parse_document(
-                pdf_file,
+            result = await service.parse_document(
+                DocumentSource.resolve(path=pdf_file, content=pdf_file.read_bytes()),
                 institution=None,
                 user_id=uuid4(),
-                file_content=pdf_file.read_bytes(),
             )
 
-        assert stmt.institution == "UOB"
-        assert stmt.account_last4 == "6789"
+        assert result.institution == "UOB"
+        assert result.account_last4 == "6789"
 
     async def test_parse_document_csv_success(self, service, tmp_path):
         """Test parse_document flow for CSV with mocked specific parser."""
@@ -70,16 +70,15 @@ class TestExtractionServiceFlow:
         with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
 
-            stmt, events = await service.parse_document(
-                csv_file,
+            result = await service.parse_document(
+                DocumentSource.resolve(path=csv_file, content=csv_file.read_bytes()),
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000001"),
                 file_type="csv",
-                file_content=csv_file.read_bytes(),
             )
 
-            assert stmt.status == BankStatementStatus.PARSED  # Medium confidence requires review
-            assert len(events) == 0
+            assert result.institution == "DBS"
+            assert len(result.transactions) == 0
 
     async def test_parsed_statement_sets_stage1_pending_review(self, service, tmp_path):
         """AC-extraction.1622.8: a statement routed to parsed/review carries stage1_status=pending_review
@@ -98,16 +97,15 @@ class TestExtractionServiceFlow:
         with patch.object(service, "_parse_csv_content", new_callable=AsyncMock) as mock_csv:
             mock_csv.return_value = mock_data
 
-            stmt, _events = await service.parse_document(
-                csv_file,
+            result = await service.parse_document(
+                DocumentSource.resolve(path=csv_file, content=csv_file.read_bytes()),
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000002"),
                 file_type="csv",
-                file_content=csv_file.read_bytes(),
             )
 
-        assert stmt.status == BankStatementStatus.PARSED
-        assert stmt.stage1_status == Stage1Status.PENDING_REVIEW
+        assert result.institution == "DBS"
+        assert result.transactions == ()
 
     async def test_parse_document_csv_without_statement_balances_remains_reviewable(self, service, tmp_path):
         """AC-extraction.2.5: CSV transaction exports without statement balances remain reviewable."""
@@ -118,20 +116,18 @@ class TestExtractionServiceFlow:
             b"16 Jan 2025,REF002,100.00,,GROCERIES\n"
         )
 
-        stmt, events = await service.parse_document(
-            csv_file,
+        result = await service.parse_document(
+            DocumentSource.resolve(path=csv_file, content=csv_file.read_bytes()),
             "DBS",
             user_id=UUID("00000000-0000-0000-0000-000000000001"),
             file_type="csv",
-            file_content=csv_file.read_bytes(),
         )
 
-        assert len(events) == 2
-        assert stmt.status == BankStatementStatus.PARSED
-        assert stmt.balance_validated is False
-        assert stmt.confidence_score == 45
-        assert stmt.validation_error == (
-            "CSV import does not include source statement opening/closing balances; manual review required"
+        assert len(result.transactions) == 2
+        assert result.balance_validated is None
+        assert result.confidence == Decimal("0.25")
+        assert result.review_reasons == (
+            "Source is missing required facts: statement currency, statement period, opening and closing balances, transaction currency",
         )
 
     async def test_parse_document_unsupported_type(self, service, tmp_path):
@@ -141,11 +137,10 @@ class TestExtractionServiceFlow:
 
         with pytest.raises(ExtractionError, match="Unsupported file type"):
             await service.parse_document(
-                txt_file,
+                DocumentSource.resolve(path=txt_file, content=txt_file.read_bytes()),
                 "DBS",
                 user_id=UUID("00000000-0000-0000-0000-000000000001"),
                 file_type="txt",
-                file_content=txt_file.read_bytes(),
             )
 
     async def test_extract_financial_data_success_json(self, service, tmp_path):

@@ -7,7 +7,6 @@ Tests verify atomic transaction guarantees, proper account linking,
 and correct status state management in the reconciliation layer architecture.
 """
 
-import hashlib
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -15,10 +14,12 @@ from unittest.mock import patch
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import ReconciliationStatus, execute_matching
+from tests.statement_ingestion import parse_and_load_statement_projection
 
 
 @pytest.fixture
@@ -94,19 +95,16 @@ class TestReconciliationLayer4Read:
 
         service = ExtractionService()
         content = b"PDF-CONTENT-L4"
-        file_hash = hashlib.sha256(content).hexdigest()
 
         # Parse document with db -> parse_document runs dual_write_layer2 internally,
         # persisting the UploadedDocument, AtomicTransaction rows and StatementSummary.
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_l4.pdf"),
+            _result, _statement, _transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("test_l4.pdf"), content=content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=content,
-                file_hash=file_hash,
-                original_filename="test_l4.pdf",
-                db=db,
             )
         await db.commit()
 
@@ -134,17 +132,14 @@ class TestReconciliationLayer4Read:
         # ... setup data ...
         service = ExtractionService()
         content = b"PDF-CONTENT-L4-IDEM"
-        file_hash = hashlib.sha256(content).hexdigest()
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
-            statement, transactions = await service.parse_document(
-                file_path=Path("test_l4_idem.pdf"),
+            _result, _statement, _transactions = await parse_and_load_statement_projection(
+                service,
+                db=db,
+                source=DocumentSource.resolve(path=Path("test_l4_idem.pdf"), content=content),
                 institution="DBS",
                 user_id=test_user.id,
-                file_content=content,
-                file_hash=file_hash,
-                original_filename="test_l4_idem.pdf",
-                db=db,
             )
         await db.commit()
 

@@ -18,6 +18,7 @@ the `Settings` class), so the module stays a `kernel` leaf.
 from __future__ import annotations
 
 from pydantic import AliasChoices
+from pydantic_settings import BaseSettings
 
 from src.runtime.base.manifest import DEPENDENCY_MANIFEST, DependencyManifest
 
@@ -50,6 +51,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     "enable_ai_classification": "feature",
     "enable_storage_sweep": "feature",
     "market_data_lazy_fetch_enabled": "feature",
+    "statement_disposition_mode": "feature",
     # ── tuning — how a backend is used, not whether it is present ──
     "db_pool_size": "tuning",
     "db_pool_max_overflow": "tuning",
@@ -80,7 +82,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
 }
 
 
-def settings_env_keys(settings_cls: type, field_name: str) -> frozenset[str]:
+def settings_env_keys(settings_cls: type[BaseSettings], field_name: str) -> frozenset[str]:
     """The env-var names a `Settings` field reads (alias choices, or the name)."""
     field = settings_cls.model_fields[field_name]
     alias = field.validation_alias
@@ -92,7 +94,7 @@ def settings_env_keys(settings_cls: type, field_name: str) -> frozenset[str]:
 
 
 def check_env_classification(
-    settings_cls: type,
+    settings_cls: type[BaseSettings],
     *,
     manifest: DependencyManifest = DEPENDENCY_MANIFEST,
     non_dependency_fields: dict[str, str] | None = None,

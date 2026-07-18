@@ -1,12 +1,12 @@
 """Tests for the document extraction service."""
 
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.extraction.base.validation import compute_confidence_score, validate_balance
 from src.extraction.extension.service import ExtractionError, ExtractionService
 
@@ -401,30 +401,22 @@ class TestInstitutionDetection:
 
         with pytest.raises(ExtractionError, match="Institution is required for CSV"):
             await self.service.parse_document(
-                file_path=Path("test.csv"),
+                DocumentSource.resolve(path=Path("test.csv"), content=b"date,amount\n2025-01-01,100"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="csv",
                 account_id=None,
-                file_content=b"date,amount\n2025-01-01,100",
-                file_hash=None,
-                file_url=None,
-                original_filename="test.csv",
             )
 
     async def test_parse_document_accepts_none_institution_for_pdf(self):
         """AC-extraction.106.2: Test that parse_document accepts institution=None for PDFs (AI auto-detect)."""
         with pytest.raises(Exception) as exc_info:
             await self.service.parse_document(
-                file_path=Path("test.pdf"),
+                DocumentSource.resolve(path=Path("test.pdf"), content=b"fake pdf content"),
                 institution=None,
                 user_id=uuid4(),
                 file_type="pdf",
                 account_id=None,
-                file_content=b"fake pdf content",
-                file_hash=None,
-                file_url=None,
-                original_filename="test.pdf",
             )
         assert "Institution is required" not in str(exc_info.value)
 
@@ -501,15 +493,13 @@ class TestExtractionServiceHelpers:
         service = ExtractionService()
         with pytest.raises(ExtractionError, match="File content is required"):
             await service.parse_document(
-                file_path=Path("test.pdf"),
+                DocumentSource(
+                    path=Path("test.pdf"), content=None, url=None, content_hash="0" * 64, filename="test.pdf"
+                ),
                 institution="DBS",
                 user_id=uuid4(),
                 file_type="pdf",
                 account_id=None,
-                file_content=None,
-                file_hash=None,
-                file_url=None,
-                original_filename=None,
                 force_model="google/gemini-2.0-flash-exp:free",
             )
 
@@ -778,51 +768,3 @@ class TestUnderExtractionPenalty:
         not_capped = compute_confidence_score(extracted, balance_result, is_brokerage=True)
         capped = compute_confidence_score(extracted, balance_result, is_brokerage=True, effective_txn_count=1)
         assert capped <= 60 < not_capped
-
-
-class TestBankPeriodResolution:
-    """AC3.11: tolerant resolution of a bank statement's required period (#1449)."""
-
-    def setup_method(self):
-        self.service = ExtractionService()
-
-    def test_AC3_11_1_period_start_falls_back_to_period_end(self):
-        """AC-extraction.11.1: a missing period_start falls back to period_end instead of hard-failing."""
-        start, end = self.service._resolve_required_period({"period_end": "2025-03-31", "transactions": []})
-        assert start == date(2025, 3, 31)
-        assert end == date(2025, 3, 31)
-
-    def test_AC3_11_2_period_derived_from_transaction_dates(self):
-        """AC-extraction.11.2: with no period bounds, the period spans the transaction-date range."""
-        start, end = self.service._resolve_required_period(
-            {
-                "transactions": [
-                    {"date": "2025-03-05", "amount": "1.00", "direction": "IN"},
-                    {"date": "2025-03-28", "amount": "2.00", "direction": "OUT"},
-                    {"date": "2025-03-12", "amount": "3.00", "direction": "IN"},
-                ]
-            }
-        )
-        assert start == date(2025, 3, 5)
-        assert end == date(2025, 3, 28)
-
-    def test_AC3_11_3_no_resolvable_date_still_raises(self):
-        """AC-extraction.11.3: a statement with no period and no transaction dates still rejects."""
-        with pytest.raises(ValueError, match="Date is required"):
-            self.service._resolve_required_period({"transactions": []})
-
-    def test_AC3_11_2_missing_end_prefers_transaction_range_over_other_bound(self):
-        """AC-extraction.11.2: a present period_start with a missing period_end resolves the end to
-        the last transaction date (a meaningful period), not back to period_start
-        (which would collapse to a zero-length range)."""
-        start, end = self.service._resolve_required_period(
-            {
-                "period_start": "2025-03-01",
-                "transactions": [
-                    {"date": "2025-03-10", "amount": "1.00", "direction": "IN"},
-                    {"date": "2025-03-27", "amount": "2.00", "direction": "OUT"},
-                ],
-            }
-        )
-        assert start == date(2025, 3, 1)
-        assert end == date(2025, 3, 27)

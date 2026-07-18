@@ -158,6 +158,7 @@ Valid proof execution stages:
 | Stage | Meaning |
 |---|---|
 | `local.advisory` | Developer-local feedback that helps iteration but does not block merge. |
+| `product.runtime` | Product runtime observation or decision made while serving a tenant workflow. |
 | `github_ci.merge_authority` | GitHub CI proof required before code can merge. |
 | `preview.runtime` | PR preview runtime proof outside the merge-authority CI job set. |
 | `staging.release_validation` | Staging validation for a selected merged SHA or release coordinate. |

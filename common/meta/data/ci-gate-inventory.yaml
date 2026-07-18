@@ -12,6 +12,8 @@ branch_required_status_contexts:
 stages:
   local.advisory:
     definition: Developer-local feedback that helps iteration but does not block merge.
+  product.runtime:
+    definition: Product runtime observation or decision made while serving a tenant workflow.
   github_ci.merge_authority:
     definition: GitHub CI proof required before code can merge or before a post-merge consumer trusts the SHA.
   preview.runtime:

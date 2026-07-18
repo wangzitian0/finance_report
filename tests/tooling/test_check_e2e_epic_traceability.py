@@ -32,11 +32,20 @@ def _project_epic_ids(repo_root: Path) -> list[str]:
     return sorted(path.name.split(".", 1)[0] for path in project.glob("EPIC-*.md"))
 
 
-def _write_epic(repo_root: Path, epic_id: str, *, update_readme: bool = True) -> None:
+def _write_epic(
+    repo_root: Path,
+    epic_id: str,
+    *,
+    kind: str | None = None,
+    residual: bool = False,
+    update_readme: bool = True,
+) -> None:
     project = repo_root / "docs" / "project"
     project.mkdir(parents=True, exist_ok=True)
+    file_marker = f"<!-- epic-file: {kind} -->\n" if kind else ""
+    residue_marker = "<!-- epic-owned: horizontal -->\n" if residual else ""
     (project / f"{epic_id}.sample.md").write_text(
-        f"# {epic_id}: Sample\n\n- **AC8.13.68**: E2E EPIC traceability.\n",
+        f"# {epic_id}: Sample\n{file_marker}{residue_marker}\n- **AC8.13.68**: E2E EPIC traceability.\n",
         encoding="utf-8",
     )
     if update_readme:
@@ -409,6 +418,31 @@ def test_one_epic_only():
     result = checker.check_traceability(tmp_path)
 
     assert "EPIC-002: no product E2E owner test" in result.errors
+
+
+def test_AC_testing_acgates_8_design_docs_do_not_require_product_e2e(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.acgates.8: only EPIC residue, not typed design docs, needs a product E2E owner."""
+    _write_epic(tmp_path, "EPIC-001", kind="design-doc")
+    _write_epic(tmp_path, "EPIC-002", kind="goal-stub")
+    _write_epic(tmp_path, "EPIC-003")
+    _write_epic(tmp_path, "EPIC-004", kind="design-doc", residual=True)
+    _write_test(
+        tmp_path,
+        "tests/e2e/test_flow.py",
+        '''
+def test_residue_owner():
+    """EPIC-003 EPIC-004: product residue owners."""
+    assert True
+''',
+    )
+
+    result = checker.check_traceability(tmp_path)
+
+    assert result.required_project_epics == ["EPIC-003", "EPIC-004"]
+    assert result.missing_epics == []
+    assert result.errors == []
 
 
 def test_AC8_13_68_unknown_epic_ref_fails(tmp_path: Path) -> None:

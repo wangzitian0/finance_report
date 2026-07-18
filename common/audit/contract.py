@@ -1363,8 +1363,8 @@ CONTRACT = PackageContract(
                 "Pinned from #1429's 2026-07-12 scope-freeze wording."
             ),
             test=(
-                "apps/backend/tests/e2e/test_business_value_correctness_gate.py"
-                "::test_AC_reporting_business_value_gate_1_total_matches_transactions_and_open_bal_missing_degrades_tier"
+                "tests/e2e/test_statement_full_journey.py"
+                "::test_dbs_statement_full_journey"
             ),
             priority="P0",
             status="done",

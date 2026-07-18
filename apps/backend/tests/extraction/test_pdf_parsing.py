@@ -12,7 +12,6 @@ These tests cover the Critical and High priority gaps identified in the test aud
 - #12 Gemini retry on timeout
 """
 
-from datetime import date
 from decimal import Decimal
 from io import BytesIO
 from unittest.mock import AsyncMock, patch
@@ -20,6 +19,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import UploadFile
 
+from src.extraction import DocumentSource
 from src.extraction.base.validation import (
     route_by_threshold,
     validate_balance,
@@ -65,10 +65,9 @@ class TestInvalidParseNotPersisted:
 
             with pytest.raises(ExtractionError, match="Failed to parse"):
                 await service.parse_document(
-                    bad_file,
+                    DocumentSource.resolve(path=bad_file, content=bad_file.read_bytes()),
                     "DBS",
                     user_id=uuid4(),
-                    file_content=bad_file.read_bytes(),
                 )
 
     async def test_parse_document_bank_balance_mismatch_records_validation_error(self, service, tmp_path):
@@ -97,23 +96,19 @@ class TestInvalidParseNotPersisted:
 
             from uuid import uuid4
 
-            stmt, events = await service.parse_document(
-                pdf_file,
+            result = await service.parse_document(
+                DocumentSource.resolve(path=pdf_file, content=pdf_file.read_bytes()),
                 "DBS",
                 user_id=uuid4(),
-                file_content=pdf_file.read_bytes(),
             )
 
             # An unreconciled balance chain is now BLOCKING: the extraction cannot
             # persist as trusted truth, so it is quarantined to REJECTED with a typed
             # reason code preserved in validation_error (AC-extraction.2009.2 supersedes the prior
             # PARSED/review resting state).
-            from src.extraction.orm.statement_enums import BankStatementStatus
-
-            assert stmt.status == BankStatementStatus.REJECTED
-            assert stmt.balance_validated is False
-            assert stmt.validation_error is not None
-            assert "llm_led_balance_chain_unreconciled" in stmt.validation_error
+            assert result.balance_validated is False
+            assert result.review_reasons
+            assert "llm_led_balance_chain_unreconciled" in result.review_reasons[0]
 
     def test_validate_balance_returns_invalid_on_mismatch(self):
         """
@@ -165,23 +160,7 @@ class TestFileSizeLimit:
 
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
-            from tests.factories import StatementSummaryFactory
-
-            stmt = StatementSummaryFactory.build(
-                user_id=kwargs.get("user_id"),
-                file_hash=kwargs.get("file_hash", "hash"),
-                institution="DBS",
-                account_last4="1234",
-                currency="SGD",
-                period_start=date(2025, 1, 1),
-                period_end=date(2025, 1, 31),
-                opening_balance=Decimal("100.00"),
-                closing_balance=Decimal("100.00"),
-                status=BankStatementStatus.PARSED,
-                confidence_score=90,
-                balance_validated=True,
-            )
-            return stmt, []
+            raise ExtractionError("test-only extraction bypass")
 
         from src.extraction.extension.service import ExtractionService
 

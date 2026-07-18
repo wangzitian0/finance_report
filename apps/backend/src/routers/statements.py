@@ -13,24 +13,34 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.composition import compose_statement_posting_dependencies
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BrokeragePositionImportService,
     ParseJob,
+    ReviewedStatementEnvelopeCommand,
+    ReviewedStatementEnvelopeConflict,
+    StatementPostingOutcome,
+    StatementPostingStatus,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
+    confirm_reviewed_statement_envelope,
+    current_reviewed_statement_envelope,
     edit_and_approve,
+    get_current_statement_extraction_result,
     pending_stage1_review_filter,
+    register_statement_source,
     reject_statement_workflow,
     resolve_statement_posting_account,
     resolve_statement_transactions,
     set_opening_balance,
     submit_parse_pipeline,
+    supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
 from src.extraction.orm.statement_enums import BankStatementStatus
@@ -41,6 +51,7 @@ from src.observability import ErrorIds, ensure_request_id, get_logger, safe_erro
 from src.platform import (
     get_owned_or_404,
     raise_bad_request,
+    raise_conflict,
     raise_internal_error,
     raise_not_found,
     raise_service_unavailable,
@@ -60,6 +71,8 @@ from src.schemas.portfolio import BrokerageImportResponse
 from src.schemas.review import (
     BalanceValidationResult,
     EditAndApproveRequest,
+    ReviewedStatementEnvelopeRequest,
+    ReviewedStatementEnvelopeResponse,
     SetOpeningBalanceRequest,
     Stage1ApprovalRequest,
     Stage1ApprovalResponse,
@@ -79,6 +92,12 @@ _BROKERAGE_IMPORT_SERVICE = BrokeragePositionImportService()
 def _track_task(task: asyncio.Task[None]) -> None:
     _PENDING_PARSE_TASKS.add(task)
     task.add_done_callback(_PENDING_PARSE_TASKS.discard)
+
+
+def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
+    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
+        raise_conflict(f"Economic review required: {', '.join(outcome.review_reasons)}")
+    return outcome.created_count
 
 
 async def _resolve_uploaded_document(
@@ -184,7 +203,9 @@ async def _create_statement_account_from_confirmation(
             return account
         raise ValueError("Statement account mapping is invalid. Confirm the target account before posting.")
 
-    currency = (statement.currency or "SGD").strip().upper()
+    currency = (statement.currency or "").strip().upper()
+    if not currency:
+        raise ValueError("Statement currency required before creating an account. Confirm the source currency first.")
     institution = (statement.institution or "").strip()
     account_name = institution or "Statement Account"
     if statement.account_last4:
@@ -372,15 +393,11 @@ async def upload_statement(
     db.add(statement)
     try:
         await db.flush()
-        from src.extraction import EvidenceGraphIntegrationService
-
-        # ``record_statement_upload`` reads ``original_filename`` (an ODS field that
-        # the DWD envelope does not carry); supply it transiently for lineage only.
-        statement.original_filename = filename
-        await EvidenceGraphIntegrationService().record_statement_upload(
+        await register_statement_source(
             db,
-            user_id=user_id,
             statement=statement,
+            storage_key=storage_key,
+            original_filename=filename,
         )
         await db.commit()
         await db.refresh(statement)
@@ -742,6 +759,23 @@ async def get_statement_for_review(
             )
 
     validation_result = await validate_balance_chain(db, statement_id)
+    source_result_digest = None
+    source_missing_facts: list[str] = []
+    source_envelope_reviewable = False
+    reviewed_envelope = await current_reviewed_statement_envelope(
+        db,
+        user_id=user_id,
+        statement_id=statement.id,
+    )
+    source_result = await get_current_statement_extraction_result(
+        db,
+        user_id=user_id,
+        statement_id=statement.id,
+    )
+    if source_result is not None:
+        source_result_digest = source_result.content_digest
+        source_missing_facts = list(source_result.missing_required_facts)
+        source_envelope_reviewable = supports_reviewed_statement_envelope(source_result)
 
     response_data = {
         "id": statement.id,
@@ -763,6 +797,26 @@ async def get_statement_for_review(
         "stage1_status": statement.stage1_status,
         "stage1_reviewed_at": statement.stage1_reviewed_at,
         "manual_opening_balance": statement.manual_opening_balance,
+        "source_result_digest": source_result_digest,
+        "source_missing_facts": source_missing_facts,
+        "source_envelope_reviewable": source_envelope_reviewable,
+        "reviewed_envelope": (
+            ReviewedStatementEnvelopeResponse(
+                id=reviewed_envelope.id,
+                source_result_digest=source_result_digest or "",
+                account_id=reviewed_envelope.account_id,
+                currency=reviewed_envelope.currency,
+                period_start=reviewed_envelope.period_start,
+                period_end=reviewed_envelope.period_end,
+                opening_balance=reviewed_envelope.opening_balance,
+                closing_balance=reviewed_envelope.closing_balance,
+                rationale=reviewed_envelope.rationale,
+                review_trace_record_id=reviewed_envelope.review_trace_record_id,
+                created_at=reviewed_envelope.created_at,
+            )
+            if reviewed_envelope is not None
+            else None
+        ),
         "created_at": statement.created_at,
         "updated_at": statement.updated_at,
         "transactions": [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions],
@@ -781,6 +835,48 @@ async def get_statement_for_review(
     return StatementReviewResponse.model_validate(response_data)
 
 
+@router.post(
+    "/{statement_id}/review/envelope",
+    response_model=ReviewedStatementEnvelopeResponse,
+)
+async def confirm_statement_review_envelope(
+    statement_id: UUID,
+    request: ReviewedStatementEnvelopeRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReviewedStatementEnvelopeResponse:
+    """Append a typed human confirmation over the statement's current source result."""
+    try:
+        envelope = await confirm_reviewed_statement_envelope(
+            db,
+            user_id=user_id,
+            statement_id=statement_id,
+            command=ReviewedStatementEnvelopeCommand(**request.model_dump()),
+            trace_emitter=compose_statement_posting_dependencies().trace_emitter_factory(db),
+        )
+        await db.commit()
+    except ReviewedStatementEnvelopeConflict as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except (TypeError, ValueError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    return ReviewedStatementEnvelopeResponse(
+        id=envelope.id,
+        source_result_digest=request.source_result_digest,
+        account_id=envelope.account_id,
+        currency=envelope.currency,
+        period_start=envelope.period_start,
+        period_end=envelope.period_end,
+        opening_balance=envelope.opening_balance,
+        closing_balance=envelope.closing_balance,
+        rationale=envelope.rationale,
+        review_trace_record_id=envelope.review_trace_record_id,
+        created_at=envelope.created_at,
+    )
+
+
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
@@ -796,11 +892,17 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
-        created_count = await approve_statement_workflow(db, statement_id, user_id)
+        outcome = await approve_statement_workflow(
+            db,
+            statement_id,
+            user_id,
+            dependencies=compose_statement_posting_dependencies(),
+        )
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    created_count = _posting_count_or_conflict(outcome)
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
@@ -837,12 +939,18 @@ async def edit_and_approve_statement(
     edits_data = [{**e.model_dump(), "txn_id": str(e.txn_id)} for e in request.edits]
     try:
         statement = await edit_and_approve(db, statement_id, user_id, edits_data)
-        created_count = await auto_create_posted_entries_for_statement(db, statement, user_id)
+        outcome = await auto_create_posted_entries_for_statement(
+            db,
+            statement,
+            user_id,
+            dependencies=compose_statement_posting_dependencies(),
+        )
         await db.commit()
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    created_count = _posting_count_or_conflict(outcome)
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)

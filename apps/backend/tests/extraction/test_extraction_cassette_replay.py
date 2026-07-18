@@ -19,12 +19,12 @@ documents remains the staging ``-m llm`` live gate's job (untouched here).
 from __future__ import annotations
 
 import json
-from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from src.extraction import DocumentSource
 from src.llm import accumulate_stream, stream_ai_json
 
 # No mode fork (#1597): the cassette layer decides per request — a committed
@@ -230,12 +230,10 @@ def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "ai_provider", "openai-compatible-test", raising=False)
 
 
-async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_replay(
+async def test_AC_llm_14_1_missing_period_remains_review_only_via_replay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-llm.14.1: a cassette response with no period_start/period_end but valid
-    transaction dates degrades gracefully (#1449) — through the real cassette
-    transport into parse_document(), not a unit call to _resolve_required_period."""
+    """AC-llm.14.1: a missing source period remains explicit review-only evidence."""
     from uuid import uuid4
 
     from src.extraction.extension.service import ExtractionService
@@ -244,18 +242,20 @@ async def test_AC_llm_14_1_missing_period_falls_back_to_transaction_dates_via_re
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_missing_period.pdf"
-    summary, transactions = await service.parse_document(
-        pdf,
+    result = await service.parse_document(
+        DocumentSource.resolve(path=pdf, content=pdf.read_bytes()),
         institution="ACME",
         user_id=uuid4(),
         file_type="pdf",
-        file_content=pdf.read_bytes(),
-        original_filename=pdf.name,
     )
-    assert summary.status.value != "rejected", summary.status
-    assert summary.period_start == date(2026, 3, 2)
-    assert summary.period_end == date(2026, 3, 20)
-    assert len(transactions) == 3
+    # Balance arithmetic is independently evaluable from source-declared
+    # balances. The missing period still blocks promotion below.
+    assert result.balance_validated is True
+    assert result.period_start is None
+    assert result.period_end is None
+    assert result.missing_required_facts == ("period",)
+    assert result.review_reasons == ("Source is missing required facts: statement period",)
+    assert len(result.transactions) == 3
 
 
 async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_replay(
@@ -272,14 +272,12 @@ async def test_AC_llm_14_2_no_recoverable_date_anywhere_rejects_cleanly_via_repl
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_no_dates_at_all.pdf"
-    with pytest.raises(ExtractionError, match="Date is required"):
+    with pytest.raises(ExtractionError, match="Transaction missing required fields: date or amount"):
         await service.parse_document(
-            pdf,
+            DocumentSource.resolve(path=pdf, content=pdf.read_bytes()),
             institution="ACME",
             user_id=uuid4(),
             file_type="pdf",
-            file_content=pdf.read_bytes(),
-            original_filename=pdf.name,
         )
 
 
@@ -300,17 +298,19 @@ async def test_AC_llm_14_3_unreconciled_balance_quarantines_to_rejected_via_repl
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
     pdf = _VISION_DIR / "unhappy_balance_unreconciled.pdf"
-    summary, _transactions = await service.parse_document(
-        pdf,
+    from tests.statement_ingestion import parse_and_load_statement_projection
+
+    result, summary, _transactions = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=pdf, content=pdf.read_bytes()),
         institution="ACME",
         user_id=test_user.id,
         file_type="pdf",
-        file_content=pdf.read_bytes(),
-        original_filename=pdf.name,
-        db=db,
     )
     # #1452: the terminal status must actually persist (not stuck in `parsing`).
     assert summary.status == BankStatementStatus.REJECTED
+    assert result.balance_validated is False
     # A quarantined extraction must never persist Layer-2 financial rows — the
     # returned tuple's transactions are the pre-persistence build, not what
     # dual_write_layer2 actually wrote; assert the real persisted count (this

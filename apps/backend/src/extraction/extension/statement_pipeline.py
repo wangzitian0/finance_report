@@ -25,7 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.database import create_session_maker_from_db
 from src.extraction.base.types import ParseJob
-from src.extraction.extension.statement_parsing import parse_statement_background
 from src.observability import get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
@@ -33,6 +32,13 @@ settings = src.config.settings
 
 # Prefect deployment name "<flow-name>/<deployment-name>".
 PARSE_DEPLOYMENT = "parse-statement/parse-statement"
+
+
+def compose_statement_ingestion_use_case(*, session_maker):
+    """Lazy composition import avoids an extraction-package import cycle."""
+    from src.composition import compose_statement_ingestion_use_case as compose
+
+    return compose(session_maker=session_maker)
 
 
 def _consume_background_task_exception(task: asyncio.Task[None]) -> None:
@@ -61,13 +67,10 @@ async def submit_parse_pipeline(
     """
 
     def _run_in_process() -> asyncio.Task[None]:
+        use_case = compose_statement_ingestion_use_case(session_maker=create_session_maker_from_db(db))
         task = asyncio.create_task(
             run_with_async_parse_tracking(
-                parse_statement_background(
-                    job=job,
-                    content=content,
-                    session_maker=create_session_maker_from_db(db),
-                ),
+                use_case.execute(job, content=content),
                 statement_id=job.statement_id,
                 request_id=job.request_id,
             )

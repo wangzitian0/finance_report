@@ -1894,6 +1894,7 @@
       "BatchApproveRequest": {
         "properties": {
           "match_ids": {
+            "description": "Reconciliation match identifiers to approve",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -1949,6 +1950,7 @@
             "type": "boolean"
           },
           "txn_ids": {
+            "description": "Transaction IDs to create entries for when all is false.",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -1977,6 +1979,7 @@
       "BatchRejectRequest": {
         "properties": {
           "match_ids": {
+            "description": "Reconciliation match identifiers to reject",
             "items": {
               "format": "uuid",
               "type": "string"
@@ -3212,6 +3215,7 @@
       "EditAndApproveRequest": {
         "properties": {
           "edits": {
+            "description": "Reviewer transaction corrections to validate before approval",
             "items": {
               "$ref": "#/components/schemas/TransactionEditRequest"
             },
@@ -8044,6 +8048,7 @@
             "type": "string"
           },
           "entries": {
+            "description": "Posted journal entries currently linked to this reconciliation match.",
             "items": {
               "$ref": "#/components/schemas/JournalEntrySummary"
             },
@@ -8068,7 +8073,14 @@
           },
           "score_breakdown": {
             "additionalProperties": {
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
             },
             "title": "Score Breakdown",
             "type": "object"
@@ -8136,6 +8148,7 @@
                 "type": "null"
               }
             ],
+            "description": "Maximum number of candidate matches to evaluate.",
             "title": "Limit"
           },
           "statement_id": {
@@ -8693,6 +8706,7 @@
         "description": "Conflict candidates for a statement.",
         "properties": {
           "duplicates": {
+            "description": "Transaction candidates that may be duplicate entries",
             "items": {
               "$ref": "#/components/schemas/ReviewConflictCandidate"
             },
@@ -8705,6 +8719,7 @@
             "type": "boolean"
           },
           "transfer_pairs": {
+            "description": "Opposite-direction transaction candidates that may be transfers",
             "items": {
               "$ref": "#/components/schemas/ReviewConflictCandidate"
             },
@@ -8713,6 +8728,159 @@
           }
         },
         "title": "ReviewConflictsResponse",
+        "type": "object"
+      },
+      "ReviewedStatementEnvelopeRequest": {
+        "description": "Human-confirmed facts for one exact immutable extraction result.",
+        "properties": {
+          "account_id": {
+            "description": "User-owned asset account that holds the statement cash",
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "closing_balance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Confirmed closing balance in statement currency",
+            "title": "Closing Balance"
+          },
+          "currency": {
+            "description": "ISO-4217 currency confirmed for the statement envelope",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "opening_balance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Confirmed opening balance in statement currency",
+            "title": "Opening Balance"
+          },
+          "period_end": {
+            "description": "Confirmed inclusive statement period end",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "description": "Confirmed inclusive statement period start",
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "rationale": {
+            "description": "Reviewer evidence for confirming facts absent from the source result",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "source_result_digest": {
+            "description": "SHA-256 digest of the current immutable extraction result",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Source Result Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_result_digest",
+          "account_id",
+          "currency",
+          "period_start",
+          "period_end",
+          "opening_balance",
+          "closing_balance",
+          "rationale"
+        ],
+        "title": "ReviewedStatementEnvelopeRequest",
+        "type": "object"
+      },
+      "ReviewedStatementEnvelopeResponse": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "closing_balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Closing Balance",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "opening_balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Opening Balance",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "review_trace_record_id": {
+            "format": "uuid",
+            "title": "Review Trace Record Id",
+            "type": "string"
+          },
+          "source_result_digest": {
+            "title": "Source Result Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_result_digest",
+          "account_id",
+          "currency",
+          "period_start",
+          "period_end",
+          "opening_balance",
+          "closing_balance",
+          "rationale",
+          "review_trace_record_id",
+          "created_at"
+        ],
+        "title": "ReviewedStatementEnvelopeResponse",
         "type": "object"
       },
       "Scene": {
@@ -8740,6 +8908,7 @@
                 "type": "string"
               }
             ],
+            "description": "Manual opening balance used for the statement chain",
             "title": "Opening Balance"
           }
         },
@@ -9249,6 +9418,41 @@
             ],
             "title": "Period Start"
           },
+          "reviewed_envelope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewedStatementEnvelopeResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_envelope_reviewable": {
+            "default": false,
+            "description": "Whether the current source's missing facts can be confirmed by a cash statement envelope",
+            "title": "Source Envelope Reviewable",
+            "type": "boolean"
+          },
+          "source_missing_facts": {
+            "description": "Current source facts that require a reviewed-envelope confirmation",
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Missing Facts",
+            "type": "array"
+          },
+          "source_result_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Result Digest"
+          },
           "stage1_reviewed_at": {
             "anyOf": [
               {
@@ -9275,6 +9479,7 @@
             "$ref": "#/components/schemas/BankStatementStatus"
           },
           "transactions": {
+            "description": "Transactions extracted for this statement review",
             "items": {
               "$ref": "#/components/schemas/AtomicTransactionResponse"
             },
@@ -25920,6 +26125,135 @@
           }
         ],
         "summary": "Edit And Approve Statement",
+        "tags": [
+          "statements"
+        ]
+      }
+    },
+    "/statements/{statement_id}/review/envelope": {
+      "post": {
+        "description": "Append a typed human confirmation over the statement's current source result.",
+        "operationId": "confirm_statement_review_envelope_statements__statement_id__review_envelope_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewedStatementEnvelopeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedStatementEnvelopeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Confirm Statement Review Envelope",
         "tags": [
           "statements"
         ]
