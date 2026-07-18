@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +27,7 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    trace_decision_projection,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger import (
@@ -40,6 +42,7 @@ from src.ledger import (
     submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
+from src.ledger.extension import anchored_posting
 from src.ledger.extension.anchored_posting import AnchoredJournalCommand, validate_decision_anchor
 from src.reconciliation.extension.reviewed_disposition import _find_existing_entry
 
@@ -412,8 +415,57 @@ async def test_current_anchored_journal_entries_rejects_stale_or_mismatched_auth
     assert current == []
 
 
+@pytest.mark.asyncio
+async def test_anchored_command_sink_failure_rolls_back_trace_and_ledger(
+    db: AsyncSession,
+    test_user,
+    monkeypatch,
+) -> None:
+    """AC-ledger.79.6: the caller can roll back the complete causal write set."""
+
+    user_id = test_user.id
+
+    async def fail_after_trace_flush(*_args, **_kwargs):
+        raise RuntimeError("injected ledger sink failure")
+
+    monkeypatch.setattr(anchored_posting, "_create_anchored_journal_entry", fail_after_trace_flush)
+    account_a, account_b = uuid4(), uuid4()
+    with pytest.raises(RuntimeError, match="injected ledger sink failure"):
+        await anchored_posting.submit_system_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=date(2026, 7, 18),
+            memo="Atomic fault injection",
+            lines_data=[
+                {
+                    "account_id": account_a,
+                    "direction": Direction.DEBIT,
+                    "amount": Decimal("1.00"),
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": account_b,
+                    "direction": Direction.CREDIT,
+                    "amount": Decimal("1.00"),
+                    "currency": "SGD",
+                },
+            ],
+            base_currency="SGD",
+            operation="fault-injection",
+        )
+    await db.rollback()
+
+    projection = trace_decision_projection(TraceScope.tenant(user_id)).subquery()
+    trace_count = await db.scalar(select(func.count()).select_from(projection))
+    journal_count = await db.scalar(
+        select(func.count()).select_from(JournalEntry).where(JournalEntry.user_id == user_id)
+    )
+    assert trace_count == 0
+    assert journal_count == 0
+
+
 def test_production_financial_writers_have_one_anchored_persistence_boundary() -> None:
-    """AC-ledger.79.6: source/review writers cannot retain an unanchored fork."""
+    """AC-ledger.79.4: source/review writers cannot retain an unanchored fork."""
     source_root = Path(__file__).parents[2] / "src"
     allowed_constructors = {
         "ledger/extension/repository.py",

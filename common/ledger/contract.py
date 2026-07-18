@@ -2400,6 +2400,20 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-ledger.79.6",
+            statement=(
+                "Trace emission and decision-anchored ledger persistence share the caller-owned "
+                "unit of work: a fault after TraceRecord flush but before JournalEntry creation "
+                "can be rolled back with zero assurance or accounting partial write."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_anchored_command_sink_failure_rolls_back_trace_and_ledger"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(
