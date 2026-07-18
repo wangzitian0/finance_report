@@ -85,6 +85,19 @@ CHECKS: tuple[Check, ...] = (
         why="EPIC/AC changed: regenerate the registry and re-run the single AC-index gate (folds in EPIC->AC->test traceability + critical-proof contract)",
     ),
     Check(
+        name="ac-proof-traceability",
+        globs=(
+            "tests/*.py",
+            "apps/backend/tests/*.py",
+            "apps/frontend/*.test.ts",
+            "apps/frontend/*.test.tsx",
+            "apps/frontend/*.spec.ts",
+            "apps/frontend/*.spec.tsx",
+        ),
+        commands=((PY, "tools/check_ac_index.py"),),
+        why="Test proof changed: re-run the single AC-index integrity gate so every declared AC reference remains discoverable before CI",
+    ),
+    Check(
         name="ssot-ownership",
         # docs/ssot/ is retired (#1823); the concept registry lives at
         # common/meta/data/MANIFEST.yaml now, so that path (not the dead
@@ -358,7 +371,10 @@ def run_checks(
         )
         ok = True
         for command in check.commands:
-            if runner(_resolve(command, python, matching_paths=matching_paths), cwd) != 0:
+            if (
+                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
+                != 0
+            ):
                 ok = False
                 break
         results.append(CheckResult(check.name, ok))

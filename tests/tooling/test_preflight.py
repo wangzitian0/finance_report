@@ -58,6 +58,16 @@ class TestSelectChecks:
         ]
         assert "gate-contracts" in names
 
+    def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
+        """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["apps/backend/tests/audit/test_boundary_codecs.py"], tier="static"
+            )
+        ]
+        assert "ac-proof-traceability" in names
+
     def test_docs_edit_selects_doc_consistency(self):
         names = [c.name for c in preflight.select_checks(["docs/project/README.md"])]
         assert "doc-consistency" in names  # docs/* matches

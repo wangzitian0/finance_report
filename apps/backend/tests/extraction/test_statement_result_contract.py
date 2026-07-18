@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from common.testing.ac_proof import ac_proof
 
 from src.extraction import (
     SOURCE_CAPABILITIES,
@@ -15,6 +16,7 @@ from src.extraction import (
     ExtractedPositionFact,
     ExtractedTransactionFact,
     ExtractionMethod,
+    SourceCapability,
     SourceCapabilityStatus,
     SourceProvenance,
     StatementBalanceFact,
@@ -288,3 +290,83 @@ def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
     assert by_id["settlement_note"].status is SourceCapabilityStatus.GAP
     assert by_id["csv_export"].status is SourceCapabilityStatus.MANUAL_TRUSTED
     assert "pytest" not in repr(SOURCE_CAPABILITIES).lower()
+
+
+@ac_proof(
+    proof_id="test_statement_result_source_facts_fail_closed",
+    ac_ids=["AC-extraction.result-envelope.1"],
+    ci_tier="pr_ci",
+    issue="#950",
+)
+def test_AC_extraction_result_envelope_1_rejects_malformed_source_facts():
+    """AC-extraction.result-envelope.1: malformed primitive source facts fail closed."""
+    complete = _complete_result()
+
+    with pytest.raises(ValueError, match="provider is required"):
+        SourceProvenance("pdf", ExtractionMethod.DETERMINISTIC, " ", "model")
+    with pytest.raises(TypeError, match="method must be ExtractionMethod"):
+        SourceProvenance("pdf", "deterministic", "provider", "model")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="currency must be a three-letter code"):
+        StatementBalanceFact("US", Decimal("0"), Decimal("1"))
+    with pytest.raises(TypeError, match="balances must use Decimal"):
+        StatementBalanceFact("USD", 0, Decimal("1"))  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="transaction direction"):
+        replace(complete.transactions[0], direction="SIDEWAYS")
+    with pytest.raises(ValueError, match="positive Decimal"):
+        replace(complete.transactions[0], amount=Decimal("0"))
+    with pytest.raises(TypeError, match="balance_after must use Decimal"):
+        replace(complete.transactions[0], balance_after=0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="transaction confidence"):
+        replace(complete.transactions[0], confidence=Decimal("1.01"))
+    with pytest.raises(TypeError, match="position values must use Decimal"):
+        replace(complete.positions[0], quantity=1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="status must be SourceCapabilityStatus"):
+        SourceCapability(
+            capability_id="invalid",
+            status="supported",  # type: ignore[arg-type]
+            intake_modes=("pdf",),
+            evidence_kinds=("statement",),
+            produced_facts=("transaction",),
+            review_semantics="review",
+            traceability_target="trace",
+        )
+    with pytest.raises(ValueError, match="cannot own test paths"):
+        SourceCapability(
+            capability_id="invalid",
+            status=SourceCapabilityStatus.SUPPORTED,
+            intake_modes=("pytest",),
+            evidence_kinds=("statement",),
+            produced_facts=("transaction",),
+            review_semantics="review",
+            traceability_target="trace",
+        )
+    with pytest.raises(ValueError, match="requires semantic identifiers"):
+        SourceCapability(
+            capability_id="invalid",
+            status=SourceCapabilityStatus.SUPPORTED,
+            intake_modes=("",),
+            evidence_kinds=("statement",),
+            produced_facts=("transaction",),
+            review_semantics="review",
+            traceability_target="trace",
+        )
+
+    for invalid in (
+        {"schema_version": "999"},
+        {"source_content_digest": "A" * 64},
+        {"source_type": "bank_statement"},
+        {"evidence_type": "transaction_ledger"},
+        {"account_last4": "12345"},
+        {"period_start": date(2026, 2, 1), "period_end": date(2026, 1, 1)},
+        {"balances": (complete.balances[0], complete.balances[0])},
+        {"confidence": 1},
+        {"confidence": Decimal("-0.01")},
+        {"warnings": ("",)},
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            replace(complete, **invalid)
+
+    identity_mismatch = complete.to_payload()
+    identity_mismatch["content_digest"] = "0" * 64
+    with pytest.raises(ValueError, match="identity mismatch"):
+        StatementExtractionResult.from_payload(identity_mismatch)
