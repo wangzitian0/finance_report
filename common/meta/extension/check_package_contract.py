@@ -83,6 +83,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
+from common.meta.base.dependency_graph import build_dependency_graph
 from common.meta.base.package_contract import (
     KIND_LAYER,
     LAYER_RANK,
@@ -686,32 +687,19 @@ def _check_cross_domain_fk(
 
 
 def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
-    """Detect any cycle in the declared ``depends_on`` graph.
+    """Validate the declared graph with meta's single pure topology policy.
 
     Same-class (sideways) edges are allowed when declared, so the no-cycle rule is
     enforced globally here rather than by a strict rank ordering ("never up, never
-    sideways-cyclic"). A cycle in ``depends_on`` is a hard error.
+    sideways-cyclic"). The compatibility name remains because existing callers use
+    it, but duplicate/unknown/self dependencies now fail through the same graph
+    builder consumed by the data projection and impact report.
     """
-    graph = {p.name: list(p.contract.depends_on) for p in packages}
-    color = dict.fromkeys(graph, 0)  # 0=unvisited, 1=on-stack, 2=done
-    offenders: list[str] = []
-
-    def visit(node: str, path: list[str]) -> None:
-        color[node] = 1
-        for dep in graph.get(node, []):
-            if dep not in graph:
-                continue  # unregistered dep; the edge rule handles declared-ness
-            if color[dep] == 1:
-                cycle = path[path.index(dep) :] + [dep] if dep in path else [node, dep]
-                offenders.append("dependency cycle: " + " -> ".join(cycle))
-            elif color[dep] == 0:
-                visit(dep, path + [dep])
-        color[node] = 2
-
-    for name in sorted(graph):
-        if color[name] == 0:
-            visit(name, [name])
-    return sorted(set(offenders))
+    try:
+        build_dependency_graph([package.contract for package in packages])
+    except ValueError as exc:
+        return [str(exc)]
+    return []
 
 
 def _sibling_import_hit(node: ast.AST, prefix: str, sibling: str) -> str | None:

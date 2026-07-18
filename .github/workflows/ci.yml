@@ -180,6 +180,24 @@ jobs:
             --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
             --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
           cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: DDD Dependency Impact Report
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          uv run --with pydantic python tools/report_ddd_dependencies.py \
+            --base-ref "$base_sha" \
+            --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
+            --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
+          cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Migration Risk Contract Check
         run: |
           uv run --with pyyaml python tools/check_migration_risk.py

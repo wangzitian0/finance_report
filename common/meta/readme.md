@@ -152,6 +152,57 @@ Because governance reads the contract, adding a package adds no central index to
 edit: a new package is governed when `common/<pkg>/contract.py` exports a
 module-level `CONTRACT = PackageContract(...)`.
 
+### Dependency impact is a generated review plane
+
+`PackageContract.depends_on` and `PackageContract.interface` remain the authored
+facts. `common/meta/base/dependency_graph.py` validates those facts as one typed
+acyclic graph and computes direct plus transitive consumers; the pure
+`dependency_index` projection exposes that graph without filesystem I/O. There
+is no authored dependency table alongside the contracts.
+
+`common/meta/extension/dependency_report.py` owns the impure review edge. It
+reads only the dependency-relevant contract literals and public definitions via
+AST, archives the chosen Git base ref into an isolated temporary tree, and
+builds that historical snapshot in a clean `python -I` subprocess before
+comparing it with the working tree. A historical contract is therefore never
+reinterpreted through HEAD's `PackageContract` model. The JSON report includes
+added/removed typed edges, changed public signatures, and the union of base/head
+direct and transitive consumers. Public-boundary inspection starts at each
+implementation root and follows eager, chained, wildcard, and the repository's
+bounded lazy `__getattr__` export forms plus local assignment aliases to the
+owning definition. Its signature retains that binding path plus overload
+declarations, annotated values,
+decorators, generic type parameters, local and repository-imported named defaults,
+annotation aliases (including `TYPE_CHECKING` declarations), class construction,
+repository-owned inherited APIs, public protocol dunder methods, and other public
+class members. Referenced local/imported function/class definitions, class-scope
+values, and decorator bindings are fingerprinted as well. Bare and module-qualified
+project bindings use the same resolver; relative lazy imports retain their explicit
+level. Value bindings are fingerprinted at their assignment/import time, so later
+rebinding cannot rewrite a captured default or alias. Wildcard binding obeys the
+target's `__all__`; missing
+explicit or lazy targets and ambiguous lazy control flow fail closed. Every declared public
+symbol gets exactly one snapshot record, and the repository snapshot is ratcheted
+to zero unresolved dynamic exports; a declaration with no statically visible
+binding is exposed as `dynamic-export` rather than silently matched to an
+unrelated same-named definition. Unreadable refs, empty discovery,
+duplicate/unknown/self edges, and cycles fail closed.
+
+The report is ephemeral CI output, not SSOT: `.github/workflows/ci.yml` appends
+its Markdown view to `GITHUB_STEP_SUMMARY`, while the contracts remain the only
+authored dependency source. Run the same report locally with:
+
+```bash
+apps/backend/.venv/bin/python tools/report_ddd_dependencies.py \
+  --base-ref origin/main \
+  --json-out /tmp/ddd-dependencies.json \
+  --markdown-out /tmp/ddd-dependencies.md
+```
+
+This first plane represents `depends_on` as `compile` edges. Typed ports, event
+subscriptions, delivery/composition bindings, and the frontend L4 graph extend
+the same vocabulary in later #1894 slices; they do not create parallel graphs.
+
 That additive discovery has a blind spot: a directory with no discoverable
 `CONTRACT = PackageContract(...)` export is invisible to
 `check_package_contract`, not rejected — exactly how `common/ci`,
@@ -172,7 +223,8 @@ silently bypassing package governance.
   live example of a project-level shared (meta-model) package — the building-block
   layering it governs, applied to itself. Its
   [`contract.py`](./contract.py) publishes `PackageContract` / `ACRecord` /
-  `Invariant` / `Kind` / `Unit` / `contract_index` / `ac_vision_index`, declares its `units` (the
+  `Invariant` / `Kind` / `Unit` / `DependencyKind` / `DependencyEdge` /
+  `contract_index` / `dependency_index` / `ac_vision_index`, declares its `units` (the
   `PackageContract` aggregate + value objects in `base/`, the gate as a
   `domain-service` in `extension/`, both indexes as projections in
   `data/`), and its invariants + `AC-meta.*` roadmap pin to the governance-gate

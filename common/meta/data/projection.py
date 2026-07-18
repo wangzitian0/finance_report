@@ -22,17 +22,25 @@ The index answers the questions the standard's ``data`` layer is meant to:
 Sibling projections answer the same computed-registry question for package
 declarations: :func:`concept_index` maps SSOT concepts to their metadata, while
 :func:`ac_vision_index` maps roadmap AC ids to their declared ``vision.md``
-anchors.
+anchors. :func:`dependency_index` is the reviewable dependency plane: typed
+contract edges plus deterministic direct and transitive consumers.
 """
 
 from __future__ import annotations
 
+from common.meta.base.dependency_graph import build_dependency_graph
 from common.meta.base.package_contract import (
     KIND_LAYER,
     SPLIT,
     ConceptRecord,
     PackageContract,
 )
+
+
+def dependency_index(contracts: list[PackageContract]) -> dict[str, object]:
+    """Project validated package contracts into the dependency read model."""
+
+    return build_dependency_graph(contracts).as_dict()
 
 
 def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:

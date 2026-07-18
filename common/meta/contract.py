@@ -10,8 +10,10 @@ meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension
 / ``data`` layers it governs, and declares its DDD building-block ``units`` (the
 ``PackageContract`` aggregate root + its value objects in ``base``, the gate as a
 ``domain-service`` in ``extension``, and ``contract_index`` as a ``projection`` in
-``data``). Its BE implementation is ``common/meta`` (the same directory): the
-published language is ``common/meta/__init__.py``'s ``__all__``.
+``data``). The pure dependency graph policy lives in ``base``; ``data`` exposes
+its computed projection and ``extension`` renders ref-isolated impact reports.
+Its BE implementation is ``common/meta`` (the same directory): the published
+language is ``common/meta/__init__.py``'s ``__all__``.
 """
 
 from __future__ import annotations
@@ -51,6 +53,16 @@ CONTRACT = PackageContract(
         ),
         Unit(name="Unit", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"),
         Unit(name="Kind", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"),
+        Unit(
+            name="DependencyKind",
+            kind=Kind.VALUE_OBJECT,
+            module="base/dependency_graph.py",
+        ),
+        Unit(
+            name="DependencyEdge",
+            kind=Kind.VALUE_OBJECT,
+            module="base/dependency_graph.py",
+        ),
         # extension — the impure edge: the governance gate (a domain service that
         # walks the tree and validates every package against its contract).
         Unit(
@@ -58,14 +70,24 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/check_package_contract.py",
         ),
+        Unit(
+            name="dependency_report",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/dependency_report.py",
+        ),
         # data — the read-model: the computed meta-index over all contracts.
         Unit(name="contract_index", kind=Kind.PROJECTION, module="data/projection.py"),
         Unit(name="ac_vision_index", kind=Kind.PROJECTION, module="data/projection.py"),
+        Unit(
+            name="dependency_index", kind=Kind.PROJECTION, module="data/projection.py"
+        ),
     ],
     implementations={"be": "common/meta", "fe": None},
     interface=[
         "ACRecord",
         "ConceptRecord",
+        "DependencyEdge",
+        "DependencyKind",
         "Invariant",
         "Kind",
         "PackageContract",
@@ -73,6 +95,7 @@ CONTRACT = PackageContract(
         "ac_vision_index",
         "concept_index",
         "contract_index",
+        "dependency_index",
     ],
     events=[],
     invariants=[
@@ -277,6 +300,40 @@ CONTRACT = PackageContract(
                 "::test_AC_meta_projection_1_contract_index_is_pure"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.dependency-governance.1",
+            statement=(
+                "The computed dependency index projects package contracts into "
+                "typed edges plus deterministic direct and transitive consumers, "
+                "and rejects duplicate, unknown, self, or cyclic package topology."
+            ),
+            test=(
+                "tests/tooling/test_ddd_dependency_report.py"
+                "::test_AC_meta_dependency_governance_1_projection_has_typed_edges_and_transitive_consumers"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.dependency-governance.2",
+            statement=(
+                "A ref-isolated base-vs-HEAD dependency impact report shows typed "
+                "edge and public-boundary changes with every direct and transitive "
+                "consumer. Boundary fingerprints resolve root bindings, local or "
+                "module-qualified aliases, inherited APIs, TYPE_CHECKING annotation "
+                "aliases, and local or imported named defaults at binding time "
+                "without importing implementation modules. Referenced project "
+                "definitions, class-scope values, decorator bindings, and relative "
+                "lazy-import levels are fingerprinted too; unreadable discovery or "
+                "ambiguous exports fail closed."
+            ),
+            test=(
+                "tests/tooling/test_ddd_dependency_report.py"
+                "::test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers"
+            ),
+            priority="P0",
             status="done",
         ),
         ACRecord(
