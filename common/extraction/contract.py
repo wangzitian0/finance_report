@@ -3842,6 +3842,23 @@ CONTRACT = PackageContract(
             proof_kind="invariant",
         ),
         ACRecord(
+            id="AC-extraction.1913.10",
+            statement=(
+                "A staging deploy pins the durable statement canary's checkout to its "
+                "emitted commit SHA and its live-health assertion to the release tag that "
+                "the deploy receiver has verified resolves to that SHA; it fails the deploy "
+                "workflow when a required upload, parse, import, or value journey fails; "
+                "comprehensive audit replay remains diagnostic evidence."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocking"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
             id="AC-extraction.ingestion-trace.1",
             statement=(
                 "The typed extraction result, its CODE-only integrity guard, and "

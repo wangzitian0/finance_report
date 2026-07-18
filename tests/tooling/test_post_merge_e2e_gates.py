@@ -612,6 +612,28 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
     assert "audit-replay.yml" in ci_cd
 
 
+def test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocking() -> (
+    None
+):
+    """AC-extraction.1913.10: required durable statement journeys fail the deploy."""
+    deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
+    canary = deploy["jobs"]["ai-ocr-gate"]
+    emitted_sha = "${{ needs.build-and-deploy.outputs.commit_full_sha }}"
+    release_tag = "${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
+    deploy_request = (
+        read(".github/workflows/deploy.yml")
+        .split("Deploy to Staging through infra2 receiver", 1)[1]
+        .split("Confirm staging backend health", 1)[0]
+    )
+
+    assert canary["with"]["corpus"] == "canary"
+    assert canary["with"]["blocking"] is True
+    assert canary["with"]["commit_ref"] == emitted_sha
+    assert canary["with"]["expected_sha"] == release_tag
+    assert 'source_sha="${{ steps.release.outputs.full_sha }}"' in deploy_request
+    assert '--source-sha "$source_sha"' in deploy_request
+
+
 def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
     """AC-testing.deploy-gates.33: AC8.13.158: provider transient (5xx/timeout)=degraded, 4xx/config=block; the
     canary delegates this classification to the Staging Provider Gate."""
@@ -680,7 +702,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
         in deploy_workflow
     )
-    assert "blocking: false" in deploy_workflow
+    assert "blocking: true" in deploy_workflow
 
     # The gate body (corpus replay, contract shell, version check) lives once in
     # the reusable workflow.
@@ -1179,15 +1201,14 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         in workflow
     )
     assert 'delivery_status="skipped-no-staging-required"' in workflow
-    assert "passed-ai-ocr-regression-recorded" in workflow
     assert 'failure_reason="build/deploy gate failed"' in workflow
     assert 'failure_reason="provider connectivity gate failed"' in workflow
-    assert 'failure_reason="staging AI/OCR gate failed"' not in workflow
-    assert "Post-merge delivery failed: staging AI/OCR gate failed" not in workflow
-    # The inline AI/OCR caller stays non-blocking via the reusable gate's
-    # blocking=false input (a uses: caller cannot set continue-on-error).
+    assert 'failure_reason="staging AI/OCR canary failed"' in workflow
+    assert "Post-merge delivery failed: ${failure_reason}" in workflow
+    # A reusable-workflow caller cannot set continue-on-error, so blocking must
+    # be enforced by the caller input and reflected in the delivery aggregate.
     assert (
-        "blocking: false"
+        "blocking: true"
         in workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0]
     )
     assert 'delivery_status="degraded-provider"' in workflow
@@ -1207,7 +1228,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     ) in workflow
     assert "dedicated `Post-merge Delivery` check" in ci_cd
     assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
-    assert "full AI/OCR report-package regression is right-shifted" in ci_cd
+    assert "comprehensive staging AI/OCR audit replay" in ci_cd
     assert "Release gate reclassification" in ci_cd
     assert "Left-shifted:" in ci_cd
     assert "Strengthened:" in ci_cd
