@@ -237,7 +237,8 @@ can promote a diverged projection.
 `resolve_statement_contribution()` and `list_statement_contributions()` are
 the only extraction interfaces a report package may use for statement source
 facts. A `ResolvedStatementContribution` contains the exact immutable current
-`StatementExtractionResult`, persisted source-result id, input ref, and current
+`StatementExtractionResult`, persisted source-result id, immutable
+uploaded-document reference when one is present, input refs, and current
 promotion or reviewed-envelope `TraceRecord` decision. It carries transaction
 and position facts exactly as persisted; it never reconstructs a cassette or
 exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a

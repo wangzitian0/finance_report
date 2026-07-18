@@ -4021,7 +4021,7 @@ CONTRACT = PackageContract(
             statement=(
                 "resolve_statement_contribution publishes the exact current immutable "
                 "StatementExtractionResult, including its transaction and position facts, "
-                "record identity, digest, and decision id without reconstructing a cassette "
+                "record identity, digest, uploaded-document reference, and decision id without reconstructing a cassette "
                 "or exposing extraction ORM rows to consumers."
             ),
             test=(
@@ -4051,9 +4051,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.statement-contribution.3",
             statement=(
-                "Missing, non-authoritative, stale, cross-tenant, or target-mismatched "
-                "source decisions return an explicit unproven contribution and never grant "
-                "trust to a package consumer."
+                "Malformed, missing, non-authoritative, stale, cross-tenant, or target-mismatched "
+                "source facts or decisions return an explicit unproven contribution and never grant "
+                "trust to a package consumer; authoritative contributions carry no reason code and "
+                "unproven contributions carry no decision id."
             ),
             test=(
                 "apps/backend/tests/extraction/test_statement_contribution.py"

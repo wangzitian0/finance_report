@@ -28,6 +28,7 @@ def _unproven(
     source_result: StatementExtractionResult | None = None,
     effective_period_start: date | None = None,
     effective_period_end: date | None = None,
+    source_document_id: UUID | None = None,
 ) -> ResolvedStatementContribution:
     return ResolvedStatementContribution(
         statement_id=statement_id,
@@ -38,6 +39,7 @@ def _unproven(
         state="unproven",
         reason_code=reason_code,
         decision_id=None,
+        source_document_id=source_document_id,
     )
 
 
@@ -58,18 +60,27 @@ async def resolve_statement_contribution(
     if statement is None or statement.user_id != user_id:
         return _unproven(statement_id=statement_id, reason_code="missing_statement")
     if statement.current_extraction_result_id is None:
-        return _unproven(statement_id=statement.id, reason_code="missing_current_source_result")
+        return _unproven(
+            statement_id=statement.id,
+            reason_code="missing_current_source_result",
+            source_document_id=statement.uploaded_document_id,
+        )
 
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
     if source_record is None or source_record.user_id != user_id or source_record.statement_id != statement.id:
-        return _unproven(statement_id=statement.id, reason_code="missing_current_source_result")
+        return _unproven(
+            statement_id=statement.id,
+            reason_code="missing_current_source_result",
+            source_document_id=statement.uploaded_document_id,
+        )
     try:
         source_result = StatementExtractionResult.from_payload(source_record.payload)
-    except (TypeError, ValueError):
+    except (KeyError, TypeError, ValueError):
         return _unproven(
             statement_id=statement.id,
             source_result_id=source_record.id,
             reason_code="invalid_current_source_result",
+            source_document_id=statement.uploaded_document_id,
         )
     if source_result.content_digest != source_record.content_digest:
         return _unproven(
@@ -79,6 +90,7 @@ async def resolve_statement_contribution(
             effective_period_start=source_result.period_start,
             effective_period_end=source_result.period_end,
             reason_code="source_result_digest_mismatch",
+            source_document_id=statement.uploaded_document_id,
         )
 
     repository = SqlTraceRecordRepository(db, extraction_trace_policy_registry())
@@ -95,6 +107,7 @@ async def resolve_statement_contribution(
                 effective_period_start=source_result.period_start,
                 effective_period_end=source_result.period_end,
                 reason_code="missing_reviewed_envelope",
+                source_document_id=statement.uploaded_document_id,
             )
         target = VersionedTraceRef(
             kind="reviewed_statement_envelope",
@@ -123,6 +136,7 @@ async def resolve_statement_contribution(
             effective_period_start=source_result.period_start,
             effective_period_end=source_result.period_end,
             reason_code="missing_current_decision",
+            source_document_id=statement.uploaded_document_id,
         )
     if decision.target != target or (expected_decision_id is not None and decision.record_id != expected_decision_id):
         return _unproven(
@@ -132,6 +146,7 @@ async def resolve_statement_contribution(
             effective_period_start=source_result.period_start,
             effective_period_end=source_result.period_end,
             reason_code="target_mismatched_decision",
+            source_document_id=statement.uploaded_document_id,
         )
     if decision.result is not TraceResult.AUTHORITATIVE:
         return _unproven(
@@ -141,6 +156,7 @@ async def resolve_statement_contribution(
             effective_period_start=source_result.period_start,
             effective_period_end=source_result.period_end,
             reason_code="non_authoritative_decision",
+            source_document_id=statement.uploaded_document_id,
         )
     return ResolvedStatementContribution(
         statement_id=statement.id,
@@ -151,6 +167,7 @@ async def resolve_statement_contribution(
         state="authoritative",
         reason_code=None,
         decision_id=decision.record_id,
+        source_document_id=statement.uploaded_document_id,
     )
 
 

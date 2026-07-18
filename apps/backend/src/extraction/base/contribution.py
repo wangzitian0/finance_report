@@ -28,6 +28,7 @@ class ResolvedStatementContribution:
     state: Literal["authoritative", "unproven"]
     reason_code: str | None
     decision_id: UUID | None
+    source_document_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.state == "authoritative" and (
@@ -38,6 +39,8 @@ class ResolvedStatementContribution:
             or self.effective_period_end is None
         ):
             raise ValueError("an authoritative statement contribution requires source identity and decision")
+        if self.state == "authoritative" and self.reason_code is not None:
+            raise ValueError("an authoritative statement contribution cannot have a reason_code")
         if (
             self.effective_period_start is not None
             and self.effective_period_end is not None
@@ -46,6 +49,8 @@ class ResolvedStatementContribution:
             raise ValueError("effective statement period is invalid")
         if self.state == "unproven" and not self.reason_code:
             raise ValueError("an unproven statement contribution requires a reason_code")
+        if self.state == "unproven" and self.decision_id is not None:
+            raise ValueError("an unproven statement contribution cannot have a decision_id")
 
     @property
     def is_authoritative(self) -> bool:
@@ -55,4 +60,7 @@ class ResolvedStatementContribution:
     def input_refs(self) -> tuple[str, ...]:
         if self.source_result_id is None:
             return ()
-        return (f"statement_result:{self.source_result_id}",)
+        refs = [f"statement_result:{self.source_result_id}"]
+        if self.source_document_id is not None:
+            refs.append(f"source_document:{self.source_document_id}")
+        return tuple(refs)

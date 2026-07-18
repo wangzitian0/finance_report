@@ -9,6 +9,8 @@ from uuid import uuid4
 import pytest
 
 from src.audit import SqlTraceRecordRepository, TraceEmitter
+from src.extraction import DocumentType, UploadedDocument
+from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.result import (
     ExtractedPositionFact,
     ExtractedTransactionFact,
@@ -110,8 +112,18 @@ def _result(*, source_digest: str, evidence_type: StatementEvidenceType) -> Stat
 
 
 async def _seed_current_result(db, test_user, *, result: StatementExtractionResult):
+    document = UploadedDocument(
+        user_id=test_user.id,
+        file_path=f"memory://statement-contribution/{result.source_content_digest}",
+        file_hash=result.source_content_digest,
+        original_filename="statement.csv",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(document)
+    await db.flush()
     statement = StatementSummary(
         user_id=test_user.id,
+        uploaded_document_id=document.id,
         file_hash=result.source_content_digest,
         institution=result.institution,
         account_last4=result.account_last4,
@@ -138,13 +150,13 @@ async def _seed_current_result(db, test_user, *, result: StatementExtractionResu
         result=result,
         source_trace_record_id=trace_records[0].record_id,
     )
-    return statement, source_record, emitter
+    return statement, source_record, emitter, document
 
 
 async def test_AC_extraction_statement_contribution_1_preserves_exact_position_source_result(db, test_user):
     """AC-extraction.statement-contribution.1: source facts cross the package boundary intact."""
     result = _result(source_digest="a" * 64, evidence_type=StatementEvidenceType.POSITION_SNAPSHOT)
-    statement, source_record, _emitter = await _seed_current_result(db, test_user, result=result)
+    statement, source_record, _emitter, document = await _seed_current_result(db, test_user, result=result)
 
     contribution = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
     listed = await list_statement_contributions(db, user_id=test_user.id, as_of=date(2026, 1, 31))
@@ -156,14 +168,18 @@ async def test_AC_extraction_statement_contribution_1_preserves_exact_position_s
     assert contribution.source_result.positions == result.positions
     assert contribution.effective_period_start == date(2026, 1, 1)
     assert contribution.effective_period_end == date(2026, 1, 31)
-    assert contribution.input_refs == (f"statement_result:{source_record.id}",)
+    assert contribution.source_document_id == document.id
+    assert contribution.input_refs == (
+        f"statement_result:{source_record.id}",
+        f"source_document:{document.id}",
+    )
     assert listed == (contribution,)
 
 
 async def test_AC_extraction_statement_contribution_2_reviewed_envelope_pins_exact_decision(db, test_user):
     """AC-extraction.statement-contribution.2: an incomplete CSV needs its current review decision."""
     result = _result(source_digest="b" * 64, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER)
-    statement, source_record, emitter = await _seed_current_result(db, test_user, result=result)
+    statement, source_record, emitter, document = await _seed_current_result(db, test_user, result=result)
     account = Account(user_id=test_user.id, name="Example Bank - SGD", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
@@ -191,16 +207,25 @@ async def test_AC_extraction_statement_contribution_2_reviewed_envelope_pins_exa
     assert contribution.decision_id == envelope.review_trace_record_id
     assert contribution.effective_period_start == date(2026, 1, 1)
     assert contribution.effective_period_end == date(2026, 1, 31)
-    assert contribution.input_refs == (f"statement_result:{source_record.id}",)
+    assert contribution.source_document_id == document.id
+    assert contribution.input_refs == (
+        f"statement_result:{source_record.id}",
+        f"source_document:{document.id}",
+    )
 
 
 async def test_AC_extraction_statement_contribution_3_fails_closed_without_current_decision(db, test_user):
-    """AC-extraction.statement-contribution.3: metadata and source rows cannot grant authority."""
+    """AC-extraction.statement-contribution.3: invalid source or decisions cannot grant authority."""
     result = _result(source_digest="c" * 64, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER)
-    statement, source_record, _emitter = await _seed_current_result(db, test_user, result=result)
+    statement, source_record, _emitter, _document = await _seed_current_result(db, test_user, result=result)
 
     missing_review = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
     cross_tenant = await resolve_statement_contribution(db, user_id=uuid4(), statement_id=statement.id)
+
+    malformed_payload = dict(source_record.payload)
+    malformed_payload.pop("schema_version")
+    source_record.payload = malformed_payload
+    malformed_source = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
 
     assert not missing_review.is_authoritative
     assert missing_review.source_result_id == source_record.id
@@ -208,3 +233,35 @@ async def test_AC_extraction_statement_contribution_3_fails_closed_without_curre
     assert missing_review.decision_id is None
     assert not cross_tenant.is_authoritative
     assert cross_tenant.reason_code == "missing_statement"
+    assert not malformed_source.is_authoritative
+    assert malformed_source.reason_code == "invalid_current_source_result"
+
+
+async def test_AC_extraction_statement_contribution_3_rejects_contradictory_authority_fields():
+    """AC-extraction.statement-contribution.3: state-specific authority fields are coherent."""
+    source_result_id = uuid4()
+    decision_id = uuid4()
+
+    with pytest.raises(ValueError, match="authoritative statement contribution cannot have a reason_code"):
+        ResolvedStatementContribution(
+            statement_id=uuid4(),
+            source_result_id=source_result_id,
+            source_result=_result(source_digest="d" * 64, evidence_type=StatementEvidenceType.POSITION_SNAPSHOT),
+            effective_period_start=date(2026, 1, 1),
+            effective_period_end=date(2026, 1, 31),
+            state="authoritative",
+            reason_code="unexpected_reason",
+            decision_id=decision_id,
+        )
+
+    with pytest.raises(ValueError, match="unproven statement contribution cannot have a decision_id"):
+        ResolvedStatementContribution(
+            statement_id=uuid4(),
+            source_result_id=None,
+            source_result=None,
+            effective_period_start=None,
+            effective_period_end=None,
+            state="unproven",
+            reason_code="missing_source",
+            decision_id=decision_id,
+        )
