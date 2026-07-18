@@ -32,6 +32,7 @@ class IntentProposalOrigin(StrEnum):
     REVIEWED_RULE = "reviewed_rule"
     LIVE_LLM = "live_llm"
     RECONCILIATION_FACT = "reconciliation_fact"
+    MANUAL_ADJUDICATION = "manual_adjudication"
 
 
 class DispositionStatus(StrEnum):
@@ -45,6 +46,27 @@ class DispositionMode(StrEnum):
     OFF = "off"
     OBSERVE = "observe"
     ENFORCE = "enforce"
+
+
+def intent_matches_counter_account(intent: EconomicIntent, account_type: str) -> bool:
+    """Return whether a counter-account side can represent an economic intent.
+
+    The policy consumes the account type as a string so its value-object layer
+    stays independent of ledger ORM classes. Every writer must use this one
+    table instead of inferring P&L meaning from transaction direction.
+    """
+    compatible_types = {
+        EconomicIntent.INCOME: {"INCOME"},
+        EconomicIntent.EXPENSE: {"EXPENSE"},
+        EconomicIntent.EXPENSE_REFUND: {"EXPENSE"},
+        EconomicIntent.LOAN_INTEREST: {"EXPENSE"},
+        EconomicIntent.INVESTMENT_PURCHASE: {"ASSET"},
+        EconomicIntent.INVESTMENT_SALE: {"ASSET"},
+        EconomicIntent.LOAN_PRINCIPAL: {"LIABILITY"},
+        EconomicIntent.CARD_REPAYMENT: {"LIABILITY"},
+        EconomicIntent.TRANSFER: {"ASSET"},
+    }
+    return account_type in compatible_types.get(intent, set())
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +96,7 @@ class IntentProposal:
     origin: IntentProposalOrigin
     intent: EconomicIntent
     category: str | None
-    confidence: Decimal
+    confidence: Decimal | None
     evidence: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -86,8 +108,11 @@ class IntentProposal:
             raise TypeError("intent proposal origin must be IntentProposalOrigin")
         if not isinstance(self.intent, EconomicIntent):
             raise TypeError("intent must be EconomicIntent")
-        if not isinstance(self.confidence, Decimal) or not Decimal("0") <= self.confidence <= Decimal("1"):
-            raise ValueError("intent confidence must be a Decimal within [0, 1]")
+        if self.origin is IntentProposalOrigin.MANUAL_ADJUDICATION:
+            if self.confidence is not None:
+                raise ValueError("manual adjudication cannot claim machine confidence")
+        elif not isinstance(self.confidence, Decimal) or not Decimal("0") <= self.confidence <= Decimal("1"):
+            raise ValueError("machine intent confidence must be a Decimal within [0, 1]")
         if not self.evidence or any(not value.strip() for value in self.evidence):
             raise ValueError("intent evidence is required")
 
@@ -96,6 +121,7 @@ class IntentProposal:
 class DispositionContext:
     accepted_transfer_match: bool = False
     counter_account_id: UUID | None = None
+    counter_account_type: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +190,11 @@ class DispositionPolicy:
     ) -> DispositionDecision:
         if proposal is None:
             return self._review(transaction, EconomicIntent.UNKNOWN, "intent_missing", mode=mode)
-        if proposal.confidence < self.authoritative_threshold:
+        if (
+            proposal.origin is not IntentProposalOrigin.MANUAL_ADJUDICATION
+            and proposal.confidence is not None
+            and proposal.confidence < self.authoritative_threshold
+        ):
             return self._review(transaction, proposal.intent, "intent_below_threshold", proposal.category, mode)
         if proposal.intent is EconomicIntent.TRANSFER:
             return DispositionDecision(
@@ -182,6 +212,12 @@ class DispositionPolicy:
             return self._review(transaction, proposal.intent, "intent_unsupported", mode=mode)
         if context.counter_account_id is None:
             return self._review(transaction, proposal.intent, "counter_account_missing", proposal.category, mode)
+        if context.counter_account_type is not None and not intent_matches_counter_account(
+            proposal.intent, context.counter_account_type
+        ):
+            return self._review(
+                transaction, proposal.intent, "intent_counter_account_conflict", proposal.category, mode
+            )
 
         required_direction = {
             EconomicIntent.INCOME: TransactionDirection.IN,

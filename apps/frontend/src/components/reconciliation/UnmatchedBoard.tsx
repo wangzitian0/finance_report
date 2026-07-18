@@ -3,21 +3,92 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { BackLink } from "@/components/ui/BackLink";
 import { apiFetch } from "@/lib/api";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import type { components } from "@/lib/api-types";
 import type {
+  Account,
+  AccountListResponse,
   BankStatementTransactionSummary,
   JournalEntrySummary,
   UnmatchedTransactionsResponse,
 } from "@/lib/types";
-import type { Schemas } from "@/lib/api-schema";
 
-type CreatedJournalEntrySummary = JournalEntrySummary & { currency?: string | null };
-type BatchCreateEntriesResponse = Schemas["BatchCreateEntriesResponse"];
+type EconomicIntent = components["schemas"]["EconomicIntent"];
+type ReviewedDispositionPayload = components["schemas"]["ReviewedDispositionRequest"];
+
+type ReviewedDispositionDraft = {
+  transactionId: string;
+  intent: EconomicIntent;
+  counterAccountId: string;
+  category: string;
+  rationale: string;
+};
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
+
+const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = [
+  { value: "income", label: "Income" },
+  { value: "expense", label: "Expense" },
+  { value: "expense_refund", label: "Expense refund" },
+  { value: "investment_purchase", label: "Investment purchase" },
+  { value: "investment_sale", label: "Investment sale" },
+  { value: "loan_principal", label: "Loan principal" },
+  { value: "loan_interest", label: "Loan interest" },
+  { value: "card_repayment", label: "Card repayment" },
+  { value: "transfer", label: "Internal transfer" },
+  { value: "unknown", label: "Unknown - needs review" },
+];
+
+function newReviewedDispositionDraft(transaction: BankStatementTransactionSummary): ReviewedDispositionDraft {
+  return {
+    transactionId: transaction.id,
+    intent: transaction.direction === "IN" ? "income" : "expense",
+    counterAccountId: "",
+    category: "",
+    rationale: "",
+  };
+}
+
+export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
+  switch (intent) {
+    case "income":
+      return ["INCOME"];
+    case "expense":
+    case "expense_refund":
+    case "loan_interest":
+      return ["EXPENSE"];
+    case "investment_purchase":
+    case "investment_sale":
+    case "transfer":
+      return ["ASSET"];
+    case "loan_principal":
+    case "card_repayment":
+      return ["LIABILITY"];
+    case "unknown":
+      return [];
+  }
+}
+
+function needsCategory(intent: EconomicIntent): boolean {
+  return ["income", "expense", "expense_refund", "loan_interest"].includes(intent);
+}
+
+export function isReviewedDispositionComplete(
+  intent: EconomicIntent,
+  counterAccountId: string,
+  category: string,
+  rationale: string,
+): boolean {
+  return Boolean(
+    counterAccountId
+    && rationale.trim()
+    && intent !== "transfer"
+    && intent !== "unknown"
+    && (!needsCategory(intent) || category.trim()),
+  );
+}
 
 function loadFlaggedFromStorage(): Set<string> {
   try {
@@ -25,9 +96,7 @@ function loadFlaggedFromStorage(): Set<string> {
     const stored = localStorage.getItem(FLAGGED_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return new Set(parsed);
-      }
+      if (Array.isArray(parsed)) return new Set(parsed);
     }
   } catch (error) {
     console.warn("[UnmatchedBoard] Failed to load flagged state:", error);
@@ -46,92 +115,110 @@ function saveFlaggedToStorage(flagged: Set<string>): void {
 
 export default function UnmatchedBoard() {
   const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<BankStatementTransactionSummary | null>(null);
-  const [creating, setCreating] = useState<string | null>(null);
-  const [createdEntry, setCreatedEntry] = useState<CreatedJournalEntrySummary | null>(null);
+  const [draft, setDraft] = useState<ReviewedDispositionDraft | null>(null);
+  const [posting, setPosting] = useState(false);
+  const [postedEntry, setPostedEntry] = useState<JournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
-  const [creatingAll, setCreatingAll] = useState(false);
-  const [confirmCreateAllOpen, setConfirmCreateAllOpen] = useState(false);
-  const [batchCreatedCount, setBatchCreatedCount] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched");
-      setItems(data.items);
-      setSelected((c) => (c && data.items.some((i) => i.id === c.id) ? c : data.items[0] ?? null));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load unmatched transactions.");
+      const [transactions, accountResponse] = await Promise.all([
+        apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched"),
+        apiFetch<AccountListResponse>("/api/accounts?is_active=true&limit=500"),
+      ]);
+      setItems(transactions.items);
+      setAccounts(accountResponse.items);
+      setSelected((current) =>
+        current && transactions.items.some((item) => item.id === current.id)
+          ? current
+          : transactions.items[0] ?? null,
+      );
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load unmatched transactions.");
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => { setCreatedEntry(null); }, [selected?.id]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  const createEntry = async (txnId: string) => {
-    setCreating(txnId);
-    setBatchCreatedCount(null);
-    const createdFrom = selected;
-    try {
-      const entry = await apiFetch<CreatedJournalEntrySummary>(`/api/reconciliation/unmatched/${txnId}/create-entry`, { method: "POST" });
-      setCreatedEntry(entry);
-      setError(null);
-      await refresh();
-      if (createdFrom?.id === txnId) {
-        setSelected(createdFrom);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create entry.");
-    } finally { setCreating(null); }
-  };
-
-  const createAllEntries = async () => {
-    setCreatingAll(true);
-    setConfirmCreateAllOpen(false);
-    setBatchCreatedCount(null);
-    try {
-      const result = await apiFetch<BatchCreateEntriesResponse>("/api/reconciliation/unmatched/batch-create", {
-        method: "POST",
-        body: JSON.stringify({ all: true }),
-      });
-      setBatchCreatedCount(result.created_count);
-      setCreatedEntry(null);
-      setError(null);
-      await refresh();
-    } catch (err) {
-      setBatchCreatedCount(null);
-      setError(err instanceof Error ? err.message : "Failed to create entries in bulk.");
-    } finally {
-      setCreatingAll(false);
+  useEffect(() => {
+    if (!selected) {
+      setDraft(null);
+      return;
     }
+    setDraft((current) => {
+      return current?.transactionId === selected.id ? current : newReviewedDispositionDraft(selected);
+    });
+    setPostedEntry(null);
+  }, [selected]);
+
+  const activeDraft = selected && draft?.transactionId === selected.id ? draft : null;
+
+  const updateDraft = (changes: Partial<Omit<ReviewedDispositionDraft, "transactionId">>) => {
+    setDraft((current) => (
+      current && selected && current.transactionId === selected.id
+        ? { ...current, ...changes }
+        : current
+    ));
   };
 
-  const toggleFlag = (txnId: string) => {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      if (next.has(txnId)) {
-        next.delete(txnId);
-      } else {
-        next.add(txnId);
-      }
+  const candidateAccounts = useMemo(() => {
+    if (!selected) return [];
+    const currency = selected.currency || "SGD";
+    const types = activeDraft ? compatibleAccountTypes(activeDraft.intent) : [];
+    return accounts.filter((account) => account.currency === currency && types.includes(account.type));
+  }, [accounts, activeDraft, selected]);
+
+  const toggleFlag = (transactionId: string) => {
+    setFlagged((previous) => {
+      const next = new Set(previous);
+      if (next.has(transactionId)) next.delete(transactionId);
+      else next.add(transactionId);
       saveFlaggedToStorage(next);
       return next;
     });
   };
 
-  const removeFromList = (txnId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== txnId));
-    if (selected?.id === txnId) {
-      setSelected(null);
+  const removeFromList = (transactionId: string) => {
+    setItems((previous) => previous.filter((item) => item.id !== transactionId));
+    if (selected?.id === transactionId) setSelected(null);
+  };
+
+  const submitReviewedDisposition = async () => {
+    if (!selected || !activeDraft || !isReviewedDispositionComplete(
+      activeDraft.intent,
+      activeDraft.counterAccountId,
+      activeDraft.category,
+      activeDraft.rationale,
+    )) return;
+    setPosting(true);
+    try {
+      const payload: ReviewedDispositionPayload = {
+        intent: activeDraft.intent,
+        counter_account_id: activeDraft.counterAccountId,
+        rationale: activeDraft.rationale.trim(),
+        ...(needsCategory(activeDraft.intent) ? { category: activeDraft.category.trim() } : {}),
+      };
+      const entry = await apiFetch<JournalEntrySummary>(
+        `/api/reconciliation/unmatched/${selected.id}/reviewed-disposition`,
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      setPostedEntry(entry);
+      setError(null);
+      await refresh();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to post reviewed disposition.");
+    } finally {
+      setPosting(false);
     }
   };
 
   const formatTxnAmount = (item: BankStatementTransactionSummary) =>
     formatCurrencyLocale(item.amount, item.currency || "SGD");
-
-  const formatCreatedEntryAmount = (entry: CreatedJournalEntrySummary) =>
-    formatCurrencyLocale(entry.total_amount, entry.currency || selected?.currency || "SGD");
-
   const summary = useMemo(() => ({ total: items.length, flagged: flagged.size }), [flagged.size, items.length]);
   const aiPrompt = useMemo(() => {
     if (!selected) return null;
@@ -140,36 +227,32 @@ export default function UnmatchedBoard() {
       `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
     );
   }, [selected]);
+  const canSubmit = activeDraft !== null && isReviewedDispositionComplete(
+    activeDraft.intent,
+    activeDraft.counterAccountId,
+    activeDraft.category,
+    activeDraft.rationale,
+  );
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <BackLink>Back to Notifications</BackLink>
-      </div>
+      <div className="mb-4"><BackLink>Back to Notifications</BackLink></div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="page-title">Unmatched Transactions</h1>
-          <p className="page-description">Triage unmatched transactions and create manual journal entries</p>
+          <p className="page-description">Confirm the economic meaning before a source transaction can be posted.</p>
           <p className="mt-1 text-xs text-muted">Flags and hidden rows are local workspace triage only.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/reconciliation" className="btn-secondary text-sm">← Workbench</Link>
-          <button
-            type="button"
-            onClick={() => setConfirmCreateAllOpen(true)}
-            disabled={creatingAll || items.length === 0}
-            className="btn-primary text-sm"
-          >
-            {creatingAll ? "Creating..." : "Create All Entries"}
-          </button>
           <span className="badge badge-warning">{summary.total} unmatched · {summary.flagged} flagged</span>
         </div>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}
-      {batchCreatedCount !== null && (
+      {postedEntry && (
         <div className="mb-4 p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
-          Created {batchCreatedCount} journal {batchCreatedCount === 1 ? "entry" : "entries"} from unmatched transactions.
+          Posted reviewed entry <strong>{postedEntry.id}</strong> on {postedEntry.entry_date}.
         </div>
       )}
 
@@ -203,8 +286,8 @@ export default function UnmatchedBoard() {
         </div>
 
         <div className="card p-5">
-          <h2 className="font-semibold mb-4">Transaction Detail</h2>
-          {!selected ? <p className="text-sm text-muted">Select a transaction to review</p> : (
+          <h2 className="font-semibold mb-4">Reviewed Disposition</h2>
+          {!selected || !activeDraft ? <p className="text-sm text-muted">Select a transaction to review</p> : (
             <div className="space-y-4">
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <p className="font-medium">{selected.description}</p>
@@ -213,32 +296,56 @@ export default function UnmatchedBoard() {
                 {selected.reference && <p className="text-xs text-muted">Ref: {selected.reference}</p>}
               </div>
 
+              <label className="block text-sm font-medium">
+                Economic intent
+                <select className="input mt-1 w-full" value={activeDraft.intent} onChange={(event) => updateDraft({ intent: event.target.value as EconomicIntent, counterAccountId: "" })}>
+                  {INTENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+
+              {activeDraft.intent === "transfer" ? (
+                <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
+                  Internal transfers must be paired in the reconciliation workbench; they cannot be posted as income or expense.
+                </div>
+              ) : activeDraft.intent === "unknown" ? (
+                <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
+                  Unknown economic intent must be resolved from source evidence before it can be posted.
+                </div>
+              ) : (
+                <>
+                  <label className="block text-sm font-medium">
+                    Counter account
+                    <select className="input mt-1 w-full" value={activeDraft.counterAccountId} onChange={(event) => updateDraft({ counterAccountId: event.target.value })}>
+                      <option value="">Choose a compatible account</option>
+                      {candidateAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.type}</option>)}
+                    </select>
+                  </label>
+                  {candidateAccounts.length === 0 && <p className="text-xs text-muted">Create an active {compatibleAccountTypes(activeDraft.intent).join("/")} account in {selected.currency || "SGD"} before posting.</p>}
+                  {needsCategory(activeDraft.intent) && (
+                    <label className="block text-sm font-medium">
+                      Report category
+                      <input className="input mt-1 w-full" value={activeDraft.category} onChange={(event) => updateDraft({ category: event.target.value })} maxLength={100} placeholder="For example, DINING or SALARY" />
+                    </label>
+                  )}
+                  <label className="block text-sm font-medium">
+                    Review rationale
+                    <textarea className="input mt-1 w-full min-h-20" value={activeDraft.rationale} onChange={(event) => updateDraft({ rationale: event.target.value })} maxLength={500} placeholder="What source evidence supports this decision?" />
+                  </label>
+                  <button type="button" onClick={() => void submitReviewedDisposition()} disabled={posting || !canSubmit} className="btn-primary">
+                    {posting ? "Posting reviewed entry..." : "Confirm and Post"}
+                  </button>
+                </>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => createEntry(selected.id)} disabled={creating === selected.id} className="btn-primary">{creating === selected.id ? "Creating..." : "Create Entry"}</button>
                 {aiPrompt && <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary">Ask AI</Link>}
                 <button onClick={() => toggleFlag(selected.id)} className="btn-secondary">{flagged.has(selected.id) ? "Unflag local" : "Flag local"}</button>
                 <button onClick={() => removeFromList(selected.id)} className="btn-secondary">Hide locally</button>
               </div>
-
-              {createdEntry && (
-                <div className="p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
-                  Created entry <strong>{createdEntry.id}</strong> · {formatCreatedEntryAmount(createdEntry)} on {createdEntry.entry_date}
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
-
-      <ConfirmDialog
-        isOpen={confirmCreateAllOpen}
-        onCancel={() => !creatingAll && setConfirmCreateAllOpen(false)}
-        onConfirm={() => createAllEntries()}
-        title="Create All Entries"
-        message={`Create draft journal entries for ${items.length} unmatched transaction${items.length === 1 ? "" : "s"}? Review local flags before continuing.`}
-        confirmLabel="Create Entries"
-        loading={creatingAll}
-      />
     </div>
   );
 }

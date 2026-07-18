@@ -1405,7 +1405,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/reconciliation/unmatched/batch-create": {
+    "/reconciliation/unmatched/{txn_id}/reviewed-disposition": {
         parameters: {
             query?: never;
             header?: never;
@@ -1414,25 +1414,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Batch Create Entries */
-        post: operations["batch_create_entries_reconciliation_unmatched_batch_create_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reconciliation/unmatched/{txn_id}/create-entry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Entry */
-        post: operations["create_entry_reconciliation_unmatched__txn_id__create_entry_post"];
+        /**
+         * Submit Unmatched Reviewed Disposition
+         * @description Post one unmatched source transaction from explicit reviewed economic meaning.
+         */
+        post: operations["submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3349,7 +3335,7 @@ export interface components {
         BatchApproveRequest: {
             /**
              * Match Ids
-             * @description Reconciliation match identifiers to approve
+             * @description Stage-2 reconciliation match identifiers to approve
              */
             match_ids?: string[];
             /** Run Id */
@@ -3372,35 +3358,11 @@ export interface components {
             /** Journal Entries Reconciled */
             journal_entries_reconciled: number;
         };
-        /**
-         * BatchCreateEntriesRequest
-         * @description Request body for batch creating journal entries from unmatched transactions.
-         */
-        BatchCreateEntriesRequest: {
-            /**
-             * All
-             * @default false
-             */
-            all: boolean;
-            /**
-             * Txn Ids
-             * @description Transaction IDs to create entries for when all is false.
-             */
-            txn_ids?: string[];
-        };
-        /**
-         * BatchCreateEntriesResponse
-         * @description Response for batch create entries.
-         */
-        BatchCreateEntriesResponse: {
-            /** Created Count */
-            created_count: number;
-        };
         /** BatchRejectRequest */
         BatchRejectRequest: {
             /**
              * Match Ids
-             * @description Reconciliation match identifiers to reject
+             * @description Stage-2 reconciliation match identifiers to reject
              */
             match_ids?: string[];
         };
@@ -3965,11 +3927,16 @@ export interface components {
              */
             reinvested: boolean;
         };
+        /**
+         * EconomicIntent
+         * @enum {string}
+         */
+        EconomicIntent: "income" | "expense" | "expense_refund" | "transfer" | "investment_purchase" | "investment_sale" | "loan_principal" | "loan_interest" | "card_repayment" | "unknown";
         /** EditAndApproveRequest */
         EditAndApproveRequest: {
             /**
              * Edits
-             * @description Reviewer transaction corrections to validate before approval
+             * @description Reviewer corrections applied before approving the statement
              */
             edits?: components["schemas"]["TransactionEditRequest"][];
         };
@@ -6075,7 +6042,7 @@ export interface components {
             created_at: string;
             /**
              * Entries
-             * @description Posted journal entries currently linked to this reconciliation match.
+             * @description Journal entries proposed or linked for this reconciliation match.
              */
             entries?: components["schemas"]["JournalEntrySummary"][];
             /**
@@ -6110,7 +6077,7 @@ export interface components {
         ReconciliationRunRequest: {
             /**
              * Limit
-             * @description Maximum number of candidate matches to evaluate.
+             * @description Maximum number of source transactions to consider.
              */
             limit?: number | null;
             /** Statement Id */
@@ -6371,7 +6338,7 @@ export interface components {
         ReviewConflictsResponse: {
             /**
              * Duplicates
-             * @description Transaction candidates that may be duplicate entries
+             * @description Transactions that may duplicate another statement transaction
              */
             duplicates?: components["schemas"]["ReviewConflictCandidate"][];
             /**
@@ -6381,9 +6348,31 @@ export interface components {
             resolved: boolean;
             /**
              * Transfer Pairs
-             * @description Opposite-direction transaction candidates that may be transfers
+             * @description Opposite-direction transactions that may form a transfer pair
              */
             transfer_pairs?: components["schemas"]["ReviewConflictCandidate"][];
+        };
+        /**
+         * ReviewedDispositionRequest
+         * @description Explicit human-reviewed economic meaning for one unmatched source transaction.
+         */
+        ReviewedDispositionRequest: {
+            /**
+             * Category
+             * @description Required accounting category for P&L intents.
+             */
+            category?: string | null;
+            /**
+             * Counter Account Id
+             * Format: uuid
+             */
+            counter_account_id: string;
+            intent: components["schemas"]["EconomicIntent"];
+            /**
+             * Rationale
+             * @description Reviewer rationale tied to the source evidence.
+             */
+            rationale: string;
         };
         /**
          * ReviewedStatementEnvelopeRequest
@@ -6490,7 +6479,7 @@ export interface components {
         SetOpeningBalanceRequest: {
             /**
              * Opening Balance
-             * @description Manual opening balance used for the statement chain
+             * @description Reviewer-confirmed non-negative opening balance in the statement currency
              */
             opening_balance: number | string;
         };
@@ -6591,7 +6580,7 @@ export interface components {
              */
             id: string;
             /** Match Score */
-            match_score: string;
+            match_score: number;
             /** Status */
             status: string;
             /** Txn Date */
@@ -6675,7 +6664,7 @@ export interface components {
             status: components["schemas"]["BankStatementStatus"];
             /**
              * Transactions
-             * @description Transactions extracted for this statement review
+             * @description Transactions extracted from this statement for reviewer inspection
              */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**
@@ -14650,103 +14639,7 @@ export interface operations {
             };
         };
     };
-    batch_create_entries_reconciliation_unmatched_batch_create_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchCreateEntriesRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchCreateEntriesResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_entry_reconciliation_unmatched__txn_id__create_entry_post: {
+    submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -14755,7 +14648,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewedDispositionRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -153,6 +153,21 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/consistency_checks.py",
         ),
+        Unit(
+            name="ReviewedDispositionCommand",
+            kind=Kind.VALUE_OBJECT,
+            module="base/reviewed_disposition.py",
+        ),
+        Unit(
+            name="ReviewedDispositionDependencies",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/reviewed_disposition.py",
+        ),
+        Unit(
+            name="submit_reviewed_disposition",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/reviewed_disposition.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/reconciliation", "fe": None},
     interface=[
@@ -179,6 +194,9 @@ CONTRACT = PackageContract(
         "ReconciliationMatchJournalEntry",
         "ReconciliationStats",
         "ReconciliationStatus",
+        "ReviewedDispositionCommand",
+        "ReviewedDispositionDependencies",
+        "ReviewedDispositionError",
         "TransferLeg",
         "_candidate_is_better",
         "_find_many_to_one_candidates",
@@ -223,6 +241,7 @@ CONTRACT = PackageContract(
         "score_group",
         "score_single",
         "score_pattern",
+        "submit_reviewed_disposition",
         "sync_reconciliation_match_journal_entry_links",
         "weighted_total",
     ],
@@ -497,28 +516,29 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.9",
             statement=(
-                "POST /reconciliation/unmatched/{txn_id}/create-entry returns 400 without a "
-                "reviewed economic disposition; an unmatched transaction cannot create an "
-                "Uncategorized journal entry."
+                "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition creates one source-anchored "
+                "journal entry only when the user supplies an explicit economic intent, compatible active "
+                "counter-account, category where P&L applies, and non-blank review rationale; invalid semantic "
+                "input fails closed at the API boundary."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_create_entry_from_unmatched_requires_economic_disposition"
+                "::test_submit_reviewed_disposition_from_unmatched_success"
             ),
-            priority="P1",
+            priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.review-queue.10",
             statement=(
-                "POST /reconciliation/unmatched/{txn_id}/create-entry for a non-existent transaction "
+                "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition for a non-existent transaction "
                 "id returns 404 with 'Transaction' in the error detail."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_create_entry_from_unmatched_not_found"
+                "::test_submit_reviewed_disposition_not_found"
             ),
-            priority="P1",
+            priority="P0",
             status="done",
         ),
         ACRecord(
@@ -544,27 +564,98 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.review-queue.13",
             statement=(
-                "POST /reconciliation/unmatched/batch-create with all=True returns 400 when its "
-                "transactions lack reviewed economic dispositions; batch execution cannot bypass review."
+                "The legacy unparameterized create-entry and batch-create endpoints are absent, so "
+                "an unmatched source transaction cannot become a journal entry through a default account "
+                "or Uncategorized fallback."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_batch_create_entries_requires_economic_disposition"
+                "::test_legacy_unmatched_entry_routes_are_absent"
             ),
-            priority="P1",
+            priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.review-queue.14",
             statement=(
-                "POST /reconciliation/unmatched/batch-create without an all or txn_ids filter "
-                "returns 400 with 'txn_ids' named in the error detail."
+                "accept_match reconciles only a pre-existing linked source entry; without one it leaves "
+                "the match pending and never creates a journal entry or rewrites immutable source provenance."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_review_queue.py"
+                "::test_accept_match_without_reviewed_disposition_requires_entry_context"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reviewed-disposition.1",
+            statement=(
+                "A reviewed-disposition command is idempotent only for the same immutable normalized intent, "
+                "counter-account, applicable category, and rationale/evidence digest; changing any semantic "
+                "field after posting conflicts without superseding its TraceRecord decision or entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
-                "::test_batch_create_entries_requires_filter"
+                "::test_reviewed_disposition_is_idempotent_and_rejects_account_intent_conflict"
             ),
-            priority="P1",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reviewed-disposition.2",
+            statement=(
+                "The unmatched-transaction UI requires intent, a compatible counter account, required P&L "
+                "category, and rationale, then calls only the reviewed-disposition endpoint; it exposes no "
+                "raw create-entry or batch-create action."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reviewed-disposition.3",
+            statement=(
+                "A reviewed-disposition command rejects an unmatched transfer or a transaction that already "
+                "has a reconciliation match, and neither rejection writes a source journal entry."
+            ),
+            test=(
+                "apps/backend/tests/api/test_reconciliation_router.py"
+                "::test_reviewed_disposition_rejects_unmatched_bypasses_without_persisting"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reviewed-disposition.4",
+            statement=(
+                "The injected TraceEmitter appends the manual observation and CODE-ONLY disposition/invariant "
+                "TraceRecord causal set in the same caller-owned transaction as posting; trace or posting "
+                "failure rolls back the complete causal set and journal entry."
+            ),
+            test=(
+                "apps/backend/tests/api/test_reconciliation_router.py"
+                "::test_reviewed_disposition_rolls_back_its_decision_when_posting_fails"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.reviewed-disposition.5",
+            statement=(
+                "A capability-level structural lock enumerates reconciliation posting and match side effects: "
+                "the reviewed-disposition service requires an injected TraceEmitter and DispositionPolicy, "
+                "while raw posting, match-side source promotion, and fabricated-confidence classification "
+                "surrogates are absent."
+            ),
+            test=(
+                "apps/backend/tests/reconciliation/test_signature_surgery.py"
+                "::test_unmatched_posting_has_one_reviewed_writer_boundary"
+            ),
+            priority="P0",
             status="done",
         ),
         # ============================= performance (AC4.4) =============================
@@ -866,12 +957,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.uuid-path-params.2",
             statement=(
-                "POST /reconciliation/unmatched/{txn_id}/create-entry with a non-UUID txn_id returns "
+                "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition with a non-UUID txn_id returns "
                 "422 at the FastAPI path-param boundary rather than reaching the query layer."
             ),
             test=(
                 "apps/backend/tests/api/test_typed_contract_sweep.py"
-                "::test_AC4_12_2_create_entry_malformed_uuid_returns_422"
+                "::test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422"
             ),
             priority="P2",
             status="done",
@@ -1672,17 +1763,26 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.9",
-            statement="Unmatched board loads transactions and creates journal entry for selected item",
+            statement=(
+                "Unmatched board requires an explicit reviewed disposition and exposes no raw create-entry "
+                "or batch-create action."
+            ),
             # was AC16.20.3
-            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.3 loads unmatched items and creates entry",
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action"
+            ),
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.10",
-            statement="Unmatched board flag and ignore actions update list and local state",
+            statement="Unmatched board flag and hide actions update local triage state without creating an accounting decision.",
             # was AC16.20.4
-            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.4 AC16.31.4 supports local flag and hide actions",
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision"
+            ),
             priority="P2",
             status="done",
         ),
@@ -1800,9 +1900,12 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.25",
-            statement="Unmatched transaction local flag/hide actions are labeled as local-only triage and batch create requires confirmation",
+            statement="Unmatched transaction flag/hide actions are labeled as local-only triage; raw batch-create is not an available action.",
             # was AC16.31.4
-            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC16.20.4 AC16.31.4 supports local flag and hide actions",
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision"
+            ),
             priority="P0",
             status="done",
         ),

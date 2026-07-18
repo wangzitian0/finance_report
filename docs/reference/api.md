@@ -5,7 +5,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `139`
+- Endpoint count: `138`
 - Schema count: `249`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -30,7 +30,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `market-data` | 3 |
 | `metrics` | 3 |
 | `portfolio` | 13 |
-| `reconciliation` | 11 |
+| `reconciliation` | 10 |
 | `reports` | 21 |
 | `review` | 9 |
 | `statements` | 15 |
@@ -204,8 +204,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
 | `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
 | `GET` | `/reconciliation/unmatched` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
-| `POST` | `/reconciliation/unmatched/batch-create` | yes | - | `BatchCreateEntriesRequest` | `200` `BatchCreateEntriesResponse` | Batch Create Entries |
-| `POST` | `/reconciliation/unmatched/{txn_id}/create-entry` | yes | `txn_id`* (path) | - | `200` `JournalEntrySummary` | Create Entry |
+| `POST` | `/reconciliation/unmatched/{txn_id}/reviewed-disposition` | yes | `txn_id`* (path) | `ReviewedDispositionRequest` | `200` `JournalEntrySummary` | Submit Unmatched Reviewed Disposition |
 
 ### reports
 

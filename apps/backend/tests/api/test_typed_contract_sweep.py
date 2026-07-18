@@ -57,9 +57,17 @@ async def test_AC4_12_1_accept_match_malformed_uuid_returns_422(client: AsyncCli
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-async def test_AC4_12_2_create_entry_malformed_uuid_returns_422(client: AsyncClient) -> None:
-    """AC-reconciliation.uuid-path-params.2: AC4.12.2: a non-UUID ``txn_id`` is rejected with 422 at the boundary."""
-    response = await client.post("/reconciliation/unmatched/not-a-uuid/create-entry")
+async def test_AC4_12_2_reviewed_disposition_malformed_uuid_returns_422(client: AsyncClient) -> None:
+    """AC-reconciliation.uuid-path-params.2: a non-UUID reviewed command target is rejected at the boundary."""
+    response = await client.post(
+        "/reconciliation/unmatched/not-a-uuid/reviewed-disposition",
+        json={
+            "intent": "expense",
+            "counter_account_id": "00000000-0000-0000-0000-000000000001",
+            "category": "DINING",
+            "rationale": "Reviewed source evidence.",
+        },
+    )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 

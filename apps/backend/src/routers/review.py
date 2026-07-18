@@ -6,9 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from src.audit import STATEMENT_SOURCE_TYPES
 from src.audit.money import InvalidCurrencyError
-from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     resolve_statement_conflicts,
@@ -85,20 +83,20 @@ async def get_review_conflicts(
         # Keep duplicate detection consistent with the approval guard / dedup disambiguator:
         # a different running balance means the dedup layer kept these as distinct transactions.
         balance_key = None if txn.balance_after is None else txn.balance_after.normalize()
-        key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
-        if key in seen:
-            duplicates.extend([_candidate(seen[key]), _candidate(txn)])
+        dedup_key = (txn.txn_date, txn.description.casefold(), txn.amount.copy_abs(), txn.direction, balance_key)
+        if dedup_key in seen:
+            duplicates.extend([_candidate(seen[dedup_key]), _candidate(txn)])
         else:
-            seen[key] = txn
+            seen[dedup_key] = txn
 
     by_abs_amount: dict[tuple, AtomicTransaction] = {}
     for txn in transactions:
-        key = (txn.txn_date, txn.amount.copy_abs())
-        paired = by_abs_amount.get(key)
+        transfer_key = (txn.txn_date, txn.amount.copy_abs())
+        paired = by_abs_amount.get(transfer_key)
         if paired and paired.direction != txn.direction:
             transfer_pairs.extend([_candidate(paired), _candidate(txn)])
         else:
-            by_abs_amount[key] = txn
+            by_abs_amount[transfer_key] = txn
 
     return ReviewConflictsResponse(
         duplicates=duplicates,
@@ -326,27 +324,12 @@ async def batch_approve_matches(
     approved_count = 0
     journal_entries_created = 0
     journal_entries_reconciled = 0
-    base_currency = await get_effective_base_currency(db)
     for match in matches:
-        before_entry_ids = set(match.journal_entry_ids or [])
-        had_source_entry = False
-        if match.atomic_txn_id and not before_entry_ids:
-            existing_entry_result = await db.execute(
-                select(JournalEntry.id)
-                .where(JournalEntry.user_id == user_id)
-                .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-                .where(JournalEntry.source_id == match.atomic_txn_id)
-                .where(JournalEntry.status != JournalEntryStatus.VOID)
-                .limit(1)
-            )
-            had_source_entry = existing_entry_result.scalar_one_or_none() is not None
-
         try:
             accepted_match = await accept_match_service(
                 db,
                 match.id,
                 user_id=user_id,
-                base_currency=base_currency,
             )
         except ReconciliationError as exc:
             await db.rollback()
@@ -354,8 +337,6 @@ async def batch_approve_matches(
 
         after_entry_ids = set(accepted_match.journal_entry_ids or [])
         approved_count += 1
-        if not before_entry_ids and not had_source_entry:
-            journal_entries_created += len(after_entry_ids)
         if after_entry_ids:
             reconciled_entries_result = await db.execute(
                 select(JournalEntry.id)

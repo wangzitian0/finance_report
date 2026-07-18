@@ -16,15 +16,15 @@ source of truth).
 import inspect
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.extraction import (
-    CurrencyUnresolvedError,
     DispositionContext,
     DispositionMode,
     DispositionPolicy,
@@ -280,7 +280,12 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
 async def test_accept_match_reconciles_journal_entries(db, test_user):
     stmt = await _make_statement(db, test_user.id)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
+    entry, _, _ = await JournalEntryFactory.create_balanced_async(
+        db,
+        user_id=test_user.id,
+        amount=Decimal("100.00"),
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+    )
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -292,10 +297,11 @@ async def test_accept_match_reconciles_journal_entries(db, test_user):
     await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
+    assert entry.source_type is JournalEntrySourceType.AUTO_PARSED
 
 
 async def test_accept_match_without_reviewed_disposition_requires_entry_context(db, test_user):
-    """A match cannot invent a new statement entry without reviewed economic meaning."""
+    """AC-reconciliation.review-queue.14: accepting a match cannot invent a source entry."""
     account = await AccountFactory.create_async(
         db,
         user_id=test_user.id,
@@ -313,58 +319,11 @@ async def test_accept_match_without_reviewed_disposition_requires_entry_context(
     )
     await db.commit()
 
-    with pytest.raises(EntryCreationError, match="Authoritative economic disposition"):
+    with pytest.raises(EntryCreationError, match="pre-existing journal entry"):
         await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(match)
     assert match.status == ReconciliationStatus.PENDING_REVIEW
     assert match.journal_entry_ids == []
-
-
-async def test_accept_match_maps_entry_creation_failure_to_domain_error(db, test_user):
-    """AC-reconciliation.signature-surgery.4: extraction failures remain typed at the boundary."""
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
-    with (
-        patch(
-            "src.reconciliation.extension.review_queue.create_entry_from_txn",
-            new=AsyncMock(side_effect=ValueError("Account mapping required before posting")),
-        ),
-        pytest.raises(EntryCreationError, match="Account mapping required before posting"),
-    ):
-        await accept_match(db, match.id, user_id=test_user.id)
-
-
-async def test_accept_match_preserves_currency_unresolved_error(db, test_user):
-    """AC12.40.4: unresolved currency retains its global structured 409 error."""
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-    error = CurrencyUnresolvedError("Currency must be resolved")
-
-    with (
-        patch(
-            "src.reconciliation.extension.review_queue.create_entry_from_txn",
-            new=AsyncMock(side_effect=error),
-        ),
-        pytest.raises(CurrencyUnresolvedError) as exc_info,
-    ):
-        await accept_match(db, match.id, user_id=test_user.id)
-
-    assert exc_info.value is error
 
 
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):

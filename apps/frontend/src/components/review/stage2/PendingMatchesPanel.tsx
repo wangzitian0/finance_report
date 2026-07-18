@@ -3,14 +3,12 @@ import { formatDateDisplay } from "@/lib/date";
 
 import type { PendingMatch } from "@/lib/types";
 
-// match_score arrives as a decimal string (money wire policy: no JSON floats)
-// — Number() for the threshold comparison, string display stays exact.
+// match_score is a 0-100 integer, unlike monetary amounts which remain Decimal strings.
 // Full static class strings (not interpolated) so Tailwind's JIT scanner
 // picks them up.
-function matchScoreColorClass(matchScore: string): string {
-    const score = Number(matchScore);
-    if (score >= 85) return "text-[var(--success)]";
-    if (score >= 60) return "text-[var(--warning)]";
+function matchScoreColorClass(matchScore: number): string {
+    if (matchScore >= 85) return "text-[var(--success)]";
+    if (matchScore >= 60) return "text-[var(--warning)]";
     return "text-[var(--error)]";
 }
 

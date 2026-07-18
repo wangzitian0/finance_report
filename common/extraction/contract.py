@@ -102,6 +102,7 @@ CONTRACT = PackageContract(
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
         Unit(name="ClassificationRule", kind=Kind.ENTITY),
+        Unit(name="RuleType", kind=Kind.VALUE_OBJECT),
         Unit(name="TransactionClassification", kind=Kind.ENTITY),
         Unit(name="ManagedPosition", kind=Kind.ENTITY),
         Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
@@ -213,6 +214,16 @@ CONTRACT = PackageContract(
             module="base/disposition.py",
         ),
         Unit(
+            name="build_disposition_trace_records",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/disposition_trace.py",
+        ),
+        Unit(
+            name="emit_disposition_trace_records",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/disposition_trace.py",
+        ),
+        Unit(
             name="StatementIngestionOutcome",
             kind=Kind.VALUE_OBJECT,
             module="base/types.py",
@@ -274,6 +285,7 @@ CONTRACT = PackageContract(
         "RetryableStatementIngestionError",
         "ReviewedStatementEnvelopeCommand",
         "ReviewedStatementEnvelopeConflict",
+        "RuleType",
         "DispositionDecision",
         "DispositionMode",
         "DispositionPolicy",
@@ -312,6 +324,7 @@ CONTRACT = PackageContract(
         "auto_create_posted_entries_for_statement",
         "backfill_classifications",
         "build_csv_mapping_prompt",
+        "build_disposition_trace_records",
         "build_statement_ingestion_use_case",
         "compute_confidence_score",
         "confirm_reviewed_statement_envelope",
@@ -319,6 +332,7 @@ CONTRACT = PackageContract(
         "current_reviewed_statement_envelope",
         "detect_balance_chain_break",
         "dual_write_layer2",
+        "emit_disposition_trace_records",
         "edit_and_approve",
         "extraction_trace_policy_registry",
         "find_in_flight_parse_id",
@@ -4049,7 +4063,9 @@ CONTRACT = PackageContract(
                 "is derived only from that origin: reviewed deterministic rules are "
                 "CODE-ONLY, live model proposals are LLM-LED and require the existing "
                 "CODE-ONLY promotion guard, and accepted reconciliation facts are "
-                "CODE-LED. Economic intent never infers authority."
+                "CODE-LED. Manual adjudication is reconciliation-owned CODE-ONLY/manual "
+                "evidence without a machine-confidence score. Economic intent never "
+                "infers authority."
             ),
             test=(
                 "apps/backend/tests/extraction/test_disposition_policy.py"

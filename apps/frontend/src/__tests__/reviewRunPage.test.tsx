@@ -51,7 +51,7 @@ describe("RunReviewPage", () => {
             if (path.includes("/stage2/queue")) {
                 expect(path).toContain("run_id=run-123");
                 return Promise.resolve({
-                    pending_matches: [{ id: "m1", match_score: "90", confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Transfer" }],
+                    pending_matches: [{ id: "m1", match_score: 90, confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Transfer" }],
                     consistency_checks: checks,
                     has_unresolved_checks: true,
                 } as any);
@@ -84,8 +84,8 @@ describe("RunReviewPage", () => {
     it("AC16.24.3 approves all pending matches through the batch approval API", async () => {
         const data = {
             pending_matches: [
-                { id: "m1", match_score: "95", confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Bank A out" },
-                { id: "m2", match_score: "92", confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Bank B in" },
+                { id: "m1", match_score: 95, confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Bank A out" },
+                { id: "m2", match_score: 92, confidence_tier: "HIGH", status: "pending", amount: "10", txn_date: "2024-01-02", description: "Bank B in" },
             ],
             consistency_checks: [],
             has_unresolved_checks: false,

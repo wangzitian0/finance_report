@@ -61,6 +61,31 @@ def test_public_reconciliation_signatures_are_typed_and_bounded() -> None:
     assert violations == []
 
 
+def test_unmatched_posting_has_one_reviewed_writer_boundary() -> None:
+    """AC-reconciliation.reviewed-disposition.5: one traced writer, with no authority surrogate."""
+    router_source = (BACKEND_SRC / "routers" / "reconciliation.py").read_text()
+    match_review_source = (RECONCILIATION_EXTENSION / "review_queue.py").read_text()
+    reviewed_writer_source = (RECONCILIATION_EXTENSION / "reviewed_disposition.py").read_text()
+
+    assert "create_entry_from_txn" not in router_source
+    assert "create_entry_from_txn" not in match_review_source
+    assert "promote_entry_source_type" not in match_review_source
+    assert '"/unmatched/{txn_id}/create-entry"' not in router_source
+    assert '"/unmatched/batch-create"' not in router_source
+    assert "submit_reviewed_disposition" in router_source
+    assert "compose_reviewed_disposition_dependencies" in router_source
+    assert "trace_emitter" in reviewed_writer_source
+    assert "emit_disposition_trace_records" in reviewed_writer_source
+    assert "ClassificationRule" not in reviewed_writer_source
+    assert "TransactionClassification" not in reviewed_writer_source
+    assert "confidence_score" not in reviewed_writer_source
+    assert (
+        reviewed_writer_source.index("disposition_policy.decide")
+        < reviewed_writer_source.index("emit_disposition_trace_records(")
+        < reviewed_writer_source.index("create_entry_from_txn(")
+    )
+
+
 def test_matching_phases_return_created_matches() -> None:
     """AC-reconciliation.signature-surgery.2."""
     for phase in (run_many_to_one_phase, run_normal_matching_phase):
@@ -276,13 +301,7 @@ def test_reconciliation_errors_and_resolve_actions_are_typed() -> None:
         if handlers:
             raw_entry_value_error_handlers[route.name] = handlers
 
-    assert set(raw_entry_value_error_handlers) == {"create_entry", "batch_create_entries"}
-    for handlers in raw_entry_value_error_handlers.values():
-        assert len(handlers) == 1
-        handler_source = ast.get_source_segment(router_source, handlers[0])
-        assert handler_source is not None
-        assert "await db.rollback()" in handler_source
-        assert "raise_bad_request(str(exc), cause=exc)" in handler_source
+    assert raw_entry_value_error_handlers == {}
 
     review_router_source = (BACKEND_SRC / "routers" / "review.py").read_text()
     assert "CheckResolutionAction(request.action)" in review_router_source

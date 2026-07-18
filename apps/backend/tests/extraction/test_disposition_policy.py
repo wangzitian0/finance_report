@@ -38,6 +38,7 @@ def _proposal(
     *,
     category: str | None = None,
     origin: IntentProposalOrigin = IntentProposalOrigin.REVIEWED_RULE,
+    confidence: Decimal | None = Decimal("0.95"),
 ) -> IntentProposal:
     return IntentProposal(
         schema_version="1",
@@ -45,7 +46,7 @@ def _proposal(
         origin=origin,
         intent=intent,
         category=category,
-        confidence=Decimal("0.95"),
+        confidence=confidence,
         evidence=("recorded-description",),
     )
 
@@ -162,27 +163,38 @@ def test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_o
             EconomicIntent.INCOME,
             TransactionDirection.IN,
             "SALARY",
-            ("CODE-ONLY", "exact", "deterministic"),
+            Decimal("0.95"),
+            ("extraction", "CODE-ONLY", "exact", "deterministic", "product.runtime", Decimal("0.95")),
         ),
         (
             IntentProposalOrigin.LIVE_LLM,
             EconomicIntent.INCOME,
             TransactionDirection.IN,
             "SALARY",
-            ("LLM-LED", "invariant", "live_llm"),
+            Decimal("0.95"),
+            ("extraction", "LLM-LED", "invariant", "live_llm", "product.runtime", Decimal("0.95")),
         ),
         (
             IntentProposalOrigin.RECONCILIATION_FACT,
             EconomicIntent.TRANSFER,
             TransactionDirection.OUT,
             None,
-            ("CODE-LED", "property", "deterministic"),
+            Decimal("0.95"),
+            ("extraction", "CODE-LED", "property", "deterministic", "product.runtime", Decimal("0.95")),
+        ),
+        (
+            IntentProposalOrigin.MANUAL_ADJUDICATION,
+            EconomicIntent.EXPENSE,
+            TransactionDirection.OUT,
+            "DINING",
+            None,
+            ("reconciliation", "CODE-ONLY", "exact", "manual", "manual.adjudication", None),
         ),
     )
 
-    for origin, intent, direction, category, expected_authority in cases:
+    for origin, intent, direction, category, confidence, expected_authority in cases:
         transaction = _transaction(direction)
-        proposal = _proposal(intent, category=category, origin=origin)
+        proposal = _proposal(intent, category=category, origin=origin, confidence=confidence)
         decision = policy.decide(
             transaction,
             proposal=proposal,
@@ -201,9 +213,12 @@ def test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_o
         )
 
         assert (
+            candidate.authority.package,
             candidate.authority.tier,
             candidate.authority.proof_kind,
             candidate.authority.provenance,
+            candidate.authority.execution_stage,
+            candidate.score.value if candidate.score is not None else None,
         ) == expected_authority
         assert guard.authority.tier == "CODE-ONLY"
         assert disposition.authority.tier == "CODE-ONLY"

@@ -5,8 +5,9 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.extraction.base.disposition import EconomicIntent
 from src.schemas.base import ListResponse
 
 
@@ -69,7 +70,7 @@ class ReconciliationMatchResponse(BaseModel):
     transaction: BankTransactionSummary | None = None
     entries: list[JournalEntrySummary] = Field(
         default_factory=list,
-        description="Posted journal entries currently linked to this reconciliation match.",
+        description="Journal entries proposed or linked for this reconciliation match.",
     )
 
 
@@ -84,7 +85,7 @@ class ReconciliationRunRequest(BaseModel):
         default=None,
         ge=1,
         le=10000,
-        description="Maximum number of candidate matches to evaluate.",
+        description="Maximum number of source transactions to consider.",
     )
 
 
@@ -103,20 +104,32 @@ class BatchAcceptRequest(BaseModel):
     match_ids: list[str]
 
 
-class BatchCreateEntriesRequest(BaseModel):
-    """Request body for batch creating journal entries from unmatched transactions."""
+class ReviewedDispositionRequest(BaseModel):
+    """Explicit human-reviewed economic meaning for one unmatched source transaction."""
 
-    txn_ids: list[UUID] = Field(
-        default_factory=list,
-        description="Transaction IDs to create entries for when all is false.",
+    intent: EconomicIntent
+    counter_account_id: UUID
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Required accounting category for P&L intents.",
     )
-    all: bool = False
+    rationale: str = Field(
+        min_length=1,
+        max_length=500,
+        description="Reviewer rationale tied to the source evidence.",
+    )
 
-
-class BatchCreateEntriesResponse(BaseModel):
-    """Response for batch create entries."""
-
-    created_count: int
+    @field_validator("category", "rationale")
+    @classmethod
+    def normalize_semantic_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("semantic text cannot be blank")
+        return normalized
 
 
 class ReconciliationStatsResponse(BaseModel):
