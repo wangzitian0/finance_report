@@ -7,6 +7,7 @@ published interfaces (``src.audit.money``'s value types, ``src.config`` as a bar
 
 from __future__ import annotations
 
+from src.ledger.base.contribution import JournalLineContribution, ResolvedJournalContribution
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
 from src.ledger.base.processing import (
     ProcessingAccount,
@@ -37,10 +38,12 @@ __all__ = [
     "DecisionAnchorError",
     "journal_command_target",
     "Entry",
+    "JournalLineContribution",
     "LedgerError",
     "Leg",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
+    "ResolvedJournalContribution",
     "TransferAccountCurrencyMismatchError",
     "TransferPair",
     "UnbalancedEntryError",

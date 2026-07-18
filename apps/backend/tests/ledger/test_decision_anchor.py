@@ -39,6 +39,7 @@ from src.ledger import (
     JournalEntry,
     JournalEntryAuthorityState,
     current_anchored_journal_entries,
+    list_journal_contributions,
     submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
@@ -509,3 +510,49 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
     for duplicated_field in ("decision_anchor_target", "decision_anchor_policy"):
         assert duplicated_field not in journal_model
         assert duplicated_field not in migration
+
+
+async def test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_facts(db, test_user):
+    """AC-ledger.80.1: package consumers receive facts plus one current anchor."""
+    debit = Account(user_id=test_user.id, name=f"package cash {uuid4()}", type=AccountType.ASSET, currency="SGD")
+    credit = Account(user_id=test_user.id, name=f"package income {uuid4()}", type=AccountType.INCOME, currency="SGD")
+    db.add_all((debit, credit))
+    await db.flush()
+    lines_data = [
+        {"account_id": debit.id, "direction": Direction.DEBIT, "amount": Decimal("100.00"), "currency": "SGD"},
+        {"account_id": credit.id, "direction": Direction.CREDIT, "amount": Decimal("100.00"), "currency": "SGD"},
+    ]
+    target = journal_command_target(
+        entry_date=date(2026, 7, 18),
+        memo="Package contribution",
+        lines_data=lines_data,
+        base_currency="SGD",
+        source_identity=f"statement-transaction:{uuid4()}",
+    )
+    observation, decision = _decision_records(user_id=test_user.id, target=target)
+    repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((_Policy(),)))
+    await TraceEmitter(repository).emit_many((observation, decision))
+    await submit_anchored_journal_entry(
+        db,
+        user_id=test_user.id,
+        command=AnchoredJournalCommand(
+            entry_date=date(2026, 7, 18),
+            memo="Package contribution",
+            lines_data=lines_data,
+            source_type=JournalEntrySourceType.AUTO_PARSED,
+            source_id=uuid4(),
+            source_identity=target.id,
+            decision_anchor=DecisionAnchor.from_record(decision),
+            post_immediately=True,
+        ),
+        trace_repository=repository,
+        base_currency="SGD",
+    )
+    contributions = await list_journal_contributions(
+        db, user_id=test_user.id, start_date=date(2026, 7, 1), end_date=date(2026, 7, 31)
+    )
+    assert len(contributions) == 1
+    contribution = contributions[0]
+    assert contribution.is_authoritative
+    assert contribution.decision_id == decision.record_id
+    assert len(contribution.lines) == 2

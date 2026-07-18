@@ -136,6 +136,21 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/anchored_posting.py",
         ),
+        Unit(
+            name="JournalLineContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="ResolvedJournalContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="list_journal_contributions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/contribution.py",
+        ),
         # data — the account-balance projection (read-model / leaf sink).
         Unit(name="AccountBalance", kind=Kind.PROJECTION, module="data/balance.py"),
         # processing — the in-transit (Processing) virtual account (#1420 slice 3b).
@@ -196,10 +211,12 @@ CONTRACT = PackageContract(
         "JournalEntryAuthorityState",
         "JournalEntryStatus",
         "JournalLine",
+        "JournalLineContribution",
         "LedgerError",
         "Leg",
         "ProcessingAccount",
         "ProcessingCurrencyConflictError",
+        "ResolvedJournalContribution",
         "RevaluationError",
         "StatementCoverageRow",
         "TransferAccountCurrencyMismatchError",
@@ -223,6 +240,7 @@ CONTRACT = PackageContract(
         "get_processing_balance",
         "get_unpaired_transfers",
         "journal_command_target",
+        "list_journal_contributions",
         "list_processing_transfer_legs",
         "post_entry",
         "submit_anchored_journal_entry",
@@ -2413,6 +2431,21 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.80.1",
+            statement=(
+                "list_journal_contributions publishes posted or reconciled journal facts "
+                "with their exact current DecisionAnchor and line/account data; source type, "
+                "entry recency, or status alone never grants package authority."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_facts"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
         ),
     ],
     concepts=[
