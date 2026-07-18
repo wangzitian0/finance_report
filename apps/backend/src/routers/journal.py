@@ -8,11 +8,13 @@ from sqlalchemy.orm import selectinload
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.ledger import (
+    DecisionAnchorError,
     JournalEntry,
     JournalEntryStatus,
     ValidationError,
-    create_journal_entry,
     post_journal_entry,
+    submit_manual_journal_entry,
+    validate_manual_journal_entry_for_post,
     void_journal_entry,
 )
 from src.observability import get_logger, log_financial_mutation
@@ -37,20 +39,19 @@ async def create_entry(
     lines_data = [line.model_dump() for line in entry_data.lines]
     try:
         base_currency = await get_effective_base_currency(db)
-        entry = await create_journal_entry(
+        entry = await submit_manual_journal_entry(
             db=db,
             user_id=user_id,
             entry_date=entry_data.entry_date,
             memo=entry_data.memo,
             lines_data=lines_data,
-            source_type=entry_data.source_type,
-            source_id=entry_data.source_id,
+            rationale=entry_data.rationale,
             base_currency=base_currency,
         )
         await db.commit()
         await db.refresh(entry, ["lines"])
         return JournalEntryResponse.model_validate(entry)
-    except ValidationError as e:
+    except (DecisionAnchorError, ValidationError) as e:
         raise_bad_request(str(e), cause=e)
 
 
@@ -115,6 +116,20 @@ async def post_entry(
 ) -> JournalEntryResponse:
     try:
         base_currency = await get_effective_base_currency(db)
+        draft = await get_owned_or_404(
+            db,
+            JournalEntry,
+            entry_id,
+            user_id,
+            name="Journal entry",
+            options=[selectinload(JournalEntry.lines)],
+        )
+        await validate_manual_journal_entry_for_post(
+            db,
+            user_id=user_id,
+            entry=draft,
+            base_currency=base_currency,
+        )
         entry = await post_journal_entry(
             db,
             entry_id,
@@ -133,7 +148,7 @@ async def post_entry(
             status=entry.status.value,
         )
         return JournalEntryResponse.model_validate(entry)
-    except ValidationError as e:
+    except (DecisionAnchorError, ValidationError) as e:
         raise_bad_request(str(e), cause=e)
 
 
@@ -155,6 +170,7 @@ async def void_entry(
             base_currency=base_currency,
         )
         await db.commit()
+        await db.refresh(reversal_entry, ["lines"])
         log_financial_mutation(
             logger,
             "journal.entry.voided",
@@ -166,7 +182,7 @@ async def void_entry(
             reason_length=len(void_request.reason or ""),
         )
         return JournalEntryResponse.model_validate(reversal_entry)
-    except ValidationError as e:
+    except (DecisionAnchorError, ValidationError) as e:
         raise_bad_request(str(e), cause=e)
 
 

@@ -30,6 +30,7 @@ from src.extraction.base.disposition import (
     IntentProposalOrigin,
     StatementTransaction,
 )
+from src.ledger import DecisionAnchor, journal_command_target
 
 
 def _digest(value: str) -> str:
@@ -155,6 +156,73 @@ class DispositionDecisionTracePolicy:
             ),
             reason_code=f"disposition_{status}",
             score=marker.score,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class JournalCommandPayloadTracePolicy:
+    """Proves the canonical ledger command was materialized without mutation."""
+
+    @property
+    def assertion(self) -> VersionedTraceRef:
+        return VersionedTraceRef(kind="invariant", id="journal-command-payload", version="1")
+
+    @property
+    def authority(self) -> TraceAuthorityProfile:
+        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
+
+    @property
+    def causality(self) -> TraceCausality:
+        return TraceCausality.DIRECT
+
+    @property
+    def target_class(self) -> TraceTargetClass:
+        return TraceTargetClass.FINANCIAL
+
+    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
+        valid = len(parents) == 1 and parents[0].result is TraceResult.PASS
+        return TraceDecisionOutcome(
+            TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,
+            "journal_command_payload_bound" if valid else "journal_command_payload_invalid",
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialCommandAuthorizationTracePolicy:
+    """Binds one accepted disposition to its exact balanced ledger command."""
+
+    @property
+    def assertion(self) -> VersionedTraceRef:
+        return VersionedTraceRef(kind="financial_command", id="source-disposition", version="1")
+
+    @property
+    def authority(self) -> TraceAuthorityProfile:
+        return _authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1")
+
+    @property
+    def causality(self) -> TraceCausality:
+        return TraceCausality.MANIFEST
+
+    @property
+    def target_class(self) -> TraceTargetClass:
+        return TraceTargetClass.FINANCIAL
+
+    def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
+        upstream = any(
+            parent.record_type.value == "decision"
+            and parent.target_class is TraceTargetClass.FINANCIAL
+            and parent.result is TraceResult.AUTHORITATIVE
+            for parent in parents
+        )
+        command_guard = any(
+            parent.record_type.value == "decision"
+            and parent.assertion == JournalCommandPayloadTracePolicy().assertion
+            and parent.result is TraceResult.AUTHORITATIVE
+            for parent in parents
+        )
+        return TraceDecisionOutcome(
+            TraceResult.AUTHORITATIVE if upstream and command_guard else TraceResult.REJECTED,
+            "financial_command_authorized" if upstream and command_guard else "financial_command_unauthorized",
         )
 
 
@@ -297,3 +365,117 @@ async def emit_disposition_trace_records(
             disposition_supersedes_id=disposition_supersedes_id,
         )
     return await emitter.emit_many(records)
+
+
+async def authorize_financial_command(
+    *,
+    emitter: TraceEmitter,
+    user_id: UUID,
+    upstream_decision: TraceRecord,
+    entry_date,
+    memo: str,
+    lines_data: list[dict],
+    base_currency: str,
+    source_id: UUID,
+) -> DecisionAnchor:
+    """Append the source-owned decision that binds authority to exact ledger bytes.
+
+    The disposition decision remains the evidence for economic meaning. This
+    manifest decision adds the independently computed command payload guard, so
+    the ledger can verify an exact target without knowing how the source was
+    classified or reviewed.
+    """
+    # ``source_type`` describes how the fact was obtained; it must not alter
+    # the immutable identity of the source financial command. A re-review can
+    # change provenance, but it cannot authorize a second posting for one
+    # statement transaction.
+    source_identity = f"statement-transaction:{source_id}"
+    target = journal_command_target(
+        entry_date=entry_date,
+        memo=memo,
+        lines_data=lines_data,
+        base_currency=base_currency,
+        source_identity=source_identity,
+    )
+    scope = TraceScope.tenant(user_id)
+    if (
+        upstream_decision.scope != scope
+        or upstream_decision.result is not TraceResult.AUTHORITATIVE
+        or upstream_decision.target.kind != "statement_transaction"
+        or upstream_decision.target.id != str(source_id)
+    ):
+        raise ValueError("financial command requires a current authoritative source decision")
+
+    authorization_policy = FinancialCommandAuthorizationTracePolicy()
+    current_authorization = await emitter.repository.current_decision(
+        scope,
+        TraceRecord.decision(
+            scope=scope,
+            target=target,
+            policy=authorization_policy,
+            execution_id=f"journal-command:{target.id}:{target.version}",
+            occurred_at=upstream_decision.occurred_at,
+            parents=(upstream_decision,),
+        ).lineage,
+    )
+    if current_authorization is not None:
+        if current_authorization.target != target:
+            raise ValueError("a different command already owns this immutable source transaction")
+        return DecisionAnchor.from_record(current_authorization)
+
+    execution_id = f"journal-command:{target.id}:{target.version}"
+    payload_digest = target.version
+    observation = TraceRecord.observation(
+        scope=scope,
+        target=target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef(kind="ledger_command", id="canonical-payload", version="1"),
+        authority=JournalCommandPayloadTracePolicy().authority,
+        result=TraceResult.PASS,
+        execution_id=execution_id,
+        evidence_manifest_digest=payload_digest,
+        occurred_at=upstream_decision.occurred_at,
+        score=Ratio(Decimal("1")),
+        reason_code="journal_command_payload_canonical",
+    )
+    payload_policy = JournalCommandPayloadTracePolicy()
+    current_guard = await emitter.repository.current_decision(
+        scope,
+        TraceRecord.decision(
+            scope=scope,
+            target=target,
+            policy=payload_policy,
+            execution_id=execution_id,
+            occurred_at=upstream_decision.occurred_at,
+            parents=(observation,),
+        ).lineage,
+    )
+    if current_guard is not None:
+        if current_guard.target != target:
+            raise ValueError("a different command payload guard already owns this source transaction")
+        payload_guard = current_guard
+    else:
+        emitted = await emitter.emit_many(
+            (
+                observation,
+                TraceRecord.decision(
+                    scope=scope,
+                    target=target,
+                    policy=payload_policy,
+                    execution_id=execution_id,
+                    occurred_at=upstream_decision.occurred_at,
+                    parents=(observation,),
+                ),
+            )
+        )
+        payload_guard = emitted[-1]
+
+    authorization = TraceRecord.decision(
+        scope=scope,
+        target=target,
+        policy=authorization_policy,
+        execution_id=execution_id,
+        occurred_at=upstream_decision.occurred_at,
+        parents=(upstream_decision, payload_guard),
+    )
+    return DecisionAnchor.from_record(await emitter.emit(authorization))

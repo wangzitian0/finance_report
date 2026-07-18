@@ -24,6 +24,8 @@ from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
+    post_journal_entry,
+    submit_manual_journal_entry,
     validate_journal_balance,
 )
 from src.pricing.orm.market_data import FxRate
@@ -751,55 +753,32 @@ async def test_review_queue_actions_and_entry_creation(db: AsyncSession) -> None
     entry_accept = entry_result.scalar_one()
     validate_journal_balance(entry_accept.lines)
 
-    entry_reject = JournalEntry(
+    entry_reject = await submit_manual_journal_entry(
+        db,
         user_id=user_id,
         entry_date=date(2024, 3, 1),
         memo="Reject entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        rationale="Manual entry used for a reconciliation rejection test.",
+        base_currency="SGD",
+        lines_data=[
+            {"account_id": expense.id, "direction": Direction.DEBIT, "amount": Decimal("5.00"), "currency": "SGD"},
+            {"account_id": bank.id, "direction": Direction.CREDIT, "amount": Decimal("5.00"), "currency": "SGD"},
+        ],
     )
-    entry_batch = JournalEntry(
+    entry_batch = await submit_manual_journal_entry(
+        db,
         user_id=user_id,
         entry_date=date(2024, 3, 1),
         memo="Batch entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        rationale="Manual entry used for a reconciliation batch-acceptance test.",
+        base_currency="SGD",
+        lines_data=[
+            {"account_id": expense.id, "direction": Direction.DEBIT, "amount": Decimal("15.00"), "currency": "SGD"},
+            {"account_id": bank.id, "direction": Direction.CREDIT, "amount": Decimal("15.00"), "currency": "SGD"},
+        ],
     )
-    db.add_all([entry_reject, entry_batch])
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry_reject.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_reject.id,
-                account_id=bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_batch.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("15.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_batch.id,
-                account_id=bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("15.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    await post_journal_entry(db, entry_reject.id, user_id)
+    await post_journal_entry(db, entry_batch.id, user_id)
     await db.commit()
 
     match_accept = ReconciliationMatch(

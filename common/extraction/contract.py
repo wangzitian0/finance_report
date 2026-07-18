@@ -1615,8 +1615,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.110.6",
-            statement="All four source_type values accepted by API",  # was AC13.10.6
-            test="apps/backend/tests/reconciliation/test_source_type.py::test_all_four_source_type_values_accepted_by_api",
+            statement="The manual journal API rejects caller-selected source_type values",  # was AC13.10.6
+            test="apps/backend/tests/reconciliation/test_source_type.py::test_public_journal_api_rejects_caller_selected_source_type",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -4088,6 +4088,21 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.6",
+            statement=(
+                "Before a Stage 1 disposition can create a ledger command, its emitted "
+                "source decision must be authoritative. Missing or non-authoritative trace "
+                "output routes the statement to pending review with no journal entry."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision"
+            ),
+            priority="P0",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(

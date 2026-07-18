@@ -25,6 +25,8 @@ from src.extraction.base.result import ExtractionMethod, StatementExtractionResu
 from src.extraction.extension.disposition_trace import (
     DispositionDecisionTracePolicy,
     DispositionInvariantTracePolicy,
+    FinancialCommandAuthorizationTracePolicy,
+    JournalCommandPayloadTracePolicy,
 )
 from src.extraction.extension.reviewed_statement_envelope import reviewed_envelope_trace_policies
 
@@ -116,6 +118,8 @@ def extraction_trace_policy_registry() -> TraceDecisionPolicyRegistry:
             DispositionInvariantTracePolicy(),
             DispositionDecisionTracePolicy(),
             *reviewed_envelope_trace_policies(),
+            JournalCommandPayloadTracePolicy(),
+            FinancialCommandAuthorizationTracePolicy(),
         )
     )
 

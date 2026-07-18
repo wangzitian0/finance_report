@@ -23,6 +23,7 @@ import src.config
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.ledger import Entry, Leg
+from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.observability import get_logger
@@ -443,31 +444,28 @@ async def create_revaluation_entry(
 
     Entry.of(*legs)  # raises UnbalancedEntryError if the legs do not net to zero
 
-    entry = JournalEntry(
+    entry = await submit_system_journal_entry(
+        db,
         user_id=user_id,
         entry_date=revaluation_date,
         memo=f"FX Revaluation - {revaluation_date.isoformat()}",
+        lines_data=[
+            {
+                "account_id": leg.account_id,
+                "direction": leg.direction,
+                "amount": leg.money.amount,
+                "currency": leg.money.currency.code,
+                "fx_rate": leg.fx_rate,
+                "event_type": leg.event_type,
+                "tags": leg.tags,
+            }
+            for leg in legs
+        ],
+        base_currency=base_currency,
+        operation="fx-revaluation",
         source_type=JournalEntrySourceType.FX_REVALUATION,
-        status=JournalEntryStatus.POSTED if auto_post else JournalEntryStatus.DRAFT,
+        post_immediately=auto_post,
     )
-    db.add(entry)
-    await db.flush()
-
-    for leg in legs:
-        db.add(
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=leg.account_id,
-                direction=leg.direction,
-                amount=leg.money.amount,
-                currency=leg.money.currency.code,
-                fx_rate=leg.fx_rate,
-                event_type=leg.event_type,
-                tags=leg.tags,
-            )
-        )
-
-    await db.flush()
     await db.refresh(entry, ["lines"])
 
     # Revaluation lines are all in base currency; sum as Money (cross-currency would raise).

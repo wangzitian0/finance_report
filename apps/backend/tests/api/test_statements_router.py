@@ -27,13 +27,15 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
+from src.audit import (
+    STATEMENT_SOURCE_TYPES,
+    JournalEntrySourceType,
+    SqlTraceRecordRepository,
+    TraceEmitter,
+    TraceResult,
+)
 from src.config import settings
 from src.extraction import (
-    DispositionContext,
-    DispositionDecision,
-    DispositionMode,
-    DispositionPolicy,
     DocumentSource,
     DocumentStatus,
     DocumentType,
@@ -42,14 +44,11 @@ from src.extraction import (
     ExtractedTransactionRow,
     ExtractionError,
     ExtractionMethod,
-    IntentProposal,
-    IntentProposalOrigin,
     ParseJob,
     SourceProvenance,
     StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
-    StatementTransaction,
     UploadedDocument,
     extraction_trace_policy_registry,
     persist_statement_extraction_result,
@@ -91,7 +90,7 @@ from src.schemas.review import (
 )
 from tests.factories import AccountFactory, UserFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry
-from tests.statement_ingestion import posting_dependencies
+from tests.statement_ingestion import anchored_reviewed_posting_inputs, posting_dependencies
 
 
 def _compose_mock_ingestion(mock_execute):
@@ -308,47 +307,6 @@ async def add_reviewed_disposition_rule(
         )
     )
     await db.flush()
-
-
-async def reviewed_posting_inputs(
-    db,
-    *,
-    user_id,
-    transaction: AtomicTransaction,
-    intent: EconomicIntent,
-) -> tuple[DispositionDecision, Account]:
-    """Create explicit reviewed economic meaning for a ledger-adapter test."""
-    account_type = AccountType.INCOME if intent is EconomicIntent.INCOME else AccountType.EXPENSE
-    counter_account = Account(
-        user_id=user_id,
-        name=f"{account_type.value.title()} - Reviewed Test",
-        type=account_type,
-        currency=transaction.currency,
-    )
-    db.add(counter_account)
-    await db.flush()
-    decision = DispositionPolicy().decide(
-        StatementTransaction(
-            transaction_id=transaction.id,
-            transaction_date=transaction.txn_date,
-            amount=transaction.amount,
-            currency=transaction.currency,
-            direction=transaction.direction,
-            description=transaction.description,
-        ),
-        proposal=IntentProposal(
-            schema_version="1",
-            policy_version="reviewed-test-v1",
-            origin=IntentProposalOrigin.REVIEWED_RULE,
-            intent=intent,
-            category="TEST",
-            confidence=Decimal("1"),
-            evidence=("reviewed-test",),
-        ),
-        context=DispositionContext(counter_account_id=counter_account.id),
-        mode=DispositionMode.ENFORCE,
-    )
-    return decision, counter_account
 
 
 async def add_txn(
@@ -2233,6 +2191,61 @@ async def test_auto_approve_high_confidence_statement_creates_posted_entries(db,
     assert entry_result.scalar_one().status == JournalEntryStatus.POSTED
 
 
+async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision(db, test_user, monkeypatch):
+    """AC-extraction.disposition.6: no source decision means review, never a ledger write."""
+    bank_account = await create_statement_account(db, test_user.id, "DBS Missing Source Authority")
+    statement = build_statement(test_user.id, "hash_s1_missing_source_authority", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
+    await db.commit()
+
+    async def emit_non_authoritative(*_args, **_kwargs):
+        return (SimpleNamespace(result=TraceResult.REVIEW),)
+
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_posting.emit_disposition_trace_records",
+        emit_non_authoritative,
+    )
+
+    created_count = await try_auto_approve_high_confidence_statement(
+        db,
+        statement.id,
+        test_user.id,
+        dependencies=posting_dependencies(),
+    )
+
+    assert created_count == 0
+    await db.refresh(statement)
+    assert statement.status is BankStatementStatus.PARSED
+    assert statement.stage1_status is Stage1Status.PENDING_REVIEW
+    assert "source_authority_missing" in (statement.validation_error or "")
+    entry_count = await db.scalar(
+        select(JournalEntry.id).where(JournalEntry.user_id == test_user.id).where(JournalEntry.source_id == txn.id)
+    )
+    assert entry_count is None
+
+
 async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candidate(db, test_user):
     statement = build_statement(test_user.id, "hash_s1_high_confidence_non_candidate", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2332,7 +2345,7 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_txns[0].description == "Uncommitted Salary"
 
 
-async def test_approve_statement_stage1_preserves_existing_statement_entry_provenance_without_reposting(db, test_user):
+async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correction_review(db, test_user):
     bank_account = await create_statement_account(db, test_user.id, "DBS Existing Entry Promotion")
     statement = build_statement(test_user.id, "hash_s1_existing_entry_promotion", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2361,11 +2374,17 @@ async def test_approve_statement_stage1_preserves_existing_statement_entry_prove
         source_id=txn.id,
     )
 
-    result = await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
+    with pytest.raises(HTTPException) as exc_info:
+        await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=test_user.id)
 
-    assert result.journal_entries_created == 0
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "legacy_unanchored_source_entry" in exc_info.value.detail
     await db.refresh(existing_entry)
     assert existing_entry.source_type == JournalEntrySourceType.AUTO_PARSED
+    assert existing_entry.status == JournalEntryStatus.POSTED
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.PARSED
+    assert statement.stage1_status == Stage1Status.PENDING_REVIEW
 
     entries_result = await db.execute(
         select(JournalEntry)
@@ -3659,7 +3678,7 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
 
     # Reconciliation confirms an existing, economically reviewed entry. It no
     # longer manufactures one from a pending match without semantic context.
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn_in_run,
@@ -3672,6 +3691,8 @@ async def test_AC19_11_1_stage2_run_queue_filters_by_run_id(db, test_user):
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
 
     in_run_match = ReconciliationMatch(
@@ -3746,7 +3767,7 @@ async def test_batch_approve_matches_success(db, test_user):
     await db.commit()
     await db.refresh(txn)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -3759,6 +3780,8 @@ async def test_batch_approve_matches_success(db, test_user):
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     await db.flush()
 
@@ -3802,7 +3825,7 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     await db.commit()
     await db.refresh(txn)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -3815,6 +3838,8 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -3919,7 +3944,7 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
     await db.commit()
     await db.refresh(txn)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -3932,6 +3957,8 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     await db.flush()
 
@@ -3987,7 +4014,7 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
     await db.commit()
     await db.refresh(txn)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -4000,6 +4027,8 @@ async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user)
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -4055,7 +4084,7 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -4070,6 +4099,8 @@ async def test_create_entry_from_txn_auto_post_rejects_inactive_statement_accoun
             auto_post=True,
             disposition=decision,
             counter_account=counter_account,
+            source_decision=source_decision,
+            trace_emitter=trace_emitter,
         )
 
     entry_result = await db.execute(
@@ -4112,7 +4143,7 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     db.add(txn)
     await db.flush()
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=txn,
@@ -4126,6 +4157,8 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
         source_type=JournalEntrySourceType.AUTO_PARSED,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     await db.commit()
 
@@ -4189,7 +4222,7 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
     await db.refresh(txn)
     await db.refresh(entry_source_txn)
 
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=entry_source_txn,
@@ -4202,6 +4235,8 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
         auto_post=True,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,

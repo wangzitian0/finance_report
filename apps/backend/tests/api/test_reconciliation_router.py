@@ -29,14 +29,22 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceRecordType, TraceResult
+from src.audit import STATEMENT_SOURCE_TYPES, TraceRecordType, TraceResult
 from src.audit.orm import TraceRecordRow
 from src.extraction import DispositionPolicy, DocumentType, TransactionClassification, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    post_journal_entry,
+    submit_manual_journal_entry,
+    validate_manual_journal_entry_for_post,
+)
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus, ReviewedDispositionDependencies
 from src.routers import reconciliation as reconciliation_router
 from src.schemas.reconciliation import ReconciliationStatusEnum, ReviewedDispositionRequest
@@ -116,6 +124,49 @@ def create_test_match(db, transaction: AtomicTransaction, **kwargs) -> Reconcili
     }
     defaults.update(kwargs)
     return ReconciliationMatch(**defaults)
+
+
+async def create_anchored_match_entry(
+    db,
+    *,
+    user_id,
+    bank_account: Account,
+    counter_account: Account,
+    entry_date: date,
+    memo: str,
+    amount: Decimal,
+) -> JournalEntry:
+    """Build a real manual command rather than a raw ledger fixture."""
+    entry = await submit_manual_journal_entry(
+        db,
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        rationale=f"Test operator attested reconciliation candidate: {memo}",
+        lines_data=[
+            {
+                "account_id": counter_account.id,
+                "direction": Direction.DEBIT,
+                "amount": amount,
+                "currency": "SGD",
+            },
+            {
+                "account_id": bank_account.id,
+                "direction": Direction.CREDIT,
+                "amount": amount,
+                "currency": "SGD",
+            },
+        ],
+        base_currency="SGD",
+    )
+    await db.refresh(entry, ["lines"])
+    await validate_manual_journal_entry_for_post(
+        db,
+        user_id=user_id,
+        entry=entry,
+        base_currency="SGD",
+    )
+    return await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
 
 
 class TestReconciliationEndpoints:
@@ -238,9 +289,6 @@ class TestReconciliationEndpoints:
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.3: Accept a match against an existing entry."""
         # GIVEN an existing, balanced entry that the matcher has already selected
-        from src.audit import JournalEntrySourceType
-        from src.ledger import Direction, JournalEntryStatus, JournalLine
-
         account = await create_test_asset_account(db, test_user)
         statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
         db.add(statement)
@@ -256,33 +304,16 @@ class TestReconciliationEndpoints:
             type=AccountType.EXPENSE,
             currency="SGD",
         )
-        entry = JournalEntry(
-            user_id=test_user.id,
-            entry_date=transaction.txn_date,
-            memo=transaction.description,
-            source_type=JournalEntrySourceType.AUTO_MATCHED,
-            source_id=transaction.id,
-            status=JournalEntryStatus.POSTED,
-        )
-        db.add_all([counter_account, entry])
+        db.add(counter_account)
         await db.flush()
-        db.add_all(
-            [
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=counter_account.id,
-                    direction=Direction.DEBIT,
-                    amount=transaction.amount,
-                    currency=transaction.currency,
-                ),
-                JournalLine(
-                    journal_entry_id=entry.id,
-                    account_id=account.id,
-                    direction=Direction.CREDIT,
-                    amount=transaction.amount,
-                    currency=transaction.currency,
-                ),
-            ]
+        entry = await create_anchored_match_entry(
+            db,
+            user_id=test_user.id,
+            bank_account=account,
+            counter_account=counter_account,
+            entry_date=transaction.txn_date,
+            memo=f"Reviewed candidate {transaction.id}",
+            amount=transaction.amount,
         )
         match = create_test_match(db, transaction, journal_entry_ids=[str(entry.id)])
         db.add(match)
@@ -364,32 +395,14 @@ class TestReconciliationEndpoints:
         await db.flush()
         entries = []
         for transaction in (txn1, txn2):
-            entry = JournalEntry(
+            entry = await create_anchored_match_entry(
+                db,
                 user_id=test_user.id,
+                bank_account=account,
+                counter_account=expense,
                 entry_date=transaction.txn_date,
-                memo="Pre-existing batch candidate",
-                source_type=JournalEntrySourceType.MANUAL,
-                status=JournalEntryStatus.POSTED,
-            )
-            db.add(entry)
-            await db.flush()
-            db.add_all(
-                [
-                    JournalLine(
-                        journal_entry_id=entry.id,
-                        account_id=expense.id,
-                        direction=Direction.DEBIT,
-                        amount=transaction.amount,
-                        currency="SGD",
-                    ),
-                    JournalLine(
-                        journal_entry_id=entry.id,
-                        account_id=account.id,
-                        direction=Direction.CREDIT,
-                        amount=transaction.amount,
-                        currency="SGD",
-                    ),
-                ]
+                memo=f"Pre-existing batch candidate {transaction.id}",
+                amount=transaction.amount,
             )
             entries.append(entry)
         await db.flush()

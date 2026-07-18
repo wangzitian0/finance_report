@@ -26,7 +26,13 @@ from src.extraction import (
     emit_disposition_trace_records,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import Account, JournalEntry, JournalEntryStatus
+from src.ledger import (
+    Account,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    current_anchored_journal_entries,
+)
 from src.reconciliation.base import ReviewedDispositionCommand, ReviewedDispositionError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch
 
@@ -69,10 +75,34 @@ async def _find_existing_entry(
     transaction_id: UUID,
 ) -> JournalEntry | None:
     result = await db.execute(
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=f"statement-transaction:{transaction_id}",
+        )
+        # A source id by itself is historical metadata, not a proof that the
+        # reviewed financial command was accepted. Only the generic anchored
+        # writer can establish this command target.
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+        .limit(1)
+        .with_for_update()
+    )
+    return result.scalar_one_or_none()
+
+
+async def _find_legacy_source_entry(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    transaction_id: UUID,
+) -> JournalEntry | None:
+    """Find historical source metadata that must be corrected before re-posting."""
+    result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.source_id == transaction_id)
+        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.LEGACY_UNPROVEN)
         .where(JournalEntry.status != JournalEntryStatus.VOID)
         .limit(1)
         .with_for_update()
@@ -186,13 +216,21 @@ async def submit_reviewed_disposition(
                 )
             existing_entry = await _find_existing_entry(db, user_id=user_id, transaction_id=txn.id)
             if existing_entry is None:
+                if await _find_legacy_source_entry(db, user_id=user_id, transaction_id=txn.id):
+                    raise ReviewedDispositionError(
+                        "A legacy unanchored source journal entry must be corrected or voided before review"
+                    )
                 raise RuntimeError("Recorded reviewed disposition is missing its source journal entry")
             return existing_entry
 
     if await _find_existing_entry(db, user_id=user_id, transaction_id=txn.id):
         raise ReviewedDispositionError("A source journal entry already exists; reconcile that entry instead")
+    if await _find_legacy_source_entry(db, user_id=user_id, transaction_id=txn.id):
+        raise ReviewedDispositionError(
+            "A legacy unanchored source journal entry must be corrected or voided before review"
+        )
 
-    await emit_disposition_trace_records(
+    emitted_records = await emit_disposition_trace_records(
         emitter=dependencies.trace_emitter,
         user_id=user_id,
         execution_id=execution_id,
@@ -212,6 +250,8 @@ async def submit_reviewed_disposition(
             source_type=JournalEntrySourceType.USER_CONFIRMED,
             disposition=decision,
             counter_account=counter_account,
+            source_decision=emitted_records[-1],
+            trace_emitter=dependencies.trace_emitter,
         )
     except ValueError as exc:
         raise ReviewedDispositionError(str(exc)) from exc

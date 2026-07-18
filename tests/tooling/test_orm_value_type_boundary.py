@@ -129,7 +129,7 @@ def test_AC12_37_1_journal_line_exposes_money_accessor():
     """AC-audit.37.1: JournalLine exposes a typed `money` read accessor at the ORM
     boundary (lines are immutable; amount/currency columns stay storage)."""
     src = _read("apps/backend/src/ledger/orm/journal.py")
-    assert "from src.audit.money import Money" in src
+    assert re.search(r"from src\.audit\.money import [^\n]*\bMoney\b", src)
     assert "def money(self) -> Money" in src
 
 

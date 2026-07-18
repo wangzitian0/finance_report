@@ -68,7 +68,7 @@ from src.schemas import (
     PersonalReportPackageReadinessResponse,
 )
 from tests.factories import UserFactory
-from tests.statement_ingestion import reviewed_posting_inputs
+from tests.statement_ingestion import anchored_reviewed_posting_inputs
 
 
 @pytest.fixture(autouse=True)
@@ -1699,7 +1699,7 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
     atomic_txn = (
         await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))
     ).scalar_one()
-    decision, counter_account = await reviewed_posting_inputs(
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
         db,
         user_id=test_user.id,
         transaction=atomic_txn,
@@ -1715,6 +1715,8 @@ async def test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_so
         preloaded_bank_account=bank,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
     )
     await db.flush()
     await db.refresh(entry, ["lines"])

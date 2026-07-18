@@ -1,15 +1,8 @@
-"""Journal write adapter — the ledger's persistence edge (extension layer).
+"""Private journal persistence implementation for the anchored command boundary.
 
-The concrete, ``AsyncSession``-backed implementation of the
-:class:`~src.ledger.base.repository.JournalRepository` port: ``create`` /
-``post`` / ``void`` plus the async account-ownership check that gates them. This
-is mechanism B — the pure core (``base/``) depends on the abstract port; the
-impure I/O lives here and depends back on it.
-
-The module-level ``create_journal_entry`` / ``post_journal_entry`` /
-``void_journal_entry`` functions are the published functional surface (re-exported
-from ``src.ledger``); :class:`SqlJournalRepository` is the port adapter that wraps
-them so ``post_entry`` can depend on the injectable port.
+Only ``anchored_posting`` may create a new financial fact through this module's
+private ``_create_anchored_journal_entry`` sink. Posting and voiding remain published
+lifecycle verbs; voiding creates its reversal through the system anchored command.
 """
 
 from __future__ import annotations
@@ -24,6 +17,7 @@ from sqlalchemy.orm import selectinload
 import src.config
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import Currency
+from src.ledger.base.decision_anchor import DecisionAnchor
 from src.ledger.base.validators import (
     ValidationError,
     validate_fx_rates,
@@ -31,7 +25,7 @@ from src.ledger.base.validators import (
     validate_journal_posting_invariants,
 )
 from src.ledger.orm.account import Account
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus, JournalLine
 
 
 async def _set_transaction_base_currency(db: AsyncSession, base_currency: str | None) -> str:
@@ -86,7 +80,7 @@ async def validate_line_account_ownership(
     return accounts
 
 
-async def create_journal_entry(
+async def _create_anchored_journal_entry(
     db: AsyncSession,
     user_id: UUID,
     entry_date: date,
@@ -96,6 +90,7 @@ async def create_journal_entry(
     source_id: UUID | None = None,
     *,
     base_currency: str | None = None,
+    decision_anchor: DecisionAnchor,
 ) -> JournalEntry:
     base_currency = await _set_transaction_base_currency(db, base_currency)
     await validate_line_account_ownership(
@@ -110,6 +105,8 @@ async def create_journal_entry(
         memo=memo,
         source_type=normalize_source_type(source_type),
         source_id=source_id,
+        decision_anchor_id=decision_anchor.decision_id,
+        decision_authority_state=JournalEntryAuthorityState.ANCHORED,
     )
 
     lines: list[JournalLine] = []
@@ -230,31 +227,31 @@ async def void_journal_entry(
     )
     await _set_transaction_base_currency(db, historical_base)
 
-    # Create reversal entry
-    reversal_entry = JournalEntry(
+    # Keep a correction on the same anchored command boundary as every other
+    # new financial fact. The original entry id is the immutable source identity.
+    from src.ledger.extension.anchored_posting import submit_system_journal_entry
+
+    reversal_entry = await submit_system_journal_entry(
+        db,
         user_id=user_id,
         entry_date=date.today(),
         memo=f"VOID: {entry.memo}",
-        source_type=JournalEntrySourceType.SYSTEM,
-        status=JournalEntryStatus.POSTED,
+        lines_data=[
+            {
+                "account_id": line.account_id,
+                "direction": Direction.CREDIT if line.direction == Direction.DEBIT else Direction.DEBIT,
+                "amount": line.amount,
+                "currency": line.currency,
+                "fx_rate": line.fx_rate,
+                "event_type": line.event_type,
+                "tags": line.tags,
+            }
+            for line in entry.lines
+        ],
+        base_currency=historical_base,
+        operation="void-reversal",
+        source_id=entry.id,
     )
-    db.add(reversal_entry)
-    await db.flush()
-
-    # Create reversed lines
-    for line in entry.lines:
-        reversed_direction = Direction.CREDIT if line.direction == Direction.DEBIT else Direction.DEBIT
-        reversal_line = JournalLine(
-            journal_entry_id=reversal_entry.id,
-            account_id=line.account_id,
-            direction=reversed_direction,
-            amount=line.amount,
-            currency=line.currency,
-            fx_rate=line.fx_rate,
-            event_type=line.event_type,
-            tags=line.tags,
-        )
-        db.add(reversal_line)
 
     # Update original entry
     entry.status = JournalEntryStatus.VOID
@@ -263,57 +260,7 @@ async def void_journal_entry(
     entry.updated_at = datetime.now(UTC)
 
     await db.flush()
+    # The lifecycle service returns a complete aggregate. Callers may commit
+    # before inspecting reversal lines, where async lazy loading is invalid.
     await db.refresh(reversal_entry, ["lines"])
-
     return reversal_entry
-
-
-class SqlJournalRepository:
-    """``AsyncSession``-backed :class:`~src.ledger.base.repository.JournalRepository`.
-
-    Wraps the module-level write functions so ``post_entry`` can depend on the
-    abstract port (mechanism B) while production wiring stays a thin pass-through
-    over the one ``AsyncSession`` owned by the caller's transaction boundary.
-    """
-
-    def __init__(self, db: AsyncSession, *, base_currency: str) -> None:
-        self._db = db
-        self._base_currency = Currency.of(base_currency).code
-
-    async def create(
-        self,
-        *,
-        user_id: UUID,
-        entry_date: date,
-        memo: str,
-        lines_data: list[dict],
-        source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
-        source_id: UUID | None = None,
-    ) -> JournalEntry:
-        return await create_journal_entry(
-            self._db,
-            user_id,
-            entry_date,
-            memo,
-            lines_data,
-            source_type=source_type,
-            source_id=source_id,
-            base_currency=self._base_currency,
-        )
-
-    async def post(self, entry_id: UUID, user_id: UUID) -> JournalEntry:
-        return await post_journal_entry(
-            self._db,
-            entry_id,
-            user_id,
-            base_currency=self._base_currency,
-        )
-
-    async def void(self, entry_id: UUID, reason: str, user_id: UUID) -> JournalEntry:
-        return await void_journal_entry(
-            self._db,
-            entry_id,
-            reason,
-            user_id,
-            base_currency=self._base_currency,
-        )

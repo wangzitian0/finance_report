@@ -6,9 +6,9 @@ This is the authoritative spec the governance gate
 (``implementations["be"]`` = ``apps/backend/src/ledger``); every
 ``invariants[].test`` resolves to a real test function; ``depends_on`` must not
 introduce a forbidden upward/sideways edge; and the building-block layering holds
-(``base`` pure, each unit in its ``kind``'s layer, the ``JournalRepository`` split
-into a base port + extension adapter, the account-balance projection a ``data``
-sink).
+(``base`` pure, each unit in its ``kind``'s layer, a single decision-anchored
+financial-command boundary in ``extension``, the account-balance projection a
+``data`` sink).
 
 ``ledger`` is the first ``domain``-layer (L3) bounded context on the package
 model (the double-entry bounded context). Slice 3b (#1420) folds the **processing (in-transit) account**
@@ -64,7 +64,7 @@ collision-free as later slices add ACs without re-reading this file:
   76=reconciliation integration), each mirroring its source ``AC15.<g>`` group.
 - **group 77** — #1866 processing front-door, explicit-currency, and balance-space
   signature surgery; **group 78** is reserved for the parallel confidence-tier
-  single-owner slice.
+  single-owner slice; **group 79** — #1909 decision-anchored journal commands.
 
 (The aspirational ``AC-ledger.<entity>.<seq>`` form some docs advertise is not
 adopted: the live traceability regex in
@@ -119,16 +119,43 @@ CONTRACT = PackageContract(
         Unit(name="Leg", kind=Kind.VALUE_OBJECT, module="base/types/entry.py"),
         # Entry.of / Entry.transfer — the pure factory (lives with the aggregate).
         Unit(name="EntryFactory", kind=Kind.FACTORY, module="base/types/entry.py"),
-        # repository — the one split block: the abstract port lives in base/, the
-        # AsyncSession adapter in extension/ (dependency inversion, mechanism B).
-        Unit(
-            name="JournalRepository",
-            kind=Kind.REPOSITORY,
-            module="base/repository.py",
-            impl="extension/repository.py",
-        ),
         # extension — the posting domain service (an edge).
         Unit(name="post_entry", kind=Kind.DOMAIN_SERVICE, module="extension/post.py"),
+        Unit(
+            name="DecisionAnchor",
+            kind=Kind.VALUE_OBJECT,
+            module="base/decision_anchor.py",
+        ),
+        Unit(
+            name="submit_anchored_journal_entry",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/anchored_posting.py",
+        ),
+        Unit(
+            name="current_anchored_journal_entries",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/anchored_posting.py",
+        ),
+        Unit(
+            name="JournalLineContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="ResolvedJournalContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
+            name="list_journal_contributions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/contribution.py",
+        ),
+        Unit(
+            name="ledger_trace_policy_registry",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/anchored_posting.py",
+        ),
         # data — the account-balance projection (read-model / leaf sink).
         Unit(name="AccountBalance", kind=Kind.PROJECTION, module="data/balance.py"),
         # processing — the in-transit (Processing) virtual account (#1420 slice 3b).
@@ -176,22 +203,26 @@ CONTRACT = PackageContract(
         "AccountNotFoundError",
         "AccountType",
         "AccountingError",
+        "AnchoredJournalCommand",
         "ConfidenceTier",
         "DEFAULT_STALE_AFTER_DAYS",
         "DegenerateEntryError",
+        "DecisionAnchor",
+        "DecisionAnchorError",
         "Direction",
         "Entry",
         "JournalAuditLog",
         "JournalEntry",
+        "JournalEntryAuthorityState",
         "JournalEntryStatus",
         "JournalLine",
-        "JournalRepository",
+        "JournalLineContribution",
         "LedgerError",
         "Leg",
         "ProcessingAccount",
         "ProcessingCurrencyConflictError",
+        "ResolvedJournalContribution",
         "RevaluationError",
-        "SqlJournalRepository",
         "StatementCoverageRow",
         "TransferAccountCurrencyMismatchError",
         "TransferPair",
@@ -202,7 +233,7 @@ CONTRACT = PackageContract(
         "calculate_account_balances",
         "calculate_account_balances_in_base_currency",
         "calculate_unrealized_fx_gains",
-        "create_journal_entry",
+        "current_anchored_journal_entries",
         "create_transfer_in_entry",
         "create_transfer_out_entry",
         "derive_confidence_tier",
@@ -213,8 +244,14 @@ CONTRACT = PackageContract(
         "get_or_create_processing_account",
         "get_processing_balance",
         "get_unpaired_transfers",
+        "journal_command_target",
+        "ledger_trace_policy_registry",
+        "list_journal_contributions",
         "list_processing_transfer_legs",
         "post_entry",
+        "submit_anchored_journal_entry",
+        "submit_manual_journal_entry",
+        "validate_manual_journal_entry_for_post",
         "post_journal_entry",
         "post_opening_balance_entry",
         "register_fx_revaluation_provider",
@@ -282,12 +319,16 @@ CONTRACT = PackageContract(
             test="tests/tooling/test_ledger_package.py::test_ledger_base_layer_is_pure",
         ),
         Invariant(
-            id="repository-splits",
+            id="anchored-persistence-boundary",
             statement=(
-                "The JournalRepository is a base port + an extension adapter "
-                "(dependency inversion, mechanism B)."
+                "Only the extension's decision-anchored command service may call "
+                "the private journal persistence sink; no public repository or raw "
+                "create command bypasses its authority check."
             ),
-            test="tests/tooling/test_ledger_package.py::test_ledger_repository_splits",
+            test=(
+                "tests/tooling/test_ledger_package.py"
+                "::test_ledger_anchored_persistence_boundary"
+            ),
         ),
         Invariant(
             id="passes-own-governance-gate",
@@ -1785,10 +1826,11 @@ CONTRACT = PackageContract(
             id="AC-ledger.34.6",
             statement=(
                 "The journal write pipeline "
-                "(create_journal_entry/post_journal_entry/void_journal_entry + "
-                "validators) lives in the ledger package "
-                "(ledger/extension/repository.py, behind the JournalRepository "
-                "port); ledger.extension.post depends down on it instead of up on "
+                "(the private persistence sink plus post_journal_entry/"
+                "void_journal_entry lifecycle verbs and validators) lives in the "
+                "ledger package; every new fact enters through "
+                "submit_anchored_journal_entry rather than an exported raw create "
+                "writer. ledger.extension.post depends down on it instead of up on "
                 "services.accounting. After the package cutover (#1420 slice 3a) "
                 "NO services.accounting re-export shim survives — callers import "
                 "the pipeline + ValidationError from the published ledger "
@@ -2292,6 +2334,138 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.1",
+            statement=(
+                "A source-derived or manual financial journal command carries a typed "
+                "DecisionAnchor that pins one authoritative TraceRecord, tenant scope, "
+                "exact target version, and policy assertion version; missing, rejected, "
+                "superseded, cross-tenant, or target-mismatched anchors fail before a "
+                "JournalEntry is written."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_decision_anchor_rejects_noncurrent_or_mismatched_authority"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.2",
+            statement=(
+                "All product source/reviewed writes use submit_anchored_journal_entry; "
+                "an identical decision retry is idempotent, while a different decision "
+                "for the same immutable source target conflicts instead of changing "
+                "ledger history."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_submit_anchored_journal_entry_is_idempotent_and_conflicts_on_new_authority"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.3",
+            statement=(
+                "The public manual journal command cannot select source_type or source_id; "
+                "it produces a manual attestation decision over the exact submitted journal "
+                "payload, and the persisted entry exposes immutable anchor provenance."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_manual_journal_api_creates_an_attested_anchor_without_source_impersonation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.4",
+            statement=(
+                "Journal source metadata and decision-anchor fields are immutable after "
+                "posting/reconciliation; historical rows without an anchor remain explicitly "
+                "legacy_unproven rather than receiving a synthetic authority default."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_anchor_provenance_is_immutable_and_legacy_rows_remain_unproven"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.6",
+            statement=(
+                "A whole-production-tree writer scan permits raw JournalEntry construction "
+                "and persistence only at the ledger's private anchored-command boundary, "
+                "so source, review, manual, and system flows cannot retain an unanchored "
+                "writer fork."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_production_financial_writers_have_one_anchored_persistence_boundary"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.5",
+            statement=(
+                "Reconciliation and unresolved-source reads consume the one ledger "
+                "current-anchor query, which joins the JournalEntry decision id to audit's "
+                "public current-authority projection; legacy, stale, "
+                "or target-mismatched facts cannot satisfy acceptance by source-id coincidence."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_current_anchored_journal_entries_rejects_stale_or_mismatched_authority"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.79.7",
+            statement=(
+                "Trace emission and decision-anchored ledger persistence share the caller-owned "
+                "unit of work: a fault after TraceRecord flush but before JournalEntry creation "
+                "can be rolled back with zero assurance or accounting partial write."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_anchored_command_sink_failure_rolls_back_trace_and_ledger"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.80.1",
+            statement=(
+                "list_journal_contributions publishes posted or reconciled journal facts "
+                "with their exact current DecisionAnchor and line/account data; source type, "
+                "entry recency, or status alone never grants package authority."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_facts"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-ledger.80.2",
+            statement=(
+                "ledger_trace_policy_registry publishes the complete policy decoder required "
+                "by package consumers; consumers never import ledger's internal policy classes."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_AC_ledger_80_2_publishes_decision_policy_registry"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
         ),
     ],
     concepts=[

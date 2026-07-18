@@ -160,7 +160,6 @@ async def test_create_journal_entry(
                 "currency": "SGD",
             },
         ],
-        "source_type": "manual",
     }
 
     # WHEN: Create journal entry
@@ -207,7 +206,6 @@ async def test_create_unbalanced_entry(
                 "amount": "99.00",
             },
         ],
-        "source_type": "manual",
     }
 
     # WHEN: Try to create unbalanced entry
@@ -326,8 +324,35 @@ async def test_post_journal_entry(
     draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
     assert draft_entry is not None, "No draft entry found"
 
-    # WHEN: Post the entry
-    response = await client.post(f"/journal-entries/{draft_entry.id}/postings")
+    # Historical drafts have no decision and cannot gain authority through a
+    # compatibility posting branch.
+    legacy_response = await client.post(f"/journal-entries/{draft_entry.id}/postings")
+    assert legacy_response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "legacy-unproven" in legacy_response.json()["detail"]
+
+    create_response = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": draft_entry.entry_date.isoformat(),
+            "memo": f"Anchored replacement for {draft_entry.memo}",
+            "rationale": "Operator attested this exact draft before posting.",
+            "lines": [
+                {
+                    "account_id": str(line.account_id),
+                    "direction": getattr(line.direction, "value", line.direction),
+                    "amount": str(line.amount),
+                    "currency": line.currency,
+                    "fx_rate": str(line.fx_rate) if line.fx_rate is not None else None,
+                }
+                for line in draft_entry.lines
+            ],
+        },
+    )
+    assert create_response.status_code == status.HTTP_201_CREATED
+    anchored_entry_id = create_response.json()["id"]
+
+    # WHEN: Post the anchored entry
+    response = await client.post(f"/journal-entries/{anchored_entry_id}/postings")
 
     # THEN: Entry posted successfully
     assert response.status_code == status.HTTP_200_OK
@@ -335,19 +360,18 @@ async def test_post_journal_entry(
     assert data["status"] == "posted"
 
     # Verify in database
-    db.expire(draft_entry)
     await db.refresh(draft_entry)
-    assert draft_entry.status == JournalEntryStatus.POSTED
+    assert draft_entry.status == JournalEntryStatus.DRAFT
 
     # Test posting already posted entry
-    response = await client.post(f"/journal-entries/{draft_entry.id}/postings")
+    response = await client.post(f"/journal-entries/{anchored_entry_id}/postings")
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "draft" in response.json()["detail"].lower()  # Error mentions draft requirement
 
     # Test posting non-existent entry
     non_existent_id = uuid4()
     response = await client.post(f"/journal-entries/{non_existent_id}/postings")
-    assert response.status_code == status.HTTP_400_BAD_REQUEST  # Service ValidationError, not 404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 async def test_void_journal_entry(

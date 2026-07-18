@@ -19,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 # upward into ledger (L3 domain), so the vocabulary lives downward and the
 # ledger ORM consumes it here (#1675 D5).
 from src.audit import JournalEntrySourceType
-from src.audit.money import Money
+from src.audit.money import Currency, Money
 from src.config import settings
 from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
@@ -35,6 +35,13 @@ class JournalEntryStatus(str, enum.Enum):
     POSTED = "posted"
     RECONCILED = "reconciled"
     VOID = "void"
+
+
+class JournalEntryAuthorityState(str, enum.Enum):
+    """Whether this row has a decision that can be used as accounting authority."""
+
+    ANCHORED = "anchored"
+    LEGACY_UNPROVEN = "legacy_unproven"
 
 
 ConfidenceTier = Literal["DETERMINISTIC", "TRUSTED", "HIGH", "MEDIUM", "LOW"]
@@ -94,6 +101,15 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     """
 
     __tablename__ = "journal_entries"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision_authority_state = 'anchored' "
+            "AND decision_anchor_id IS NOT NULL) "
+            "OR (decision_authority_state = 'legacy_unproven' "
+            "AND decision_anchor_id IS NULL)",
+            name="ck_journal_entries_decision_anchor_complete",
+        ),
+    )
 
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     memo: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -107,6 +123,22 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         default=JournalEntrySourceType.MANUAL,
     )
     source_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    # TraceRecord is the sole owner of target, policy, and assurance metadata.
+    decision_anchor_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("trace_records.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+    decision_authority_state: Mapped[JournalEntryAuthorityState] = mapped_column(
+        Enum(
+            JournalEntryAuthorityState,
+            name="journal_entry_authority_state_enum",
+            values_callable=lambda obj: [item.value for item in obj],
+        ),
+        nullable=False,
+        default=JournalEntryAuthorityState.LEGACY_UNPROVEN,
+    )
     status: Mapped[JournalEntryStatus] = mapped_column(
         Enum(
             JournalEntryStatus,
@@ -192,7 +224,7 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
         via Money.
         """
         currency = self.currency if self.currency is not None else settings.base_currency
-        return Money(self.amount, currency)
+        return Money(self.amount, Currency.of(currency))
 
     def __repr__(self) -> str:
         return f"<JournalLine {self.direction.value} {self.amount} {self.currency}>"
@@ -396,16 +428,12 @@ BEGIN
                 OR NEW.entry_date IS DISTINCT FROM OLD.entry_date
                 OR NEW.memo IS DISTINCT FROM OLD.memo
                 OR NEW.source_id IS DISTINCT FROM OLD.source_id
+                OR NEW.decision_anchor_id IS DISTINCT FROM OLD.decision_anchor_id
+                OR NEW.decision_authority_state IS DISTINCT FROM OLD.decision_authority_state
                 OR NEW.void_reason IS DISTINCT FROM OLD.void_reason
                 OR NEW.void_reversal_entry_id IS DISTINCT FROM OLD.void_reversal_entry_id
                 OR NEW.created_at IS DISTINCT FROM OLD.created_at
-                OR (
-                    NEW.source_type IS DISTINCT FROM OLD.source_type
-                    AND NOT (
-                        NEW.source_type::text = 'user_confirmed'
-                        AND OLD.source_type::text IN ('auto_parsed', 'bank_statement', 'auto_matched')
-                    )
-                )
+                OR NEW.source_type IS DISTINCT FROM OLD.source_type
             THEN
                 RAISE EXCEPTION 'posted journal entry % can only move to reconciled without fact mutation', OLD.id
                     USING ERRCODE = '23514', CONSTRAINT = 'ck_journal_entries_posted_reconcile_only';
@@ -419,6 +447,8 @@ BEGIN
                 OR NEW.memo IS DISTINCT FROM OLD.memo
                 OR NEW.source_type IS DISTINCT FROM OLD.source_type
                 OR NEW.source_id IS DISTINCT FROM OLD.source_id
+                OR NEW.decision_anchor_id IS DISTINCT FROM OLD.decision_anchor_id
+                OR NEW.decision_authority_state IS DISTINCT FROM OLD.decision_authority_state
                 OR NEW.created_at IS DISTINCT FROM OLD.created_at
             THEN
                 RAISE EXCEPTION 'posted journal entry % can only be voided without fact mutation', OLD.id
@@ -442,15 +472,9 @@ BEGIN
             AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
             AND NEW.source_type IS DISTINCT FROM OLD.source_type
         THEN
-            IF NEW.source_type::text = 'user_confirmed'
-                AND OLD.source_type::text IN ('auto_parsed', 'bank_statement', 'auto_matched')
-            THEN
-                RETURN NEW;
-            END IF;
-
             RAISE EXCEPTION 'cannot change immutable journal entry % source_type from % to %',
                 OLD.id, OLD.source_type, NEW.source_type
-                USING ERRCODE = '23514', CONSTRAINT = 'ck_journal_entries_source_type_promotion_only';
+                USING ERRCODE = '23514', CONSTRAINT = 'ck_journal_entries_source_type_immutable';
         END IF;
 
         RAISE EXCEPTION 'cannot directly update immutable journal entry % with status %', OLD.id, OLD.status

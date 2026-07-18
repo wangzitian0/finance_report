@@ -15,7 +15,13 @@ from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Direction, JournalEntry, JournalEntryStatus, ValidationError
+from src.ledger import (
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    ValidationError,
+    current_anchored_journal_entries,
+)
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
@@ -68,8 +74,12 @@ def _unmatched_atomic_txn_query(user_id: UUID):
         .where(ReconciliationMatch.atomic_txn_id.is_not(None))
     )
     posted_source_subquery = (
-        select(JournalEntry.source_id)
-        .where(JournalEntry.user_id == user_id)
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
+        )
+        .with_only_columns(JournalEntry.source_id)
         .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
         .where(JournalEntry.status != JournalEntryStatus.VOID)
     )

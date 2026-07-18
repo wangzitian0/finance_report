@@ -149,7 +149,8 @@ describe("JournalEntryForm", () => {
       expect(request.method).toBe("POST")
       const body = JSON.parse(request.body)
       expect(body.memo).toBe("Manual adjustment")
-      expect(body.source_type).toBe("manual")
+      expect(body.rationale).toBe("Recorded by account owner.")
+      expect(body.source_type).toBeUndefined()
       expect(body.lines).toEqual([
         { account_id: "a1", direction: "DEBIT", amount: "120.00", currency: "SGD" },
         { account_id: "a2", direction: "CREDIT", amount: "120.00", currency: "SGD" },

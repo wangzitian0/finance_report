@@ -9,11 +9,11 @@ The package-local worklist. Cross-package migration lives in
       [`readme.md`](./readme.md) (slice 2 of #1420).
 - [x] **Code body cutover (slice 3a of #1420)**: the implementation
       (`apps/backend/src/ledger`) adopts the building-block layering —
-      `base/` (the `Entry`/`Leg` balance invariant + typed errors + the pure
-      posting validators + the `JournalRepository` port), `extension/`
-      (`post_entry` + the `AsyncSession` adapter), `data/` (the account-balance
-      projection). `contract.py` declares the `units` (kind→layer, repository
-      split, data sink) and the structural `invariants`. The double-entry tests
+      `base/` (the `Entry`/`Leg` balance invariant + typed errors + pure posting
+      validators), `extension/` (decision-anchored financial commands + private
+      `AsyncSession` persistence), `data/` (the account-balance projection).
+      `contract.py` declares the `units` (kind→layer, anchored command boundary,
+      data sink) and the structural `invariants`. The double-entry tests
       moved to `apps/backend/tests/ledger/`; `_ledger_helpers` is published as the
       ledger test factory; the god-file balance-query surface in
       `services/accounting.py` was deleted (zero residue, no re-export shim).

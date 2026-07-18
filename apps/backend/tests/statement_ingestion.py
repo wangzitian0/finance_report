@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.audit import TraceEmitter, TraceRecord
 from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies
 from src.extraction import (
     DispositionContext,
@@ -24,6 +26,7 @@ from src.extraction import (
     StatementSummary,
     StatementTransaction,
 )
+from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_validation import resolve_statement_transactions
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -92,6 +95,50 @@ async def reviewed_posting_inputs(
         mode=DispositionMode.ENFORCE,
     )
     return decision, counter_account
+
+
+async def anchored_reviewed_posting_inputs(
+    db: AsyncSession,
+    *,
+    user_id,
+    transaction: AtomicTransaction,
+    intent: EconomicIntent,
+) -> tuple[DispositionDecision, Account, TraceRecord, TraceEmitter]:
+    """Build the complete source authority consumed by the statement ledger adapter."""
+    decision, counter_account = await reviewed_posting_inputs(
+        db,
+        user_id=user_id,
+        transaction=transaction,
+        intent=intent,
+    )
+    proposal = IntentProposal(
+        schema_version="1",
+        policy_version="reviewed-test-v1",
+        origin=IntentProposalOrigin.REVIEWED_RULE,
+        intent=intent,
+        category="TEST",
+        confidence=Decimal("1"),
+        evidence=("reviewed-test",),
+    )
+    statement_transaction = StatementTransaction(
+        transaction_id=transaction.id,
+        transaction_date=transaction.txn_date,
+        amount=transaction.amount,
+        currency=transaction.currency,
+        direction=transaction.direction,
+        description=transaction.description,
+    )
+    emitter = compose_statement_posting_dependencies().trace_emitter_factory(db)
+    records = await emit_disposition_trace_records(
+        emitter=emitter,
+        user_id=user_id,
+        execution_id=f"test-reviewed-statement:{transaction.id}",
+        occurred_at=datetime.now(UTC),
+        transaction=statement_transaction,
+        proposal=proposal,
+        decision=decision,
+    )
+    return decision, counter_account, records[-1], emitter
 
 
 async def parse_and_load_statement_projection(

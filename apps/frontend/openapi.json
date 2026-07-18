@@ -4358,8 +4358,18 @@
         "title": "InvestmentPerformanceReportScheduleResponse",
         "type": "object"
       },
+      "JournalEntryAuthorityState": {
+        "description": "Whether this row has a decision that can be used as accounting authority.",
+        "enum": [
+          "anchored",
+          "legacy_unproven"
+        ],
+        "title": "JournalEntryAuthorityState",
+        "type": "string"
+      },
       "JournalEntryCreate": {
-        "description": "Schema for creating a journal entry.",
+        "additionalProperties": false,
+        "description": "Manual entry command; source provenance is never accepted from the caller.",
         "properties": {
           "entry_date": {
             "format": "date",
@@ -4380,21 +4390,12 @@
             "title": "Memo",
             "type": "string"
           },
-          "source_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Id"
-          },
-          "source_type": {
-            "$ref": "#/components/schemas/JournalEntrySourceType",
-            "default": "manual"
+          "rationale": {
+            "default": "Manual entry submitted by account owner.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
           }
         },
         "required": [
@@ -4430,6 +4431,21 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "decision_anchor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Anchor Id"
+          },
+          "decision_authority_state": {
+            "$ref": "#/components/schemas/JournalEntryAuthorityState"
           },
           "entry_date": {
             "format": "date",
@@ -4513,6 +4529,7 @@
           "id",
           "user_id",
           "status",
+          "decision_authority_state",
           "lines",
           "created_at",
           "updated_at"

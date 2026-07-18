@@ -4,12 +4,40 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.config import settings
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.extension.anchored_posting import submit_system_journal_entry
+
+
+async def create_anchored_test_journal_entry(
+    db: AsyncSession,
+    user_id: UUID,
+    entry_date: date,
+    memo: str,
+    lines_data: list[dict],
+    source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
+    source_id: UUID | None = None,
+    *,
+    base_currency: str | None = None,
+) -> JournalEntry:
+    """Create a draft through the production anchored boundary for low-level tests."""
+    return await submit_system_journal_entry(
+        db,
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        lines_data=lines_data,
+        base_currency=base_currency or settings.base_currency,
+        operation=f"test-{uuid4().hex[:8]}",
+        source_id=source_id,
+        source_type=source_type,
+        post_immediately=False,
+    )
 
 
 async def create_valid_posted_entry(

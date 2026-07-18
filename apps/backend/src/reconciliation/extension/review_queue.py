@@ -8,9 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import JournalEntry, JournalEntryStatus, JournalLine, current_anchored_journal_entries
 from src.observability import get_logger
 from src.reconciliation.base.config import entry_total_amount
 from src.reconciliation.base.errors import AmountMismatchError, EntryCreationError, MatchNotFoundError
@@ -18,6 +17,22 @@ from src.reconciliation.extension.matching import sync_reconciliation_match_jour
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
+
+
+def _anchored_entries(*, user_id: UUID, transaction_id: UUID | None = None):
+    """Return entries whose exact command was validated before persistence.
+
+    The journal owns only an immutable decision id. Audit's projection resolves
+    its current target and causal authority from the canonical TraceRecord graph.
+    """
+    query = current_anchored_journal_entries(user_id=user_id)
+    if transaction_id is not None:
+        query = current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=f"statement-transaction:{transaction_id}",
+        )
+    return query
 
 
 async def get_pending_items(
@@ -78,10 +93,7 @@ async def accept_match(
 
     if txn and not match.journal_entry_ids:
         existing_entry_result = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.user_id == user_id)
-            .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-            .where(JournalEntry.source_id == txn.id)
+            _anchored_entries(user_id=user_id, transaction_id=txn.id)
             .where(JournalEntry.status != JournalEntryStatus.VOID)
             .limit(1)
             .with_for_update()
@@ -99,12 +111,15 @@ async def accept_match(
     if match.journal_entry_ids and txn:
         entry_ids = [UUID(entry_id) for entry_id in match.journal_entry_ids]
         entries_result = await db.execute(
-            select(JournalEntry)
+            _anchored_entries(user_id=user_id)
             .where(JournalEntry.id.in_(entry_ids))
-            .where(JournalEntry.user_id == user_id)
             .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
         )
         entries = list(entries_result.scalars())
+        if len(entries) != len(set(entry_ids)):
+            raise EntryCreationError(
+                "Reconciliation match references a journal entry without current decision authority"
+            )
 
         # Use entry_total_amount() to correctly sum all debit lines
         total_entry_amount = sum(entry_total_amount(entry) for entry in entries)

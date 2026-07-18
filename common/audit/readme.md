@@ -36,6 +36,12 @@ structure.
 over exact parent records. Static contracts, workflow conclusions, mutable
 labels, and file existence cannot construct authority by themselves.
 
+Cross-package bulk reads use audit's public
+`current_authoritative_trace_decision_projection(scope)` rather than importing
+the trace ORM. It returns only financial decisions whose own and parent records
+remain current; consumers join it to their immutable local reference and never
+reconstruct trace validity.
+
 Every record pins a typed tenant/repository/environment scope, target and
 assertion versions, target class, the existing CODE/LLM tier and proof-kind
 profile, provenance, execution stage/id, causality mode, evidence

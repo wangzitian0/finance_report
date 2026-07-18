@@ -40,6 +40,8 @@ from src.audit.extension import (
     TraceJUnitAdapter,
     TraceRecordCodec,
     TraceRecordPersistenceError,
+    current_authoritative_trace_decision_projection,
+    trace_decision_projection,
 )
 from src.audit.money import (
     Currency,
@@ -119,6 +121,8 @@ __all__ = [
     "TraceRecord",
     "TraceRecordCodec",
     "TraceRecordPersistenceError",
+    "current_authoritative_trace_decision_projection",
+    "trace_decision_projection",
     "TraceRecordRepository",
     "TraceRecordType",
     "TraceRecordValidationError",
