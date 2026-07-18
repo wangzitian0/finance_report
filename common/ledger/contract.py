@@ -2401,7 +2401,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-ledger.79.6",
+            id="AC-ledger.79.7",
             statement=(
                 "Trace emission and decision-anchored ledger persistence share the caller-owned "
                 "unit of work: a fault after TraceRecord flush but before JournalEntry creation "

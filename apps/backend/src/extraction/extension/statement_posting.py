@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, TraceResult
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, TraceRecord, TraceResult
 from src.audit.money.currency import normalize_currency_code
 from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import (
@@ -119,12 +119,12 @@ async def auto_create_posted_entries_for_statement(
     if not txn_ids:
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
-    statement_targets = {f"statement-transaction:{txn_id}": txn_id for txn_id in txn_ids}
+    statement_target_ids = {f"statement-transaction:{txn_id}" for txn_id in txn_ids}
     existing_entry_result = await db.execute(
         current_anchored_journal_entries(
             user_id=user_id,
             target_kind="journal_command",
-            target_ids=statement_targets,
+            target_ids=statement_target_ids,
         ).where(JournalEntry.status != JournalEntryStatus.VOID)
     )
     existing_entries = list(existing_entry_result.scalars().all())
@@ -248,7 +248,7 @@ async def auto_create_posted_entries_for_statement(
     if occurred_at.tzinfo is None:
         occurred_at = occurred_at.replace(tzinfo=UTC)
     emitter = dependencies.trace_emitter_factory(db)
-    source_decisions = {}
+    source_decisions: dict[UUID, TraceRecord] = {}
     for txn, proposal, decision, _counter_account, transaction in planned:
         records = await emit_disposition_trace_records(
             emitter=emitter,
@@ -259,7 +259,7 @@ async def auto_create_posted_entries_for_statement(
             proposal=proposal,
             decision=decision,
         )
-        if records[-1].result is TraceResult.AUTHORITATIVE:
+        if records and records[-1].result is TraceResult.AUTHORITATIVE:
             source_decisions[txn.id] = records[-1]
 
     review_reasons = [
@@ -267,6 +267,11 @@ async def auto_create_posted_entries_for_statement(
         for _txn, _proposal, decision, _counter_account, _transaction in planned
         if decision.status is DispositionStatus.REVIEW
     ]
+    review_reasons.extend(
+        "source_authority_missing"
+        for txn, _proposal, decision, _counter_account, _transaction in planned
+        if decision.should_apply and txn.id not in source_decisions
+    )
     if dependencies.disposition_mode is not DispositionMode.ENFORCE:
         review_reasons.extend(
             f"authoritative_command_not_applied_in_{dependencies.disposition_mode.value}"
@@ -292,6 +297,9 @@ async def auto_create_posted_entries_for_statement(
         if not decision.should_apply:
             raise RuntimeError("Disposition command reached application without enforce authority")
         # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
+        source_decision = source_decisions.get(txn.id)
+        if source_decision is None:
+            raise RuntimeError("authoritative disposition is missing its source decision")
         await create_entry_from_txn(
             db,
             txn,
@@ -304,7 +312,7 @@ async def auto_create_posted_entries_for_statement(
             fx_rate_error=dependencies.fx_rate_error,
             disposition=decision,
             counter_account=counter_account,
-            source_decision=source_decisions[txn.id],
+            source_decision=source_decision,
             trace_emitter=emitter,
         )
         created += 1

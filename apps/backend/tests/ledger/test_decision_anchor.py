@@ -421,7 +421,7 @@ async def test_anchored_command_sink_failure_rolls_back_trace_and_ledger(
     test_user,
     monkeypatch,
 ) -> None:
-    """AC-ledger.79.6: the caller can roll back the complete causal write set."""
+    """AC-ledger.79.7: the caller can roll back the complete causal write set."""
 
     user_id = test_user.id
 
@@ -465,7 +465,7 @@ async def test_anchored_command_sink_failure_rolls_back_trace_and_ledger(
 
 
 def test_production_financial_writers_have_one_anchored_persistence_boundary() -> None:
-    """AC-ledger.79.4: source/review writers cannot retain an unanchored fork."""
+    """AC-ledger.79.6: source/review writers cannot retain an unanchored fork."""
     source_root = Path(__file__).parents[2] / "src"
     allowed_constructors = {
         "ledger/extension/repository.py",
