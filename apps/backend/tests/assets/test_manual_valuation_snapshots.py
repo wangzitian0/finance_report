@@ -53,12 +53,18 @@ async def test_create_manual_valuation_snapshot_crud_api(client):
     assert updated["value"] == "1260000.10"
     assert updated["notes"] == "Updated valuation"
 
-    delete_response = await client.delete(f"/assets/valuation-snapshots/{created['id']}")
-    assert delete_response.status_code == 204
+    # PATCH is an append-only correction: it returns a new current fact and
+    # the historical version remains immutable. DELETE is intentionally
+    # rejected rather than removing an input that an existing package may
+    # have frozen.
+    assert updated["id"] != created["id"]
+    delete_response = await client.delete(f"/assets/valuation-snapshots/{updated['id']}")
+    assert delete_response.status_code == 400
 
     empty_response = await client.get("/assets/valuation-snapshots")
     assert empty_response.status_code == 200
-    assert empty_response.json()["total"] == 0
+    assert empty_response.json()["total"] == 1
+    assert empty_response.json()["items"][0]["id"] == updated["id"]
 
 
 async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_update(client):
@@ -99,13 +105,20 @@ async def test_manual_valuation_snapshot_filter_detail_and_default_liquidity_upd
 
     update_response = await client.patch(
         f"/assets/valuation-snapshots/{created['id']}",
-        json={"component_type": "tax_payable", "notes": None},
+        json={"liquidity_class": "liability", "notes": None},
     )
     assert update_response.status_code == 200
     updated = update_response.json()
-    assert updated["component_type"] == "tax_payable"
+    assert updated["id"] != created["id"]
+    assert updated["component_type"] == "property_value"
     assert updated["liquidity_class"] == "liability"
     assert updated["notes"] is None
+
+    identity_change = await client.patch(
+        f"/assets/valuation-snapshots/{updated['id']}",
+        json={"component_type": "tax_payable"},
+    )
+    assert identity_change.status_code == 400
 
 
 async def test_manual_valuation_snapshot_errors(client):
@@ -249,12 +262,9 @@ async def test_manual_valuation_snapshot_service_updates_optional_fields_and_mis
         test_user.id,
         snapshot.id,
         values={
-            "component_type": ManualValuationComponentType.OTHER_ASSET,
             "liquidity_class": ManualValuationLiquidityClass.RESTRICTED,
-            "as_of_date": date(2026, 6, 1),
             "value": Decimal("2345.678"),
             "currency": "hkd",
-            "source": "updated portal",
             "notes": None,
             "recurrence_days": None,
             "reminder_date": None,
@@ -263,12 +273,13 @@ async def test_manual_valuation_snapshot_service_updates_optional_fields_and_mis
     await db.commit()
 
     assert updated is not None
-    assert updated.component_type == ManualValuationComponentType.OTHER_ASSET
+    assert updated.id != snapshot.id
+    assert updated.component_type == ManualValuationComponentType.ESOP
     assert updated.liquidity_class == ManualValuationLiquidityClass.RESTRICTED
-    assert updated.as_of_date == date(2026, 6, 1)
+    assert updated.as_of_date == date(2026, 5, 18)
     assert updated.value == Decimal("2345.68")
     assert updated.currency == "HKD"
-    assert updated.source == "updated portal"
+    assert updated.source == "equity portal"
     assert updated.notes is None
     assert updated.recurrence_days is None
     assert updated.reminder_date is None

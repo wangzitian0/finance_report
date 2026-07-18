@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from src.audit.money import Money, to_money
+from src.audit.money import Currency, Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction.orm.layer3 import (
@@ -59,7 +59,7 @@ async def _apply_reporting_valuation(
     try:
         converted = await convert_money(
             db,
-            Money(position.cost_basis, position.currency),
+            Money(position.cost_basis, Currency.of(position.currency)),
             settings.base_currency,
             rate_date=position.acquisition_date,
             lazy_load=True,
@@ -110,7 +110,7 @@ async def list_positions(
             .where(Account.user_id == user_id)
             .where(Account.id.in_({pos.account_id for pos in positions}))
         )
-        account_names = dict(rows.all())
+        account_names = dict(rows.tuples().all())
 
     items = []
     for pos in positions:
@@ -240,8 +240,11 @@ async def delete_valuation_snapshot(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> None:
-    """Delete a manual valuation snapshot."""
-    deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
+    """Reject destructive deletion of an immutable manual valuation snapshot."""
+    try:
+        deleted = await _valuations.delete_valuation_snapshot(db, user_id, snapshot_id)
+    except ValuationServiceError as exc:
+        raise_bad_request(str(exc), cause=exc)
     if not deleted:
         raise_not_found("Manual valuation snapshot")
     await db.commit()
