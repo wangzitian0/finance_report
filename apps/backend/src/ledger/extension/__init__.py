@@ -20,6 +20,7 @@ from src.ledger.extension.anchored_posting import (
     submit_manual_journal_entry,
     validate_manual_journal_entry_for_post,
 )
+from src.ledger.extension.contribution import list_journal_contributions
 from src.ledger.extension.currencies import used_currencies
 from src.ledger.extension.fx_revaluation import (
     RevaluationError,
@@ -46,6 +47,7 @@ __all__ = [
     "AccountNotFoundError",
     "AnchoredJournalCommand",
     "current_anchored_journal_entries",
+    "list_journal_contributions",
     "RevaluationError",
     "account_service",
     "calculate_unrealized_fx_gains",
