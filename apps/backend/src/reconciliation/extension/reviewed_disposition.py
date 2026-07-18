@@ -153,7 +153,7 @@ async def submit_reviewed_disposition(
 
     occurred_at = datetime.now(UTC)
     execution_id = f"reviewed-disposition:{txn.id}:{command_digest}"
-    preview_records = build_disposition_trace_records(
+    candidate_record, _invariant_record, _guard_record, disposition_record = build_disposition_trace_records(
         user_id=user_id,
         execution_id=execution_id,
         occurred_at=occurred_at,
@@ -162,8 +162,8 @@ async def submit_reviewed_disposition(
         decision=decision,
     )
     current_decision = await dependencies.trace_emitter.repository.current_decision(
-        preview_records[3].scope,
-        preview_records[3].lineage,
+        disposition_record.scope,
+        disposition_record.lineage,
     )
     if current_decision is not None:
         current_parents = []
@@ -180,7 +180,7 @@ async def submit_reviewed_disposition(
             None,
         )
         if manual_observation is not None:
-            if manual_observation.evidence_manifest_digest != preview_records[0].evidence_manifest_digest:
+            if manual_observation.evidence_manifest_digest != candidate_record.evidence_manifest_digest:
                 raise ReviewedDispositionError(
                     "Reviewed disposition is incompatible with the already-recorded decision"
                 )
