@@ -40,6 +40,7 @@ from __future__ import annotations
 # monkeypatch its functions (``validation.validate_balance = …``) and need one
 # canonical module object to patch.
 from src.extraction.base import validation
+from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.disposition import (
     DispositionCommand,
     DispositionContext,
@@ -145,6 +146,10 @@ from src.extraction.extension.reviewed_statement_envelope import (
     persist_statement_extraction_result,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.statement_contribution import (
+    list_statement_contributions,
+    resolve_statement_contribution,
+)
 from src.extraction.extension.statement_parsing import (
     StatementIngestionUseCase,
     build_statement_ingestion_use_case,
@@ -269,6 +274,7 @@ __all__ = [
     "RetryableStatementIngestionError",
     "ReviewedStatementEnvelopeCommand",
     "ReviewedStatementEnvelopeConflict",
+    "ResolvedStatementContribution",
     "RuleType",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
@@ -330,6 +336,8 @@ __all__ = [
     "pending_stage1_review_filter",
     "persist_statement_extraction_result",
     "record_correction",
+    "resolve_statement_contribution",
+    "list_statement_contributions",
     "register_fx_rate_provider",
     "register_position_reconciler",
     "reject_statement_workflow",
