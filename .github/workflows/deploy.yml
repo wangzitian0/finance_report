@@ -689,13 +689,13 @@ jobs:
       issues: write
     needs: [build-and-deploy, provider-gate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
-    # Record-only entrance to the shared reusable gate (EPIC-008 AC8.13.153): a
-    # regression is captured as an output status and does NOT block delivery.
+    # The minimal durable statement canary is release-critical: a failed
+    # upload/parse/import journey must fail this exact deployed revision.
     uses: ./.github/workflows/staging-ai-ocr-gate.yml
     with:
       commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
-      expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
-      blocking: false
+      expected_sha: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
+      blocking: true
       # Production-promotion blocking path runs only the minimal AI/OCR canary
       # (issue #1232, AC8.13.156); the heavy audit journeys run nightly via
       # audit-replay.yml (AC8.13.157), never on the deploy path (AC8.13.159).
@@ -746,8 +746,10 @@ jobs:
             failure_reason="provider connectivity gate failed"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_status" = "degraded" ]; then
             delivery_status="degraded-provider"
-          elif [ "$ai_ocr_required" = "true" ] && [ "${ai_ocr_status:-not-run}" != "passed" ]; then
-            delivery_status="passed-ai-ocr-regression-recorded"
+          elif [ "$ai_ocr_required" = "true" ] && { [ "$ai_ocr_result" != "success" ] || [ "${ai_ocr_status:-not-run}" != "passed" ]; }; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="staging AI/OCR canary failed"
           fi
 
           {
@@ -773,7 +775,7 @@ jobs:
             echo "- Build/deploy failure summary: ${failure_summary:-unknown}"
             echo "- AI/OCR result: ${ai_ocr_result}"
             echo "- AI/OCR status: ${ai_ocr_status:-not-run}"
-            echo "- AI/OCR release semantics: right-shifted full regression; not a release-critical blocker"
+            echo "- AI/OCR release semantics: exact-SHA minimal canary; release-critical blocker"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$failed" = "true" ]; then
