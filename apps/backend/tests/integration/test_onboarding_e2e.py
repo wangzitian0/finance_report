@@ -66,7 +66,6 @@ async def test_AC1_9_1_first_run_registration_account_entry_journey(
         json={
             "entry_date": "2026-01-31",
             "memo": "First salary deposit",
-            "source_type": "manual",
             "lines": [
                 {
                     "account_id": cash_account["id"],

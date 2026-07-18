@@ -110,9 +110,9 @@ async def test_journal_router_coverage_errors(client: AsyncClient, db: AsyncSess
     resp = await client.get(f"/journal-entries/{uuid4()}")
     assert resp.status_code == 404
 
-    # 2. Post non-existent (fails in service with ValidationError)
+    # 2. Post non-existent (router resolves ownership before lifecycle validation)
     resp = await client.post(f"/journal-entries/{uuid4()}/postings")
-    assert resp.status_code == 400
+    assert resp.status_code == 404
 
     # 3. Void non-existent (fails in service with ValidationError)
     resp = await client.post(f"/journal-entries/{uuid4()}/voidings", json={"reason": "test"})

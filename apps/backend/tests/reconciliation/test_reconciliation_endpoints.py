@@ -18,9 +18,16 @@ from uuid import uuid4
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    post_journal_entry,
+    submit_manual_journal_entry,
+    validate_manual_journal_entry_for_post,
+)
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
@@ -35,6 +42,38 @@ def _atomic(user_id, *, description, amount, direction=TransactionDirection.OUT)
         dedup_hash=uuid4().hex + uuid4().hex,
         source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
+
+
+async def _post_manual_entry(
+    db: AsyncSession,
+    *,
+    user_id,
+    entry_date: date,
+    memo: str,
+    debit_account: Account,
+    credit_account: Account,
+    amount: Decimal,
+) -> JournalEntry:
+    entry = await submit_manual_journal_entry(
+        db,
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        rationale=f"Test operator attested reconciliation candidate: {memo}",
+        lines_data=[
+            {"account_id": debit_account.id, "direction": Direction.DEBIT, "amount": amount, "currency": "SGD"},
+            {"account_id": credit_account.id, "direction": Direction.CREDIT, "amount": amount, "currency": "SGD"},
+        ],
+        base_currency="SGD",
+    )
+    await db.refresh(entry, ["lines"])
+    await validate_manual_journal_entry_for_post(
+        db,
+        user_id=user_id,
+        entry=entry,
+        base_currency="SGD",
+    )
+    return await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
 
 
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
@@ -60,96 +99,41 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     session.add_all([bank_account, income_account, expense_account])
     await session.flush()
 
-    entry_run = JournalEntry(
+    await _post_manual_entry(
+        session,
         user_id=test_user.id,
         entry_date=date.today(),
         memo="Salary Payment",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        debit_account=bank_account,
+        credit_account=income_account,
+        amount=Decimal("1000.00"),
     )
-    entry_accept = JournalEntry(
+    entry_accept = await _post_manual_entry(
+        session,
         user_id=test_user.id,
         entry_date=date.today(),
         memo="Coffee",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        debit_account=expense_account,
+        credit_account=bank_account,
+        amount=Decimal("12.00"),
     )
-    entry_reject = JournalEntry(
+    entry_reject = await _post_manual_entry(
+        session,
         user_id=test_user.id,
         entry_date=date.today(),
         memo="Snacks",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        debit_account=expense_account,
+        credit_account=bank_account,
+        amount=Decimal("8.00"),
     )
-    entry_batch = JournalEntry(
+    entry_batch = await _post_manual_entry(
+        session,
         user_id=test_user.id,
         entry_date=date.today(),
         memo="Lunch",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    session.add_all([entry_run, entry_accept, entry_reject, entry_batch])
-    await session.flush()
-
-    session.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry_run.id,
-                account_id=bank_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_run.id,
-                account_id=income_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_accept.id,
-                account_id=expense_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("12.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_accept.id,
-                account_id=bank_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("12.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_reject.id,
-                account_id=expense_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("8.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_reject.id,
-                account_id=bank_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("8.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_batch.id,
-                account_id=expense_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("20.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_batch.id,
-                account_id=bank_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("20.00"),
-                currency="SGD",
-            ),
-        ]
+        debit_account=expense_account,
+        credit_account=bank_account,
+        amount=Decimal("20.00"),
     )
 
     # txn_run is the only pending atomic transaction when /run executes, so the
