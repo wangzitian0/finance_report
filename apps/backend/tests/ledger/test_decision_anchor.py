@@ -39,13 +39,28 @@ from src.ledger import (
     JournalEntry,
     JournalEntryAuthorityState,
     current_anchored_journal_entries,
+    ledger_trace_policy_registry,
     list_journal_contributions,
     submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
 from src.ledger.extension import anchored_posting
-from src.ledger.extension.anchored_posting import AnchoredJournalCommand, validate_decision_anchor
+from src.ledger.extension.anchored_posting import (
+    AnchoredJournalCommand,
+    ManualJournalAttestationPolicy,
+    SystemJournalCommandPolicy,
+    validate_decision_anchor,
+)
 from src.reconciliation.extension.reviewed_disposition import _find_existing_entry
+
+
+def test_AC_ledger_80_2_publishes_decision_policy_registry() -> None:
+    """AC-ledger.80.2: package consumers restore decisions through a public port."""
+    assertions = {policy.assertion for policy in ledger_trace_policy_registry().policies}
+    assert assertions == {
+        ManualJournalAttestationPolicy().assertion,
+        SystemJournalCommandPolicy().assertion,
+    }
 
 
 @dataclass(frozen=True, slots=True)

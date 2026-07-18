@@ -151,6 +151,11 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/contribution.py",
         ),
+        Unit(
+            name="ledger_trace_policy_registry",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/anchored_posting.py",
+        ),
         # data — the account-balance projection (read-model / leaf sink).
         Unit(name="AccountBalance", kind=Kind.PROJECTION, module="data/balance.py"),
         # processing — the in-transit (Processing) virtual account (#1420 slice 3b).
@@ -240,6 +245,7 @@ CONTRACT = PackageContract(
         "get_processing_balance",
         "get_unpaired_transfers",
         "journal_command_target",
+        "ledger_trace_policy_registry",
         "list_journal_contributions",
         "list_processing_transfer_legs",
         "post_entry",
@@ -2442,6 +2448,20 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/ledger/test_decision_anchor.py"
                 "::test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_facts"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-ledger.80.2",
+            statement=(
+                "ledger_trace_policy_registry publishes the complete policy decoder required "
+                "by package consumers; consumers never import ledger's internal policy classes."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_AC_ledger_80_2_publishes_decision_policy_registry"
             ),
             priority="P0",
             status="done",

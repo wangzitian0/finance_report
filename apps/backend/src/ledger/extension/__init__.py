@@ -16,6 +16,7 @@ from src.ledger.extension.accounting import (
 from src.ledger.extension.anchored_posting import (
     AnchoredJournalCommand,
     current_anchored_journal_entries,
+    ledger_trace_policy_registry,
     submit_anchored_journal_entry,
     submit_manual_journal_entry,
     validate_manual_journal_entry_for_post,
@@ -47,6 +48,7 @@ __all__ = [
     "AccountNotFoundError",
     "AnchoredJournalCommand",
     "current_anchored_journal_entries",
+    "ledger_trace_policy_registry",
     "list_journal_contributions",
     "RevaluationError",
     "account_service",
