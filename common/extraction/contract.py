@@ -3844,10 +3844,11 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1913.10",
             statement=(
-                "A staging deploy pins the durable statement canary's checkout and "
-                "deployed-version assertion to the same emitted commit SHA and fails "
-                "the deploy workflow when a required upload, parse, import, or value "
-                "journey fails; comprehensive audit replay remains diagnostic evidence."
+                "A staging deploy pins the durable statement canary's checkout to its "
+                "emitted commit SHA and its live-health assertion to the release tag that "
+                "the deploy receiver has verified resolves to that SHA; it fails the deploy "
+                "workflow when a required upload, parse, import, or value journey fails; "
+                "comprehensive audit replay remains diagnostic evidence."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"

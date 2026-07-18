@@ -694,7 +694,10 @@ jobs:
     uses: ./.github/workflows/staging-ai-ocr-gate.yml
     with:
       commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
-      expected_sha: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
+      # The infra2 receiver has already fail-closed on
+      # version_ref -> source_sha. Health reports that immutable release tag,
+      # while commit_ref keeps the test code pinned to its exact source SHA.
+      expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
       blocking: true
       # Production-promotion blocking path runs only the minimal AI/OCR canary
       # (issue #1232, AC8.13.156); the heavy audit journeys run nightly via

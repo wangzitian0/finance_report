@@ -619,11 +619,19 @@ def test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocki
     deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
     canary = deploy["jobs"]["ai-ocr-gate"]
     emitted_sha = "${{ needs.build-and-deploy.outputs.commit_full_sha }}"
+    release_tag = "${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
+    deploy_request = (
+        read(".github/workflows/deploy.yml")
+        .split("Deploy to Staging through infra2 receiver", 1)[1]
+        .split("Confirm staging backend health", 1)[0]
+    )
 
     assert canary["with"]["corpus"] == "canary"
     assert canary["with"]["blocking"] is True
     assert canary["with"]["commit_ref"] == emitted_sha
-    assert canary["with"]["expected_sha"] == emitted_sha
+    assert canary["with"]["expected_sha"] == release_tag
+    assert 'source_sha="${{ steps.release.outputs.full_sha }}"' in deploy_request
+    assert '--source-sha "$source_sha"' in deploy_request
 
 
 def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
@@ -691,7 +699,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         in deploy_workflow
     )
     assert (
-        "expected_sha: ${{ needs.build-and-deploy.outputs.commit_full_sha }}"
+        "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
         in deploy_workflow
     )
     assert "blocking: true" in deploy_workflow
