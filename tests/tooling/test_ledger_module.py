@@ -97,7 +97,9 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
     ledger_imports = [
         line for line in src.splitlines() if line.startswith("from src.ledger import ")
     ]
-    assert ledger_imports, "accounting.py must import from the published src.ledger root"
+    assert ledger_imports, (
+        "accounting.py must import from the published src.ledger root"
+    )
     for name in ("Entry", "Leg", "post_entry"):
         assert any(name in line for line in ledger_imports), (
             f"accounting.py must import {name} from src.ledger"
@@ -167,14 +169,17 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
 )
 def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
     """AC-ledger.34.6: the journal write pipeline lives in the ledger package
-    (``ledger/extension/repository.py``); ``ledger.extension.post`` depends down on it
-    (not up on services.accounting), and after the package cutover NO ``services.accounting``
-    re-export shim survives — callers import the pipeline from the published ledger
-    interface (``from src.ledger import ...``), zero residue.
+    behind the anchored command boundary, and no services.accounting re-export survives.
     """
     assert (SRC / "ledger/extension/repository.py").exists()
     post = _read("apps/backend/src/ledger/extension/post.py")
-    assert "from src.ledger.extension.repository import" in post
+    anchored = _read("apps/backend/src/ledger/extension/anchored_posting.py")
+    assert "from src.ledger.extension.anchored_posting import" in post
+    assert (
+        "from src.ledger.extension.repository import _create_anchored_journal_entry"
+        in anchored
+    )
+    assert "from src.ledger.extension.repository import" not in post
     assert "from src.ledger.extension.accounting import" not in post, (
         "ledger.extension must not import upward into services.accounting"
     )
@@ -182,8 +187,8 @@ def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
     # the re-export shim is GONE: accounting no longer re-publishes the pipeline,
     # and the pipeline defs do not live here.
     assert "from src.ledger.store.posting import" not in acct
-    assert "async def create_journal_entry(" not in acct
+    assert "async def _create_anchored_journal_entry(" not in acct
     assert "async def post_journal_entry(" not in acct
     assert "async def void_journal_entry(" not in acct
-    # callers now reach the pipeline through the published ledger interface.
+    # Callers now reach the guarded pipeline through the published ledger interface.
     assert "from src.ledger import" in acct

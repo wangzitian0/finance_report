@@ -40,6 +40,7 @@ function lineBaseAmount(line: z.infer<typeof journalLineSchema>) {
 const journalEntrySchema = z.object({
     entry_date: z.string().min(1, "Date is required"),
     memo: z.string().min(1, "Memo is required").trim(),
+    rationale: z.string().min(1, "Attestation is required").trim(),
     lines: z.array(journalLineSchema).min(2, "At least 2 lines are required"),
 }).refine((data) => {
     const baseLines = data.lines.map(lineBaseAmount);
@@ -84,6 +85,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
         defaultValues: {
             entry_date: new Date().toISOString().split("T")[0],
             memo: "",
+            rationale: "Recorded by account owner.",
             lines: [
                 { account_id: "", direction: "DEBIT", amount: "", currency: "SGD" },
                 { account_id: "", direction: "CREDIT", amount: "", currency: "SGD" },
@@ -131,7 +133,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                 body: JSON.stringify({
                     entry_date: data.entry_date,
                     memo: data.memo,
-                    source_type: "manual",
+                    rationale: data.rationale,
                     lines: data.lines.map((l) => ({
                         account_id: l.account_id,
                         direction: l.direction,
@@ -154,6 +156,7 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
             reset({
                 entry_date: new Date().toISOString().slice(0, 10),
                 memo: "",
+                rationale: "Recorded by account owner.",
                 lines: [
                     { account_id: "", direction: "DEBIT", amount: "", currency: "SGD" },
                     { account_id: "", direction: "CREDIT", amount: "", currency: "SGD" },
@@ -191,6 +194,18 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
                             <input type="text" {...register("memo")} placeholder="Description" className="input" />
                             {errors.memo && (
                                 <p className="text-sm text-[var(--error)] mt-1">{errors.memo.message}</p>
+                            )}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1.5">Attestation *</label>
+                            <input
+                                type="text"
+                                {...register("rationale")}
+                                placeholder="Why this entry is correct"
+                                className="input"
+                            />
+                            {errors.rationale && (
+                                <p className="text-sm text-[var(--error)] mt-1">{errors.rationale.message}</p>
                             )}
                         </div>
                     </div>

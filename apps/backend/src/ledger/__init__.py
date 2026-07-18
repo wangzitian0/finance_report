@@ -3,12 +3,10 @@
 The conforming implementation of ``common/ledger`` (its ``contract.py`` + ``readme.md``
 own the spec). Layers converge by folder (see ``common/meta/migration-standard.md``):
 
-- ``base/``      — pure core: the ``Entry``/``Leg`` balance invariant, the typed
-                   errors, the three pure posting validators, and the
-                   ``JournalRepository`` *port*. No I/O.
-- ``extension/`` — impure edges: ``post_entry`` (the posting domain service) and the
-                   ``AsyncSession`` adapter (``create``/``post``/``void`` +
-                   ``validate_line_account_ownership``) that satisfies the port.
+- ``base/``      — pure core: the ``Entry``/``Leg`` balance invariant, typed
+                   errors, posting validators, and command-target identity. No I/O.
+- ``extension/`` — impure edges: the decision-anchored command boundary and its
+                   private ``AsyncSession`` persistence implementation.
 - ``data/``      — the account-balance projection (read model / leaf sink): signed
                    balances + the accounting-equation check.
 
@@ -22,14 +20,16 @@ edge into its import graph.
 
 from __future__ import annotations
 
+from importlib import import_module
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.ledger.base import (
         AccountingError,
+        DecisionAnchor,
+        DecisionAnchorError,
         DegenerateEntryError,
         Entry,
-        JournalRepository,
         LedgerError,
         Leg,
         ProcessingAccount,
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         UnbalancedEntryError,
         ValidationError,
         detect_transfer_pattern,
+        journal_command_target,
         validate_fx_rates,
         validate_journal_balance,
         validate_journal_posting_invariants,
@@ -52,12 +53,12 @@ if TYPE_CHECKING:
         verify_accounting_equation,
     )
     from src.ledger.extension import (
+        AnchoredJournalCommand,
         RevaluationError,
-        SqlJournalRepository,
         calculate_unrealized_fx_gains,
-        create_journal_entry,
         create_transfer_in_entry,
         create_transfer_out_entry,
+        current_anchored_journal_entries,
         find_transfer_pairs,
         get_opening_balance_readiness,
         get_or_create_processing_account,
@@ -67,8 +68,11 @@ if TYPE_CHECKING:
         post_entry,
         post_journal_entry,
         register_fx_revaluation_provider,
+        submit_anchored_journal_entry,
+        submit_manual_journal_entry,
         used_currencies,
         validate_line_account_ownership,
+        validate_manual_journal_entry_for_post,
         void_journal_entry,
     )
 
@@ -84,6 +88,7 @@ from src.ledger.orm.journal import (
     Direction,
     JournalAuditLog,
     JournalEntry,
+    JournalEntryAuthorityState,
     JournalEntryStatus,
     JournalLine,
     derive_confidence_tier,
@@ -95,22 +100,25 @@ __all__ = [
     "AccountNotFoundError",
     "AccountType",
     "AccountingError",
+    "AnchoredJournalCommand",
+    "current_anchored_journal_entries",
     "ConfidenceTier",
     "DEFAULT_STALE_AFTER_DAYS",
     "DegenerateEntryError",
+    "DecisionAnchor",
+    "DecisionAnchorError",
     "Direction",
     "Entry",
     "JournalAuditLog",
     "JournalEntry",
+    "JournalEntryAuthorityState",
     "JournalEntryStatus",
     "JournalLine",
-    "JournalRepository",
     "LedgerError",
     "Leg",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
     "RevaluationError",
-    "SqlJournalRepository",
     "StatementCoverageRow",
     "TransferAccountCurrencyMismatchError",
     "TransferPair",
@@ -121,7 +129,6 @@ __all__ = [
     "calculate_account_balances",
     "calculate_account_balances_in_base_currency",
     "calculate_unrealized_fx_gains",
-    "create_journal_entry",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
     "derive_confidence_tier",
@@ -132,8 +139,12 @@ __all__ = [
     "get_or_create_processing_account",
     "get_processing_balance",
     "get_unpaired_transfers",
+    "journal_command_target",
     "list_processing_transfer_legs",
     "post_entry",
+    "submit_anchored_journal_entry",
+    "submit_manual_journal_entry",
+    "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "post_opening_balance_entry",
     "register_fx_revaluation_provider",
@@ -151,9 +162,10 @@ __all__ = [
 # Which submodule owns each published name (lazy import map).
 _BASE_NAMES = {
     "AccountingError",
+    "DecisionAnchor",
+    "DecisionAnchorError",
     "DegenerateEntryError",
     "Entry",
-    "JournalRepository",
     "LedgerError",
     "Leg",
     "ProcessingAccount",
@@ -163,18 +175,19 @@ _BASE_NAMES = {
     "UnbalancedEntryError",
     "ValidationError",
     "detect_transfer_pattern",
+    "journal_command_target",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",
 }
 _EXTENSION_NAMES = {
     "AccountNotFoundError",
+    "AnchoredJournalCommand",
+    "current_anchored_journal_entries",
     "RevaluationError",
     "account_service",
     "post_opening_balance_entry",
-    "SqlJournalRepository",
     "calculate_unrealized_fx_gains",
-    "create_journal_entry",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
     "find_transfer_pairs",
@@ -184,6 +197,9 @@ _EXTENSION_NAMES = {
     "get_unpaired_transfers",
     "list_processing_transfer_legs",
     "post_entry",
+    "submit_anchored_journal_entry",
+    "submit_manual_journal_entry",
+    "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "register_fx_revaluation_provider",
     "used_currencies",
@@ -204,14 +220,14 @@ _DATA_NAMES = {
 
 def __getattr__(name: str):
     if name in _BASE_NAMES:
-        from src.ledger import base as _mod
+        module_name = "src.ledger.base"
     elif name in _EXTENSION_NAMES:
-        from src.ledger import extension as _mod
+        module_name = "src.ledger.extension"
     elif name in _DATA_NAMES:
-        from src.ledger import data as _mod
+        module_name = "src.ledger.data"
     else:
         raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
-    value = getattr(_mod, name)
+    value = getattr(import_module(module_name), name)
     # Cache so subsequent attribute access skips the re-import.
     globals()[name] = value
     return value

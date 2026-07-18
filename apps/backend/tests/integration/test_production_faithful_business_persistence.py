@@ -23,9 +23,9 @@ from src.ledger import (
     AccountType,
     Direction,
     calculate_account_balance,
-    create_journal_entry,
     post_journal_entry,
 )
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
 pytestmark = [pytest.mark.integration, pytest.mark.no_db, pytest.mark.asyncio]
 

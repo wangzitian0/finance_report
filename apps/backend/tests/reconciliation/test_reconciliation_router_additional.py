@@ -15,7 +15,18 @@ from src.deps import PaginationParams
 from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    ValidationError,
+    post_journal_entry,
+    submit_manual_journal_entry,
+    validate_manual_journal_entry_for_post,
+)
 from src.reconciliation import (
     AmountMismatchError,
     EntryCreationError,
@@ -103,36 +114,37 @@ async def _create_match_entry(
     counter_account: Account,
     amount: Decimal,
 ) -> JournalEntry:
-    """Create a pre-existing entry for a reconciliation-only acceptance test."""
-    entry = JournalEntry(
+    """Create a decision-anchored manual entry for reconciliation acceptance."""
+    entry = await submit_manual_journal_entry(
+        db,
         user_id=user_id,
         entry_date=date.today(),
-        memo="Reviewed candidate",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
+        memo=f"Reviewed candidate {uuid4()}",
+        rationale=f"Test operator attested reconciliation candidate {uuid4()}",
+        lines_data=[
+            {
+                "account_id": counter_account.id,
+                "direction": Direction.DEBIT,
+                "amount": amount,
+                "currency": "SGD",
+            },
+            {
+                "account_id": bank_account.id,
+                "direction": Direction.CREDIT,
+                "amount": amount,
+                "currency": "SGD",
+            },
+        ],
+        base_currency="SGD",
     )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=counter_account.id,
-                direction=Direction.DEBIT,
-                amount=amount,
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank_account.id,
-                direction=Direction.CREDIT,
-                amount=amount,
-                currency="SGD",
-            ),
-        ]
+    await db.refresh(entry, ["lines"])
+    await validate_manual_journal_entry_for_post(
+        db,
+        user_id=user_id,
+        entry=entry,
+        base_currency="SGD",
     )
-    await db.flush()
-    return entry
+    return await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
 
 
 async def test_build_match_response_includes_entries(db: AsyncSession, test_user) -> None:
@@ -660,31 +672,17 @@ async def test_accept_match_amount_mismatch_raises(db: AsyncSession, test_user) 
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
     # Create a journal entry with mismatched amount
-    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
-    db.add(account)
+    bank = Account(user_id=test_user.id, name="Mismatch Bank", type=AccountType.ASSET, currency="SGD")
+    counter = Account(user_id=test_user.id, name="Mismatch Expense", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all((bank, counter))
     await db.flush()
-
-    entry = JournalEntry(
+    entry = await _create_match_entry(
+        db,
         user_id=test_user.id,
-        entry_date=txn.txn_date,
-        memo="Test entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+        bank_account=bank,
+        counter_account=counter,
+        amount=Decimal("50.00"),
     )
-    db.add(entry)
-    await db.flush()
-
-    # Entry amount is $50, but transaction is $100 - should fail validation
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("50.00"),
-            currency="SGD",
-        )
-    )
-    await db.flush()
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -707,31 +705,17 @@ async def test_accept_match_amount_within_tolerance(db: AsyncSession, test_user)
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
-    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
-    db.add(account)
+    bank = Account(user_id=test_user.id, name="Tolerance Bank", type=AccountType.ASSET, currency="SGD")
+    counter = Account(user_id=test_user.id, name="Tolerance Expense", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all((bank, counter))
     await db.flush()
-
-    entry = JournalEntry(
+    entry = await _create_match_entry(
+        db,
         user_id=test_user.id,
-        entry_date=txn.txn_date,
-        memo="Test entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+        bank_account=bank,
+        counter_account=counter,
+        amount=Decimal("99.95"),
     )
-    db.add(entry)
-    await db.flush()
-
-    # Entry amount is $99.95 - within 1% tolerance of $100
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("99.95"),
-            currency="SGD",
-        )
-    )
-    await db.flush()
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -754,31 +738,17 @@ async def test_accept_match_amount_check_cannot_be_bypassed(db: AsyncSession, te
     statement = await _create_statement(db, test_user.id)
     txn = await _create_transaction(db, statement, amount=Decimal("100.00"), status=None)
 
-    account = Account(user_id=test_user.id, name="Test Account", type=AccountType.ASSET, currency="SGD")
-    db.add(account)
+    bank = Account(user_id=test_user.id, name="Hardening Bank", type=AccountType.ASSET, currency="SGD")
+    counter = Account(user_id=test_user.id, name="Hardening Expense", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all((bank, counter))
     await db.flush()
-
-    entry = JournalEntry(
+    entry = await _create_match_entry(
+        db,
         user_id=test_user.id,
-        entry_date=txn.txn_date,
-        memo="Test entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+        bank_account=bank,
+        counter_account=counter,
+        amount=Decimal("50.00"),
     )
-    db.add(entry)
-    await db.flush()
-
-    # Entry amount is $50 vs a $100 transaction — a real mismatch
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("50.00"),
-            currency="SGD",
-        )
-    )
-    await db.flush()
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,

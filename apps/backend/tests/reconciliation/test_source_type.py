@@ -164,13 +164,14 @@ async def test_source_type_stamped_on_create(
         JournalEntrySourceType.AUTO_PARSED.value,
     ],
 )
-async def test_all_four_source_type_values_accepted_by_api(
+async def test_public_journal_api_rejects_caller_selected_source_type(
     client: AsyncClient,
     db: AsyncSession,
     test_user: User,
     source_type: str,
 ) -> None:
-    """AC-extraction.110.6: API accepts the four source_type hierarchy values."""
+    """AC-extraction.110.6: public manual journals cannot impersonate a source."""
+    """AC-ledger.79.3: callers cannot impersonate a provenance class."""
     bank, income, _ = await _add_accounts(db, test_user.id)
     await db.commit()
 
@@ -197,8 +198,7 @@ async def test_all_four_source_type_values_accepted_by_api(
         },
     )
 
-    assert response.status_code == 201
-    assert response.json()["source_type"] == source_type
+    assert response.status_code == 422
 
 
 async def test_auto_match_records_anchor_without_mutating_posted_source_type(db: AsyncSession) -> None:

@@ -14,7 +14,7 @@ source of truth).
 """
 
 import inspect
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 from uuid import uuid4
@@ -23,7 +23,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
+from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
 from src.extraction import (
     DispositionContext,
     DispositionMode,
@@ -32,7 +32,9 @@ from src.extraction import (
     IntentProposal,
     IntentProposalOrigin,
     StatementTransaction,
+    extraction_trace_policy_registry,
 )
+from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
@@ -126,6 +128,15 @@ async def _reviewed_posting_command(db: AsyncSession, user_id, txn: AtomicTransa
         )
     else:
         intent = EconomicIntent.INCOME if counter_account.type is AccountType.INCOME else EconomicIntent.EXPENSE
+    proposal = IntentProposal(
+        schema_version="1",
+        policy_version="reviewed-test-v1",
+        origin=IntentProposalOrigin.REVIEWED_RULE,
+        intent=intent,
+        category="TEST",
+        confidence=Decimal("1"),
+        evidence=("reviewed-test",),
+    )
     decision = DispositionPolicy().decide(
         StatementTransaction(
             transaction_id=txn.id,
@@ -135,35 +146,49 @@ async def _reviewed_posting_command(db: AsyncSession, user_id, txn: AtomicTransa
             direction=txn.direction,
             description=txn.description,
         ),
-        proposal=IntentProposal(
-            schema_version="1",
-            policy_version="reviewed-test-v1",
-            origin=IntentProposalOrigin.REVIEWED_RULE,
-            intent=intent,
-            category="TEST",
-            confidence=Decimal("1"),
-            evidence=("reviewed-test",),
-        ),
+        proposal=proposal,
         context=DispositionContext(counter_account_id=counter_account.id),
         mode=DispositionMode.ENFORCE,
     )
-    return decision, counter_account
+    return decision, counter_account, proposal
 
 
 async def _create_reviewed_entry(db: AsyncSession, txn: AtomicTransaction, *, user_id, **kwargs):
     counter_account = kwargs.pop("counter_account", None)
-    decision, counter_account = await _reviewed_posting_command(
+    decision, counter_account, proposal = await _reviewed_posting_command(
         db,
         user_id,
         txn,
         counter_account=counter_account,
     )
+    source_transaction = StatementTransaction(
+        transaction_id=txn.id,
+        transaction_date=txn.txn_date,
+        amount=txn.amount,
+        currency=txn.currency,
+        direction=txn.direction,
+        description=txn.description,
+    )
+    emitter = TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry()))
+    source_decision = (
+        await emit_disposition_trace_records(
+            emitter=emitter,
+            user_id=user_id,
+            execution_id=f"review-queue-test:{txn.id}",
+            occurred_at=datetime.now(UTC),
+            transaction=source_transaction,
+            proposal=proposal,
+            decision=decision,
+        )
+    )[-1]
     return await create_entry_from_txn(
         db,
         txn,
         user_id=user_id,
         disposition=decision,
         counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=emitter,
         **kwargs,
     )
 
@@ -202,9 +227,9 @@ async def test_get_pending_items_excludes_accepted(db, test_user):
 
 
 async def test_accept_match_updates_status(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -241,9 +266,11 @@ async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
 
 
 async def test_accept_match_amount_mismatch_raises(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("500.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
+    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    txn.amount = Decimal("500.00")
+    await db.flush()
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -262,9 +289,11 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
     # is never skippable (red line).
     assert "skip_amount_validation" not in inspect.signature(accept_match).parameters
 
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("500.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id, amount=Decimal("100.00"))
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
+    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    txn.amount = Decimal("500.00")
+    await db.flush()
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -278,14 +307,9 @@ async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, t
 
 
 async def test_accept_match_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(
-        db,
-        user_id=test_user.id,
-        amount=Decimal("100.00"),
-        source_type=JournalEntrySourceType.AUTO_PARSED,
-    )
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -339,7 +363,8 @@ async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
     )
     await db.commit()
 
-    await accept_match(db, match.id, user_id=test_user.id)
+    with pytest.raises(EntryCreationError, match="current decision authority"):
+        await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.VOID
 
@@ -389,10 +414,10 @@ async def test_batch_accept_empty_list(db, test_user):
 
 
 async def test_batch_accept_accepts_high_score_matches(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
 
     txn1 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry1, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
+    entry1 = await _create_reviewed_entry(db, txn1, user_id=test_user.id, auto_post=True)
     match1 = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn1.id,
@@ -402,7 +427,7 @@ async def test_batch_accept_accepts_high_score_matches(db, test_user):
     )
 
     txn2 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry2, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
+    entry2 = await _create_reviewed_entry(db, txn2, user_id=test_user.id, auto_post=True)
     match2 = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn2.id,
@@ -436,9 +461,9 @@ async def test_batch_accept_skips_low_score(db, test_user):
 
 
 async def test_batch_accept_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
+    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
     txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -689,7 +714,8 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     await db.commit()
 
     with patch(
-        "src.extraction.extension.review_queue.create_journal_entry", side_effect=ValidationError("not balanced")
+        "src.extraction.extension.review_queue.submit_anchored_journal_entry",
+        side_effect=ValidationError("not balanced"),
     ):
         with pytest.raises(ValueError, match="Generated entry does not balance"):
             await _create_reviewed_entry(db, txn, user_id=test_user.id)

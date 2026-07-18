@@ -295,7 +295,7 @@ async def _create_transfer_entry(
     entry = Entry.transfer(
         debit=debit_id,
         credit=credit_id,
-        money=Money(amount, processing_currency),
+        money=Money(amount, Currency.of(processing_currency)),
     )
     return await post_entry(
         db,
@@ -304,7 +304,7 @@ async def _create_transfer_entry(
         memo=f"Transfer {direction}: {description}",
         entry=entry,
         base_currency=processing_currency,
-        source_type=JournalEntrySourceType.SYSTEM,
+        operation=f"processing-transfer-{direction.lower()}",
     )
 
 

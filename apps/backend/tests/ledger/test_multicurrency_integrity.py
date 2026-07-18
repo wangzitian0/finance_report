@@ -15,12 +15,12 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
     ValidationError,
-    create_journal_entry,
     post_journal_entry,
     validate_journal_balance,
     verify_accounting_equation,
     void_journal_entry,
 )
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
 
 def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):

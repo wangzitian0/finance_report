@@ -4423,8 +4423,14 @@ export interface components {
             xirr: string | null;
         };
         /**
+         * JournalEntryAuthorityState
+         * @description Whether this row has a decision that can be used as accounting authority.
+         * @enum {string}
+         */
+        JournalEntryAuthorityState: "anchored" | "legacy_unproven";
+        /**
          * JournalEntryCreate
-         * @description Schema for creating a journal entry.
+         * @description Manual entry command; source provenance is never accepted from the caller.
          */
         JournalEntryCreate: {
             /**
@@ -4436,10 +4442,11 @@ export interface components {
             lines: components["schemas"]["JournalLineCreate"][];
             /** Memo */
             memo: string;
-            /** Source Id */
-            source_id?: string | null;
-            /** @default manual */
-            source_type: components["schemas"]["JournalEntrySourceType"];
+            /**
+             * Rationale
+             * @default Manual entry submitted by account owner.
+             */
+            rationale: string;
         };
         /**
          * JournalEntryResponse
@@ -4453,6 +4460,9 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Decision Anchor Id */
+            decision_anchor_id?: string | null;
+            decision_authority_state: components["schemas"]["JournalEntryAuthorityState"];
             /**
              * Entry Date
              * Format: date

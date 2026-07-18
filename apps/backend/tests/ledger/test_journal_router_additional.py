@@ -32,11 +32,11 @@ class TestJournalRouterAdditionalCoverage:
         """
         GIVEN a non-existent journal entry ID
         WHEN posting entry
-        THEN it should return 400
+        THEN it should return 404
         """
         fake_id = uuid4()
         response = await client.post(f"/journal-entries/{fake_id}/postings")
-        assert response.status_code == 400
+        assert response.status_code == 404
 
     async def test_void_entry_not_found(self, client, test_user):
         """
