@@ -27,7 +27,13 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
+from src.audit import (
+    STATEMENT_SOURCE_TYPES,
+    JournalEntrySourceType,
+    SqlTraceRecordRepository,
+    TraceEmitter,
+    TraceResult,
+)
 from src.config import settings
 from src.extraction import (
     DispositionContext,
@@ -2231,6 +2237,61 @@ async def test_auto_approve_high_confidence_statement_creates_posted_entries(db,
         .where(JournalEntry.source_id == txn_id)
     )
     assert entry_result.scalar_one().status == JournalEntryStatus.POSTED
+
+
+async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision(db, test_user, monkeypatch):
+    """AC-extraction.disposition.6: no source decision means review, never a ledger write."""
+    bank_account = await create_statement_account(db, test_user.id, "DBS Missing Source Authority")
+    statement = build_statement(test_user.id, "hash_s1_missing_source_authority", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 8),
+        description="Salary",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    db.add(txn)
+    await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="salary",
+        account_type=AccountType.INCOME,
+        category="SALARY",
+    )
+    await db.commit()
+
+    async def emit_non_authoritative(*_args, **_kwargs):
+        return (SimpleNamespace(result=TraceResult.REVIEW),)
+
+    monkeypatch.setattr(
+        "src.extraction.extension.statement_posting.emit_disposition_trace_records",
+        emit_non_authoritative,
+    )
+
+    created_count = await try_auto_approve_high_confidence_statement(
+        db,
+        statement.id,
+        test_user.id,
+        dependencies=posting_dependencies(),
+    )
+
+    assert created_count == 0
+    await db.refresh(statement)
+    assert statement.status is BankStatementStatus.PARSED
+    assert statement.stage1_status is Stage1Status.PENDING_REVIEW
+    assert "source_authority_missing" in (statement.validation_error or "")
+    entry_count = await db.scalar(
+        select(JournalEntry.id).where(JournalEntry.user_id == test_user.id).where(JournalEntry.source_id == txn.id)
+    )
+    assert entry_count is None
 
 
 async def test_auto_approve_high_confidence_statement_returns_zero_for_non_candidate(db, test_user):

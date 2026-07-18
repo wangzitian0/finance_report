@@ -4091,6 +4091,21 @@ CONTRACT = PackageContract(
             proof_kind="invariant",
         ),
         ACRecord(
+            id="AC-extraction.disposition.6",
+            statement=(
+                "Before a Stage 1 disposition can create a ledger command, its emitted "
+                "source decision must be authoritative. Missing or non-authoritative trace "
+                "output routes the statement to pending review with no journal entry."
+            ),
+            test=(
+                "apps/backend/tests/api/test_statements_router.py"
+                "::test_AC_extraction_disposition_6_auto_post_requires_authoritative_trace_decision"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="invariant",
+        ),
+        ACRecord(
             id="AC-extraction.disposition-rollout.1",
             statement=(
                 "Off, observe, and enforce execute the same versioned disposition "
