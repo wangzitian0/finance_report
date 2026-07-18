@@ -2451,7 +2451,7 @@ CONTRACT = PackageContract(
                 "::test_AC_ledger_79_8_posted_legacy_entry_upgrades_without_mutation"
             ),
             priority="P0",
-            status="open",
+            status="done",
         ),
         ACRecord(
             id="AC-ledger.80.1",
