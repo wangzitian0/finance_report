@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -30,6 +32,33 @@ CONTRACT = PackageContract(
     # Every AC in the roadmap inherits this tier.
     tier="CODE-ONLY",
     depends_on=["platform"],
+    context=ContextScope(
+        purpose=(
+            "Own reusable per-user and global named-event tallies, with a narrow "
+            "counter value language and one counter-owned increment event."
+        ),
+        in_scope=[
+            "CounterKey and non-negative Count vocabulary",
+            "per-user and global tally operations and repository port",
+            "emission of the counter.Incremented event after a counter mutation",
+        ],
+        out_of_scope=[
+            "business-domain metrics, reporting interpretation, or product analytics",
+            "generic event-bus or outbox persistence ownership",
+            "workflow, application routing, or cross-domain orchestration",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="platform",
+            consumer="counter",
+            mode="consumer-port",
+            reason=(
+                "Consumes the platform EventBus/outbox port to publish the "
+                "counter-owned Incremented event atomically without owning the substrate."
+            ),
+        )
+    ],
     roles=["base", "extension"],
     units=[
         # base — pure value objects + the domain event type.

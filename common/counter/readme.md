@@ -11,6 +11,15 @@
 
 ## Why
 
+## Bounded-context decision
+
+`counter` owns the small tally model: namespaced keys, non-negative counts, and
+the `counter.Incremented` fact emitted when its own tally changes. It consumes
+the `platform` EventBus/outbox as a consumer port rather than owning generic
+event delivery. It does not own reporting interpretation, business metrics,
+workflow, routing, or cross-domain orchestration. The machine-readable context
+boundary and relationship are declared in [`contract.py`](./contract.py).
+
 Insight reports ask "**how many times did X happen** — overall, or for this
 user?". `counter` is the small, reusable middleware capability that answers that:
 it tallies named events per user and lets a report read either the per-user count
