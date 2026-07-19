@@ -34,6 +34,19 @@ from common.testing.coverage import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
+
+def test_AC_meta_governance_baseline_1_draft_baseline_is_bidirectionally_exact(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.governance-baseline.1: stale draft registrations cannot stay green."""
+    baseline = tmp_path / "drafts.json"
+    baseline.write_text('{"draft_packages": ["retired"]}', encoding="utf-8")
+
+    errors = check_draft_packages.violations(tmp_path, baseline)
+
+    assert any("stale draft registration" in error for error in errors)
+
+
 # Split record/replay module names so this CODE-only proof does not trip the
 # source-text authority classifier.
 MIGRATED_GATE_MODULES = (

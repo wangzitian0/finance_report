@@ -634,6 +634,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
                     "target": "finance_report:manifest:missing_family",
                     "issue": "https://github.com/wangzitian0/finance_report/issues/823",
                     "reason": "Temporary fixture exception.",
+                    "remove_when": "The fixture's replacement gate is active.",
                 }
             ],
         },
@@ -663,6 +664,7 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
                     "target": "finance_report:manifest:missing_family",
                     "issue": "https://github.com/wangzitian0/finance_report/issues/823",
                     "reason": "Temporary fixture exception.",
+                    "remove_when": "The fixture's replacement gate is active.",
                 }
             ],
         },
@@ -796,21 +798,17 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
 
     exceptions_path = tmp_path / "common/meta/data/governance-exceptions.yaml"
     _write(exceptions_path, "[]\n")
-    assert (
+    with pytest.raises(RuntimeError, match="root must be a mapping"):
         governance_report._load_exception_targets(
             tmp_path,
             Path("common/meta/data/governance-exceptions.yaml"),
         )
-        == set()
-    )
     _write_yaml(exceptions_path, {"exceptions": "bad-shape"})
-    assert (
+    with pytest.raises(RuntimeError, match="exceptions must be a list"):
         governance_report._load_exception_targets(
             tmp_path,
             Path("common/meta/data/governance-exceptions.yaml"),
         )
-        == set()
-    )
     _write_yaml(
         exceptions_path,
         {
@@ -822,6 +820,24 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
                     "target": "finance_report:manifest:valid",
                     "issue": "https://github.com/wangzitian0/finance_report/issues/823",
                 },
+            ]
+        },
+    )
+    with pytest.raises(RuntimeError, match="entry 0 must be a mapping"):
+        governance_report._load_exception_targets(
+            tmp_path,
+            Path("common/meta/data/governance-exceptions.yaml"),
+        )
+    _write_yaml(
+        exceptions_path,
+        {
+            "exceptions": [
+                {
+                    "target": "finance_report:manifest:valid",
+                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
+                    "reason": "Temporary fixture exception.",
+                    "remove_when": "The fixture's replacement gate is active.",
+                }
             ]
         },
     )
@@ -1062,11 +1078,13 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
                     "target": "finance_report:ratio:manifest_kind_coverage",
                     "issue": "https://github.com/wangzitian0/finance_report/issues/823",
                     "reason": "Temporary fixture exception.",
+                    "remove_when": "The fixture's replacement gate is active.",
                 },
                 {
                     "target": "finance_report:debt:missing_kind",
                     "issue": "https://github.com/wangzitian0/finance_report/issues/823",
                     "reason": "Temporary fixture exception.",
+                    "remove_when": "The fixture's replacement gate is active.",
                 },
             ],
         },

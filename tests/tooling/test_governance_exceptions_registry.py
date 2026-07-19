@@ -58,6 +58,35 @@ def test_AC8_13_131_gate_rejects_unclassified_or_unsourced_entries(
     assert violations, "registry with an unsourced proof exception must be rejected"
 
 
+def test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.governance-baseline.2: temporary SSOT debt is exact and removable."""
+    registry = tmp_path / "governance-exceptions.yaml"
+    registry.write_text(
+        "version: 1\n"
+        "exceptions:\n"
+        "  - target: finance_report:debt:one\n"
+        "    issue: https://github.com/wangzitian0/finance_report/issues/1869\n"
+        "    reason: Needed while the base comparison is asymmetric.\n"
+        "  - target: finance_report:debt:one\n"
+        "    issue: https://github.com/wangzitian0/finance_report/issues/1869\n"
+        "    reason: Duplicate target must fail.\n"
+        "proof_exceptions: []\n"
+        "code_owned_surfaces: []\n",
+        encoding="utf-8",
+    )
+
+    violations = gec.validate_registry(registry)
+
+    assert any(
+        "missing or empty 'remove_when'" in violation for violation in violations
+    )
+    assert any(
+        "duplicate temporary exception target" in violation for violation in violations
+    )
+
+
 def test_AC8_13_131_gate_main_passes_on_real_registry() -> None:
     """AC8.13.131: the committed registry passes the gate end-to-end."""
     assert gec.main([str(REGISTRY)]) == 0

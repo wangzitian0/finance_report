@@ -80,30 +80,14 @@ by `check_package_contract`: the upward guard + a global cycle check.) So a
 cohesive family — the value types — can share one layer and depend on each
 other acyclically.
 
-```mermaid
-flowchart TD
-    subgraph L0["L0 · meta — template + global governance"]
-        meta["meta<br/><i>PackageContract (the template) · gates in extension/</i>"]
-    end
-    subgraph L1["L1 · infra — business-agnostic foundations"]
-        infra["config · audit · authority · observability<br/>testing · coverage · governance · runtime · llm · platform"]
-    end
-    subgraph L2["L2 · middleware — the shared domain kernel"]
-        middleware["money · ratio · quantity · unit_price · counter"]
-    end
-    subgraph L3["L3 · domain — vertical business slices"]
-        domain["ledger · identity · extraction · reconciliation"]
-    end
-    subgraph L4["L4 · app — the deliverables"]
-        app["apps/backend · apps/frontend"]
-    end
-
-    app -->|import| domain
-    domain -->|import| middleware
-    middleware -->|import| infra
-    infra -->|"import<br/>(every contract.py uses the L0 template)"| meta
-    meta -.->|"tool-time inversion: CI gates scan every<br/>contract.py — never a runtime import"| L4
-```
+The exact active package placement, declared edges, and reverse/transitive
+consumer impact are **not** copied into this document. They are rendered from
+the canonical [`PACKAGE_LAYER` map](./base/layering.py) and each discovered
+contract by [`tools/report_ddd_dependencies.py`](../../tools/report_ddd_dependencies.py).
+CI publishes that Markdown report in its run summary; locally, run
+`python tools/report_ddd_dependencies.py --base-ref origin/main` to inspect the
+same current topology. This prevents a prose diagram from listing retired
+packages or omitting a newly active one.
 
 Two edge *phases* keep the picture acyclic:
 
@@ -116,13 +100,13 @@ Two edge *phases* keep the picture acyclic:
   adapter registered from above (import-time), or a declaration in the upper
   package's contract scanned by the lower package's `extension` at tool-time.
 
-| layer | what it is | examples |
-|-------|-----------|----------|
-| `meta` (L0) | the template every package follows + the global governance gates; governs only at package granularity (`contract.py`), never implementations | `meta` |
-| `infra` (L1) | business-agnostic foundations — L1 does not know what money is | `config`, `audit`, `authority`, `observability`, `testing`, `coverage`, `runtime`, `llm`, `platform` |
-| `middleware` (L2) | the shared domain kernel: the value language + generic capabilities | `money`, `ratio`, `quantity`, `unit_price`, `counter` |
-| `domain` (L3) | vertical business slices | `ledger`, `identity`, `extraction` |
-| `app` (L4) | the deliverables | `apps/backend`, `apps/frontend` |
+| layer | what it is |
+|-------|------------|
+| `meta` (L0) | the template every package follows + global governance gates; it governs package granularity, never implementations |
+| `infra` (L1) | business-agnostic foundations |
+| `middleware` (L2) | the shared domain kernel |
+| `domain` (L3) | vertical business slices |
+| `app` (L4) | delivery applications |
 
 ## Governance is computed, not authored
 
@@ -154,6 +138,13 @@ about a package is *derived from its contract*:
   `concepts`. Its incremental quality gate projects that same union from both
   HEAD and an isolated base-ref checkout, treats `common/*/contract.py` as a
   registry input, and fails closed when either projection cannot be loaded.
+- Package-draft registration is an exact baseline: `check_draft_packages`
+  rejects both an unregistered `status="draft"` contract and a baseline entry
+  with no matching draft contract. Rewrite the baseline only when the package
+  status change is intentional. Temporary incremental-governance exceptions in
+  [`data/governance-exceptions.yaml`](./data/governance-exceptions.yaml) are
+  likewise fail-closed and unique by target; each must link its issue, explain
+  the debt, and state the condition that removes it.
 - The vision proof matrix sources direct package backing from each roadmap AC's
   optional `vision_anchor` via the pure `ac_vision_index` projection. EPIC docs
   still declare which historical goal owns an anchor; no central AC-to-vision

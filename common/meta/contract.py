@@ -510,12 +510,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.layer.5",
             statement=(
-                "common/meta/readme.md carries the authoritative mermaid "
-                "five-layer diagram naming all five layers."
+                "common/meta/readme.md links the generated five-layer topology "
+                "from PACKAGE_LAYER and contains no hand-authored diagram."
             ),
             test=(
                 "tests/tooling/test_five_layer_model.py"
-                "::test_readme_carries_the_mermaid_five_layer_diagram"
+                "::test_readme_links_the_generated_five_layer_topology"
             ),
             priority="P2",
             status="done",
@@ -833,6 +833,34 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_check_package_contract.py"
                 "::test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-baseline.1",
+            statement=(
+                "The draft-package baseline equals the discovered set of "
+                "status='draft' package contracts in both directions, so a stale "
+                "registration or an unregistered draft fails CI."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_meta_governance_baseline_1_draft_baseline_is_bidirectionally_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-baseline.2",
+            statement=(
+                "Every temporary SSOT governance exception has one unique target, "
+                "an issue URL, a reason, and an explicit removal condition; malformed "
+                "or duplicate exception debt fails CI."
+            ),
+            test=(
+                "tests/tooling/test_governance_exceptions_registry.py"
+                "::test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions"
             ),
             priority="P0",
             status="done",
