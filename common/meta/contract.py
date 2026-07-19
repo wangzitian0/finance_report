@@ -337,6 +337,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.3",
+            statement=(
+                "L4 delivery code may reach another package only through its root "
+                "or an explicitly baselined typed port/event path; every remaining "
+                "deep path is an exact shrink-only statement-level baseline, and a "
+                "new production path fails closed."
+            ),
+            test=(
+                "tests/tooling/test_app_boundary.py"
+                "::test_AC_meta_dependency_governance_3_l4_deep_imports_are_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.dependency-governance.5",
             statement=(
                 "ORM-defined types are not silently added to package-root public "

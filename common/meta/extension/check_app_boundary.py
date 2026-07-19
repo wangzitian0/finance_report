@@ -26,6 +26,7 @@ from pathlib import Path
 from common.meta.base.gate_cli import run_gate
 from common.meta.extension.app_boundary import (
     discover_and_compute_edges,
+    discover_l4_deep_import_edges,
     dump_baseline,
     load_baseline,
 )
@@ -51,7 +52,9 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     baseline_path = repo_root / "common/meta/data/app-boundary-baseline.json"
+    l4_baseline_path = repo_root / "common/meta/data/l4-root-import-baseline.json"
     current = sorted(set(discover_and_compute_edges(repo_root)))
+    l4_current = sorted(set(discover_l4_deep_import_edges(repo_root)))
 
     if args.update:
         # Shrink-only: an existing baseline may be pruned (removed edges) but never
@@ -79,8 +82,9 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
         return 0
 
     baseline = load_baseline(baseline_path)
-    new = sorted(set(current) - baseline)
-    stale = sorted(baseline - set(current))
+    l4_baseline = load_baseline(l4_baseline_path)
+    new = sorted(set(current) - baseline) + sorted(set(l4_current) - l4_baseline)
+    stale = sorted(baseline - set(current)) + sorted(l4_baseline - set(l4_current))
 
     if new:
         for edge in new:
