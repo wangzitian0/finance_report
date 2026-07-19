@@ -67,6 +67,7 @@ MIGRATED_GATE_MODULES = (
     "common.meta.extension.check_taxonomy_drift",
     "common.meta.extension.check_tier_ast_literal",
     "common.meta.extension.check_tier_imports",
+    "common.meta.extension.check_unit_accountability",
     "common.runtime.check_toolchain_contract",
     "common.testing.check_ac_index",
     "common.testing.check_ac_score_baseline",
