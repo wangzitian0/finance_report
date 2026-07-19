@@ -217,6 +217,23 @@ all ACs colliding in one central JSON object). Hermetic proof of the whole chain
    when behavior breaks (the real L3 proof).
 3. Migrating additional ACs and front-end (vitest) emission.
 
+## <a id="trusted-year-scenario"></a>TrustedYearScenario
+
+`trusted_year.py` owns one deliberately small terminal scenario and its
+independently authored `Decimal` oracle. The v0 entity contains one reviewed
+bank statement with income, expense, and investment-purchase movements; one
+brokerage position and selected market price; and one reviewed manual
+valuation. It is test truth, not a second product capability registry or a new
+transaction taxonomy.
+
+One `pr_ci` behavioral proof must bind the scenario to one independent oracle
+through explicit `scenario_id` and `oracle_kind` metadata. The integration path
+uses existing authority boundaries: LLM-led classification for supported P&L
+categories, a reviewed deterministic rule with explicit intent for the asset
+movement, immutable extraction results, ledger decisions, valuation decisions,
+and the frozen report-package lifecycle. Source-matrix expansion, deployed
+replay, operator evidence, and broader proof-format deletion remain outside v0.
+
 ---
 
 ## <a id="pdf-fixtures"></a>PDF Fixtures

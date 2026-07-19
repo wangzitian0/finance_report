@@ -59,6 +59,8 @@ _PROOF_KEY_ORDER = (
     "source_classes",
     "mirror_proof_id",
     "issue",
+    "scenario_id",
+    "oracle_kind",
     "file",
     "test",
     "required_markers",
@@ -169,7 +171,13 @@ def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
             value = kwargs.get(optional)
             if value:
                 fields[optional] = str(value)
-        for optional in ("trust_mode", "mirror_proof_id", "issue"):
+        for optional in (
+            "trust_mode",
+            "mirror_proof_id",
+            "issue",
+            "scenario_id",
+            "oracle_kind",
+        ):
             value = kwargs.get(optional)
             if value:
                 fields[optional] = str(value)

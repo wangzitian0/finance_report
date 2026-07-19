@@ -72,6 +72,7 @@ CONTRACT = PackageContract(
     units=[
         Unit(name="Cassette", kind=Kind.VALUE_OBJECT),
         Unit(name="FixtureDocument", kind=Kind.VALUE_OBJECT),
+        Unit(name="TrustedYearScenario", kind=Kind.ENTITY),
     ],
     implementations={"be": "common/testing", "fe": None},
     interface=["money_amount"],
@@ -4017,8 +4018,92 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.capability-proof.1",
+            statement=(
+                "A PR-CI behavioral proof is collected with an explicit scenario id "
+                "and independent oracle kind, and its execution is reconciled from JUnit."
+            ),
+            test=(
+                "tests/tooling/test_trusted_year_scenario.py::"
+                "test_AC_testing_capability_proof_1_collector_preserves_scenario_binding"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.capability-proof.2",
+            statement=(
+                "One terminal proof binds exactly one scenario to one independent oracle; "
+                "blank or stitched proof bindings are rejected."
+            ),
+            test=(
+                "tests/tooling/test_trusted_year_scenario.py::"
+                "test_AC_testing_capability_proof_2_binding_rejects_stitching"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.trusted-year.1",
+            statement=(
+                "TrustedYearScenario is a testing-owned immutable entity whose monetary "
+                "inputs and independently authored expected outputs are exact Decimals."
+            ),
+            test=(
+                "tests/tooling/test_trusted_year_scenario.py::"
+                "test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.trusted-year.2",
+            statement=(
+                "The v0 scenario deterministically traverses reviewed source authority, "
+                "ledger posting, valuation, and every report section to exact oracle values."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
+                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.package-lifecycle.1",
+            statement=(
+                "A trusted package can be generated, listed, reopened, and exported without "
+                "later source or valuation mutations changing its frozen document."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
+                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="trusted_year_scenario",
+            owner="common/testing/README.md#trusted-year-scenario",
+            description=(
+                "Small immutable annual input, independent Decimal oracle, and "
+                "single-proof binding for terminal report-package verification."
+            ),
+            cross_refs=[
+                "common/testing/trusted_year.py",
+                "apps/backend/tests/integration/test_trusted_year_scenario.py",
+                "tests/tooling/test_trusted_year_scenario.py",
+            ],
+            proofs=[
+                "tests/tooling/test_trusted_year_scenario.py",
+                "apps/backend/tests/integration/test_trusted_year_scenario.py",
+            ],
+            family="tdd",
+            kind="concept",
+        ),
         ConceptRecord(
             key="tool_shim_contract",
             owner="common/testing/tool_shim_contract.py",
