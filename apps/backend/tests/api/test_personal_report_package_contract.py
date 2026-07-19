@@ -1,7 +1,9 @@
 """Personal report package API contract coverage."""
 
+import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from io import StringIO
 from uuid import uuid4
 
 import pytest
@@ -267,7 +269,27 @@ def _package_snapshot_sections(label: str = "Total Assets") -> dict:
                     },
                     "anchor_count": 2,
                     "blocker_codes": [],
-                }
+                },
+                {
+                    "line_id": "notes.non_compliance_statement",
+                    "section_id": "notes",
+                    "label": "Package Non-Compliance Statement",
+                    "amount_field": None,
+                    "currency_field": None,
+                    "source_state": "package_contract",
+                    "source_anchor": {
+                        "state": "available",
+                        "source_types": ["package_contract"],
+                        "identifiers": ["package_contract:personal-financial-report-package"],
+                    },
+                    "ledger_anchor": {
+                        "state": "not_applicable",
+                        "entry_statuses": [],
+                        "identifiers": [],
+                    },
+                    "anchor_count": 1,
+                    "blocker_codes": [],
+                },
             ],
             "completeness_warnings": [],
         },
@@ -765,6 +787,10 @@ async def test_AC_reporting_package_document_4_exports_the_selected_frozen_docum
     assert "Frozen CSV" in csv_body
     assert "source_document:stmt-1" in csv_body
     assert "Live Changed" not in csv_body
+    csv_rows = list(csv.DictReader(StringIO(csv_body)))
+    disclosure_row = next(row for row in csv_rows if row["line_id"] == "notes.non_compliance_statement")
+    assert disclosure_row["amount"] == ""
+    assert disclosure_row["currency"] == ""
     assert '"schema_version": "2"' in json_body
     assert '"document"' in json_body
 

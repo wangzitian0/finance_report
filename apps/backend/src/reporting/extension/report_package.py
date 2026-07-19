@@ -170,7 +170,13 @@ def package_snapshot_csv(snapshot: PersonalReportPackageSnapshotResponse) -> str
     for line in traceability.lines:
         section_payload = section_payloads.get(line.section_id, {})
         amount = resolve_payload_field(section_payload, line.amount_field)
-        currency = resolve_payload_field(section_payload, line.currency_field) or snapshot.currency
+        # Disclosure-only rows have no monetary/currency path; never fabricate
+        # a presentation currency for those non-amount CSV records.
+        currency = (
+            resolve_payload_field(section_payload, line.currency_field) or snapshot.currency
+            if line.currency_field
+            else ""
+        )
         writer.writerow(
             [
                 snapshot.package_id,
