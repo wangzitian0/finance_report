@@ -62,7 +62,6 @@
   "unbound::llm::UsageRecorded",
   "unbound::llm::UsageRepository",
   "unbound::llm::UsageRollup",
-  "unbound::platform::Outbox",
   "unbound::portfolio::CostBasisMethod",
   "unbound::portfolio::DividendIncome",
   "unbound::portfolio::DividendType",
