@@ -5,6 +5,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -40,6 +42,75 @@ CONTRACT = PackageContract(
         "observability",
         "platform",
         "pricing",
+    ],
+    context=ContextScope(
+        purpose=(
+            "Own the confidence-scored matching and review lifecycle that links "
+            "independent source transactions to ledger facts without merging either source."
+        ),
+        in_scope=[
+            "ReconciliationMatch lifecycle, candidate generation, scoring, and review decisions",
+            "many-to-one and FX transfer matching, anomaly and consistency diagnostics",
+            "reconciliation statistics and match-outcome evidence",
+        ],
+        out_of_scope=[
+            "source-document and AtomicTransaction ownership",
+            "journal-entry ownership, double-entry posting, and price-observation resolution",
+            "shared money, model-provider, telemetry, persistence, and workflow ownership",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="reconciliation",
+            mode="published-language",
+            reason="Uses audit monetary, ratio, provenance, and promotion language for matching evidence.",
+        ),
+        ContextRelation(
+            provider="extraction",
+            consumer="reconciliation",
+            mode="projection",
+            reason=(
+                "Reads extraction-owned AtomicTransaction facts and reviewed dispositions "
+                "as one side of matching without owning source parsing or provenance."
+            ),
+        ),
+        ContextRelation(
+            provider="ledger",
+            consumer="reconciliation",
+            mode="published-language",
+            reason=(
+                "Uses ledger journal/account language as the independent accounting side of "
+                "a match without posting or owning journal facts."
+            ),
+        ),
+        ContextRelation(
+            provider="llm",
+            consumer="reconciliation",
+            mode="published-language",
+            reason=(
+                "Uses the LLM semantic-score facade as an advisory signal while the match "
+                "decision and safe fallback remain reconciliation-owned."
+            ),
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="reconciliation",
+            mode="published-language",
+            reason="Uses published safe logging and reconciliation-outcome telemetry language.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="reconciliation",
+            mode="composition",
+            reason="Uses platform persistence mixins without owning generic persistence behavior.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="reconciliation",
+            mode="published-language",
+            reason="Uses pricing FX-conversion language for cross-currency transfer matching.",
+        ),
     ],
     roles=["base", "extension", "data"],
     units=[
