@@ -60,10 +60,13 @@ from src.reporting import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,
     PackageAssembler,
+    PackageDocumentVersionError,
     PackageSectionContribution,
     ReportSnapshot,
     ReportType,
     build_personal_report_package_traceability_payload,
+    package_snapshot_document,
+    package_snapshot_summary,
 )
 from src.routers.reports import (
     PackageSnapshotExportFormat,
@@ -71,6 +74,7 @@ from src.routers.reports import (
     generate_personal_report_package_snapshot,
     get_personal_report_package_snapshot,
     list_personal_report_package_snapshots,
+    preview_personal_report_package,
 )
 from src.schemas import (
     PersonalReportingFrameworkId,
@@ -465,6 +469,130 @@ def _package_document(
             },
         }
     )
+
+
+def test_package_snapshot_document_rejects_legacy_preview_and_identity_mismatch() -> None:
+    snapshot_id = uuid4()
+    created_at = datetime(2026, 7, 19, tzinfo=UTC)
+    legacy = ReportSnapshot(
+        id=snapshot_id,
+        user_id=uuid4(),
+        report_type=ReportType.PACKAGE,
+        as_of_date=date(2025, 12, 31),
+        start_date=date(2025, 1, 1),
+        report_data={"framework_id": "personal_us_gaap_like", "currency": "sgd"},
+        is_latest=True,
+        created_at=created_at,
+    )
+    summary = package_snapshot_summary(legacy)
+    assert summary.status.value == "legacy_unproven"
+    assert summary.currency == "SGD"
+
+    preview = _package_document(
+        readiness_state="blocked",
+        blocking_count=1,
+        section_label="Preview",
+        lifecycle=PersonalReportPackageDocumentLifecycle.PREVIEW,
+        snapshot_id=None,
+        frozen_at=None,
+    )
+    legacy.report_data = preview.model_dump(mode="json")
+    with pytest.raises(PackageDocumentVersionError, match="not a frozen document"):
+        package_snapshot_document(legacy)
+
+    frozen = _package_document(
+        readiness_state="ready",
+        blocking_count=0,
+        section_label="Frozen",
+        lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+        snapshot_id=uuid4(),
+        frozen_at=created_at,
+    )
+    legacy.report_data = frozen.model_dump(mode="json")
+    with pytest.raises(PackageDocumentVersionError, match="identity does not match"):
+        package_snapshot_document(legacy)
+
+
+def test_package_document_schema_rejects_inconsistent_trust_coordinates() -> None:
+    frozen = _package_document(
+        readiness_state="ready",
+        blocking_count=0,
+        section_label="Frozen",
+        lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+        snapshot_id=uuid4(),
+        frozen_at=datetime(2026, 7, 19, tzinfo=UTC),
+    ).model_dump(mode="json")
+
+    trusted_preview = dict(frozen)
+    trusted_preview.update(
+        status="trusted",
+        lifecycle="preview",
+        package_decision_id=str(uuid4()),
+    )
+    with pytest.raises(ValueError, match="only a frozen package document"):
+        PersonalReportPackageDocument.model_validate(trusted_preview)
+
+    trusted_without_ids = dict(frozen)
+    trusted_without_ids.update(status="trusted", snapshot_id=None, package_decision_id=None)
+    with pytest.raises(ValueError, match="requires snapshot and TraceRecord decision ids"):
+        PersonalReportPackageDocument.model_validate(trusted_without_ids)
+
+    preview_with_decision = dict(frozen)
+    preview_with_decision.update(status="draft", lifecycle="preview", package_decision_id=str(uuid4()))
+    with pytest.raises(ValueError, match="preview package cannot persist"):
+        PersonalReportPackageDocument.model_validate(preview_with_decision)
+
+
+async def test_package_preview_routes_through_the_single_assembler(monkeypatch: pytest.MonkeyPatch) -> None:
+    expected = object()
+
+    async def skip_freshness(*_args, **_kwargs) -> None:
+        return None
+
+    class FakeAssembler:
+        async def assemble(self, *_args, **kwargs):
+            assert kwargs["currency"] == "SGD"
+            assert kwargs["as_of_date"] == date(2025, 12, 31)
+            return expected
+
+    monkeypatch.setattr("src.routers.reports._ensure_report_market_data_fresh", skip_freshness)
+    monkeypatch.setattr("src.routers.reports.PackageAssembler", FakeAssembler)
+
+    response = await preview_personal_report_package(
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 12, 31),
+        as_of_date=date(2025, 12, 31),
+        currency="sgd",
+        include_restricted=False,
+        db=SimpleNamespace(),
+        user_id=uuid4(),
+    )
+    assert response is expected
+
+
+async def test_package_snapshot_route_rejects_legacy_documents() -> None:
+    legacy = ReportSnapshot(
+        id=uuid4(),
+        user_id=uuid4(),
+        report_type=ReportType.PACKAGE,
+        as_of_date=date(2025, 12, 31),
+        start_date=date(2025, 1, 1),
+        report_data={"framework_id": "personal_us_gaap_like"},
+        is_latest=True,
+    )
+
+    class FakeSession:
+        async def scalar(self, _query):
+            return legacy
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_personal_report_package_snapshot(
+            snapshot_id=legacy.id,
+            db=FakeSession(),
+            user_id=legacy.user_id,
+        )
+    assert exc_info.value.status_code == 400
 
 
 async def _patch_package_snapshot_inputs(

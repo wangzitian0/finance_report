@@ -1,8 +1,11 @@
 """Economic-disposition contract tests for statement transactions."""
 
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 
 from src.extraction import (
     DispositionContext,
@@ -14,8 +17,28 @@ from src.extraction import (
     IntentProposalOrigin,
     StatementTransaction,
     TransactionDirection,
+    current_statement_disposition_policy_snapshot,
 )
 from src.extraction.extension.disposition_trace import build_disposition_trace_records
+
+
+@pytest.mark.parametrize(
+    ("updates", "error"),
+    (
+        ({"schema_version": "2"}, ValueError),
+        ({"policy_version": ""}, ValueError),
+        ({"mode": "enforce"}, TypeError),
+        ({"machine_confidence_threshold": Decimal("1.01")}, ValueError),
+        ({"unknown_intent_outcome": "accept"}, ValueError),
+        ({"live_llm_proposals_enabled": 1}, TypeError),
+        ({"deployment_git_sha": ""}, ValueError),
+    ),
+)
+def test_statement_disposition_policy_snapshot_rejects_invalid_contract_values(updates, error):
+    snapshot = current_statement_disposition_policy_snapshot()
+
+    with pytest.raises(error):
+        replace(snapshot, **updates)
 
 
 def _transaction(

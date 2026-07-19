@@ -24,10 +24,18 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
+from src.extraction import StatementSourceType
 from src.reporting import personal_report_package_decision_ref, personal_report_package_target
 from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution
 from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
-from src.reporting.extension.package_document import PackageAssembler, _section_invariant_blockers
+from src.reporting.extension.package_document import (
+    PackageAssembler,
+    _cash_inputs_from_contributions,
+    _package_document_summary,
+    _policy_blockers,
+    _section_invariant_blockers,
+    _valuation_section_contribution,
+)
 from src.schemas.reporting import (
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
@@ -255,6 +263,26 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     )
     assert "cash_balance_input_missing" not in {blocker.code for blocker in empty_input_blockers}
 
+    sections.balance_sheet.opening_balance_warnings = [{}]
+    sections.balance_sheet.portfolio_warnings = [{}]
+    sections.investment_performance.data_freshness.stale = True
+    sections.investment_performance.as_of_date = period_start
+    warning_blockers = _section_invariant_blockers(
+        sections,
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(),
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    assert {
+        "investment_market_data_stale",
+        "opening_balance_missing",
+        "portfolio_value_incomplete",
+        "section_period_mismatch",
+    } <= {blocker.code for blocker in warning_blockers}
+
 
 def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:
     """AC-reporting.package-document.8: absence is explicit, never a lexical fallback."""
@@ -269,6 +297,93 @@ def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> No
             account_ids=frozenset({uuid4()}),
             input_refs=("statement_result:fixture",),
         )
+
+
+def test_package_contribution_envelopes_reject_incomplete_authority_contracts() -> None:
+    with pytest.raises(ValueError, match="at least one account"):
+        PackageCashInputs(account_ids=frozenset(), input_refs=())
+    with pytest.raises(ValueError, match="cannot be blank"):
+        PackageCashInputs.missing().__class__(
+            account_ids=frozenset(),
+            input_refs=("",),
+            reason_code="cash_balance_input_missing",
+        )
+
+    decision = TraceDecisionRef(
+        decision_id=uuid4(),
+        target=VersionedTraceRef("journal_command", "entry-1", "1"),
+        assertion=VersionedTraceRef("ledger_authority", "posted", "1"),
+    )
+    invalid_states = (
+        {"section_ids": (), "state": "unproven", "decision": None, "reason_code": "missing"},
+        {
+            "section_ids": ("balance_sheet",),
+            "state": "unproven",
+            "decision": None,
+            "reason_code": "missing",
+            "input_refs": (),
+        },
+        {"section_ids": ("balance_sheet",), "state": "authoritative", "decision": None, "reason_code": None},
+        {"section_ids": ("balance_sheet",), "state": "unproven", "decision": None, "reason_code": None},
+        {"section_ids": ("balance_sheet",), "state": "unproven", "decision": decision, "reason_code": "missing"},
+    )
+    for state in invalid_states:
+        with pytest.raises(ValueError):
+            PackageSectionContribution(
+                contribution_type="ledger_command",
+                payload=object(),
+                input_refs=state.pop("input_refs", ("journal_entry:entry-1",)),
+                **state,
+            )
+
+
+def test_package_document_helpers_fail_closed_without_reconstructing_authority() -> None:
+    with pytest.raises(ValueError, match="missing durable identity metadata"):
+        _package_document_summary(
+            SimpleNamespace(
+                lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+                snapshot_id=None,
+                frozen_at=None,
+            )
+        )
+
+    valuation = _valuation_section_contribution(
+        SimpleNamespace(
+            input_refs=(),
+            lineage_id=None,
+            subject=SimpleNamespace(kind=SimpleNamespace(value="security"), key="ACME"),
+            state="unproven",
+            decision=None,
+            reason_code="missing_current_decision_anchor",
+        )
+    )
+    assert valuation.input_refs == ("valuation:security:ACME",)
+
+    unproven_bank = PackageSectionContribution(
+        contribution_type="statement_source",
+        section_ids=("balance_sheet",),
+        payload=SimpleNamespace(
+            source_result=SimpleNamespace(source_type=StatementSourceType.BANK),
+            account_id=None,
+        ),
+        state="unproven",
+        decision=None,
+        input_refs=("statement:bank-1",),
+        reason_code="missing_current_decision_anchor",
+    )
+    cash_inputs = _cash_inputs_from_contributions((unproven_bank,))
+    assert cash_inputs.reason_code == "cash_balance_input_unproven"
+    assert cash_inputs.input_refs == ("statement:bank-1",)
+
+    blockers = _policy_blockers(
+        SimpleNamespace(
+            gaps=[
+                SimpleNamespace(blocker=True, code="unsupported_policy_domain"),
+                SimpleNamespace(blocker=False, code="non_blocking_gap"),
+            ]
+        )
+    )
+    assert [(blocker.code, blocker.count) for blocker in blockers] == [("unsupported_policy_domain", 1)]
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from src.audit import (
     SqlTraceRecordRepository,
+    TraceDecisionRef,
     TraceRecord,
     TraceRecordType,
     TraceResult,
@@ -23,6 +24,7 @@ from src.pricing import (
     MarketValuationSelection,
     PriceableSubject,
     ResolutionPolicy,
+    ResolvedValuationContribution,
     StockPrice,
     build_manual_valuation_lines,
     pricing_trace_policy_registry,
@@ -36,6 +38,36 @@ from src.reporting.extension.package_document import PackageAssembler
 from src.schemas.portfolio import InvestmentPerformanceMarketValuationSelection
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_resolved_valuation_contribution_rejects_inconsistent_authority_state():
+    decision = TraceDecisionRef(
+        decision_id=uuid4(),
+        target=VersionedTraceRef("pricing_subject", "property_value", "1"),
+        assertion=VersionedTraceRef("pricing_authority", "selected_value", "1"),
+    )
+    base = {
+        "subject": PriceableSubject.component("property_value"),
+        "requested_as_of": date(2026, 6, 1),
+        "resolution_policy": "fixture-policy",
+        "lineage_id": None,
+        "observation_id": None,
+        "observation_version": None,
+        "observation_as_of": None,
+        "value": None,
+        "currency": None,
+        "source": None,
+    }
+    invalid_states = (
+        {"state": "authoritative", "reason_code": None, "decision": None},
+        {"state": "authoritative", "reason_code": "unexpected", "decision": decision},
+        {"state": "unproven", "reason_code": None, "decision": None},
+        {"state": "unproven", "reason_code": "missing_observation", "decision": decision},
+    )
+
+    for state in invalid_states:
+        with pytest.raises(ValueError):
+            ResolvedValuationContribution(**base, **state)
 
 
 async def _supersede_decision_parent(db, *, user_id, decision_id) -> None:
