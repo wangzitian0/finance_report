@@ -219,7 +219,7 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         end_date=period_end,
         as_of_date=period_end,
         currency="SGD",
-        contributions=(),
+        contributions=(SimpleNamespace(is_authoritative=True, section_ids=("balance_sheet",)),),
         cash_inputs=PackageCashInputs.missing(),
     )
     readiness = PackageAssembler._readiness(
@@ -239,6 +239,16 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "statement_net_income_mismatch",
         "cash_balance_input_missing",
     }
+    empty_input_blockers = _section_invariant_blockers(
+        sections,
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(),
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    assert "cash_balance_input_missing" not in {blocker.code for blocker in empty_input_blockers}
 
 
 def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:

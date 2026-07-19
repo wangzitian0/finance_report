@@ -343,7 +343,9 @@ def _section_invariant_blockers(
                 "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
             )
         )
-    if not cash_inputs.is_complete:
+    # An empty package asserts no financial facts. Once any package input exists,
+    # however, a zero cash balance also requires exact source evidence.
+    if contributions and not cash_inputs.is_complete:
         blockers.append(
             _section_blocker(
                 cash_inputs.reason_code or "cash_balance_input_unproven",
