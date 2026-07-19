@@ -10,10 +10,12 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
 from common.testing.ac_proof import PROOF_ATTR, AcProof
 from common.testing.executed_proof import (
     executed_proof_assertion_version,
     record_executed_proof,
+    register_executed_proof_consumer,
 )
 
 from src.audit import (
@@ -50,6 +52,7 @@ PROOF_ASSERTION_VERSION = executed_proof_assertion_version(
     ac_ids=TRUSTED_YEAR_AC_IDS,
     stage="github_ci.merge_authority",
     task_category="critical_behavioral",
+    required_observation_kind="terminal_audit",
 )
 
 
@@ -328,6 +331,7 @@ def _executed_proof(spec: TerminalAuditSpec) -> TraceRecord:
             trust_mode="deterministic_pr",
             scenario_id=spec.scenario_id,
             oracle_kind="independent_decimal",
+            required_observation_kind="terminal_audit",
         ),
     )
     item = SimpleNamespace(
@@ -335,6 +339,32 @@ def _executed_proof(spec: TerminalAuditSpec) -> TraceRecord:
         nodeid="tests/integration/test_terminal.py::test_scenario",
         user_properties=[],
     )
+
+    def _stub_terminal_consumer(_executed_proof_record):
+        stub = TraceRecord.observation(
+            scope=spec.scope,
+            target=spec.package.target,
+            target_class=TraceTargetClass.GENERAL,
+            assertion=VersionedTraceRef("terminal_audit", spec.scenario_id, TERMINAL_AUDIT_POLICY_VERSION),
+            authority=TraceAuthorityProfile(
+                package="audit",
+                tier="CODE-ONLY",
+                proof_kind="exact",
+                provenance="deterministic",
+                execution_stage="github_ci.merge_authority",
+                assertion_owner_digest=TERMINAL_AUDIT_POLICY_VERSION,
+                producer_version=f"git@{spec.commit_sha}",
+            ),
+            result=TraceResult.PASS,
+            execution_id="123.2",
+            evidence_manifest_digest="e" * 64,
+            occurred_at=OCCURRED_AT,
+            score=None,
+            reason_code="terminal_audit_passed",
+        )
+        return CommonTraceRecordCodec.decode(TraceRecordCodec.encode(stub))
+
+    register_executed_proof_consumer(item, _stub_terminal_consumer)
     report = SimpleNamespace(when="call", passed=True, wasxfail=None)
     common_record = record_executed_proof(
         item,
