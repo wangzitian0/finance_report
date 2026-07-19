@@ -6,11 +6,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field
 
-from src.extraction.orm.layer3 import (
+from src.extraction.orm.layer3 import PositionStatus
+from src.pricing import (
     ManualValuationBasis,
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
-    PositionStatus,
 )
 from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount, NonNegativeMoneyAmount, Quantity
 from src.schemas.provenance import DataProvenance
@@ -67,11 +67,14 @@ class ReconcilePositionsResponse(BaseModel):
     """Response for position reconciliation."""
 
     message: str
-    created: int = Field(ge=0)
-    updated: int = Field(ge=0)
-    disposed: int = Field(ge=0)
-    skipped: int = Field(default=0, ge=0)
-    skipped_assets: list[str] = Field(default_factory=list)
+    created: int = Field(ge=0, description="Number of managed positions created by reconciliation.")
+    updated: int = Field(ge=0, description="Number of managed positions updated by reconciliation.")
+    disposed: int = Field(ge=0, description="Number of managed positions marked disposed by reconciliation.")
+    skipped: int = Field(default=0, ge=0, description="Number of source positions skipped by reconciliation.")
+    skipped_assets: list[str] = Field(
+        default_factory=list,
+        description="Asset identifiers skipped during reconciliation.",
+    )
 
 
 class DepreciationResponse(BaseModel):

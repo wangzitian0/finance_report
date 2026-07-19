@@ -12,13 +12,12 @@ from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
 )
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.reporting.base.l1_registry import (
     get_framework_ordered_lines,
     get_registered_line,

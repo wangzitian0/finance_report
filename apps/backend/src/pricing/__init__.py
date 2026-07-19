@@ -48,6 +48,12 @@ from src.pricing.base import (
     ResolutionPolicy,
 )
 from src.pricing.base.contribution import MarketValuationSelection
+from src.pricing.base.manual_valuation import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationFact,
+    ManualValuationLiquidityClass,
+)
 from src.pricing.extension import (
     MARKET_DATA_QUANTITY_UNIT,
     MARKET_DATA_SYNC_TZ,
@@ -69,6 +75,7 @@ from src.pricing.extension import (
     get_exchange_rate,
     get_market_data_status,
     ingest_statement_price,
+    list_current_manual_valuation_facts,
     next_market_data_sync_at,
     pricing_trace_policy_registry,
     record_manual_valuation,
@@ -95,6 +102,7 @@ from src.pricing.extension.valuation import (
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.pricing.orm.fx_conversion import FxConversion
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot  # noqa: F401  (mapper registration)
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
 from src.pricing.orm.statement_observation import StatementPriceObservation
@@ -111,7 +119,11 @@ __all__ = [
     "MarketDataScopeStatus",
     "MarketDataScopes",
     "MarketDataSyncResult",
+    "ManualValuationBasis",
     "ManualValuationAttestationPolicy",
+    "ManualValuationComponentType",
+    "ManualValuationFact",
+    "ManualValuationLiquidityClass",
     "MarketDataSyncState",
     "MarketValuationSelection",
     "ObservationRepository",
@@ -141,6 +153,7 @@ __all__ = [
     "get_exchange_rate",
     "get_market_data_status",
     "ingest_statement_price",
+    "list_current_manual_valuation_facts",
     "next_market_data_sync_at",
     "record_manual_valuation",
     "record_override",

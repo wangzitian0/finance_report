@@ -11,9 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
-from src.extraction.orm.layer3 import ManualValuationLiquidityClass
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.observability import ErrorIds, get_logger
+from src.pricing import ManualValuationLiquidityClass
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _REPORT_STATUSES, _load_accounts, _single_source_currency
 from src.reporting.extension.balance_sheet import generate_balance_sheet

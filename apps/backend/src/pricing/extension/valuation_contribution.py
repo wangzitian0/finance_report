@@ -515,7 +515,7 @@ async def resolve_manual_valuation_contributions(
     policy: ResolutionPolicy,
 ) -> tuple[ResolvedValuationContribution, ...]:
     """Resolve each current component/source lineage selected for package use."""
-    from src.extraction.orm.layer3 import ManualValuationSnapshot
+    from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 
     rows = (
         (

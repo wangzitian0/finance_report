@@ -61,8 +61,7 @@ logger = get_logger(__name__)
 settings = src.config.settings
 
 # ``extraction`` and ``pricing`` are both L3 domains; pricing's own
-# repository/manual-valuation reads need extraction's published ORM entities
-# (ManualValuationSnapshot, #1675 D5c), so a direct extraction -> pricing
+# repository reads must not create a direct extraction -> pricing
 # import here (even function-local — the package-contract gate's cycle check
 # is a static AST scan, not a runtime-timing one) would make depends_on
 # cyclic (extraction -> pricing -> extraction). Same inversion as

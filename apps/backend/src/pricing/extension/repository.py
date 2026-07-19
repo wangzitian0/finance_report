@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation, pricing_valuation_lineage_id
 from src.pricing.base.subject import PriceableSubject, SubjectKind
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate, StockPrice
 from src.pricing.orm.market_data_override import MarketDataOverride
 from src.pricing.orm.statement_observation import StatementPriceObservation
@@ -183,13 +184,6 @@ class SqlObservationRepository:
             # Manual valuations are inherently user-owned; there is no global
             # component observation to return.
             return []
-        # Deferred import (#1675 D5c): extraction.orm.layer3 runs extraction's
-        # full package init (Python always initializes the parent package on
-        # a submodule import); a module-level import here would make pricing
-        # and extraction mutually recursive when reached via extraction's own
-        # init chain (extraction -> ... -> pricing -> this repository).
-        from src.extraction.orm.layer3 import ManualValuationSnapshot
-
         rows = (
             (
                 await self._db.execute(

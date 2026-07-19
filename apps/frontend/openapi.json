@@ -5440,7 +5440,7 @@
         "type": "object"
       },
       "ManualValuationBasis": {
-        "description": "How a manual valuation's value was determined — the evidence basis.\n\nCaptured for guided evidence intake (#706) so a manual-trusted value carries\na structured, auditable basis (not just a free-text source).",
+        "description": "Evidence basis attached to a human-entered valuation.",
         "enum": [
           "market_appraisal",
           "broker_statement",
@@ -5454,7 +5454,7 @@
         "type": "string"
       },
       "ManualValuationComponentType": {
-        "description": "Manual net worth component type.",
+        "description": "Manual net-worth component classification owned by pricing.",
         "enum": [
           "property_value",
           "mortgage_balance",
@@ -5476,7 +5476,7 @@
         "type": "string"
       },
       "ManualValuationLiquidityClass": {
-        "description": "How a manual valuation should be presented in net worth views.",
+        "description": "Presentation liquidity of a pricing-owned valuation fact.",
         "enum": [
           "liquid",
           "restricted",
@@ -8150,11 +8150,13 @@
         "description": "Response for position reconciliation.",
         "properties": {
           "created": {
+            "description": "Number of managed positions created by reconciliation.",
             "minimum": 0.0,
             "title": "Created",
             "type": "integer"
           },
           "disposed": {
+            "description": "Number of managed positions marked disposed by reconciliation.",
             "minimum": 0.0,
             "title": "Disposed",
             "type": "integer"
@@ -8165,11 +8167,13 @@
           },
           "skipped": {
             "default": 0,
+            "description": "Number of source positions skipped by reconciliation.",
             "minimum": 0.0,
             "title": "Skipped",
             "type": "integer"
           },
           "skipped_assets": {
+            "description": "Asset identifiers skipped during reconciliation.",
             "items": {
               "type": "string"
             },
@@ -8177,6 +8181,7 @@
             "type": "array"
           },
           "updated": {
+            "description": "Number of managed positions updated by reconciliation.",
             "minimum": 0.0,
             "title": "Updated",
             "type": "integer"

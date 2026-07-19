@@ -17,14 +17,15 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
-from src.extraction.orm.layer3 import (
+from src.observability import get_logger
+from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
     ManualValuationComponentType,
+    ManualValuationFact,
     ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
 )
-from src.observability import get_logger
 from src.pricing.extension.manual import record_manual_valuation
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
@@ -84,6 +85,47 @@ _DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiqu
     ManualValuationComponentType.OTHER_ASSET: ManualValuationLiquidityClass.LIQUID,
     ManualValuationComponentType.OTHER_LIABILITY: ManualValuationLiquidityClass.LIABILITY,
 }
+
+
+def _manual_valuation_fact(snapshot: ManualValuationSnapshot) -> ManualValuationFact:
+    """Detach a pricing persistence row before it crosses the package boundary."""
+    return ManualValuationFact(
+        id=snapshot.id,
+        component_type=snapshot.component_type,
+        liquidity_class=snapshot.liquidity_class,
+        as_of_date=snapshot.as_of_date,
+        value=Decimal(snapshot.value),
+        currency=snapshot.currency,
+        source=snapshot.source,
+        valuation_basis=snapshot.valuation_basis,
+        notes=snapshot.notes,
+        reminder_date=snapshot.reminder_date,
+        created_at=snapshot.created_at,
+    )
+
+
+async def list_current_manual_valuation_facts(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    component_types: tuple[ManualValuationComponentType, ...] | None = None,
+    liquidity_class: ManualValuationLiquidityClass | None = None,
+) -> list[ManualValuationFact]:
+    """Return current pricing facts without leaking the legacy ORM adapter."""
+    query = (
+        select(ManualValuationSnapshot)
+        .where(ManualValuationSnapshot.user_id == user_id)
+        .where(ManualValuationSnapshot.as_of_date <= as_of_date)
+        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    )
+    if component_types is not None:
+        query = query.where(ManualValuationSnapshot.component_type.in_(component_types))
+    if liquidity_class is not None:
+        query = query.where(ManualValuationSnapshot.liquidity_class == liquidity_class)
+    rows = (await db.execute(query)).scalars().all()
+    return [_manual_valuation_fact(row) for row in rows]
 
 
 def _valuation_key_query(

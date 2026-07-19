@@ -19,7 +19,6 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.audit.orm.trace_record import TraceRecordRow
-from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.pricing import (
     MarketValuationSelection,
     PriceableSubject,
@@ -32,6 +31,7 @@ from src.pricing import (
     resolve_selected_market_valuation_contribution,
     resolve_valuation_contribution,
 )
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.reporting.extension.package_document import PackageAssembler
 from src.schemas.portfolio import InvestmentPerformanceMarketValuationSelection
 

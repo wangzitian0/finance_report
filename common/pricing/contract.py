@@ -79,7 +79,7 @@ CONTRACT = PackageContract(
     # #1663 / #1710): src.config is a bare top-level module, not a registered
     # package, so it's never governed by depends_on — no other package
     # declares it either despite importing it directly.
-    depends_on=["audit", "extraction", "platform", "observability"],
+    depends_on=["audit", "platform", "observability"],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure observation + subject-identity + policy language ──
@@ -282,6 +282,32 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/valuation_contribution.py",
         ),
+        Unit(
+            name="ManualValuationComponentType",
+            kind=Kind.VALUE_OBJECT,
+            module="base/manual_valuation.py",
+        ),
+        Unit(
+            name="ManualValuationLiquidityClass",
+            kind=Kind.VALUE_OBJECT,
+            module="base/manual_valuation.py",
+        ),
+        Unit(
+            name="ManualValuationBasis",
+            kind=Kind.VALUE_OBJECT,
+            module="base/manual_valuation.py",
+        ),
+        Unit(
+            name="ManualValuationFact",
+            kind=Kind.VALUE_OBJECT,
+            module="base/manual_valuation.py",
+        ),
+        Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
+        Unit(
+            name="list_current_manual_valuation_facts",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation.py",
+        ),
         # ── ORM entities: taxonomy-only (module unset — the gate skips
         # placement, the #1675 idiom). MarketDataOverride (orm/
         # market_data_override.py, moved from models/portfolio.py in D5) is a
@@ -328,7 +354,11 @@ CONTRACT = PackageContract(
         "MarketDataSyncResult",
         "MarketDataSyncState",
         "MarketValuationSelection",
+        "ManualValuationBasis",
         "ManualValuationAttestationPolicy",
+        "ManualValuationComponentType",
+        "ManualValuationFact",
+        "ManualValuationLiquidityClass",
         "ObservationRepository",
         "ObservationSource",
         "PrefetchedFxRates",
@@ -356,6 +386,7 @@ CONTRACT = PackageContract(
         "get_exchange_rate",
         "get_market_data_status",
         "ingest_statement_price",
+        "list_current_manual_valuation_facts",
         "next_market_data_sync_at",
         "record_manual_valuation",
         "record_override",
@@ -815,9 +846,9 @@ CONTRACT = PackageContract(
             statement=(
                 "Manual valuation component items expose a provenance field "
                 "constrained to the shared Imported/Manual/Derived "
-                "vocabulary. Was EPIC-022 AC22.13.1 (pricing's "
-                "ManualValuationSnapshot share of a dual-package row; the "
-                "portfolio and reporting shares stay with their own owners)."
+                "vocabulary. Was EPIC-022 AC22.13.1; ManualValuationSnapshot "
+                "is pricing-owned, while portfolio and reporting consume its "
+                "published facts without owning the persistence model."
             ),
             test=(
                 "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
@@ -954,6 +985,21 @@ CONTRACT = PackageContract(
                 "::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis"
             ),
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.manualvaluation.10",
+            statement=(
+                "ManualValuationSnapshot and its valuation vocabulary are pricing-owned: "
+                "the unchanged manual_valuation_snapshots table and append-only version chain "
+                "are mapped only by pricing, while production consumers use pricing's public "
+                "domain services rather than extraction ORM paths."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_manual_valuation_ownership.py"
+                "::test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016

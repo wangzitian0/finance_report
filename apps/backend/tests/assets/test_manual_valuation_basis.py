@@ -11,8 +11,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer3 import ManualValuationBasis, ManualValuationComponentType
-from src.pricing import ValuationService
+from src.pricing import ManualValuationBasis, ManualValuationComponentType, ValuationService
 
 
 async def test_AC11_9_5_valuation_basis_captured_via_api(client):

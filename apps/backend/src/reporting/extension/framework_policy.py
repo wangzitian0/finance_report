@@ -13,10 +13,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
-from src.extraction.orm.layer3 import ManualValuationComponentType, ManualValuationSnapshot
 from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
-from src.pricing import MarketDataOverride
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationFact,
+    MarketDataOverride,
+    list_current_manual_valuation_facts,
+)
 from src.pricing.orm.market_data import StockPrice
 from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension
 from src.schemas.reporting import (
@@ -322,31 +326,31 @@ def _anchor(
 
 
 def _position_domain_and_instrument(position: AtomicPosition) -> tuple[PolicyFactDomain, str]:
-    if position.asset_type == AssetType.STOCK:
+    asset_type = position.asset_type
+    if asset_type == AssetType.STOCK:
         return PolicyFactDomain.LISTED_SECURITY, "listed_equity"
-    if position.asset_type == AssetType.ETF:
+    if asset_type == AssetType.ETF:
         return PolicyFactDomain.LISTED_SECURITY, "etf"
-    if position.asset_type == AssetType.MUTUAL_FUND:
+    if asset_type == AssetType.MUTUAL_FUND:
         return PolicyFactDomain.FUND, "fund"
-    if position.asset_type == AssetType.CASH:
+    if asset_type == AssetType.CASH:
         return PolicyFactDomain.CASH, "cash"
-    if position.asset_type == AssetType.PROPERTY:
+    if asset_type == AssetType.PROPERTY:
         return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "property"
-    if position.asset_type == AssetType.BOND:
+    if asset_type == AssetType.BOND:
         # A bond is a marketable financial asset -> the listed-security line.
         return PolicyFactDomain.LISTED_SECURITY, "bond"
-    if position.asset_type == AssetType.OTHER:
+    if asset_type == AssetType.OTHER:
         # An unclassified *position* (brokerage evidence) lands in the private-asset
         # line; "private_asset" (not "manual_asset", which implies manual-valuation
         # provenance) keeps the instrument type's source semantics honest.
         return PolicyFactDomain.PROPERTY_MORTGAGE_PRIVATE, "private_asset"
-    return (
-        PolicyFactDomain.UNSUPPORTED,
-        position.asset_type.value if position.asset_type is not None else "unknown_asset",
-    )
+    if asset_type is None:
+        return PolicyFactDomain.UNSUPPORTED, "unknown_asset"
+    return PolicyFactDomain.UNSUPPORTED, asset_type.value
 
 
-def _manual_domain_and_instrument(snapshot: ManualValuationSnapshot) -> tuple[PolicyFactDomain, str]:
+def _manual_domain_and_instrument(snapshot: ManualValuationFact) -> tuple[PolicyFactDomain, str]:
     restricted_component_instruments = {
         ManualValuationComponentType.ESOP: "esop",
         ManualValuationComponentType.RSU: "rsu",
@@ -547,13 +551,13 @@ async def framework_policy_facts_for_user(
             )
         ]
         asset_identifier = position.asset_identifier.strip().upper()
-        override = latest_override_by_identifier.get(asset_identifier)
-        stock_price = latest_stock_price_by_identifier.get(asset_identifier)
+        latest_override = latest_override_by_identifier.get(asset_identifier)
+        latest_stock_price = latest_stock_price_by_identifier.get(asset_identifier)
         price_candidates: list[tuple[date, int, MarketDataOverride | StockPrice]] = []
-        if stock_price is not None:
-            price_candidates.append((stock_price.price_date, 0, stock_price))
-        if override is not None:
-            price_candidates.append((override.price_date, 1, override))
+        if latest_stock_price is not None:
+            price_candidates.append((latest_stock_price.price_date, 0, latest_stock_price))
+        if latest_override is not None:
+            price_candidates.append((latest_override.price_date, 1, latest_override))
         price = (
             max(price_candidates, key=lambda candidate: (candidate[0], candidate[1]))[2] if price_candidates else None
         )
@@ -581,15 +585,9 @@ async def framework_policy_facts_for_user(
             )
         )
 
-    manual_result = await db.execute(
-        select(ManualValuationSnapshot)
-        .where(ManualValuationSnapshot.user_id == user_id)
-        .where(ManualValuationSnapshot.as_of_date <= as_of_date)
-        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
-        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
-    )
+    manual_snapshots = await list_current_manual_valuation_facts(db, user_id, as_of_date=as_of_date)
     seen_manual: set[tuple[ManualValuationComponentType, str]] = set()
-    for snapshot in manual_result.scalars().all():
+    for snapshot in manual_snapshots:
         manual_key = (snapshot.component_type, snapshot.source)
         if manual_key in seen_manual:
             continue

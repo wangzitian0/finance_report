@@ -59,6 +59,7 @@ from src.pricing.extension.scheduler import (
     run_daily_market_data_sync,
     run_market_data_scheduler,
 )
+from src.pricing.extension.valuation import list_current_manual_valuation_facts
 from src.pricing.extension.valuation_contribution import (
     ManualValuationAttestationPolicy,
     ResolvedMarketValuationPolicy,
@@ -88,6 +89,7 @@ __all__ = [
     "get_exchange_rate",
     "get_market_data_status",
     "ingest_statement_price",
+    "list_current_manual_valuation_facts",
     "next_market_data_sync_at",
     "record_manual_valuation",
     "record_override",

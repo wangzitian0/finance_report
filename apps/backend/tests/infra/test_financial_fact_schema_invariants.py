@@ -14,9 +14,6 @@ from src.extraction.orm.layer3 import (
     ClassificationRule,
     CostBasisMethod,
     ManagedPosition,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
     RuleType,
 )
@@ -24,8 +21,14 @@ from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome, DividendType, InvestmentLot, InvestmentTransaction, InvestmentTransactionType
-from src.pricing import MarketDataOverride, PriceSource
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    MarketDataOverride,
+    PriceSource,
+)
 from src.pricing.extension.market_data import _load_stored_stock_price
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate, StockPrice
 from src.reporting import ReportSnapshot, ReportType
 

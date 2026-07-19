@@ -11,13 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit import normalize_currency_code, to_money
-from src.extraction.orm.layer3 import (
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
-)
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationFact,
+    ManualValuationLiquidityClass,
+    list_current_manual_valuation_facts,
+)
 from src.reporting.extension import fx_gateway
 from src.reporting.extension.reporting_calc import income_bucket
 from src.schemas import (
@@ -84,18 +85,16 @@ async def generate_annualized_income_schedule(
         ManualValuationComponentType.RSU,
         ManualValuationComponentType.STOCK_OPTIONS,
     )
-    restricted_result = await db.execute(
-        select(ManualValuationSnapshot)
-        .where(ManualValuationSnapshot.user_id == user_id)
-        .where(ManualValuationSnapshot.as_of_date <= report_date)
-        .where(ManualValuationSnapshot.component_type.in_(restricted_types))
-        .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
-        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
-        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    snapshots = await list_current_manual_valuation_facts(
+        db,
+        user_id,
+        as_of_date=report_date,
+        component_types=restricted_types,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
     )
 
-    latest_holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationSnapshot] = {}
-    for snapshot in restricted_result.scalars().all():
+    latest_holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationFact] = {}
+    for snapshot in snapshots:
         key = (snapshot.component_type, snapshot.source, snapshot.currency)
         latest_holdings.setdefault(key, snapshot)
 
