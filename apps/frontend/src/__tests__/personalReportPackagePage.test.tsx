@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
+import { renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
@@ -448,6 +449,7 @@ function packageDocument(
     schema_version: "2" as const,
     lifecycle,
     snapshot_id: snapshotId,
+    package_decision_id: lifecycle === "frozen" ? "88888888-8888-4888-8888-888888888888" : null,
     generated_at: "2026-05-20T12:00:00Z",
     frozen_at: lifecycle === "frozen" ? "2026-05-20T12:00:00Z" : null,
     package_id: "personal-financial-report-package",
@@ -1056,6 +1058,11 @@ describe("PersonalReportPackagePage", () => {
     );
     expect(await screen.findByText("Frozen snapshot snap-001")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("renders absent disclosure list values explicitly", () => {
+    expect(renderCsv()).toBe("none");
+    expect(renderSourceClasses([])).toBe("none");
   });
 
   it("AC22.18.3 tracks REPORT_GENERATED with the framework id after a successful snapshot", async () => {
