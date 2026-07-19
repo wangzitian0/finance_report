@@ -60,6 +60,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -77,6 +78,22 @@ CONTRACT = PackageContract(
     # ``api_rate_limiter`` instance is wired at the composition root (src.main),
     # so the substrate stays config-free.
     depends_on=[],
+    context=ContextScope(
+        purpose=(
+            "Provide reusable runtime infrastructure for transactional domain-event "
+            "delivery, request-rate protection, and structural persistence support."
+        ),
+        in_scope=[
+            "transactional outbox and generic event dispatch",
+            "process-wide request rate limiting",
+            "shared structural ORM mixins",
+        ],
+        out_of_scope=[
+            "domain workflow and saga semantics",
+            "business-domain state and policy",
+            "HTTP route ownership and application composition",
+        ],
+    ),
     roles=["base", "extension"],
     units=[
         # base — the domain-event record (the textbook mechanism-C type).
