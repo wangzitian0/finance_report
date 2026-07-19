@@ -148,6 +148,10 @@ write can occur.
   its exact payload. The client cannot choose `source_type` or `source_id`, and a
   source/reviewed producer can only submit the `DecisionAnchor` issued by its
   owning trace policy.
+- **Pattern H**: `ResolvedJournalContribution` publishes its current anchor as
+  audit's `TraceDecisionRef` (decision id + exact target + exact assertion).
+  Package consumers scope the current projection and compare every coordinate;
+  a bare decision id cannot authorize a different journal command.
 
 ### ⛔ Prohibited Patterns
 

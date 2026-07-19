@@ -42,6 +42,12 @@ the trace ORM. It returns only financial decisions whose own and parent records
 remain current; consumers join it to their immutable local reference and never
 reconstruct trace validity.
 
+Cross-package contributions carry a `TraceDecisionRef`, the lightweight exact
+coordinates `(decision_id, target, assertion)` of the decision they resolved.
+The consuming package must compare all three coordinates with its scope-bound
+current projection; an opaque decision id alone cannot authorize a different
+fact or policy.
+
 Every record pins a typed tenant/repository/environment scope, target and
 assertion versions, target class, the existing CODE/LLM tier and proof-kind
 profile, provenance, execution stage/id, causality mode, evidence

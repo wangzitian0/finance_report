@@ -8,7 +8,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import SqlTraceRecordRepository, TraceLineage, TraceResult, TraceScope, VersionedTraceRef
+from src.audit import (
+    SqlTraceRecordRepository,
+    TraceDecisionRef,
+    TraceLineage,
+    TraceResult,
+    TraceScope,
+    VersionedTraceRef,
+)
 from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.result import StatementExtractionResult, StatementSourceType
 from src.extraction.extension.extraction_trace import ExtractionPromotionTracePolicy, extraction_trace_policy_registry
@@ -39,7 +46,7 @@ def _unproven(
         effective_period_end=effective_period_end,
         state="unproven",
         reason_code=reason_code,
-        decision_id=None,
+        decision=None,
         source_document_id=source_document_id,
         account_id=account_id,
     )
@@ -198,7 +205,11 @@ async def resolve_statement_contribution(
         effective_period_end=effective_period_end,
         state="authoritative",
         reason_code=None,
-        decision_id=decision.record_id,
+        decision=TraceDecisionRef(
+            decision_id=decision.record_id,
+            target=decision.target,
+            assertion=decision.assertion,
+        ),
         source_document_id=statement.uploaded_document_id,
         account_id=account_id,
     )

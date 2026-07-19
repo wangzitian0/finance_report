@@ -461,6 +461,12 @@ not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
 carry the contribution input reference, amount/currency when present,
 current decision id, review state, and reason code.
 
+Every authoritative contribution carries one audit `TraceDecisionRef` with its
+decision id, expected target, and expected assertion. `PackageAssembler` accepts
+it only when the tenant-scoped current projection matches all coordinates;
+missing, stale, cross-scope, target-mismatched, and assertion-mismatched inputs
+remain visible as unproven and cannot enter the trusted manifest.
+
 Reporting never follows a foreign ORM relation or guesses a source class from
 `JournalEntry.source_id`. Extraction publishes current immutable statement
 results, ledger publishes decision-anchored journal lines, and pricing

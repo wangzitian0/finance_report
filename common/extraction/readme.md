@@ -250,6 +250,10 @@ and position facts exactly as persisted; it never reconstructs a cassette or
 exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a
 consumer.
 
+The decision is published as audit's `TraceDecisionRef`, which pins the exact
+decision id, target version, and assertion version. Consumers must validate all
+three coordinates; the id is not a transferable authority label.
+
 The custody account is source-envelope identity, not an account classification.
 An authoritative bank-statement contribution requires it and publishes an exact
 `account:<uuid>` input ref; otherwise the contribution is `unproven`. Brokerage

@@ -91,6 +91,11 @@ manual-valuation, override, price, or statement-observation table and may not
 turn `source`, `valuation_basis`, an authority rank, `created_at`, or a
 freshness label into trust.
 
+The DTO carries that decision as audit's `TraceDecisionRef`: decision id,
+target version, and assertion version travel together. A package consumer must
+match the complete reference against its scope-bound current projection rather
+than treating a current id as authority for any valuation.
+
 `resolve_manual_valuation_contributions()` applies the same DTO to every
 current manual component/source lineage. Component type is presentation, not
 identity: two properties of the same type remain two independently selected

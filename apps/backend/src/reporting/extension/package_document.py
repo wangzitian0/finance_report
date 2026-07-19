@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import (
     SqlTraceRecordRepository,
     TraceDecisionPolicyRegistry,
+    TraceDecisionRef,
     TraceEmitter,
     TraceRecord,
     TraceResult,
@@ -179,7 +180,7 @@ def _statement_section_contribution(
         section_ids=tuple(dict.fromkeys(sections)),
         payload=contribution,
         state=contribution.state,
-        decision_id=contribution.decision_id,
+        decision=contribution.decision,
         input_refs=input_refs,
         reason_code=contribution.reason_code,
     )
@@ -202,7 +203,7 @@ def _journal_section_contribution(
         section_ids=tuple(dict.fromkeys(sections)),
         payload=contribution,
         state=contribution.state,
-        decision_id=contribution.decision_id,
+        decision=contribution.decision,
         input_refs=contribution.input_refs,
         reason_code=contribution.reason_code,
     )
@@ -228,7 +229,7 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
         section_ids=sections,
         payload=contribution,
         state=contribution.state,
-        decision_id=contribution.decision_id,
+        decision=contribution.decision,
         input_refs=input_refs,
         reason_code=contribution.reason_code,
     )
@@ -790,15 +791,15 @@ class PackageAssembler:
         contributions: tuple[PackageSectionContribution[Any], ...],
     ) -> tuple[list[PersonalReportPackageTraceManifestEntry], list[str]]:
         """Fold exact contribution refs; display traceability never grants authority."""
-        refs_by_decision: dict[UUID, set[str]] = defaultdict(set)
+        contributions_by_decision: dict[UUID, list[PackageSectionContribution[Any]]] = defaultdict(list)
         unproven_refs: set[str] = set()
         for contribution in contributions:
-            if contribution.is_authoritative and contribution.decision_id is not None:
-                refs_by_decision[contribution.decision_id].update(contribution.input_refs)
+            if contribution.is_authoritative and contribution.decision is not None:
+                contributions_by_decision[contribution.decision.decision_id].append(contribution)
             else:
                 unproven_refs.update(contribution.input_refs)
 
-        if not refs_by_decision:
+        if not contributions_by_decision:
             return [], sorted(unproven_refs)
         projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
             "package_authority_decisions"
@@ -813,18 +814,24 @@ class PackageAssembler:
                 projection.c.assertion_id,
                 projection.c.assertion_version,
                 projection.c.authority_tier,
-            ).where(projection.c.decision_id.in_(refs_by_decision))
+            ).where(projection.c.decision_id.in_(contributions_by_decision))
         )
         current_decisions: dict[UUID, dict[str, Any]] = {}
         for row in trusted_result.mappings():
             current_decisions[row["decision_id"]] = dict(row)
-        for decision_id, refs in refs_by_decision.items():
-            if decision_id not in current_decisions:
-                unproven_refs.update(refs)
+        accepted_refs_by_decision: dict[UUID, set[str]] = defaultdict(set)
+        for decision_id, decision_contributions in contributions_by_decision.items():
+            current = current_decisions.get(decision_id)
+            for contribution in decision_contributions:
+                expected = contribution.decision
+                if expected is None or current is None or not self._decision_coordinates_match(current, expected):
+                    unproven_refs.update(contribution.input_refs)
+                    continue
+                accepted_refs_by_decision[decision_id].update(contribution.input_refs)
         manifest = [
             PersonalReportPackageTraceManifestEntry(
                 decision_id=decision_id,
-                input_refs=sorted(refs_by_decision[decision_id]),
+                input_refs=sorted(accepted_refs_by_decision[decision_id]),
                 **{
                     key: current_decisions[decision_id][key]
                     for key in (
@@ -838,9 +845,21 @@ class PackageAssembler:
                     )
                 },
             )
-            for decision_id in sorted(current_decisions, key=str)
+            for decision_id in sorted(accepted_refs_by_decision, key=str)
         ]
         return manifest, sorted(unproven_refs)
+
+    @staticmethod
+    def _decision_coordinates_match(current: dict[str, Any], expected: TraceDecisionRef) -> bool:
+        return (
+            current["decision_id"] == expected.decision_id
+            and current["target_kind"] == expected.target.kind
+            and current["target_id"] == expected.target.id
+            and current["target_version"] == expected.target.version
+            and current["assertion_kind"] == expected.assertion.kind
+            and current["assertion_id"] == expected.assertion.id
+            and current["assertion_version"] == expected.assertion.version
+        )
 
 
 async def current_package_document_summary(

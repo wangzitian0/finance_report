@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import TraceDecisionRef, VersionedTraceRef
 from src.extraction.base.result import StatementSourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import generate_cash_flow
@@ -117,7 +118,11 @@ async def test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_accoun
             account_id=cash.id,
         ),
         state="authoritative",
-        decision_id=decision_id,
+        decision=TraceDecisionRef(
+            decision_id=decision_id,
+            target=VersionedTraceRef("statement_extraction_result", "fixture", "v1"),
+            assertion=VersionedTraceRef("extraction_authority", "fixture", "v1"),
+        ),
         input_refs=(f"account:{cash.id}",),
         reason_code=None,
     )

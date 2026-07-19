@@ -1508,6 +1508,23 @@ CONTRACT = PackageContract(
             status="open",
             proof_kind="exact",
         ),
+        ACRecord(
+            id="AC-reporting.package-document.9",
+            statement=(
+                "Every authoritative PackageSectionContribution carries one typed audit decision "
+                "reference containing its exact target and assertion. Package assembly accepts the "
+                "contribution only when the current tenant projection matches all three coordinates; "
+                "missing, cross-scope, stale, target-mismatched, or assertion-mismatched decisions "
+                "remain unproven."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_9_requires_exact_decision_coordinates"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
         # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
         ACRecord(

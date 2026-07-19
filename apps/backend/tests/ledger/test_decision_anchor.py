@@ -570,4 +570,7 @@ async def test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_f
     contribution = contributions[0]
     assert contribution.is_authoritative
     assert contribution.decision_id == decision.record_id
+    assert contribution.decision is not None
+    assert contribution.decision.target == decision.target
+    assert contribution.decision.assertion == decision.assertion
     assert len(contribution.lines) == 2
