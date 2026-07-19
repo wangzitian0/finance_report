@@ -44,6 +44,11 @@ def test_context_declarations_use_the_stable_package_contract_facade() -> None:
     assert FacadeContextRelation is ContextRelation
 
 
+def test_context_declarations_use_the_stable_package_contract_facade() -> None:
+    assert FacadeContextScope is ContextScope
+    assert FacadeContextRelation is ContextRelation
+
+
 def test_context_relation_requires_reason_and_distinct_packages() -> None:
     with pytest.raises(ValueError, match="reason"):
         ContextRelation(
