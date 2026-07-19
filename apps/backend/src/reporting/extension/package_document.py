@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -46,6 +44,7 @@ from src.reporting.base.package_contribution import PackageCashInputs, PackageSe
 from src.reporting.base.package_decision import (
     PACKAGE_DECISION_POLICY_VERSION,
     PackageReadinessDecisionPolicy,
+    personal_report_package_target,
 )
 from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
@@ -97,6 +96,28 @@ def _package_document_summary(document: PersonalReportPackageDocument) -> Person
         readiness=document.readiness,
         generated_at=document.generated_at,
         frozen_at=document.frozen_at,
+    )
+
+
+def personal_report_package_decision_ref(document: PersonalReportPackageDocument) -> TraceDecisionRef:
+    """Reconstruct exact audit coordinates from one selected frozen document."""
+    if document.schema_version != "2":
+        raise ValueError("unsupported package document schema version")
+    if document.lifecycle is not PersonalReportPackageDocumentLifecycle.FROZEN:
+        raise ValueError("package decision coordinates require a frozen document")
+    if document.snapshot_id is None or document.package_decision_id is None:
+        raise ValueError("frozen package decision coordinates require snapshot and decision ids")
+    return TraceDecisionRef(
+        decision_id=document.package_decision_id,
+        target=personal_report_package_target(
+            snapshot_id=document.snapshot_id,
+            context=document.context.model_dump(mode="json"),
+            framework_policy=document.framework_policy.model_dump(mode="json"),
+            statement_disposition_policy=document.statement_disposition_policy.model_dump(mode="json"),
+            input_manifest=[item.model_dump(mode="json") for item in document.input_manifest],
+            sections=document.sections.model_dump(mode="json"),
+        ),
+        assertion=PackageReadinessDecisionPolicy().assertion,
     )
 
 
@@ -580,19 +601,15 @@ class PackageAssembler:
         if not parents:
             raise ValueError("trusted package requires at least one authoritative input decision")
 
-        semantic_payload = {
-            "schema_version": "2",
-            "snapshot_id": str(snapshot_id),
-            "context": context,
-            "framework_policy": framework_policy,
-            "statement_disposition_policy": statement_disposition_policy,
-            "input_manifest": [item.model_dump(mode="json") for item in input_manifest],
-            "sections": sections.model_dump(mode="json"),
-        }
-        target_version = hashlib.sha256(
-            json.dumps(semantic_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        target = VersionedTraceRef("personal_report_package", str(snapshot_id), target_version)
+        target = personal_report_package_target(
+            snapshot_id=snapshot_id,
+            context=context,
+            framework_policy=framework_policy,
+            statement_disposition_policy=statement_disposition_policy,
+            input_manifest=[item.model_dump(mode="json") for item in input_manifest],
+            sections=sections.model_dump(mode="json"),
+        )
+        target_version = target.version
         execution_id = f"report-package:{snapshot_id}"
         section_observation = TraceRecord.observation(
             scope=scope,

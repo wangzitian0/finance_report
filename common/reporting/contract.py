@@ -150,6 +150,16 @@ CONTRACT = PackageContract(
             module="base/package_contribution.py",
         ),
         Unit(
+            name="personal_report_package_target",
+            kind=Kind.FACTORY,
+            module="base/package_decision.py",
+        ),
+        Unit(
+            name="personal_report_package_decision_ref",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/package_document.py",
+        ),
+        Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,
         ),
@@ -166,6 +176,8 @@ CONTRACT = PackageContract(
         "PERSONAL_REPORT_PACKAGE_NOTES",
         "PackageAssembler",
         "PackageSectionContribution",
+        "personal_report_package_target",
+        "personal_report_package_decision_ref",
         "PackageDocumentVersionError",
         "current_package_document_summary",
         "AnnualizedIncomeTotals",
@@ -1520,6 +1532,23 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/reporting/test_package_document.py"
                 "::test_AC_reporting_package_document_9_requires_exact_decision_coordinates"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.10",
+            statement=(
+                "Reporting publishes one pure package-decision coordinate builder over the exact "
+                "frozen document semantics, and PackageAssembler consumes that same builder. A "
+                "consumer can reconstruct the persisted decision target and assertion from the "
+                "selected frozen document; changing any bound document field changes the target "
+                "version, so an opaque decision id alone cannot authorize the package."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates"
             ),
             priority="P0",
             status="open",

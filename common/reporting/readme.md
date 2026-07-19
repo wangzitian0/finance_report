@@ -404,6 +404,13 @@ it only when the tenant-scoped current projection matches all coordinates;
 missing, stale, cross-scope, target-mismatched, and assertion-mismatched inputs
 remain visible as unproven and cannot enter the trusted manifest.
 
+The frozen package decision is bound to the document by reporting's published
+`personal_report_package_target` canonicalizer. `PackageAssembler` uses that
+function when it emits the decision; terminal consumers use
+`personal_report_package_decision_ref` to reconstruct the exact decision id,
+target, and assertion from the selected frozen document. Consumers must not
+copy the semantic hash or treat an opaque decision id as package authority.
+
 Reporting never follows a foreign ORM relation or guesses a source class from
 `JournalEntry.source_id`. Extraction publishes current immutable statement
 results, ledger publishes decision-anchored journal lines, and pricing
