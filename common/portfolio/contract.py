@@ -51,6 +51,8 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -76,6 +78,69 @@ CONTRACT = PackageContract(
         "observability",
         "platform",
         "pricing",
+    ],
+    context=ContextScope(
+        purpose=(
+            "Own investment position accounting: lots, cost basis, position quantity, "
+            "and realized or unrealized performance over accounting facts."
+        ),
+        in_scope=[
+            "ManagedPosition, investment lots, investment transactions, and dividend position math",
+            "cost-basis selection, holdings, allocation, and portfolio performance projections",
+            "portfolio-owned trade accounting inputs before ledger posting",
+        ],
+        out_of_scope=[
+            "source-document/AtomicPosition lifecycle and extraction provenance",
+            "double-entry journal ownership or price/FX observation and resolution ownership",
+            "shared value language, telemetry/persistence substrate, report presentation, and workflow",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="portfolio",
+            mode="published-language",
+            reason="Uses audit Money, Quantity, UnitPrice, and Ratio language for position accounting.",
+        ),
+        ContextRelation(
+            provider="extraction",
+            consumer="portfolio",
+            mode="projection",
+            reason=(
+                "Reads extraction-owned AtomicPosition and managed-position snapshots as "
+                "brokerage input without owning document facts or provenance."
+            ),
+        ),
+        ContextRelation(
+            provider="ledger",
+            consumer="portfolio",
+            mode="consumer-port",
+            reason=(
+                "Submits balanced trade and dividend entries through ledger ports while "
+                "retaining portfolio lot and cost-basis semantics."
+            ),
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="portfolio",
+            mode="published-language",
+            reason="Uses published safe logging language for portfolio calculation diagnostics.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="portfolio",
+            mode="composition",
+            reason="Uses platform persistence mixins without owning generic persistence behavior.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="portfolio",
+            mode="published-language",
+            reason=(
+                "Consumes pricing valuation and FX-resolution language but never fetches, "
+                "stores, or resolves price observations itself."
+            ),
+        ),
     ],
     roles=["base", "extension", "data"],
     units=[
