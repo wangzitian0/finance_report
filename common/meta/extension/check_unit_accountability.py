@@ -38,11 +38,14 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
         return [f"cannot read unit-accountability baseline: {exc}"]
     try:
         current = set(discover_findings(repo_root))
-    except ValueError as exc:
+    except Exception as exc:
         return [f"cannot discover unit accountability: {exc}"]
     baseline = set(payload)
     return [
-        *(f"new unbound unit: {item}" for item in sorted(current - baseline)),
+        *(
+            f"new unit-accountability debt: {item}"
+            for item in sorted(current - baseline)
+        ),
         *(
             f"stale unit-accountability baseline: {item}"
             for item in sorted(baseline - current)
