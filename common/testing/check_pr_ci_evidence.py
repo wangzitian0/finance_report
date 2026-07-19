@@ -183,10 +183,13 @@ def run_check(junit_paths: list[Path]) -> int:
         commit_sha = os.environ.get("GITHUB_SHA", "")
         execution_id = github_execution_id(os.environ)
         records, malformed = collect_executed_proofs(junit_paths)
+        not_executed = set(missing) | set(skipped_only)
         for proof in scoped:
             if not proof.get("scenario_id"):
                 continue
             label = f"{proof['id']}: {proof['file']}::{proof['test']}"
+            if label in not_executed:
+                continue
             if not _has_exact_executed_proof(
                 proof,
                 records=records,
@@ -201,10 +204,10 @@ def run_check(junit_paths: list[Path]) -> int:
         print(
             f"ERROR: {len(missing)} behavioral pr_ci proof(s) never executed and "
             f"{len(skipped_only)} only ever skipped; {len(invalid_executed_proof)} "
-            "scenario proof(s) lack one exact canonical executed TraceRecord. Either "
-            "the test does not run pre-merge (fix the marker/stage/skip condition "
-            "so it does) or the proof's ci_tier is wrong (declare "
-            "post_merge_environment).",
+            "executed scenario proof(s) lack one exact canonical TraceRecord. Fix "
+            "the marker/stage/skip condition for absent executions, correct an "
+            "overstated ci_tier, or ensure the executed-proof pytest plugin emits "
+            "a well-formed trace property with the exact CI coordinates.",
             file=sys.stderr,
         )
         for label in missing:
