@@ -8,7 +8,7 @@
 
 ## Why this package exists
 
-## Bounded-context decision
+### Bounded-context decision
 
 `runtime` owns the contract at the app-to-external-world boundary: which
 dependencies each environment requires, how they are substituted, and how
@@ -20,7 +20,7 @@ in [`contract.py`](./contract.py).
 
 The application depends on external backends — object storage (S3), the LLM
 provider, cache (Redis), telemetry (OTel), analytics (OpenPanel), the database.
-Today that boundary is **homeless**: `ServiceStatus` + `_check_*` float in
+Before this package was introduced, that boundary was **homeless**: `ServiceStatus` + `_check_*` floated in
 `apps/backend/src/boot.py`, env keys live in `config`, the smoke test is a shell
 script, and the six-environment tiering lives in `environments.md`. Nobody owns
 the *contract* across them — which is exactly why dependencies **degrade
