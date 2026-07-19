@@ -10,6 +10,16 @@
 
 ## Why
 
+## Bounded-context decision
+
+`portfolio` owns investment position accounting: lots, cost basis, quantities,
+and performance. It consumes extraction position projections, ledger posting
+ports, pricing resolution language, audit value types, observability logging,
+and platform persistence composition without owning any of them. It does not
+own source-document lifecycle, journal facts, price observations, reporting
+presentation, or workflow. The machine-readable boundary and relationships are
+in [`contract.py`](./contract.py).
+
 Buying, selling, and receiving a dividend on an investment needs the same
 double-entry discipline as any other cash movement, plus position bookkeeping
 double-entry doesn't cover: which lot did this sale consume, at what cost
