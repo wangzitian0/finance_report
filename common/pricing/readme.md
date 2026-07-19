@@ -14,6 +14,16 @@
 
 ## Why
 
+## Bounded-context decision
+
+`pricing` owns observations of value and the explicit policy that resolves a
+subject's value at a point in time. It ingests extraction-owned statement price
+facts by event, consumes `audit` value language and assurance ports, and uses
+`platform` only for event/persistence support. It does not own document
+lifecycle, shared financial arithmetic, portfolio positions, report presentation,
+or workflow. The machine-readable boundary and relationships are in
+[`contract.py`](./contract.py).
+
 Pre-migration, "what is X worth at time T" was scattered across 5 tables with
 3 incompatible key vocabularies (`FxRate`, `StockPrice`, `MarketDataOverride`,
 `ManualValuationSnapshot`, plus statement-extracted unit prices), and the
