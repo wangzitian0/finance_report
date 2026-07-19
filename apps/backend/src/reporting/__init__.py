@@ -32,6 +32,8 @@ _EXPORTS = {
     "PERSONAL_REPORT_PACKAGE_NOTES": "src.reporting.base.report_package_contract",
     "PackageAssembler": "src.reporting.extension.package_document",
     "PackageSectionContribution": "src.reporting.base.package_contribution",
+    "personal_report_package_target": "src.reporting.base.package_decision",
+    "personal_report_package_decision_ref": "src.reporting.extension.package_document",
     "current_package_document_summary": "src.reporting.extension.package_document",
     "PackageDocumentVersionError": "src.reporting.extension.report_package",
     "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
@@ -87,6 +89,8 @@ __all__ = [
     "PERSONAL_REPORT_PACKAGE_NOTES",
     "PackageAssembler",
     "PackageSectionContribution",
+    "personal_report_package_target",
+    "personal_report_package_decision_ref",
     "current_package_document_summary",
     "PackageDocumentVersionError",
     "AnnualizedIncomeTotals",
@@ -150,6 +154,7 @@ def __getattr__(name: str) -> object:
 if TYPE_CHECKING:
     from src.reporting.base.l1_registry import is_valid_line_for_framework
     from src.reporting.base.package_contribution import PackageSectionContribution
+    from src.reporting.base.package_decision import personal_report_package_target
     from src.reporting.base.report_package_contract import (
         PERSONAL_REPORT_PACKAGE_CONTRACT,
         PERSONAL_REPORT_PACKAGE_NOTES,
@@ -178,6 +183,7 @@ if TYPE_CHECKING:
     from src.reporting.extension.package_document import (
         PackageAssembler,
         current_package_document_summary,
+        personal_report_package_decision_ref,
     )
     from src.reporting.extension.report_package import (
         PackageDocumentVersionError,

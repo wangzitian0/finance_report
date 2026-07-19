@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
 
 from src.audit import (
     TraceAuthorityProfile,
@@ -22,6 +25,31 @@ PACKAGE_DECISION_POLICY_VERSION = "2026-07-18"
 
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def personal_report_package_target(
+    *,
+    snapshot_id: UUID,
+    context: Mapping[str, Any],
+    framework_policy: Mapping[str, Any],
+    statement_disposition_policy: Mapping[str, Any],
+    input_manifest: Sequence[Mapping[str, Any]],
+    sections: Mapping[str, Any],
+) -> VersionedTraceRef:
+    """Bind one frozen package's complete semantic payload to an exact target."""
+    semantic_payload = {
+        "schema_version": "2",
+        "snapshot_id": str(snapshot_id),
+        "context": dict(context),
+        "framework_policy": dict(framework_policy),
+        "statement_disposition_policy": dict(statement_disposition_policy),
+        "input_manifest": [dict(item) for item in input_manifest],
+        "sections": dict(sections),
+    }
+    version = hashlib.sha256(
+        json.dumps(semantic_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return VersionedTraceRef("personal_report_package", str(snapshot_id), version)
 
 
 @dataclass(frozen=True, slots=True)

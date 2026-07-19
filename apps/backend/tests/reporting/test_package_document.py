@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import ast
+import copy
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -23,11 +24,13 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
+from src.reporting import personal_report_package_decision_ref, personal_report_package_target
 from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution
 from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import PackageAssembler, _section_invariant_blockers
 from src.schemas.reporting import (
     PersonalReportPackageDocument,
+    PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageInputCoverage,
     PersonalReportPackageReadinessState,
 )
@@ -448,3 +451,80 @@ def test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions
         "StatementSummary",
     ):
         assert forbidden_raw_input not in traceability_source
+
+
+class _JsonValue:
+    def __init__(self, value):
+        self.value = value
+
+    def model_dump(self, *, mode):
+        assert mode == "json"
+        return copy.deepcopy(self.value)
+
+
+def test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates() -> None:
+    """AC-reporting.package-document.10: one owner function binds frozen semantics."""
+    snapshot_id = UUID("10000000-0000-0000-0000-000000000001")
+    decision_id = UUID("20000000-0000-0000-0000-000000000002")
+    semantics = {
+        "context": {
+            "framework_id": "personal_financial_reporting",
+            "start_date": "2026-01-01",
+            "end_date": "2026-12-31",
+            "as_of_date": "2026-12-31",
+            "currency": "SGD",
+        },
+        "framework_policy": {"result_id": "policy-1", "gaps": []},
+        "statement_disposition_policy": {"policy_version": "2026-07-19"},
+        "input_manifest": [{"decision_id": str(decision_id), "input_refs": ["statement:1"]}],
+        "sections": {"balance_sheet": {"total_assets": "125.00"}},
+    }
+
+    target = personal_report_package_target(snapshot_id=snapshot_id, **semantics)
+    assert target == VersionedTraceRef(
+        kind="personal_report_package",
+        id=str(snapshot_id),
+        version="9d136a722c6fee121996a72b47f70e46633ea8828c57d96899a96f56f56ec5ae",
+    )
+
+    document = SimpleNamespace(
+        schema_version="2",
+        lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+        snapshot_id=snapshot_id,
+        package_decision_id=decision_id,
+        context=_JsonValue(semantics["context"]),
+        framework_policy=_JsonValue(semantics["framework_policy"]),
+        statement_disposition_policy=_JsonValue(semantics["statement_disposition_policy"]),
+        input_manifest=[_JsonValue(item) for item in semantics["input_manifest"]],
+        sections=_JsonValue(semantics["sections"]),
+    )
+    decision_ref = personal_report_package_decision_ref(document)
+    assert decision_ref == TraceDecisionRef(
+        decision_id=decision_id,
+        target=target,
+        assertion=PackageReadinessDecisionPolicy().assertion,
+    )
+
+    def changed_document(**updates):
+        return SimpleNamespace(**(vars(document) | updates))
+
+    with pytest.raises(ValueError, match="schema version"):
+        personal_report_package_decision_ref(changed_document(schema_version="1"))
+    with pytest.raises(ValueError, match="frozen document"):
+        personal_report_package_decision_ref(changed_document(lifecycle=PersonalReportPackageDocumentLifecycle.PREVIEW))
+    with pytest.raises(ValueError, match="snapshot and decision ids"):
+        personal_report_package_decision_ref(changed_document(package_decision_id=None))
+
+    for field in semantics:
+        changed = copy.deepcopy(semantics)
+        value = changed[field]
+        if isinstance(value, list):
+            value.append({"decision_id": str(uuid4()), "input_refs": ["statement:changed"]})
+        else:
+            value["counterfactual"] = field
+        assert personal_report_package_target(snapshot_id=snapshot_id, **changed) != target, field
+    assert personal_report_package_target(snapshot_id=uuid4(), **semantics) != target
+
+    assembler_source = (REPOSITORY_ROOT / "apps/backend/src/reporting/extension/package_document.py").read_text()
+    assert "personal_report_package_target(" in assembler_source
+    assert "semantic_payload =" not in assembler_source
