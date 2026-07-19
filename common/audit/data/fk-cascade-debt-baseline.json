@@ -12,7 +12,7 @@
     "extraction/orm/layer3.py::ClassificationRule.user_id->users.id",
     "extraction/orm/layer3.py::ManagedPosition.account_id->accounts.id",
     "extraction/orm/layer3.py::ManagedPosition.user_id->users.id",
-    "extraction/orm/layer3.py::ManualValuationSnapshot.user_id->users.id",
+    "pricing/orm/manual_valuation.py::ManualValuationSnapshot.user_id->users.id",
     "extraction/orm/layer3.py::TransactionClassification.rule_version_id->classification_rules.id",
     "extraction/orm/statement_summary.py::StatementSummary.user_id->users.id",
     "extraction/orm/reviewed_statement_envelope.py::ReviewedStatementEnvelope.user_id->users.id",

@@ -102,7 +102,9 @@ from src.pricing.extension.valuation import (
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
 from src.pricing.orm.fx_conversion import FxConversion
-from src.pricing.orm.manual_valuation import ManualValuationSnapshot  # noqa: F401  (mapper registration)
+from src.pricing.orm.manual_valuation import (
+    ManualValuationSnapshot as _ManualValuationSnapshot,  # noqa: F401  (mapper registration)
+)
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
 from src.pricing.orm.statement_observation import StatementPriceObservation
