@@ -20,10 +20,11 @@ The package-local worklist.  Cross-package migration lives in
 - [x] Physical `base/` / `extension/` layering:
       - `base/` — `prompt.py` (absorbed `src/prompts/ai_advisor.py`),
         `constants.py`, `guardrails.py` (pure).
-      - `extension/` — `service.py`, `cache.py`, `app_reads.py` (ports),
-        `annualized_income.py` (absorbed `src/services/annualized_income.py`).
+      - `extension/` — `service.py`, `cache.py`, `app_reads.py` (ports).
       - `orm/` — `chat.py` (absorbed `src/models/chat.py`, schema-neutral;
         Alembic diff empty; `models/_registry.py` imports the package root).
+      - The annualized-income schedule moved to `reporting/extension/` with
+        the personal report package (#567).
 - [x] ~~Move `src/services/pii_redaction.py` → `src/advisor/_guardrails.py`~~
       Superseded by #1677's ruling: `pii_redaction` moved to
       `src/observability/pii_redaction.py` — its consumers are observability's
@@ -50,16 +51,14 @@ The package-local worklist.  Cross-package migration lives in
       expected.  `ledger` is a second, later mid-flight rebase pickup:
       #1675's D5 omnibus moved `account.py`/`journal.py` out of
       `src/models/` into `src/ledger/orm/` while this PR was still open, so
-      the annualized-income schedule's `Account`/`AccountType`/journal-line
-      reads (always real, previously via the unregistered `src.models.*`
-      path) now surface as a governed `advisor -> ledger` edge.
+      the advisor's `AccountType` and confidence-rank reads (always real,
+      previously via the unregistered `src.models.*` path) now surface as a
+      governed `advisor -> ledger` edge.
 - [x] Remainder reads inverted through `extension/app_reads.py` ports wired
       by the composition root (`src/main.py`), #1676 idiom.  Only one port
       pair remains (the other five collapsed into direct `src.reporting`
       imports per #1666, see above): `observed_fx_pairs` (the fx-pair
-      composer) and windowed `convert_amount` + `FxRateError` (both still
-      owned by `services/fx.py` / `services/market_data_scheduler.py`,
-      pending #1610).
+      composer, pending #1610).
 - [x] Repoint consumers: `routers/chat.py`, `routers/reports.py`, tests →
       `from src.advisor import …` (the package's published interface).
 - [x] Delete `src/services/ai_advisor/`, `src/services/annualized_income.py`,
@@ -76,9 +75,9 @@ The package-local worklist.  Cross-package migration lives in
 
 ## Follow-ups (open)
 
-- [ ] Collapse the two remaining `extension/app_reads.py` ports (the fx-pair
-      composer, windowed fx conversion) into direct published-root imports +
-      `depends_on` edges when their owner physically folds (#1610). The
+- [ ] Collapse the remaining `extension/app_reads.py` port (the fx-pair
+      composer) into a direct published-root import + `depends_on` edge when
+      its owner physically folds (#1610). The
       reporting-owned ports (balance sheet/income statement/category
       breakdown/report readiness/income bucket) already collapsed — see
       above.

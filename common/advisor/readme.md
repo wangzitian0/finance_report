@@ -7,8 +7,8 @@
 > implementation lives at
 > [`apps/backend/src/advisor`](../../apps/backend/src/advisor)
 > (`contract.implementations["be"]`), physically moved there by #1671 Wave B
-> (absorbing `services/annualized_income.py`, `prompts/ai_advisor.py`, and
-> `models/chat.py` → `orm/chat.py`).
+> (absorbing `prompts/ai_advisor.py` and `models/chat.py` → `orm/chat.py`).
+> The annualized-income schedule is reporting-owned (#567).
 
 ## Why
 
@@ -104,7 +104,7 @@ reference to another domain's write objects.
 | Layer | What lives here |
 |-------|-----------------|
 | `base/` | `prompt.py` (template + disclaimers), `constants.py` (patterns, safe hrefs), `guardrails.py` (pure predicates + `StreamRedactor`) |
-| `extension/` | `service.py` (`AIAdvisorService`, `ChatStream`), `cache.py` (`ResponseCache`), `app_reads.py` (remainder-read ports), `annualized_income.py` |
+| `extension/` | `service.py` (`AIAdvisorService`, `ChatStream`), `cache.py` (`ResponseCache`), `app_reads.py` (remainder-read ports) |
 | `orm/` | `chat.py` (`ChatSession` AR, `ChatMessage` entity, status/role enums — schema-neutral move from `src/models/chat.py`) |
 | `data/` | reserved for the `ChatHistoryView` projection (declared taxonomy-only) |
 

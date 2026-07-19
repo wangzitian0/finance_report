@@ -1,6 +1,6 @@
 """Injection ports for reads across a domain boundary the app-boundary gate forbids.
 
-The advisor's bounded read context includes two facts no longer reachable by
+The advisor's bounded read context includes one fact no longer reachable by
 a direct import now that ``apps/backend/src/services/`` is deleted (#1610):
 
 * the observed-FX-pair composer — ``src.composition.observed_fx_pairs``
@@ -10,7 +10,7 @@ a direct import now that ``apps/backend/src/services/`` is deleted (#1610):
 status; it does not own or inject a readiness calculation.)
 
 ``advisor`` may not import ``src.composition`` or ``src.pricing.*`` directly
-(the app-boundary gate is shrink-only), so these two reads are inverted the
+(the app-boundary gate is shrink-only), so this read is inverted the
 same way other application-boundary reads are inverted: the package exposes
 module-scoped provider slots, and the composition root (``src/main.py`` —
 L4, allowed to import everything) wires the real functions at startup; tests
