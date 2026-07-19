@@ -504,7 +504,6 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
     assert candidate.readiness.input_coverage.unproven_input_count > 0
     assert "unproven_package_input" in {blocker.code for blocker in candidate.readiness.blockers}
     await authority_counterfactual.rollback()
-    db.expire_all()
 
     db.add(
         StockPrice(
