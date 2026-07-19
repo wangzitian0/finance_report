@@ -40,6 +40,7 @@ MIGRATED_GATE_MODULES = (
     "common.meta.extension.check_ac_proof_kind",
     "common.meta.extension.check_ac_tier_baseline",
     "common.meta.extension.check_app_boundary",
+    "common.meta.extension.check_context_contract",
     "common.meta.extension.check_authority_reconcile",
     "common.meta.extension.check_draft_packages",
     "common.meta.extension.check_public_orm_exports",
