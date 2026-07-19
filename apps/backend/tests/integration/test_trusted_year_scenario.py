@@ -362,7 +362,7 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         ]
 
     monkeypatch.setattr(transaction_classification, "propose_categories", deterministic_proposer)
-    bank = Account(user_id=test_user.id, name="DBS Cash", type=AccountType.ASSET, currency="SGD")
+    bank = Account(user_id=test_user.id, name="DBS", type=AccountType.ASSET, currency="SGD")
     securities = Account(
         user_id=test_user.id,
         name="Asset - Securities",
