@@ -363,7 +363,7 @@ CONTRACT = PackageContract(
                 "::test_AC_meta_dependency_governance_4_base_impurity_is_exact"
             ),
             priority="P0",
-            status="open",
+            status="done",
         ),
         ACRecord(
             id="AC-meta.dependency-governance.5",

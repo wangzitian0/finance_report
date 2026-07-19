@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections.abc import Sequence
@@ -11,7 +12,12 @@ from common.meta.base.gate_cli import run_gate
 from common.meta.extension.base_purity import discover_impurities
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-BASELINE = REPO_ROOT / "common/meta/data/base-purity-baseline.json"
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
+    return parser.parse_args(argv)
 
 
 def violations(repo_root: Path, baseline_path: Path) -> list[str]:
@@ -26,8 +32,11 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
     ]
 
 
-def _run_command(_argv: Sequence[str] | None = None) -> int:
-    findings = violations(REPO_ROOT, BASELINE)
+def _run_command(argv: Sequence[str] | None = None) -> int:
+    repo_root = parse_args(list(argv or ())).repo_root.resolve()
+    findings = violations(
+        repo_root, repo_root / "common/meta/data/base-purity-baseline.json"
+    )
     if findings:
         print("[BASE-PURITY] FAILED", file=sys.stderr)
         print("\n".join(findings), file=sys.stderr)
@@ -37,7 +46,12 @@ def _run_command(_argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    status = _run_command(argv)
+    try:
+        status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
     findings = [] if status == 0 else [f"command returned status {status}"]
     return run_gate(
         "BASE-PURITY", lambda _repo_root: findings, [], failure_status=status

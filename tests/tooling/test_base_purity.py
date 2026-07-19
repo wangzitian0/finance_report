@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 
 from common.meta.extension.base_purity import discover_impurities
-from common.meta.extension.check_base_purity import violations
+from common.meta.extension.check_base_purity import main, violations
 
 
 def test_AC_meta_dependency_governance_4_base_impurity_is_exact(tmp_path: Path) -> None:
@@ -21,6 +21,7 @@ def test_AC_meta_dependency_governance_4_base_impurity_is_exact(tmp_path: Path) 
     assert discover_impurities(src) == [
         "ledger/base/rule.py::from src.ledger.orm.journal import JournalEntry"
     ]
+    assert main() == 0
 
 
 def test_base_purity_gate_rejects_new_and_stale_debt(tmp_path: Path) -> None:
