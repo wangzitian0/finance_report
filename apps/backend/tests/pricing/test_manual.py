@@ -14,12 +14,12 @@ import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.platform import Outbox
 from src.pricing.base.events import EVENT_TYPE
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.extension.manual import record_manual_valuation, record_override
 from src.pricing.extension.repository import SqlObservationRepository
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 
 pytestmark = pytest.mark.asyncio
 

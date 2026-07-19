@@ -6,12 +6,12 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer3 import (
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
 )
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate
 
 

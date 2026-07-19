@@ -11,15 +11,16 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit.money import Currency
+from src.audit.quantity import Unit
 from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer3 import (
     ManagedPosition,
-    ManualValuationLiquidityClass,
 )
 from src.ledger import Account, AccountType
 from src.observability import get_logger
 from src.portfolio import AssetNotFoundError, PortfolioService
-from src.pricing import PricingError
+from src.pricing import ManualValuationLiquidityClass, PricingError
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import REPORTING_QUANTITY_UNIT, _single_source_currency
 from src.reporting.extension.fx_gateway import FxWarning
@@ -100,7 +101,14 @@ async def _portfolio_market_basis_by_account(
         # Value/cost flow as Money; convert only when source and target currencies
         # differ (per-position values are not quantized here — accumulators are Decimal).
         position_quantity = position.quantity_qty.quantize()
-        market_value = UnitPrice(latest_price, source_currency, REPORTING_QUANTITY_UNIT) * position_quantity
+        market_value = (
+            UnitPrice(
+                latest_price,
+                Currency.of(source_currency),
+                Unit.of(REPORTING_QUANTITY_UNIT),
+            )
+            * position_quantity
+        )
         cost_basis = position.cost_basis_money
         if source_currency != target_currency.upper():
             try:

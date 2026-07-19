@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -31,25 +30,18 @@ from src.audit.money import to_money
 from src.audit.money.currency import normalize_currency_code
 from src.platform import OutboxEventBus
 from src.pricing.base.events import PriceObserved
+from src.pricing.base.manual_valuation import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+)
 from src.pricing.base.observation import Authority, ObservationSource, PriceObservation, pricing_valuation_lineage_id
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.valuation_contribution import (
     emit_manual_valuation_decision,
 )
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
-
-if TYPE_CHECKING:
-    # Deferred (#1675 D5c): extraction.orm.layer3 runs extraction's full
-    # package init on import; a module-level import here would make pricing
-    # and extraction mutually recursive (reached via extraction's own init
-    # chain). These three are annotation-only (from __future__ import
-    # annotations keeps them lazy strings); ManualValuationSnapshot itself
-    # has real runtime use and is imported inside record_manual_valuation.
-    from src.extraction.orm.layer3 import (
-        ManualValuationBasis,
-        ManualValuationComponentType,
-        ManualValuationLiquidityClass,
-    )
 
 #: The ``source_pkg`` tag every pricing event carries in the shared outbox.
 SOURCE_PKG = "pricing"
@@ -78,9 +70,6 @@ async def record_manual_valuation(
     three-flush hand-off keeps the self-referencing FK and partial unique
     index valid at every statement boundary (never two current heads at once).
     """
-    # Deferred import: see the module-level TYPE_CHECKING note above.
-    from src.extraction.orm.layer3 import ManualValuationSnapshot
-
     normalized_currency = normalize_currency_code(currency)
     head = (
         await db.execute(

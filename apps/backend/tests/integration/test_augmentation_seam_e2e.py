@@ -30,10 +30,9 @@ from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.extraction.orm.layer3 import ManualValuationComponentType
 from src.identity import User
 from src.ledger import Account, AccountType, post_journal_entry
-from src.pricing import ValuationService
+from src.pricing import ManualValuationComponentType, ValuationService
 from src.reporting import generate_balance_sheet
 from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 

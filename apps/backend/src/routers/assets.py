@@ -13,16 +13,22 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction.orm.layer3 import (
     ManagedPosition,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
 )
 from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found
 from src.portfolio import PositionService, PositionServiceError
-from src.pricing import PricingError, ValuationService, ValuationServiceError, convert_money
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationFact,
+    ManualValuationLiquidityClass,
+    PricingError,
+    ValuationService,
+    ValuationServiceError,
+    convert_money,
+    list_current_manual_valuation_facts,
+)
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -169,8 +175,6 @@ async def list_valuation_snapshots(
     offset: int = Query(0, ge=0),
 ) -> ManualValuationSnapshotListResponse:
     """List manual valuation snapshots."""
-    from src.extraction.orm.layer3 import ManualValuationComponentType
-
     parsed_component_type = None
     if component_type:
         try:
@@ -287,19 +291,15 @@ async def list_restricted_holdings(
         ManualValuationComponentType.RSU,
         ManualValuationComponentType.STOCK_OPTIONS,
     )
-    result = await db.execute(
-        select(ManualValuationSnapshot)
-        .where(ManualValuationSnapshot.user_id == user_id)
-        .where(ManualValuationSnapshot.as_of_date <= report_date)
-        .where(ManualValuationSnapshot.component_type.in_(restricted_types))
-        .where(ManualValuationSnapshot.liquidity_class == ManualValuationLiquidityClass.RESTRICTED)
-        # Current heads only; superseded corrections must not surface as phantom holdings.
-        .where(ManualValuationSnapshot.superseded_by_id.is_(None))
-        .order_by(ManualValuationSnapshot.as_of_date.desc(), ManualValuationSnapshot.created_at.desc())
+    snapshots = await list_current_manual_valuation_facts(
+        db,
+        user_id,
+        as_of_date=report_date,
+        component_types=restricted_types,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
     )
-
-    holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationSnapshot] = {}
-    for snapshot in result.scalars().all():
+    holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationFact] = {}
+    for snapshot in snapshots:
         key = (snapshot.component_type, snapshot.source, snapshot.currency)
         holdings.setdefault(key, snapshot)
 

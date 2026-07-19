@@ -12,19 +12,16 @@ from sqlalchemy import (
     Date,
     Enum as SQLEnum,
     ForeignKey,
-    Index,
     Integer,
     Numeric,
     String,
-    Text,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.audit.money import Money
-from src.audit.quantity import Quantity
+import src.audit as audit
+from src.audit.quantity import Quantity, Unit
 from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
@@ -244,135 +241,17 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # remain the storage/write boundary. Nullable PnL columns coalesce to zero
     # (matching the existing ``or Decimal("0.00")`` call-site convention).
     @property
-    def cost_basis_money(self) -> Money:
-        return Money(self.cost_basis, self.currency)
+    def cost_basis_money(self) -> audit.Money:
+        return audit.Money(self.cost_basis, audit.Currency.of(self.currency))
 
     @property
-    def unrealized_pnl_money(self) -> Money:
-        return Money(self.unrealized_pnl or Decimal("0.00"), self.currency)
+    def unrealized_pnl_money(self) -> audit.Money:
+        return audit.Money(self.unrealized_pnl or Decimal("0.00"), audit.Currency.of(self.currency))
 
     @property
-    def realized_pnl_money(self) -> Money:
-        return Money(self.realized_pnl or Decimal("0.00"), self.currency)
+    def realized_pnl_money(self) -> audit.Money:
+        return audit.Money(self.realized_pnl or Decimal("0.00"), audit.Currency.of(self.currency))
 
     @property
     def quantity_qty(self) -> Quantity:
-        return Quantity(self.quantity, POSITION_QUANTITY_UNIT)
-
-
-class ManualValuationComponentType(str, Enum):
-    """Manual net worth component type."""
-
-    PROPERTY_VALUE = "property_value"
-    MORTGAGE_BALANCE = "mortgage_balance"
-    CPF_BALANCE = "cpf_balance"
-    RETIREMENT_ACCOUNT = "retirement_account"
-    SOCIAL_SECURITY_PERSONAL_ACCOUNT = "social_security_personal_account"
-    LONG_TERM_BENEFIT_ASSET = "long_term_benefit_asset"
-    LONG_TERM_SAVINGS = "long_term_savings"
-    TAX_PAYABLE = "tax_payable"
-    TAX_REFUND = "tax_refund"
-    INSURANCE_CASH_VALUE = "insurance_cash_value"
-    ESOP = "esop"
-    RSU = "rsu"
-    STOCK_OPTIONS = "stock_options"
-    OTHER_ASSET = "other_asset"
-    OTHER_LIABILITY = "other_liability"
-
-
-class ManualValuationLiquidityClass(str, Enum):
-    """How a manual valuation should be presented in net worth views."""
-
-    LIQUID = "liquid"
-    RESTRICTED = "restricted"
-    ILLIQUID = "illiquid"
-    LIABILITY = "liability"
-
-
-class ManualValuationBasis(str, Enum):
-    """How a manual valuation's value was determined — the evidence basis.
-
-    Captured for guided evidence intake (#706) so a manual-trusted value carries
-    a structured, auditable basis (not just a free-text source).
-    """
-
-    MARKET_APPRAISAL = "market_appraisal"
-    BROKER_STATEMENT = "broker_statement"
-    EMPLOYER_GRANT_DOCUMENT = "employer_grant_document"
-    BANK_STATEMENT = "bank_statement"
-    GOVERNMENT_STATEMENT = "government_statement"
-    INSURER_STATEMENT = "insurer_statement"
-    SELF_ESTIMATE = "self_estimate"
-
-
-class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
-    """Layer 3 manual valuation snapshot for non-bank net worth components."""
-
-    __tablename__ = "manual_valuation_snapshots"
-    __table_args__ = (
-        CheckConstraint("value > 0", name="ck_manual_valuation_snapshots_value_positive"),
-        CheckConstraint(
-            "recurrence_days IS NULL OR recurrence_days > 0",
-            name="ck_manual_valuation_snapshots_recurrence_days_positive",
-        ),
-        # Append-only versioning (Axiom A): a correction for an existing
-        # (component_type, source, as_of_date) appends a new version and supersedes
-        # the prior one. Uniqueness therefore applies only to the *current* head
-        # (superseded_by_id IS NULL); superseded history rows accumulate freely.
-        Index(
-            "uq_manual_valuation_user_component_source_date",
-            "user_id",
-            "component_type",
-            "source",
-            "as_of_date",
-            unique=True,
-            postgresql_where=text("superseded_by_id IS NULL"),
-        ),
-        Index("ix_manual_valuation_snapshots_user_as_of", "user_id", "as_of_date"),
-    )
-
-    component_type: Mapped[ManualValuationComponentType] = mapped_column(
-        SQLEnum(
-            ManualValuationComponentType,
-            name="manual_valuation_component_type_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-    )
-    liquidity_class: Mapped[ManualValuationLiquidityClass] = mapped_column(
-        SQLEnum(
-            ManualValuationLiquidityClass,
-            name="manual_valuation_liquidity_class_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=False,
-    )
-    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
-    value: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    source: Mapped[str] = mapped_column(String(120), nullable=False)
-    # Structured evidence basis for guided manual-asset intake (#706). Nullable
-    # and optional at the API; a current evidence-bearing valuation that lacks
-    # any basis (and any legacy notes) surfaces a `missing_valuation_basis`
-    # readiness blocker rather than being rejected.
-    valuation_basis: Mapped[ManualValuationBasis | None] = mapped_column(
-        SQLEnum(
-            ManualValuationBasis,
-            name="manual_valuation_basis_enum",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
-        nullable=True,
-    )
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    recurrence_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    reminder_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-
-    # Append-only version chain (Axiom A). version is a monotonic per-key counter;
-    # superseded_by_id points forward from a corrected fact to the version that
-    # replaced it. The current value is the head of the chain (superseded_by_id IS NULL).
-    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
-    superseded_by_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("manual_valuation_snapshots.id", ondelete="SET NULL"),
-        nullable=True,
-    )
+        return Quantity(self.quantity, Unit.of(POSITION_QUANTITY_UNIT))

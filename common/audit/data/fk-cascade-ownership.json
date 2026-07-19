@@ -136,11 +136,11 @@
     "issue": "#1848"
   },
   {
-    "site": "extraction/orm/layer3.py::ManualValuationSnapshot.user_id->users.id",
-    "source_owner": "extraction",
+    "site": "pricing/orm/manual_valuation.py::ManualValuationSnapshot.user_id->users.id",
+    "source_owner": "pricing",
     "target_owner": "identity",
     "classification": "purge_owned",
-    "rationale": "Tenant purge must coordinate manual valuation snapshots through extraction before user removal.",
+    "rationale": "Tenant purge must coordinate manual valuation snapshots through pricing before user removal.",
     "issue": "#1848"
   },
   {

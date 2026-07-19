@@ -31,10 +31,6 @@ from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransacti
 from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
-    ManualValuationBasis,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
 )
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -52,7 +48,14 @@ from src.ledger import (
 )
 from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.portfolio import DividendIncome
-from src.pricing import MarketDataOverride, PriceSource
+from src.pricing import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    MarketDataOverride,
+    PriceSource,
+)
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.reporting import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,

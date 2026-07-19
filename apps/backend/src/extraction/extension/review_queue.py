@@ -60,12 +60,9 @@ class _FxRateProviderNotRegisteredError(Exception):
 logger = get_logger(__name__)
 settings = src.config.settings
 
-# ``extraction`` and ``pricing`` are both L3 domains; pricing's own
-# repository/manual-valuation reads need extraction's published ORM entities
-# (ManualValuationSnapshot, #1675 D5c), so a direct extraction -> pricing
-# import here (even function-local — the package-contract gate's cycle check
-# is a static AST scan, not a runtime-timing one) would make depends_on
-# cyclic (extraction -> pricing -> extraction). Same inversion as
+# ``extraction`` owns the review workflow, not pricing's implementation.
+# Keep the FX capability behind an injected provider so the dependency is
+# explicit at the composition root. This is the same inversion as
 # ``reporting.extension.fx_gateway`` (#1666) and the #1675 D3 / D5c provider
 # ports: the port lives here, main.py (L4) wires the real
 # pricing.get_exchange_rate/PricingError at startup; tests wire it directly.

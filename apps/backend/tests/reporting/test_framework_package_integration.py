@@ -12,15 +12,18 @@ from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
 )
 from src.identity import User
 from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
-from src.pricing import MarketDataOverride, PriceSource
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    MarketDataOverride,
+    PriceSource,
+)
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import StockPrice
 from src.reporting import PERSONAL_REPORT_PACKAGE_CONTRACT
 from src.reporting.extension.framework_policy import (

@@ -17,11 +17,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.pricing import MarketDataOverride
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate, StockPrice
 
 pytestmark = pytest.mark.asyncio

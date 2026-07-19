@@ -17,15 +17,13 @@ from src.extraction.orm.layer3 import (
     ClassificationStatus,
     CostBasisMethod,
     ManagedPosition,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
-    ManualValuationSnapshot,
     PositionStatus,
     RuleType,
     TransactionClassification,
 )
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.pricing import ValuationService
+from src.pricing import ManualValuationComponentType, ManualValuationLiquidityClass, ValuationService
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
     ReportError,
