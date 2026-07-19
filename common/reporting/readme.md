@@ -35,6 +35,15 @@
 
 ## Why
 
+## Bounded-context decision
+
+`reporting` owns deterministic report assembly, policy disclosure, readiness,
+and frozen report snapshots. It reads projections and contribution DTOs from
+ledger, extraction, portfolio, pricing, and reconciliation; it never changes
+their facts or policies. Audit supplies shared financial language, while
+observability and platform provide supporting language/composition only. The
+machine-readable boundary and relationships are in [`contract.py`](./contract.py).
+
 Balance sheet, income statement, cash flow, and net worth all read the same
 posted ledger state through different lenses. `reporting` is the calculation
 layer over `ledger` (and, via `pricing`, over valuation) that produces those
