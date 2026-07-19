@@ -337,6 +337,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.3",
+            statement=(
+                "L4 delivery code may reach another package only through its root "
+                "or an explicitly baselined typed port/event path; every remaining "
+                "deep path is an exact shrink-only statement-level baseline, and a "
+                "new production path fails closed."
+            ),
+            test=(
+                "tests/tooling/test_app_boundary.py"
+                "::test_AC_meta_dependency_governance_3_l4_deep_imports_are_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.dependency-governance.5",
             statement=(
                 "ORM-defined types are not silently added to package-root public "
@@ -2471,6 +2486,24 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
                 "tests/tooling/test_app_boundary.py",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="l4_root_import_baseline",
+            owner="common/meta/data/l4-root-import-baseline.json",
+            description=(
+                "Exact shrink-only inventory of statement-level deep imports from "
+                "the L4 delivery/composition shell into package internals; "
+                "check_app_boundary rejects newly introduced or stale entries."
+            ),
+            cross_refs=[
+                "common/meta/extension/app_boundary.py",
+                "common/meta/extension/check_app_boundary.py",
+                "tools/check_app_boundary.py",
             ],
             family="platform",
             kind="baseline",

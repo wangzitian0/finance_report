@@ -25,6 +25,49 @@ from pathlib import Path
 #: are deliberately out of scope here — this gate governs the domain-logic edge,
 #: not every ``src.*`` import.
 APP_REMAINDER_SUBDIRS: frozenset[str] = frozenset({"services", "routers", "prompts"})
+L4_DELIVERY_PATHS: frozenset[str] = frozenset({"routers", "schemas"})
+
+
+def l4_deep_import_edges(backend_src: Path, package_names: set[str]) -> list[str]:
+    """Return statement-level deep imports from L4 delivery code to packages.
+
+    Root imports (``from src.audit import Money``) are the stable boundary. A
+    deeper path remains migration debt even when its symbol is publicly exported.
+    """
+    edges: list[str] = []
+    for py in sorted(backend_src.rglob("*.py")):
+        rel = py.relative_to(backend_src)
+        if rel.parts[0] not in L4_DELIVERY_PATHS and rel.name != "composition.py":
+            continue
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                parts = node.module.split(".")
+                if len(parts) > 2 and parts[0] == "src" and parts[1] in package_names:
+                    names = ", ".join(alias.name for alias in node.names)
+                    edges.append(f"{rel}::from {node.module} import {names}")
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    parts = alias.name.split(".")
+                    if (
+                        len(parts) > 2
+                        and parts[0] == "src"
+                        and parts[1] in package_names
+                    ):
+                        edges.append(f"{rel}::import {alias.name}")
+    return sorted(set(edges))
+
+
+def discover_l4_deep_import_edges(repo_root: Path) -> list[str]:
+    """Discover current L4 deep imports against the canonical package names."""
+    from common.meta.base.layering import PACKAGE_LAYER
+
+    return l4_deep_import_edges(
+        (repo_root / "apps/backend/src").resolve(), set(PACKAGE_LAYER)
+    )
 
 
 def _iter_src_imports(tree: ast.AST) -> list[tuple[str, str | None]]:

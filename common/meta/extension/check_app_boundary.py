@@ -26,6 +26,7 @@ from pathlib import Path
 from common.meta.base.gate_cli import run_gate
 from common.meta.extension.app_boundary import (
     discover_and_compute_edges,
+    discover_l4_deep_import_edges,
     dump_baseline,
     load_baseline,
 )
@@ -51,39 +52,53 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     baseline_path = repo_root / "common/meta/data/app-boundary-baseline.json"
+    l4_baseline_path = repo_root / "common/meta/data/l4-root-import-baseline.json"
     current = sorted(set(discover_and_compute_edges(repo_root)))
+    l4_current = sorted(set(discover_l4_deep_import_edges(repo_root)))
 
     if args.update:
         # Shrink-only: an existing baseline may be pruned (removed edges) but never
         # grown — that would silently bless a new leak. Only a missing baseline
         # bootstraps to whatever is in the tree.
-        if baseline_path.exists():
-            grew = sorted(set(current) - load_baseline(baseline_path))
+        for path, discovered, label in (
+            (baseline_path, current, "cross-boundary edge"),
+            (l4_baseline_path, l4_current, "L4 deep import"),
+        ):
+            if not path.exists():
+                continue
+            grew = sorted(set(discovered) - load_baseline(path))
             if grew:
                 for edge in grew:
                     print(
-                        f"::error title=App-boundary --update refused::{edge} — --update "
-                        "will not GROW the baseline (that would bless a new edge). Route "
-                        "it through the published interface, or move the code into the "
-                        "owning package.",
+                        f"::error title=App-boundary --update refused::{edge} — --update will "
+                        f"not GROW the {label} baseline (that would bless new debt). Route it "
+                        "through the published interface, or move the code into the owning "
+                        "package.",
                         file=sys.stderr,
                     )
                 print(
-                    f"[APP-BOUNDARY] --update REFUSED: would add {len(grew)} edge(s). "
+                    f"[APP-BOUNDARY] --update REFUSED: would add {len(grew)} {label}(s). "
                     "Delete the baseline to intentionally re-bootstrap.",
                     file=sys.stderr,
                 )
                 return 1
         dump_baseline(baseline_path, current)
-        print(f"[APP-BOUNDARY] baseline updated: {len(current)} edge(s).")
+        dump_baseline(l4_baseline_path, l4_current)
+        print(
+            f"[APP-BOUNDARY] baselines updated: {len(current)} cross-boundary edge(s), "
+            f"{len(l4_current)} L4 deep import(s)."
+        )
         return 0
 
     baseline = load_baseline(baseline_path)
-    new = sorted(set(current) - baseline)
-    stale = sorted(baseline - set(current))
+    l4_baseline = load_baseline(l4_baseline_path)
+    new_edges = sorted(set(current) - baseline)
+    new_l4_imports = sorted(set(l4_current) - l4_baseline)
+    stale_edges = sorted(baseline - set(current))
+    stale_l4_imports = sorted(l4_baseline - set(l4_current))
 
-    if new:
-        for edge in new:
+    if new_edges:
+        for edge in new_edges:
             print(
                 f"::error title=App-boundary edge added::{edge} — a new cross-boundary "
                 "edge into/out of a carved package. Route it through the package's "
@@ -91,22 +106,41 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
                 "baseline may only SHRINK.",
                 file=sys.stderr,
             )
+    if new_l4_imports:
+        for edge in new_l4_imports:
+            print(
+                f"::error title=L4 deep import added::{edge} — a new production deep "
+                "import bypasses the package root. Route it through the published root, "
+                "typed port, or event; the baseline may only SHRINK.",
+                file=sys.stderr,
+            )
+    if new_edges or new_l4_imports:
         print(
-            f"[APP-BOUNDARY] FAILED: {len(new)} new cross-boundary edge(s).",
+            f"[APP-BOUNDARY] FAILED: {len(new_edges)} new cross-boundary edge(s), "
+            f"{len(new_l4_imports)} new L4 deep import(s).",
             file=sys.stderr,
         )
         return 1
 
-    if stale:
-        for edge in stale:
+    if stale_edges:
+        for edge in stale_edges:
             print(
                 f"::error title=App-boundary baseline stale::{edge} — this edge no "
                 "longer exists; run 'check_app_boundary --update' to prune it (keeps "
                 "the burndown honest).",
                 file=sys.stderr,
             )
+    if stale_l4_imports:
+        for edge in stale_l4_imports:
+            print(
+                f"::error title=L4 deep-import baseline stale::{edge} — this import no "
+                "longer exists; run 'check_app_boundary --update' to prune it.",
+                file=sys.stderr,
+            )
+    if stale_edges or stale_l4_imports:
         print(
-            f"[APP-BOUNDARY] FAILED: {len(stale)} stale baseline entries — run --update.",
+            f"[APP-BOUNDARY] FAILED: {len(stale_edges)} stale cross-boundary edge(s), "
+            f"{len(stale_l4_imports)} stale L4 deep import(s) — run --update.",
             file=sys.stderr,
         )
         return 1
