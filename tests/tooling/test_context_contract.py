@@ -155,6 +155,17 @@ def test_context_contract_baseline_is_exact_on_real_repository() -> None:
     )
 
 
+def test_meta_declares_its_bounded_context() -> None:
+    from common.meta.contract import CONTRACT
+
+    assert CONTRACT.context is not None
+    assert (
+        "individual package business goals and domain policy"
+        in CONTRACT.context.out_of_scope
+    )
+    assert CONTRACT.relationships == []
+
+
 def test_context_contract_rejects_unclassified_dependency_after_adoption(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
