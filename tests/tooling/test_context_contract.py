@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import runpy
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +23,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose() -> None:
     with pytest.raises(ValueError, match="purpose"):
         ContextScope(purpose="", in_scope=["ledger"], out_of_scope=["reporting"])
+
+    with pytest.raises(ValueError, match="in_scope"):
+        ContextScope(
+            purpose="Exercise scope validation.",
+            in_scope=[],
+            out_of_scope=["reporting"],
+        )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        ContextScope(
+            purpose="Exercise scope validation.",
+            in_scope=["ledger"],
+            out_of_scope=["ledger"],
+        )
 
 
 def test_context_declarations_use_the_stable_package_contract_facade() -> None:
@@ -167,3 +182,62 @@ def test_context_contract_rejects_unclassified_dependency_after_adoption(
     assert check_context_contract.discover_findings(tmp_path) == [
         "unclassified-relationship::context-fixture::ledger"
     ]
+
+
+def test_context_contract_rejects_invalid_baseline_and_missing_common_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    invalid_baseline = tmp_path / "baseline.json"
+    invalid_baseline.write_text('{"not": "a list"}', encoding="utf-8")
+    assert check_context_contract.violations(tmp_path, invalid_baseline) == [
+        "cannot read context-contract baseline: baseline must be a JSON string list"
+    ]
+
+    baseline = tmp_path / "valid-baseline.json"
+    baseline.write_text("[]", encoding="utf-8")
+    assert check_context_contract.violations(tmp_path, baseline) == [
+        "cannot discover context contracts: missing common package directory "
+        f"{tmp_path / 'common'}"
+    ]
+
+    (tmp_path / "common").mkdir()
+    monkeypatch.setattr(
+        check_context_contract,
+        "discover_findings",
+        lambda _root: (_ for _ in ()).throw(ValueError("synthetic discovery failure")),
+    )
+    assert check_context_contract.violations(tmp_path, baseline) == [
+        "cannot discover context contracts: synthetic discovery failure"
+    ]
+
+
+def test_context_contract_cli_paths_are_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert check_context_contract._run_command(["--repo-root", str(REPO_ROOT)]) == 0
+    assert "[CONTEXT-CONTRACT] PASSED." in capsys.readouterr().out
+
+    monkeypatch.setattr(check_context_contract, "violations", lambda *_args: ["debt"])
+    assert check_context_contract._run_command(["--repo-root", str(REPO_ROOT)]) == 1
+    captured = capsys.readouterr()
+    assert "[CONTEXT-CONTRACT] FAILED" in captured.err
+    assert "debt" in captured.err
+
+    monkeypatch.setattr(check_context_contract, "_run_command", lambda _argv: 2)
+    assert check_context_contract.main([]) == 2
+
+    monkeypatch.setattr(
+        check_context_contract,
+        "_run_command",
+        lambda _argv: (_ for _ in ()).throw(SystemExit("invalid arguments")),
+    )
+    assert check_context_contract.main([]) == 1
+
+
+def test_context_contract_module_and_tool_entry_points_execute() -> None:
+    module_path = REPO_ROOT / "common/meta/extension/check_context_contract.py"
+    tool_path = REPO_ROOT / "tools/check_context_contract.py"
+    with pytest.raises(SystemExit, match="0"):
+        runpy.run_path(str(module_path), run_name="__main__")
+    with pytest.raises(SystemExit, match="0"):
+        runpy.run_path(str(tool_path), run_name="__main__")
