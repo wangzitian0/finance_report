@@ -24,6 +24,16 @@
 
 # Double-Entry Bookkeeping Domain Model SSOT
 
+## Bounded-context decision
+
+`ledger` owns accounts, journal facts, double-entry validation, posting/voiding,
+and processing-account transfer semantics. It consumes `audit`'s shared value
+language plus assurance ports, `observability`'s logging language, and
+`platform` persistence composition without acquiring ownership of any of those
+subsystems. Reconciliation matching, report presentation, external FX provision,
+and cross-domain workflow remain outside the ledger context. The machine-readable
+boundary and relationships are declared in [`contract.py`](./contract.py).
+
 > **SSOT Key**: `accounting`
 > **Core Definition**: Accounting equation, account classification, and entry rules for double-entry bookkeeping.
 
