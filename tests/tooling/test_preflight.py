@@ -97,6 +97,13 @@ class TestSelectChecks:
         ]
         assert "app-boundary" in names
 
+    def test_backend_source_edit_selects_public_orm_export_gate(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"])
+        ]
+        assert "public-orm-exports" in names
+
     def test_migration_edit_selects_migration_risk(self):
         names = [
             c.name

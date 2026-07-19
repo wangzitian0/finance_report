@@ -258,6 +258,19 @@ CHECKS: tuple[Check, ...] = (
         "cross-boundary edge (remainder↔carved package) may appear; the baseline only shrinks",
     ),
     Check(
+        name="public-orm-exports",
+        globs=(
+            "apps/backend/src/*/__init__.py",
+            "common/meta/data/public-orm-export-baseline.json",
+            "common/meta/extension/public_orm_exports.py",
+            "common/meta/extension/check_public_orm_exports.py",
+            "tools/check_public_orm_exports.py",
+        ),
+        commands=((PY, "tools/check_public_orm_exports.py"),),
+        why="package-root public language or ORM-export ratchet changed: persistence "
+        "types must remain an exact shrink-only baseline",
+    ),
+    Check(
         name="frontend",
         globs=("apps/frontend/*",),
         commands=(
