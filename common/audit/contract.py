@@ -102,7 +102,11 @@ CONTRACT = PackageContract(
         Unit(name="CurrencyBalances", kind=Kind.VALUE_OBJECT),
         Unit(name="Ratio", kind=Kind.VALUE_OBJECT),
         Unit(name="Quantity", kind=Kind.VALUE_OBJECT),
-        Unit(name="Unit", kind=Kind.VALUE_OBJECT),
+        Unit(
+            name="Unit",
+            kind=Kind.VALUE_OBJECT,
+            semantic_key="measurement-unit",
+        ),
         Unit(name="UnitPrice", kind=Kind.VALUE_OBJECT),
         # The journal provenance/trust vocabulary, owned here with the trust
         # hierarchy that ranks it (source_type_priority): audit (L1) can never

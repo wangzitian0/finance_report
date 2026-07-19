@@ -152,6 +152,10 @@ class Unit(BaseModel):
 
     name: str
     kind: Kind
+    #: Canonical semantic identity for cross-package ownership. ``None`` keeps
+    #: the concise default of ``name``; a same-spelled but distinct concept must
+    #: opt into a distinct key rather than silently bypassing duplicate checks.
+    semantic_key: str | None = None
     module: str | None = None
     impl: str | None = None
 
@@ -159,6 +163,21 @@ class Unit(BaseModel):
     def layer(self) -> str:
         """The canonical layer for this unit's kind (``"split"`` for repository)."""
         return KIND_LAYER[self.kind]
+
+    @property
+    def semantic_identity(self) -> str:
+        """Canonical key used by the cross-package semantic-owner projection."""
+        return self.semantic_key or self.name
+
+    @field_validator("semantic_key")
+    @classmethod
+    def _semantic_key_is_nonempty(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("semantic_key must be non-empty when declared")
+        return normalized
 
     @model_validator(mode="after")
     def _impl_only_for_repository(self) -> Unit:

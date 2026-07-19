@@ -63,6 +63,7 @@ MIGRATED_GATE_MODULES = (
     "common.meta.extension.check_manifest",
     "common.meta.extension.check_package_contract",
     "common.meta.extension.check_package_directory_coverage",
+    "common.meta.extension.check_semantic_ownership",
     "common.meta.extension.check_ssot_ownership",
     "common.meta.extension.check_taxonomy_drift",
     "common.meta.extension.check_tier_ast_literal",

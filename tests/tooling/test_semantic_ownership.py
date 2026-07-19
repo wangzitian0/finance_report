@@ -1,0 +1,123 @@
+"""Semantic owner projection locks for #1897."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from common.meta.base.package_contract import Kind, Unit
+from common.meta.extension.check_semantic_ownership import duplicate_claims, main
+
+
+def test_AC_meta_context_governance_2_duplicate_semantic_owner_fails() -> None:
+    """AC-meta.context-governance.2: a canonical semantic claim has one owner."""
+    packages = [
+        SimpleNamespace(
+            name="first",
+            contract=SimpleNamespace(units=[Unit(name="Position", kind=Kind.ENTITY)]),
+        ),
+        SimpleNamespace(
+            name="second",
+            contract=SimpleNamespace(units=[Unit(name="Position", kind=Kind.ENTITY)]),
+        ),
+    ]
+    assert duplicate_claims(packages) == [
+        "duplicate semantic owner: Position::first,second"
+    ]
+
+
+def test_same_spelling_needs_explicit_distinct_semantic_keys() -> None:
+    packages = [
+        SimpleNamespace(
+            name="measurement",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(
+                        name="Unit",
+                        kind=Kind.VALUE_OBJECT,
+                        semantic_key="measurement-unit",
+                    )
+                ]
+            ),
+        ),
+        SimpleNamespace(
+            name="governance",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(
+                        name="Unit",
+                        kind=Kind.VALUE_OBJECT,
+                        semantic_key="package-unit",
+                    )
+                ]
+            ),
+        ),
+    ]
+    assert duplicate_claims(packages) == []
+
+
+def test_duplicate_semantic_owner_output_is_stably_sorted() -> None:
+    packages = [
+        SimpleNamespace(
+            name="first",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(name="Zoo", kind=Kind.ENTITY),
+                    Unit(name="Alpha", kind=Kind.VALUE_OBJECT),
+                ]
+            ),
+        ),
+        SimpleNamespace(
+            name="second",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(name="Zoo", kind=Kind.ENTITY),
+                    Unit(name="Alpha", kind=Kind.VALUE_OBJECT),
+                ]
+            ),
+        ),
+    ]
+    assert duplicate_claims(packages) == [
+        "duplicate semantic owner: Alpha::first,second",
+        "duplicate semantic owner: Zoo::first,second",
+    ]
+
+
+def test_different_kinds_cannot_mask_a_duplicate_semantic_owner() -> None:
+    packages = [
+        SimpleNamespace(
+            name="projection-store",
+            contract=SimpleNamespace(units=[Unit(name="Position", kind=Kind.ENTITY)]),
+        ),
+        SimpleNamespace(
+            name="domain-owner",
+            contract=SimpleNamespace(
+                units=[Unit(name="Position", kind=Kind.AGGREGATE_ROOT)]
+            ),
+        ),
+    ]
+    assert duplicate_claims(packages) == [
+        "duplicate semantic owner: Position::domain-owner,projection-store"
+    ]
+
+
+def test_managed_position_has_one_portfolio_aggregate_owner() -> None:
+    from common.extraction.contract import CONTRACT as extraction_contract
+    from common.portfolio.contract import CONTRACT as portfolio_contract
+
+    assert not any(
+        unit.semantic_identity == "ManagedPosition"
+        for unit in extraction_contract.units
+        if unit.kind in {Kind.AGGREGATE_ROOT, Kind.ENTITY}
+    )
+    assert any(
+        unit.name == "ManagedPositionSnapshot" and unit.kind is Kind.PROJECTION
+        for unit in extraction_contract.units
+    )
+    assert any(
+        unit.semantic_identity == "ManagedPosition" and unit.kind is Kind.AGGREGATE_ROOT
+        for unit in portfolio_contract.units
+    )
+
+
+def test_semantic_ownership_is_exact_on_real_repository() -> None:
+    assert main() == 0
