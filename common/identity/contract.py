@@ -47,6 +47,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -67,6 +69,42 @@ CONTRACT = PackageContract(
     # the edge rule; the former flat src.logger / src.utils now live inside the
     # observability / platform packages, so those imports are governed edges.)
     depends_on=["platform", "observability"],
+    context=ContextScope(
+        purpose=(
+            "Own user identity, authentication, user-scoped credentials, and AI "
+            "feedback without owning the financial domains a user may access."
+        ),
+        in_scope=[
+            "User aggregate, normalized account identity, and AI-feedback records",
+            "JWT/OAuth authentication, password security, and current-user resolution",
+            "identity-owned registration, login, and user-profile compatibility operations",
+        ],
+        out_of_scope=[
+            "ledger, statement, portfolio, reporting, or reconciliation state and policy",
+            "generic request limiting, HTTP error vocabulary, or persistence substrate ownership",
+            "cross-domain workflow or application-level authorization decisions",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="platform",
+            consumer="identity",
+            mode="consumer-port",
+            reason=(
+                "Consumes platform rate-limiting and request-error ports while identity "
+                "retains authentication and account policy."
+            ),
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="identity",
+            mode="published-language",
+            reason=(
+                "Uses published safe logging and security-warning language without "
+                "owning telemetry policy."
+            ),
+        ),
+    ],
     roles=["base", "extension"],
     units=[
         # base — the auth value objects (the published wire language).

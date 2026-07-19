@@ -15,6 +15,16 @@
 
 ## Why
 
+## Bounded-context decision
+
+`identity` owns accounts, authentication credentials, current-user resolution,
+and user AI-feedback—not the financial state or policy a user can access. It
+consumes `platform` rate-limiting/request-error ports and `observability` safe
+logging language without taking ownership of either substrate. Cross-domain
+workflow and application-level authorization decisions remain outside this
+context. The machine-readable boundary and relationships are in
+[`contract.py`](./contract.py).
+
 Every user-scoped request must resolve identity from a cryptographic token, and
 new users must register / log in. `identity` is the package that owns that: a
 mandatory JWT/OAuth2 identity system, the `User` aggregate it authenticates
