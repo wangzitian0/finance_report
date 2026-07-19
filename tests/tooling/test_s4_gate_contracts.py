@@ -42,6 +42,7 @@ MIGRATED_GATE_MODULES = (
     "common.meta.extension.check_app_boundary",
     "common.meta.extension.check_authority_reconcile",
     "common.meta.extension.check_draft_packages",
+    "common.meta.extension.check_public_orm_exports",
     "common.meta.extension.check_epic_package_dual",
     "common.meta.extension.check_governance_exceptions",
     "common.meta.extension.check_manifest",

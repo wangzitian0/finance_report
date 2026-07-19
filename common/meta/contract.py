@@ -337,6 +337,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.5",
+            statement=(
+                "ORM-defined types are not silently added to package-root public "
+                "language; remaining exports are an exact shrink-only baseline, and "
+                "new, stale, unreadable, or partial discovery fails closed."
+            ),
+            test=(
+                "tests/tooling/test_public_orm_exports.py"
+                "::test_AC_meta_dependency_governance_5_public_orm_exports_are_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.vision-anchor.1",
             statement=(
                 "A package-roadmap AC may declare one vision.md anchor, and "
@@ -2410,6 +2424,25 @@ CONTRACT = PackageContract(
                 "tests/tooling/test_app_boundary.py",
             ],
             family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="public_orm_export_baseline",
+            owner="common/meta/data/public-orm-export-baseline.json",
+            description=(
+                "Exact shrink-only inventory of ORM-defined symbols exported from "
+                "package roots; check_public_orm_exports rejects newly introduced, "
+                "stale, or unreadable persistence-coupled public language."
+            ),
+            cross_refs=[
+                "common/meta/extension/public_orm_exports.py",
+                "common/meta/extension/check_public_orm_exports.py",
+                "tools/check_public_orm_exports.py",
+                "tests/tooling/test_public_orm_exports.py",
+            ],
+            family="package_model",
             kind="baseline",
             authority="machine_generated",
             parent="package_model",
