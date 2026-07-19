@@ -283,6 +283,19 @@ CHECKS: tuple[Check, ...] = (
         "types must remain an exact shrink-only baseline",
     ),
     Check(
+        name="base-purity",
+        globs=(
+            "apps/backend/src/*.py",
+            "common/meta/data/base-purity-baseline.json",
+            "common/meta/extension/base_purity.py",
+            "common/meta/extension/check_base_purity.py",
+            "tools/check_base_purity.py",
+        ),
+        commands=((PY, "tools/check_base_purity.py"),),
+        why="package base-layer or base-purity gate changed: ORM, config, observability, "
+        "network, and session debt must remain an exact shrink-only baseline",
+    ),
+    Check(
         name="frontend",
         globs=("apps/frontend/*",),
         commands=(

@@ -104,6 +104,14 @@ class TestSelectChecks:
         ]
         assert "public-orm-exports" in names
 
+    def test_backend_source_edit_selects_base_purity(self):
+        selected = preflight.select_checks(
+            ["apps/backend/src/reconciliation/base/repository.py"]
+        )
+
+        base_purity = next(check for check in selected if check.name == "base-purity")
+        assert base_purity.commands == ((preflight.PY, "tools/check_base_purity.py"),)
+
     def test_migration_edit_selects_migration_risk(self):
         names = [
             c.name

@@ -352,6 +352,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.4",
+            statement=(
+                "Production package base layers have no new ORM, configuration, "
+                "observability, network, or session dependency; legacy findings are "
+                "an exact shrink-only baseline and an empty or unreadable scan fails."
+            ),
+            test=(
+                "tests/tooling/test_base_purity.py"
+                "::test_AC_meta_dependency_governance_4_base_impurity_is_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.dependency-governance.5",
             statement=(
                 "ORM-defined types are not silently added to package-root public "
@@ -2486,6 +2500,24 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
                 "tests/tooling/test_app_boundary.py",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="base_purity_baseline",
+            owner="common/meta/data/base-purity-baseline.json",
+            description=(
+                "Exact shrink-only inventory of legacy ORM, configuration, observability, "
+                "network, and session dependencies in package base layers; "
+                "check_base_purity rejects newly introduced or stale entries."
+            ),
+            cross_refs=[
+                "common/meta/extension/base_purity.py",
+                "common/meta/extension/check_base_purity.py",
+                "tools/check_base_purity.py",
             ],
             family="platform",
             kind="baseline",
