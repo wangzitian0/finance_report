@@ -62,6 +62,35 @@ def _orm_class_names(path: Path) -> set[str]:
     }
 
 
+def _local_orm_exports(
+    backend_src: Path, package: str, module: str, seen: frozenset[str] = frozenset()
+) -> set[str]:
+    """Return ORM names exported by a local module, following local re-exports."""
+    if module in seen:
+        return set()
+    path = _local_module_path(backend_src, package, module)
+    if path is None:
+        return set()
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError) as exc:
+        raise ValueError(f"cannot parse re-export source {path}: {exc}") from exc
+
+    exports = _orm_class_names(path)
+    for node in tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            continue
+        source_names = _local_orm_exports(
+            backend_src, package, node.module, seen | {module}
+        )
+        exports.update(
+            alias.asname or alias.name
+            for alias in node.names
+            if alias.name in source_names
+        )
+    return exports
+
+
 def discover_public_orm_exports(backend_src: Path) -> list[str]:
     """Return canonical ``package::symbol`` records for root-exported ORM names."""
     if not backend_src.is_dir():
@@ -87,7 +116,7 @@ def discover_public_orm_exports(backend_src: Path) -> list[str]:
             source = _local_module_path(backend_src, package, node.module)
             if source is None:
                 continue
-            source_orm_names = _orm_class_names(source)
+            source_orm_names = _local_orm_exports(backend_src, package, node.module)
             orm_names.update(
                 alias.asname or alias.name
                 for alias in node.names

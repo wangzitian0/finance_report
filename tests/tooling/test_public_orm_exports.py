@@ -50,9 +50,12 @@ def test_public_orm_export_gate_follows_package_extension_reexports(
     package = tmp_path / "apps/backend/src/platform/extension"
     package.mkdir(parents=True)
     (package / "sql.py").write_text("class Outbox(Base):\n    pass\n", encoding="utf-8")
-    (package / "__init__.py").write_text("", encoding="utf-8")
-    (package.parent / "__init__.py").write_text(
+    (package / "__init__.py").write_text(
         "from src.platform.extension.sql import Outbox\n__all__ = ['Outbox']\n",
+        encoding="utf-8",
+    )
+    (package.parent / "__init__.py").write_text(
+        "from src.platform.extension import Outbox\n__all__ = ['Outbox']\n",
         encoding="utf-8",
     )
 

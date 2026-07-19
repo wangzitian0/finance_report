@@ -47,6 +47,8 @@ class OutboxRow(Protocol):
     occurred_at: datetime
     event_type: str
     payload: dict | None
+    status: str
+    published_at: datetime | None
 
 
 class OutboxRepository(Protocol):
