@@ -493,12 +493,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-meta.layer.5",
             statement=(
-                "common/meta/readme.md carries the authoritative mermaid "
-                "five-layer diagram naming all five layers."
+                "common/meta/readme.md links the generated five-layer topology "
+                "from PACKAGE_LAYER and contains no hand-authored diagram."
             ),
             test=(
                 "tests/tooling/test_five_layer_model.py"
-                "::test_readme_carries_the_mermaid_five_layer_diagram"
+                "::test_readme_links_the_generated_five_layer_topology"
             ),
             priority="P2",
             status="done",
