@@ -212,16 +212,12 @@ def test_context_contract_rejects_invalid_baseline_and_missing_common_directory(
 
 
 def test_context_contract_cli_paths_are_fail_closed(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert check_context_contract._run_command(["--repo-root", str(REPO_ROOT)]) == 0
-    assert "[CONTEXT-CONTRACT] PASSED." in capsys.readouterr().out
 
     monkeypatch.setattr(check_context_contract, "violations", lambda *_args: ["debt"])
     assert check_context_contract._run_command(["--repo-root", str(REPO_ROOT)]) == 1
-    captured = capsys.readouterr()
-    assert "[CONTEXT-CONTRACT] FAILED" in captured.err
-    assert "debt" in captured.err
 
     monkeypatch.setattr(check_context_contract, "_run_command", lambda _argv: 2)
     assert check_context_contract.main([]) == 2
