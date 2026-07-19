@@ -84,6 +84,45 @@ def test_package_context_relationships_are_owned_by_the_consumer() -> None:
         )
 
 
+def test_context_relationships_require_context_and_declared_provider() -> None:
+    relationship = ContextRelation(
+        provider="ledger",
+        consumer="context-fixture",
+        mode="published-language",
+        reason="Synthetic contract edge.",
+    )
+    with pytest.raises(ValueError, match="require a context declaration"):
+        PackageContract(
+            name="context-fixture",
+            klass="domain",
+            depends_on=["ledger"],
+            interface=[],
+            events=[],
+            invariants=[],
+            roadmap=[],
+            status="draft",
+            relationships=[relationship],
+        )
+
+    with pytest.raises(ValueError, match="declared dependencies"):
+        PackageContract(
+            name="context-fixture",
+            klass="domain",
+            depends_on=[],
+            interface=[],
+            events=[],
+            invariants=[],
+            roadmap=[],
+            status="draft",
+            context=ContextScope(
+                purpose="Exercise provider validation.",
+                in_scope=["fixture semantics"],
+                out_of_scope=["production behavior"],
+            ),
+            relationships=[relationship],
+        )
+
+
 def test_context_contract_baseline_is_exact_on_real_repository() -> None:
     """AC-meta.context-governance.1: context declaration debt only shrinks."""
     assert (
