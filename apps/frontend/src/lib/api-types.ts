@@ -896,49 +896,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/metrics/confidence-north-star": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Confidence North Star
-         * @description Return the current low-confidence proportion and the recorded trend (newest first).
-         */
-        get: operations["get_confidence_north_star_metrics_confidence_north_star_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics/confidence-north-star/snapshots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record Confidence North Star Snapshot
-         * @description Append the current low-confidence proportion to the North-Star series.
-         *
-         *     Lets a scheduler (or an operator) record a point on demand, so the trend
-         *     accumulates even between report-package generations.
-         */
-        post: operations["record_confidence_north_star_snapshot_metrics_confidence_north_star_snapshots_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/metrics/correction-loop/replay": {
         parameters: {
             query?: never;
@@ -1630,66 +1587,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/reports/package/annualized-income-schedule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Annualized Income Schedule
-         * @description Return report-ready annualized income and restricted compensation schedule.
-         */
-        get: operations["annualized_income_schedule_reports_package_annualized_income_schedule_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reports/package/contract": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Personal Report Package Contract
-         * @description Return the stable package-level API/export contract.
-         */
-        get: operations["personal_report_package_contract_reports_package_contract_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reports/package/framework-policy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Personal Report Package Framework Policy
-         * @description Return the selected framework policy result consumed by package assembly.
-         */
-        get: operations["personal_report_package_framework_policy_reports_package_framework_policy_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/reports/package/generate": {
         parameters: {
             query?: never;
@@ -1704,46 +1601,6 @@ export interface paths {
          * @description Generate and persist an immutable personal report package snapshot.
          */
         post: operations["generate_personal_report_package_snapshot_reports_package_generate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reports/package/notes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Personal Report Package Notes
-         * @description Return package-level notes and disclosures.
-         */
-        get: operations["personal_report_package_notes_reports_package_notes_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reports/package/readiness": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Personal Report Package Readiness
-         * @description Return deterministic readiness and blocker state for the personal package.
-         */
-        get: operations["personal_report_package_readiness_reports_package_readiness_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1802,26 +1659,6 @@ export interface paths {
          * @description Export a saved package snapshot as JSON or CSV.
          */
         get: operations["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/reports/package/traceability": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Personal Report Package Traceability
-         * @description Return the package-level source-ledger-report traceability appendix.
-         */
-        get: operations["personal_report_package_traceability_reports_package_traceability_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2792,7 +2629,10 @@ export interface components {
              * Format: uuid
              */
             account_id: string;
-            /** Currency */
+            /**
+             * Currency
+             * @description Account trend presentation currency.
+             */
             currency: string;
             period: components["schemas"]["TrendPeriod"];
             /** Points */
@@ -2944,7 +2784,10 @@ export interface components {
         AnnualizedIncomeScheduleHolding: {
             /** Compensation Type */
             compensation_type: string;
-            /** Currency */
+            /**
+             * Currency
+             * @description Restricted holding valuation currency.
+             */
             currency: string;
             /** Fair Value */
             fair_value: string;
@@ -2976,7 +2819,10 @@ export interface components {
             annualized_total: string;
             /** Calculation Basis */
             calculation_basis: string;
-            /** Currency */
+            /**
+             * Currency
+             * @description Annualized income presentation currency.
+             */
             currency: string;
         };
         /**
@@ -3011,7 +2857,10 @@ export interface components {
             notes: string[];
             /** Restricted Fair Value Total */
             restricted_fair_value_total: string;
-            /** Restricted Fair Value Total Currency */
+            /**
+             * Restricted Fair Value Total Currency
+             * @description Currency of the restricted fair-value total.
+             */
             restricted_fair_value_total_currency: string;
             /** Restricted Holdings */
             restricted_holdings: components["schemas"]["AnnualizedIncomeScheduleHolding"][];
@@ -3157,15 +3006,19 @@ export interface components {
             as_of_date: string;
             /** Assets */
             assets: components["schemas"]["ReportLine"][];
-            /** Confidence Tier */
-            confidence_tier?: string | null;
-            /** Currency */
+            /**
+             * Currency
+             * @description Report presentation currency.
+             */
             currency: string;
             /** Equation Delta */
             equation_delta: string;
             /** Equity */
             equity: components["schemas"]["ReportLine"][];
-            /** Fx Warnings */
+            /**
+             * Fx Warnings
+             * @description Foreign-exchange conversion warnings.
+             */
             fx_warnings?: {
                 [key: string]: string;
             }[];
@@ -3183,11 +3036,17 @@ export interface components {
              * @default 0.00
              */
             net_worth_adjustment_gain_loss: string;
-            /** Opening Balance Warnings */
+            /**
+             * Opening Balance Warnings
+             * @description Opening-balance completeness warnings.
+             */
             opening_balance_warnings?: {
                 [key: string]: string;
             }[];
-            /** Portfolio Warnings */
+            /**
+             * Portfolio Warnings
+             * @description Portfolio valuation coverage warnings.
+             */
             portfolio_warnings?: {
                 [key: string]: string;
             }[];
@@ -3482,7 +3341,10 @@ export interface components {
          * @description Cash flow statement response schema.
          */
         CashFlowResponse: {
-            /** Currency */
+            /**
+             * Currency
+             * @description Cash-flow presentation currency.
+             */
             currency: string;
             /**
              * End Date
@@ -3491,7 +3353,10 @@ export interface components {
             end_date: string;
             /** Financing */
             financing: components["schemas"]["CashFlowItem"][];
-            /** Fx Warnings */
+            /**
+             * Fx Warnings
+             * @description Foreign-exchange conversion warnings.
+             */
             fx_warnings?: {
                 [key: string]: string;
             }[];
@@ -3544,7 +3409,10 @@ export interface components {
          * @description Category breakdown response schema.
          */
         CategoryBreakdownResponse: {
-            /** Currency */
+            /**
+             * Currency
+             * @description Category breakdown presentation currency.
+             */
             currency: string;
             /** Items */
             items: components["schemas"]["CategoryBreakdownItem"][];
@@ -3690,57 +3558,6 @@ export interface components {
          * @enum {string}
          */
         CheckType: "duplicate" | "transfer_pair" | "anomaly";
-        /**
-         * ConfidenceMetricPoint
-         * @description A North-Star measurement: the LOW-tier share of posted ledger facts.
-         */
-        ConfidenceMetricPoint: {
-            /** Low Confidence Count */
-            low_confidence_count: number;
-            /** Low Confidence Proportion */
-            low_confidence_proportion: string;
-            /** Tier Breakdown */
-            tier_breakdown: {
-                [key: string]: number;
-            };
-            /** Total Count */
-            total_count: number;
-        };
-        /**
-         * ConfidenceMetricSnapshotResponse
-         * @description A recorded point in the append-only series.
-         */
-        ConfidenceMetricSnapshotResponse: {
-            /**
-             * Captured At
-             * Format: date-time
-             */
-            captured_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Low Confidence Count */
-            low_confidence_count: number;
-            /** Low Confidence Proportion */
-            low_confidence_proportion: string;
-            /** Tier Breakdown */
-            tier_breakdown: {
-                [key: string]: number;
-            };
-            /** Total Count */
-            total_count: number;
-        };
-        /**
-         * ConfidenceNorthStarResponse
-         * @description The live metric plus its recorded trend (newest first).
-         */
-        ConfidenceNorthStarResponse: {
-            current: components["schemas"]["ConfidenceMetricPoint"];
-            /** Series */
-            series: components["schemas"]["ConfidenceMetricSnapshotResponse"][];
-        };
         /** ConsistencyCheckListResponse */
         ConsistencyCheckListResponse: {
             /** Items */
@@ -4073,15 +3890,13 @@ export interface components {
             accepted_value?: string | null;
             /** Classification */
             classification?: string | null;
-            /**
-             * Confidence Tier
-             * @default TRUSTED
-             */
-            confidence_tier: string;
             /** Disclosure */
             disclosure?: string | null;
             domain: components["schemas"]["PolicyFactDomain"];
-            /** Evidence Anchors */
+            /**
+             * Evidence Anchors
+             * @description Evidence anchors supporting this policy decision.
+             */
             evidence_anchors?: components["schemas"]["FrameworkPolicyEvidenceAnchor"][];
             /** Line Mappings */
             line_mappings: {
@@ -4129,7 +3944,10 @@ export interface components {
             /** Code */
             code: string;
             domain: components["schemas"]["PolicyFactDomain"];
-            /** Evidence Anchors */
+            /**
+             * Evidence Anchors
+             * @description Evidence anchors associated with this policy gap.
+             */
             evidence_anchors?: components["schemas"]["FrameworkPolicyEvidenceAnchor"][];
             /** Fact Id */
             fact_id: string;
@@ -4148,7 +3966,10 @@ export interface components {
             /** Decisions */
             decisions: components["schemas"]["FrameworkPolicyDecision"][];
             framework_id: components["schemas"]["PersonalReportingFrameworkId"];
-            /** Gaps */
+            /**
+             * Gaps
+             * @description Policy gaps that block trusted package output.
+             */
             gaps?: components["schemas"]["FrameworkPolicyGap"][];
             /**
              * Generated At
@@ -4291,7 +4112,10 @@ export interface components {
          * @description Income statement response schema.
          */
         IncomeStatementResponse: {
-            /** Currency */
+            /**
+             * Currency
+             * @description Report presentation currency.
+             */
             currency: string;
             /**
              * End Date
@@ -4300,7 +4124,10 @@ export interface components {
             end_date: string;
             /** Expenses */
             expenses: components["schemas"]["ReportLine"][];
-            /** Fx Warnings */
+            /**
+             * Fx Warnings
+             * @description Foreign-exchange conversion warnings.
+             */
             fx_warnings?: {
                 [key: string]: string;
             }[];
@@ -5142,11 +4969,6 @@ export interface components {
              */
             as_of_date: string;
             /**
-             * Confidence Tier
-             * @description Aggregate confidence tier; LOW when an opening balance is missing.
-             */
-            confidence_tier?: string | null;
-            /**
              * Currency
              * @description Report presentation currency.
              */
@@ -5274,7 +5096,10 @@ export interface components {
          * @description Net worth point-in-time value.
          */
         NetWorthTimeSeriesPoint: {
-            /** Currency */
+            /**
+             * Currency
+             * @description Net-worth presentation currency.
+             */
             currency: string;
             /**
              * Date
@@ -5293,7 +5118,10 @@ export interface components {
          * @description Net worth time-series response.
          */
         NetWorthTimeSeriesResponse: {
-            /** Currency */
+            /**
+             * Currency
+             * @description Net-worth presentation currency.
+             */
             currency: string;
             granularity: components["schemas"]["NetWorthGranularity"];
             /** Points */
@@ -5403,8 +5231,6 @@ export interface components {
          */
         PersonalReportPackageContractResponse: {
             export_contract: components["schemas"]["PersonalReportPackageExportContract"];
-            /** Framework Policy Endpoint */
-            framework_policy_endpoint?: string | null;
             /** Package Id */
             package_id: string;
             /** Period Semantics */
@@ -5415,7 +5241,10 @@ export interface components {
             sections: components["schemas"]["PersonalReportPackageSectionContract"][];
             /** Selected Framework Id */
             selected_framework_id?: string | null;
-            /** Supported Frameworks */
+            /**
+             * Supported Frameworks
+             * @description Supported personal reporting framework identifiers.
+             */
             supported_frameworks?: string[];
             /** Version */
             version: string;
@@ -5438,6 +5267,8 @@ export interface components {
             /** Input Manifest */
             input_manifest: components["schemas"]["PersonalReportPackageTraceManifestEntry"][];
             lifecycle: components["schemas"]["PersonalReportPackageDocumentLifecycle"];
+            /** Package Decision Id */
+            package_decision_id?: string | null;
             /** Package Id */
             package_id: string;
             readiness: components["schemas"]["PersonalReportPackageReadinessResponse"];
@@ -5505,6 +5336,30 @@ export interface components {
             start_date?: string | null;
         };
         /**
+         * PersonalReportPackageInputCoverage
+         * @description Direct authority coverage for inputs consumed by one package document.
+         */
+        PersonalReportPackageInputCoverage: {
+            /**
+             * Authoritative Input Count
+             * @description Number of exact input references covered by current decisions.
+             * @default 0
+             */
+            authoritative_input_count: number;
+            /**
+             * Manifest Decision Count
+             * @description Number of current authority decisions in the input manifest.
+             * @default 0
+             */
+            manifest_decision_count: number;
+            /**
+             * Unproven Input Count
+             * @description Number of contributing input references without current authority.
+             * @default 0
+             */
+            unproven_input_count: number;
+        };
+        /**
          * PersonalReportPackageNote
          * @description Disclosure note included in the personal financial-report package.
          */
@@ -5560,36 +5415,32 @@ export interface components {
         };
         /**
          * PersonalReportPackageReadinessResponse
-         * @description Deterministic readiness state for the personal report package.
+         * @description Readiness derived from the document's exact authority coverage.
          */
         PersonalReportPackageReadinessResponse: {
             /** Action Href */
             action_href: string;
-            /** Blockers */
+            /**
+             * Blockers
+             * @description Actionable conditions preventing package readiness.
+             */
             blockers?: components["schemas"]["PersonalReportPackageReadinessBlocker"][];
             /** Blocking Count */
             blocking_count: number;
-            /** Generated At */
-            generated_at?: string | null;
+            /** @description Decision-backed coverage for contributing package inputs. */
+            input_coverage?: components["schemas"]["PersonalReportPackageInputCoverage"];
             /** Label */
             label: string;
             /** Package Id */
             package_id: string;
-            /** Source Summary */
-            source_summary?: {
-                [key: string]: number | string;
-            };
-            source_trust_summary?: components["schemas"]["PersonalReportPackageSourceTrustSummary"];
-            /** Stale Since */
-            stale_since?: string | null;
             state: components["schemas"]["PersonalReportPackageReadinessState"];
         };
         /**
          * PersonalReportPackageReadinessState
-         * @description Allowed states for the personal report package readiness contract.
+         * @description Candidate state derived inside one package document.
          * @enum {string}
          */
-        PersonalReportPackageReadinessState: "draft" | "processing" | "blocked" | "ready" | "generated" | "stale";
+        PersonalReportPackageReadinessState: "draft" | "blocked" | "ready";
         /**
          * PersonalReportPackageSectionContract
          * @description Stable section contract for the personal financial-report package.
@@ -5597,7 +5448,10 @@ export interface components {
         PersonalReportPackageSectionContract: {
             /** Blocking Issue */
             blocking_issue?: string | null;
-            /** Decimal Total Fields */
+            /**
+             * Decimal Total Fields
+             * @description Decimal total field names exposed by the section.
+             */
             decimal_total_fields?: string[];
             /** Label */
             label: string;
@@ -5612,8 +5466,6 @@ export interface components {
             required: boolean;
             /** Section Id */
             section_id: string;
-            /** Source Endpoint */
-            source_endpoint: string;
             /** Status */
             status: string;
         };
@@ -5756,24 +5608,6 @@ export interface components {
             status: components["schemas"]["PersonalReportPackageSnapshotStatus"];
         };
         /**
-         * PersonalReportPackageSourceTrustSummary
-         * @description Source-class trust summary for package readiness consumers.
-         */
-        PersonalReportPackageSourceTrustSummary: {
-            /** Blocker Codes */
-            blocker_codes?: string[];
-            /** Deterministic Pr Source Classes */
-            deterministic_pr_source_classes?: string[];
-            /** Gap Source Classes */
-            gap_source_classes?: string[];
-            /** Manual Trusted Source Classes */
-            manual_trusted_source_classes?: string[];
-            /** Post Merge Llm Ocr Source Classes */
-            post_merge_llm_ocr_source_classes?: string[];
-            /** Source Classes */
-            source_classes?: string[];
-        };
-        /**
          * PersonalReportPackageTraceManifestEntry
          * @description One current authoritative decision captured as a package input.
          */
@@ -5791,8 +5625,11 @@ export interface components {
              * Format: uuid
              */
             decision_id: string;
-            /** Journal Entry Ids */
-            journal_entry_ids: string[];
+            /**
+             * Input Refs
+             * @description Exact contributing input references covered by this decision.
+             */
+            input_refs: string[];
             /** Target Id */
             target_id: string;
             /** Target Kind */
@@ -5805,17 +5642,32 @@ export interface components {
          * @description Source or ledger anchor metadata for one package report line.
          */
         PersonalReportPackageTraceabilityAnchor: {
-            /** Details */
+            /**
+             * Details
+             * @description Typed contribution details for this anchor.
+             */
             details?: {
                 [key: string]: string | null;
             }[];
-            /** Entry Statuses */
+            /**
+             * Entry Statuses
+             * @description Ledger entry states disclosed for this anchor.
+             */
             entry_statuses?: string[];
-            /** Identifier Fields */
+            /**
+             * Identifier Fields
+             * @description Identifier field names available for this anchor.
+             */
             identifier_fields?: string[];
-            /** Identifiers */
+            /**
+             * Identifiers
+             * @description Stable source or ledger identifiers available for drill-through.
+             */
             identifiers?: string[];
-            /** Source Types */
+            /**
+             * Source Types
+             * @description Source types disclosed for this anchor.
+             */
             source_types?: string[];
             /** State */
             state: string;
@@ -5834,10 +5686,11 @@ export interface components {
              * @default 0
              */
             anchor_count: number;
-            /** Blocker Codes */
+            /**
+             * Blocker Codes
+             * @description Explicit completeness or authority blockers for this line.
+             */
             blocker_codes?: string[];
-            /** Confidence Tier */
-            confidence_tier: string;
             /** Currency Field */
             currency_field?: string | null;
             /** Label */
@@ -5845,18 +5698,9 @@ export interface components {
             ledger_anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchor"];
             /** Line Id */
             line_id: string;
-            /**
-             * Proof Level
-             * @default unclassified
-             */
-            proof_level: string;
-            /** Review State */
-            review_state: string;
             /** Section Id */
             section_id: string;
             source_anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchor"];
-            /** Source Classes */
-            source_classes?: string[];
             /** Source State */
             source_state: string;
         };
@@ -6277,8 +6121,6 @@ export interface components {
             account_id: string;
             /** Amount */
             amount: string;
-            /** Confidence Tier */
-            confidence_tier?: string | null;
             /** Name */
             name: string;
             /** Parent Id */
@@ -12223,172 +12065,6 @@ export interface operations {
             };
         };
     };
-    get_confidence_north_star_metrics_confidence_north_star_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfidenceNorthStarResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    record_confidence_north_star_snapshot_metrics_confidence_north_star_snapshots_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfidenceMetricSnapshotResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     get_correction_loop_replay_metrics_correction_loop_replay_get: {
         parameters: {
             query?: never;
@@ -15821,291 +15497,6 @@ export interface operations {
             };
         };
     };
-    annualized_income_schedule_reports_package_annualized_income_schedule_get: {
-        parameters: {
-            query?: {
-                as_of_date?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AnnualizedIncomeScheduleResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    personal_report_package_contract_reports_package_contract_get: {
-        parameters: {
-            query?: {
-                framework_id?: components["schemas"]["PersonalReportingFrameworkId"] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonalReportPackageContractResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    personal_report_package_framework_policy_reports_package_framework_policy_get: {
-        parameters: {
-            query?: {
-                framework_id?: components["schemas"]["PersonalReportingFrameworkId"];
-                start_date?: string | null;
-                end_date?: string | null;
-                as_of_date?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameworkPolicyResult"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     generate_personal_report_package_snapshot_reports_package_generate_post: {
         parameters: {
             query?: never;
@@ -16126,186 +15517,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonalReportPackageSnapshotResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    personal_report_package_notes_reports_package_notes_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonalReportPackageNotesResponse"];
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    personal_report_package_readiness_reports_package_readiness_get: {
-        parameters: {
-            query?: {
-                framework_id?: components["schemas"]["PersonalReportingFrameworkId"] | null;
-                start_date?: string | null;
-                end_date?: string | null;
-                as_of_date?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonalReportPackageReadinessResponse"];
                 };
             };
             /** @description Bad request */
@@ -16593,102 +15804,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Bad request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Too many requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    personal_report_package_traceability_reports_package_traceability_get: {
-        parameters: {
-            query?: {
-                start_date?: string | null;
-                end_date?: string | null;
-                as_of_date?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonalReportPackageTraceabilityResponse"];
                 };
             };
             /** @description Bad request */

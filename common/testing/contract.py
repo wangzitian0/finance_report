@@ -603,7 +603,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror"
+                "::test_AC8_14_3_personal_package_has_deterministic_package_document_mirror"
             ),
             priority="P0",
             status="done",

@@ -217,6 +217,7 @@ export interface PersonalReportPackageDocument {
   schema_version: "2";
   lifecycle: PersonalReportPackageDocumentLifecycle;
   snapshot_id: string | null;
+  package_decision_id: string | null;
   generated_at: string;
   frozen_at: string | null;
   package_id: string;

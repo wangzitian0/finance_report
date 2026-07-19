@@ -3315,8 +3315,8 @@ CONTRACT = PackageContract(
             id="AC-extraction.1816.2",
             statement=(
                 "After a real statement import with the flag on, the "
-                "income statement has reviewed categorized leaf lines, each with a non-null "
-                "confidence tier."
+                "income statement has reviewed categorized leaf lines, and the persisted "
+                "classification records retain non-null model scores."
             ),
             test=(
                 "apps/backend/tests/extraction/test_classification_migration.py"

@@ -1695,14 +1695,14 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.augmentation.1",
             statement=(
-                "A low-confidence ledger input and a superseded manual valuation both reach the "
-                "report correctly: the equation holds, the low-confidence line carries the "
-                "worst-input tier, and the superseded valuation is excluded."
+                "A source-labelled ledger input and a superseded manual valuation both reach the "
+                "report correctly: the equation holds, source confidence is not presented as "
+                "assurance, and the superseded valuation is excluded."
             ),
             # was AC8.16.1
             test=(
                 "apps/backend/tests/integration/test_augmentation_seam_e2e.py"
-                "::test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence"
+                "::test_AC8_16_1_augmentation_seam_excludes_superseded_without_source_assurance"
             ),
             priority="P1",
             status="done",
@@ -2382,9 +2382,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reporting.fe-viz-reports.7",
-            statement="Frontend personal package page renders source, ledger, review, and confidence metadata from the appendix",
+            statement="Frontend personal package page renders source, ledger, review, and identifier metadata from the appendix",
             # was AC5.13.3
-            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers",
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers",
             priority="P0",
             status="done",
         ),
@@ -2432,7 +2432,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.fe-viz-reports.10",
             statement="Personal report package traceability renders concrete source and ledger identifiers when the appendix provides them",
             # was AC5.16.3
-            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers",
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers",
             priority="P0",
             status="done",
         ),
@@ -2868,9 +2868,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reporting.fe-remainder-reports.14",
-            statement="Personal report package page renders a compact source trust summary before detailed package output",
+            statement="Personal report package page renders decision authority coverage before detailed traceability output",
             # was AC19.9.2
-            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders compact source trust summary before traceability details",
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC19.9.2 renders decision authority coverage before traceability details",
             priority="P0",
             status="done",
         ),

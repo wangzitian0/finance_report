@@ -213,6 +213,7 @@ CONTRACT = PackageContract(
         "build_reconciliation_prompt",
         "calculate_match_score",
         "classify_internal_transfer",
+        "count_pending_review_items",
         "derive_reconciliation_score_tier",
         "detect_anomalies",
         "discover_fx_conversions",

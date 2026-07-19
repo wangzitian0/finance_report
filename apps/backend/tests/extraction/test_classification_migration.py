@@ -130,8 +130,9 @@ async def _june_report(db: AsyncSession, user_id: UUID) -> dict:
 @pytest.mark.asyncio
 async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_user, enabled_flag, stub_proposer):
     """AC-extraction.1816.2: AC18.16.2: after a real statement import with the flag on, the income statement
-    has categorized leaf lines beyond the two Uncategorized buckets, with non-null
-    confidence tiers — the exact #1483 QA symptom, now a permanent regression lock."""
+    has categorized leaf lines beyond the two Uncategorized buckets, while the
+    persisted classification records retain model scores — the exact #1483 QA
+    symptom, now a permanent regression lock."""
     bank = await _bank(db, test_user.id)
     outcome = await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
     assert outcome.status is StatementPostingStatus.POSTED
@@ -151,7 +152,11 @@ async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_u
         for line in report["income"] + report["expenses"]
         if line["name"] in ("Income - Salary", "Expense - Housing") and line["amount"]
     ]
-    assert categorized and all(line["confidence_tier"] is not None for line in categorized)
+    assert categorized
+    classifications = (await db.execute(select(TransactionClassification))).scalars().all()
+    assert len(classifications) == 2
+    assert {row.tags["category"] for row in classifications if row.tags} == {"SALARY", "HOUSING"}
+    assert all(row.confidence_score is not None for row in classifications)
 
 
 # --- AC18.16.1 (headline): a new policy version never restates covered periods ----

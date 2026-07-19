@@ -15,7 +15,6 @@
             "type": "ASSET",
             "parent_id": null,
             "amount": "8100.25",
-            "confidence_tier": "HIGH",
             "provenance": "imported"
           },
           {
@@ -24,7 +23,6 @@
             "type": "ASSET",
             "parent_id": null,
             "amount": "1399.75",
-            "confidence_tier": null,
             "provenance": "manual"
           }
         ],
@@ -35,7 +33,6 @@
             "type": "LIABILITY",
             "parent_id": null,
             "amount": "2500.00",
-            "confidence_tier": "MEDIUM",
             "provenance": "imported"
           }
         ],
@@ -46,11 +43,9 @@
             "type": "EQUITY",
             "parent_id": null,
             "amount": "6000.00",
-            "confidence_tier": null,
             "provenance": "derived"
           }
         ],
-        "confidence_tier": "MEDIUM",
         "total_assets": "9500.00",
         "total_liabilities": "2500.00",
         "total_equity": "6000.00",

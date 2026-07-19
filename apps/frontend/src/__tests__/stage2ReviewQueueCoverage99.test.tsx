@@ -401,7 +401,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       )
     })
 
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+    const rejectButton = screen.getByRole("button", { name: "Reject" })
+    await waitFor(() => expect(rejectButton).toBeEnabled())
+    fireEvent.click(rejectButton)
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
         "/api/statements/batch-reject-matches",
