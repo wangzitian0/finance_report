@@ -168,6 +168,22 @@
     "issue": "#1848"
   },
   {
+    "site": "extraction/orm/reviewed_statement_envelope.py::ReviewedStatementEnvelope.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate reviewed statement envelopes through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/reviewed_statement_envelope.py::StatementExtractionResultRecord.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate persisted statement extraction results through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
     "site": "identity/extension/sql.py::AiFeedback.user_id->users.id",
     "source_owner": "identity",
     "target_owner": "identity",
@@ -229,14 +245,6 @@
     "target_owner": "identity",
     "classification": "purge_owned",
     "rationale": "Tenant purge must coordinate scene bindings through the LLM owner before user removal.",
-    "issue": "#1848"
-  },
-  {
-    "site": "observability/orm/metrics.py::ConfidenceMetricSnapshot.user_id->users.id",
-    "source_owner": "observability",
-    "target_owner": "identity",
-    "classification": "purge_owned",
-    "rationale": "Tenant purge must coordinate confidence metric snapshots through observability before user removal.",
     "issue": "#1848"
   },
   {

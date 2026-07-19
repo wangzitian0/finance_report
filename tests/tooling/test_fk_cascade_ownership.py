@@ -32,10 +32,10 @@ def test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid() -> None:
     validate_inventory(sites, inventory)
     validate_debt_ratchet(inventory, debt_baseline)
 
-    assert len(sites) == 47
+    assert len(sites) == 48
     classes = Counter(record.classification for record in inventory)
     assert classes["aggregate_internal"] == 11
-    assert classes["purge_owned"] == 26
+    assert classes["purge_owned"] == 27
     assert classes["cross_domain"] == 7
     assert classes["retention_sensitive"] == 3
 
