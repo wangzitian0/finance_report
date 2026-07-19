@@ -1410,7 +1410,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_1_requires_typed_delivery_sections"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1425,7 +1425,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1441,7 +1441,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1456,7 +1456,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_4_exports_the_selected_frozen_document"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -1470,7 +1470,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1486,7 +1486,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_6_producer_and_consumer_closure"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1502,7 +1502,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1517,7 +1517,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_account_names"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1534,7 +1534,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_9_requires_exact_decision_coordinates"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         ACRecord(
@@ -1551,7 +1551,7 @@ CONTRACT = PackageContract(
                 "::test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinates"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="exact",
         ),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
