@@ -75,6 +75,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Kind,
     PackageContract,
     Unit,
@@ -111,6 +113,84 @@ CONTRACT = PackageContract(
         "workflow",
     ],
     roles=["base", "extension", "data"],
+    context=ContextScope(
+        purpose=(
+            "Provide a read-only application layer that aggregates trusted financial "
+            "facts and lets the LLM explain them without owning domain state."
+        ),
+        in_scope=[
+            "read-only cross-domain financial context aggregation",
+            "advisor guardrails, citations, and streamed explanations",
+            "advisor-owned chat session persistence",
+        ],
+        out_of_scope=[
+            "ledger or other domain-state mutation",
+            "ownership of portfolio, reporting, reconciliation, or workflow policy",
+            "LLM provider transport and model configuration",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="advisor",
+            mode="published-language",
+            reason="Formats audit-owned monetary values for explanations.",
+        ),
+        ContextRelation(
+            provider="ledger",
+            consumer="advisor",
+            mode="published-language",
+            reason="Reads ledger-owned account vocabulary and confidence ranking.",
+        ),
+        ContextRelation(
+            provider="llm",
+            consumer="advisor",
+            mode="published-language",
+            reason="Uses the LLM package facade for bound streaming and provider selection.",
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="advisor",
+            mode="published-language",
+            reason="Uses shared logging and error identifiers without owning observability policy.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="advisor",
+            mode="composition",
+            reason="Uses cross-cutting persistence mixins and application-support vocabulary, not platform workflow ownership.",
+        ),
+        ContextRelation(
+            provider="portfolio",
+            consumer="advisor",
+            mode="projection",
+            reason="Reads portfolio summaries and active symbols as explanation context.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="advisor",
+            mode="projection",
+            reason="Reads market-data scope status as explanation context.",
+        ),
+        ContextRelation(
+            provider="reconciliation",
+            consumer="advisor",
+            mode="projection",
+            reason="Reads reconciliation statistics without changing matching policy.",
+        ),
+        ContextRelation(
+            provider="reporting",
+            consumer="advisor",
+            mode="projection",
+            reason="Reads report summaries and readiness as deterministic grounding facts.",
+        ),
+        ContextRelation(
+            provider="workflow",
+            consumer="advisor",
+            mode="projection",
+            reason="Reads workflow status and next-action summaries for user guidance.",
+        ),
+    ],
     units=[
         # ── base: aggregate root + entity + value language ──
         # ChatSession/ChatMessage + enums live in orm/chat.py (the package's

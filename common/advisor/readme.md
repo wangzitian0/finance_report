@@ -75,6 +75,15 @@ invariant is P0 across all delivery tiers.
 
 ## Read context (bounded, read-only)
 
+## Bounded-context decision
+
+`advisor` is an application-layer read model and explanation boundary, not a
+domain owner. It may aggregate stable projections from domain packages and ask
+`llm` to phrase grounded facts, but it cannot write their state or redefine
+their policy. Its complete, consumer-owned relationship classification lives in
+[`contract.py`](./contract.py); the `platform` relationship is explicitly
+composition support, while domain reads are published language or projections.
+
 The advisor aggregates context from:
 
 | Source | What it reads | How the advisor reads it |
