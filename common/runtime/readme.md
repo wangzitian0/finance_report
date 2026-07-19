@@ -8,6 +8,16 @@
 
 ## Why this package exists
 
+## Bounded-context decision
+
+`runtime` owns the contract at the app-to-external-world boundary: which
+dependencies each environment requires, how they are substituted, and how
+their presence is proven. It consumes `observability`'s published logging and
+health-status language but does not own telemetry policy. It also does not own
+business state, financial policy, or in-process workflow orchestration. The
+machine-readable responsibility and its sole outgoing context relationship live
+in [`contract.py`](./contract.py).
+
 The application depends on external backends — object storage (S3), the LLM
 provider, cache (Redis), telemetry (OTel), analytics (OpenPanel), the database.
 Today that boundary is **homeless**: `ServiceStatus` + `_check_*` float in
