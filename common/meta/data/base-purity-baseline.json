@@ -1,0 +1,16 @@
+[
+  "extraction/base/disposition.py::from src.extraction.orm.layer2 import TransactionDirection",
+  "extraction/base/validation.py::from src.extraction.orm.statement_enums import BankStatementStatus",
+  "ledger/base/contribution.py::from src.ledger.orm.account import AccountType",
+  "ledger/base/contribution.py::from src.ledger.orm.journal import Direction",
+  "ledger/base/processing.py::from src.ledger.orm.account import AccountType",
+  "ledger/base/processing.py::from src.ledger.orm.journal import Direction, JournalEntry",
+  "ledger/base/types/entry.py::from src.ledger.orm.journal import Direction",
+  "ledger/base/validators.py::from src.ledger.orm.journal import Direction, JournalEntry, JournalLine",
+  "ledger/base/validators.py::import src.config",
+  "llm/base/secrets.py::import src.config",
+  "llm/base/usage.py::from src.observability import get_logger",
+  "reconciliation/base/config.py::from src.observability import get_logger",
+  "reconciliation/base/repository.py::from src.extraction.orm.layer2 import AtomicTransaction",
+  "reconciliation/base/repository.py::from src.reconciliation.orm.reconciliation import ReconciliationMatch"
+]

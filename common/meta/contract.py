@@ -352,6 +352,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.4",
+            statement=(
+                "Production package base layers have no new ORM, configuration, "
+                "observability, network, or session dependency; legacy findings are "
+                "an exact shrink-only baseline and an empty or unreadable scan fails."
+            ),
+            test=(
+                "tests/tooling/test_base_purity.py"
+                "::test_AC_meta_dependency_governance_4_base_impurity_is_exact"
+            ),
+            priority="P0",
+            status="open",
+        ),
+        ACRecord(
             id="AC-meta.dependency-governance.5",
             statement=(
                 "ORM-defined types are not silently added to package-root public "
