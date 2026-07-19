@@ -2448,6 +2448,24 @@ CONTRACT = PackageContract(
             parent="package_model",
         ),
         ConceptRecord(
+            key="l4_root_import_baseline",
+            owner="common/meta/data/l4-root-import-baseline.json",
+            description=(
+                "Exact shrink-only inventory of statement-level deep imports from "
+                "the L4 delivery/composition shell into package internals; "
+                "check_app_boundary rejects newly introduced or stale entries."
+            ),
+            cross_refs=[
+                "common/meta/extension/app_boundary.py",
+                "common/meta/extension/check_app_boundary.py",
+                "tools/check_app_boundary.py",
+            ],
+            family="package_model",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
             key="public_orm_export_baseline",
             owner="common/meta/data/public-orm-export-baseline.json",
             description=(
