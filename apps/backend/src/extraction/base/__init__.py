@@ -18,6 +18,7 @@ from src.extraction.base.disposition import (
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
+    StatementDispositionPolicySnapshot,
     StatementTransaction,
 )
 from src.extraction.base.result import (
@@ -76,6 +77,7 @@ __all__ = [
     "StatementIngestionError",
     "StatementIngestionOutcome",
     "StatementIngestionStatus",
+    "StatementDispositionPolicySnapshot",
     "StatementSourceType",
     "StatementTransaction",
     "supports_reviewed_statement_envelope",

@@ -48,6 +48,67 @@ class DispositionMode(StrEnum):
     ENFORCE = "enforce"
 
 
+@dataclass(frozen=True, slots=True)
+class StatementDispositionPolicySnapshot:
+    """Immutable runtime policy facts attached to a statement disposition decision."""
+
+    schema_version: str
+    policy_version: str
+    mode: DispositionMode
+    machine_confidence_threshold: Decimal
+    pnl_effect_confidence_threshold: Decimal
+    unknown_intent_outcome: str
+    ambiguous_intent_outcome: str
+    live_llm_proposals_enabled: bool
+    deployment_git_sha: str
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "1":
+            raise ValueError("unsupported statement disposition policy snapshot schema version")
+        if not self.policy_version.strip() or len(self.policy_version) > 50:
+            raise ValueError("statement disposition policy version is required")
+        if not isinstance(self.mode, DispositionMode):
+            raise TypeError("statement disposition mode must be DispositionMode")
+        for threshold in (self.machine_confidence_threshold, self.pnl_effect_confidence_threshold):
+            if not isinstance(threshold, Decimal) or not Decimal("0") <= threshold <= Decimal("1"):
+                raise ValueError("statement disposition confidence thresholds must be Decimals within [0, 1]")
+        if self.unknown_intent_outcome != "review" or self.ambiguous_intent_outcome != "review":
+            raise ValueError("unknown and ambiguous statement intent must route to review")
+        if not isinstance(self.live_llm_proposals_enabled, bool):
+            raise TypeError("live LLM proposal state must be bool")
+        if not self.deployment_git_sha.strip() or len(self.deployment_git_sha) > 64:
+            raise ValueError("deployment git SHA is required and must fit the trace contract")
+
+    def semantic_payload(self) -> dict[str, str | bool]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "mode": self.mode.value,
+            "machine_confidence_threshold": str(self.machine_confidence_threshold),
+            "pnl_effect_confidence_threshold": str(self.pnl_effect_confidence_threshold),
+            "unknown_intent_outcome": self.unknown_intent_outcome,
+            "ambiguous_intent_outcome": self.ambiguous_intent_outcome,
+            "live_llm_proposals_enabled": self.live_llm_proposals_enabled,
+            "deployment_git_sha": self.deployment_git_sha,
+        }
+
+    @property
+    def semantic_digest(self) -> str:
+        return hashlib.sha256(
+            json.dumps(self.semantic_payload(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    @property
+    def trace_version(self) -> str:
+        """Keep exact runtime facts inside TraceRecord's immutable assertion version."""
+        return (
+            f"v{self.schema_version}|{self.policy_version}|{self.mode.value}|"
+            f"machine:{self.machine_confidence_threshold}|pnl:{self.pnl_effect_confidence_threshold}|"
+            f"unknown:{self.unknown_intent_outcome}|ambiguous:{self.ambiguous_intent_outcome}|"
+            f"llm:{int(self.live_llm_proposals_enabled)}|git:{self.deployment_git_sha}"
+        )
+
+
 def intent_matches_counter_account(intent: EconomicIntent, account_type: str) -> bool:
     """Return whether a counter-account side can represent an economic intent.
 

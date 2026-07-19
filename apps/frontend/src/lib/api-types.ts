@@ -5280,6 +5280,7 @@ export interface components {
             sections: components["schemas"]["PersonalReportPackageSections"];
             /** Snapshot Id */
             snapshot_id?: string | null;
+            statement_disposition_policy?: components["schemas"]["PersonalReportPackageStatementDispositionPolicy"] | null;
             status: components["schemas"]["PersonalReportPackageSnapshotStatus"];
         };
         /**
@@ -5606,6 +5607,47 @@ export interface components {
             start_date: string;
             /** @description Snapshot trust state */
             status: components["schemas"]["PersonalReportPackageSnapshotStatus"];
+        };
+        /**
+         * PersonalReportPackageStatementDispositionPolicy
+         * @description Exact statement-disposition runtime policy frozen with one package document.
+         */
+        PersonalReportPackageStatementDispositionPolicy: {
+            /**
+             * Ambiguous Intent Outcome
+             * @constant
+             */
+            ambiguous_intent_outcome: "review";
+            /** Deployment Git Sha */
+            deployment_git_sha: string;
+            /** Live Llm Proposals Enabled */
+            live_llm_proposals_enabled: boolean;
+            /** Machine Confidence Threshold */
+            machine_confidence_threshold: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "off" | "observe" | "enforce";
+            /** Pnl Effect Confidence Threshold */
+            pnl_effect_confidence_threshold: string;
+            /** Policy Version */
+            policy_version: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "1";
+            /**
+             * Semantic Digest
+             * @description Canonical SHA-256 digest of the frozen extraction policy snapshot.
+             */
+            semantic_digest: string;
+            /**
+             * Unknown Intent Outcome
+             * @constant
+             */
+            unknown_intent_outcome: "review";
         };
         /**
          * PersonalReportPackageTraceManifestEntry

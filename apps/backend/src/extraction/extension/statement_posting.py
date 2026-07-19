@@ -36,6 +36,7 @@ from src.extraction.base.types import (
     StatementPostingOutcome,
     StatementPostingStatus,
 )
+from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
@@ -166,6 +167,10 @@ async def auto_create_posted_entries_for_statement(
     await classify_by_effective_policy(db, user_id, txns_to_post)
     base_currency = await get_effective_base_currency(db)
     policy = DispositionPolicy()
+    policy_snapshot = current_statement_disposition_policy_snapshot(
+        mode=dependencies.disposition_mode,
+        policy=policy,
+    )
     planned: list[
         tuple[AtomicTransaction, IntentProposal | None, DispositionDecision, Account | None, StatementTransaction]
     ] = []
@@ -258,6 +263,7 @@ async def auto_create_posted_entries_for_statement(
             transaction=transaction,
             proposal=proposal,
             decision=decision,
+            policy_snapshot=policy_snapshot,
         )
         if records and records[-1].result is TraceResult.AUTHORITATIVE:
             source_decisions[txn.id] = records[-1]

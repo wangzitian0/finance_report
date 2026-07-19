@@ -51,6 +51,7 @@ from src.extraction.base.disposition import (
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
+    StatementDispositionPolicySnapshot,
     StatementTransaction,
 )
 from src.extraction.base.result import (
@@ -116,6 +117,7 @@ from src.extraction.extension.deduplication import (
     DeduplicationService,
     dual_write_layer2,
 )
+from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import (
     build_disposition_trace_records,
     emit_disposition_trace_records,
@@ -286,6 +288,7 @@ __all__ = [
     "StatementIngestionError",
     "StatementIngestionOutcome",
     "StatementIngestionStatus",
+    "StatementDispositionPolicySnapshot",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
     "StatementEvidenceType",
@@ -314,6 +317,7 @@ __all__ = [
     "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
     "current_reviewed_statement_envelope",
+    "current_statement_disposition_policy_snapshot",
     "detect_balance_chain_break",
     "dual_write_layer2",
     "emit_disposition_trace_records",

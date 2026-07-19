@@ -809,6 +809,24 @@ class PersonalReportPackageContext(BaseModel):
     currency: CurrencyCode
 
 
+class PersonalReportPackageStatementDispositionPolicy(BaseModel):
+    """Exact statement-disposition runtime policy frozen with one package document."""
+
+    schema_version: Literal["1"]
+    policy_version: str
+    mode: Literal["off", "observe", "enforce"]
+    machine_confidence_threshold: Decimal
+    pnl_effect_confidence_threshold: Decimal
+    unknown_intent_outcome: Literal["review"]
+    ambiguous_intent_outcome: Literal["review"]
+    live_llm_proposals_enabled: bool
+    deployment_git_sha: str
+    semantic_digest: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="Canonical SHA-256 digest of the frozen extraction policy snapshot.",
+    )
+
+
 class PersonalReportPackageTraceManifestEntry(BaseModel):
     """One current authoritative decision captured as a package input."""
 
@@ -856,6 +874,9 @@ class PersonalReportPackageDocument(BaseModel):
     contract: PersonalReportPackageContractResponse
     readiness: PersonalReportPackageReadinessResponse
     framework_policy: FrameworkPolicyResult
+    # Legacy v2 snapshots remain readable. New package assembly always writes
+    # this immutable disclosure instead of evaluating current runtime settings.
+    statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy | None = None
     input_manifest: list[PersonalReportPackageTraceManifestEntry]
     sections: PersonalReportPackageSections
 

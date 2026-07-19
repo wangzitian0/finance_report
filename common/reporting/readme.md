@@ -133,7 +133,12 @@ Personal report package snapshots use the same Layer 4 table with
 classification-rule version, so `rule_version_id` may be null for package
 rows. Generation stores the package period, currency, selected framework,
 readiness state, source-trust summary, framework policy result,
-traceability appendix, and section payloads in `report_data`.
+traceability appendix, section payloads, and the exact structured
+statement-disposition policy snapshot in `report_data`. The package consumes
+that snapshot from extraction's published boundary; it does not infer policy
+version, rollout mode, thresholds, or deployment commit from current settings.
+Reopening a package returns the frozen disclosure even if runtime configuration
+has since changed.
 
 Package snapshot endpoints:
 

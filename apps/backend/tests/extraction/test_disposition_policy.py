@@ -93,8 +93,8 @@ def test_AC_extraction_disposition_2_principal_and_transfer_never_enter_pnl():
         assert missing_context.pnl_effect is False
 
 
-def test_AC_extraction_disposition_3_semantic_oracle_yields_exact_commands():
-    """AC-extraction.disposition.3: recorded semantics determine exact accounting roles."""
+def test_disposition_policy_semantic_table_yields_exact_commands():
+    """Pure-policy table: recorded semantics determine exact accounting roles."""
     policy = DispositionPolicy()
     counter_account_id = uuid4()
     cases = (
