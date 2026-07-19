@@ -10,6 +10,7 @@ from xml.etree import ElementTree
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -101,6 +102,29 @@ def test_pass_is_bound_to_exact_ci_coordinates() -> None:
         commit_sha=COMMIT_SHA,
         execution_id=EXECUTION_ID,
     )
+
+
+def test_pytest_hook_records_the_resolved_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from common.testing import executed_proof_plugin
+
+    captured: list[tuple[object, object]] = []
+    monkeypatch.setattr(
+        executed_proof_plugin,
+        "record_executed_proof",
+        lambda item, report: captured.append((item, report)),
+    )
+    item = _Item()
+    report = _Report()
+    outcome = SimpleNamespace(get_result=lambda: report)
+
+    hook = executed_proof_plugin.pytest_runtest_makereport(item, object())
+    next(hook)
+    with pytest.raises(StopIteration):
+        hook.send(outcome)
+
+    assert captured == [(item, report)]
 
 
 def test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates(
