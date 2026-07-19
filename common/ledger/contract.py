@@ -84,6 +84,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -112,6 +114,57 @@ CONTRACT = PackageContract(
     # same rank as ledger, and extraction already depends_on ledger — a direct
     # edge would cycle).
     depends_on=["audit", "observability", "platform"],
+    context=ContextScope(
+        purpose=(
+            "Own double-entry financial facts: accounts, journal entries, posting "
+            "and voiding rules, and processing-account transfer semantics."
+        ),
+        in_scope=[
+            "ledger account, journal-entry, journal-line, and processing-account state",
+            "double-entry, currency-balance, posting, voiding, and immutability rules",
+            "ledger-owned decision-anchored financial-write boundary and balance projections",
+        ],
+        out_of_scope=[
+            "shared money, provenance, or assurance-language ownership",
+            "generic persistence, telemetry, event delivery, or external FX-provider ownership",
+            "reconciliation matching, report presentation, and cross-domain workflow orchestration",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="ledger",
+            mode="published-language",
+            reason=(
+                "Uses audit-owned Money, Currency, source-type, and assurance value "
+                "language while retaining all double-entry semantics."
+            ),
+        ),
+        ContextRelation(
+            provider="audit",
+            consumer="ledger",
+            mode="consumer-port",
+            reason=(
+                "Consumes audit TraceRecord repository/emitter ports for decision "
+                "evidence rather than owning assurance persistence or authority policy."
+            ),
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="ledger",
+            mode="published-language",
+            reason="Uses published safe logging language for ledger operational diagnostics.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="ledger",
+            mode="composition",
+            reason=(
+                "Uses platform persistence mixins for ledger ORM rows without owning "
+                "the shared persistence substrate."
+            ),
+        ),
+    ],
     roles=["base", "extension", "data"],
     units=[
         # base — the pure double-entry core.
