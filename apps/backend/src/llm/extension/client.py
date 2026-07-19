@@ -156,7 +156,7 @@ def _stream_role(messages: Sequence[Message]) -> str:
     """
     for message in messages:
         content = message.get("content") if isinstance(message, Mapping) else None
-        if not isinstance(content, (list, tuple)):
+        if not isinstance(content, list | tuple):
             continue
         for part in content:
             if not isinstance(part, Mapping):
@@ -400,7 +400,7 @@ async def _cassette_stream_dispatch(
             yield text
         return
 
-    # ------- Legacy explicit-mode contract (compat until #1597 deletes it) -------
+    # ------- Historical explicit-mode contract (kept as an in-layer test seam) -------
     # In-layer seam only: cassette_mode is None was handled above (transparent).
     mode = cassette_mode if cassette_mode is not None else CassetteMode.OFF
 
@@ -416,13 +416,13 @@ async def _cassette_stream_dispatch(
     store = cassette_store or CassetteStore()
 
     if mode is CassetteMode.REPLAY:
-        cassette = store.get(key)
-        if cassette is None:
+        replay_cassette = store.get(key)
+        if replay_cassette is None:
             # Hard fail — no network fallback (replay needs no key, makes no call).
             raise CassetteMiss(key, scene=role)
         # Orphan-gate accounting (#1597): explicit-seam replays are serves too.
         store.mark_served(key)
-        text = str(cassette.response.get(_STREAM_TEXT_KEY, ""))
+        text = str(replay_cassette.response.get(_STREAM_TEXT_KEY, ""))
         # Synthesise the stream from the frozen text as a single chunk; the caller
         # accumulates it back to the same string it would have streamed live.
         if text:
@@ -432,10 +432,10 @@ async def _cassette_stream_dispatch(
     # RECORD: real streaming call + accumulate, then freeze and replay-yield.
     if cassette_tag is CassetteTag.CORRECTNESS and cassette_validator is None:
         raise CassetteValidationError(f"correctness cassette (role={role}) requires a ground-truth validator to record")
-    parts: list[str] = []
+    recorded_parts: list[str] = []
     async for content in _live():
-        parts.append(content)
-    text = "".join(parts)
+        recorded_parts.append(content)
+    text = "".join(recorded_parts)
     response = {_STREAM_TEXT_KEY: text}
     if cassette_tag is CassetteTag.CORRECTNESS:
         ok = False
@@ -451,8 +451,14 @@ async def _cassette_stream_dispatch(
                 "ground-truth validation; recording it would freeze a wrong answer"
             )
     request = _canonical_request(role=role, messages=messages, decode_params=decode_params)
-    cassette = _Cassette(key=key, role=role, tag=cassette_tag, request=request, response=response)
-    changed = store.put(cassette)
+    recorded_cassette = _Cassette(
+        key=key,
+        role=role,
+        tag=cassette_tag,
+        request=request,
+        response=response,
+    )
+    changed = store.put(recorded_cassette)
     logger.info("llm stream cassette recorded", key=key, role=role, tag=cassette_tag.value, changed=changed)
     # Yield the recorded text so a record run still produces output for the caller.
     if text:
