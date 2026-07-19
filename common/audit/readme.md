@@ -64,6 +64,15 @@ supersession. Observations may coexist across executions. Only authoritative
 decision heads are singleton, serialized under a transaction-scoped advisory
 lock so authority cannot fork.
 
+The repository keeps two deliberately different reads. `current_decision()` is
+the fail-closed authority view and returns a record only while its complete
+ancestry is current. `decision_head()` returns a `TraceDecisionHead` containing
+the physical singleton head plus `ancestry_current`; this prevents a writer from
+collapsing "no decision has ever existed" and "a decision exists but its evidence
+was superseded" into the same `None` state. Cross-package consumers use this
+typed port rather than reading audit tables or recovering the physical head from
+timestamps.
+
 The production repository stores common fields in typed columns and parents in
 scope-bound link rows. ORM guards and PostgreSQL triggers reject update/delete,
 and a sealed parent count prevents a later link insert from rewriting a decision.

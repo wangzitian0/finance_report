@@ -196,6 +196,52 @@ async def test_parent_correction_invalidates_authority_without_forking_lineage(d
     assert await repository.current_decision(parent.scope, decision.lineage) == replacement
 
 
+async def test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states(db):
+    """AC-audit.trace-record.7: physical presence and ancestry currency are distinct."""
+    policy = decision_policy(assertion_id="typed-decision-head")
+    repository = SqlTraceRecordRepository(
+        db,
+        TraceDecisionPolicyRegistry((policy,)),
+    )
+    parent = observation(assertion_id="typed-decision-head-input")
+    decision = TraceRecord.decision(
+        scope=parent.scope,
+        target=parent.target,
+        policy=policy,
+        execution_id=parent.execution_id,
+        occurred_at=parent.occurred_at,
+        parents=[parent],
+    )
+
+    assert await repository.decision_head(parent.scope, decision.lineage) is None
+
+    await repository.append(parent)
+    await repository.append(decision)
+    current = await repository.decision_head(parent.scope, decision.lineage)
+    assert current is not None
+    assert current.record == decision
+    assert current.ancestry_current is True
+    assert await repository.current_decision(parent.scope, decision.lineage) == decision
+
+    correction = observation(
+        scope=parent.scope,
+        target_version="v2",
+        assertion_id=parent.assertion.id,
+        assertion_version="v2",
+        execution_id="execution-2",
+        supersedes_id=parent.record_id,
+    )
+    await repository.append(correction)
+
+    stale = await repository.decision_head(parent.scope, decision.lineage)
+    assert stale is not None
+    assert stale.record == decision
+    assert stale.ancestry_current is False
+    repository._restore = AsyncMock(wraps=repository._restore)
+    assert await repository.current_decision(parent.scope, decision.lineage) is None
+    repository._restore.assert_not_awaited()
+
+
 async def test_repository_replays_policy_instead_of_trusting_decision_fields(db):
     policy = decision_policy()
     repository = SqlTraceRecordRepository(
