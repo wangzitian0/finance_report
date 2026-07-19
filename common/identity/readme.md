@@ -15,10 +15,10 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
-`identity` owns accounts, authentication credentials, current-user resolution,
-and user AI-feedback—not the financial state or policy a user can access. It
+`identity` owns user accounts, authentication credentials, current-user resolution,
+and user AI-feedback — not the financial state or policy a user can access. It
 consumes `platform` rate-limiting/request-error ports and `observability` safe
 logging language without taking ownership of either substrate. Cross-domain
 workflow and application-level authorization decisions remain outside this

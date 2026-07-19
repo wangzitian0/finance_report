@@ -75,7 +75,7 @@ CONTRACT = PackageContract(
             "feedback without owning the financial domains a user may access."
         ),
         in_scope=[
-            "User aggregate, normalized account identity, and AI-feedback records",
+            "User aggregate, normalized email identity, and AI-feedback records",
             "JWT/OAuth authentication, password security, and current-user resolution",
             "identity-owned registration, login, and user-profile compatibility operations",
         ],
