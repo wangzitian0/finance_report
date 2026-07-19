@@ -150,12 +150,12 @@ def test_layer_vocabulary_imports_without_pydantic(module: str) -> None:
     assert proc.returncode == 0, proc.stderr
 
 
-# ── the diagram is the doc ───────────────────────────────────────────────────
+# ── topology is generated, not copied into prose ─────────────────────────────
 
 
-def test_readme_carries_the_mermaid_five_layer_diagram() -> None:
-    """AC-meta.layer.5: common/meta/readme.md holds the authoritative layer diagram."""
+def test_readme_links_the_generated_five_layer_topology() -> None:
+    """AC-meta.layer.5: topology is rendered from the canonical layer map."""
     text = (REPO / "common/meta/readme.md").read_text(encoding="utf-8")
-    assert "```mermaid" in text
-    for layer in ("meta", "infra", "middleware", "domain", "app"):
-        assert layer in text
+    assert "tools/report_ddd_dependencies.py" in text
+    assert "PACKAGE_LAYER" in text
+    assert "```mermaid" not in text
