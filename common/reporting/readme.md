@@ -16,10 +16,9 @@
 >   `income_statement.py`, `cash_flow.py`, `net_worth.py`, `lineage.py`,
 >   `internal_transfer.py`, `portfolio_market.py`), framework assembly
 >   (`framework_policy.py`, `framework_report.py`), the package lane
->   (`report_readiness.py`, `report_traceability.py`, `report_package.py`,
+>   (`package_document.py`, `report_traceability.py`, `report_package.py`,
 >   `reporting_snapshot.py`), the calculation primitives
->   (`reporting_calc.py`), confidence (`confidence_tier.py`,
->   `confidence_metric.py`), and the injected FX seam (`fx_gateway.py`).
+>   (`reporting_calc.py`), and the injected FX seam (`fx_gateway.py`).
 > - `data/` — reserved for the declared projections (no module yet).
 >
 > Reporting keeps zero FX logic and zero manual-valuation logic of its own —
@@ -45,7 +44,7 @@ is reconciled; it consumes those facts.
 ## Scope correction (2026-07-06)
 
 `manual_valuation.py` belongs to the `pricing` cutover (#1610), not here:
-reporting keeps confidence-tier mapping and report assembly; `pricing` owns
+reporting assembles reports from ledger-owned trust facts; `pricing` owns
 valuation-observation staleness facts. This contract's
 `manual-valuation-excluded-from-reporting-language` invariant pins that
 boundary so it cannot silently drift back.
@@ -55,7 +54,7 @@ lines and the ledger-owned `worst_confidence_tier`; it defines neither helper.
 ## Ubiquitous language
 
 - **`ReportSnapshot`** — the aggregate root: a generated, framework-anchored
-  report as of a period, holding its own provenance/confidence-tier lineage.
+  report as of a period, holding its own provenance/traceability lineage.
 - **`generate_balance_sheet` / `generate_income_statement` / `generate_cash_flow`**
   — the three statement generators, each composing the shared aggregation
   core (`_aggregate_balances_sql`/`_aggregate_net_income_sql`).

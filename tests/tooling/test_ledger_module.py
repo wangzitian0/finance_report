@@ -77,11 +77,13 @@ def test_AC12_34_3_model_layer_never_imports_a_service():
     ci_tier="pr_ci",
 )
 def test_AC12_34_3_confidence_tier_lives_in_model_layer():
-    """AC-ledger.34.3: derive_confidence_tier moved to the model; service re-exports it."""
+    """AC-ledger.34.3: ledger owns and publishes the confidence-tier mapping."""
     journal = _read("apps/backend/src/ledger/orm/journal.py")
     assert "def derive_confidence_tier(" in journal
-    shim = _read("apps/backend/src/reporting/extension/confidence_tier.py")
-    assert "from src.ledger import ConfidenceTier, derive_confidence_tier" in shim
+    published = _read("apps/backend/src/ledger/__init__.py")
+    assert '"ConfidenceTier"' in published
+    assert '"derive_confidence_tier"' in published
+    assert not (SRC / "reporting/extension/confidence_tier.py").exists()
 
 
 @ac_proof(

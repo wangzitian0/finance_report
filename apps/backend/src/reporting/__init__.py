@@ -4,7 +4,7 @@ The calculation-over-ledger domain (see ``common/reporting/contract.py`` and
 ``common/reporting/readme.md``): statement generation (balance sheet / income
 statement / cash flow / net worth / lineage), framework-aware report assembly,
 the personal report package (readiness, traceability, notes, snapshot export),
-the confidence metric, and the pure calculation primitives
+and the pure calculation primitives
 (``extension/reporting_calc.py``, AC-reporting.dry-ssot.1).
 
 Physically folded out of ``apps/backend/src/services/`` by #1666 (umbrella

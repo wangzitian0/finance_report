@@ -1776,9 +1776,9 @@ CONTRACT = PackageContract(
             id="AC-ledger.34.3",
             statement=(
                 "Layer-DAG rule: the model layer imports no service (no upward "
-                "edge / import cycle); derive_confidence_tier lives in the model "
-                "and the service re-exports it (the old models.journal → "
-                "services.confidence_tier cycle is removed). Was EPIC-012 "
+                "edge / import cycle); derive_confidence_tier lives in the ledger "
+                "model and the published ledger root, with no reporting shim (the "
+                "old models.journal → services.confidence_tier cycle is removed). Was EPIC-012 "
                 "AC12.34.3."
             ),
             test=(

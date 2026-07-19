@@ -96,10 +96,10 @@ async def generate_balance_sheet(
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date.
 
-    ``include_trust_signals`` gates the two extra per-account ledger scans that
-    derive confidence tier and provenance. Callers that do not render per-line
-    trust badges (net-worth time series, the income statement's internal balance
-    sheets) pass False to avoid amplifying those scans.
+    ``include_trust_signals`` gates the extra per-account ledger scan that
+    derives provenance. Callers that do not render per-line provenance
+    (net-worth time series, the income statement's internal balance sheets)
+    pass False to avoid amplifying that scan.
     """
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
