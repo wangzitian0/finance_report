@@ -3764,7 +3764,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_4_api_and_prefect_use_same_composed_use_case"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3779,7 +3779,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_5_incomplete_composition_fails_before_job"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3794,7 +3794,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_6_application_error_does_not_reject_source"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3808,7 +3808,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_7_fresh_worker_composes_without_main"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3822,7 +3822,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3838,7 +3838,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_9_upload_registers_source_before_dispatch"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3855,7 +3855,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocking"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3870,7 +3870,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3885,7 +3885,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_ingestion_trace_2_retries_are_idempotent_and_changes_supersede"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3906,7 +3906,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_result_envelope_1_rejects_unknown_versions_and_defaults"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -3921,7 +3921,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_result_envelope_2_round_trips_complete_facts"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         # ── group reviewed-envelope: human confirmation is a separate,
@@ -4094,7 +4094,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_statement_contribution_4_publishes_confirmed_custody_account"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4109,7 +4109,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_source_capability_1_declares_semantics_not_test_paths"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
