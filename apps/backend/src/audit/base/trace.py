@@ -110,6 +110,23 @@ class VersionedTraceRef:
 
 
 @dataclass(frozen=True, slots=True)
+class TraceDecisionRef:
+    """Lightweight exact coordinates of one persisted decision."""
+
+    decision_id: UUID
+    target: VersionedTraceRef
+    assertion: VersionedTraceRef
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.decision_id, UUID):
+            raise TraceRecordValidationError("decision id must be a UUID")
+        if not isinstance(self.target, VersionedTraceRef):
+            raise TraceRecordValidationError("decision target must be a VersionedTraceRef")
+        if not isinstance(self.assertion, VersionedTraceRef):
+            raise TraceRecordValidationError("decision assertion must be a VersionedTraceRef")
+
+
+@dataclass(frozen=True, slots=True)
 class TraceLineage:
     """Stable target/assertion identity; versions remain exact record pins."""
 

@@ -4084,6 +4084,22 @@ CONTRACT = PackageContract(
             proof_kind="invariant",
         ),
         ACRecord(
+            id="AC-extraction.statement-contribution.4",
+            statement=(
+                "A statement contribution publishes the exact confirmed custody account identity "
+                "with its input refs. An authoritative bank-statement contribution without that "
+                "identity fails closed instead of leaving package consumers to infer an account "
+                "from institution or account names."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_statement_contribution.py"
+                "::test_AC_extraction_statement_contribution_4_publishes_confirmed_custody_account"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="invariant",
+        ),
+        ACRecord(
             id="AC-extraction.source-capability.1",
             statement=(
                 "Extraction publishes one stable semantic SourceCapability per source "

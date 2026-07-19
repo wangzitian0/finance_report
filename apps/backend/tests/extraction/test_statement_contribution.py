@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.audit import SqlTraceRecordRepository, TraceEmitter
+from src.audit import SqlTraceRecordRepository, TraceDecisionRef, TraceEmitter, VersionedTraceRef
 from src.extraction import DocumentType, UploadedDocument
 from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.result import (
@@ -23,6 +23,7 @@ from src.extraction.base.result import (
 from src.extraction.base.reviewed_statement_envelope import ReviewedStatementEnvelopeCommand
 from src.extraction.extension.extraction_trace import build_extraction_trace_records, extraction_trace_policy_registry
 from src.extraction.extension.reviewed_statement_envelope import (
+    ReviewedEnvelopeDecisionTracePolicy,
     confirm_reviewed_statement_envelope,
     persist_statement_extraction_result,
 )
@@ -205,13 +206,69 @@ async def test_AC_extraction_statement_contribution_2_reviewed_envelope_pins_exa
     assert contribution.is_authoritative
     assert contribution.source_result_id == source_record.id
     assert contribution.decision_id == envelope.review_trace_record_id
+    assert contribution.decision is not None
+    assert contribution.decision.target == VersionedTraceRef(
+        "reviewed_statement_envelope",
+        str(result.result_id),
+        envelope.command_digest,
+    )
+    assert contribution.decision.assertion == ReviewedEnvelopeDecisionTracePolicy().assertion
     assert contribution.effective_period_start == date(2026, 1, 1)
     assert contribution.effective_period_end == date(2026, 1, 31)
     assert contribution.source_document_id == document.id
     assert contribution.input_refs == (
         f"statement_result:{source_record.id}",
         f"source_document:{document.id}",
+        f"account:{account.id}",
     )
+
+
+async def test_AC_extraction_statement_contribution_4_publishes_confirmed_custody_account(db, test_user):
+    """AC-extraction.statement-contribution.4: consumers receive exact account identity."""
+    result = _result(source_digest="e" * 64, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER)
+    statement, _source_record, emitter, _document = await _seed_current_result(db, test_user, result=result)
+    account = Account(user_id=test_user.id, name="DBS", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    await confirm_reviewed_statement_envelope(
+        db,
+        user_id=test_user.id,
+        statement_id=statement.id,
+        command=ReviewedStatementEnvelopeCommand(
+            source_result_digest=result.content_digest,
+            account_id=account.id,
+            currency="SGD",
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("110.00"),
+            rationale="The reviewed envelope binds this source to its custody account.",
+        ),
+        trace_emitter=emitter,
+    )
+
+    contribution = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
+
+    assert contribution.is_authoritative
+    assert contribution.account_id == account.id
+    assert f"account:{account.id}" in contribution.input_refs
+
+    conflicting_account = Account(
+        user_id=test_user.id,
+        name="Different custody account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(conflicting_account)
+    await db.flush()
+    statement.account_id = conflicting_account.id
+    await db.flush()
+
+    mismatched = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
+
+    assert not mismatched.is_authoritative
+    assert mismatched.account_id is None
+    assert mismatched.reason_code == "custody_account_mismatch"
 
 
 async def test_AC_extraction_statement_contribution_3_fails_closed_without_current_decision(db, test_user):
@@ -241,6 +298,11 @@ async def test_AC_extraction_statement_contribution_3_rejects_contradictory_auth
     """AC-extraction.statement-contribution.3: state-specific authority fields are coherent."""
     source_result_id = uuid4()
     decision_id = uuid4()
+    decision = TraceDecisionRef(
+        decision_id=decision_id,
+        target=VersionedTraceRef("statement_extraction_result", str(source_result_id), "v1"),
+        assertion=VersionedTraceRef("extraction_authority", "fixture", "v1"),
+    )
 
     with pytest.raises(ValueError, match="authoritative statement contribution cannot have a reason_code"):
         ResolvedStatementContribution(
@@ -251,10 +313,10 @@ async def test_AC_extraction_statement_contribution_3_rejects_contradictory_auth
             effective_period_end=date(2026, 1, 31),
             state="authoritative",
             reason_code="unexpected_reason",
-            decision_id=decision_id,
+            decision=decision,
         )
 
-    with pytest.raises(ValueError, match="unproven statement contribution cannot have a decision_id"):
+    with pytest.raises(ValueError, match="unproven statement contribution cannot have a decision"):
         ResolvedStatementContribution(
             statement_id=uuid4(),
             source_result_id=None,
@@ -263,5 +325,5 @@ async def test_AC_extraction_statement_contribution_3_rejects_contradictory_auth
             effective_period_end=None,
             state="unproven",
             reason_code="missing_source",
-            decision_id=decision_id,
+            decision=decision,
         )

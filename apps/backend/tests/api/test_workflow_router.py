@@ -337,13 +337,13 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert unproven["primary_state"] == "blocked"
     assert unproven["next_action"] == _next_action(
         "resolve_blocker",
-        count=4,
+        count=5,
         href="/reports/package",
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 4, "href": "/reports/package"}
-    assert unproven["event_counts"] == {"unread": 3, "action_required": 0, "blocked": 2}
+    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 5, "href": "/reports/package"}
+    assert unproven["event_counts"] == {"unread": 4, "action_required": 0, "blocked": 3}
 
 
 async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
@@ -576,8 +576,8 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot
-    assert "GET /api/reports/package/readiness" in ssot
-    assert "generated -> ready" in ssot
+    assert "current_package_document_summary" in ssot
+    assert "PackageDocument readiness" in ssot
 
 
 async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(

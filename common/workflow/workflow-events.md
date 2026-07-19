@@ -19,7 +19,7 @@
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/workflow/extension/events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
-| Report package readiness fact source | `GET /api/reports/package/readiness` in `apps/backend/src/reporting/extension/report_readiness.py` |
+| Report package readiness fact source | `current_package_document_summary` in `apps/backend/src/reporting/extension/package_document.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
 | Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
 | Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
@@ -49,8 +49,8 @@ They are intentionally separate from:
   statement processing and Stage 1 review state.
 - `ReconciliationMatch.status`, which is Stage 2 matching state.
 - Report package traceability, which proves report line support.
-- Report package readiness, which is owned by `common/reporting/reporting.md` and
-  exposed at `GET /api/reports/package/readiness`.
+- PackageDocument readiness, which is owned by `common/reporting/readme.md` and
+  consumed through reporting's typed `current_package_document_summary` port.
 
 Workflow events may summarize those sources, but they do not own them.
 Workflow status aggregation must consume package readiness as an input rather
@@ -298,11 +298,10 @@ Primary state priority is:
 blocked > needs_action > processing > ready > empty
 ```
 
-The `report_readiness` field consumes the package readiness fact source from
-`GET /api/reports/package/readiness` and collapses package states into the
-compact workflow readiness vocabulary:
-`draft -> none`, `processing -> processing`, `blocked -> blocked`,
-`ready -> ready`, `generated -> ready`, and `stale -> stale`.
+The `report_readiness` field consumes PackageDocument readiness through
+`current_package_document_summary` and collapses `draft -> none`,
+`blocked -> blocked`, and `ready -> ready` into workflow's compact vocabulary.
+Workflow does not query a readiness route or reconstruct package blockers.
 
 `GET /workflow/events` returns `{ items, total, sessions }`. It excludes
 archived events by default, supports a `status` filter when archived events are

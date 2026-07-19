@@ -7,6 +7,7 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
+from src.audit import TraceDecisionRef
 from src.extraction.base.result import StatementExtractionResult
 
 
@@ -27,14 +28,15 @@ class ResolvedStatementContribution:
     effective_period_end: date | None
     state: Literal["authoritative", "unproven"]
     reason_code: str | None
-    decision_id: UUID | None
+    decision: TraceDecisionRef | None
     source_document_id: UUID | None = None
+    account_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.state == "authoritative" and (
             self.source_result_id is None
             or self.source_result is None
-            or self.decision_id is None
+            or self.decision is None
             or self.effective_period_start is None
             or self.effective_period_end is None
         ):
@@ -49,12 +51,16 @@ class ResolvedStatementContribution:
             raise ValueError("effective statement period is invalid")
         if self.state == "unproven" and not self.reason_code:
             raise ValueError("an unproven statement contribution requires a reason_code")
-        if self.state == "unproven" and self.decision_id is not None:
-            raise ValueError("an unproven statement contribution cannot have a decision_id")
+        if self.state == "unproven" and self.decision is not None:
+            raise ValueError("an unproven statement contribution cannot have a decision")
 
     @property
     def is_authoritative(self) -> bool:
         return self.state == "authoritative"
+
+    @property
+    def decision_id(self) -> UUID | None:
+        return self.decision.decision_id if self.decision is not None else None
 
     @property
     def input_refs(self) -> tuple[str, ...]:
@@ -63,4 +69,6 @@ class ResolvedStatementContribution:
         refs = [f"statement_result:{self.source_result_id}"]
         if self.source_document_id is not None:
             refs.append(f"source_document:{self.source_document_id}")
+        if self.account_id is not None:
+            refs.append(f"account:{self.account_id}")
         return tuple(refs)

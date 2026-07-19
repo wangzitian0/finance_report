@@ -9,16 +9,21 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from src.audit import (
     TraceAuthorityProfile,
     TraceCausality,
     TraceDecisionOutcome,
+    TraceDecisionRef,
     TraceRecord,
+    TraceRecordValidationError,
     TraceResult,
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
 )
+from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution
 from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import PackageAssembler, _section_invariant_blockers
 from src.schemas.reporting import (
@@ -216,7 +221,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         end_date=period_end,
         as_of_date=period_end,
         currency="SGD",
-        contributions=(),
+        contributions=(SimpleNamespace(is_authoritative=True, section_ids=("balance_sheet",)),),
+        cash_inputs=PackageCashInputs.missing(),
     )
     readiness = PackageAssembler._readiness(
         policy=SimpleNamespace(gaps=[]),
@@ -233,7 +239,129 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "investment_contribution_missing",
         "section_currency_mismatch",
         "statement_net_income_mismatch",
+        "cash_balance_input_missing",
     }
+    empty_input_blockers = _section_invariant_blockers(
+        sections,
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(),
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    assert "cash_balance_input_missing" not in {blocker.code for blocker in empty_input_blockers}
+
+
+def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:
+    """AC-reporting.package-document.8: absence is explicit, never a lexical fallback."""
+    cash_inputs = PackageCashInputs.missing()
+
+    assert not cash_inputs.is_complete
+    assert cash_inputs.account_ids == frozenset()
+    assert cash_inputs.reason_code == "cash_balance_input_missing"
+
+    with pytest.raises(ValueError, match="exact input ref"):
+        PackageCashInputs(
+            account_ids=frozenset({uuid4()}),
+            input_refs=("statement_result:fixture",),
+        )
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_package_document_9_requires_exact_decision_coordinates() -> None:
+    """AC-reporting.package-document.9: an opaque current id cannot authorize the wrong fact."""
+    expected_target = VersionedTraceRef("journal_command", "expected", "v1")
+    expected_assertion = VersionedTraceRef("ledger_authority", "expected", "v1")
+    wrong_target = VersionedTraceRef("journal_command", "other", "v1")
+    wrong_assertion = VersionedTraceRef("ledger_authority", "other", "v1")
+    exact_id, target_mismatch_id, assertion_mismatch_id, cross_scope_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+
+    with pytest.raises(TraceRecordValidationError, match="decision id must be a UUID"):
+        TraceDecisionRef(decision_id="not-a-uuid", target=expected_target, assertion=expected_assertion)
+    with pytest.raises(TraceRecordValidationError, match="decision target must be a VersionedTraceRef"):
+        TraceDecisionRef(decision_id=uuid4(), target="not-a-ref", assertion=expected_assertion)
+    with pytest.raises(TraceRecordValidationError, match="decision assertion must be a VersionedTraceRef"):
+        TraceDecisionRef(decision_id=uuid4(), target=expected_target, assertion="not-a-ref")
+
+    class _Rows:
+        def mappings(self):
+            return iter(
+                (
+                    {
+                        "decision_id": exact_id,
+                        "target_kind": expected_target.kind,
+                        "target_id": expected_target.id,
+                        "target_version": expected_target.version,
+                        "assertion_kind": expected_assertion.kind,
+                        "assertion_id": expected_assertion.id,
+                        "assertion_version": expected_assertion.version,
+                        "authority_tier": "CODE-ONLY",
+                    },
+                    {
+                        "decision_id": target_mismatch_id,
+                        "target_kind": wrong_target.kind,
+                        "target_id": wrong_target.id,
+                        "target_version": wrong_target.version,
+                        "assertion_kind": expected_assertion.kind,
+                        "assertion_id": expected_assertion.id,
+                        "assertion_version": expected_assertion.version,
+                        "authority_tier": "CODE-ONLY",
+                    },
+                    {
+                        "decision_id": assertion_mismatch_id,
+                        "target_kind": expected_target.kind,
+                        "target_id": expected_target.id,
+                        "target_version": expected_target.version,
+                        "assertion_kind": wrong_assertion.kind,
+                        "assertion_id": wrong_assertion.id,
+                        "assertion_version": wrong_assertion.version,
+                        "authority_tier": "CODE-ONLY",
+                    },
+                )
+            )
+
+    class _Session:
+        async def execute(self, _query):
+            return _Rows()
+
+    def contribution(decision_id, input_ref):
+        return PackageSectionContribution(
+            contribution_type="ledger_command",
+            section_ids=("balance_sheet",),
+            payload=object(),
+            state="authoritative",
+            decision=TraceDecisionRef(
+                decision_id=decision_id,
+                target=expected_target,
+                assertion=expected_assertion,
+            ),
+            input_refs=(input_ref,),
+            reason_code=None,
+        )
+
+    manifest, unproven = await PackageAssembler()._input_manifest(
+        _Session(),
+        user_id=uuid4(),
+        contributions=(
+            contribution(exact_id, "journal_entry:exact"),
+            contribution(target_mismatch_id, "journal_entry:wrong-target"),
+            contribution(assertion_mismatch_id, "journal_entry:wrong-assertion"),
+            contribution(cross_scope_id, "journal_entry:cross-scope"),
+        ),
+    )
+
+    assert [item.decision_id for item in manifest] == [exact_id]
+    assert unproven == [
+        "journal_entry:cross-scope",
+        "journal_entry:wrong-assertion",
+        "journal_entry:wrong-target",
+    ]
 
 
 def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together() -> None:
@@ -268,6 +396,27 @@ def test_AC_reporting_package_document_6_producer_and_consumer_closure() -> None
         assert "get_personal_report_package_readiness" not in path.read_text(), path
     for path in (REPOSITORY_ROOT / "apps/frontend/src").rglob("*.ts*"):
         assert "/api/reports/package/readiness" not in path.read_text(), path
+    current_docs = (
+        "common/reporting/readme.md",
+        "common/reporting/framework-reporting.md",
+        "common/workflow/workflow-events.md",
+        "common/pricing/readme.md",
+        "docs/user-guide/reports.md",
+    )
+    retired_package_routes = (
+        "/api/reports/package/contract",
+        "/api/reports/package/readiness",
+        "/api/reports/package/framework-policy",
+        "/api/reports/package/annualized-income-schedule",
+        "/api/reports/package/notes",
+        "/api/reports/package/traceability",
+    )
+    for relative_path in current_docs:
+        source = (REPOSITORY_ROOT / relative_path).read_text()
+        for retired_route in retired_package_routes:
+            assert retired_route not in source, (relative_path, retired_route)
+    anonymizer = (REPOSITORY_ROOT / "apps/backend/src/runtime/extension/snapshot_anonymizer.py").read_text()
+    assert "confidence_metric_snapshots" not in anonymizer
 
 
 def test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions() -> None:

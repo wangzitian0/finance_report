@@ -213,6 +213,15 @@ investing = non-cash asset accounts, financing = liability/equity accounts;
 cash/bank asset accounts fund beginning/ending cash and are not repeated as
 activity rows.
 
+For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
+typed `PackageCashInputs` derived from authoritative bank-statement
+contributions and their exact custody `account_id` refs. The package path never
+classifies cash from `Account.name`; a missing or unproven cash input blocks
+trusted output. Standalone analytical cash-flow views retain a bounded lexical
+fallback only for compatibility and cannot authorize, persist, reopen, or export
+a package. Brokerage cash decomposition remains a separate evidence problem: a
+brokerage container is not assigned a global binary cash role.
+
 **Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end
@@ -319,26 +328,21 @@ are `manual`.
 
 ### Personal financial-report package contract
 
-[#570](https://github.com/wangzitian0/finance_report/issues/570) owns the
-stable package-level API/export contract defining how report sections plug
-into one personal financial-report package, without duplicating the
-calculation ownership of the supporting EPICs.
+The stable delivery surface is one versioned `PersonalReportPackageDocument`,
+not a directory of section endpoints. `GET /api/reports/package` builds the
+current preview. `POST /api/reports/package/generate` persists the same shape;
+the snapshot list, selected reopen, and selected JSON/CSV export routes read
+only that frozen document. Required document sections are:
 
-`GET /api/reports/package/contract` returns `package_id`
-(`personal-financial-report-package`), `version` (`1.0`),
-`period_semantics`, `supported_frameworks`, `selected_framework_id`,
-`framework_policy_endpoint`, stable ordered `sections`, and
-`export_contract`. Required sections:
-
-| Section ID | Owner | Source endpoint | Status |
-|---|---|---|---|
-| `balance_sheet` | EPIC-005 | `/api/reports/balance-sheet` | ready |
-| `income_statement` | EPIC-005 | `/api/reports/income-statement` | ready |
-| `cash_flow` | EPIC-005 | `/api/reports/cash-flow` | ready |
-| `investment_performance` | EPIC-017 | `/api/portfolio/performance/report-schedule` | ready |
-| `annualized_income_long_term` | EPIC-011 | `/api/reports/package/annualized-income-schedule` | ready |
-| `notes` | EPIC-005 | `/api/reports/package/notes` | ready |
-| `traceability_appendix` | EPIC-018 | `/api/reports/package/traceability` | ready |
+| Section ID | Owner |
+|---|---|
+| `balance_sheet` | reporting |
+| `income_statement` | reporting |
+| `cash_flow` | reporting |
+| `investment_performance` | portfolio, adapted by reporting |
+| `annualized_income_long_term` | reporting |
+| `notes` | reporting |
+| `traceability_appendix` | reporting |
 
 The frontend package-assembly route presents the package as a readable
 deliverable (cover sheet + table of contents), requires a framework
@@ -351,79 +355,22 @@ states, and export column metadata. This is a presentation boundary only —
 the frontend must not drop or recompute the policy/source-trust/readiness/
 traceability/export facts.
 
-**Package readiness** — `GET /api/reports/package/readiness` (owner:
-EPIC-019 Slice 5, #639) is the package-owned readiness fact source; other
-APIs may aggregate it but must not duplicate its derivation. `/reports` may
-summarize `state`/`blocking_count`/`blockers`/
-`source_trust_summary.gap_source_classes` for a trust-first landing cockpit,
-but must not reimplement readiness/source-trust/blocker derivation in
-frontend code.
+Package readiness is a deterministic field of the document and is produced
+only by `PackageAssembler`. Workflow and advisor consume
+`current_package_document_summary`; frontend surfaces render the document.
+None may retain a readiness route, service, or local derivation. A document is
+`ready` only when exact current contribution decisions and section invariants
+pass; otherwise it is `blocked`. Only a persisted package decision may set the
+frozen document status to `trusted`.
 
-Response contract: `package_id`; `state` ∈ `{draft, processing, blocked,
-ready, generated, stale}`; `selected_framework_id`,
-`framework_policy_inputs` (accounts/positions/manual valuations/dividends;
-excludes bank statements/journal entries that don't produce EPIC-020 policy
-facts), `framework_policy_decisions`, `framework_policy_gaps` in
-`source_summary`; `label`/`action_href` (internal relative routes only);
-`blocking_count`; ordered `blockers` (`code`, `label`, `severity`, `count`,
-`reason`, `action_href`); `source_summary`; `generated_at`/`stale_since`
-(ISO 8601). Duplicate canonical Processing system accounts (`code = 1199`)
-are data corruption and must fail readiness derivation rather than select
-an arbitrary balance.
+The embedded framework-policy result is read-only and fingerprints the selected
+framework, matrix version, period, decisions, and gaps. Package assembly must
+consume that result and may not infer framework-specific authority from raw
+portfolio rows. The annualized-income/long-term section, notes, and traceability
+appendix are likewise fields of the same document rather than independently
+fetchable package artifacts.
 
-State priority: `draft` (no report-supporting inputs) → `processing`
-(statements uploaded/parsing, no blockers) → `blocked` (blockers exist) →
-`stale` (latest snapshot exists but sources changed since) → `generated`
-(latest snapshot exists, not stale) → `ready` (inputs exist, no blockers,
-no snapshot generated yet).
-
-Required blocker codes: `failed_parsing`, `pending_review`,
-`balance_mismatch`, `reconciliation_blocked`, `consistency_check_blocked`,
-`processing_account_unresolved` (Processing account doesn't net to zero
-after base-currency conversion), `missing_source_coverage`,
-`unknown_source_anchor` (a posted/reconciled entry's `source_id` doesn't
-resolve to a typed source record), `unsupported_framework`,
-`missing_framework_policy_result`, `unsupported_policy_domain`,
-`framework_policy_missing_dimensions`, `framework_ai_suggestion_unreviewed`,
-`missing_valuation_basis`, `stale_market_data` (listed
-security/ETF/mutual-fund/bond positions lacking synced or manual-override
-prices within 90 days). Readiness derivation is read-only — opening the
-reports page must never create Processing accounts or other artifacts.
-Framework-policy blocker `action_href` values point at `/reports/package`.
-
-**Framework policy result** — `GET /api/reports/package/framework-policy`
-(owner: EPIC-020 for policy decisions, EPIC-005 consumes for assembly).
-Inputs `framework_id` (default `personal_us_gaap_like`), `start_date`,
-`end_date`, `as_of_date` (period defaults to a trailing 365-day window).
-Returns a read-only `FrameworkPolicyResult` (`result_id` fingerprints
-framework, matrix version, period, decision + gap content) derived from
-accounts, atomic positions, manual valuations, dividends, synced
-`StockPrice`, and manual `MarketDataOverride` rows (pre-migration models;
-both consolidate into `pricing`'s unified observation model, #1610) — it
-must not mutate source records, journal entries, portfolio lots, market
-data, or report snapshots. Package assembly must consume this result and
-must not infer framework-specific lines directly from raw portfolio market
-value. `/reports/package` requires a framework selection
-(`personal_us_gaap_like` or `personal_hkfrs_like`) before loading
-readiness/policy/section/export data, and passes the selected
-`framework_id` explicitly rather than relying on the backend default.
-
-**Annualized income and long-term compensation schedule** —
-`GET /api/reports/package/annualized-income-schedule`: trailing 365 days
-ending at `as_of_date` (defaults to request date); income basis is
-`POSTED`/`RECONCILED` lines bucketed into salary/bonus/dividend/total by
-account name, converted to the schedule currency before aggregation (never
-added at raw nominal amounts; non-reporting-currency income uses the
-trailing-period average FX rate); restricted compensation basis is the
-latest as-of manual valuation snapshots for `esop`/`rsu`/`stock_options`
-with `liquidity_class=restricted`. Liquid net worth excludes restricted
-holdings by default (`/reports/balance-sheet` and the Balance Sheet page
-both default `include_restricted=false`). Decimal fields serialize as
-strings; restricted fair-value totals use the as-of FX rate while
-per-holding source currency stays visible.
-
-**Notes and disclosures** — `GET /api/reports/package/notes` (status
-`ready`). Required note IDs: `basis-of-preparation`,
+Required note IDs are `basis-of-preparation`,
 `reporting-period-and-currency`, `valuation-basis`,
 `investment-market-data`, `source-confidence-review`,
 `restricted-asset-treatment`. Each note carries an owning EPIC, method
@@ -442,8 +389,7 @@ only, never implying regulated filing compliance.
 | `source-confidence-review` | EPIC-018 | `reviewed_journal_and_statement_links` |
 | `restricted-asset-treatment` | EPIC-011 | `manual_valuation_snapshots` |
 
-**Traceability appendix** — `GET /api/reports/package/traceability`
-(status `ready`) is a pure projection of the exact
+The traceability appendix is a pure projection of the exact
 `PackageSectionContribution` collection used to build the document manifest.
 Each line maps one section/line to source and ledger anchors: `line_id`,
 `section_id`, `label`, optional `amount_field`/`currency_field`,
@@ -451,6 +397,12 @@ Each line maps one section/line to source and ledger anchors: `line_id`,
 not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
 carry the contribution input reference, amount/currency when present,
 current decision id, review state, and reason code.
+
+Every authoritative contribution carries one audit `TraceDecisionRef` with its
+decision id, expected target, and expected assertion. `PackageAssembler` accepts
+it only when the tenant-scoped current projection matches all coordinates;
+missing, stale, cross-scope, target-mismatched, and assertion-mismatched inputs
+remain visible as unproven and cannot enter the trusted manifest.
 
 Reporting never follows a foreign ORM relation or guesses a source class from
 `JournalEntry.source_id`. Extraction publishes current immutable statement
@@ -470,16 +422,14 @@ refreshed provider data), `duplicate_source_coverage` (must be excluded or
 reviewed before trust), and `overlapping_statement_period` (needs review
 before period totals are trusted).
 
-**Export contract** — formats `json`/`csv`; CSV columns `package_id`,
+**Export contract** — the selected frozen snapshot supports `json`/`csv` at
+`GET /api/reports/package/snapshots/{snapshot_id}/export`; CSV columns include `package_id`,
 `section_id`, `line_id`, `label`, `amount`, `currency`, `source_state`,
 `selected_framework_id`, `framework_policy_result_id`,
 `framework_policy_matrix_version`, `evidence_bundle_references`. Export
 metadata displayed by the package UI includes the selected framework,
-policy result ID, matrix version, and evidence anchor references. The
-package UI exposes an authenticated CSV download via
-`GET /api/reports/export?report_type=package&format=csv&framework_id={selected_framework_id}`
-through the shared API download helper. Decimal fields serialize as
-strings so frontend/CSV/E2E assertions never lose money precision.
+policy result ID, matrix version, and evidence anchor references. Decimal fields
+serialize as strings so frontend/CSV/E2E assertions never lose money precision.
 
 ### Multi-currency consolidation
 

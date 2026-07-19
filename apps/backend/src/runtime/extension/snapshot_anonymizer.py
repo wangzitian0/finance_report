@@ -109,7 +109,6 @@ MONEY_COLUMNS: frozenset[str] = frozenset(
 NUMERIC_KEEP_COLUMNS: frozenset[str] = frozenset(
     {
         "atomic_positions.quantity",
-        "confidence_metric_snapshots.low_confidence_proportion",
         "fx_conversions.rate",
         "fx_rates.rate",
         "investment_lots.original_quantity",
@@ -127,7 +126,6 @@ NUMERIC_KEEP_COLUMNS: frozenset[str] = frozenset(
 # score/count breakdowns. Everything JSON that is not listed here is redacted.
 JSON_KEEP_COLUMNS: frozenset[str] = frozenset(
     {
-        "confidence_metric_snapshots.tier_breakdown",
         "consistency_checks.related_txn_ids",
         "reconciliation_matches.journal_entry_ids",
         "reconciliation_matches.score_breakdown",

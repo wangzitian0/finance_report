@@ -140,6 +140,7 @@ CONTRACT = PackageContract(
         Unit(
             name="TraceDecisionOutcome", kind=Kind.VALUE_OBJECT, module="base/trace.py"
         ),
+        Unit(name="TraceDecisionRef", kind=Kind.VALUE_OBJECT, module="base/trace.py"),
         Unit(
             name="TraceDecisionPolicyRegistry",
             kind=Kind.VALUE_OBJECT,
@@ -238,6 +239,7 @@ CONTRACT = PackageContract(
         "TraceTargetClass",
         "TraceCausality",
         "TraceDecisionOutcome",
+        "TraceDecisionRef",
         "TraceDecisionPolicy",
         "TraceDecisionPolicyRegistry",
         "TraceDecisionHead",

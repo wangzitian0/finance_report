@@ -87,15 +87,12 @@ Code-owned contract surfaces:
   `pricing` package's unified observation model, #1610), then derives read-only policy results. When both
   price sources exist, the latest price date is used and same-date manual
   overrides take precedence.
-- Package API: `GET /api/reports/package/framework-policy` returns the selected
-  framework policy result consumed by package assembly. `GET
-  /api/reports/package/contract` exposes supported framework IDs, the selected
-  framework ID when provided, and the policy result endpoint. `GET
-  /api/reports/package/readiness` accepts the same selected framework inputs and
-  evaluates framework policy blockers before marking output trusted. The
-  frontend `/reports/package` route must require an explicit user framework
-  selection before loading framework-scoped readiness, policy, report section,
-  or export metadata.
+- Package API: `GET /api/reports/package` returns the one preview
+  `PersonalReportPackageDocument`, including its selected framework, policy
+  result, readiness, sections, and traceability. Generate/reopen/export use the
+  same document shape. The frontend `/reports/package` route requires an
+  explicit user framework selection before loading the document and never
+  fetches or derives framework readiness through a second endpoint.
 - Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that
   policy results reject missing dimensions, unsupported frameworks are closed
   out, supported domains carry all five policy dimensions, derivation is

@@ -24,6 +24,7 @@ from src.audit import (
     TraceCausality,
     TraceDecisionOutcome,
     TraceDecisionPolicyRegistry,
+    TraceDecisionRef,
     TraceEmitter,
     TraceLineage,
     TraceRecord,
@@ -233,7 +234,7 @@ def _unproven(
         value=observation.value if observation else None,
         currency=observation.currency if observation else None,
         source=observation.source if observation else None,
-        decision_id=None,
+        decision=None,
         component_type=component_type,
         valuation_basis=valuation_basis,
         liquidity_class=liquidity_class,
@@ -367,7 +368,11 @@ async def _resolved_market_contribution(
         value=observation.value,
         currency=observation.currency,
         source=observation.source,
-        decision_id=decision.record_id,
+        decision=TraceDecisionRef(
+            decision_id=decision.record_id,
+            target=decision.target,
+            assertion=decision.assertion,
+        ),
     )
 
 
@@ -500,7 +505,11 @@ async def _manual_observation_contribution(
         value=observation.value,
         currency=observation.currency,
         source=observation.source,
-        decision_id=decision.record_id,
+        decision=TraceDecisionRef(
+            decision_id=decision.record_id,
+            target=decision.target,
+            assertion=decision.assertion,
+        ),
         component_type=component_type,
         valuation_basis=valuation_basis,
         liquidity_class=liquidity_class,

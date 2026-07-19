@@ -4,6 +4,7 @@ import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import StringIO
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,11 +13,17 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
+from src.audit import JournalEntrySourceType, TraceDecisionRef, VersionedTraceRef
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.deps import PaginationParams
-from src.extraction import DocumentType, EconomicIntent, ExtractedTransactionRow, UploadedDocument
+from src.extraction import (
+    DocumentType,
+    EconomicIntent,
+    ExtractedTransactionRow,
+    StatementSourceType,
+    UploadedDocument,
+)
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
@@ -545,6 +552,8 @@ async def _install_trace_anchored_package_fixture(
         frozen_at=None,
     )
     assert entry.decision_anchor_id is not None
+    entry_decision = await db.get(TraceRecordRow, entry.decision_anchor_id)
+    assert entry_decision is not None
     fixture_line = fixture.sections.traceability_appendix.lines[0]
     fixture_line.ledger_anchor.identifiers = [f"journal_entry:{entry.id}"]
     fixture_line.ledger_anchor.details = [
@@ -554,6 +563,41 @@ async def _install_trace_anchored_package_fixture(
             "decision_id": str(entry.decision_anchor_id),
         }
     ]
+    original_contributions = PackageAssembler._contributions
+
+    async def fixture_contributions(assembler, *args, **kwargs):
+        contributions = await original_contributions(assembler, *args, **kwargs)
+        return (
+            *contributions,
+            PackageSectionContribution(
+                contribution_type="statement_source",
+                section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
+                payload=SimpleNamespace(
+                    statement_id=uuid4(),
+                    source_result=SimpleNamespace(
+                        source_type=StatementSourceType.BANK,
+                        statement_currency="SGD",
+                    ),
+                    account_id=asset.id,
+                ),
+                state="authoritative",
+                decision=TraceDecisionRef(
+                    decision_id=entry.decision_anchor_id,
+                    target=VersionedTraceRef(
+                        entry_decision.target_kind,
+                        entry_decision.target_id,
+                        entry_decision.target_version,
+                    ),
+                    assertion=VersionedTraceRef(
+                        entry_decision.assertion_kind,
+                        entry_decision.assertion_id,
+                        entry_decision.assertion_version,
+                    ),
+                ),
+                input_refs=(f"account:{asset.id}", f"journal_entry:{entry.id}"),
+                reason_code=None,
+            ),
+        )
 
     async def fixture_policy(*_args, **_kwargs):
         return fixture.framework_policy
@@ -574,6 +618,7 @@ async def _install_trace_anchored_package_fixture(
         fixture_policy,
     )
     monkeypatch.setattr(PackageAssembler, "_sections", fixture_sections)
+    monkeypatch.setattr(PackageAssembler, "_contributions", fixture_contributions)
     if fault_after_trace_flush:
         monkeypatch.setattr(PackageAssembler, "_after_trace_flush", fault_after_package_trace_flush)
     return disposition_transaction.id
@@ -1224,14 +1269,14 @@ async def test_AC19_10_1_traceability_renders_only_ledger_owned_source_membershi
         lines=(journal_line,),
         state="unproven",
         reason_code="missing_current_decision_anchor",
-        decision_id=None,
+        decision=None,
     )
     contribution = PackageSectionContribution(
         contribution_type="ledger_command",
         section_ids=("balance_sheet", "income_statement", "traceability_appendix"),
         payload=journal,
         state=journal.state,
-        decision_id=journal.decision_id,
+        decision=journal.decision,
         input_refs=journal.input_refs,
         reason_code=journal.reason_code,
     )
@@ -1262,14 +1307,14 @@ async def test_AC19_10_1_traceability_dedupes_contribution_details():
         lines=(journal_line,),
         state="unproven",
         reason_code="missing_current_decision_anchor",
-        decision_id=None,
+        decision=None,
     )
     contribution = PackageSectionContribution(
         contribution_type="ledger_command",
         section_ids=("balance_sheet", "traceability_appendix"),
         payload=journal,
         state=journal.state,
-        decision_id=journal.decision_id,
+        decision=journal.decision,
         input_refs=journal.input_refs,
         reason_code=journal.reason_code,
     )

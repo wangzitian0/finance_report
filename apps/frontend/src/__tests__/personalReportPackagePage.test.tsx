@@ -41,7 +41,6 @@ const contract = {
   },
   supported_frameworks: ["personal_us_gaap_like", "personal_hkfrs_like"],
   selected_framework_id: null,
-  framework_policy_endpoint: "/api/reports/package/framework-policy",
   sections: [
     {
       section_id: "balance_sheet",

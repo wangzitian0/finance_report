@@ -11,48 +11,43 @@ metrics live in CI artifacts and
 
 ### Personal Report Package
 
-The personal financial-report package contract defines the stable report package
-shape used by backend, frontend, export, and E2E assertions.
-
-Contract endpoint:
+The personal financial-report package is one stable document used by preview,
+generation, reopen, frontend rendering, and export. Preview it with:
 
 ```bash
-curl "https://report.zitian.party/api/reports/package/contract"
+curl "https://report.zitian.party/api/reports/package?framework_id=personal_us_gaap_like"
 ```
 
-The contract includes stable section IDs for balance sheet, income statement,
-cash-flow view, investment performance, annualized income and long-term
-compensation, notes, and traceability appendix. Decimal fields serialize as
-strings to preserve money precision in frontend and export consumers.
+The document includes balance sheet, income statement, cash flow, investment
+performance, annualized income and long-term compensation, notes, traceability,
+readiness, framework policy, and its exact decision manifest. Decimal fields
+serialize as strings to preserve money precision.
 
-Annualized income and long-term compensation schedule endpoint:
+Generate an immutable snapshot with:
 
 ```bash
-curl "https://report.zitian.party/api/reports/package/annualized-income-schedule?as_of_date=2026-05-20"
+curl -X POST "https://report.zitian.party/api/reports/package/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"framework_id":"personal_us_gaap_like","start_date":"2026-01-01","end_date":"2026-12-31","as_of_date":"2026-12-31","currency":"SGD","include_restricted":true}'
 ```
 
-This schedule reports trailing-12-month salary, bonus, dividend, and total
-income from posted or reconciled income journal lines. It also lists restricted
-ESOP/RSU/stock-option manual valuation snapshots with valuation basis,
-vesting/unlock metadata, and the default net-worth treatment that excludes
-restricted holdings from liquid net worth.
-
-Notes and disclosures endpoint:
+List or reopen only saved documents; reopening never recalculates live data:
 
 ```bash
-curl "https://report.zitian.party/api/reports/package/notes"
+curl "https://report.zitian.party/api/reports/package/snapshots"
+curl "https://report.zitian.party/api/reports/package/snapshots/{snapshot_id}"
 ```
 
-Traceability appendix endpoint:
+Export that same selected snapshot as JSON or CSV:
 
 ```bash
-curl "https://report.zitian.party/api/reports/package/traceability"
+curl "https://report.zitian.party/api/reports/package/snapshots/{snapshot_id}/export?format=json"
+curl "https://report.zitian.party/api/reports/package/snapshots/{snapshot_id}/export?format=csv"
 ```
 
-The traceability appendix maps package lines to source anchors, ledger anchors,
-review state, confidence tier, and completeness warnings. Trusted totals must
-carry source and ledger anchors, while explicit manual inputs and non-ledger
-disclosures must say why ledger anchoring is not applicable.
+The embedded traceability appendix maps package lines to exact source and ledger
+anchors. Missing, stale, or mismatched decisions keep the preview draft/blocked;
+they cannot be upgraded by a source label or by generating an export.
 
 ### Balance Sheet
 

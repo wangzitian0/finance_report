@@ -91,6 +91,11 @@ manual-valuation, override, price, or statement-observation table and may not
 turn `source`, `valuation_basis`, an authority rank, `created_at`, or a
 freshness label into trust.
 
+The DTO carries that decision as audit's `TraceDecisionRef`: decision id,
+target version, and assertion version travel together. A package consumer must
+match the complete reference against its scope-bound current projection rather
+than treating a current id as authority for any valuation.
+
 `resolve_manual_valuation_contributions()` applies the same DTO to every
 current manual component/source lineage. Component type is presentation, not
 identity: two properties of the same type remain two independently selected
@@ -208,9 +213,9 @@ with no basis (and no legacy notes) surfaces a `missing_valuation_basis`
 readiness blocker rather than being rejected.
 
 **Report artifacts that surface the basis** — the captured basis flows,
-null-safe (falling back to `unspecified`), into: the annualized income
-schedule (`GET /api/reports/package/annualized-income-schedule`, each
-restricted holding's `valuation_basis` carries the snapshot enum value);
+null-safe (falling back to `unspecified`), into: the PackageDocument
+annualized-income section (each restricted holding's `valuation_basis` carries
+the snapshot enum value);
 balance sheet / net worth (manual snapshots aggregate into asset/liability
 and restricted/illiquid totals by `liquidity_class`); the package
 `valuation-basis` note (surfaces the `manual_valuation_snapshots` source

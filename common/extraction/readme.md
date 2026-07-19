@@ -243,11 +243,22 @@ can promote a diverged projection.
 the only extraction interfaces a report package may use for statement source
 facts. A `ResolvedStatementContribution` contains the exact immutable current
 `StatementExtractionResult`, persisted source-result id, immutable
-uploaded-document reference when one is present, input refs, and current
+uploaded-document reference when one is present, the confirmed custody
+`account_id`, input refs, and current
 promotion or reviewed-envelope `TraceRecord` decision. It carries transaction
 and position facts exactly as persisted; it never reconstructs a cassette or
 exposes `StatementSummary`, `AtomicTransaction`, or `AtomicPosition` rows to a
 consumer.
+
+The decision is published as audit's `TraceDecisionRef`, which pins the exact
+decision id, target version, and assertion version. Consumers must validate all
+three coordinates; the id is not a transferable authority label.
+
+The custody account is source-envelope identity, not an account classification.
+An authoritative bank-statement contribution requires it and publishes an exact
+`account:<uuid>` input ref; otherwise the contribution is `unproven`. Brokerage
+containers remain brokerage evidence and are not flattened into a binary cash
+or non-cash account role.
 
 The contribution is `authoritative` only when its exact source version has its
 current target-matching decision. A missing, non-authoritative, stale,

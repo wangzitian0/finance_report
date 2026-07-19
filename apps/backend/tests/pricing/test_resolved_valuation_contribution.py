@@ -153,6 +153,10 @@ async def test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observatio
     assert contribution.observation_id == observation.id
     assert contribution.observation_version
     assert contribution.decision_id
+    assert contribution.decision is not None
+    assert contribution.decision.target.kind == "pricing_valuation"
+    assert contribution.decision.target.version == contribution.observation_version
+    assert contribution.decision.assertion.kind == "pricing_valuation_attestation"
     assert contribution.input_refs == (f"pricing_observation:{observation.id}",)
     assert contribution.resolution_policy == "max_age_days=30;min_authority=CRAWLER"
 
