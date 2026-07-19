@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import SqlTraceRecordRepository, TraceLineage, TraceResult, TraceScope, VersionedTraceRef
 from src.extraction.base.contribution import ResolvedStatementContribution
-from src.extraction.base.result import StatementExtractionResult
+from src.extraction.base.result import StatementExtractionResult, StatementSourceType
 from src.extraction.extension.extraction_trace import ExtractionPromotionTracePolicy, extraction_trace_policy_registry
 from src.extraction.extension.reviewed_statement_envelope import (
     ReviewedEnvelopeDecisionTracePolicy,
@@ -29,6 +29,7 @@ def _unproven(
     effective_period_start: date | None = None,
     effective_period_end: date | None = None,
     source_document_id: UUID | None = None,
+    account_id: UUID | None = None,
 ) -> ResolvedStatementContribution:
     return ResolvedStatementContribution(
         statement_id=statement_id,
@@ -40,6 +41,7 @@ def _unproven(
         reason_code=reason_code,
         decision_id=None,
         source_document_id=source_document_id,
+        account_id=account_id,
     )
 
 
@@ -64,6 +66,7 @@ async def resolve_statement_contribution(
             statement_id=statement.id,
             reason_code="missing_current_source_result",
             source_document_id=statement.uploaded_document_id,
+            account_id=statement.account_id,
         )
 
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
@@ -72,6 +75,7 @@ async def resolve_statement_contribution(
             statement_id=statement.id,
             reason_code="missing_current_source_result",
             source_document_id=statement.uploaded_document_id,
+            account_id=statement.account_id,
         )
     try:
         source_result = StatementExtractionResult.from_payload(source_record.payload)
@@ -81,6 +85,7 @@ async def resolve_statement_contribution(
             source_result_id=source_record.id,
             reason_code="invalid_current_source_result",
             source_document_id=statement.uploaded_document_id,
+            account_id=statement.account_id,
         )
     if source_result.content_digest != source_record.content_digest:
         return _unproven(
@@ -91,12 +96,14 @@ async def resolve_statement_contribution(
             effective_period_end=source_result.period_end,
             reason_code="source_result_digest_mismatch",
             source_document_id=statement.uploaded_document_id,
+            account_id=statement.account_id,
         )
 
     repository = SqlTraceRecordRepository(db, extraction_trace_policy_registry())
     scope = TraceScope.tenant(user_id)
     effective_period_start: date | None = source_result.period_start
     effective_period_end: date | None = source_result.period_end
+    account_id = statement.account_id
     if source_result.requires_review:
         envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
         if envelope is None or envelope.source_result_id != source_record.id:
@@ -108,7 +115,19 @@ async def resolve_statement_contribution(
                 effective_period_end=source_result.period_end,
                 reason_code="missing_reviewed_envelope",
                 source_document_id=statement.uploaded_document_id,
+                account_id=statement.account_id,
             )
+        if statement.account_id != envelope.account_id:
+            return _unproven(
+                statement_id=statement.id,
+                source_result_id=source_record.id,
+                source_result=source_result,
+                effective_period_start=source_result.period_start,
+                effective_period_end=source_result.period_end,
+                reason_code="custody_account_mismatch",
+                source_document_id=statement.uploaded_document_id,
+            )
+        account_id = envelope.account_id
         target = VersionedTraceRef(
             kind="reviewed_statement_envelope",
             id=str(source_result.result_id),
@@ -137,6 +156,7 @@ async def resolve_statement_contribution(
             effective_period_end=source_result.period_end,
             reason_code="missing_current_decision",
             source_document_id=statement.uploaded_document_id,
+            account_id=account_id,
         )
     if decision.target != target or (expected_decision_id is not None and decision.record_id != expected_decision_id):
         return _unproven(
@@ -147,6 +167,7 @@ async def resolve_statement_contribution(
             effective_period_end=source_result.period_end,
             reason_code="target_mismatched_decision",
             source_document_id=statement.uploaded_document_id,
+            account_id=account_id,
         )
     if decision.result is not TraceResult.AUTHORITATIVE:
         return _unproven(
@@ -156,6 +177,17 @@ async def resolve_statement_contribution(
             effective_period_start=source_result.period_start,
             effective_period_end=source_result.period_end,
             reason_code="non_authoritative_decision",
+            source_document_id=statement.uploaded_document_id,
+            account_id=account_id,
+        )
+    if source_result.source_type is StatementSourceType.BANK and account_id is None:
+        return _unproven(
+            statement_id=statement.id,
+            source_result_id=source_record.id,
+            source_result=source_result,
+            effective_period_start=effective_period_start,
+            effective_period_end=effective_period_end,
+            reason_code="missing_custody_account",
             source_document_id=statement.uploaded_document_id,
         )
     return ResolvedStatementContribution(
@@ -168,6 +200,7 @@ async def resolve_statement_contribution(
         reason_code=None,
         decision_id=decision.record_id,
         source_document_id=statement.uploaded_document_id,
+        account_id=account_id,
     )
 
 

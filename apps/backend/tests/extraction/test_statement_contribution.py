@@ -211,7 +211,56 @@ async def test_AC_extraction_statement_contribution_2_reviewed_envelope_pins_exa
     assert contribution.input_refs == (
         f"statement_result:{source_record.id}",
         f"source_document:{document.id}",
+        f"account:{account.id}",
     )
+
+
+async def test_AC_extraction_statement_contribution_4_publishes_confirmed_custody_account(db, test_user):
+    """AC-extraction.statement-contribution.4: consumers receive exact account identity."""
+    result = _result(source_digest="e" * 64, evidence_type=StatementEvidenceType.TRANSACTION_LEDGER)
+    statement, _source_record, emitter, _document = await _seed_current_result(db, test_user, result=result)
+    account = Account(user_id=test_user.id, name="DBS", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    await confirm_reviewed_statement_envelope(
+        db,
+        user_id=test_user.id,
+        statement_id=statement.id,
+        command=ReviewedStatementEnvelopeCommand(
+            source_result_digest=result.content_digest,
+            account_id=account.id,
+            currency="SGD",
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("110.00"),
+            rationale="The reviewed envelope binds this source to its custody account.",
+        ),
+        trace_emitter=emitter,
+    )
+
+    contribution = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
+
+    assert contribution.is_authoritative
+    assert contribution.account_id == account.id
+    assert f"account:{account.id}" in contribution.input_refs
+
+    conflicting_account = Account(
+        user_id=test_user.id,
+        name="Different custody account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(conflicting_account)
+    await db.flush()
+    statement.account_id = conflicting_account.id
+    await db.flush()
+
+    mismatched = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
+
+    assert not mismatched.is_authoritative
+    assert mismatched.account_id is None
+    assert mismatched.reason_code == "custody_account_mismatch"
 
 
 async def test_AC_extraction_statement_contribution_3_fails_closed_without_current_decision(db, test_user):

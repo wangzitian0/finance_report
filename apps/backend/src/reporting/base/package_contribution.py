@@ -19,6 +19,37 @@ PayloadT = TypeVar("PayloadT")
 
 
 @dataclass(frozen=True, slots=True)
+class PackageCashInputs:
+    """Exact cash-balance identities selected for one package assembly."""
+
+    account_ids: frozenset[UUID]
+    input_refs: tuple[str, ...]
+    reason_code: Literal["cash_balance_input_missing", "cash_balance_input_unproven"] | None = None
+
+    def __post_init__(self) -> None:
+        if self.reason_code is None and not self.account_ids:
+            raise ValueError("complete package cash inputs require at least one account")
+        if any(not ref.strip() for ref in self.input_refs):
+            raise ValueError("cash input refs cannot be blank")
+        account_refs = {ref for ref in self.input_refs if ref.startswith("account:")}
+        expected_account_refs = {f"account:{account_id}" for account_id in self.account_ids}
+        if not expected_account_refs <= account_refs:
+            raise ValueError("every package cash account requires an exact input ref")
+
+    @classmethod
+    def missing(cls) -> PackageCashInputs:
+        return cls(
+            account_ids=frozenset(),
+            input_refs=(),
+            reason_code="cash_balance_input_missing",
+        )
+
+    @property
+    def is_complete(self) -> bool:
+        return self.reason_code is None
+
+
+@dataclass(frozen=True, slots=True)
 class PackageSectionContribution(Generic[PayloadT]):  # noqa: UP046 - mypy 1.11 lacks PEP 695 support.
     """Adapt one package-owned result without replacing its domain vocabulary.
 

@@ -9,6 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from src.audit import (
     TraceAuthorityProfile,
     TraceCausality,
@@ -19,6 +21,7 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
+from src.reporting.base.package_contribution import PackageCashInputs
 from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import PackageAssembler, _section_invariant_blockers
 from src.schemas.reporting import (
@@ -217,6 +220,7 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         as_of_date=period_end,
         currency="SGD",
         contributions=(),
+        cash_inputs=PackageCashInputs.missing(),
     )
     readiness = PackageAssembler._readiness(
         policy=SimpleNamespace(gaps=[]),
@@ -233,7 +237,23 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "investment_contribution_missing",
         "section_currency_mismatch",
         "statement_net_income_mismatch",
+        "cash_balance_input_missing",
     }
+
+
+def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:
+    """AC-reporting.package-document.8: absence is explicit, never a lexical fallback."""
+    cash_inputs = PackageCashInputs.missing()
+
+    assert not cash_inputs.is_complete
+    assert cash_inputs.account_ids == frozenset()
+    assert cash_inputs.reason_code == "cash_balance_input_missing"
+
+    with pytest.raises(ValueError, match="exact input ref"):
+        PackageCashInputs(
+            account_ids=frozenset({uuid4()}),
+            input_refs=("statement_result:fixture",),
+        )
 
 
 def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together() -> None:

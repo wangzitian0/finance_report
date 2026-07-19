@@ -2,12 +2,17 @@
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.result import StatementSourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import generate_cash_flow
+from src.reporting.base.package_contribution import PackageSectionContribution
+from src.reporting.extension.package_document import _cash_inputs_from_contributions
 
 
 async def _add_entry(
@@ -94,3 +99,54 @@ async def test_AC5_10_2_cash_flow_activity_totals_preserve_signs(db: AsyncSessio
 
     assert report["summary"]["operating_activities"] == Decimal("-100.00")
     assert report["operating"][0]["amount"] == Decimal("-100.00")
+
+
+async def test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_account_names(
+    db: AsyncSession, cash_flow_accounts
+):
+    """AC-reporting.package-document.8: package cash identity is evidence-backed, not lexical."""
+    user_id, cash, equity, rent = cash_flow_accounts
+    cash.name = "DBS"
+    decision_id = uuid4()
+    contribution = PackageSectionContribution(
+        contribution_type="statement_source",
+        section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
+        payload=SimpleNamespace(
+            statement_id=uuid4(),
+            source_result=SimpleNamespace(source_type=StatementSourceType.BANK),
+            account_id=cash.id,
+        ),
+        state="authoritative",
+        decision_id=decision_id,
+        input_refs=(f"account:{cash.id}",),
+        reason_code=None,
+    )
+    cash_inputs = _cash_inputs_from_contributions((contribution,))
+    await _add_entry(
+        db,
+        user_id=user_id,
+        entry_date=date(2025, 12, 31),
+        memo="Opening capital",
+        lines=[(cash, Direction.DEBIT, Decimal("1000.00")), (equity, Direction.CREDIT, Decimal("1000.00"))],
+    )
+    await _add_entry(
+        db,
+        user_id=user_id,
+        entry_date=date(2026, 1, 15),
+        memo="January rent",
+        lines=[(rent, Direction.DEBIT, Decimal("100.00")), (cash, Direction.CREDIT, Decimal("100.00"))],
+    )
+
+    report = await generate_cash_flow(
+        db,
+        user_id,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31),
+        cash_account_ids=cash_inputs.account_ids,
+    )
+
+    assert cash_inputs.is_complete
+    assert cash_inputs.account_ids == frozenset({cash.id})
+    assert report["summary"]["beginning_cash"] == Decimal("1000.00")
+    assert report["summary"]["ending_cash"] == Decimal("900.00")
+    assert all(item["account_id"] != cash.id for item in report["investing"])

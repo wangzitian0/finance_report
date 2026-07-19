@@ -25,7 +25,11 @@ from src.audit import (
     current_authoritative_trace_decision_projection,
 )
 from src.config import settings
-from src.extraction import current_statement_disposition_policy_snapshot, list_statement_contributions
+from src.extraction import (
+    StatementSourceType,
+    current_statement_disposition_policy_snapshot,
+    list_statement_contributions,
+)
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.ledger import ledger_trace_policy_registry, list_journal_contributions
 from src.portfolio import build_investment_performance_report_schedule
@@ -37,7 +41,7 @@ from src.pricing import (
     resolve_manual_valuation_contributions,
     resolve_selected_market_valuation_contribution,
 )
-from src.reporting.base.package_contribution import PackageSectionContribution, PackageSectionId
+from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution, PackageSectionId
 from src.reporting.base.package_decision import (
     PACKAGE_DECISION_POLICY_VERSION,
     PackageReadinessDecisionPolicy,
@@ -230,6 +234,41 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
     )
 
 
+def _cash_inputs_from_contributions(
+    contributions: tuple[PackageSectionContribution[Any], ...],
+) -> PackageCashInputs:
+    """Select exact bank custody accounts without interpreting names as facts."""
+    account_ids: set[UUID] = set()
+    input_refs: set[str] = set()
+    has_unproven_bank_input = False
+    for contribution in contributions:
+        if contribution.contribution_type != "statement_source":
+            continue
+        payload = contribution.payload
+        result = getattr(payload, "source_result", None)
+        if result is None or result.source_type is not StatementSourceType.BANK:
+            continue
+        account_id = getattr(payload, "account_id", None)
+        if contribution.is_authoritative and account_id is not None:
+            account_ids.add(account_id)
+            input_refs.update(contribution.input_refs)
+        else:
+            has_unproven_bank_input = True
+            input_refs.update(contribution.input_refs)
+    if has_unproven_bank_input:
+        return PackageCashInputs(
+            account_ids=frozenset(account_ids),
+            input_refs=tuple(sorted(input_refs)),
+            reason_code="cash_balance_input_unproven",
+        )
+    if not account_ids:
+        return PackageCashInputs.missing()
+    return PackageCashInputs(
+        account_ids=frozenset(account_ids),
+        input_refs=tuple(sorted(input_refs)),
+    )
+
+
 def _unproven_input_blocker(count: int) -> PersonalReportPackageReadinessBlocker:
     return PersonalReportPackageReadinessBlocker(
         code="unproven_package_input",
@@ -282,6 +321,7 @@ def _section_invariant_blockers(
     as_of_date: date,
     currency: str,
     contributions: tuple[PackageSectionContribution[Any], ...],
+    cash_inputs: PackageCashInputs,
 ) -> list[PersonalReportPackageReadinessBlocker]:
     """Prove cross-section accounting and context before authority emission."""
     blockers: list[PersonalReportPackageReadinessBlocker] = []
@@ -301,6 +341,13 @@ def _section_invariant_blockers(
         blockers.append(
             _section_blocker(
                 "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
+            )
+        )
+    if not cash_inputs.is_complete:
+        blockers.append(
+            _section_blocker(
+                cash_inputs.reason_code or "cash_balance_input_unproven",
+                "Cash balances require an authoritative bank-statement custody account input.",
             )
         )
     if balance_sheet.opening_balance_warnings:
@@ -399,6 +446,7 @@ class PackageAssembler:
             end_date=end_date,
             as_of_date=as_of_date,
         )
+        cash_inputs = _cash_inputs_from_contributions(base_contributions)
         sections = await self._sections(
             db,
             user_id=user_id,
@@ -410,6 +458,7 @@ class PackageAssembler:
             include_restricted=include_restricted,
             decisions_by_source_id=decisions_by_source_id,
             contributions=base_contributions,
+            cash_inputs=cash_inputs,
         )
         market_contributions = await self._selected_market_contributions(
             db,
@@ -441,6 +490,7 @@ class PackageAssembler:
                 as_of_date=as_of_date,
                 currency=currency,
                 contributions=contributions,
+                cash_inputs=cash_inputs,
             ),
         )
         now = datetime.now(UTC)
@@ -619,6 +669,7 @@ class PackageAssembler:
         include_restricted: bool,
         decisions_by_source_id: dict[str, Any],
         contributions: tuple[PackageSectionContribution[Any], ...],
+        cash_inputs: PackageCashInputs,
     ) -> PersonalReportPackageSections:
         balance_sheet, income_statement, cash_flow, investment_performance, annualized_income, traceability = (
             await assemble_framework_balance_sheet(
@@ -645,6 +696,7 @@ class PackageAssembler:
                 start_date=start_date,
                 end_date=end_date,
                 currency=currency,
+                cash_account_ids=cash_inputs.account_ids,
             ),
             await build_investment_performance_report_schedule(
                 db,

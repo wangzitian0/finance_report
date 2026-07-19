@@ -145,6 +145,11 @@ CONTRACT = PackageContract(
             module="base/package_contribution.py",
         ),
         Unit(
+            name="PackageCashInputs",
+            kind=Kind.VALUE_OBJECT,
+            module="base/package_contribution.py",
+        ),
+        Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,
         ),
@@ -1483,6 +1488,21 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/reporting/test_package_document.py"
                 "::test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.8",
+            statement=(
+                "The PackageDocument cash-flow section receives an exact typed set of cash-balance "
+                "account identities from authoritative bank-statement contributions. Account names "
+                "cannot classify package cash, and missing or ambiguous cash inputs block trusted output."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_financial_logic_audit.py"
+                "::test_AC_reporting_package_document_8_uses_exact_cash_inputs_not_account_names"
             ),
             priority="P0",
             status="open",

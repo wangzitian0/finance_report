@@ -4,6 +4,7 @@ import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import StringIO
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,7 +17,13 @@ from src.audit import JournalEntrySourceType
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.deps import PaginationParams
-from src.extraction import DocumentType, EconomicIntent, ExtractedTransactionRow, UploadedDocument
+from src.extraction import (
+    DocumentType,
+    EconomicIntent,
+    ExtractedTransactionRow,
+    StatementSourceType,
+    UploadedDocument,
+)
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
@@ -554,6 +561,29 @@ async def _install_trace_anchored_package_fixture(
             "decision_id": str(entry.decision_anchor_id),
         }
     ]
+    original_contributions = PackageAssembler._contributions
+
+    async def fixture_contributions(assembler, *args, **kwargs):
+        contributions = await original_contributions(assembler, *args, **kwargs)
+        return (
+            *contributions,
+            PackageSectionContribution(
+                contribution_type="statement_source",
+                section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
+                payload=SimpleNamespace(
+                    statement_id=uuid4(),
+                    source_result=SimpleNamespace(
+                        source_type=StatementSourceType.BANK,
+                        statement_currency="SGD",
+                    ),
+                    account_id=asset.id,
+                ),
+                state="authoritative",
+                decision_id=entry.decision_anchor_id,
+                input_refs=(f"account:{asset.id}", f"journal_entry:{entry.id}"),
+                reason_code=None,
+            ),
+        )
 
     async def fixture_policy(*_args, **_kwargs):
         return fixture.framework_policy
@@ -574,6 +604,7 @@ async def _install_trace_anchored_package_fixture(
         fixture_policy,
     )
     monkeypatch.setattr(PackageAssembler, "_sections", fixture_sections)
+    monkeypatch.setattr(PackageAssembler, "_contributions", fixture_contributions)
     if fault_after_trace_flush:
         monkeypatch.setattr(PackageAssembler, "_after_trace_flush", fault_after_package_trace_flush)
     return disposition_transaction.id

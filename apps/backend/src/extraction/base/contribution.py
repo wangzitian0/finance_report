@@ -29,6 +29,7 @@ class ResolvedStatementContribution:
     reason_code: str | None
     decision_id: UUID | None
     source_document_id: UUID | None = None
+    account_id: UUID | None = None
 
     def __post_init__(self) -> None:
         if self.state == "authoritative" and (
@@ -63,4 +64,6 @@ class ResolvedStatementContribution:
         refs = [f"statement_result:{self.source_result_id}"]
         if self.source_document_id is not None:
             refs.append(f"source_document:{self.source_document_id}")
+        if self.account_id is not None:
+            refs.append(f"account:{self.account_id}")
         return tuple(refs)

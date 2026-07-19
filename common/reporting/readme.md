@@ -213,6 +213,15 @@ investing = non-cash asset accounts, financing = liability/equity accounts;
 cash/bank asset accounts fund beginning/ending cash and are not repeated as
 activity rows.
 
+For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
+typed `PackageCashInputs` derived from authoritative bank-statement
+contributions and their exact custody `account_id` refs. The package path never
+classifies cash from `Account.name`; a missing or unproven cash input blocks
+trusted output. Standalone analytical cash-flow views retain a bounded lexical
+fallback only for compatibility and cannot authorize, persist, reopen, or export
+a package. Brokerage cash decomposition remains a separate evidence problem: a
+brokerage container is not assigned a global binary cash role.
+
 **Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end

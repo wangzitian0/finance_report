@@ -80,6 +80,7 @@ async def generate_cash_flow(
     start_date: date,
     end_date: date,
     currency: str | None = None,
+    cash_account_ids: frozenset[UUID] | None = None,
 ) -> dict[str, object]:
     """Generate cash flow statement for a date range.
 
@@ -144,6 +145,8 @@ async def generate_cash_flow(
     def is_cash_account(account: Account) -> bool:
         if account.type != AccountType.ASSET:
             return False
+        if cash_account_ids is not None:
+            return account.id in cash_account_ids
         name_lower = account.name.lower()
         return any(keyword in name_lower for keyword in cash_keywords)
 
