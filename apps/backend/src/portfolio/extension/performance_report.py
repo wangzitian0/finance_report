@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import cast
+from typing import cast, overload
 from uuid import UUID
 
 from sqlalchemy import select
@@ -42,6 +42,14 @@ from src.schemas.portfolio import (
     InvestmentPerformanceMarketValuationSelection,
     InvestmentPerformanceReportScheduleResponse,
 )
+
+
+@overload
+def _percent(value: Decimal) -> Decimal: ...
+
+
+@overload
+def _percent(value: None) -> None: ...
 
 
 def _percent(value: Decimal | None) -> Decimal | None:
@@ -239,7 +247,7 @@ async def build_investment_performance_report_schedule(
                     dimension=dimension,
                     category=row.category,
                     value=to_money(row.value),
-                    percentage=row.percentage,
+                    percentage=_percent(row.percentage),
                     count=row.count,
                 )
             )
