@@ -210,3 +210,32 @@ def test_update_refuses_to_grow_an_existing_baseline(
     base.unlink()  # missing → bootstrap allowed
     assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 0
     assert json.loads(base.read_text()) == [edge]
+
+
+def test_update_refuses_to_grow_an_existing_l4_deep_import_baseline(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The L4 deep-import baseline follows the same shrink-only update contract."""
+    import json
+
+    from common.meta.extension import check_app_boundary
+
+    edge = "routers/reports.py::from src.audit.money import Money"
+    monkeypatch.setattr(
+        check_app_boundary, "discover_and_compute_edges", lambda _root: []
+    )
+    monkeypatch.setattr(
+        check_app_boundary, "discover_l4_deep_import_edges", lambda _root: [edge]
+    )
+    data = tmp_path / "common/meta/data"
+    data.mkdir(parents=True)
+    (data / "app-boundary-baseline.json").write_text("[]\n", encoding="utf-8")
+    l4_baseline = data / "l4-root-import-baseline.json"
+    l4_baseline.write_text("[]\n", encoding="utf-8")
+
+    assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 1
+    assert json.loads(l4_baseline.read_text()) == []
+
+    l4_baseline.unlink()
+    assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 0
+    assert json.loads(l4_baseline.read_text()) == [edge]
