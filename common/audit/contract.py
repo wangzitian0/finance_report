@@ -63,6 +63,7 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -83,6 +84,22 @@ CONTRACT = PackageContract(
     # LLM: a pure-code (CODE-ONLY) package, like ``meta`` and the value packages.
     tier="CODE-ONLY",
     depends_on=[],
+    context=ContextScope(
+        purpose=(
+            "Own the shared numeric and executable-assurance language that every "
+            "financial context can consume without transferring business-state ownership."
+        ),
+        in_scope=[
+            "cross-runtime financial value types and numeric invariants",
+            "append-only TraceRecord assurance vocabulary and projections",
+            "promotion and evidence-language policy",
+        ],
+        out_of_scope=[
+            "ledger, portfolio, reporting, or other business-domain state ownership",
+            "cross-domain workflow, transaction, purge, or lifecycle orchestration",
+            "application delivery, provider configuration, or user-facing policy",
+        ],
+    ),
     # The Shared Kernel value language audit governs, declared as value-object
     # units (the taxonomy; no module path — audit has no physical base/extension
     # split of its own except for the TraceRecord boundary, and the canonical
