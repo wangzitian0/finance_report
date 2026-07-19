@@ -124,8 +124,9 @@ def _package_notes(
             "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow", "traceability_appendix"],
             "disclosure": (
                 f"Statement disposition policy {statement_disposition_policy.policy_version} ran in "
-                f"{statement_disposition_policy.mode} mode. Machine and P&L authority thresholds are "
-                f"{statement_disposition_policy.machine_confidence_threshold}; unknown and ambiguous intent "
+                f"{statement_disposition_policy.mode} mode. Machine authority threshold is "
+                f"{statement_disposition_policy.machine_confidence_threshold}; P&L authority threshold is "
+                f"{statement_disposition_policy.pnl_effect_confidence_threshold}. Unknown and ambiguous intent "
                 f"route to review. Live LLM proposals are "
                 f"{'enabled' if statement_disposition_policy.live_llm_proposals_enabled else 'disabled'}. "
                 f"Deployment commit: {statement_disposition_policy.deployment_git_sha}."

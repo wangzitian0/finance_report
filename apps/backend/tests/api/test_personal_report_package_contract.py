@@ -4,7 +4,7 @@ import csv
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import StringIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from common.testing.ac_proof import ac_proof
@@ -488,7 +488,7 @@ async def _install_trace_anchored_package_fixture(
     monkeypatch: pytest.MonkeyPatch,
     *,
     fault_after_trace_flush: bool = False,
-) -> None:
+) -> UUID:
     asset = Account(user_id=test_user.id, name="Anchored cash", type=AccountType.ASSET, currency="SGD")
     income = Account(user_id=test_user.id, name="Anchored income", type=AccountType.INCOME, currency="SGD")
     db.add_all([asset, income])
@@ -516,6 +516,25 @@ async def _install_trace_anchored_package_fixture(
         operation=f"pkg-{uuid4().hex[:8]}",
     )
     await db.commit()
+
+    disposition_transaction = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2025, 6, 30),
+        description="Package policy trace fixture",
+        amount=Decimal("1.00"),
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[],
+    )
+    db.add(disposition_transaction)
+    await db.flush()
+    await anchored_reviewed_posting_inputs(
+        db,
+        user_id=test_user.id,
+        transaction=disposition_transaction,
+        intent=EconomicIntent.INCOME,
+    )
 
     fixture = _package_document(
         readiness_state="blocked",
@@ -557,6 +576,7 @@ async def _install_trace_anchored_package_fixture(
     monkeypatch.setattr(PackageAssembler, "_sections", fixture_sections)
     if fault_after_trace_flush:
         monkeypatch.setattr(PackageAssembler, "_after_trace_flush", fault_after_package_trace_flush)
+    return disposition_transaction.id
 
 
 @ac_proof(
@@ -653,7 +673,7 @@ async def test_AC_extraction_disposition_7_frozen_package_persists_trace_bound_p
     """AC-extraction.disposition.7: package disclosure is a frozen policy snapshot, never a live config read."""
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     monkeypatch.setattr(settings, "git_commit_sha", "a" * 40)
-    await _install_trace_anchored_package_fixture(db, test_user, monkeypatch)
+    disposition_transaction_id = await _install_trace_anchored_package_fixture(db, test_user, monkeypatch)
 
     snapshot = await generate_personal_report_package_snapshot(
         request=PersonalReportPackageGenerateRequest(
@@ -680,11 +700,27 @@ async def test_AC_extraction_disposition_7_frozen_package_persists_trace_bound_p
         "deployment_git_sha": "a" * 40,
         "semantic_digest": policy.semantic_digest,
     }
+    disposition_trace = (
+        await db.execute(
+            select(TraceRecordRow).where(
+                TraceRecordRow.assertion_kind == "economic_intent",
+                TraceRecordRow.target_id == str(disposition_transaction_id),
+            )
+        )
+    ).scalar_one()
+    assert disposition_trace.assertion_version == (
+        f"v{policy.schema_version}|{policy.policy_version}|{policy.mode}|"
+        f"machine:{policy.machine_confidence_threshold}|pnl:{policy.pnl_effect_confidence_threshold}|"
+        f"unknown:{policy.unknown_intent_outcome}|ambiguous:{policy.ambiguous_intent_outcome}|"
+        f"llm:{int(policy.live_llm_proposals_enabled)}|git:{policy.deployment_git_sha}"
+    )
     note = next(
         note for note in snapshot.document.sections.notes.notes if note.note_id == "statement-disposition-policy"
     )
     assert note.source_state == "frozen_runtime_policy_snapshot"
     assert "disposition-v1" in note.disclosure
+    assert "Machine authority threshold is 0.85" in note.disclosure
+    assert "P&L authority threshold is 0.85" in note.disclosure
     assert "a" * 40 in note.disclosure
 
     monkeypatch.setattr(settings, "git_commit_sha", "b" * 40)
