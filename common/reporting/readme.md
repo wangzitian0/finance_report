@@ -35,7 +35,7 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
 `reporting` owns deterministic report assembly, policy disclosure, readiness,
 and frozen report snapshots. It reads projections and contribution DTOs from
