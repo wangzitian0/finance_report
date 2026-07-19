@@ -296,6 +296,18 @@ CHECKS: tuple[Check, ...] = (
         "network, and session debt must remain an exact shrink-only baseline",
     ),
     Check(
+        name="unit-accountability",
+        globs=(
+            "common/*/contract.py",
+            "common/meta/data/unit-accountability-baseline.json",
+            "common/meta/extension/check_unit_accountability.py",
+            "tools/check_unit_accountability.py",
+        ),
+        commands=((PY, "tools/check_unit_accountability.py"),),
+        why="package unit declarations changed: unbound units and incomplete repository "
+        "pairs must remain an exact shrink-only baseline",
+    ),
+    Check(
         name="frontend",
         globs=("apps/frontend/*",),
         commands=(

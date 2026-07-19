@@ -380,6 +380,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.dependency-governance.6",
+            statement=(
+                "Every declared package unit is implementation-bound or remains in "
+                "an exact shrink-only accountability baseline; incomplete repository "
+                "port/adapter pairs, new debt, stale entries, and unreadable discovery fail."
+            ),
+            test=(
+                "tests/tooling/test_unit_accountability.py"
+                "::test_AC_meta_dependency_governance_6_unit_accountability_is_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.context-governance.1",
             statement=(
                 "A package can publish its bounded-context purpose, explicit "
@@ -2555,6 +2569,23 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_public_orm_exports.py",
                 "tools/check_public_orm_exports.py",
                 "tests/tooling/test_public_orm_exports.py",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
+            key="unit_accountability_baseline",
+            owner="common/meta/data/unit-accountability-baseline.json",
+            description=(
+                "Exact shrink-only inventory of declared units without an implementation "
+                "path and repositories without a complete base-port/extension-adapter pair."
+            ),
+            cross_refs=[
+                "common/meta/extension/check_unit_accountability.py",
+                "tools/check_unit_accountability.py",
+                "tests/tooling/test_unit_accountability.py",
             ],
             family="platform",
             kind="baseline",
