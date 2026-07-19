@@ -137,7 +137,7 @@ migrations:
     staging_validation: Deploy one immutable release tag to staging; the backend must complete the upgrade and report healthy before the pinned statement canary runs, proving the historical staging ledger did not block migration.
     production_preflight: None required. The revision adds legacy_unproven through PostgreSQL's column default rather than scanning or updating journal_entries; verify the release's migration log records successful revision 0056 before any production promotion.
     rollback_strategy: A failed upgrade rolls back transactionally before revision 0056 is recorded. After a successful upgrade, roll back application code only if necessary; restore the database snapshot before downgrading once anchored entries exist, because dropping their authority columns would discard audit references.
-  0057_drop_confidence_metric_snapshots:
+  0057_drop_confidence_metrics:
     file: 0057_drop_confidence_metric_snapshots.py
     risk: critical
     issue: "#567"

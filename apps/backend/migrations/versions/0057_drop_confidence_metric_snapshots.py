@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0057_drop_confidence_metric_snapshots"
+revision = "0057_drop_confidence_metrics"
 down_revision = "0056_decision_anchored_journal"
 branch_labels = None
 depends_on = None
