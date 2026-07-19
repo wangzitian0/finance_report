@@ -13,6 +13,8 @@ from common.meta.base.package_contract import (
     PackageContract,
 )
 from common.meta.extension import check_context_contract
+from common.meta.package_contract import ContextRelation as FacadeContextRelation
+from common.meta.package_contract import ContextScope as FacadeContextScope
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -20,6 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose() -> None:
     with pytest.raises(ValueError, match="purpose"):
         ContextScope(purpose="", in_scope=["ledger"], out_of_scope=["reporting"])
+
+
+def test_context_declarations_use_the_stable_package_contract_facade() -> None:
+    assert FacadeContextScope is ContextScope
+    assert FacadeContextRelation is ContextRelation
 
 
 def test_context_relation_requires_reason_and_distinct_packages() -> None:
