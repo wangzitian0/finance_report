@@ -25,18 +25,21 @@ OWNED_KINDS = {
 
 
 def duplicate_claims(packages: Sequence[DiscoveredPackage]) -> list[str]:
-    """Project duplicate semantic claims from package-owned unit declarations."""
-    owners: dict[tuple[Kind, str], set[str]] = defaultdict(set)
+    """Project duplicate semantic claims from package-owned unit declarations.
+
+    A concept cannot evade ownership by changing its DDD kind between packages:
+    an aggregate and an entity with the same semantic identity would still be
+    two incompatible claims to one concept.  Genuinely distinct same-spelled
+    concepts must use explicit ``semantic_key`` values instead.
+    """
+    owners: dict[str, set[str]] = defaultdict(set)
     for package in packages:
         for unit in package.contract.units:
             if unit.kind in OWNED_KINDS:
-                owners[unit.kind, unit.semantic_identity].add(package.name)
+                owners[unit.semantic_identity].add(package.name)
     return [
-        "duplicate semantic owner: "
-        f"{kind.value}::{identity}::{','.join(sorted(package_names))}"
-        for (kind, identity), package_names in sorted(
-            owners.items(), key=lambda item: (item[0][0].value, item[0][1])
-        )
+        f"duplicate semantic owner: {identity}::{','.join(sorted(package_names))}"
+        for identity, package_names in sorted(owners.items())
         if len(package_names) > 1
     ]
 

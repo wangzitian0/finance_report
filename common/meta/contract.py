@@ -420,8 +420,9 @@ CONTRACT = PackageContract(
             statement=(
                 "Aggregate roots, entities, value objects, and domain events "
                 "declared by package contracts have exactly one canonical "
-                "semantic owner. A same-spelled but distinct concept must state "
-                "a distinct semantic key; duplicate claims fail closed."
+                "semantic owner even when packages label the claim with different "
+                "DDD kinds. A same-spelled but distinct concept must state a "
+                "distinct semantic key; duplicate claims fail closed."
             ),
             test=(
                 "tests/tooling/test_semantic_ownership.py"
