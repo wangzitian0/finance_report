@@ -103,17 +103,16 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/reporting/test_reporting_snapshot.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reports_currencies_and_paths.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reports_router_additional.py` | `common/reporting/reporting.md` |
+| `apps/backend/tests/reporting/test_balance_sheet_provenance.py` | Support regression for the reporting provenance display boundary; package authority is covered by `AC-reporting.package-document.7`. |
 | `apps/backend/tests/schemas/test_ai_feedback_schema.py` | `common/llm/ai.md` |
 | `apps/backend/tests/schemas/test_audit_schema.py` | `common/meta/schema.md` |
 | `apps/backend/tests/schemas/test_user_schema.py` | `common/identity/readme.md` |
-| `apps/backend/tests/reporting/test_confidence_tier.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
 | `apps/backend/tests/unit/schemas/test_schemas.py` | `common/meta/schema.md` |
 | `apps/backend/tests/unit/services/test_source_type_priority.py` | `common/audit/readme.md#source-type-trust-hierarchy-provenance` |
 | `apps/backend/tests/unit/platform/test_exceptions.py` | `common/meta/development.md` |
 | `apps/backend/tests/test_factories.py` | `apps/backend/tests/factories.py` |
 | `apps/frontend/src/__tests__/analytics.test.tsx` | Frontend analytics tracking (OpenPanel PV) — non-blocking infra, not product behavior |
-| `apps/frontend/src/__tests__/confidence.test.ts` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/confidenceTrendPage.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/correctionLoopPage.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `apps/frontend/frontend-patterns.md` |

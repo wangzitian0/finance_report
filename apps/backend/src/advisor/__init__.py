@@ -7,8 +7,9 @@ injection, and sensitive-data request is refused before any LLM call, and
 sensitive numeric patterns are redacted from both directions of the stream.
 
 Physically moved here from ``src/services/ai_advisor/`` (#1671 Wave B),
-absorbing ``services/annualized_income.py``, ``prompts/ai_advisor.py``, and
-``models/chat.py`` (→ ``orm/chat.py``).  Cross-domain reads go through each
+absorbing ``prompts/ai_advisor.py`` and ``models/chat.py`` (→ ``orm/chat.py``).
+The reporting-owned annualized-income schedule moved with the report package.
+Cross-domain reads go through each
 package's published root (``platform``/``portfolio``/``pricing``/
 ``reconciliation``/``llm``/``audit``/``reporting``); the one read whose owner
 still lives in the app remainder (the observed-FX-pair composer, pending
@@ -33,8 +34,7 @@ from src.advisor.base.guardrails import (
     redact_sensitive,
 )
 from src.advisor.base.prompt import DISCLAIMER_EN, DISCLAIMER_ZH, get_ai_advisor_prompt
-from src.advisor.extension.annualized_income import generate_annualized_income_schedule
-from src.advisor.extension.app_reads import register_fx_conversion, register_fx_pairs_read
+from src.advisor.extension.app_reads import register_fx_pairs_read
 from src.advisor.extension.cache import ResponseCache
 from src.advisor.extension.service import AIAdvisorError, AIAdvisorService, ChatStream
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
@@ -54,7 +54,6 @@ __all__ = [
     "build_refusal",
     "detect_language",
     "ensure_disclaimer",
-    "generate_annualized_income_schedule",
     "get_ai_advisor_prompt",
     "is_non_financial",
     "is_prompt_injection",
@@ -62,6 +61,5 @@ __all__ = [
     "is_write_request",
     "normalize_question",
     "redact_sensitive",
-    "register_fx_conversion",
     "register_fx_pairs_read",
 ]

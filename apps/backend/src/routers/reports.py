@@ -5,37 +5,32 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
-from copy import deepcopy
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from enum import Enum
 from io import StringIO
-from typing import Any
-from uuid import UUID
+from typing import Any, cast
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, union
 
-from src.advisor import generate_annualized_income_schedule
 from src.composition import observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
-from src.portfolio import active_stock_symbols, build_investment_performance_report_schedule
+from src.portfolio import active_stock_symbols
 from src.pricing import ensure_market_data_fresh
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
-    PERSONAL_REPORT_PACKAGE_CONTRACT,
-    PERSONAL_REPORT_PACKAGE_NOTES,
-    ConfidenceMetricService,
+    PackageAssembler,
+    PackageDocumentVersionError,
     ReportError,
     ReportingSnapshotService,
     ReportSnapshot,
     ReportType as SnapshotReportType,
-    build_personal_report_package_traceability_payload,
-    derive_user_framework_policy_result,
     generate_balance_sheet,
     generate_cash_flow,
     generate_income_statement,
@@ -44,37 +39,30 @@ from src.reporting import (
     get_category_breakdown,
     get_net_worth_allocation_schedule,
     get_net_worth_timeseries,
-    get_personal_report_package_readiness,
-    jsonable as _jsonable,
     package_currency as _package_currency,
     package_dates as _package_dates,
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
-    package_snapshot_status as _package_snapshot_status,
     package_snapshot_summary as _package_snapshot_summary,
 )
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
-    AnnualizedIncomeScheduleResponse,
     BalanceSheetResponse,
     BreakdownPeriod,
     BreakdownType,
     CashFlowResponse,
     CategoryBreakdownResponse,
-    FrameworkPolicyResult,
     IncomeStatementResponse,
     NetWorthAllocationResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
     PersonalReportingFrameworkId,
-    PersonalReportPackageContractResponse,
+    PersonalReportPackageDocument,
+    PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageGenerateRequest,
-    PersonalReportPackageNotesResponse,
-    PersonalReportPackageReadinessResponse,
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotSummary,
-    PersonalReportPackageTraceabilityResponse,
     ReportSnapshotSummary,
     TrendPeriod,
 )
@@ -91,14 +79,6 @@ def _target_currency_pair(currency: str | None) -> list[str]:
     if target == base:
         return []
     return [f"{target}/{base}"]
-
-
-def _framework_policy_decisions_by_source_id(policy: FrameworkPolicyResult) -> dict[str, Any]:
-    decisions_by_source_id: dict[str, Any] = {}
-    for decision in policy.decisions:
-        for anchor in decision.evidence_anchors:
-            decisions_by_source_id[str(anchor.source_id)] = decision
-    return decisions_by_source_id
 
 
 async def _ensure_report_market_data_fresh(
@@ -177,250 +157,38 @@ class ExportReportType(str, Enum):
     BALANCE_SHEET = "balance-sheet"
     INCOME_STATEMENT = "income-statement"
     CASH_FLOW = "cash-flow"
-    PACKAGE = "package"
 
 
-@router.get("/package/contract", response_model=PersonalReportPackageContractResponse)
-def personal_report_package_contract(
-    framework_id: PersonalReportingFrameworkId | None = None,
-) -> PersonalReportPackageContractResponse:
-    """Return the stable package-level API/export contract."""
-    payload = deepcopy(PERSONAL_REPORT_PACKAGE_CONTRACT)
-    payload["selected_framework_id"] = framework_id.value if framework_id is not None else None
-    return PersonalReportPackageContractResponse(**payload)
-
-
-@router.get("/package/readiness", response_model=PersonalReportPackageReadinessResponse)
-async def personal_report_package_readiness(
-    framework_id: PersonalReportingFrameworkId | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    as_of_date: date | None = None,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> PersonalReportPackageReadinessResponse:
-    """Return deterministic readiness and blocker state for the personal package."""
-    payload = await get_personal_report_package_readiness(
-        db,
-        user_id,
-        framework_id=framework_id,
-        report_period_start=start_date,
-        report_period_end=end_date,
-        as_of_date=as_of_date,
-    )
-    return PersonalReportPackageReadinessResponse(**payload)
-
-
-@router.get("/package/framework-policy", response_model=FrameworkPolicyResult)
-async def personal_report_package_framework_policy(
+@router.get("/package", response_model=PersonalReportPackageDocument)
+async def preview_personal_report_package(
     framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    as_of_date: date | None = None,
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> FrameworkPolicyResult:
-    """Return the selected framework policy result consumed by package assembly."""
-    report_as_of = as_of_date or end_date or date.today()
-    report_end = end_date or report_as_of
-    report_start = start_date or report_end - timedelta(days=365)
-    return await derive_user_framework_policy_result(
-        db,
-        user_id,
-        framework_id=framework_id,
-        report_period_start=report_start,
-        report_period_end=report_end,
-        as_of_date=report_as_of,
-    )
-
-
-@router.get("/package/notes", response_model=PersonalReportPackageNotesResponse)
-def personal_report_package_notes() -> PersonalReportPackageNotesResponse:
-    """Return package-level notes and disclosures."""
-    return PersonalReportPackageNotesResponse(**PERSONAL_REPORT_PACKAGE_NOTES)
-
-
-@router.get("/package/traceability", response_model=PersonalReportPackageTraceabilityResponse)
-async def personal_report_package_traceability(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=False),
     *,
     db: DbSession,
     user_id: CurrentUserId,
-) -> PersonalReportPackageTraceabilityResponse:
-    """Return the package-level source-ledger-report traceability appendix."""
-    payload = await build_personal_report_package_traceability_payload(
+) -> PersonalReportPackageDocument:
+    """Build the one typed preview document without persisting a snapshot."""
+    report_start, report_end, report_as_of = _package_dates(
         start_date=start_date,
         end_date=end_date,
         as_of_date=as_of_date,
-        db=db,
-        user_id=user_id,
     )
-    return PersonalReportPackageTraceabilityResponse(**payload)
-
-
-@router.get("/package/annualized-income-schedule", response_model=AnnualizedIncomeScheduleResponse)
-async def annualized_income_schedule(
-    as_of_date: date | None = Query(default=None),
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> AnnualizedIncomeScheduleResponse:
-    """Return report-ready annualized income and restricted compensation schedule."""
-    return await generate_annualized_income_schedule(db, user_id, as_of_date=as_of_date)
-
-
-async def _personal_report_package_section_payloads(
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-    framework_id: PersonalReportingFrameworkId,
-    start_date: date,
-    end_date: date,
-    as_of_date: date,
-    currency: str,
-    include_restricted: bool = False,
-    decisions_by_source_id: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    from src.reporting import (
-        assemble_framework_balance_sheet,
-        assemble_framework_income_statement,
-    )
-
-    balance_sheet_payload = await assemble_framework_balance_sheet(
+    target_currency = _package_currency(currency)
+    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
+    return await PackageAssembler().assemble(
         db,
-        user_id,
+        user_id=user_id,
         framework_id=framework_id,
-        as_of_date=as_of_date,
-        currency=currency,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
         include_restricted=include_restricted,
-        decisions_by_source_id=decisions_by_source_id,
     )
-    income_statement_payload = await assemble_framework_income_statement(
-        db,
-        user_id,
-        framework_id=framework_id,
-        start_date=start_date,
-        end_date=end_date,
-        currency=currency,
-        decisions_by_source_id=decisions_by_source_id,
-    )
-    cash_flow_payload = await generate_cash_flow(
-        db,
-        user_id,
-        start_date=start_date,
-        end_date=end_date,
-        currency=currency,
-    )
-    # #1097 (AC25.5.1): call the service directly instead of importing the
-    # portfolio router handler. The package path already passes validated,
-    # concrete dates and a normalized (uppercased) currency, so the router
-    # handler's input-defaulting/validation is moot here and behavior is
-    # preserved by invoking the same underlying service.
-    investment_performance_payload = await build_investment_performance_report_schedule(
-        db,
-        user_id,
-        period_start=start_date,
-        period_end=end_date,
-        as_of_date=as_of_date,
-        currency=currency,
-    )
-    annualized_payload = await annualized_income_schedule(
-        as_of_date=as_of_date,
-        db=db,
-        user_id=user_id,
-    )
-    traceability_payload = await personal_report_package_traceability(
-        start_date=start_date,
-        end_date=end_date,
-        as_of_date=as_of_date,
-        db=db,
-        user_id=user_id,
-    )
-    return {
-        "balance_sheet": _jsonable(balance_sheet_payload),
-        "income_statement": _jsonable(income_statement_payload),
-        "cash_flow": _jsonable(cash_flow_payload),
-        "investment_performance": _jsonable(investment_performance_payload),
-        "annualized_income_long_term": _jsonable(annualized_payload),
-        "notes": personal_report_package_notes().model_dump(mode="json"),
-        "traceability_appendix": _jsonable(traceability_payload),
-    }
-
-
-async def _build_personal_report_package_snapshot_data(
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-    framework_id: PersonalReportingFrameworkId,
-    start_date: date,
-    end_date: date,
-    as_of_date: date,
-    currency: str,
-    include_restricted: bool = False,
-) -> dict[str, Any]:
-    contract = personal_report_package_contract(framework_id).model_dump(mode="json")
-    readiness = await get_personal_report_package_readiness(
-        db,
-        user_id,
-        framework_id=framework_id,
-        report_period_start=start_date,
-        report_period_end=end_date,
-        as_of_date=as_of_date,
-    )
-    policy = await derive_user_framework_policy_result(
-        db,
-        user_id,
-        framework_id=framework_id,
-        report_period_start=start_date,
-        report_period_end=end_date,
-        as_of_date=as_of_date,
-    )
-    decisions_by_source_id = _framework_policy_decisions_by_source_id(policy)
-    section_payloads = await _personal_report_package_section_payloads(
-        db=db,
-        user_id=user_id,
-        framework_id=framework_id,
-        start_date=start_date,
-        end_date=end_date,
-        as_of_date=as_of_date,
-        currency=currency,
-        include_restricted=include_restricted,
-        decisions_by_source_id=decisions_by_source_id,
-    )
-    readiness_payload = _jsonable(readiness)
-    status_value = _package_snapshot_status(readiness_payload).value
-    source_trust_summary = readiness_payload.get("source_trust_summary") or {}
-    payload = {
-        "package_id": contract["package_id"],
-        "version": contract["version"],
-        "status": status_value,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "framework_id": framework_id.value,
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "as_of_date": as_of_date.isoformat(),
-        "currency": currency,
-        "contract": contract,
-        "readiness": readiness_payload,
-        "source_trust_summary": source_trust_summary,
-        "framework_policy": _jsonable(policy),
-        "section_payloads": section_payloads,
-    }
-    return {
-        "package_id": contract["package_id"],
-        "status": status_value,
-        "framework_id": framework_id.value,
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "as_of_date": as_of_date.isoformat(),
-        "currency": currency,
-        "readiness_state": str(readiness_payload.get("state") or "draft"),
-        "payload": payload,
-    }
 
 
 @router.post("/package/generate", response_model=PersonalReportPackageSnapshotResponse)
@@ -436,7 +204,10 @@ async def generate_personal_report_package_snapshot(
         as_of_date=request.as_of_date,
     )
     target_currency = _package_currency(request.currency)
-    snapshot_data = await _build_personal_report_package_snapshot_data(
+    snapshot_id = uuid4()
+    frozen_at = datetime.now(UTC)
+    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
+    document = await PackageAssembler().assemble(
         db=db,
         user_id=user_id,
         framework_id=request.framework_id,
@@ -445,6 +216,9 @@ async def generate_personal_report_package_snapshot(
         as_of_date=report_as_of,
         currency=target_currency,
         include_restricted=request.include_restricted,
+        lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
+        snapshot_id=snapshot_id,
+        frozen_at=frozen_at,
     )
     snapshot = await ReportingSnapshotService().create_snapshot(
         db,
@@ -453,12 +227,10 @@ async def generate_personal_report_package_snapshot(
         start_date=report_start,
         as_of_date=report_as_of,
         rule_version_id=None,
-        report_data=snapshot_data,
+        report_data=document.model_dump(mode="json"),
         ttl_seconds=0,
+        snapshot_id=snapshot_id,
     )
-    # Record a North-Star confidence point per report-package generation (the
-    # vision's cadence), so the low-confidence-proportion trend accumulates.
-    await ConfidenceMetricService().record_snapshot(db, user_id)
     await db.commit()
     # BE->OpenPanel: server-authoritative `report_generated` (fires even if the
     # browser event is blocked). The official SDK's track() is itself non-blocking
@@ -469,7 +241,10 @@ async def generate_personal_report_package_snapshot(
         "report_generated",
         {"framework_id": request.framework_id.value, "currency": target_currency},
     )
-    return _package_snapshot_response(snapshot)
+    try:
+        return _package_snapshot_response(snapshot)
+    except PackageDocumentVersionError as exc:  # pragma: no cover - just-written documents validate above.
+        raise_bad_request(str(exc), cause=exc)
 
 
 @router.get("/package/snapshots", response_model=list[PersonalReportPackageSnapshotSummary])
@@ -508,7 +283,10 @@ async def get_personal_report_package_snapshot(
     )
     if snapshot is None:
         raise_not_found("Package snapshot")
-    return _package_snapshot_response(snapshot)
+    try:
+        return _package_snapshot_response(snapshot)
+    except PackageDocumentVersionError as exc:
+        raise_bad_request(str(exc), cause=exc)
 
 
 @router.get("/package/snapshots/{snapshot_id}/export")
@@ -563,7 +341,7 @@ async def balance_sheet(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return BalanceSheetResponse(**report)
+    return BalanceSheetResponse.model_validate(report)
 
 
 @router.get("/account-lineage", response_model=AccountLineageResponse)
@@ -595,7 +373,7 @@ async def account_lineage(
         )
     except ReportError as exc:
         raise_not_found(f"Account {account_id}", cause=exc)
-    return AccountLineageResponse(**report)
+    return AccountLineageResponse.model_validate(report)
 
 
 @router.get("/income-statement", response_model=IncomeStatementResponse)
@@ -631,7 +409,7 @@ async def income_statement(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return IncomeStatementResponse(**report)
+    return IncomeStatementResponse.model_validate(report)
 
 
 @router.get("/cash-flow", response_model=CashFlowResponse)
@@ -663,7 +441,7 @@ async def cash_flow(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return CashFlowResponse(**report)
+    return CashFlowResponse.model_validate(report)
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -695,7 +473,7 @@ async def account_trend(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return AccountTrendResponse(**report)
+    return AccountTrendResponse.model_validate(report)
 
 
 @router.get("/net-worth/timeseries", response_model=NetWorthTimeSeriesResponse)
@@ -730,7 +508,7 @@ async def net_worth_timeseries(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return NetWorthTimeSeriesResponse(**report)
+    return NetWorthTimeSeriesResponse.model_validate(report)
 
 
 @router.get("/net-worth/allocation", response_model=NetWorthAllocationResponse)
@@ -763,7 +541,7 @@ async def net_worth_allocation(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return NetWorthAllocationResponse(**report)
+    return NetWorthAllocationResponse.model_validate(report)
 
 
 @router.get("/breakdown", response_model=CategoryBreakdownResponse)
@@ -796,7 +574,7 @@ async def category_breakdown(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return CategoryBreakdownResponse(**report)
+    return CategoryBreakdownResponse.model_validate(report)
 
 
 @router.get("/export")
@@ -821,124 +599,123 @@ async def export_report(
         if report_type == ExportReportType.BALANCE_SHEET:
             report_date = as_of_date or date.today()
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-            report = await generate_balance_sheet(
-                db,
-                user_id,
-                as_of_date=report_date,
-                currency=currency,
-                include_restricted=include_restricted,
+            balance_sheet_report = cast(
+                dict[str, Any],
+                await generate_balance_sheet(
+                    db,
+                    user_id,
+                    as_of_date=report_date,
+                    currency=currency,
+                    include_restricted=include_restricted,
+                ),
             )
             writer.writerow(["section", "account", "amount", "currency"])
-            for section, lines in (
-                ("Assets", report["assets"]),
-                ("Liabilities", report["liabilities"]),
-                ("Equity", report["equity"]),
+            for section, balance_lines in (
+                ("Assets", balance_sheet_report["assets"]),
+                ("Liabilities", balance_sheet_report["liabilities"]),
+                ("Equity", balance_sheet_report["equity"]),
             ):
-                for line in lines:
-                    writer.writerow([section, line["name"], line["amount"], report["currency"]])
-            writer.writerow(["Total Assets", "", report["total_assets"], report["currency"]])
-            writer.writerow(["Total Liabilities", "", report["total_liabilities"], report["currency"]])
-            writer.writerow(["Total Equity", "", report["total_equity"], report["currency"]])
-            filename = f"balance-sheet-{report['as_of_date']}.csv"
+                for balance_line in balance_lines:
+                    writer.writerow(
+                        [section, balance_line["name"], balance_line["amount"], balance_sheet_report["currency"]]
+                    )
+            writer.writerow(
+                ["Total Assets", "", balance_sheet_report["total_assets"], balance_sheet_report["currency"]]
+            )
+            writer.writerow(
+                [
+                    "Total Liabilities",
+                    "",
+                    balance_sheet_report["total_liabilities"],
+                    balance_sheet_report["currency"],
+                ]
+            )
+            writer.writerow(
+                ["Total Equity", "", balance_sheet_report["total_equity"], balance_sheet_report["currency"]]
+            )
+            filename = f"balance-sheet-{balance_sheet_report['as_of_date']}.csv"
         elif report_type == ExportReportType.INCOME_STATEMENT:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for income statement export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
-            report = await generate_income_statement(
-                db,
-                user_id,
-                start_date=start_date,
-                end_date=end_date,
-                currency=currency,
+            income_statement_report = cast(
+                dict[str, Any],
+                await generate_income_statement(
+                    db,
+                    user_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    currency=currency,
+                ),
             )
             writer.writerow(["section", "account", "amount", "currency"])
-            for section, lines in (("Income", report["income"]), ("Expenses", report["expenses"])):
-                for line in lines:
-                    writer.writerow([section, line["name"], line["amount"], report["currency"]])
-            writer.writerow(["Total Income", "", report["total_income"], report["currency"]])
-            writer.writerow(["Total Expenses", "", report["total_expenses"], report["currency"]])
-            writer.writerow(["Net Income", "", report["net_income"], report["currency"]])
+            for section, income_lines in (
+                ("Income", income_statement_report["income"]),
+                ("Expenses", income_statement_report["expenses"]),
+            ):
+                for income_line in income_lines:
+                    writer.writerow(
+                        [section, income_line["name"], income_line["amount"], income_statement_report["currency"]]
+                    )
+            writer.writerow(
+                ["Total Income", "", income_statement_report["total_income"], income_statement_report["currency"]]
+            )
+            writer.writerow(
+                [
+                    "Total Expenses",
+                    "",
+                    income_statement_report["total_expenses"],
+                    income_statement_report["currency"],
+                ]
+            )
+            writer.writerow(
+                ["Net Income", "", income_statement_report["net_income"], income_statement_report["currency"]]
+            )
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
         elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for cash flow export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
-            report = await generate_cash_flow(
-                db,
-                user_id,
-                start_date=start_date,
-                end_date=end_date,
-                currency=currency,
+            cash_flow_report = cast(
+                dict[str, Any],
+                await generate_cash_flow(
+                    db,
+                    user_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    currency=currency,
+                ),
             )
             writer.writerow(["section", "account", "amount", "currency", "description"])
-            for section, lines in (
-                ("Operating", report["operating"]),
-                ("Investing", report["investing"]),
-                ("Financing", report["financing"]),
+            for section, cash_flow_lines in (
+                ("Operating", cash_flow_report["operating"]),
+                ("Investing", cash_flow_report["investing"]),
+                ("Financing", cash_flow_report["financing"]),
             ):
-                for line in lines:
+                for cash_flow_line in cash_flow_lines:
                     writer.writerow(
                         [
                             section,
-                            line["subcategory"],
-                            line["amount"],
-                            report["currency"],
-                            line.get("description") or "",
+                            cash_flow_line["subcategory"],
+                            cash_flow_line["amount"],
+                            cash_flow_report["currency"],
+                            cash_flow_line.get("description") or "",
                         ]
                     )
-            summary = report["summary"]
-            writer.writerow(["Operating Activities", "", summary["operating_activities"], report["currency"], ""])
-            writer.writerow(["Investing Activities", "", summary["investing_activities"], report["currency"], ""])
-            writer.writerow(["Financing Activities", "", summary["financing_activities"], report["currency"], ""])
-            writer.writerow(["Net Cash Flow", "", summary["net_cash_flow"], report["currency"], ""])
-            writer.writerow(["Beginning Cash", "", summary["beginning_cash"], report["currency"], ""])
-            writer.writerow(["Ending Cash", "", summary["ending_cash"], report["currency"], ""])
+            summary = cash_flow_report["summary"]
+            writer.writerow(
+                ["Operating Activities", "", summary["operating_activities"], cash_flow_report["currency"], ""]
+            )
+            writer.writerow(
+                ["Investing Activities", "", summary["investing_activities"], cash_flow_report["currency"], ""]
+            )
+            writer.writerow(
+                ["Financing Activities", "", summary["financing_activities"], cash_flow_report["currency"], ""]
+            )
+            writer.writerow(["Net Cash Flow", "", summary["net_cash_flow"], cash_flow_report["currency"], ""])
+            writer.writerow(["Beginning Cash", "", summary["beginning_cash"], cash_flow_report["currency"], ""])
+            writer.writerow(["Ending Cash", "", summary["ending_cash"], cash_flow_report["currency"], ""])
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
-        elif report_type == ExportReportType.PACKAGE:
-            selected_framework = framework_id or PersonalReportingFrameworkId.US_GAAP_LIKE
-            contract = personal_report_package_contract(selected_framework)
-            policy = await personal_report_package_framework_policy(
-                framework_id=selected_framework,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                db=db,
-                user_id=user_id,
-            )
-            traceability = await personal_report_package_traceability(
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                db=db,
-                user_id=user_id,
-            )
-            writer.writerow(contract.export_contract.csv_columns)
-            evidence_references = sorted(
-                {
-                    f"{anchor.anchor_type}:{anchor.source_id}"
-                    for decision in policy.decisions
-                    for anchor in decision.evidence_anchors
-                }
-                | {f"{anchor.anchor_type}:{anchor.source_id}" for gap in policy.gaps for anchor in gap.evidence_anchors}
-            )
-            evidence_bundle_references = "|".join(evidence_references)
-            for line in traceability.lines:
-                writer.writerow(
-                    [
-                        contract.package_id,
-                        line.section_id,
-                        line.line_id,
-                        line.label,
-                        "",
-                        currency or settings.base_currency,
-                        line.source_state,
-                        selected_framework.value,
-                        policy.result_id,
-                        policy.matrix_version,
-                        evidence_bundle_references,
-                    ]
-                )
-            filename = f"personal-report-package-{selected_framework.value}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
     except ReportError as exc:

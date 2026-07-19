@@ -4,27 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementsPage from "@/app/(main)/upload/page"
 import { apiFetch } from "@/lib/api"
-import type { BankStatement, PersonalReportPackageReadinessResponse } from "@/lib/types"
+import type { BankStatement } from "@/lib/types"
 
 const showToastMock = vi.fn()
-
-const DEFAULT_READINESS: PersonalReportPackageReadinessResponse = {
-  package_id: "personal-financial-report-package",
-  state: "ready",
-  label: "Ready",
-  action_href: "/reports/package",
-  blocking_count: 0,
-  blockers: [],
-  source_summary: {},
-  source_trust_summary: {
-    source_classes: ["bank_statement"],
-    deterministic_pr_source_classes: ["bank_statement"],
-    post_merge_llm_ocr_source_classes: ["bank_statement"],
-    manual_trusted_source_classes: [],
-    gap_source_classes: [],
-    blocker_codes: [],
-  },
-}
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -79,11 +61,9 @@ describe("StatementsPage", () => {
 
   function mockStatementsPageApi({
     statements,
-    readiness = DEFAULT_READINESS,
     deletes = [],
   }: {
     statements: unknown[]
-    readiness?: unknown
     deletes?: unknown[]
   }) {
     const statementQueue = [...statements]
@@ -91,9 +71,6 @@ describe("StatementsPage", () => {
 
     mockedApiFetch.mockImplementation((path, options) => {
       const url = String(path)
-      if (url.startsWith("/api/reports/package/readiness")) {
-        return resolveQueued([readiness], DEFAULT_READINESS)
-      }
       if (url === "/api/statements") {
         return resolveQueued(statementQueue, { items: [] })
       }
@@ -181,11 +158,8 @@ describe("StatementsPage", () => {
     // The retired per-source-class intake checklist must not return.
     expect(screen.queryByTestId("source-intake-bank_statement")).toBeNull()
     expect(screen.queryByTestId("source-intake-manual_record")).toBeNull()
-    // The page no longer pulls report readiness just to render intake entries.
-    expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/reports/package/readiness"),
-      expect.anything(),
-    )
+    // The page does not pull package data merely to render intake entries.
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements")
   })
 
   it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {

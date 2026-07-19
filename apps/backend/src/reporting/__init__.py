@@ -30,8 +30,11 @@ _EXPORTS = {
     "MAX_NET_WORTH_DAILY_POINTS": "src.reporting.extension.reporting_calc",
     "PERSONAL_REPORT_PACKAGE_CONTRACT": "src.reporting.base.report_package_contract",
     "PERSONAL_REPORT_PACKAGE_NOTES": "src.reporting.base.report_package_contract",
+    "PackageAssembler": "src.reporting.extension.package_document",
+    "PackageSectionContribution": "src.reporting.base.package_contribution",
+    "current_package_document_summary": "src.reporting.extension.package_document",
+    "PackageDocumentVersionError": "src.reporting.extension.report_package",
     "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
-    "ConfidenceMetricService": "src.reporting.extension.confidence_metric",
     "PersonalReportingFrameworkId": "src.reporting.base.types",
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
@@ -54,9 +57,9 @@ _EXPORTS = {
     "assemble_framework_balance_sheet": "src.reporting.extension.framework_report",
     "assemble_framework_income_statement": "src.reporting.extension.framework_report",
     "build_personal_report_package_traceability_payload": "src.reporting.extension.report_traceability",
-    "derive_reconciliation_score_tier": "src.reporting.extension.confidence_tier",
     "derive_user_framework_policy_result": "src.reporting.extension.framework_policy",
     "generate_balance_sheet": "src.reporting.extension.balance_sheet",
+    "generate_annualized_income_schedule": "src.reporting.extension.annualized_income",
     "generate_cash_flow": "src.reporting.extension.cash_flow",
     "generate_income_statement": "src.reporting.extension.income_statement",
     "get_account_lineage": "src.reporting.extension.lineage",
@@ -64,15 +67,14 @@ _EXPORTS = {
     "get_category_breakdown": "src.reporting.extension.net_worth",
     "get_net_worth_allocation_schedule": "src.reporting.extension.net_worth",
     "get_net_worth_timeseries": "src.reporting.extension.net_worth",
-    "get_personal_report_package_readiness": "src.reporting.extension.report_readiness",
     "income_bucket": "src.reporting.extension.reporting_calc",
     "is_valid_line_for_framework": "src.reporting.base.l1_registry",
     "jsonable": "src.reporting.extension.report_package",
     "package_currency": "src.reporting.extension.report_package",
     "package_dates": "src.reporting.extension.report_package",
     "package_snapshot_csv": "src.reporting.extension.report_package",
+    "package_snapshot_document": "src.reporting.extension.report_package",
     "package_snapshot_response": "src.reporting.extension.report_package",
-    "package_snapshot_status": "src.reporting.extension.report_package",
     "package_snapshot_summary": "src.reporting.extension.report_package",
     "register_fx_gateway": "src.reporting.extension.fx_gateway",
     "register_manual_valuation_lines_provider": "src.reporting.extension.balance_sheet",
@@ -83,8 +85,11 @@ __all__ = [
     "MAX_NET_WORTH_DAILY_POINTS",
     "PERSONAL_REPORT_PACKAGE_CONTRACT",
     "PERSONAL_REPORT_PACKAGE_NOTES",
+    "PackageAssembler",
+    "PackageSectionContribution",
+    "current_package_document_summary",
+    "PackageDocumentVersionError",
     "AnnualizedIncomeTotals",
-    "ConfidenceMetricService",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportError",
@@ -107,9 +112,9 @@ __all__ = [
     "assemble_framework_balance_sheet",
     "assemble_framework_income_statement",
     "build_personal_report_package_traceability_payload",
-    "derive_reconciliation_score_tier",
     "derive_user_framework_policy_result",
     "generate_balance_sheet",
+    "generate_annualized_income_schedule",
     "generate_cash_flow",
     "generate_income_statement",
     "get_account_lineage",
@@ -117,15 +122,14 @@ __all__ = [
     "get_category_breakdown",
     "get_net_worth_allocation_schedule",
     "get_net_worth_timeseries",
-    "get_personal_report_package_readiness",
     "income_bucket",
     "is_valid_line_for_framework",
     "jsonable",
     "package_currency",
     "package_dates",
     "package_snapshot_csv",
+    "package_snapshot_document",
     "package_snapshot_response",
-    "package_snapshot_status",
     "package_snapshot_summary",
     "register_fx_gateway",
     "register_manual_valuation_lines_provider",
@@ -145,6 +149,7 @@ def __getattr__(name: str) -> object:
 
 if TYPE_CHECKING:
     from src.reporting.base.l1_registry import is_valid_line_for_framework
+    from src.reporting.base.package_contribution import PackageSectionContribution
     from src.reporting.base.report_package_contract import (
         PERSONAL_REPORT_PACKAGE_CONTRACT,
         PERSONAL_REPORT_PACKAGE_NOTES,
@@ -156,8 +161,6 @@ if TYPE_CHECKING:
         register_manual_valuation_lines_provider,
     )
     from src.reporting.extension.cash_flow import generate_cash_flow
-    from src.reporting.extension.confidence_metric import ConfidenceMetricService
-    from src.reporting.extension.confidence_tier import derive_reconciliation_score_tier
     from src.reporting.extension.framework_policy import derive_user_framework_policy_result
     from src.reporting.extension.framework_report import (
         assemble_framework_balance_sheet,
@@ -172,16 +175,20 @@ if TYPE_CHECKING:
         get_net_worth_allocation_schedule,
         get_net_worth_timeseries,
     )
+    from src.reporting.extension.package_document import (
+        PackageAssembler,
+        current_package_document_summary,
+    )
     from src.reporting.extension.report_package import (
+        PackageDocumentVersionError,
         jsonable,
         package_currency,
         package_dates,
         package_snapshot_csv,
+        package_snapshot_document,
         package_snapshot_response,
-        package_snapshot_status,
         package_snapshot_summary,
     )
-    from src.reporting.extension.report_readiness import get_personal_report_package_readiness
     from src.reporting.extension.report_traceability import build_personal_report_package_traceability_payload
     from src.reporting.extension.reporting_calc import (
         MAX_NET_WORTH_DAILY_POINTS,

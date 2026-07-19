@@ -16,6 +16,7 @@ from src.workflow.base.types import (
 )
 
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
+RECONCILIATION_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:reconciliation-pending-review")
 
 
 def build_workflow_dedupe_key(*, family: WorkflowEventFamily, source_type: str, source_id: UUID) -> str:
@@ -138,6 +139,25 @@ def build_readiness_blocker_event_payload(blocker: dict[str, str | int]) -> Work
         action_href=str(blocker["action_href"]),
         report_impact=WorkflowReportImpact.BLOCKED,
         dedupe_key=f"readiness-blocker:{code}:{family.value}",
+    )
+
+
+def build_reconciliation_review_event_payload(pending_count: int) -> WorkflowEventCreate:
+    """Build the aggregate workflow card from reconciliation's own pending count."""
+    return WorkflowEventCreate(
+        occurred_at=datetime.now(UTC),
+        family=WorkflowEventFamily.RECONCILIATION_BLOCKED,
+        severity=WorkflowEventSeverity.BLOCKED,
+        title="Reconciliation review required",
+        summary=(
+            f"{pending_count} pending reconciliation match"
+            f"{'es' if pending_count != 1 else ''} must be accepted or rejected."
+        ),
+        source_type="reconciliation",
+        source_id=RECONCILIATION_WORKFLOW_SOURCE_ID,
+        action_href="/reconciliation/review-queue",
+        report_impact=WorkflowReportImpact.BLOCKED,
+        dedupe_key="reconciliation:pending-review",
     )
 
 

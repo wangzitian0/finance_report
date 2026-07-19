@@ -13,8 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer3 import ManualValuationBasis, ManualValuationComponentType
 from src.pricing import ValuationService
-from src.reporting.extension.report_readiness import get_personal_report_package_readiness
-from src.schemas.reporting import PersonalReportingFrameworkId
 
 
 async def test_AC11_9_5_valuation_basis_captured_via_api(client):
@@ -52,18 +50,16 @@ async def test_AC11_9_5_basis_is_optional_and_backward_compatible(client):
     assert resp.json()["valuation_basis"] is None
 
 
-async def test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker(
+async def test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head(
     db: AsyncSession,
     test_user,
 ) -> None:
-    """AC-pricing.manualvaluation.8: AC11.9.5 (#706 AC2): a manual valuation without a structured basis (and
-    without legacy notes) surfaces a ``missing_valuation_basis`` readiness
-    blocker; recording a structured basis clears it."""
+    """AC-pricing.manualvaluation.8: a structured basis is explicit on the current immutable head."""
     service = ValuationService()
     user_id = test_user.id
     as_of = date(2026, 3, 31)
 
-    await service.create_valuation_snapshot(
+    unsubstantiated = await service.create_valuation_snapshot(
         db,
         user_id,
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
@@ -74,14 +70,11 @@ async def test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker(
     )
     await db.commit()
 
-    readiness = await get_personal_report_package_readiness(
-        db, user_id, framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE, as_of_date=as_of
-    )
-    assert "missing_valuation_basis" in {blocker["code"] for blocker in readiness["blockers"]}
+    assert unsubstantiated.valuation_basis is None
 
     # Recording the structured basis supersedes the prior head (append-only),
     # so the head now carries a basis and the gap clears.
-    await service.create_valuation_snapshot(
+    substantiated = await service.create_valuation_snapshot(
         db,
         user_id,
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
@@ -93,7 +86,6 @@ async def test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker(
     )
     await db.commit()
 
-    readiness_after = await get_personal_report_package_readiness(
-        db, user_id, framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE, as_of_date=as_of
-    )
-    assert "missing_valuation_basis" not in {blocker["code"] for blocker in readiness_after["blockers"]}
+    assert unsubstantiated.superseded_by_id == substantiated.id
+    assert substantiated.superseded_by_id is None
+    assert substantiated.valuation_basis is ManualValuationBasis.MARKET_APPRAISAL

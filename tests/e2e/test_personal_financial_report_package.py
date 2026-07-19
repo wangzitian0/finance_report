@@ -336,7 +336,7 @@ async def _create_manual_snapshot(
         "csv_export",
         "manual_record",
     ],
-    mirror_proof_id="personal-package-source-trust-pr",
+    mirror_proof_id="personal-package-document-pr",
     issue="#573",
     required_markers=["e2e", "tier3", "critical", "llm"],
 )

@@ -19,11 +19,9 @@ from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
-    worst_confidence_tier,
 )
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
-from src.reporting.extension.confidence_tier import derive_confidence_tier
 from src.reporting.extension.fx_gateway import (
     FxWarning,
     get_average_rate,
@@ -65,10 +63,8 @@ def _build_account_lines(
     accounts: Sequence[Account],
     balances: dict[UUID, Decimal],
     filter_type: AccountType,
-    tiers: dict[UUID, str] | None = None,
     provenance_by_account: dict[UUID, DataProvenance | None] | None = None,
 ) -> list[dict[str, Any]]:
-    tiers = tiers or {}
     items = [account for account in accounts if account.type == filter_type]
     items.sort(key=lambda acc: acc.name.lower())
     return [
@@ -78,7 +74,6 @@ def _build_account_lines(
             "type": account.type,
             "parent_id": account.parent_id,
             "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
-            "confidence_tier": tiers.get(account.id),
             "provenance": provenance_by_account.get(account.id) if provenance_by_account is not None else None,
             "source_currency": account.currency.upper(),
             "allocation_asset_class": _ledger_allocation_asset_class(account),
@@ -87,43 +82,6 @@ def _build_account_lines(
         }
         for account in items
     ]
-
-
-async def _aggregate_account_confidence_tiers(
-    db: AsyncSession,
-    user_id: UUID,
-    account_types: tuple[AccountType, ...],
-    as_of_date: date,
-    *,
-    start_date: date | None = None,
-    included_currencies: set[str] | None = None,
-) -> dict[UUID, str]:
-    """Per-account worst-input confidence tier, derived from contributing entries' source_type."""
-    if included_currencies is not None and not included_currencies:
-        return {}
-
-    stmt = (
-        select(Account.id, JournalEntry.source_type)
-        .distinct()
-        .select_from(JournalLine)
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type.in_(account_types))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(JournalEntry.entry_date <= as_of_date)
-    )
-    if start_date:
-        stmt = stmt.where(JournalEntry.entry_date >= start_date)
-    if included_currencies is not None:
-        stmt = stmt.where(JournalLine.currency.in_(list(included_currencies)))
-
-    result = await db.execute(stmt)
-    tiers: dict[UUID, str] = {}
-    for account_id, source_type in result.all():
-        tier = derive_confidence_tier(source_type)
-        tiers[account_id] = worst_confidence_tier([tiers.get(account_id), tier]) or tier
-    return tiers
 
 
 def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:

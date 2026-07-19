@@ -1610,6 +1610,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Personal Report Package
+         * @description Build the one typed preview document without persisting a snapshot.
+         */
+        get: operations["preview_personal_report_package_reports_package_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/package/annualized-income-schedule": {
         parameters: {
             query?: never;
@@ -4043,7 +4063,7 @@ export interface components {
          * @description Supported report types for export.
          * @enum {string}
          */
-        ExportReportType: "balance-sheet" | "income-statement" | "cash-flow" | "package";
+        ExportReportType: "balance-sheet" | "income-statement" | "cash-flow";
         /**
          * FrameworkPolicyDecision
          * @description One deterministic framework policy conclusion for a personal finance domain.
@@ -5354,6 +5374,30 @@ export interface components {
             state: string;
         };
         /**
+         * PersonalReportPackageContext
+         * @description The period, presentation, and framework selected for one package document.
+         */
+        PersonalReportPackageContext: {
+            /**
+             * As Of Date
+             * Format: date
+             */
+            as_of_date: string;
+            /** Currency */
+            currency: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            framework_id: components["schemas"]["PersonalReportingFrameworkId"];
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /**
          * PersonalReportPackageContractResponse
          * @description Package-level API/export contract for the north-star report package.
          */
@@ -5376,6 +5420,43 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * PersonalReportPackageDocument
+         * @description The sole typed artifact used to preview, persist, reopen, and export a package.
+         */
+        PersonalReportPackageDocument: {
+            context: components["schemas"]["PersonalReportPackageContext"];
+            contract: components["schemas"]["PersonalReportPackageContractResponse"];
+            framework_policy: components["schemas"]["FrameworkPolicyResult"];
+            /** Frozen At */
+            frozen_at?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Input Manifest */
+            input_manifest: components["schemas"]["PersonalReportPackageTraceManifestEntry"][];
+            lifecycle: components["schemas"]["PersonalReportPackageDocumentLifecycle"];
+            /** Package Id */
+            package_id: string;
+            readiness: components["schemas"]["PersonalReportPackageReadinessResponse"];
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "2";
+            sections: components["schemas"]["PersonalReportPackageSections"];
+            /** Snapshot Id */
+            snapshot_id?: string | null;
+            status: components["schemas"]["PersonalReportPackageSnapshotStatus"];
+        };
+        /**
+         * PersonalReportPackageDocumentLifecycle
+         * @description Whether a package document is a live preview or frozen report artifact.
+         * @enum {string}
+         */
+        PersonalReportPackageDocumentLifecycle: "preview" | "frozen";
         /**
          * PersonalReportPackageExportContract
          * @description Stable export contract for personal package consumers.
@@ -5537,8 +5618,21 @@ export interface components {
             status: string;
         };
         /**
+         * PersonalReportPackageSections
+         * @description All deliverable sections, typed at the package boundary.
+         */
+        PersonalReportPackageSections: {
+            annualized_income_long_term: components["schemas"]["AnnualizedIncomeScheduleResponse"];
+            balance_sheet: components["schemas"]["BalanceSheetResponse"];
+            cash_flow: components["schemas"]["CashFlowResponse"];
+            income_statement: components["schemas"]["IncomeStatementResponse"];
+            investment_performance: components["schemas"]["InvestmentPerformanceReportScheduleResponse"];
+            notes: components["schemas"]["PersonalReportPackageNotesResponse"];
+            traceability_appendix: components["schemas"]["PersonalReportPackageTraceabilityResponse"];
+        };
+        /**
          * PersonalReportPackageSnapshotResponse
-         * @description Saved personal report package snapshot plus frozen payload.
+         * @description Saved personal report package snapshot plus its immutable typed document.
          */
         PersonalReportPackageSnapshotResponse: {
             /**
@@ -5557,6 +5651,7 @@ export interface components {
              * @description Snapshot presentation currency
              */
             currency: string;
+            document: components["schemas"]["PersonalReportPackageDocument"];
             /**
              * End Date
              * Format: date
@@ -5582,13 +5677,6 @@ export interface components {
              */
             package_id: string;
             /**
-             * Payload
-             * @description Frozen package payload used for reopen and export
-             */
-            payload: {
-                [key: string]: unknown;
-            };
-            /**
              * Readiness State
              * @description Readiness state captured when the snapshot was generated
              */
@@ -5607,7 +5695,7 @@ export interface components {
          * @description Durability/trust state of a generated package snapshot.
          * @enum {string}
          */
-        PersonalReportPackageSnapshotStatus: "draft" | "trusted";
+        PersonalReportPackageSnapshotStatus: "draft" | "trusted" | "legacy_unproven";
         /**
          * PersonalReportPackageSnapshotSummary
          * @description Saved personal report package snapshot metadata.
@@ -5684,6 +5772,33 @@ export interface components {
             post_merge_llm_ocr_source_classes?: string[];
             /** Source Classes */
             source_classes?: string[];
+        };
+        /**
+         * PersonalReportPackageTraceManifestEntry
+         * @description One current authoritative decision captured as a package input.
+         */
+        PersonalReportPackageTraceManifestEntry: {
+            /** Assertion Id */
+            assertion_id: string;
+            /** Assertion Kind */
+            assertion_kind: string;
+            /** Assertion Version */
+            assertion_version: string;
+            /** Authority Tier */
+            authority_tier: string;
+            /**
+             * Decision Id
+             * Format: uuid
+             */
+            decision_id: string;
+            /** Journal Entry Ids */
+            journal_entry_ids: string[];
+            /** Target Id */
+            target_id: string;
+            /** Target Kind */
+            target_kind: string;
+            /** Target Version */
+            target_version: string;
         };
         /**
          * PersonalReportPackageTraceabilityAnchor
@@ -15531,6 +15646,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NetWorthTimeSeriesResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    preview_personal_report_package_reports_package_get: {
+        parameters: {
+            query?: {
+                framework_id?: components["schemas"]["PersonalReportingFrameworkId"];
+                start_date?: string | null;
+                end_date?: string | null;
+                as_of_date?: string | null;
+                currency?: string | null;
+                include_restricted?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalReportPackageDocument"];
                 };
             };
             /** @description Bad request */

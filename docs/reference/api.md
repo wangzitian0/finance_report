@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `138`
-- Schema count: `250`
+- Endpoint count: `131`
+- Schema count: `252`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -28,10 +28,10 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `journal-entries` | 6 |
 | `llm` | 7 |
 | `market-data` | 3 |
-| `metrics` | 3 |
+| `metrics` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 10 |
-| `reports` | 21 |
+| `reports` | 16 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -169,8 +169,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/metrics/confidence-north-star` | yes | - | - | `200` `ConfidenceNorthStarResponse` | Get Confidence North Star |
-| `POST` | `/metrics/confidence-north-star/snapshots` | yes | - | - | `201` `ConfidenceMetricSnapshotResponse` | Record Confidence North Star Snapshot |
 | `GET` | `/metrics/correction-loop/replay` | yes | - | - | `200` `CorrectionLoopReplayResponse` | Get Correction Loop Replay |
 
 ### portfolio
@@ -219,16 +217,11 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/income-statement` | yes | `start_date`* (query), `end_date`* (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
-| `GET` | `/reports/package/annualized-income-schedule` | yes | `as_of_date` (query) | - | `200` `AnnualizedIncomeScheduleResponse` | Annualized Income Schedule |
-| `GET` | `/reports/package/contract` | no | `framework_id` (query) | - | `200` `PersonalReportPackageContractResponse` | Personal Report Package Contract |
-| `GET` | `/reports/package/framework-policy` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `FrameworkPolicyResult` | Personal Report Package Framework Policy |
+| `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackageDocument` | Preview Personal Report Package |
 | `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
-| `GET` | `/reports/package/notes` | no | - | - | `200` `PersonalReportPackageNotesResponse` | Personal Report Package Notes |
-| `GET` | `/reports/package/readiness` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageReadinessResponse` | Personal Report Package Readiness |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |
-| `GET` | `/reports/package/traceability` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query) | - | `200` `PersonalReportPackageTraceabilityResponse` | Personal Report Package Traceability |
 | `GET` | `/reports/trend` | yes | `account_id`* (query), `period` (query), `currency` (query) | - | `200` `AccountTrendResponse` | Account Trend |
 | `GET` | `/reports/{report_type}/snapshots` | yes | `report_type`* (path) | - | `200` array[`ReportSnapshotSummary`] | List Report Snapshots |
 

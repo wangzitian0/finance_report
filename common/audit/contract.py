@@ -1395,19 +1395,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-audit.global-invariant.4",
             statement=(
-                "Every posted number traces end-to-end to a source document "
-                "(record<->evidence consistency): a report line's "
-                "source_anchor resolves through the Evidence Graph to the "
-                "originating uploaded document and its atomic transaction, "
-                "and its ledger_anchor resolves to the posted journal entry "
-                "that carries that value — the full source-document -> "
-                "extracted-fact -> posted-ledger-entry -> report-line chain, "
-                "not just one hop of it. Pinned from #1429's 2026-07-12 "
-                "scope-freeze wording."
+                "Every displayed posted number retains a ledger DecisionAnchor whose TraceRecord "
+                "parents preserve the reviewed source decision. Reporting displays contribution "
+                "refs but cannot relabel an opaque source id as an extraction fact or document."
             ),
             test=(
                 "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_preserves_the_ledger_decision_boundary"
             ),
             priority="P1",
             status="done",

@@ -566,6 +566,7 @@
             "type": "string"
           },
           "currency": {
+            "description": "Account trend presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -940,6 +941,7 @@
             "type": "string"
           },
           "currency": {
+            "description": "Restricted holding valuation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -1030,6 +1032,7 @@
             "type": "string"
           },
           "currency": {
+            "description": "Annualized income presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -1107,6 +1110,7 @@
             "type": "string"
           },
           "restricted_fair_value_total_currency": {
+            "description": "Currency of the restricted fair-value total.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Restricted Fair Value Total Currency",
@@ -1410,18 +1414,8 @@
             "title": "Assets",
             "type": "array"
           },
-          "confidence_tier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence Tier"
-          },
           "currency": {
+            "description": "Report presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -1440,6 +1434,7 @@
             "type": "array"
           },
           "fx_warnings": {
+            "description": "Foreign-exchange conversion warnings.",
             "items": {
               "additionalProperties": {
                 "type": "string"
@@ -1473,6 +1468,7 @@
             "type": "string"
           },
           "opening_balance_warnings": {
+            "description": "Opening-balance completeness warnings.",
             "items": {
               "additionalProperties": {
                 "type": "string"
@@ -1483,6 +1479,7 @@
             "type": "array"
           },
           "portfolio_warnings": {
+            "description": "Portfolio valuation coverage warnings.",
             "items": {
               "additionalProperties": {
                 "type": "string"
@@ -2195,6 +2192,7 @@
         "description": "Cash flow statement response schema.",
         "properties": {
           "currency": {
+            "description": "Cash-flow presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -2213,6 +2211,7 @@
             "type": "array"
           },
           "fx_warnings": {
+            "description": "Foreign-exchange conversion warnings.",
             "items": {
               "additionalProperties": {
                 "type": "string"
@@ -2332,6 +2331,7 @@
         "description": "Category breakdown response schema.",
         "properties": {
           "currency": {
+            "description": "Category breakdown presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -2657,105 +2657,6 @@
         ],
         "title": "CheckType",
         "type": "string"
-      },
-      "ConfidenceMetricPoint": {
-        "description": "A North-Star measurement: the LOW-tier share of posted ledger facts.",
-        "properties": {
-          "low_confidence_count": {
-            "title": "Low Confidence Count",
-            "type": "integer"
-          },
-          "low_confidence_proportion": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Low Confidence Proportion",
-            "type": "string"
-          },
-          "tier_breakdown": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Tier Breakdown",
-            "type": "object"
-          },
-          "total_count": {
-            "title": "Total Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_count",
-          "low_confidence_count",
-          "low_confidence_proportion",
-          "tier_breakdown"
-        ],
-        "title": "ConfidenceMetricPoint",
-        "type": "object"
-      },
-      "ConfidenceMetricSnapshotResponse": {
-        "description": "A recorded point in the append-only series.",
-        "properties": {
-          "captured_at": {
-            "format": "date-time",
-            "title": "Captured At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "low_confidence_count": {
-            "title": "Low Confidence Count",
-            "type": "integer"
-          },
-          "low_confidence_proportion": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Low Confidence Proportion",
-            "type": "string"
-          },
-          "tier_breakdown": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Tier Breakdown",
-            "type": "object"
-          },
-          "total_count": {
-            "title": "Total Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_count",
-          "low_confidence_count",
-          "low_confidence_proportion",
-          "tier_breakdown",
-          "id",
-          "captured_at"
-        ],
-        "title": "ConfidenceMetricSnapshotResponse",
-        "type": "object"
-      },
-      "ConfidenceNorthStarResponse": {
-        "description": "The live metric plus its recorded trend (newest first).",
-        "properties": {
-          "current": {
-            "$ref": "#/components/schemas/ConfidenceMetricPoint"
-          },
-          "series": {
-            "items": {
-              "$ref": "#/components/schemas/ConfidenceMetricSnapshotResponse"
-            },
-            "title": "Series",
-            "type": "array"
-          }
-        },
-        "required": [
-          "current",
-          "series"
-        ],
-        "title": "ConfidenceNorthStarResponse",
-        "type": "object"
       },
       "ConsistencyCheckListResponse": {
         "properties": {
@@ -3422,8 +3323,7 @@
         "enum": [
           "balance-sheet",
           "income-statement",
-          "cash-flow",
-          "package"
+          "cash-flow"
         ],
         "title": "ExportReportType",
         "type": "string"
@@ -3453,11 +3353,6 @@
             ],
             "title": "Classification"
           },
-          "confidence_tier": {
-            "default": "TRUSTED",
-            "title": "Confidence Tier",
-            "type": "string"
-          },
           "disclosure": {
             "anyOf": [
               {
@@ -3473,6 +3368,7 @@
             "$ref": "#/components/schemas/PolicyFactDomain"
           },
           "evidence_anchors": {
+            "description": "Evidence anchors supporting this policy decision.",
             "items": {
               "$ref": "#/components/schemas/FrameworkPolicyEvidenceAnchor"
             },
@@ -3595,6 +3491,7 @@
             "$ref": "#/components/schemas/PolicyFactDomain"
           },
           "evidence_anchors": {
+            "description": "Evidence anchors associated with this policy gap.",
             "items": {
               "$ref": "#/components/schemas/FrameworkPolicyEvidenceAnchor"
             },
@@ -3644,6 +3541,7 @@
             "$ref": "#/components/schemas/PersonalReportingFrameworkId"
           },
           "gaps": {
+            "description": "Policy gaps that block trusted package output.",
             "items": {
               "$ref": "#/components/schemas/FrameworkPolicyGap"
             },
@@ -3953,6 +3851,7 @@
         "description": "Income statement response schema.",
         "properties": {
           "currency": {
+            "description": "Report presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -3971,6 +3870,7 @@
             "type": "array"
           },
           "fx_warnings": {
+            "description": "Foreign-exchange conversion warnings.",
             "items": {
               "additionalProperties": {
                 "type": "string"
@@ -6080,18 +5980,6 @@
             "title": "As Of Date",
             "type": "string"
           },
-          "confidence_tier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Aggregate confidence tier; LOW when an opening balance is missing.",
-            "title": "Confidence Tier"
-          },
           "currency": {
             "description": "Report presentation currency.",
             "maxLength": 3,
@@ -6296,6 +6184,7 @@
         "description": "Net worth point-in-time value.",
         "properties": {
           "currency": {
+            "description": "Net-worth presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -6336,6 +6225,7 @@
         "description": "Net worth time-series response.",
         "properties": {
           "currency": {
+            "description": "Net-worth presentation currency.",
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
@@ -6529,22 +6419,49 @@
         "title": "PersonalReportPackageCompletenessWarning",
         "type": "object"
       },
+      "PersonalReportPackageContext": {
+        "description": "The period, presentation, and framework selected for one package document.",
+        "properties": {
+          "as_of_date": {
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "framework_id": {
+            "$ref": "#/components/schemas/PersonalReportingFrameworkId"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "framework_id",
+          "start_date",
+          "end_date",
+          "as_of_date",
+          "currency"
+        ],
+        "title": "PersonalReportPackageContext",
+        "type": "object"
+      },
       "PersonalReportPackageContractResponse": {
         "description": "Package-level API/export contract for the north-star report package.",
         "properties": {
           "export_contract": {
             "$ref": "#/components/schemas/PersonalReportPackageExportContract"
-          },
-          "framework_policy_endpoint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Framework Policy Endpoint"
           },
           "package_id": {
             "title": "Package Id",
@@ -6576,6 +6493,7 @@
             "title": "Selected Framework Id"
           },
           "supported_frameworks": {
+            "description": "Supported personal reporting framework identifiers.",
             "items": {
               "type": "string"
             },
@@ -6596,6 +6514,114 @@
         ],
         "title": "PersonalReportPackageContractResponse",
         "type": "object"
+      },
+      "PersonalReportPackageDocument": {
+        "additionalProperties": false,
+        "description": "The sole typed artifact used to preview, persist, reopen, and export a package.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/PersonalReportPackageContext"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/PersonalReportPackageContractResponse"
+          },
+          "framework_policy": {
+            "$ref": "#/components/schemas/FrameworkPolicyResult"
+          },
+          "frozen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frozen At"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "input_manifest": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalReportPackageTraceManifestEntry"
+            },
+            "title": "Input Manifest",
+            "type": "array"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/PersonalReportPackageDocumentLifecycle"
+          },
+          "package_decision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Decision Id"
+          },
+          "package_id": {
+            "title": "Package Id",
+            "type": "string"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/PersonalReportPackageReadinessResponse"
+          },
+          "schema_version": {
+            "const": "2",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/PersonalReportPackageSections"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonalReportPackageSnapshotStatus"
+          }
+        },
+        "required": [
+          "schema_version",
+          "lifecycle",
+          "generated_at",
+          "package_id",
+          "status",
+          "context",
+          "contract",
+          "readiness",
+          "framework_policy",
+          "input_manifest",
+          "sections"
+        ],
+        "title": "PersonalReportPackageDocument",
+        "type": "object"
+      },
+      "PersonalReportPackageDocumentLifecycle": {
+        "description": "Whether a package document is a live preview or frozen report artifact.",
+        "enum": [
+          "preview",
+          "frozen"
+        ],
+        "title": "PersonalReportPackageDocumentLifecycle",
+        "type": "string"
       },
       "PersonalReportPackageExportContract": {
         "description": "Stable export contract for personal package consumers.",
@@ -6691,6 +6717,34 @@
           }
         },
         "title": "PersonalReportPackageGenerateRequest",
+        "type": "object"
+      },
+      "PersonalReportPackageInputCoverage": {
+        "description": "Direct authority coverage for inputs consumed by one package document.",
+        "properties": {
+          "authoritative_input_count": {
+            "default": 0,
+            "description": "Number of exact input references covered by current decisions.",
+            "minimum": 0.0,
+            "title": "Authoritative Input Count",
+            "type": "integer"
+          },
+          "manifest_decision_count": {
+            "default": 0,
+            "description": "Number of current authority decisions in the input manifest.",
+            "minimum": 0.0,
+            "title": "Manifest Decision Count",
+            "type": "integer"
+          },
+          "unproven_input_count": {
+            "default": 0,
+            "description": "Number of contributing input references without current authority.",
+            "minimum": 0.0,
+            "title": "Unproven Input Count",
+            "type": "integer"
+          }
+        },
+        "title": "PersonalReportPackageInputCoverage",
         "type": "object"
       },
       "PersonalReportPackageNote": {
@@ -6817,13 +6871,14 @@
         "type": "object"
       },
       "PersonalReportPackageReadinessResponse": {
-        "description": "Deterministic readiness state for the personal report package.",
+        "description": "Readiness derived from the document's exact authority coverage.",
         "properties": {
           "action_href": {
             "title": "Action Href",
             "type": "string"
           },
           "blockers": {
+            "description": "Actionable conditions preventing package readiness.",
             "items": {
               "$ref": "#/components/schemas/PersonalReportPackageReadinessBlocker"
             },
@@ -6834,17 +6889,9 @@
             "title": "Blocking Count",
             "type": "integer"
           },
-          "generated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generated At"
+          "input_coverage": {
+            "$ref": "#/components/schemas/PersonalReportPackageInputCoverage",
+            "description": "Decision-backed coverage for contributing package inputs."
           },
           "label": {
             "title": "Label",
@@ -6853,35 +6900,6 @@
           "package_id": {
             "title": "Package Id",
             "type": "string"
-          },
-          "source_summary": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "title": "Source Summary",
-            "type": "object"
-          },
-          "source_trust_summary": {
-            "$ref": "#/components/schemas/PersonalReportPackageSourceTrustSummary"
-          },
-          "stale_since": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stale Since"
           },
           "state": {
             "$ref": "#/components/schemas/PersonalReportPackageReadinessState"
@@ -6898,14 +6916,11 @@
         "type": "object"
       },
       "PersonalReportPackageReadinessState": {
-        "description": "Allowed states for the personal report package readiness contract.",
+        "description": "Candidate state derived inside one package document.",
         "enum": [
           "draft",
-          "processing",
           "blocked",
-          "ready",
-          "generated",
-          "stale"
+          "ready"
         ],
         "title": "PersonalReportPackageReadinessState",
         "type": "string"
@@ -6925,6 +6940,7 @@
             "title": "Blocking Issue"
           },
           "decimal_total_fields": {
+            "description": "Decimal total field names exposed by the section.",
             "items": {
               "type": "string"
             },
@@ -6952,10 +6968,6 @@
             "title": "Section Id",
             "type": "string"
           },
-          "source_endpoint": {
-            "title": "Source Endpoint",
-            "type": "string"
-          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -6966,14 +6978,51 @@
           "label",
           "owner_epic",
           "period_type",
-          "source_endpoint",
           "status"
         ],
         "title": "PersonalReportPackageSectionContract",
         "type": "object"
       },
+      "PersonalReportPackageSections": {
+        "additionalProperties": false,
+        "description": "All deliverable sections, typed at the package boundary.",
+        "properties": {
+          "annualized_income_long_term": {
+            "$ref": "#/components/schemas/AnnualizedIncomeScheduleResponse"
+          },
+          "balance_sheet": {
+            "$ref": "#/components/schemas/BalanceSheetResponse"
+          },
+          "cash_flow": {
+            "$ref": "#/components/schemas/CashFlowResponse"
+          },
+          "income_statement": {
+            "$ref": "#/components/schemas/IncomeStatementResponse"
+          },
+          "investment_performance": {
+            "$ref": "#/components/schemas/InvestmentPerformanceReportScheduleResponse"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/PersonalReportPackageNotesResponse"
+          },
+          "traceability_appendix": {
+            "$ref": "#/components/schemas/PersonalReportPackageTraceabilityResponse"
+          }
+        },
+        "required": [
+          "balance_sheet",
+          "income_statement",
+          "cash_flow",
+          "investment_performance",
+          "annualized_income_long_term",
+          "notes",
+          "traceability_appendix"
+        ],
+        "title": "PersonalReportPackageSections",
+        "type": "object"
+      },
       "PersonalReportPackageSnapshotResponse": {
-        "description": "Saved personal report package snapshot plus frozen payload.",
+        "description": "Saved personal report package snapshot plus its immutable typed document.",
         "properties": {
           "as_of_date": {
             "description": "Package balance-sheet and point-in-time report date",
@@ -7001,6 +7050,9 @@
             "title": "Currency",
             "type": "string"
           },
+          "document": {
+            "$ref": "#/components/schemas/PersonalReportPackageDocument"
+          },
           "end_date": {
             "description": "Package reporting period end date",
             "format": "date",
@@ -7026,12 +7078,6 @@
             "description": "Personal report package contract identifier",
             "title": "Package Id",
             "type": "string"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "description": "Frozen package payload used for reopen and export",
-            "title": "Payload",
-            "type": "object"
           },
           "readiness_state": {
             "description": "Readiness state captured when the snapshot was generated",
@@ -7060,7 +7106,7 @@
           "currency",
           "readiness_state",
           "is_latest",
-          "payload"
+          "document"
         ],
         "title": "PersonalReportPackageSnapshotResponse",
         "type": "object"
@@ -7069,7 +7115,8 @@
         "description": "Durability/trust state of a generated package snapshot.",
         "enum": [
           "draft",
-          "trusted"
+          "trusted",
+          "legacy_unproven"
         ],
         "title": "PersonalReportPackageSnapshotStatus",
         "type": "string"
@@ -7160,59 +7207,71 @@
         "title": "PersonalReportPackageSnapshotSummary",
         "type": "object"
       },
-      "PersonalReportPackageSourceTrustSummary": {
-        "description": "Source-class trust summary for package readiness consumers.",
+      "PersonalReportPackageTraceManifestEntry": {
+        "description": "One current authoritative decision captured as a package input.",
         "properties": {
-          "blocker_codes": {
+          "assertion_id": {
+            "title": "Assertion Id",
+            "type": "string"
+          },
+          "assertion_kind": {
+            "title": "Assertion Kind",
+            "type": "string"
+          },
+          "assertion_version": {
+            "title": "Assertion Version",
+            "type": "string"
+          },
+          "authority_tier": {
+            "title": "Authority Tier",
+            "type": "string"
+          },
+          "decision_id": {
+            "format": "uuid",
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "input_refs": {
+            "description": "Exact contributing input references covered by this decision.",
             "items": {
               "type": "string"
             },
-            "title": "Blocker Codes",
+            "minItems": 1,
+            "title": "Input Refs",
             "type": "array"
           },
-          "deterministic_pr_source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Deterministic Pr Source Classes",
-            "type": "array"
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
           },
-          "gap_source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Gap Source Classes",
-            "type": "array"
+          "target_kind": {
+            "title": "Target Kind",
+            "type": "string"
           },
-          "manual_trusted_source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Manual Trusted Source Classes",
-            "type": "array"
-          },
-          "post_merge_llm_ocr_source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Post Merge Llm Ocr Source Classes",
-            "type": "array"
-          },
-          "source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Source Classes",
-            "type": "array"
+          "target_version": {
+            "title": "Target Version",
+            "type": "string"
           }
         },
-        "title": "PersonalReportPackageSourceTrustSummary",
+        "required": [
+          "decision_id",
+          "input_refs",
+          "target_kind",
+          "target_id",
+          "target_version",
+          "assertion_kind",
+          "assertion_id",
+          "assertion_version",
+          "authority_tier"
+        ],
+        "title": "PersonalReportPackageTraceManifestEntry",
         "type": "object"
       },
       "PersonalReportPackageTraceabilityAnchor": {
         "description": "Source or ledger anchor metadata for one package report line.",
         "properties": {
           "details": {
+            "description": "Typed contribution details for this anchor.",
             "items": {
               "additionalProperties": {
                 "anyOf": [
@@ -7234,6 +7293,7 @@
             "type": "array"
           },
           "entry_statuses": {
+            "description": "Ledger entry states disclosed for this anchor.",
             "items": {
               "type": "string"
             },
@@ -7241,6 +7301,7 @@
             "type": "array"
           },
           "identifier_fields": {
+            "description": "Identifier field names available for this anchor.",
             "items": {
               "type": "string"
             },
@@ -7248,6 +7309,7 @@
             "type": "array"
           },
           "identifiers": {
+            "description": "Stable source or ledger identifiers available for drill-through.",
             "items": {
               "type": "string"
             },
@@ -7255,6 +7317,7 @@
             "type": "array"
           },
           "source_types": {
+            "description": "Source types disclosed for this anchor.",
             "items": {
               "type": "string"
             },
@@ -7303,15 +7366,12 @@
             "type": "integer"
           },
           "blocker_codes": {
+            "description": "Explicit completeness or authority blockers for this line.",
             "items": {
               "type": "string"
             },
             "title": "Blocker Codes",
             "type": "array"
-          },
-          "confidence_tier": {
-            "title": "Confidence Tier",
-            "type": "string"
           },
           "currency_field": {
             "anyOf": [
@@ -7335,28 +7395,12 @@
             "title": "Line Id",
             "type": "string"
           },
-          "proof_level": {
-            "default": "unclassified",
-            "title": "Proof Level",
-            "type": "string"
-          },
-          "review_state": {
-            "title": "Review State",
-            "type": "string"
-          },
           "section_id": {
             "title": "Section Id",
             "type": "string"
           },
           "source_anchor": {
             "$ref": "#/components/schemas/PersonalReportPackageTraceabilityAnchor"
-          },
-          "source_classes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Source Classes",
-            "type": "array"
           },
           "source_state": {
             "title": "Source State",
@@ -7369,9 +7413,7 @@
           "label",
           "source_state",
           "source_anchor",
-          "ledger_anchor",
-          "review_state",
-          "confidence_tier"
+          "ledger_anchor"
         ],
         "title": "PersonalReportPackageTraceabilityLine",
         "type": "object"
@@ -8298,17 +8340,6 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
-          },
-          "confidence_tier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence Tier"
           },
           "name": {
             "title": "Name",
@@ -17063,200 +17094,6 @@
         ]
       }
     },
-    "/metrics/confidence-north-star": {
-      "get": {
-        "description": "Return the current low-confidence proportion and the recorded trend (newest first).",
-        "operationId": "get_confidence_north_star_metrics_confidence_north_star_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfidenceNorthStarResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Get Confidence North Star",
-        "tags": [
-          "metrics"
-        ]
-      }
-    },
-    "/metrics/confidence-north-star/snapshots": {
-      "post": {
-        "description": "Append the current low-confidence proportion to the North-Star series.\n\nLets a scheduler (or an operator) record a point on demand, so the trend\naccumulates even between report-package generations.",
-        "operationId": "record_confidence_north_star_snapshot_metrics_confidence_north_star_snapshots_post",
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfidenceMetricSnapshotResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Record Confidence North Star Snapshot",
-        "tags": [
-          "metrics"
-        ]
-      }
-    },
     "/metrics/correction-loop/replay": {
       "get": {
         "description": "Surface the held-out replay of the live correction corpus (read-only).\n\nMakes the feedback loop's effect on the North-Star proportion auditable: how\nmuch recurring-correction priors lower the held-out low-confidence proportion.\nRecords nothing and grounds no live generation — the corpus stays a projection\nof `CorrectionLog`.",
@@ -22108,256 +21945,10 @@
         ]
       }
     },
-    "/reports/package/annualized-income-schedule": {
+    "/reports/package": {
       "get": {
-        "description": "Return report-ready annualized income and restricted compensation schedule.",
-        "operationId": "annualized_income_schedule_reports_package_annualized_income_schedule_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "as_of_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "As Of Date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnnualizedIncomeScheduleResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Annualized Income Schedule",
-        "tags": [
-          "reports"
-        ]
-      }
-    },
-    "/reports/package/contract": {
-      "get": {
-        "description": "Return the stable package-level API/export contract.",
-        "operationId": "personal_report_package_contract_reports_package_contract_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "framework_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/PersonalReportingFrameworkId"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Framework Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalReportPackageContractResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Personal Report Package Contract",
-        "tags": [
-          "reports"
-        ]
-      }
-    },
-    "/reports/package/framework-policy": {
-      "get": {
-        "description": "Return the selected framework policy result consumed by package assembly.",
-        "operationId": "personal_report_package_framework_policy_reports_package_framework_policy_get",
+        "description": "Build the one typed preview document without persisting a snapshot.",
+        "operationId": "preview_personal_report_package_reports_package_get",
         "parameters": [
           {
             "in": "query",
@@ -22418,6 +22009,34 @@
               ],
               "title": "As Of Date"
             }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_restricted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Restricted",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -22425,7 +22044,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FrameworkPolicyResult"
+                  "$ref": "#/components/schemas/PersonalReportPackageDocument"
                 }
               }
             },
@@ -22517,7 +22136,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Personal Report Package Framework Policy",
+        "summary": "Preview Personal Report Package",
         "tags": [
           "reports"
         ]
@@ -22635,274 +22254,6 @@
           }
         ],
         "summary": "Generate Personal Report Package Snapshot",
-        "tags": [
-          "reports"
-        ]
-      }
-    },
-    "/reports/package/notes": {
-      "get": {
-        "description": "Return package-level notes and disclosures.",
-        "operationId": "personal_report_package_notes_reports_package_notes_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalReportPackageNotesResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Personal Report Package Notes",
-        "tags": [
-          "reports"
-        ]
-      }
-    },
-    "/reports/package/readiness": {
-      "get": {
-        "description": "Return deterministic readiness and blocker state for the personal package.",
-        "operationId": "personal_report_package_readiness_reports_package_readiness_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "framework_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/PersonalReportingFrameworkId"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Framework Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "as_of_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "As Of Date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalReportPackageReadinessResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Personal Report Package Readiness",
         "tags": [
           "reports"
         ]
@@ -23288,166 +22639,6 @@
           }
         ],
         "summary": "Export Personal Report Package Snapshot",
-        "tags": [
-          "reports"
-        ]
-      }
-    },
-    "/reports/package/traceability": {
-      "get": {
-        "description": "Return the package-level source-ledger-report traceability appendix.",
-        "operationId": "personal_report_package_traceability_reports_package_traceability_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End Date"
-            }
-          },
-          {
-            "in": "query",
-            "name": "as_of_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "As Of Date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonalReportPackageTraceabilityResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too many requests"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Personal Report Package Traceability",
         "tags": [
           "reports"
         ]

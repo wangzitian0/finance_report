@@ -1731,14 +1731,6 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
-            id="AC-extraction.121.4",
-            statement="Report readiness counts the balance-invalid `PARSED` statement as an available input.",  # was AC13.21.4
-            test="apps/backend/tests/accounting/test_validation.py::test_AC13_21_4_readiness_counts_parsed_balance_invalid",
-            priority="P1",
-            status="done",
-            proof_kind="property",
-        ),
-        ACRecord(
             id="AC-extraction.121.5",
             statement="_Superseded by AC-extraction.2009.2 (#1352)._ The same balance-mismatch payload routes deterministically across N parses to the same status — now `REJECTED` (the LLM-LED blocking gate), not `PARSED`.",  # was AC13.21.5
             test="apps/backend/tests/extraction/test_extraction_determinism.py::test_routing_is_consistent_per_payload_class",
@@ -2726,13 +2718,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1808.4",
             statement=(
-                "GET /api/reports/package/traceability can resolve at "
-                "least one report line from ledger anchors through "
-                "Evidence Graph lineage back to source document anchors."
+                "Package traceability preserves the reviewed source decision through the ledger "
+                "DecisionAnchor graph and never reconstructs extraction identity from source_id."
             ),
             test=(
                 "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_preserves_the_ledger_decision_boundary"
             ),
             priority="P1",
             status="done",
@@ -2768,13 +2759,12 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.1808.7",
             statement=(
-                "Tests cover three end-to-end graph paths: source document "
-                "downstream impact, bank statement transaction to ledger "
-                "line, and report line to source document."
+                "Tests cover source downstream impact, reviewed transaction to ledger decision "
+                "ancestry, and report display without a shadow source-identity resolver."
             ),
             test=(
                 "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC18_8_4_AC18_8_7_package_traceability_resolves_report_line_to_source_document"
+                "::test_AC18_8_4_AC18_8_7_package_traceability_preserves_the_ledger_decision_boundary"
             ),
             priority="P1",
             status="done",

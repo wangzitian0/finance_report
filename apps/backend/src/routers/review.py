@@ -24,6 +24,7 @@ from src.reconciliation import (
     ReconciliationMatch,
     ReconciliationStatus,
     accept_match as accept_match_service,
+    derive_reconciliation_score_tier,
     get_stage2_queue,
     has_unresolved_checks,
     list_checks,
@@ -31,7 +32,6 @@ from src.reconciliation import (
     run_all_consistency_checks,
 )
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
-from src.reporting import derive_reconciliation_score_tier
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,

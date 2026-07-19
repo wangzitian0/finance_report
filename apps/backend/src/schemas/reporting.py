@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -16,6 +16,7 @@ from src.reporting.base.types import (
     ReportLineId as ReportLineId,
 )
 from src.schemas.base import CurrencyCode
+from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.provenance import DataProvenance
 
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
@@ -35,9 +36,6 @@ class ReportLine(BaseModel):
     type: AccountType
     parent_id: UUID | None = None
     amount: Decimal
-    # Worst-input confidence tier of the line's contributing facts (Axiom B).
-    # None when the line has no rated contributing fact.
-    confidence_tier: str | None = None
     provenance: DataProvenance | None = None
 
 
@@ -76,29 +74,29 @@ class BalanceSheetResponse(BaseModel):
     """Balance sheet response schema."""
 
     as_of_date: date
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Report presentation currency.")
     assets: list[ReportLine]
     liabilities: list[ReportLine]
     equity: list[ReportLine]
-    # Net Worth aggregate confidence: the worst-input tier across rated lines
-    # (defined rollup, not an invented number). None when nothing is rated.
-    confidence_tier: str | None = None
     total_assets: Decimal
     total_liabilities: Decimal
     total_equity: Decimal
     net_income: Decimal = Decimal("0.00")
     unrealized_fx_gain_loss: Decimal = Decimal("0.00")
     net_worth_adjustment_gain_loss: Decimal = Decimal("0.00")
-    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
     # Point-in-time gap (#1791 follow-up): non-empty when a portfolio position
     # was excluded from total_assets because no price snapshot exists on or
     # before as_of_date -- the total is still accurate, just possibly
     # incomplete for a position with a data gap at this historical date.
-    portfolio_warnings: list[dict[str, str]] = Field(default_factory=list)
+    portfolio_warnings: list[dict[str, str]] = Field(
+        default_factory=list, description="Portfolio valuation coverage warnings."
+    )
     # Opening-balance gate (AC2.16.4 / #1481): non-empty when activity exists with
     # no recorded opening balance; the total then reflects only period movement and
-    # confidence_tier is degraded to LOW.
-    opening_balance_warnings: list[dict[str, str]] = Field(default_factory=list)
+    opening_balance_warnings: list[dict[str, str]] = Field(
+        default_factory=list, description="Opening-balance completeness warnings."
+    )
     equation_delta: Decimal
     is_balanced: bool
 
@@ -118,13 +116,13 @@ class IncomeStatementResponse(BaseModel):
 
     start_date: date
     end_date: date
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Report presentation currency.")
     income: list[ReportLine]
     expenses: list[ReportLine]
     total_income: Decimal
     total_expenses: Decimal
     net_income: Decimal
-    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
     trends: list[IncomeStatementTrend]
 
 
@@ -150,13 +148,13 @@ class NetWorthTimeSeriesPoint(BaseModel):
     total_assets: Decimal
     total_liabilities: Decimal
     net_worth: Decimal
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Net-worth presentation currency.")
 
 
 class NetWorthTimeSeriesResponse(BaseModel):
     """Net worth time-series response."""
 
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Net-worth presentation currency.")
     granularity: NetWorthGranularity
     points: list[NetWorthTimeSeriesPoint]
 
@@ -203,10 +201,6 @@ class NetWorthAllocationResponse(BaseModel):
     total_liabilities: Decimal = Field(description="Balance-sheet total liabilities in the report currency.")
     net_worth: Decimal = Field(description="Total assets minus total liabilities.")
     rows: list[NetWorthAllocationRow] = Field(description="Signed allocation rows that sum to net worth.")
-    # Same opening-balance gate as the balance sheet (AC2.16.4 / #1481).
-    confidence_tier: str | None = Field(
-        default=None, description="Aggregate confidence tier; LOW when an opening balance is missing."
-    )
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Non-empty when activity exists without a recorded opening balance."
     )
@@ -228,7 +222,7 @@ class AccountTrendResponse(BaseModel):
     """Account trend response schema."""
 
     account_id: UUID
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Account trend presentation currency.")
     period: TrendPeriod
     points: list[AccountTrendPoint]
 
@@ -260,7 +254,7 @@ class CategoryBreakdownResponse(BaseModel):
     """Category breakdown response schema."""
 
     type: AccountType
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Category breakdown presentation currency.")
     period_start: date
     period_end: date
     items: list[CategoryBreakdownItem]
@@ -299,12 +293,12 @@ class CashFlowResponse(BaseModel):
 
     start_date: date
     end_date: date
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Cash-flow presentation currency.")
     operating: list[CashFlowItem]
     investing: list[CashFlowItem]
     financing: list[CashFlowItem]
     summary: CashFlowSummary
-    fx_warnings: list[dict[str, str]] = Field(default_factory=list)
+    fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
 
 
 class PersonalReportPackageSectionContract(BaseModel):
@@ -314,11 +308,12 @@ class PersonalReportPackageSectionContract(BaseModel):
     label: str
     owner_epic: str
     period_type: str
-    source_endpoint: str
     status: str
     required: bool = True
     blocking_issue: str | None = None
-    decimal_total_fields: list[str] = Field(default_factory=list)
+    decimal_total_fields: list[str] = Field(
+        default_factory=list, description="Decimal total field names exposed by the section."
+    )
 
 
 class PersonalReportPackageExportContract(BaseModel):
@@ -334,9 +329,10 @@ class PersonalReportPackageContractResponse(BaseModel):
     package_id: str
     version: str
     period_semantics: dict[str, str]
-    supported_frameworks: list[str] = Field(default_factory=list)
+    supported_frameworks: list[str] = Field(
+        default_factory=list, description="Supported personal reporting framework identifiers."
+    )
     selected_framework_id: str | None = None
-    framework_policy_endpoint: str | None = None
     sections: list[PersonalReportPackageSectionContract]
     export_contract: PersonalReportPackageExportContract
 
@@ -392,9 +388,11 @@ class FrameworkPolicyFact(BaseModel):
     domain: PolicyFactDomain
     instrument_type: str
     amount: Decimal | None = None
-    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    currency: str | None = Field(default=None, min_length=3, max_length=3, description="Fact currency when applicable.")
     event_date: date | None = None
-    anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+    anchors: list[FrameworkPolicyEvidenceAnchor] = Field(
+        default_factory=list, description="Evidence anchors supporting the policy fact."
+    )
     holding_intent: str | None = None
     horizon: str | None = None
 
@@ -409,9 +407,10 @@ class FrameworkPolicyDecision(BaseModel):
     presentation: str | None = None
     disclosure: str | None = None
     line_mappings: dict[str, str]
-    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(
+        default_factory=list, description="Evidence anchors supporting this policy decision."
+    )
     provenance: PolicyProvenance = PolicyProvenance.DETERMINISTIC_MATRIX
-    confidence_tier: str = "TRUSTED"
     review_state: PolicyReviewState = PolicyReviewState.ACCEPTED
     policy_field_name: str = "framework_policy_decision"
     accepted_value: str | None = None
@@ -438,7 +437,9 @@ class FrameworkPolicyGap(BaseModel):
     blocker: bool
     reason: str
     remediation: str
-    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(default_factory=list)
+    evidence_anchors: list[FrameworkPolicyEvidenceAnchor] = Field(
+        default_factory=list, description="Evidence anchors associated with this policy gap."
+    )
 
 
 class FrameworkPolicyMatrixRule(BaseModel):
@@ -496,7 +497,9 @@ class FrameworkPolicyResult(BaseModel):
     generated_at: date
     required_statements: list[str]
     decisions: list[FrameworkPolicyDecision]
-    gaps: list[FrameworkPolicyGap] = Field(default_factory=list)
+    gaps: list[FrameworkPolicyGap] = Field(
+        default_factory=list, description="Policy gaps that block trusted package output."
+    )
 
     @model_validator(mode="after")
     def validate_decision_dimensions(self) -> "FrameworkPolicyResult":
@@ -541,26 +544,12 @@ class PersonalReportPackageReadinessBlocker(BaseModel):
         return _validate_internal_action_href(value)
 
 
-class PersonalReportPackageSourceTrustSummary(BaseModel):
-    """Source-class trust summary for package readiness consumers."""
-
-    source_classes: list[str] = Field(default_factory=list)
-    deterministic_pr_source_classes: list[str] = Field(default_factory=list)
-    post_merge_llm_ocr_source_classes: list[str] = Field(default_factory=list)
-    manual_trusted_source_classes: list[str] = Field(default_factory=list)
-    gap_source_classes: list[str] = Field(default_factory=list)
-    blocker_codes: list[str] = Field(default_factory=list)
-
-
 class PersonalReportPackageReadinessState(str, Enum):
-    """Allowed states for the personal report package readiness contract."""
+    """Candidate state derived inside one package document."""
 
     DRAFT = "draft"
-    PROCESSING = "processing"
     BLOCKED = "blocked"
     READY = "ready"
-    GENERATED = "generated"
-    STALE = "stale"
 
 
 class PersonalReportPackageSnapshotStatus(str, Enum):
@@ -568,23 +557,45 @@ class PersonalReportPackageSnapshotStatus(str, Enum):
 
     DRAFT = "draft"
     TRUSTED = "trusted"
+    LEGACY_UNPROVEN = "legacy_unproven"
+
+
+class PersonalReportPackageDocumentLifecycle(str, Enum):
+    """Whether a package document is a live preview or frozen report artifact."""
+
+    PREVIEW = "preview"
+    FROZEN = "frozen"
+
+
+class PersonalReportPackageInputCoverage(BaseModel):
+    """Direct authority coverage for inputs consumed by one package document."""
+
+    manifest_decision_count: int = Field(
+        default=0, ge=0, description="Number of current authority decisions in the input manifest."
+    )
+    authoritative_input_count: int = Field(
+        default=0, ge=0, description="Number of exact input references covered by current decisions."
+    )
+    unproven_input_count: int = Field(
+        default=0, ge=0, description="Number of contributing input references without current authority."
+    )
 
 
 class PersonalReportPackageReadinessResponse(BaseModel):
-    """Deterministic readiness state for the personal report package."""
+    """Readiness derived from the document's exact authority coverage."""
 
     package_id: str
     state: PersonalReportPackageReadinessState
     label: str
     action_href: str
     blocking_count: int
-    blockers: list[PersonalReportPackageReadinessBlocker] = Field(default_factory=list)
-    source_summary: dict[str, int | str] = Field(default_factory=dict)
-    source_trust_summary: PersonalReportPackageSourceTrustSummary = Field(
-        default_factory=PersonalReportPackageSourceTrustSummary
+    blockers: list[PersonalReportPackageReadinessBlocker] = Field(
+        default_factory=list, description="Actionable conditions preventing package readiness."
     )
-    generated_at: datetime | None = None
-    stale_since: datetime | None = None
+    input_coverage: PersonalReportPackageInputCoverage = Field(
+        default_factory=lambda: PersonalReportPackageInputCoverage(),
+        description="Decision-backed coverage for contributing package inputs.",
+    )
 
     @field_validator("action_href")
     @classmethod
@@ -653,12 +664,6 @@ class PersonalReportPackageGenerateRequest(BaseModel):
     )
 
 
-class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):
-    """Saved personal report package snapshot plus frozen payload."""
-
-    payload: dict[str, Any] = Field(description="Frozen package payload used for reopen and export")
-
-
 class PersonalReportPackageNote(BaseModel):
     """Disclosure note included in the personal financial-report package."""
 
@@ -685,12 +690,20 @@ class PersonalReportPackageTraceabilityAnchor(BaseModel):
     """Source or ledger anchor metadata for one package report line."""
 
     state: str
-    source_types: list[str] = Field(default_factory=list)
-    entry_statuses: list[str] = Field(default_factory=list)
-    identifier_fields: list[str] = Field(default_factory=list)
-    identifiers: list[str] = Field(default_factory=list)
+    source_types: list[str] = Field(default_factory=list, description="Source types disclosed for this anchor.")
+    entry_statuses: list[str] = Field(
+        default_factory=list, description="Ledger entry states disclosed for this anchor."
+    )
+    identifier_fields: list[str] = Field(
+        default_factory=list, description="Identifier field names available for this anchor."
+    )
+    identifiers: list[str] = Field(
+        default_factory=list, description="Stable source or ledger identifiers available for drill-through."
+    )
     unavailable_reason: str | None = None
-    details: list[dict[str, str | Decimal | None]] = Field(default_factory=list)
+    details: list[dict[str, str | Decimal | None]] = Field(
+        default_factory=list, description="Typed contribution details for this anchor."
+    )
 
 
 class PersonalReportPackageTraceabilityLine(BaseModel):
@@ -704,12 +717,10 @@ class PersonalReportPackageTraceabilityLine(BaseModel):
     source_state: str
     source_anchor: PersonalReportPackageTraceabilityAnchor
     ledger_anchor: PersonalReportPackageTraceabilityAnchor
-    review_state: str
-    confidence_tier: str
-    source_classes: list[str] = Field(default_factory=list)
-    proof_level: str = "unclassified"
     anchor_count: int = 0
-    blocker_codes: list[str] = Field(default_factory=list)
+    blocker_codes: list[str] = Field(
+        default_factory=list, description="Explicit completeness or authority blockers for this line."
+    )
 
 
 class PersonalReportPackageCompletenessWarning(BaseModel):
@@ -739,7 +750,7 @@ class AnnualizedIncomeScheduleIncome(BaseModel):
     annualized_bonus: Decimal
     annualized_dividend: Decimal
     annualized_total: Decimal
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Annualized income presentation currency.")
     calculation_basis: str
 
 
@@ -749,7 +760,7 @@ class AnnualizedIncomeScheduleHolding(BaseModel):
     ticker: str
     compensation_type: str
     fair_value: Decimal
-    currency: str = Field(min_length=3, max_length=3)
+    currency: str = Field(min_length=3, max_length=3, description="Restricted holding valuation currency.")
     # Structured evidence basis (#706): the snapshot's `valuation_basis` enum value
     # (e.g. `employer_grant_document`, `market_appraisal`), or `unspecified` when no
     # basis was captured. Surfaces how the manual-trusted value was substantiated.
@@ -781,6 +792,99 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     income: AnnualizedIncomeScheduleIncome
     restricted_holdings: list[AnnualizedIncomeScheduleHolding]
     restricted_fair_value_total: Decimal
-    restricted_fair_value_total_currency: str = Field(min_length=3, max_length=3)
+    restricted_fair_value_total_currency: str = Field(
+        min_length=3, max_length=3, description="Currency of the restricted fair-value total."
+    )
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
+
+
+class PersonalReportPackageContext(BaseModel):
+    """The period, presentation, and framework selected for one package document."""
+
+    framework_id: PersonalReportingFrameworkId
+    start_date: date
+    end_date: date
+    as_of_date: date
+    currency: CurrencyCode
+
+
+class PersonalReportPackageTraceManifestEntry(BaseModel):
+    """One current authoritative decision captured as a package input."""
+
+    decision_id: UUID
+    input_refs: list[str] = Field(
+        min_length=1, description="Exact contributing input references covered by this decision."
+    )
+    target_kind: str
+    target_id: str
+    target_version: str
+    assertion_kind: str
+    assertion_id: str
+    assertion_version: str
+    authority_tier: str
+
+
+class PersonalReportPackageSections(BaseModel):
+    """All deliverable sections, typed at the package boundary."""
+
+    model_config = {"extra": "forbid"}
+
+    balance_sheet: BalanceSheetResponse
+    income_statement: IncomeStatementResponse
+    cash_flow: CashFlowResponse
+    investment_performance: InvestmentPerformanceReportScheduleResponse
+    annualized_income_long_term: AnnualizedIncomeScheduleResponse
+    notes: PersonalReportPackageNotesResponse
+    traceability_appendix: PersonalReportPackageTraceabilityResponse
+
+
+class PersonalReportPackageDocument(BaseModel):
+    """The sole typed artifact used to preview, persist, reopen, and export a package."""
+
+    model_config = {"extra": "forbid"}
+
+    schema_version: Literal["2"]
+    lifecycle: PersonalReportPackageDocumentLifecycle
+    snapshot_id: UUID | None = None
+    package_decision_id: UUID | None = None
+    generated_at: datetime
+    frozen_at: datetime | None = None
+    package_id: str
+    status: PersonalReportPackageSnapshotStatus
+    context: PersonalReportPackageContext
+    contract: PersonalReportPackageContractResponse
+    readiness: PersonalReportPackageReadinessResponse
+    framework_policy: FrameworkPolicyResult
+    input_manifest: list[PersonalReportPackageTraceManifestEntry]
+    sections: PersonalReportPackageSections
+
+    @model_validator(mode="after")
+    def validate_frozen_trust_anchor(self) -> "PersonalReportPackageDocument":
+        if self.status is PersonalReportPackageSnapshotStatus.TRUSTED:
+            if self.lifecycle is not PersonalReportPackageDocumentLifecycle.FROZEN:
+                raise ValueError("only a frozen package document can be trusted")
+            if self.snapshot_id is None or self.package_decision_id is None:
+                raise ValueError("trusted package requires snapshot and TraceRecord decision ids")
+        if self.package_decision_id is not None and self.lifecycle is not PersonalReportPackageDocumentLifecycle.FROZEN:
+            raise ValueError("preview package cannot persist an authority decision")
+        return self
+
+
+class PersonalReportPackageDocumentSummary(BaseModel):
+    """Typed preview/frozen projection consumed outside the package renderer."""
+
+    snapshot_id: UUID | None = None
+    package_id: str
+    lifecycle: PersonalReportPackageDocumentLifecycle
+    status: PersonalReportPackageSnapshotStatus
+    context: PersonalReportPackageContext
+    readiness: PersonalReportPackageReadinessResponse
+    generated_at: datetime
+    frozen_at: datetime | None = None
+
+
+class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):
+    """Saved personal report package snapshot plus its immutable typed document."""
+
+    document: PersonalReportPackageDocument

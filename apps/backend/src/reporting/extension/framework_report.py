@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid5
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import AccountType, worst_confidence_tier
+from src.ledger import AccountType
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
 from src.reporting.base.types import PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -169,14 +169,17 @@ async def assemble_framework_balance_sheet(
     redundant ``derive_user_framework_policy_result`` DB call (the router
     typically already has the policy result for the snapshot payload).
     """
-    raw_bs = await generate_balance_sheet(
-        db,
-        user_id,
-        as_of_date=as_of_date,
-        currency=currency,
-        include_restricted=include_restricted,
-        include_trust_signals=True,
-        include_allocation_metadata=True,
+    raw_bs = cast(
+        dict[str, Any],
+        await generate_balance_sheet(
+            db,
+            user_id,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+            include_trust_signals=True,
+            include_allocation_metadata=True,
+        ),
     )
 
     if decisions_by_source_id is None:
@@ -218,7 +221,6 @@ async def assemble_framework_balance_sheet(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = worst_confidence_tier([c.get("confidence_tier") for c in contributors])
         provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {
@@ -229,7 +231,6 @@ async def assemble_framework_balance_sheet(
             else (AccountType.LIABILITY if reg.section == "liabilities" else AccountType.EQUITY),
             "parent_id": None,
             "amount": _quantize_money(amount),
-            "confidence_tier": confidence_tier,
             "provenance": provenance,
             "line_id": reg.line_id.value,
         }
@@ -258,7 +259,6 @@ async def assemble_framework_balance_sheet(
         "assets": assets_list,
         "liabilities": liabilities_list,
         "equity": equity_list,
-        "confidence_tier": raw_bs.get("confidence_tier"),
         "provenance": raw_bs.get("provenance"),
         "total_assets": _quantize_money(total_assets),
         "total_liabilities": _quantize_money(total_liabilities),
@@ -285,12 +285,15 @@ async def assemble_framework_income_statement(
     decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble a framework-ordered and framework-categorized income statement."""
-    raw_is = await generate_income_statement(
-        db,
-        user_id,
-        start_date=start_date,
-        end_date=end_date,
-        currency=currency,
+    raw_is = cast(
+        dict[str, Any],
+        await generate_income_statement(
+            db,
+            user_id,
+            start_date=start_date,
+            end_date=end_date,
+            currency=currency,
+        ),
     )
 
     if decisions_by_source_id is None:
@@ -322,7 +325,6 @@ async def assemble_framework_income_statement(
         contributors = mapped_groups.get(reg.line_id.value, [])
         amount = sum((c["amount"] for c in contributors), Decimal("0.00"))
 
-        confidence_tier = worst_confidence_tier([c.get("confidence_tier") for c in contributors])
         provenance = _combine_provenance([c.get("provenance") for c in contributors])
 
         line_dict = {
@@ -331,7 +333,6 @@ async def assemble_framework_income_statement(
             "type": AccountType.INCOME if reg.section == "income" else AccountType.EXPENSE,
             "parent_id": None,
             "amount": _quantize_money(amount),
-            "confidence_tier": confidence_tier,
             "provenance": provenance,
             "line_id": reg.line_id.value,
         }

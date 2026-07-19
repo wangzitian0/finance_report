@@ -396,8 +396,9 @@ The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_r
 - **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
   `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
   non-retriable, which is now safe because balance-mismatch statements no longer rest there.
-- **Readiness**: `get_personal_report_package_readiness` counts `parsed` + `approved` summaries,
-  so a balance-mismatch statement is a visible report input rather than an invisible orphan.
+- **Reporting authority**: a balance-invalid statement stays visible in extraction review, but
+  cannot contribute to a trusted `PackageDocument` until a current authoritative decision
+  establishes the exact input. Visibility is not authority.
 - **CSV intake** (#1087): CSV parsing cannot auto-detect the institution, so the upload route
   rejects a CSV with a missing institution **synchronously** with HTTP 400 (actionable message)
   instead of accepting (202) and rejecting asynchronously inside the parse worker. PDF/image

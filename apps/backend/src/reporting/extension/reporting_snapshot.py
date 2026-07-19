@@ -55,6 +55,7 @@ class ReportingSnapshotService:
         report_data: dict,
         start_date: date | None = None,
         ttl_seconds: int = 3600,
+        snapshot_id: UUID | None = None,
     ) -> ReportSnapshot:
         """Create a new report snapshot and mark it as latest."""
         try:
@@ -75,6 +76,7 @@ class ReportingSnapshotService:
 
             ttl = datetime.now() + timedelta(seconds=ttl_seconds)
             snapshot = ReportSnapshot(
+                id=snapshot_id,
                 user_id=user_id,
                 report_type=report_type,
                 as_of_date=as_of_date,

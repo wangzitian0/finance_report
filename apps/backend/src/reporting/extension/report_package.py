@@ -16,14 +16,23 @@ from io import StringIO
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from src.audit.money.currency import normalize_currency_code
 from src.config import settings
 from src.reporting.orm import ReportSnapshot
 from src.schemas import (
+    PersonalReportingFrameworkId,
+    PersonalReportPackageDocument,
+    PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotStatus,
     PersonalReportPackageSnapshotSummary,
 )
+
+
+class PackageDocumentVersionError(ValueError):
+    """A persisted snapshot cannot be reopened through the current document contract."""
 
 
 def jsonable(value: Any) -> Any:
@@ -60,36 +69,60 @@ def package_currency(currency: str | None) -> str:
     return normalize_currency_code(currency or settings.base_currency)
 
 
-def package_snapshot_status(readiness: dict[str, Any]) -> PersonalReportPackageSnapshotStatus:
-    state = str(readiness.get("state") or "")
-    blocking_count = int(readiness.get("blocking_count") or 0)
-    if state in {"ready", "generated", "stale"} and blocking_count == 0:
-        return PersonalReportPackageSnapshotStatus.TRUSTED
-    return PersonalReportPackageSnapshotStatus.DRAFT
-
-
 def package_snapshot_summary(snapshot: ReportSnapshot) -> PersonalReportPackageSnapshotSummary:
-    data = snapshot.report_data
+    try:
+        document = package_snapshot_document(snapshot)
+    except PackageDocumentVersionError:
+        # Historical JSON remains visible as explicitly unproven metadata, but
+        # cannot re-enter readiness, rendering, or export as a typed document.
+        data = snapshot.report_data
+        return PersonalReportPackageSnapshotSummary(
+            id=snapshot.id,
+            package_id=str(data.get("package_id") or "personal-financial-report-package"),
+            status=PersonalReportPackageSnapshotStatus.LEGACY_UNPROVEN,
+            framework_id=PersonalReportingFrameworkId(
+                data.get("framework_id") or PersonalReportingFrameworkId.US_GAAP_LIKE.value
+            ),
+            start_date=snapshot.start_date or snapshot.as_of_date,
+            end_date=snapshot.as_of_date,
+            as_of_date=snapshot.as_of_date,
+            currency=str(data.get("currency") or settings.base_currency).upper(),
+            readiness_state="legacy_unproven",
+            is_latest=snapshot.is_latest,
+            created_at=snapshot.created_at,
+        )
     return PersonalReportPackageSnapshotSummary(
         id=snapshot.id,
-        package_id=data["package_id"],
-        status=data["status"],
-        framework_id=data["framework_id"],
-        start_date=data["start_date"],
-        end_date=data["end_date"],
-        as_of_date=data["as_of_date"],
-        currency=data["currency"],
-        readiness_state=data["readiness_state"],
+        package_id=document.package_id,
+        status=document.status,
+        framework_id=document.context.framework_id,
+        start_date=document.context.start_date,
+        end_date=document.context.end_date,
+        as_of_date=document.context.as_of_date,
+        currency=document.context.currency,
+        readiness_state=document.readiness.state.value,
         is_latest=snapshot.is_latest,
         created_at=snapshot.created_at,
     )
 
 
+def package_snapshot_document(snapshot: ReportSnapshot) -> PersonalReportPackageDocument:
+    """Validate one frozen v2 document instead of exposing the raw JSONB payload."""
+    try:
+        document = PersonalReportPackageDocument.model_validate(snapshot.report_data)
+    except ValidationError as exc:
+        raise PackageDocumentVersionError("This package snapshot predates document schema version 2") from exc
+    if document.lifecycle is not PersonalReportPackageDocumentLifecycle.FROZEN:
+        raise PackageDocumentVersionError("Saved package snapshot is not a frozen document")
+    if document.snapshot_id != snapshot.id:
+        raise PackageDocumentVersionError("Saved package document identity does not match its snapshot")
+    return document
+
+
 def package_snapshot_response(snapshot: ReportSnapshot) -> PersonalReportPackageSnapshotResponse:
-    data = snapshot.report_data
     return PersonalReportPackageSnapshotResponse(
         **package_snapshot_summary(snapshot).model_dump(),
-        payload=data["payload"],
+        document=package_snapshot_document(snapshot),
     )
 
 
@@ -104,43 +137,54 @@ def resolve_payload_field(payload: dict[str, Any], path: str | None) -> Any:
     return current
 
 
-def package_snapshot_evidence_references(policy: dict[str, Any]) -> str:
+def package_snapshot_evidence_references(policy: Any) -> str:
     references: set[str] = set()
-    for item in [*policy.get("decisions", []), *policy.get("gaps", [])]:
-        for anchor in item.get("evidence_anchors", []):
-            anchor_type = anchor.get("anchor_type")
-            source_id = anchor.get("source_id")
+    decisions = policy.decisions if hasattr(policy, "decisions") else policy.get("decisions", [])
+    gaps = policy.gaps if hasattr(policy, "gaps") else policy.get("gaps", [])
+    for item in [*decisions, *gaps]:
+        anchors = item.evidence_anchors if hasattr(item, "evidence_anchors") else item.get("evidence_anchors", [])
+        for anchor in anchors:
+            anchor_type = anchor.anchor_type if hasattr(anchor, "anchor_type") else anchor.get("anchor_type")
+            source_id = anchor.source_id if hasattr(anchor, "source_id") else anchor.get("source_id")
             if anchor_type and source_id:
                 references.add(f"{anchor_type}:{source_id}")
     return "|".join(sorted(references))
 
 
+def package_snapshot_input_decision_references(document: PersonalReportPackageDocument) -> str:
+    """Serialize the exact frozen input-decision manifest without live lookups."""
+    return "|".join(
+        sorted(f"{item.decision_id}@{input_ref}" for item in document.input_manifest for input_ref in item.input_refs)
+    )
+
+
 def package_snapshot_csv(snapshot: PersonalReportPackageSnapshotResponse) -> str:
     output = StringIO()
     writer = csv.writer(output)
-    payload = snapshot.payload
-    contract = payload["contract"]
-    section_payloads = payload["section_payloads"]
-    traceability = section_payloads["traceability_appendix"]
-    evidence_bundle_references = package_snapshot_evidence_references(payload["framework_policy"])
-    writer.writerow(contract["export_contract"]["csv_columns"])
-    for line in traceability["lines"]:
-        section_payload = section_payloads.get(line["section_id"], {})
-        amount = resolve_payload_field(section_payload, line.get("amount_field"))
-        currency = resolve_payload_field(section_payload, line.get("currency_field")) or snapshot.currency
+    document = snapshot.document
+    section_payloads = document.sections.model_dump(mode="json")
+    traceability = document.sections.traceability_appendix
+    evidence_bundle_references = package_snapshot_evidence_references(document.framework_policy)
+    input_decision_references = package_snapshot_input_decision_references(document)
+    writer.writerow(document.contract.export_contract.csv_columns)
+    for line in traceability.lines:
+        section_payload = section_payloads.get(line.section_id, {})
+        amount = resolve_payload_field(section_payload, line.amount_field)
+        currency = resolve_payload_field(section_payload, line.currency_field) or snapshot.currency
         writer.writerow(
             [
                 snapshot.package_id,
-                line["section_id"],
-                line["line_id"],
-                line["label"],
+                line.section_id,
+                line.line_id,
+                line.label,
                 amount,
                 currency,
-                line["source_state"],
+                line.source_state,
                 snapshot.framework_id.value,
-                payload["framework_policy"]["result_id"],
-                payload["framework_policy"]["matrix_version"],
+                document.framework_policy.result_id,
+                document.framework_policy.matrix_version,
                 evidence_bundle_references,
+                input_decision_references,
             ]
         )
     content = output.getvalue()

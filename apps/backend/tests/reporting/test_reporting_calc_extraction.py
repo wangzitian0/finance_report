@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from src import reporting as reporting_service
-from src.ledger import AccountType, Direction, worst_confidence_tier
+from src.ledger import AccountType, Direction
 from src.reporting.extension import reporting_calc
 
 
@@ -13,7 +13,7 @@ def test_reporting_calc_extraction():
     """AC-reporting.dry-ssot.1: AC25.1.1: pure reporting math lives in ``reporting.extension.reporting_calc`` and is
     re-used by the ``reporting`` package root (same objects, not copies), so accounting
     sign rules, period boundaries, income-bucket classification, money
-    quantization, and confidence-tier rollup are unchanged."""
+    quantization, and provenance combination are unchanged."""
     # The orchestration module re-exports the extracted primitives — identical
     # objects, guaranteeing no behavioral fork between the two modules.
     for name in (
@@ -46,9 +46,7 @@ def test_reporting_calc_extraction():
     assert reporting_calc.income_bucket("Dividend payout") == "dividend"
     assert reporting_calc.income_bucket("Groceries") is None
 
-    # Confidence-tier worst-input rollup and provenance combination.
-    assert worst_confidence_tier(["HIGH", "LOW", "TRUSTED"]) == "LOW"
-    assert worst_confidence_tier([None, None]) is None
+    # Provenance remains display/lineage metadata, not package authority.
     assert reporting_calc._combine_provenance(["imported", "imported"]) == "imported"
     assert reporting_calc._combine_provenance(["imported", "manual"]) == "derived"
 

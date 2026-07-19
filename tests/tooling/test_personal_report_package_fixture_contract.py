@@ -154,12 +154,13 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey
 
 
-def test_AC8_14_3_personal_package_has_deterministic_source_trust_mirror() -> None:
-    """AC-testing.trust-mirrors.3: AC8.14.3: Package LLM/OCR critical proof has a deterministic source-trust mirror."""
+def test_AC8_14_3_personal_package_has_deterministic_package_document_mirror() -> None:
+    """AC-testing.trust-mirrors.3: AC8.14.3: Package LLM/OCR proof mirrors a deterministic typed document assembly."""
     matrix = _matrix()
     proofs = {proof["id"]: proof for proof in matrix["proofs"]}
 
     post_merge = proofs["personal-financial-report-package-post-merge"]
+    assert post_merge["mirror_proof_id"] == "personal-package-document-pr"
     mirror = proofs[post_merge["mirror_proof_id"]]
     expected_sources = {
         "bank_statement",

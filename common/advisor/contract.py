@@ -44,8 +44,8 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
 ## Cross-domain read edges
 
 ``depends_on`` mirrors the real import set: ``audit`` (money formatting),
-``ledger`` (Account/AccountType/journal-line reads for the annualized-income
-schedule and category context — registered as advisor's dependency once
+``ledger`` (Account/AccountType/journal-line reads for category context —
+registered as advisor's dependency once
 #1675's D5 omnibus moved account.py/journal.py into ``ledger``, mid-flight of
 this PR), ``llm`` (scene binding + streaming transport), ``observability``
 (logging), ``platform`` (workflow status, HTTP error helpers), ``portfolio``
@@ -101,12 +101,6 @@ CONTRACT = PackageContract(
     # physically folds it (see the module docstring).
     depends_on=[
         "audit",
-        # extraction: the annualized-income schedule reads the published fact
-        # entities (ManualValuationComponentType/ManualValuationLiquidityClass
-        # /ManualValuationSnapshot, #1675 D5c) by id — surfaced as a real edge
-        # once extraction.orm.layer3 replaced src.models.layer3, mid-flight
-        # of this PR.
-        "extraction",
         "ledger",
         "llm",
         "observability",
@@ -169,7 +163,6 @@ CONTRACT = PackageContract(
         "build_refusal",
         "detect_language",
         "ensure_disclaimer",
-        "generate_annualized_income_schedule",
         "get_ai_advisor_prompt",
         "is_non_financial",
         "is_prompt_injection",
@@ -177,7 +170,6 @@ CONTRACT = PackageContract(
         "is_write_request",
         "normalize_question",
         "redact_sensitive",
-        "register_fx_conversion",
         "register_fx_pairs_read",
     ],
     events=[],

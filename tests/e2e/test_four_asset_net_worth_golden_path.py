@@ -256,7 +256,7 @@ def _line_total_by_name(lines: list[dict], token: str) -> Decimal:
         "liability_statement",
         "manual_record",
     ],
-    mirror_proof_id="personal-package-source-trust-pr",
+    mirror_proof_id="personal-package-document-pr",
     issue="#444",
     required_markers=["e2e", "tier3", "critical", "llm"],
 )

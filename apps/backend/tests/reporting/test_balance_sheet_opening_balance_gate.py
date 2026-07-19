@@ -63,16 +63,13 @@ async def _accounts(db, user_id) -> tuple[Account, Account]:
 
 
 @pytest.mark.asyncio
-async def test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balance_missing(db, test_user) -> None:
-    """AC-reporting.opening-balance.1: AC2.16.4: a HIGH-tier balance sheet is degraded to LOW and warns when the
-    opening balance is missing — the total is structurally incomplete."""
+async def test_AC2_16_4_balance_sheet_warns_when_opening_balance_missing(db, test_user) -> None:
+    """AC-reporting.opening-balance.1: incomplete opening balances are explicit."""
     cash, income = await _accounts(db, test_user.id)
     await _post_high_confidence_activity(db, test_user.id, cash=cash, income=income)
 
     report = await generate_balance_sheet(db, test_user.id, as_of_date=AS_OF)
 
-    # Without the gate the single rated line (user_confirmed) rolls up to HIGH.
-    assert report["confidence_tier"] == "LOW"
     warnings = report["opening_balance_warnings"]
     assert warnings, "expected an opening-balance warning when none is recorded"
     assert any(w.get("type") == "missing_opening_balance" for w in warnings)
@@ -106,5 +103,4 @@ async def test_AC2_16_4_net_worth_allocation_surfaces_opening_balance_warning(db
 
     allocation = await get_net_worth_allocation_schedule(db, test_user.id, as_of_date=AS_OF)
 
-    assert allocation["confidence_tier"] == "LOW"
     assert allocation["opening_balance_warnings"], "expected the warning on net-worth allocation too"

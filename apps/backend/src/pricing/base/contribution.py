@@ -30,6 +30,9 @@ class ResolvedValuationContribution:
     currency: str | None
     source: ObservationSource | None
     decision_id: UUID | None
+    component_type: str | None = None
+    valuation_basis: str | None = None
+    liquidity_class: str | None = None
 
     @property
     def is_authoritative(self) -> bool:

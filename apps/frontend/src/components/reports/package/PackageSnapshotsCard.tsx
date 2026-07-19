@@ -10,7 +10,9 @@ export function PackageSnapshotsCard({
   canGenerate,
   generating,
   downloading,
+  selectedSnapshotId,
   onGenerate,
+  onOpen,
   onDownload,
 }: {
   snapshots: PersonalReportPackageSnapshotSummary[];
@@ -18,7 +20,9 @@ export function PackageSnapshotsCard({
   canGenerate: boolean;
   generating: boolean;
   downloading: string | null;
+  selectedSnapshotId: string | null;
   onGenerate: () => void;
+  onOpen: (snapshot: PersonalReportPackageSnapshotSummary) => void;
   onDownload: (
     snapshot: PersonalReportPackageSnapshotSummary,
     format: "json" | "csv",
@@ -72,10 +76,21 @@ export function PackageSnapshotsCard({
               </thead>
               <tbody>
                 {snapshots.map((snapshot) => (
-                  <tr key={snapshot.id} className="border-t border-[var(--border)]">
+                  <tr
+                    key={snapshot.id}
+                    className={
+                      snapshot.id === selectedSnapshotId
+                        ? "border-t border-[var(--border)] bg-[var(--background-muted)]"
+                        : "border-t border-[var(--border)]"
+                    }
+                  >
                     <td className="py-3 pr-4">
                       <span className="badge badge-muted">
-                        {snapshot.status === "trusted" ? "Trusted" : "Draft"}
+                        {snapshot.status === "trusted"
+                          ? "Trusted"
+                          : snapshot.status === "legacy_unproven"
+                            ? "Legacy unproven"
+                            : "Draft"}
                       </span>
                     </td>
                     <td className="py-3 pr-4">
@@ -89,6 +104,14 @@ export function PackageSnapshotsCard({
                     </td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(snapshot)}
+                          disabled={snapshot.status === "legacy_unproven"}
+                          className="btn-secondary text-xs"
+                        >
+                          {snapshot.id === selectedSnapshotId ? "Open" : "Reopen"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => onDownload(snapshot, "json")}

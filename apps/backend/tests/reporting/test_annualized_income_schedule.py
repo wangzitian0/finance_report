@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer3 import (
@@ -14,6 +13,7 @@ from src.extraction.orm.layer3 import (
 )
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
+from src.reporting import generate_annualized_income_schedule
 from src.reporting.extension.reporting_calc import income_bucket
 
 
@@ -27,7 +27,6 @@ def test_AC11_11_1_income_bucket_maps_report_package_income_accounts():
 
 
 async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restricted_treatment(
-    client: AsyncClient,
     db: AsyncSession,
     test_user,
 ):
@@ -107,10 +106,8 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
     )
     await db.commit()
 
-    response = await client.get("/reports/package/annualized-income-schedule?as_of_date=2026-05-20")
-
-    assert response.status_code == 200
-    data = response.json()
+    schedule = await generate_annualized_income_schedule(db, test_user.id, as_of_date=date(2026, 5, 20))
+    data = schedule.model_dump(mode="json")
     assert data["section_id"] == "annualized_income_long_term"
     assert data["as_of_date"] == "2026-05-20"
     assert data["trailing_period_start"] == "2025-05-20"
@@ -147,7 +144,6 @@ async def test_AC11_11_1_AC11_11_2_annualized_schedule_includes_income_and_restr
 
 
 async def test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis(
-    client: AsyncClient,
     db: AsyncSession,
     test_user,
 ):
@@ -187,16 +183,13 @@ async def test_AC11_11_4_annualized_schedule_surfaces_structured_valuation_basis
     )
     await db.commit()
 
-    response = await client.get("/reports/package/annualized-income-schedule?as_of_date=2026-05-20")
-
-    assert response.status_code == 200
-    holdings = {holding["ticker"]: holding for holding in response.json()["restricted_holdings"]}
+    schedule = await generate_annualized_income_schedule(db, test_user.id, as_of_date=date(2026, 5, 20))
+    holdings = {holding["ticker"]: holding for holding in schedule.model_dump(mode="json")["restricted_holdings"]}
     assert holdings["GRANT-RSU"]["valuation_basis"] == "employer_grant_document"
     assert holdings["LEGACY-ESOP"]["valuation_basis"] == "unspecified"
 
 
 async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_totals(
-    client: AsyncClient,
     db: AsyncSession,
     test_user,
 ):
@@ -268,10 +261,8 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
     )
     await db.commit()
 
-    response = await client.get("/reports/package/annualized-income-schedule?as_of_date=2026-05-20")
-
-    assert response.status_code == 200
-    data = response.json()
+    schedule = await generate_annualized_income_schedule(db, test_user.id, as_of_date=date(2026, 5, 20))
+    data = schedule.model_dump(mode="json")
     assert data["income"] == {
         "annualized_salary": "100.00",
         "annualized_bonus": "0.00",

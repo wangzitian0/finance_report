@@ -106,8 +106,7 @@ export function PackageTraceabilitySection({
                 <th className="py-2 pr-4 font-medium">Line</th>
                 <th className="py-2 pr-4 font-medium">Source</th>
                 <th className="py-2 pr-4 font-medium">Ledger</th>
-                <th className="py-2 pr-4 font-medium">Review</th>
-                <th className="py-2 font-medium">Confidence</th>
+                <th className="py-2 font-medium">Coverage</th>
               </tr>
             </thead>
             <tbody>
@@ -139,17 +138,8 @@ export function PackageTraceabilitySection({
                       line.ledger_anchor.identifiers,
                     )}
                   </td>
-                  <td className="py-3 pr-4 font-mono text-xs">
-                    {line.review_state}
-                  </td>
                   <td className="py-3">
                     <div className="flex flex-col gap-2">
-                      <span className="badge badge-muted">
-                        {line.confidence_tier}
-                      </span>
-                      <span className="font-mono text-xs text-muted">
-                        {line.proof_level ?? "unclassified"}
-                      </span>
                       <span className="font-mono text-xs text-muted">
                         {line.anchor_count ?? 0} anchors
                       </span>

@@ -42,7 +42,7 @@ export function packageTocLinks(
   if (includeOutputSections) {
     links.push(
       { id: "package-readiness", label: "Report Readiness" },
-      { id: "package-source-trust", label: "Evidence Coverage" },
+      { id: "package-input-manifest", label: "Authority Coverage" },
       { id: "package-framework-policy", label: "Reporting Basis" },
     );
   }

@@ -15,7 +15,8 @@ from src.extraction import (
     get_uploaded_document_filename,
     get_uploaded_document_filenames,
 )
-from src.reporting import get_personal_report_package_readiness
+from src.reconciliation import count_pending_review_items
+from src.reporting import current_package_document_summary
 from src.workflow.base.types import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
@@ -37,6 +38,7 @@ from src.workflow.base.types import (
 from src.workflow.extension.builders import (  # noqa: F401
     PACKAGE_WORKFLOW_SOURCE_ID,
     build_readiness_blocker_event_payload,
+    build_reconciliation_review_event_payload,
     build_report_state_event_payload,
     build_review_completed_event_payload,
     build_review_required_event_payload,
@@ -58,7 +60,7 @@ _STAGE1_REJECTED = "rejected"
 _STAGE1_EDITED = "edited"
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
-MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "report_package"}
+MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "reconciliation", "report_package"}
 MUTABLE_DERIVED_EVENT_FAMILIES = {
     WorkflowEventFamily.SOURCE_PARSING_FAILED,
     WorkflowEventFamily.REVIEW_REQUIRED,
@@ -74,14 +76,10 @@ def _collapse_package_readiness_state(state: str) -> WorkflowReportReadinessStat
     """Collapse package readiness into the compact workflow vocabulary."""
     if state == "draft":
         return WorkflowReportReadinessState.NONE
-    if state == "processing":
-        return WorkflowReportReadinessState.PROCESSING
     if state == "blocked":
         return WorkflowReportReadinessState.BLOCKED
-    if state in {"ready", "generated"}:
+    if state == "ready":
         return WorkflowReportReadinessState.READY
-    if state == "stale":
-        return WorkflowReportReadinessState.STALE
     return WorkflowReportReadinessState.NONE
 
 
@@ -349,7 +347,12 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
         elif statement.stage1_status in {_STAGE1_APPROVED, _STAGE1_REJECTED, _STAGE1_EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
-    package_readiness = await get_personal_report_package_readiness(db, user_id=user_id)
+    pending_reconciliation_count = await count_pending_review_items(db, user_id=user_id)
+    if pending_reconciliation_count:
+        derived_payloads.append(build_reconciliation_review_event_payload(pending_reconciliation_count))
+
+    package_summary = await current_package_document_summary(db, user_id=user_id)
+    package_readiness = package_summary.readiness.model_dump(mode="json")
     for blocker in package_readiness.get("blockers", []):
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)
@@ -367,12 +370,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
         workflow_session = await get_or_create_active_workflow_session(db, user_id=user_id)
 
     active_derived_dedupe_keys = {payload.dedupe_key for payload in derived_payloads}
-    should_archive_stale_events = derived_payloads or str(package_readiness["state"]) in {
-        "draft",
-        "ready",
-        "generated",
-        "stale",
-    }
+    should_archive_stale_events = derived_payloads or str(package_readiness["state"]) in {"draft", "ready"}
     if derived_payloads and workflow_session is not None:
         existing_payload_events = (
             (

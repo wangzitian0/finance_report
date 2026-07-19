@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -64,10 +64,10 @@ from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.reconciliation import get_reconciliation_stats
 from src.reporting import (
     ReportError,
+    current_package_document_summary,
     generate_balance_sheet,
     generate_income_statement,
     get_category_breakdown,
-    get_personal_report_package_readiness,
 )
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.workflow import get_workflow_status
@@ -221,11 +221,11 @@ class AIAdvisorService:
         context: dict[str, str] = {}
 
         try:
-            balance = await generate_balance_sheet(db, user_id, as_of_date=today)
+            balance = cast(dict[str, Any], await generate_balance_sheet(db, user_id, as_of_date=today))
             total_assets = Decimal(str(balance["total_assets"]))
             total_liabilities = Decimal(str(balance["total_liabilities"]))
             total_equity = Decimal(str(balance["total_equity"]))
-            currency = balance.get("currency", settings.base_currency)
+            currency = str(balance.get("currency") or settings.base_currency)
             balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
         except ReportError:
             total_assets = Decimal("0")
@@ -235,21 +235,20 @@ class AIAdvisorService:
             balance_sheet_confidence_tier = "UNAVAILABLE"
 
         try:
-            income_statement = await generate_income_statement(
-                db, user_id, start_date=start_date, end_date=today, currency=currency
+            income_statement = cast(
+                dict[str, Any],
+                await generate_income_statement(db, user_id, start_date=start_date, end_date=today, currency=currency),
             )
             monthly_income = Decimal(str(income_statement["total_income"]))
             monthly_expenses = Decimal(str(income_statement["total_expenses"]))
-            income_statement_confidence_tier = worst_confidence_tier(
-                [
-                    line.get("confidence_tier")
-                    for line in [
-                        *(income_statement.get("income") or []),
-                        *(income_statement.get("expenses") or []),
-                    ]
-                    if isinstance(line, dict)
-                ],
-                default="DETERMINISTIC",
+            income_lines = cast(list[dict[str, Any]], income_statement.get("income") or [])
+            expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
+            income_statement_confidence_tier = (
+                worst_confidence_tier(
+                    [line.get("confidence_tier") for line in [*income_lines, *expense_lines]],
+                    default="DETERMINISTIC",
+                )
+                or "DETERMINISTIC"
             )
         except ReportError:
             monthly_income = Decimal("0")
@@ -257,14 +256,17 @@ class AIAdvisorService:
             income_statement_confidence_tier = "UNAVAILABLE"
 
         try:
-            breakdown = await get_category_breakdown(
-                db,
-                user_id,
-                breakdown_type=AccountType.EXPENSE,
-                period="monthly",
-                currency=currency,
+            breakdown = cast(
+                dict[str, Any],
+                await get_category_breakdown(
+                    db,
+                    user_id,
+                    breakdown_type=AccountType.EXPENSE,
+                    period="monthly",
+                    currency=currency,
+                ),
             )
-            top_items = breakdown.get("items", [])[:3]
+            top_items = cast(list[dict[str, Any]], breakdown.get("items") or [])[:3]
             top_expenses = ", ".join(f"{item['category_name']}: {currency} {item['total']}" for item in top_items)
         except ReportError:
             top_expenses = "N/A"
@@ -306,7 +308,7 @@ class AIAdvisorService:
         context: dict[str, Any] = {
             "financial_summary": financial_summary,
             "report_readiness": self._advisor_readiness(readiness),
-            "source_trust": self._advisor_source_trust(readiness),
+            "authority_coverage": self._advisor_authority_coverage(readiness),
             "workflow": workflow,
             "market_data": market_data,
             "portfolio": portfolio,
@@ -323,7 +325,10 @@ class AIAdvisorService:
 
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            return await get_personal_report_package_readiness(db, user_id=user_id)
+            summary = await current_package_document_summary(db, user_id=user_id)
+            readiness = summary.readiness.model_dump(mode="json")
+            readiness["document_status"] = summary.status.value
+            return readiness
         except Exception as exc:
             logger.warning("Failed to load advisor report readiness", error=str(exc))
             return {
@@ -332,7 +337,12 @@ class AIAdvisorService:
                 "action_href": "/reports/package",
                 "blocking_count": 0,
                 "blockers": [],
-                "source_trust_summary": {},
+                "input_coverage": {
+                    "manifest_decision_count": 0,
+                    "authoritative_input_count": 0,
+                    "unproven_input_count": 0,
+                },
+                "document_status": "draft",
             }
 
     async def _load_workflow_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
@@ -396,7 +406,7 @@ class AIAdvisorService:
             "package_id": readiness.get("package_id"),
             "state": state,
             "label": readiness.get("label", state),
-            "trusted": state in {"ready", "generated"},
+            "trusted": readiness.get("document_status") == "trusted",
             "blocking_count": int(readiness.get("blocking_count") or 0),
             "blockers": readiness.get("blockers", []),
             "action_href": readiness.get("action_href", "/reports/package"),
@@ -404,15 +414,13 @@ class AIAdvisorService:
             "stale_since": readiness.get("stale_since"),
         }
 
-    def _advisor_source_trust(self, readiness: dict[str, Any]) -> dict[str, Any]:
-        source_trust = readiness.get("source_trust_summary") or {}
+    def _advisor_authority_coverage(self, readiness: dict[str, Any]) -> dict[str, Any]:
+        coverage = readiness.get("input_coverage") or {}
         return {
-            "source_classes": list(source_trust.get("source_classes") or []),
-            "deterministic_pr_source_classes": list(source_trust.get("deterministic_pr_source_classes") or []),
-            "post_merge_llm_ocr_source_classes": list(source_trust.get("post_merge_llm_ocr_source_classes") or []),
-            "manual_trusted_source_classes": list(source_trust.get("manual_trusted_source_classes") or []),
-            "gap_source_classes": list(source_trust.get("gap_source_classes") or []),
-            "blocker_codes": list(source_trust.get("blocker_codes") or []),
+            "manifest_decision_count": int(coverage.get("manifest_decision_count") or 0),
+            "authoritative_input_count": int(coverage.get("authoritative_input_count") or 0),
+            "unproven_input_count": int(coverage.get("unproven_input_count") or 0),
+            "blocker_codes": [str(blocker.get("code")) for blocker in readiness.get("blockers") or []],
         }
 
     def _build_advisor_suggestions(self, context: dict[str, Any]) -> list[AdvisorSuggestion]:
@@ -428,7 +436,7 @@ class AIAdvisorService:
                 AdvisorSuggestion(
                     basis=f"Report readiness is {readiness['state']} with {readiness['blocking_count']} blocker(s).",
                     confidence_tier="blocked",
-                    source_refs=["report_readiness", "source_trust"],
+                    source_refs=["report_readiness", "authority_coverage"],
                     limitation="Do not describe the report package as trusted until blockers are resolved.",
                     next_action_href=str(readiness["action_href"]),
                 )

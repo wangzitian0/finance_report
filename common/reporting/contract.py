@@ -7,7 +7,7 @@ calculation-over-ledger package, declares its building blocks with
 at ``apps/backend/src/reporting/{base,extension,data}``.
 
 Scope correction (2026-07-06): ``manual_valuation.py`` belongs to the pricing
-cutover (#1610). Reporting keeps confidence-tier mapping and report assembly;
+cutover (#1610). Reporting keeps report assembly;
 pricing owns valuation-observation staleness facts. Pending that cutover,
 reporting reaches manual valuation and the FX conversion service through
 composition-root-injected ports (``register_manual_valuation_lines_provider``
@@ -19,10 +19,9 @@ Status flip (migration closeout wave 2, #1663): the roadmap's first ACs
 the package ships ``active``/``CODE-ONLY`` here.
 
 #1674 contract-honesty audit (2026-07-09): declare a dependency only with its
-first real import. ``extraction`` gained one in the #1666 fold
-(``report_traceability`` reads the evidence graph through the published
-``EvidenceLineageService``); ``config``/``platform`` remain undeclared until
-a real import exists.
+first real import. ``extraction`` supplies decision-backed statement
+contributions to package assembly; ``config``/``platform`` remain undeclared
+until a real import exists.
 """
 
 from __future__ import annotations
@@ -42,11 +41,8 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     depends_on=[
         "audit",
-        # extraction: the traceability appendix reads the evidence graph via
-        # the published EvidenceLineageService (extension/report_traceability.py),
-        # and report composition reads the published fact entities
-        # (AtomicTransaction/TransactionClassification/ManualValuationSnapshot,
-        # #1675 D5c) by id — extraction owns the fact family's ORM.
+        # extraction: package assembly reads its public statement-contribution
+        # DTO, while the appendix renders that DTO without reading extraction ORM.
         "extraction",
         "ledger",
         "observability",
@@ -94,6 +90,11 @@ CONTRACT = PackageContract(
             module="extension/balance_sheet.py",
         ),
         Unit(
+            name="generate_annualized_income_schedule",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/annualized_income.py",
+        ),
+        Unit(
             name="generate_income_statement",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/income_statement.py",
@@ -139,15 +140,18 @@ CONTRACT = PackageContract(
             module="extension/lineage.py",
         ),
         Unit(
+            name="PackageSectionContribution",
+            kind=Kind.VALUE_OBJECT,
+            module="base/package_contribution.py",
+        ),
+        Unit(
             name="ReportingReadRepository",
             kind=Kind.REPOSITORY,
         ),
         # ── data (projection / sink declarations) ──
         Unit(name="ReportSnapshotProjection", kind=Kind.PROJECTION),
-        Unit(name="ReportReadinessProjection", kind=Kind.PROJECTION),
         Unit(name="ReportTraceabilityProjection", kind=Kind.PROJECTION),
         Unit(name="AccountLineageTreeProjection", kind=Kind.PROJECTION),
-        Unit(name="ConfidenceTierAggregationProjection", kind=Kind.PROJECTION),
         Unit(name="FrameworkPolicyDecisionProjection", kind=Kind.PROJECTION),
     ],
     implementations={"be": "apps/backend/src/reporting", "fe": None},
@@ -155,8 +159,11 @@ CONTRACT = PackageContract(
         "MAX_NET_WORTH_DAILY_POINTS",
         "PERSONAL_REPORT_PACKAGE_CONTRACT",
         "PERSONAL_REPORT_PACKAGE_NOTES",
+        "PackageAssembler",
+        "PackageSectionContribution",
+        "PackageDocumentVersionError",
+        "current_package_document_summary",
         "AnnualizedIncomeTotals",
-        "ConfidenceMetricService",
         "PersonalReportingFrameworkId",
         "PolicyDimension",
         "ReportError",
@@ -179,9 +186,9 @@ CONTRACT = PackageContract(
         "assemble_framework_balance_sheet",
         "assemble_framework_income_statement",
         "build_personal_report_package_traceability_payload",
-        "derive_reconciliation_score_tier",
         "derive_user_framework_policy_result",
         "generate_balance_sheet",
+        "generate_annualized_income_schedule",
         "generate_cash_flow",
         "generate_income_statement",
         "get_account_lineage",
@@ -189,15 +196,14 @@ CONTRACT = PackageContract(
         "get_category_breakdown",
         "get_net_worth_allocation_schedule",
         "get_net_worth_timeseries",
-        "get_personal_report_package_readiness",
         "income_bucket",
         "is_valid_line_for_framework",
         "jsonable",
         "package_currency",
         "package_dates",
         "package_snapshot_csv",
+        "package_snapshot_document",
         "package_snapshot_response",
-        "package_snapshot_status",
         "package_snapshot_summary",
         # Composition-root injection ports (#1666/#1610): main.py and the
         # backend test conftest wire the app-remainder FX service and the
@@ -322,17 +328,14 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.opening-balance.1",
             statement=(
-                "A HIGH-tier (user_confirmed) balance-sheet line with posted "
-                "activity but no recorded opening balance degrades the "
-                "report's aggregate confidence_tier to LOW and emits an "
-                "opening_balance_warnings entry (type=missing_opening_balance), "
-                "so a structurally-incomplete total is never presented as "
-                "trusted."
+                "A balance sheet with posted activity but no recorded opening balance emits an "
+                "opening_balance_warnings entry (type=missing_opening_balance), and the package "
+                "assembler treats it as a deterministic blocker."
             ),
             # was AC2.16.4
             test=(
                 "apps/backend/tests/reporting/test_balance_sheet_opening_balance_gate.py"
-                "::test_AC2_16_4_balance_sheet_degrades_tier_and_warns_when_opening_balance_missing"
+                "::test_AC2_16_4_balance_sheet_warns_when_opening_balance_missing"
             ),
             priority="P1",
             status="done",
@@ -356,8 +359,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.opening-balance.3",
             statement=(
-                "The net-worth allocation schedule surfaces the same LOW-tier "
-                "degrade and opening_balance_warnings as the balance sheet "
+                "The net-worth allocation schedule surfaces the same "
+                "opening_balance_warnings as the balance sheet "
                 "when the user needs an opening balance."
             ),
             # was AC2.16.4
@@ -481,8 +484,8 @@ CONTRACT = PackageContract(
             # in tests/tooling/test_framework_reporting_epic_contract.py and by
             # apps/frontend/src/__tests__/personalReportPackagePage.test.tsx)
             test=(
-                "apps/backend/tests/reporting/test_framework_package_integration.py"
-                "::test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness"
+                "tests/tooling/test_framework_reporting_epic_contract.py"
+                "::test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields"
             ),
             priority="P0",
             status="done",
@@ -1063,13 +1066,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.package-contract.1",
             statement=(
-                "The package contract endpoint defines the required section IDs, labels, "
-                "owners, and source endpoints."
+                "The document-embedded package contract defines the required section IDs, "
+                "labels, owners, and source semantics."
             ),
             # was AC5.9.1
             test=(
                 "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC5_9_1_package_contract_endpoint_defines_required_sections"
+                "::test_AC5_9_1_package_contract_defines_required_sections"
             ),
             priority="P0",
             status="done",
@@ -1125,8 +1128,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.package-annualized.1",
             statement=(
-                "The package contract marks annualized_income_long_term ready and points at the "
-                "schedule endpoint."
+                "The package contract requires the typed annualized_income_long_term section "
+                "inside PersonalReportPackageDocument."
             ),
             # was AC5.11.1
             test=(
@@ -1331,37 +1334,6 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
-        # ── group confidence: per-node confidence tier on balance-sheet
-        # payloads (was EPIC-005 AC5.18.1-2, migration closeout continuation,
-        # #1663 / #1716) ──
-        ACRecord(
-            id="AC-reporting.confidence.1",
-            statement=(
-                "Each balance-sheet line carries the worst-input confidence tier of its "
-                "contributing journal entries."
-            ),
-            # was AC5.18.1
-            test=(
-                "apps/backend/tests/reporting/test_balance_sheet_confidence.py"
-                "::test_AC5_18_1_lines_carry_worst_input_confidence_tier"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.confidence.2",
-            statement=(
-                "The Net Worth aggregate rolls up to the worst-input tier across rated lines, "
-                "and is null when nothing is rated."
-            ),
-            # was AC5.18.2
-            test=(
-                "apps/backend/tests/reporting/test_balance_sheet_confidence.py"
-                "::test_AC5_18_2_net_worth_rolls_up_to_worst_input_tier"
-            ),
-            priority="P1",
-            status="done",
-        ),
         # ── group package-snapshot: durable package snapshot artifact (was
         # EPIC-005 AC5.19.1-3 — the frontend row AC5.19.4 stays in EPIC-005;
         # migration closeout continuation, #1663 / #1716) ──
@@ -1403,10 +1375,118 @@ CONTRACT = PackageContract(
             # was AC5.19.3
             test=(
                 "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC5_19_3_package_snapshot_exports_are_snapshot_derived"
+                "::test_AC_reporting_package_document_4_exports_the_selected_frozen_document"
             ),
             priority="P0",
             status="done",
+        ),
+        # ── group package-document: one typed delivery artifact (#567) ──
+        ACRecord(
+            id="AC-reporting.package-document.1",
+            statement=(
+                "The personal report package is a versioned, Decimal-safe document with "
+                "required typed balance-sheet, income-statement, cash-flow, investment, "
+                "annualized-income, notes, traceability, and immutable input-manifest sections."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_1_requires_typed_delivery_sections"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.2",
+            statement=(
+                "Preview, generation, persistence, reopen, and export use the one "
+                "PackageAssembler document path; the reports router cannot retain a private "
+                "section aggregator or live package export branch."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_2_has_one_assembler_and_no_live_package_export"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.3",
+            statement=(
+                "Trusted/final package state is the projection of one persisted CODE-ONLY "
+                "TraceRecord MANIFEST decision over the exact current contributing decisions "
+                "and deterministic section observation; missing, stale, legacy, or superseded "
+                "inputs produce draft/blocked output and no trusted decision."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.4",
+            statement=(
+                "A selected frozen document is the only JSON/CSV export input; a live-data "
+                "mutation after generation cannot change the exported identity, totals, "
+                "traceability, or typed section payloads."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC_reporting_package_document_4_exports_the_selected_frozen_document"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.5",
+            statement=(
+                "Package decision emission and frozen snapshot persistence share the caller-owned "
+                "transaction, so a failure after trace flush leaves neither TraceRecord nor snapshot."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.6",
+            statement=(
+                "A whole-production-tree certificate permits one PackageDocument producer, forbids "
+                "consumer-owned readiness/trust calculations and live selected-snapshot reads, and "
+                "requires reports, statements, workflow, advisor, and frontend package surfaces to "
+                "consume the same document or its typed projection."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_6_producer_and_consumer_closure"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.package-document.7",
+            statement=(
+                "PackageAssembler adapts extraction, ledger, and pricing inputs into one typed "
+                "PackageSectionContribution shape and folds only those exact decision/input refs "
+                "into the manifest. The traceability appendix renders the same contribution set; "
+                "raw foreign-package rows and display labels cannot authorize a package."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_document.py"
+                "::test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions"
+            ),
+            priority="P0",
+            status="open",
+            proof_kind="exact",
         ),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
         # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
@@ -1719,172 +1799,6 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
-        # ── group north-star: North-Star confidence metric (was EPIC-018
-        # AC18.12.1-4, migration closeout continuation, #1663 / #1716) ──
-        ACRecord(
-            id="AC-reporting.north-star.1",
-            statement=(
-                "The low-confidence proportion is the deterministic LOW-tier share of "
-                "posted/reconciled journal entries, with a full tier breakdown and a defined "
-                "zero on an empty ledger."
-            ),
-            # was AC18.12.1
-            test=(
-                "apps/backend/tests/metrics/test_confidence_north_star_metric.py"
-                "::test_AC18_12_1_low_confidence_proportion_and_tier_breakdown_are_deterministic"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.north-star.2",
-            statement=(
-                "The metric is recorded as an append-only series — snapshots accumulate "
-                "newest-first and are never overwritten — so the trend is observable."
-            ),
-            # was AC18.12.2
-            test=(
-                "apps/backend/tests/metrics/test_confidence_north_star_metric.py"
-                "::test_AC18_12_2_metric_is_recorded_as_append_only_series_showing_the_trend"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.north-star.3",
-            statement=(
-                "The current metric and its recorded series are exposed read-only via the API."
-            ),
-            # was AC18.12.3
-            test=(
-                "apps/backend/tests/metrics/test_confidence_north_star_metric.py"
-                "::test_AC18_12_3_north_star_endpoint_returns_current_and_series"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.north-star.4",
-            statement=(
-                "A North-Star snapshot is recorded when a report package is generated, and on "
-                "demand via a POST endpoint, so the trend accumulates in production."
-            ),
-            # was AC18.12.4
-            test=(
-                "apps/backend/tests/metrics/test_confidence_north_star_metric.py"
-                "::test_AC18_12_4_post_records_a_snapshot_into_the_series"
-            ),
-            priority="P1",
-            status="done",
-        ),
-        # ── group readiness: report readiness + blocker state (was EPIC-019
-        # AC19.5.1-3, AC19.5.6-7 and AC19.7.1 — the frontend rows AC19.5.4-5
-        # stay in EPIC-019; migration closeout continuation, #1663 / #1716) ──
-        ACRecord(
-            id="AC-reporting.readiness.1",
-            statement=(
-                "The personal report package exposes a user-scoped readiness endpoint returning "
-                "deterministic state, action link, blocker count, and source summary."
-            ),
-            # was AC19.5.1
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_5_1_package_readiness_returns_draft_for_empty_user"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.readiness.2",
-            statement=(
-                "Blocked package readiness lists exact blocker categories across parsing, "
-                "review, balance, reconciliation, consistency, Processing balance, and source "
-                "coverage."
-            ),
-            # was AC19.5.2
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_5_2_package_readiness_lists_actionable_blockers"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.readiness.3",
-            statement=(
-                "Package readiness deterministically promotes through draft, processing, "
-                "blocked, ready, generated, and stale based on source state and snapshot "
-                "freshness."
-            ),
-            # was AC19.5.3
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_5_3_package_readiness_state_priority_and_snapshot_freshness"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.readiness.4",
-            statement=(
-                "Package readiness fails deterministically when duplicate Processing system "
-                "accounts would make blockers non-deterministic."
-            ),
-            # was AC19.5.6
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_5_6_package_readiness_rejects_duplicate_processing_accounts"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.readiness.5",
-            statement=(
-                "Package readiness converts Processing Account journal lines into the base "
-                "reporting currency before deciding whether the in-transit balance nets to "
-                "zero."
-            ),
-            # was AC19.5.7
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_5_7_package_readiness_converts_processing_balance_before_zero_check"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
-            id="AC-reporting.readiness.6",
-            statement=(
-                "Report readiness evaluates framework-specific evidence blockers from the "
-                "framework policy layer before marking US/HK personal reports trusted."
-            ),
-            # was AC19.7.1
-            test=(
-                "apps/backend/tests/reporting/test_framework_package_integration.py"
-                "::test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        # ── group source-trust: source trust readiness summary (was EPIC-019
-        # AC19.9.1 — the frontend row AC19.9.2 stays in EPIC-019; migration
-        # closeout continuation, #1663 / #1716) ──
-        ACRecord(
-            id="AC-reporting.source-trust.1",
-            statement=(
-                "Package readiness returns a source-trust summary by source class: "
-                "deterministic PR proof availability, post-merge LLM/OCR coverage, "
-                "manual-trusted classes, gaps, and blocker codes."
-            ),
-            # was AC19.9.1
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_9_1_package_readiness_reports_source_trust_summary"
-            ),
-            priority="P0",
-            status="done",
-        ),
         # ── group source-anchors: typed package source anchors (was EPIC-019
         # AC19.10.1, migration closeout continuation, #1663 / #1716) ──
         ACRecord(
@@ -2077,8 +1991,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reporting.package-annualized.3",
             statement=(
-                "GET /api/reports/package/annualized-income-schedule returns "
-                "annualized salary, bonus, dividend, total income, currency, "
+                "The reporting-owned annualized section returns annualized salary, "
+                "bonus, dividend, total income, currency, "
                 "as-of date, and trailing-period boundaries for the personal "
                 "report package."
             ),
@@ -2150,24 +2064,6 @@ CONTRACT = PackageContract(
                 "::test_AC17_14_2_net_worth_allocation_groups_balance_sheet_sources"
             ),
             priority="P1",
-            status="done",
-        ),
-        # ── group readiness: extends the existing group with the Processing-FX
-        # readiness blocker (was EPIC-019 AC19.8.8, #1821 Wave A
-        # pending-package move) ──
-        ACRecord(
-            id="AC-reporting.readiness.7",
-            statement=(
-                "The personal report package readiness check blocks when "
-                "Processing-account FX conversion fails during package "
-                "assembly."
-            ),
-            # was AC19.8.8
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC19_8_8_package_readiness_blocks_when_processing_fx_conversion_fails"
-            ),
-            priority="P0",
             status="done",
         ),
         # ── group api-vectors: backend-owned API response conformance

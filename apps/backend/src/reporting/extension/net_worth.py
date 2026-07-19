@@ -279,7 +279,6 @@ async def get_net_worth_allocation_schedule(
         "rows": rows,
         # Carry the balance sheet's trust signals so the dashboard surface shows the
         # same opening-balance gate as the balance sheet (AC2.16.4 / #1481).
-        "confidence_tier": balance_sheet.get("confidence_tier"),
         "opening_balance_warnings": balance_sheet.get("opening_balance_warnings", []),
         # Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up)
         # -- generate_balance_sheet already ran the same as_of_date/currency

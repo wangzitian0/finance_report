@@ -39,21 +39,15 @@ const readiness = {
       action_href: "/journal",
     },
   ],
-  source_summary: {
-    statements: 3,
-    posted_journal_entries: 4,
-    manual_valuations: 1,
+  input_coverage: {
+    manifest_decision_count: 4,
+    authoritative_input_count: 4,
+    unproven_input_count: 2,
   },
-  source_trust_summary: {
-    source_classes: ["bank_statement", "manual_record"],
-    deterministic_pr_source_classes: ["bank_statement", "manual_record"],
-    post_merge_llm_ocr_source_classes: ["bank_statement"],
-    manual_trusted_source_classes: ["manual_record"],
-    gap_source_classes: ["manual_record"],
-    blocker_codes: ["missing_source_coverage"],
-  },
-  generated_at: null,
-  stale_since: null,
+}
+
+function packageDocument(readinessResponse = readiness) {
+  return { readiness: readinessResponse }
 }
 
 beforeEach(() => {
@@ -66,8 +60,8 @@ beforeEach(() => {
       // match_rate is a 0–100 percentage from the backend, not a fraction.
       return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
     }
-    if (path.startsWith("/api/reports/package/readiness?")) {
-      return Promise.resolve(readiness)
+    if (path.startsWith("/api/reports/package?")) {
+      return Promise.resolve(packageDocument())
     }
     return Promise.resolve({})
   })
@@ -133,8 +127,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
     await waitFor(() => expect(cockpit).toHaveTextContent("Blocked"))
     expect(cockpit).toHaveTextContent("2 blockers")
-    expect(cockpit).toHaveTextContent("1 trust gap")
-    expect(cockpit).toHaveTextContent("Manual records")
+    expect(cockpit).toHaveTextContent("2 unproven inputs")
     expect(cockpit).toHaveTextContent("Pending source review")
     expect(screen.getByRole("link", { name: "Resolve report blockers" })).toHaveAttribute("href", "/review")
 
@@ -151,7 +144,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       if (path === "/api/reconciliation/stats") {
         return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
       }
-      if (path.startsWith("/api/reports/package/readiness?")) {
+      if (path.startsWith("/api/reports/package?")) {
         return Promise.reject(new Error("readiness down"))
       }
       return Promise.resolve({})
@@ -172,7 +165,7 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       if (path === "/api/reconciliation/stats") {
         return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
       }
-      if (path.startsWith("/api/reports/package/readiness?")) {
+      if (path.startsWith("/api/reports/package?")) {
         return new Promise(() => undefined)
       }
       return Promise.resolve({})
@@ -199,23 +192,20 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
         if (path === "/api/reconciliation/stats") {
           return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
         }
-        if (path.startsWith("/api/reports/package/readiness?")) {
-          return Promise.resolve({
+      if (path.startsWith("/api/reports/package?")) {
+        return Promise.resolve(packageDocument({
             ...readiness,
             state,
             label,
             action_href: "/reports/package",
             blocking_count: 0,
             blockers: [],
-            source_trust_summary: {
-              source_classes: ["unknown_source"],
-              deterministic_pr_source_classes: [],
-              post_merge_llm_ocr_source_classes: [],
-              manual_trusted_source_classes: [],
-              gap_source_classes: ["unknown_source"],
-              blocker_codes: [],
+            input_coverage: {
+              manifest_decision_count: 1,
+              authoritative_input_count: 1,
+              unproven_input_count: 0,
             },
-          })
+          }))
         }
         return Promise.resolve({})
       })
@@ -225,10 +215,6 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       await waitFor(() =>
         expect(cockpit).toHaveTextContent(`Current package state is ${label.toLowerCase()}.`),
       )
-      // sourceClassLabel's fallback is now the shared lib/statusLabels
-      // humanizeIdentifier (title-cased, acronym-aware) — was a plain
-      // replaceAll("_"," ") local to this page, #1868 S5.
-      expect(cockpit).toHaveTextContent("Unknown Source")
       const statusBadge = Array.from(cockpit.querySelectorAll(".badge")).find(
         (badge) => badge.textContent === label,
       )
@@ -246,23 +232,20 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
       if (path === "/api/reconciliation/stats") {
         return Promise.resolve({ match_rate: 92, unmatched_transactions: 3 })
       }
-      if (path.startsWith("/api/reports/package/readiness?")) {
-        return Promise.resolve({
+      if (path.startsWith("/api/reports/package?")) {
+        return Promise.resolve(packageDocument({
           ...readiness,
           state: "ready",
           label: "Ready",
           action_href: "/reports/package",
           blocking_count: 0,
           blockers: [],
-          source_trust_summary: {
-            source_classes: ["bank_statement"],
-            deterministic_pr_source_classes: ["bank_statement"],
-            post_merge_llm_ocr_source_classes: ["bank_statement"],
-            manual_trusted_source_classes: [],
-            gap_source_classes: [],
-            blocker_codes: [],
+          input_coverage: {
+            manifest_decision_count: 1,
+            authoritative_input_count: 1,
+            unproven_input_count: 0,
           },
-        })
+        }))
       }
       return Promise.resolve({})
     })
@@ -270,8 +253,8 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     render(<ReportsPage />)
 
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
-    await waitFor(() => expect(cockpit).toHaveTextContent("0 trust gaps"))
-    expect(cockpit).toHaveTextContent("No source gaps reported.")
+    await waitFor(() => expect(cockpit).toHaveTextContent("0 unproven inputs"))
+    expect(cockpit).toHaveTextContent("All inputs in this package document have current authority decisions.")
     expect(cockpit).toHaveTextContent("No blockers reported.")
   })
 })
