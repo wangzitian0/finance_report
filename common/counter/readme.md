@@ -11,7 +11,7 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
 `counter` owns the small tally model: namespaced keys, non-negative counts, and
 the `counter.Incremented` fact emitted when its own tally changes. It consumes
