@@ -10,7 +10,7 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
 `reconciliation` owns scored matching and review decisions between independent
 extraction and ledger facts. It consumes extraction projections, ledger
