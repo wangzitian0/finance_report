@@ -104,7 +104,10 @@ CONTRACT = PackageContract(
         Unit(name="ClassificationRule", kind=Kind.ENTITY),
         Unit(name="RuleType", kind=Kind.VALUE_OBJECT),
         Unit(name="TransactionClassification", kind=Kind.ENTITY),
-        Unit(name="ManagedPosition", kind=Kind.ENTITY),
+        # ``ManagedPosition`` is portfolio's aggregate.  Extraction physically
+        # hosts the schema-preserving current-position row as a source-derived
+        # projection, but does not claim the investment-position concept.
+        Unit(name="ManagedPositionSnapshot", kind=Kind.PROJECTION),
         Unit(name="ManualValuationSnapshot", kind=Kind.ENTITY),
         Unit(name="CorrectionLog", kind=Kind.ENTITY),
         Unit(name="EvidenceNode", kind=Kind.ENTITY),

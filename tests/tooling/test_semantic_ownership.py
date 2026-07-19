@@ -21,7 +21,7 @@ def test_AC_meta_context_governance_2_duplicate_semantic_owner_fails() -> None:
         ),
     ]
     assert duplicate_claims(packages) == [
-        "duplicate semantic owner: entity::Position::first,second"
+        "duplicate semantic owner: Position::first,second"
     ]
 
 
@@ -77,9 +77,46 @@ def test_duplicate_semantic_owner_output_is_stably_sorted() -> None:
         ),
     ]
     assert duplicate_claims(packages) == [
-        "duplicate semantic owner: entity::Zoo::first,second",
-        "duplicate semantic owner: value-object::Alpha::first,second",
+        "duplicate semantic owner: Alpha::first,second",
+        "duplicate semantic owner: Zoo::first,second",
     ]
+
+
+def test_different_kinds_cannot_mask_a_duplicate_semantic_owner() -> None:
+    packages = [
+        SimpleNamespace(
+            name="projection-store",
+            contract=SimpleNamespace(units=[Unit(name="Position", kind=Kind.ENTITY)]),
+        ),
+        SimpleNamespace(
+            name="domain-owner",
+            contract=SimpleNamespace(
+                units=[Unit(name="Position", kind=Kind.AGGREGATE_ROOT)]
+            ),
+        ),
+    ]
+    assert duplicate_claims(packages) == [
+        "duplicate semantic owner: Position::domain-owner,projection-store"
+    ]
+
+
+def test_managed_position_has_one_portfolio_aggregate_owner() -> None:
+    from common.extraction.contract import CONTRACT as extraction_contract
+    from common.portfolio.contract import CONTRACT as portfolio_contract
+
+    assert not any(
+        unit.semantic_identity == "ManagedPosition"
+        for unit in extraction_contract.units
+        if unit.kind in {Kind.AGGREGATE_ROOT, Kind.ENTITY}
+    )
+    assert any(
+        unit.name == "ManagedPositionSnapshot" and unit.kind is Kind.PROJECTION
+        for unit in extraction_contract.units
+    )
+    assert any(
+        unit.semantic_identity == "ManagedPosition" and unit.kind is Kind.AGGREGATE_ROOT
+        for unit in portfolio_contract.units
+    )
 
 
 def test_semantic_ownership_is_exact_on_real_repository() -> None:
