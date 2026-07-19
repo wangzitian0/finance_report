@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import os
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from common.audit.base import TraceRecord as CommonTraceRecord
+from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
 from common.testing.ac_proof import PROOF_ATTR, ac_proof
-from common.testing.executed_proof import executed_proof_assertion_version
+from common.testing.executed_proof import (
+    executed_proof_assertion_version,
+    register_executed_proof_consumer,
+)
 from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
 from sqlalchemy import select
 
@@ -21,6 +29,7 @@ from src.audit import (
     TraceDecisionRef,
     TraceEmitter,
     TraceRecord,
+    TraceRecordCodec as BackendTraceRecordCodec,
     TraceRecordPersistenceError,
     TraceRecordType,
     TraceResult,
@@ -86,6 +95,17 @@ from src.schemas import (
     PersonalReportPackageSnapshotStatus,
 )
 from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies
+
+
+class _FrozenTraceRepository:
+    """Replay the SQL-verified graph after pytest resolves the call outcome."""
+
+    def __init__(self, records: tuple[TraceRecord, ...]) -> None:
+        self._records = {record.record_id: record for record in records}
+
+    async def get(self, scope, record_id):
+        record = self._records.get(record_id)
+        return record if record is not None and record.scope == scope else None
 
 
 def _bank_csv() -> bytes:
@@ -354,7 +374,7 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
     issue="#696",
 )
 async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle(
-    db, test_user, monkeypatch
+    db, test_user, monkeypatch, request
 ) -> None:
     """AC-testing.trusted-year.2 AC-testing.trusted-year.3 AC-testing.package-lifecycle.1."""
     scenario = TRUSTED_YEAR_SCENARIO
@@ -527,6 +547,32 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
     )
     package_record = await TerminalAuditVerifier(trace_repository).verify_graph(terminal_spec)
     assert package_record.record_id == terminal_spec.package.decision_id
+
+    graph_records: list[TraceRecord] = []
+    graph_record_ids = {
+        package_record.record_id,
+        *package_record.parent_ids,
+        *(item.decision_id for item in terminal_spec.manifest),
+    }
+    for record_id in graph_record_ids:
+        record = await trace_repository.get(scope, record_id)
+        assert record is not None
+        graph_records.append(record)
+
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        frozen_repository = _FrozenTraceRepository(tuple(graph_records))
+
+        def emit_terminal_trace(executed_proof: CommonTraceRecord) -> CommonTraceRecord:
+            backend_proof = BackendTraceRecordCodec.decode(CommonTraceRecordCodec.encode(executed_proof))
+            exact_spec = replace(
+                terminal_spec,
+                commit_sha=backend_proof.target.version,
+                execution_id=backend_proof.execution_id,
+            )
+            terminal = asyncio.run(TerminalAuditVerifier(frozen_repository).audit(exact_spec, backend_proof))
+            return CommonTraceRecordCodec.decode(BackendTraceRecordCodec.encode(terminal))
+
+        register_executed_proof_consumer(request.node, emit_terminal_trace)
 
     frozen = document.model_dump(mode="json")
     listed = await list_personal_report_package_snapshots(db, test_user.id, pagination=PaginationParams())

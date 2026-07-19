@@ -38,11 +38,16 @@ COMMIT = "a" * 40
 OCCURRED_AT = datetime(2026, 7, 20, tzinfo=UTC)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
 PROOF_ID = "trusted-year-v0-terminal"
+TRUSTED_YEAR_AC_IDS = (
+    "AC-testing.trusted-year.2",
+    "AC-testing.trusted-year.3",
+    "AC-testing.package-lifecycle.1",
+)
 PROOF_ASSERTION_VERSION = executed_proof_assertion_version(
     proof_id=PROOF_ID,
     scenario_id="trusted-year-v0",
     oracle_kind="independent_decimal",
-    ac_ids=("AC-audit.terminal-trace.3",),
+    ac_ids=TRUSTED_YEAR_AC_IDS,
     stage="github_ci.merge_authority",
     task_category="critical_behavioral",
 )
@@ -316,7 +321,7 @@ def _executed_proof(spec: TerminalAuditSpec) -> TraceRecord:
         PROOF_ATTR,
         AcProof(
             proof_id=spec.proof.id,
-            ac_ids=("AC-audit.terminal-trace.3",),
+            ac_ids=TRUSTED_YEAR_AC_IDS,
             stage="github_ci.merge_authority",
             task_category="critical_behavioral",
             ci_tier="pr_ci",
