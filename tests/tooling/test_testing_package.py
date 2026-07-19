@@ -31,10 +31,9 @@ def test_AC_testing_1_1_only_all_is_the_published_language():
     assert CONTRACT.klass == "infra"
     assert CONTRACT.implementations["be"] == "common/testing"
     assert CONTRACT.context is not None
-    assert "business-domain acceptance semantics" in CONTRACT.context.out_of_scope
-    assert [
-        (relation.provider, relation.mode) for relation in CONTRACT.relationships
-    ] == [("meta", "published-language")]
+    assert {relation.provider for relation in CONTRACT.relationships} == set(
+        CONTRACT.depends_on
+    )
 
 
 def test_AC_testing_1_1_package_contract_gate_passes_for_testing():

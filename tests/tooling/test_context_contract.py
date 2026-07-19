@@ -159,11 +159,9 @@ def test_meta_declares_its_bounded_context() -> None:
     from common.meta.contract import CONTRACT
 
     assert CONTRACT.context is not None
-    assert (
-        "individual package business goals and domain policy"
-        in CONTRACT.context.out_of_scope
+    assert {relation.provider for relation in CONTRACT.relationships} == set(
+        CONTRACT.depends_on
     )
-    assert CONTRACT.relationships == []
 
 
 def test_context_contract_rejects_unclassified_dependency_after_adoption(

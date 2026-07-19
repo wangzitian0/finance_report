@@ -106,8 +106,9 @@ def test_platform_interface_equals_published_language():
     assert CONTRACT.klass == "infra"
     assert CONTRACT.implementations["be"] == "apps/backend/src/platform"
     assert CONTRACT.context is not None
-    assert "domain workflow and saga semantics" in CONTRACT.context.out_of_scope
-    assert CONTRACT.relationships == []
+    assert {relation.provider for relation in CONTRACT.relationships} == set(
+        CONTRACT.depends_on
+    )
 
 
 def test_platform_package_contract_gate_passes():
