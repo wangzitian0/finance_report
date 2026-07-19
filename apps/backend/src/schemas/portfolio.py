@@ -148,7 +148,10 @@ class PriceUpdateBatchResponse(BaseModel):
     """
 
     updated_count: int = Field(..., description="Number of price overrides applied.")
-    results: list[PriceUpdateResponse] = Field(default_factory=list)
+    results: list[PriceUpdateResponse] = Field(
+        default_factory=list,
+        description="Per-asset price override results.",
+    )
 
 
 class CostBasisMethodUpdateResponse(BaseModel):
@@ -195,6 +198,14 @@ class InvestmentPerformanceHoldingRow(BaseModel):
     currency: CurrencyCode
 
 
+class InvestmentPerformanceMarketValuationSelection(BaseModel):
+    """External market observation actually used for a schedule holding."""
+
+    asset_identifier: str
+    observation_id: UUID
+    requested_as_of: date
+
+
 class InvestmentPerformanceAllocationRow(BaseModel):
     """Allocation row for one report-schedule dimension."""
 
@@ -211,7 +222,10 @@ class InvestmentPerformanceDataFreshness(BaseModel):
     latest_price_date: date | None
     market_data_provider: str | None
     stale: bool
-    stale_holdings: list[str] = Field(default_factory=list)
+    stale_holdings: list[str] = Field(
+        default_factory=list,
+        description="Holdings whose selected price predates the schedule as-of date.",
+    )
     manual_override_basis: str | None = None
 
 
@@ -230,6 +244,10 @@ class InvestmentPerformanceReportScheduleResponse(BaseModel):
     dividend_income: MoneyAmount
     dividend_yield: Annotated[Decimal | None, Field(decimal_places=2)]
     holdings: list[InvestmentPerformanceHoldingRow]
+    market_valuation_selections: list[InvestmentPerformanceMarketValuationSelection] = Field(
+        default_factory=list,
+        description="Exact external market observations rendered for schedule holdings.",
+    )
     allocation: list[InvestmentPerformanceAllocationRow]
     data_freshness: InvestmentPerformanceDataFreshness
     source_links: list[str]
@@ -285,13 +303,13 @@ class BrokerageImportResponse(BaseModel):
     """Response for brokerage position import."""
 
     broker: str
-    parsed_positions: int = Field(ge=0)
-    created_atomic_positions: int = Field(ge=0)
-    existing_atomic_positions: int = Field(ge=0)
-    reconcile_created: int = Field(ge=0)
-    reconcile_updated: int = Field(ge=0)
-    reconcile_disposed: int = Field(ge=0)
-    skipped: int = Field(ge=0)
+    parsed_positions: int = Field(ge=0, description="Parsed brokerage position count.")
+    created_atomic_positions: int = Field(ge=0, description="New immutable position snapshots created.")
+    existing_atomic_positions: int = Field(ge=0, description="Existing immutable position snapshots reused.")
+    reconcile_created: int = Field(ge=0, description="Managed positions created by reconciliation.")
+    reconcile_updated: int = Field(ge=0, description="Managed positions updated by reconciliation.")
+    reconcile_disposed: int = Field(ge=0, description="Managed positions marked disposed by reconciliation.")
+    skipped: int = Field(ge=0, description="Parsed positions skipped during import.")
     # #1484: the broker ASSET account these positions reconciled into (null when
     # no single broker account applies, e.g. zero positions or a mixed-broker
     # payload). The statements import handler also uses it to anchor the source

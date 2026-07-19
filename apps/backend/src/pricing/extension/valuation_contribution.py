@@ -32,7 +32,11 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
-from src.pricing.base.contribution import ResolvedValuationContribution, resolution_policy_identity
+from src.pricing.base.contribution import (
+    MarketValuationSelection,
+    ResolvedValuationContribution,
+    resolution_policy_identity,
+)
 from src.pricing.base.errors import NoObservationError
 from src.pricing.base.observation import (
     Authority,
@@ -392,6 +396,36 @@ async def resolve_valuation_contribution(
         observation=observation,
         as_of=as_of,
         policy=policy,
+    )
+
+
+async def resolve_selected_market_valuation_contribution(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    selection: MarketValuationSelection,
+    policy: ResolutionPolicy,
+) -> ResolvedValuationContribution:
+    """Authorize only the exact market observation already rendered by a schedule.
+
+    A package may not silently replace the schedule's source with whatever
+    happens to resolve later.  Pricing re-resolves under its published policy
+    and turns any identity mismatch into an explicit unproven input.
+    """
+    contribution = await resolve_valuation_contribution(
+        db,
+        user_id=user_id,
+        subject=selection.subject,
+        as_of=selection.requested_as_of,
+        policy=policy,
+    )
+    if contribution.is_authoritative and contribution.observation_id == selection.observation_id:
+        return contribution
+    return _unproven(
+        subject=selection.subject,
+        as_of=selection.requested_as_of,
+        policy=policy,
+        reason_code="selected_observation_mismatch",
     )
 
 

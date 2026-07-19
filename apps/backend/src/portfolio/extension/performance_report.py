@@ -15,12 +15,13 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Money, to_money
+from src.audit.money import Currency, Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
@@ -38,6 +39,7 @@ from src.schemas.portfolio import (
     InvestmentPerformanceAllocationRow,
     InvestmentPerformanceDataFreshness,
     InvestmentPerformanceHoldingRow,
+    InvestmentPerformanceMarketValuationSelection,
     InvestmentPerformanceReportScheduleResponse,
 )
 
@@ -205,7 +207,9 @@ async def build_investment_performance_report_schedule(
         position = position_by_asset.get(holding.asset_identifier)
         if position is None:
             cost_basis = (
-                await _schedule_amount(Money(holding.cost_basis, holding.currency), holding.acquisition_date)
+                await _schedule_amount(
+                    Money(holding.cost_basis, Currency.of(holding.currency)), holding.acquisition_date
+                )
             ).quantize()
         else:
             cost_basis = (await _schedule_amount(position.cost_basis_money, position.acquisition_date)).quantize()
@@ -235,7 +239,7 @@ async def build_investment_performance_report_schedule(
                     dimension=dimension,
                     category=row.category,
                     value=to_money(row.value),
-                    percentage=_percent(row.percentage),
+                    percentage=row.percentage,
                     count=row.count,
                 )
             )
@@ -247,10 +251,10 @@ async def build_investment_performance_report_schedule(
             ("asset_class", "asset_type", "Unclassified"),
         ]:
             grouped: dict[str, tuple[Decimal, int]] = {}
-            for holding, row in zip(holdings, holding_rows, strict=True):
+            for holding, holding_row in zip(holdings, holding_rows, strict=True):
                 category = getattr(holding, attribute) or fallback_category
                 current_value, current_count = grouped.get(category, (Decimal("0.00"), 0))
-                grouped[category] = (current_value + row.market_value, current_count + 1)
+                grouped[category] = (current_value + holding_row.market_value, current_count + 1)
             for category, (value, count) in grouped.items():
                 allocation_ratio = Ratio.fraction_or_zero(value, total_market_value)
                 allocation_rows.append(
@@ -310,7 +314,13 @@ async def build_investment_performance_report_schedule(
             select(StockPrice)
             .where(StockPrice.symbol.in_(asset_identifiers))
             .where(StockPrice.price_date <= as_of_date)
-            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc(), StockPrice.source.asc())
+            .order_by(
+                StockPrice.price_date.desc(),
+                StockPrice.created_at.desc(),
+                StockPrice.source.asc(),
+                StockPrice.currency.asc(),
+                StockPrice.id.asc(),
+            )
         )
         stock_prices = list(stock_price_result.scalars().all())
     latest_stock_price_by_asset: dict[str, StockPrice] = {}
@@ -321,17 +331,33 @@ async def build_investment_performance_report_schedule(
     providers: set[str] = set()
     stale_holdings: list[str] = []
     for asset_identifier in asset_identifiers:
-        override = latest_override_by_asset.get(asset_identifier)
-        stock_price = latest_stock_price_by_asset.get(asset_identifier)
-        atomic = latest_atomic_by_asset.get(asset_identifier)
+        selected_override: MarketDataOverride | None = latest_override_by_asset.get(asset_identifier)
+        selected_stock_price: StockPrice | None = latest_stock_price_by_asset.get(asset_identifier)
+        selected_atomic: AtomicPosition | None = latest_atomic_by_asset.get(asset_identifier)
 
         candidates: list[tuple[date, str, object, str | None]] = []
-        if override is not None:
-            candidates.append((override.price_date, "market_data_override", override.id, override.source.value))
-        if stock_price is not None:
-            candidates.append((stock_price.price_date, "stock_price", stock_price.id, stock_price.source))
-        if atomic is not None:
-            candidates.append((atomic.snapshot_date, "atomic_position", atomic.id, atomic.broker))
+        if selected_override is not None:
+            candidates.append(
+                (
+                    selected_override.price_date,
+                    "market_data_override",
+                    selected_override.id,
+                    selected_override.source.value,
+                )
+            )
+        if selected_stock_price is not None:
+            candidates.append(
+                (
+                    selected_stock_price.price_date,
+                    "stock_price",
+                    selected_stock_price.id,
+                    selected_stock_price.source,
+                )
+            )
+        if selected_atomic is not None:
+            candidates.append(
+                (selected_atomic.snapshot_date, "atomic_position", selected_atomic.id, selected_atomic.broker)
+            )
 
         if not candidates:
             stale_holdings.append(asset_identifier)
@@ -375,6 +401,14 @@ async def build_investment_performance_report_schedule(
         dividend_income=to_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
         dividend_yield=_percent(dividend_yield),
         holdings=holding_rows,
+        market_valuation_selections=[
+            InvestmentPerformanceMarketValuationSelection(
+                asset_identifier=asset_identifier,
+                observation_id=cast(UUID, stock_price.id),
+                requested_as_of=as_of_date,
+            )
+            for asset_identifier, stock_price in sorted(latest_stock_price_by_asset.items())
+        ],
         allocation=allocation_rows,
         data_freshness=data_freshness,
         source_links=sorted(source_links),

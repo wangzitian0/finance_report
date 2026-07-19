@@ -253,7 +253,17 @@ CONTRACT = PackageContract(
             module="base/contribution.py",
         ),
         Unit(
+            name="MarketValuationSelection",
+            kind=Kind.VALUE_OBJECT,
+            module="base/contribution.py",
+        ),
+        Unit(
             name="resolve_valuation_contribution",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation_contribution.py",
+        ),
+        Unit(
+            name="resolve_selected_market_valuation_contribution",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/valuation_contribution.py",
         ),
@@ -317,6 +327,7 @@ CONTRACT = PackageContract(
         "MarketDataScopes",
         "MarketDataSyncResult",
         "MarketDataSyncState",
+        "MarketValuationSelection",
         "ManualValuationAttestationPolicy",
         "ObservationRepository",
         "ObservationSource",
@@ -351,6 +362,7 @@ CONTRACT = PackageContract(
         "pricing_trace_policy_registry",
         "resolve",
         "resolve_manual_valuation_contributions",
+        "resolve_selected_market_valuation_contribution",
         "resolve_valuation_contribution",
         "resolve_missing_fx_rate",
         "run_daily_market_data_sync",
@@ -1050,6 +1062,21 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
                 "::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-pricing.valuation-contribution.6",
+            statement=(
+                "A report schedule can name one selected market observation only through "
+                "pricing's typed selection boundary; pricing returns an authoritative "
+                "contribution only when its current resolved observation is that exact "
+                "identity, otherwise the package input is explicitly unproven."
+            ),
+            test=(
+                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
+                "::test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation"
             ),
             priority="P0",
             status="done",

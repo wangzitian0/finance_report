@@ -14,7 +14,7 @@ from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, Transac
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
 from src.portfolio import AssetNotFoundError, DividendIncome, InvestmentTransaction, InvestmentTransactionType
-from src.pricing.orm.market_data import FxRate
+from src.pricing.orm.market_data import FxRate, StockPrice
 from src.routers import portfolio as portfolio_router
 from src.schemas.portfolio import HoldingResponse
 from tests.ledger._ledger_helpers import create_valid_posted_entry
@@ -537,6 +537,45 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
     assert data["notes"]
     if data["time_weighted_return"] is None:
         assert any("TWR unavailable" in note for note in data["notes"])
+
+
+async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observation_it_uses(
+    client: AsyncClient,
+    db: AsyncSession,
+    portfolio_with_data,
+):
+    """AC-portfolio.report-schedule.1: package consumers receive the actual stock-price identity, not a heuristic."""
+    as_of = date.today()
+    stock_price = StockPrice(
+        symbol="AAPL",
+        price=Decimal("125.05"),
+        currency="SGD",
+        price_date=as_of,
+        source="recorded-provider",
+    )
+    db.add(stock_price)
+    await db.commit()
+
+    response = await client.get(
+        "/portfolio/performance/report-schedule",
+        params={
+            "period_start": (as_of - timedelta(days=90)).isoformat(),
+            "period_end": as_of.isoformat(),
+            "as_of_date": as_of.isoformat(),
+            "currency": "SGD",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["holdings"][0]["market_value"] == "12505.00"
+    assert payload["market_valuation_selections"] == [
+        {
+            "asset_identifier": "AAPL",
+            "observation_id": str(stock_price.id),
+            "requested_as_of": as_of.isoformat(),
+        }
+    ]
 
 
 async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency_amounts(
