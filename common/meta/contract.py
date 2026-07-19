@@ -51,7 +51,12 @@ CONTRACT = PackageContract(
         Unit(
             name="Invariant", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"
         ),
-        Unit(name="Unit", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"),
+        Unit(
+            name="Unit",
+            kind=Kind.VALUE_OBJECT,
+            semantic_key="package-unit",
+            module="base/package_contract.py",
+        ),
         Unit(name="Kind", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"),
         Unit(
             name="DependencyKind",
@@ -406,6 +411,21 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_context_contract.py"
                 "::test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.context-governance.2",
+            statement=(
+                "Aggregate roots, entities, value objects, and domain events "
+                "declared by package contracts have exactly one canonical "
+                "semantic owner. A same-spelled but distinct concept must state "
+                "a distinct semantic key; duplicate claims fail closed."
+            ),
+            test=(
+                "tests/tooling/test_semantic_ownership.py"
+                "::test_AC_meta_context_governance_2_duplicate_semantic_owner_fails"
             ),
             priority="P0",
             status="done",

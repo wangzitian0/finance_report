@@ -121,7 +121,6 @@ CONTRACT = PackageContract(
         Unit(name="InvestmentLot", kind=Kind.ENTITY),
         Unit(name="InvestmentTransaction", kind=Kind.ENTITY),
         Unit(name="DividendIncome", kind=Kind.ENTITY),
-        Unit(name="AtomicPosition", kind=Kind.ENTITY),
         # ── base (taxonomy-only): enums declared alongside the ORM models above ──
         Unit(name="PositionStatus", kind=Kind.VALUE_OBJECT),
         Unit(name="CostBasisMethod", kind=Kind.VALUE_OBJECT),
