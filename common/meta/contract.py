@@ -337,6 +337,23 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.context-governance.1",
+            statement=(
+                "A package can publish its bounded-context purpose, explicit "
+                "responsibility boundary, and justified outgoing relationships "
+                "in its own contract. Relationship declarations belong to their "
+                "consumer, may name only declared dependencies, and an exact "
+                "shrink-only baseline fails a newly missing context or an "
+                "unclassified dependency once a package adopts the declaration."
+            ),
+            test=(
+                "tests/tooling/test_context_contract.py"
+                "::test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.vision-anchor.1",
             statement=(
                 "A package-roadmap AC may declare one vision.md anchor, and "
@@ -2576,6 +2593,26 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/infra/test_schema_guardrails.py",
             ],
             family="schema",
+        ),
+        ConceptRecord(
+            key="context_contract_debt_baseline",
+            owner="common/meta/data/context-contract-baseline.json",
+            description=(
+                "Exact shrink-only list of packages that have not yet adopted "
+                "their package-owned bounded-context declaration. It is migration "
+                "debt rather than a context map: purpose, scope, and relationship "
+                "semantics remain owned by each package contract."
+            ),
+            cross_refs=[
+                "common/meta/base/package_contract.py",
+                "common/meta/extension/check_context_contract.py",
+                "tools/check_context_contract.py",
+                "tests/tooling/test_context_contract.py",
+            ],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
         ),
         ConceptRecord(
             key="environment_variables",

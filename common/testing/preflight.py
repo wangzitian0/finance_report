@@ -244,6 +244,18 @@ CHECKS: tuple[Check, ...] = (
         why="gate source or proof changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
     ),
     Check(
+        name="context-contract",
+        globs=(
+            "common/*/contract.py",
+            "common/meta/base/package_contract.py",
+            "common/meta/data/context-contract-baseline.json",
+            "common/meta/extension/check_context_contract.py",
+            "tools/check_context_contract.py",
+        ),
+        commands=((PY, "tools/check_context_contract.py"),),
+        why="package contract or context gate changed: context declarations and dependency semantics only shrink from the audited baseline",
+    ),
+    Check(
         name="tooling",
         globs=("tools/*", "common/*"),
         commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),
