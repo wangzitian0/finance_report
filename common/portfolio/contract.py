@@ -130,7 +130,7 @@ CONTRACT = PackageContract(
             provider="platform",
             consumer="portfolio",
             mode="composition",
-            reason="Uses platform persistence mixins without owning generic persistence behavior.",
+            reason="Uses platform ORM persistence mixins without owning generic persistence behavior.",
         ),
         ContextRelation(
             provider="pricing",
