@@ -98,6 +98,13 @@ def test_AC_meta_dependency_governance_3_l4_deep_imports_are_exact(
         "routers/reports.py::from src.audit.money import Money"
     ]
 
+    (src / "routers" / "imports.py").write_text(
+        "import src.audit.money\n", encoding="utf-8"
+    )
+    assert "routers/imports.py::import src.audit.money" in l4_deep_import_edges(
+        src, {"audit"}
+    )
+
 
 def test_outbound_upward_layer_detected(tmp_path: Path) -> None:
     """A carved package importing the app remainder is an outbound (upward-layer) edge."""
@@ -239,3 +246,27 @@ def test_update_refuses_to_grow_an_existing_l4_deep_import_baseline(
     l4_baseline.unlink()
     assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 0
     assert json.loads(l4_baseline.read_text()) == [edge]
+
+
+def test_l4_baseline_new_and_stale_entries_fail(tmp_path: Path, monkeypatch) -> None:
+    from common.meta.extension import check_app_boundary
+
+    edge = "routers/reports.py::from src.audit.money import Money"
+    monkeypatch.setattr(
+        check_app_boundary, "discover_and_compute_edges", lambda _root: []
+    )
+    monkeypatch.setattr(
+        check_app_boundary, "discover_l4_deep_import_edges", lambda _root: [edge]
+    )
+    data = tmp_path / "common/meta/data"
+    data.mkdir(parents=True)
+    (data / "app-boundary-baseline.json").write_text("[]\n", encoding="utf-8")
+    l4_baseline = data / "l4-root-import-baseline.json"
+    l4_baseline.write_text("[]\n", encoding="utf-8")
+    assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
+
+    l4_baseline.write_text('["retired::edge"]\n', encoding="utf-8")
+    monkeypatch.setattr(
+        check_app_boundary, "discover_l4_deep_import_edges", lambda _root: []
+    )
+    assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
