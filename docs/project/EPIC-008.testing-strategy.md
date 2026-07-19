@@ -603,7 +603,7 @@ the pre-merge in-runner selection is derived (audited AND no external needs —
 so an unaudited or provider-dependent spec can never silently enter the
 merge-blocking path), and `preview.yml` consumes the selection at runtime via
 `tools/test_selection.py --shell` instead of restating it. Charter:
-`common/testing/README.md`; follow-ups: #1557 (all workflows + ci_tier↔JUnit
+`common/testing/readme.md`; follow-ups: #1557 (all workflows + ci_tier↔JUnit
 reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
 
 > (AC8.22.1 removed, canonical: migrated to `AC-testing.matrix.1`.)

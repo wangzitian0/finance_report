@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from textwrap import dedent
@@ -25,6 +27,93 @@ def _write_yaml(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
+
+
+def _git(repo: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _write_demo_contract(
+    repo: Path,
+    *,
+    description: str,
+    family: str | None,
+    kind: str | None,
+) -> None:
+    _write(
+        repo / "common/demo/contract.py",
+        f"""
+        from common.meta.package_contract import ConceptRecord, PackageContract
+
+        CONTRACT = PackageContract(
+            name="demo",
+            klass="domain",
+            status="draft",
+            depends_on=[],
+            interface=[],
+            events=[],
+            invariants=[],
+            roadmap=[],
+            concepts=[
+                ConceptRecord(
+                    key="demo_concept",
+                    owner="common/demo/readme.md",
+                    description={description!r},
+                    family={family!r},
+                    kind={kind!r},
+                ),
+            ],
+        )
+        """,
+    )
+    _write(repo / "common/demo/__init__.py", "")
+    _write(repo / "common/demo/readme.md", "# Demo\n")
+
+
+def _seed_computed_registry_repo(
+    tmp_path: Path,
+    *,
+    family: str | None,
+    kind: str | None,
+) -> tuple[Path, str]:
+    repo = tmp_path / "repo"
+    shutil.copytree(
+        ROOT / "common/meta",
+        repo / "common/meta",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    _write(repo / "common/__init__.py", "")
+    _write_yaml(
+        repo / "common/meta/data/MANIFEST.yaml",
+        {
+            "concepts": {
+                "residual_concept": {
+                    "owner": "common/meta/readme.md",
+                    "description": "Residual concept remains shaped.",
+                    "family": "platform",
+                    "kind": "concept",
+                }
+            }
+        },
+    )
+    _write_demo_contract(
+        repo,
+        description="Base package concept.",
+        family=family,
+        kind=kind,
+    )
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "governance-test@example.invalid")
+    _git(repo, "config", "user.name", "Governance Test")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "base")
+    return repo, _git(repo, "rev-parse", "HEAD")
 
 
 def _seed_finance_manifest(root: Path) -> None:
@@ -592,6 +681,41 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     assert gate_with_custom_exception_path["exception_count"] == 1
 
 
+def test_AC14_1_13_deleted_ssot_file_does_not_require_current_owner(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.3: Retired SSOT files need no current owner."""
+
+    _write_yaml(tmp_path / "common/meta/data/MANIFEST.yaml", {"concepts": {}})
+    base_manifest = dedent(
+        """
+        concepts:
+          retired:
+            owner: common/meta/data/retired-baseline.json
+            description: Retired governance baseline.
+            family: platform
+            kind: concept
+        """
+    ).lstrip()
+
+    gate = governance_report.evaluate_incremental_gate(
+        tmp_path,
+        [
+            "common/meta/data/MANIFEST.yaml",
+            "common/meta/data/retired-baseline.json",
+        ],
+        base_manifest_texts={"finance_report": base_manifest},
+        include_infra2=False,
+    )
+
+    assert not any(
+        violation["code"] == "changed_ssot_file_without_owner"
+        and violation["target"]
+        == "finance_report:common/meta/data/retired-baseline.json"
+        for violation in gate["violations"]
+    )
+
+
 def test_AC14_1_13_gate_helper_edges_remain_incremental(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -730,6 +854,11 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     gate = governance_report.evaluate_incremental_gate(
         tmp_path,
         ["docs/ssot/deployment.md", "common/meta/data/MANIFEST.yaml"],
+        base_manifest_texts={
+            "finance_report": (tmp_path / "common/meta/data/MANIFEST.yaml").read_text(
+                encoding="utf-8"
+            )
+        },
         include_infra2=False,
     )
     assert gate["violation_count"] == 1
@@ -952,14 +1081,134 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
     assert gate_with_exceptions["exception_count"] == 2
 
 
-def test_AC14_1_16_trend_checks_skip_invalid_or_unrelated_sources(
+def test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.9: unchanged package debt is not a false delta."""
+
+    repo, base_ref = _seed_computed_registry_repo(
+        tmp_path,
+        family=None,
+        kind=None,
+    )
+    _write_demo_contract(
+        repo,
+        description="HEAD changes only the package concept description.",
+        family=None,
+        kind=None,
+    )
+
+    gate = governance_report.evaluate_incremental_gate(
+        repo,
+        ["common/demo/contract.py"],
+        base_ref=base_ref,
+        include_infra2=False,
+    )
+
+    assert gate["trend_check_count"] == 8
+    assert gate["violation_count"] == 0
+
+
+def test_AC_meta_ssot_governance_9_package_concept_regression_is_real_delta(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.9: package concept drift uses the isolated base."""
+
+    repo, base_ref = _seed_computed_registry_repo(
+        tmp_path,
+        family="platform",
+        kind="concept",
+    )
+    _write_demo_contract(
+        repo,
+        description="HEAD removes the governed fields.",
+        family=None,
+        kind=None,
+    )
+
+    gate = governance_report.evaluate_incremental_gate(
+        repo,
+        ["common/demo/contract.py"],
+        base_ref=base_ref,
+        include_infra2=False,
+    )
+
+    targets = {violation["target"] for violation in gate["violations"]}
+    assert "finance_report:debt:missing_family" in targets
+    assert "finance_report:debt:missing_kind" in targets
+
+
+def test_AC_meta_ssot_governance_9_bad_base_ref_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.9: an unreadable ref cannot disable the trend gate."""
+
+    repo, _base_ref = _seed_computed_registry_repo(
+        tmp_path,
+        family="platform",
+        kind="concept",
+    )
+    _write_demo_contract(
+        repo,
+        description="Changed at HEAD.",
+        family="platform",
+        kind="concept",
+    )
+
+    with pytest.raises(RuntimeError, match="base ref is required"):
+        governance_report.evaluate_incremental_gate(
+            repo,
+            ["common/demo/contract.py"],
+            include_infra2=False,
+        )
+
+    with pytest.raises(RuntimeError, match="missing-base"):
+        governance_report.evaluate_incremental_gate(
+            repo,
+            ["common/demo/contract.py"],
+            base_ref="missing-base",
+            include_infra2=False,
+        )
+
+
+def test_AC_meta_ssot_governance_9_invalid_base_contract_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.ssot-governance.9: an unloadable base contract is actionable."""
+
+    repo, _base_ref = _seed_computed_registry_repo(
+        tmp_path,
+        family="platform",
+        kind="concept",
+    )
+    _write(repo / "common/demo/contract.py", "this is not valid Python:\n")
+    _git(repo, "add", "common/demo/contract.py")
+    _git(repo, "commit", "-qm", "invalid base contract")
+    invalid_base_ref = _git(repo, "rev-parse", "HEAD")
+    _write_demo_contract(
+        repo,
+        description="Working tree is valid again.",
+        family="platform",
+        kind="concept",
+    )
+
+    with pytest.raises(RuntimeError, match="computed concept registry"):
+        governance_report.evaluate_incremental_gate(
+            repo,
+            ["common/demo/contract.py"],
+            base_ref=invalid_base_ref,
+            include_infra2=False,
+        )
+
+
+def test_AC14_1_16_trend_checks_fail_closed_or_skip_unrelated_sources(
     tmp_path: Path,
 ) -> None:
     """AC14.1.16: Trend checks require valid source-local manifest data."""
 
     _write(tmp_path / "docs/ssot/shaped.md")
     _write_yaml(
-        tmp_path / "docs/ssot/MANIFEST.yaml",
+        tmp_path / "common/meta/data/MANIFEST.yaml",
         {
             "concepts": {
                 "shaped": {
@@ -972,14 +1221,13 @@ def test_AC14_1_16_trend_checks_skip_invalid_or_unrelated_sources(
         },
     )
 
-    gate_with_invalid_base = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        ["docs/ssot/MANIFEST.yaml"],
-        base_manifest_texts={"finance_report": "concepts: ["},
-        include_infra2=False,
-    )
-    assert gate_with_invalid_base["trend_check_count"] == 0
-    assert gate_with_invalid_base["violation_count"] == 0
+    with pytest.raises(RuntimeError, match="invalid YAML"):
+        governance_report.evaluate_incremental_gate(
+            tmp_path,
+            ["common/meta/data/MANIFEST.yaml"],
+            base_manifest_texts={"finance_report": "concepts: ["},
+            include_infra2=False,
+        )
 
     gate_with_unrelated_change = governance_report.evaluate_incremental_gate(
         tmp_path,

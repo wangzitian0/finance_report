@@ -93,6 +93,18 @@ authority registry. Shadow paths are deleted by Audit PR-Z. See the
 language-neutral contract at
 [`trace/contract/trace_record.contract.md`](trace/contract/trace_record.contract.md).
 
+<a id="deletion-ownership"></a>
+## Deletion ownership
+
+`ondelete="CASCADE"` is a hidden cross-aggregate write. Audit owns the exact
+declaration-level inventory in `data/fk-cascade-ownership.json`; its extension
+discovers production foreign-key declarations, resolves their source and target
+owners, expands mixin declarations to mapped consumers, and fails closed on an
+opaque policy, unresolved ownership, an empty scan, duplicate, or unclassified
+site. `aggregate_internal` is the sole approved class. `purge_owned`,
+`cross_domain`, and `retention_sensitive` sites are explicit #1848 debt, pinned
+by `data/fk-cascade-debt-baseline.json` so that the set can only shrink.
+
 ## The Shared Kernel now lives inside audit
 
 The four value domains (`money` / `ratio` / `quantity` / `unit_price`) are a

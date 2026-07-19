@@ -141,7 +141,7 @@ verifiable.
 > The `testing` package (test/fixture-scoped capability code reused across
 > backend, tooling, and E2E tests — AC evidence, fixture VOs, and the relocated
 > LLM cassette + PDF fixture corpus) is specified by
-> [`common/testing/README.md`](../../common/testing/README.md) +
+> [`common/testing/readme.md`](../../common/testing/readme.md) +
 > [`common/testing/contract.py`](../../common/testing/contract.py).
 >
 > **`AC-testing.1.1` through `AC-testing.8.3` are NOT defined here.** They are
@@ -154,7 +154,7 @@ verifiable.
 >
 > Groups 1-8 (`AC-testing.1.*`-`AC-testing.8.*`) migrated from the retired
 > EPIC-009 (PDF fixture generation; deleted by #1719 — the
-> [`testing` package](../../common/testing/README.md#pdf-fixtures) owns the
+> [`testing` package](../../common/testing/readme.md#pdf-fixtures) owns the
 > scope) ACs. EPIC-023's cassette layer/streaming-bridge/integrity-gate ACs
 > (AC23.5/AC23.6/AC23.7) do NOT migrate here despite their EPIC-authored
 > `{tier:CODE-ONLY}` annotation: `common/meta/extension/authority_classifier.py`

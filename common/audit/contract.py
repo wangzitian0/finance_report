@@ -1607,8 +1607,45 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-audit.deletion-ownership.1",
+            statement=(
+                "Every production SQLAlchemy ForeignKey or ForeignKeyConstraint "
+                "ondelete=CASCADE site realized on a mapped table is classified exactly "
+                "once with its source owner, target owner, deletion class, and rationale. "
+                "Discovery fails closed on an empty scan, opaque deletion policy, or "
+                "unresolved mixin; duplicate or unclassified sites fail, and the checked-in "
+                "inventory cannot hide additions or removals. Only aggregate-internal sites "
+                "are approved survivors; all other sites remain exact #1848 shrink-only debt."
+            ),
+            test=(
+                "tests/tooling/test_fk_cascade_ownership.py"
+                "::test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid"
+            ),
+            priority="P0",
+            status="done",
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="fk_cascade_ownership",
+            owner="common/audit/data/fk-cascade-ownership.json",
+            description=(
+                "Exact ownership and deletion classification for production ForeignKey and "
+                "ForeignKeyConstraint ondelete=CASCADE declarations, discovered from source "
+                "and guarded by an independently shrink-only debt baseline."
+            ),
+            cross_refs=[
+                "common/audit/extension/cascade_ownership.py",
+                "common/audit/data/fk-cascade-debt-baseline.json",
+                "common/audit/readme.md#deletion-ownership",
+                "tests/tooling/test_fk_cascade_ownership.py",
+            ],
+            proofs=["tests/tooling/test_fk_cascade_ownership.py"],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+        ),
         ConceptRecord(
             key="base_packages",
             owner="common/audit/readme.md#base-packages",

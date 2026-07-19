@@ -2,8 +2,8 @@
 
 `common/` is where the repo's **packages** live as specs and high-level review
 surfaces. A package is a DDD bounded context; each one is a directory
-`common/<pkg>/` holding its `readme.md` (ubiquitous language), `contract.py` (a
-machine-checkable `PackageContract`), and `todo.md` (its worklist). The running
+`common/<pkg>/` holding its `readme.md` (ubiquitous language) and `contract.py`
+(a machine-checkable `PackageContract`). The running
 code is a conforming *implementation* the contract points at — under
 `apps/backend/src/<pkg>` and/or `apps/frontend/src/lib/<pkg>` (a project-wide
 shared package implements directly in `common/<pkg>/`, e.g. `meta`).
@@ -53,8 +53,6 @@ scope):
   physical-table unification continues under #1610),
   [`reconciliation/`](./reconciliation/readme.md), [`reporting/`](./reporting/readme.md).
   All eight are `status="active"`.
-- [`common/todo.md`](./todo.md) — the cross-package / migration worklist.
-
 The old `common/ci` / `common/shell` / `common/ssot` junk drawers are retired.
 New shared tooling now lives in the package that owns the contract, and
 `check_package_directory_coverage` fails any new undeclared `common/<dir>/`.

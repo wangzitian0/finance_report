@@ -5,7 +5,7 @@
 > SSOT for **what a package is** and **how packages are governed**. This is the
 > prose of the `meta` package (the meta-package about packages) — the model self-hosts: the package
 > that defines what a package is is itself a package
-> ([`contract.py`](./contract.py), [`todo.md`](./todo.md)), discovered and checked
+> ([`readme.md`](./readme.md), [`contract.py`](./contract.py)), discovered and checked
 > by the very gate it ships. This owns the *term* "package" and the contract every
 > package speaks; it does not own any single package's goal (that is the package's
 > `readme.md`) or the product direction (vision.md).
@@ -32,8 +32,7 @@ these parts:
    `units` (its DDD building blocks, each carrying its `kind` → layer; `roles` is
    the legacy form), `implementations`, published `interface`, emitted `events`,
    the `invariants` it guarantees, and its `roadmap` (the ACs it owns).
-3. **`todo.md`** (`common/<pkg>/todo.md`) — the package's own worklist.
-4. **Implementations** — the conforming code under `apps/backend/src/<pkg>`
+3. **Implementations** — the conforming code under `apps/backend/src/<pkg>`
    (`implementations["be"]`) and/or `apps/frontend/src/lib/<pkg>`
    (`implementations["fe"]`). Files converge by **role**, not by feature:
    - `types/` — domain **nouns** + events (the value language; pure, no I/O).
@@ -42,9 +41,16 @@ these parts:
    - `store/` — persistence: a `Protocol` **port** + a concrete adapter (the only
      role that touches the ORM/session).
    - `api/` — the boundary (in-process verbs, or a thin transport adapter).
-5. **Published language** — the implementation's `__init__.__all__` is the
+4. **Published language** — the implementation's `__init__.__all__` is the
    *entire* public surface; everything else is internal. `contract.interface`
    must equal that `__all__`.
+
+Current delivery state has one owner: GitHub issues. Once work is scheduled,
+testable behavior is registered in the owning package's `contract.py` roadmap.
+A package `readme.md` may record durable non-goals or deferred design decisions
+as prose, but `todo.md` checkbox worklists are forbidden because they create a
+second, ungoverned status center. `check_package_contract` enforces both required
+authored surfaces and rejects a `todo.md` at any depth under `common/`.
 
 The role folders above are the legacy convergence. The forward model converges by
 the **DDD building block → layer** table (`base` / `extension` / `data`): each
@@ -143,6 +149,11 @@ about a package is *derived from its contract*:
   `common/meta/extension/generate_ac_registry.py` reads `common/*/contract.py` roadmaps
   additively (alongside the EPIC tables), so a package's ACs live in its contract
   and are **never mirrored** into an EPIC table.
+- The concept registry is the computed union of residual
+  [`data/MANIFEST.yaml`](./data/MANIFEST.yaml) entries and every package's
+  `concepts`. Its incremental quality gate projects that same union from both
+  HEAD and an isolated base-ref checkout, treats `common/*/contract.py` as a
+  registry input, and fails closed when either projection cannot be loaded.
 - The vision proof matrix sources direct package backing from each roadmap AC's
   optional `vision_anchor` via the pure `ac_vision_index` projection. EPIC docs
   still declare which historical goal owns an anchor; no central AC-to-vision

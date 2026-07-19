@@ -203,7 +203,7 @@ Contract in `common/`, implementation in `apps/<runtime>/`. `data` is metadata i
 common/<pkg>/                         spec + review surface
   __init__.py                         re-exports CONTRACT
   contract.py                         interface · units=[Unit(kind=…)] · invariants · roadmap(ACs)
-  readme.md  todo.md                  prose (absorbs the package's SSOT) + worklist
+  readme.md                           prose (absorbs the package's SSOT)
 apps/backend/src/<pkg>/               BE implementation  (implementations["be"])
   __init__.py                         __all__ == contract.interface
   base/        types/ ops/ ports      pure core — downward DAG, no I/O
@@ -221,7 +221,7 @@ additionally keeps BE/FE mirrors honest via `conformance/vectors.json`.
 
 ```
 common/<pkg>/
-  __init__.py  contract.py  readme.md  todo.md
+  __init__.py  contract.py  readme.md
   contract/<pkg>.contract.md          language-neutral interface spec (the cross-runtime contract)
   conformance/vectors.json            shared BE/FE parity vectors (the consistency guarantee)
   base/                               canonical pure value types + ops
@@ -236,7 +236,7 @@ MANIFEST / registry:
 
 ```
 common/meta/
-  __init__.py  contract.py  readme.md  todo.md  migration-standard.md
+  __init__.py  contract.py  readme.md  migration-standard.md
   base/                               the model — PackageContract, tiers, proof matrix
   extension/                          the gate — check_package_contract (governs every package)
   data/                               the computed meta-index (registry · AC index · coverage)
@@ -359,8 +359,8 @@ keeps the sanction honest:
 ## Cross-domain reference policy (FK / relationship / cascade)
 
 How one domain's tables may refer to another's (#1675 ruling, 2026-07-11;
-enforced by `check_package_contract` (AC-meta.txn.3) and the cascade ratchet
-(AC-meta.txn.4)):
+enforced by `check_package_contract` (AC-meta.txn.3) and audit's deletion
+ownership gate (AC-audit.deletion-ownership.1)):
 
 1. **Intra-domain FK — free.** Constraints between tables of one bounded
    context (ledger's journal↔accounts↔lines) are domain-internal integrity,
@@ -374,21 +374,17 @@ enforced by `check_package_contract` (AC-meta.txn.3) and the cascade ratchet
    interface or an event (mechanism C). `FK(users.id)` — the `UserOwnedMixin`
    **tenancy anchor** on nearly every table — is the named degenerate case:
    the tenancy axis is orthogonal to the business flow and never a flow edge.
-3. **`ondelete="CASCADE"` — ratcheted.** A DB cascade is a hidden write below
+3. **`ondelete="CASCADE"` — audit-owned and classified.** A DB cascade is a hidden write below
    the application: one table's delete silently mutates other rows. Across
    domains that breaks one-txn-per-domain (Decision B) and append-only domains
-   (Axiom A) — the case this policy exists for. The census in
-   `common/meta/data/fk-cascade-baseline.json` covers **every** CASCADE site,
-   deliberately not domain-aware (table→package ownership only becomes
-   trivially derivable after models decentralization, #1675 D5/D6); what CI
-   enforces is census == baseline — silent growth fails, adding a cascade
-   requires raising the baseline in the same PR so the diff makes the choice
-   reviewable (the app-boundary idiom), removals prune it in the same PR.
-   Existing sites are grandfathered; the end-state is **saga-owned deletion**
-   (identity publishes a purge event; each domain deletes by its own
-   semantics — `identity/extension/account_purge.py` is the seed). Whether
-   grandfathered cascades then flip to `RESTRICT` is a separate, later
-   decision (#1675 D7), never bundled into a move.
+   (Axiom A) — the case this policy exists for. Audit owns the declaration-level
+   inventory in `common/audit/data/fk-cascade-ownership.json`; its extension
+   discovers every production site and validates exact source owner, target
+   owner, class, and rationale. Only same-owner aggregate lifecycle edges are
+   approved survivors. Cross-domain and purge-owned sites are exact shrink-only
+   #1848 debt until reversible migrations and purge/idempotency proofs replace
+   them. The end-state is **saga-owned deletion**: identity coordinates purge,
+   while each package deletes or retains data by its own semantics.
 
 ## Migration order
 

@@ -137,8 +137,8 @@ CONTRACT = PackageContract(
         # llm config source — declared taxonomy-only (depends on llm I/O).
         Unit(name="AdvisorSceneBinding", kind=Kind.FACTORY),
         # Repository — the one split block (mechanism B): port in base/,
-        # adapter in extension/.  Currently raw AsyncSession; port/adapter
-        # split is follow-up scope (todo.md).  Declared taxonomy-only until then.
+        # adapter in extension/. Currently raw AsyncSession; the unscheduled
+        # port/adapter split remains taxonomy-only until it receives an AC.
         Unit(name="ChatSessionRepository", kind=Kind.REPOSITORY),
         # ── data: read-model projections ──
         # chat history view (list of sessions + messages for the UI)
@@ -173,7 +173,7 @@ CONTRACT = PackageContract(
     ],
     events=[],
     # Structural invariants: registered once the phase split settles and the
-    # unit.module paths are set (follow-up scope, todo.md).  The structural
+    # unit.module paths are set. The structural
     # boundary tests already exist (tests/tooling/test_advisor_package.py).
     invariants=[],
     # ── Roadmap: package-model AC registry ──

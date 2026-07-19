@@ -1,0 +1,386 @@
+[
+  {
+    "site": "advisor/orm/chat.py::ChatMessage.session_id->chat_sessions.id",
+    "source_owner": "advisor",
+    "target_owner": "advisor",
+    "classification": "aggregate_internal",
+    "rationale": "Chat messages are lifecycle children of the advisor-owned chat session aggregate.",
+    "issue": null
+  },
+  {
+    "site": "advisor/orm/chat.py::ChatSession.user_id->users.id",
+    "source_owner": "advisor",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate advisor chat sessions before removing their identity owner.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/correction.py::CorrectionLog.transaction_id->atomic_transactions.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "retention_sensitive",
+    "rationale": "Append-only correction history must survive transaction deletion until an explicit retention policy replaces this cascade.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/correction.py::CorrectionLog.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must apply extraction retention policy to append-only correction history before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceEdge.__table_args__.fk_evidence_edges_user_from_node->evidence_nodes.user_id+evidence_nodes.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "An evidence edge is a lifecycle child of its extraction-owned source evidence node.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceEdge.__table_args__.fk_evidence_edges_user_to_node->evidence_nodes.user_id+evidence_nodes.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "An evidence edge is a lifecycle child of its extraction-owned target evidence node.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceEdge.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must explicitly coordinate extraction evidence before this user cascade can be removed.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/evidence.py::EvidenceNode.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must explicitly coordinate extraction evidence before this user cascade can be removed.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer1.py::UploadedDocument.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate uploaded-document retention through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer2.py::AtomicPosition.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate atomic position facts through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer2.py::AtomicPositionSourceDocument.atomic_position_id->atomic_positions.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "The source-document link is an extraction-owned child of the atomic position aggregate.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/layer2.py::AtomicTransaction.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate atomic transaction facts through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer2.py::AtomicTransactionSourceDocument.atomic_txn_id->atomic_transactions.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "The source-document link is an extraction-owned child of the atomic transaction aggregate.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/layer3.py::ClassificationRule.created_by->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate extraction rules explicitly instead of relying on an identity cascade.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer3.py::ClassificationRule.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate versioned classification rules through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer3.py::ManagedPosition.account_id->accounts.id",
+    "source_owner": "extraction",
+    "target_owner": "ledger",
+    "classification": "cross_domain",
+    "rationale": "Deleting a ledger account must not silently delete an extraction-owned managed position.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer3.py::ManagedPosition.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate managed position state through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer3.py::ManualValuationSnapshot.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate manual valuation snapshots through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/layer3.py::TransactionClassification.atomic_txn_id->atomic_transactions.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "Transaction classification is an extraction-owned lifecycle child of its atomic transaction.",
+    "issue": null
+  },
+  {
+    "site": "extraction/orm/layer3.py::TransactionClassification.rule_version_id->classification_rules.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "retention_sensitive",
+    "rationale": "Historical replay requires classifications to retain their versioned rule anchor until an explicit retention policy replaces this cascade.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/statement_summary.py::StatementSummary.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must explicitly preserve or remove statement summaries under extraction policy.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/reviewed_statement_envelope.py::ReviewedStatementEnvelope.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate reviewed statement envelopes through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "extraction/orm/reviewed_statement_envelope.py::StatementExtractionResultRecord.user_id->users.id",
+    "source_owner": "extraction",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate persisted statement extraction results through extraction before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "identity/extension/sql.py::AiFeedback.user_id->users.id",
+    "source_owner": "identity",
+    "target_owner": "identity",
+    "classification": "aggregate_internal",
+    "rationale": "AI feedback stored by identity is a lifecycle child of the identity-owned user aggregate.",
+    "issue": null
+  },
+  {
+    "site": "ledger/orm/account.py::Account.user_id->users.id",
+    "source_owner": "ledger",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate ledger accounts before removing their identity owner.",
+    "issue": "#1848"
+  },
+  {
+    "site": "ledger/orm/journal.py::JournalAuditLog.entry_id->journal_entries.id",
+    "source_owner": "ledger",
+    "target_owner": "ledger",
+    "classification": "aggregate_internal",
+    "rationale": "Journal audit rows are ledger-owned children governed by the journal entry lifecycle.",
+    "issue": null
+  },
+  {
+    "site": "ledger/orm/journal.py::JournalEntry.user_id->users.id",
+    "source_owner": "ledger",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate balanced journal entries through ledger before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "ledger/orm/journal.py::JournalLine.journal_entry_id->journal_entries.id",
+    "source_owner": "ledger",
+    "target_owner": "ledger",
+    "classification": "aggregate_internal",
+    "rationale": "Journal lines are ledger-owned children of the balanced journal entry aggregate.",
+    "issue": null
+  },
+  {
+    "site": "llm/orm/config.py::LlmProvider.user_id->users.id",
+    "source_owner": "llm",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate provider configuration through the LLM owner before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "llm/orm/config.py::LlmSceneBinding.provider_id->llm_providers.id",
+    "source_owner": "llm",
+    "target_owner": "llm",
+    "classification": "aggregate_internal",
+    "rationale": "Scene bindings are LLM-owned lifecycle children of their provider configuration.",
+    "issue": null
+  },
+  {
+    "site": "llm/orm/config.py::LlmSceneBinding.user_id->users.id",
+    "source_owner": "llm",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate scene bindings through the LLM owner before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::DividendIncome.position_id->managed_positions.id",
+    "source_owner": "portfolio",
+    "target_owner": "extraction",
+    "classification": "cross_domain",
+    "rationale": "Deleting an extraction-owned position must not silently remove portfolio dividend history.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::DividendIncome.user_id->users.id",
+    "source_owner": "portfolio",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate dividend history through portfolio before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::InvestmentLot.opening_transaction_id->investment_transactions.id",
+    "source_owner": "portfolio",
+    "target_owner": "portfolio",
+    "classification": "retention_sensitive",
+    "rationale": "Investment lots and opening transactions are sibling children of ManagedPosition, so transaction deletion must not erase lot cost-basis state.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::InvestmentLot.position_id->managed_positions.id",
+    "source_owner": "portfolio",
+    "target_owner": "extraction",
+    "classification": "cross_domain",
+    "rationale": "Deleting an extraction-owned position must not silently remove portfolio lot history.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::InvestmentLot.user_id->users.id",
+    "source_owner": "portfolio",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate lot-level cost-basis state through portfolio before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "portfolio/orm/portfolio.py::InvestmentTransaction.user_id->users.id",
+    "source_owner": "portfolio",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate auditable investment transactions through portfolio before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "pricing/orm/fx_conversion.py::FxConversion.from_account_id->accounts.id",
+    "source_owner": "pricing",
+    "target_owner": "ledger",
+    "classification": "cross_domain",
+    "rationale": "Deleting a ledger account must not silently delete pricing-owned FX conversion evidence.",
+    "issue": "#1848"
+  },
+  {
+    "site": "pricing/orm/fx_conversion.py::FxConversion.to_account_id->accounts.id",
+    "source_owner": "pricing",
+    "target_owner": "ledger",
+    "classification": "cross_domain",
+    "rationale": "Deleting a ledger account must not silently delete pricing-owned FX conversion evidence.",
+    "issue": "#1848"
+  },
+  {
+    "site": "pricing/orm/fx_conversion.py::FxConversion.user_id->users.id",
+    "source_owner": "pricing",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate FX conversion evidence through pricing before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "pricing/orm/market_data_override.py::MarketDataOverride.user_id->users.id",
+    "source_owner": "pricing",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate user market-data overrides through pricing before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "reconciliation/orm/consistency_check.py::ConsistencyCheck.user_id->users.id",
+    "source_owner": "reconciliation",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate consistency review state through reconciliation before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "reconciliation/orm/reconciliation.py::ReconciliationMatch.atomic_txn_id->atomic_transactions.id",
+    "source_owner": "reconciliation",
+    "target_owner": "extraction",
+    "classification": "cross_domain",
+    "rationale": "Deleting an extraction transaction must not silently remove reconciliation match evidence.",
+    "issue": "#1848"
+  },
+  {
+    "site": "reconciliation/orm/reconciliation.py::ReconciliationMatchJournalEntry.match_id->reconciliation_matches.id",
+    "source_owner": "reconciliation",
+    "target_owner": "reconciliation",
+    "classification": "aggregate_internal",
+    "rationale": "The journal-entry link is a reconciliation-owned child of its match aggregate.",
+    "issue": null
+  },
+  {
+    "site": "reporting/orm/snapshot.py::ReportSnapshot.rule_version_id->classification_rules.id",
+    "source_owner": "reporting",
+    "target_owner": "extraction",
+    "classification": "cross_domain",
+    "rationale": "Deleting an extraction rule must not silently delete an immutable reporting snapshot.",
+    "issue": "#1848"
+  },
+  {
+    "site": "reporting/orm/snapshot.py::ReportSnapshot.user_id->users.id",
+    "source_owner": "reporting",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate immutable report snapshots through reporting before user removal.",
+    "issue": "#1848"
+  },
+  {
+    "site": "workflow/orm/models.py::WorkflowEvent.user_id->users.id",
+    "source_owner": "workflow",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate workflow event history before removing the identity owner.",
+    "issue": "#1848"
+  },
+  {
+    "site": "workflow/orm/models.py::WorkflowSession.user_id->users.id",
+    "source_owner": "workflow",
+    "target_owner": "identity",
+    "classification": "purge_owned",
+    "rationale": "Tenant purge must coordinate workflow state explicitly before deleting the identity owner.",
+    "issue": "#1848"
+  }
+]

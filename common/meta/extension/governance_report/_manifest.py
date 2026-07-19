@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+import tarfile
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -87,7 +92,7 @@ def _load_manifest_entries(
     # synthetic test fixture) keeps reading its manifest file as plain YAML;
     # only the real finance_report system, at its real source_root, has
     # package contracts to discover.
-    if source.system == "finance_report" and (source.source_root / "common").exists():
+    if _uses_computed_concepts(source):
         # check_manifest.py does its own independent `import yaml` (needed
         # regardless of this branch), so route through the same
         # _require_yaml() gate the plain-YAML path below uses — otherwise a
@@ -107,6 +112,96 @@ def _load_manifest_entries(
         source,
         source.manifest_path.read_text(encoding="utf-8"),
     )
+
+
+def _uses_computed_concepts(source: ManifestSource) -> bool:
+    return (
+        source.system == "finance_report" and (source.source_root / "common").exists()
+    )
+
+
+def _load_computed_manifest_entries_at_ref(
+    source: ManifestSource,
+    repo_root: Path,
+    base_ref: str,
+) -> tuple[list[GovernanceEntry], list[str]]:
+    """Load a git ref's computed registry with that ref's own package code."""
+
+    runner = """
+import json
+import sys
+from pathlib import Path
+
+repo_root = Path(sys.argv[1]).resolve()
+sys.path[:0] = [str(repo_root), str(repo_root / "apps" / "backend")]
+
+from common.meta.extension.check_manifest import load_computed_concepts
+
+manifest_path = repo_root / sys.argv[2]
+concepts = load_computed_concepts(repo_root, manifest_path)
+Path(sys.argv[3]).write_text(json.dumps(concepts), encoding="utf-8")
+"""
+    manifest_relative = source.manifest_path.relative_to(source.source_root)
+    with tempfile.TemporaryDirectory(prefix="governance-base-") as temp_dir:
+        snapshot_root = Path(temp_dir) / "snapshot"
+        archive_path = Path(temp_dir) / "snapshot.tar"
+        snapshot_root.mkdir()
+        archive = subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_root.as_posix(),
+                "archive",
+                "--format=tar",
+                f"--output={archive_path}",
+                base_ref,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if archive.returncode != 0:
+            detail = archive.stderr.strip() or "git archive failed"
+            raise RuntimeError(
+                f"Unable to load computed concept registry at {base_ref!r}: {detail}"
+            )
+
+        try:
+            with tarfile.open(archive_path) as archive_file:
+                archive_file.extractall(snapshot_root, filter="data")
+        except (OSError, tarfile.TarError) as exc:
+            raise RuntimeError(
+                f"Unable to extract computed concept registry at {base_ref!r}: {exc}"
+            ) from exc
+
+        output_path = Path(temp_dir) / "concepts.json"
+        load = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                runner,
+                snapshot_root.as_posix(),
+                manifest_relative.as_posix(),
+                output_path.as_posix(),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if load.returncode != 0 or not output_path.exists():
+            detail = load.stderr.strip() or load.stdout.strip() or "loader failed"
+            raise RuntimeError(
+                f"Unable to load computed concept registry at {base_ref!r}: {detail}"
+            )
+        try:
+            concepts = json.loads(output_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                f"Invalid computed concept registry at {base_ref!r}: {exc}"
+            ) from exc
+
+    return _entries_from_manifest_data(source, {source.entry_key: concepts})
 
 
 def _orphan_ssot_files(

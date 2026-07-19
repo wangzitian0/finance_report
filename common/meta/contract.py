@@ -3,7 +3,7 @@
 The package model self-hosts: the meta package that *defines* what a package is
 (``PackageContract`` / ``ACRecord`` / ``Invariant`` / ``Unit`` / ``Kind`` and the
 ``check_package_contract`` gate) is itself a package, with a ``readme.md`` (the
-package-model spec), this ``contract.py``, and a ``todo.md``. It is discovered
+package-model spec) and this ``contract.py``. It is discovered
 and validated by the very gate it ships, so the model proves itself.
 
 meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension``
@@ -508,31 +508,6 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
-        ACRecord(
-            id="AC-meta.txn.4",
-            statement=(
-                "A DB-level ondelete=CASCADE is a hidden write below the "
-                "application — one table's delete silently mutating other "
-                "rows; across domains it breaks one-txn-per-domain and "
-                "append-only domains, the risk this ratchet exists for. The "
-                'census of ForeignKey(..., ondelete="CASCADE") target tables '
-                "under apps/backend/src (all sites — deliberately not "
-                "domain-aware until models decentralization, #1675 D5/D6, "
-                "makes table ownership derivable) must equal "
-                "common/meta/data/fk-cascade-baseline.json: silent growth fails CI; "
-                "adding a cascade requires raising the baseline in the same "
-                "PR, where the diff makes the choice reviewable (the "
-                "app-boundary idiom); removals prune the baseline in the same "
-                "PR. Existing sites are grandfathered; the end-state is "
-                "saga-owned deletion (#1675 ruling, D1/D7)."
-            ),
-            test=(
-                "tests/tooling/test_fk_cascade_ratchet.py"
-                "::test_AC_meta_txn_4_cross_domain_cascade_only_shrinks"
-            ),
-            priority="P1",
-            status="done",
-        ),
         # The taxonomy migrated in place, so its retired vocabulary lingers in
         # prose; the drift gate makes "old words presented as current" a CI
         # failure instead of a periodic manual audit.
@@ -800,6 +775,35 @@ CONTRACT = PackageContract(
             statement="Threshold cleanup for #824 reduces finance_report.high_risk_entries_missing_proof to zero by binding the flagged high-risk platform concepts to existing proof tests, without runtime behavior changes. Was AC14.1.23.",
             test="tests/tooling/test_ssot_governance_report.py::test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family",
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.ssot-governance.9",
+            statement=(
+                "Incremental SSOT governance compares the same computed concept "
+                "registry at base and HEAD (residual manifest plus package-owned "
+                "concepts), detects package-contract concept drift, isolates the "
+                "requested git ref, and fails closed when the base cannot be loaded."
+            ),
+            test=(
+                "tests/tooling/test_ssot_governance_report.py"
+                "::test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.package-truth.1",
+            statement=(
+                "Every discovered package has the two authored truth surfaces "
+                "readme.md and contract.py; parallel todo.md worklists are forbidden "
+                "at any depth under common/, and an empty package scan fails closed."
+            ),
+            test=(
+                "tests/tooling/test_check_package_contract.py"
+                "::test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── migrated from EPIC-014, wave 2 (#1663): GitHub issue template
@@ -2613,28 +2617,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "tests/tooling/test_epic_residue_ratchet.py",
                 "common/meta/extension/generate_ac_registry.py",
-                "common/meta/migration-standard.md",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
-            parent="package_model",
-        ),
-        ConceptRecord(
-            key="fk_cascade_baseline",
-            owner="common/meta/data/fk-cascade-baseline.json",
-            description=(
-                'Ratchet census of ForeignKey(..., ondelete="CASCADE") sites under '
-                "apps/backend/src, keyed by target table — a DB cascade is a hidden write "
-                "below the application (across domains it breaks one-txn-per-domain and "
-                "append-only, the risk the ratchet exists for); CI enforces census == "
-                "baseline, so silent growth fails and adding a cascade requires a same-PR "
-                "baseline edit (reviewable consent); deliberately counts all sites, not just "
-                "cross-domain, until models decentralization makes ownership derivable; "
-                "end-state is saga-owned deletion (AC-meta.txn.4, #1675 ruling)."
-            ),
-            cross_refs=[
-                "tests/tooling/test_fk_cascade_ratchet.py",
                 "common/meta/migration-standard.md",
             ],
             family="platform",

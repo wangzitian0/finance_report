@@ -864,7 +864,7 @@ CONTRACT = PackageContract(
             statement=(
                 "The testing-package governance charter (execution matrix, package "
                 "declaration protocol, E2E extension layer, fast interception, "
-                "responsibility table) exists in common/testing/README.md, and "
+                "responsibility table) exists in common/testing/readme.md, and "
                 "common/meta/data/MANIFEST.yaml records common/testing/matrix.py as "
                 "the test_execution_matrix owner with the generated YAML as a cross-ref "
                 "(Was EPIC-008 AC8.22.6)."
@@ -4028,7 +4028,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/data/fat-tool-baseline.json",
-                "common/testing/README.md",
+                "common/testing/readme.md",
                 "tools/check_tool_shim_contract.py",
             ],
             proofs=["tests/tooling/test_s4_tool_homing.py"],
@@ -4078,7 +4078,7 @@ CONTRACT = PackageContract(
                 "rewrites use --rewrite-baseline rather than --update."
             ),
             cross_refs=[
-                "common/testing/README.md",
+                "common/testing/readme.md",
                 "tools/check_baseline_update_contract.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
@@ -4093,7 +4093,7 @@ CONTRACT = PackageContract(
                 "workflow-command-safe annotations, summaries, and integer status codes."
             ),
             cross_refs=[
-                "common/testing/README.md",
+                "common/testing/readme.md",
                 "common/testing/gate_cli.py",
                 "common/testing/baseline_update_contract.py",
             ],
@@ -4110,7 +4110,7 @@ CONTRACT = PackageContract(
                 "shared gate CLI runner."
             ),
             cross_refs=[
-                "common/testing/README.md",
+                "common/testing/readme.md",
                 "tools/check_gate_main_contract.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
@@ -4189,7 +4189,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/tdd.md",
-                "common/testing/README.md",
+                "common/testing/readme.md",
                 "common/testing/ac_evidence.py",
                 "common/testing/ac_evidence_aggregate.py",
                 "common/testing/ac_score_baseline_format.py",
@@ -4278,7 +4278,7 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="pdf_fixtures",
-            owner="common/testing/README.md#pdf-fixtures",
+            owner="common/testing/readme.md#pdf-fixtures",
             description=(
                 "Synthetic PDF fixture commands, local-only real-PDF handling, committed "
                 "template policy, and font fallback. Internalized into the testing package."

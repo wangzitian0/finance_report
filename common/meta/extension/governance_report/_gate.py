@@ -23,8 +23,10 @@ from common.meta.extension.governance_report._base import (
     yaml,
 )
 from common.meta.extension.governance_report._manifest import (
+    _load_computed_manifest_entries_at_ref,
     _load_manifest_entries,
     _load_manifest_entries_from_text,
+    _uses_computed_concepts,
 )
 from common.meta.extension.governance_report._metrics import _compare_governance_trends
 from common.meta.extension.governance_report._report import (
@@ -80,8 +82,21 @@ def _changed_ssot_files(source_changed_files: list[str]) -> list[str]:
     return sorted(set(files))
 
 
-def _source_has_ssot_change(source_changed_files: list[str]) -> bool:
-    return any(in_ssot_territory(Path(path)) for path in source_changed_files)
+def _source_has_registry_change(
+    source: ManifestSource,
+    source_changed_files: list[str],
+) -> bool:
+    manifest_relative = source.manifest_path.relative_to(source.source_root).as_posix()
+    if manifest_relative in source_changed_files:
+        return True
+    if not _uses_computed_concepts(source):
+        return False
+    return any(
+        len(path.parts) == 3
+        and path.parts[0] == "common"
+        and path.parts[2] == "contract.py"
+        for path in map(Path, source_changed_files)
+    )
 
 
 def _load_changed_files(path: Path | None) -> list[str]:
@@ -204,31 +219,56 @@ def evaluate_incremental_gate(
         source_changed = _source_changed_files(
             source, repo_root, normalized_changed_files
         )
+        registry_changed = _source_has_registry_change(source, source_changed)
         base_entries: list[GovernanceEntry] | None = None
-        if _source_has_ssot_change(source_changed):
-            base_text = (
-                base_manifest_texts.get(source.system)
-                if base_manifest_texts and source.system in base_manifest_texts
-                else _read_base_manifest_text(repo_root, source, base_ref)
-            )
-            if base_text is not None:
+        if registry_changed:
+            if current_errors:
+                raise RuntimeError(
+                    "Unable to load current concept registry: "
+                    + "; ".join(current_errors)
+                )
+            if base_manifest_texts and source.system in base_manifest_texts:
+                base_text = base_manifest_texts[source.system]
                 base_entries, base_errors = _load_manifest_entries_from_text(
                     source, base_text
                 )
-                if not current_errors and not base_errors:
-                    (
-                        source_trend_checks,
-                        source_trend_violations,
-                    ) = _compare_governance_trends(
-                        source.system,
-                        base_entries,
-                        current_entries,
+            elif not base_ref:
+                raise RuntimeError(
+                    f"A base ref is required when {source.system}'s concept registry changes"
+                )
+            elif _uses_computed_concepts(source):
+                base_entries, base_errors = _load_computed_manifest_entries_at_ref(
+                    source, repo_root, base_ref
+                )
+            else:
+                base_text = _read_base_manifest_text(repo_root, source, base_ref)
+                if base_text is None:
+                    raise RuntimeError(
+                        f"Unable to load {source.system} manifest at {base_ref!r}"
                     )
-                    trend_check_count += source_trend_checks
-                    for violation in source_trend_violations:
-                        add_violation(violation)
+                base_entries, base_errors = _load_manifest_entries_from_text(
+                    source, base_text
+                )
+
+            if base_errors:
+                raise RuntimeError(
+                    "Unable to load base concept registry: " + "; ".join(base_errors)
+                )
+            (
+                source_trend_checks,
+                source_trend_violations,
+            ) = _compare_governance_trends(
+                source.system,
+                base_entries,
+                current_entries,
+            )
+            trend_check_count += source_trend_checks
+            for violation in source_trend_violations:
+                add_violation(violation)
 
         for ssot_file in _changed_ssot_files(source_changed):
+            if not (source.source_root / ssot_file).exists():
+                continue
             target = _gate_target(source.system, ssot_file)
             owner_entries = [
                 entry
@@ -268,10 +308,7 @@ def evaluate_incremental_gate(
                     )
                 )
 
-        manifest_relative = source.manifest_path.relative_to(
-            source.source_root
-        ).as_posix()
-        if manifest_relative not in source_changed:
+        if not registry_changed:
             continue
         if base_entries is None:
             continue
