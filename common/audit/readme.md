@@ -9,6 +9,17 @@
 
 ## What audit governs
 
+## Bounded-context decision
+
+`audit` owns the shared numeric and executable-assurance language, not a
+business domain. Its value types, promotion vocabulary, and `TraceRecord`
+assurance records are reusable published language for other contexts; consuming
+them never transfers ownership of ledger, portfolio, reporting, or workflow
+state to `audit`. The package also does not orchestrate cross-domain
+transactions, lifecycle operations, delivery, or provider configuration. Its
+complete context boundary is machine-declared in
+[`contract.py`](./contract.py).
+
 - **`audit.base`** — the value language: the cross-runtime Shared-Kernel value
   types (`Money` / `Currency` / `ExchangeRate` / `MoneyTolerance` /
   `CurrencyBalances` / `Ratio` / `Quantity` / `Unit` / `UnitPrice`), plus audit's
