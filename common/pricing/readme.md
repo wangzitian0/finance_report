@@ -14,7 +14,7 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
 `pricing` owns observations of value and the explicit policy that resolves a
 subject's value at a point in time. It ingests extraction-owned statement price
