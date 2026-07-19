@@ -51,15 +51,17 @@ from src.extraction.extension.statement_validation import approve_statement, res
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import (
     ClassificationRule,
-    ManualValuationComponentType,
-    ManualValuationLiquidityClass,
     RuleType,
 )
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, post_opening_balance_entry
-from src.pricing import record_manual_valuation
+from src.pricing import (
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+    record_manual_valuation,
+)
 from src.pricing.orm.market_data import StockPrice
 from src.reporting import PackageAssembler
 from src.routers.reports import (
