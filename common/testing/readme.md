@@ -227,10 +227,13 @@ package must compose evidence only after that real call result exists. The
 consumer receives the exact canonical executed-proof `TraceRecord` and may
 return one canonical `OBSERVATION`, which is attached to the same JUnit
 testcase. `@ac_proof(required_observation_kind=...)` makes that output mandatory
-and includes the requirement in the proof declaration digest. The consumer is
-never called for failure, skip, or xfail; missing or duplicate registration,
-consumer failure, non-observation output, and the wrong assertion kind fail the
-test run. This is a lifecycle seam, not another proof or status entity.
+for GitHub merge-authority execution and includes the requirement in the proof
+declaration digest for every execution. Local advisory execution may omit the
+consumer because it cannot produce exact CI coordinates; an explicitly
+registered local consumer is still validated. The consumer is never called for
+failure, skip, or xfail; missing CI or duplicate registration, consumer failure,
+non-observation output, and the wrong assertion kind fail the test run. This is
+a lifecycle seam, not another proof or status entity.
 Setup/teardown success, failure, skip/xfail, a static declaration, or a workflow
 conclusion cannot create or satisfy that record.
 

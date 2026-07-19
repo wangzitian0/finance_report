@@ -387,6 +387,17 @@ def test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_clo
         )
     assert required_item.user_properties == []
 
+    local_item = _Item(obj=_terminal_required_proof)
+    local_proof = record_executed_proof(
+        local_item,
+        _Report(),
+        environ={},
+        occurred_at=OCCURRED_AT,
+    )
+    assert local_proof is not None
+    assert local_proof.authority.execution_stage == "local.advisory"
+    assert len(local_item.user_properties) == 1
+
     wrong_kind_item = _Item(obj=_terminal_required_proof)
     register_executed_proof_consumer(wrong_kind_item, lambda proof: proof)
     with pytest.raises(ExecutedProofError, match="wrong observation assertion kind"):

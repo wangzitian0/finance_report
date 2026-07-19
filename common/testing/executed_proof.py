@@ -224,8 +224,10 @@ def record_executed_proof(
         raise ExecutedProofError("a scenario-bound proof requires oracle_kind")
     if proof.ci_tier != "pr_ci":
         return None
+    execution_environ = environ if environ is not None else os.environ
+    is_merge_authority = execution_environ.get("GITHUB_ACTIONS") == "true"
     consumer = getattr(item, _CONSUMER_ATTR, None)
-    if proof.required_observation_kind and consumer is None:
+    if proof.required_observation_kind and is_merge_authority and consumer is None:
         raise ExecutedProofError(
             f"scenario proof requires a {proof.required_observation_kind!r} observation consumer"
         )
@@ -233,7 +235,7 @@ def record_executed_proof(
     record = _build_executed_proof(
         proof,
         item,
-        environ=environ if environ is not None else os.environ,
+        environ=execution_environ,
         occurred_at=occurred_at or datetime.now(UTC),
     )
     TraceJUnitAdapter.emit(
