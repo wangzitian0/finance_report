@@ -20,8 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-import src.audit.money as audit_money
-from src.audit.money import Money
+import src.audit as audit
 from src.audit.quantity import Quantity, Unit
 from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
@@ -242,16 +241,16 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # remain the storage/write boundary. Nullable PnL columns coalesce to zero
     # (matching the existing ``or Decimal("0.00")`` call-site convention).
     @property
-    def cost_basis_money(self) -> Money:
-        return Money(self.cost_basis, audit_money.Currency.of(self.currency))
+    def cost_basis_money(self) -> audit.Money:
+        return audit.Money(self.cost_basis, audit.Currency.of(self.currency))
 
     @property
-    def unrealized_pnl_money(self) -> Money:
-        return Money(self.unrealized_pnl or Decimal("0.00"), audit_money.Currency.of(self.currency))
+    def unrealized_pnl_money(self) -> audit.Money:
+        return audit.Money(self.unrealized_pnl or Decimal("0.00"), audit.Currency.of(self.currency))
 
     @property
-    def realized_pnl_money(self) -> Money:
-        return Money(self.realized_pnl or Decimal("0.00"), audit_money.Currency.of(self.currency))
+    def realized_pnl_money(self) -> audit.Money:
+        return audit.Money(self.realized_pnl or Decimal("0.00"), audit.Currency.of(self.currency))
 
     @property
     def quantity_qty(self) -> Quantity:
