@@ -29,6 +29,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -52,6 +54,72 @@ CONTRACT = PackageContract(
         "portfolio",
         "pricing",
         "reconciliation",
+    ],
+    context=ContextScope(
+        purpose=(
+            "Own deterministic financial report assembly, framework disclosure, and "
+            "frozen report snapshots over trusted facts from other contexts."
+        ),
+        in_scope=[
+            "financial statement and net-worth calculation views",
+            "ReportSnapshot, report-line, framework-policy, readiness, and disclosure language",
+            "report-package assembly and traceability of the exact facts a report freezes",
+        ],
+        out_of_scope=[
+            "source-document parsing, ledger posting, position accounting, matching, or valuation resolution",
+            "shared financial value/assurance ownership and generic telemetry or persistence substrate",
+            "cross-domain workflow execution and user-facing delivery routing",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="reporting",
+            mode="published-language",
+            reason="Uses audit monetary, source-type, and assurance language for report calculations and disclosure.",
+        ),
+        ContextRelation(
+            provider="extraction",
+            consumer="reporting",
+            mode="projection",
+            reason="Reads statement contributions and source-fact projections without owning document lifecycle.",
+        ),
+        ContextRelation(
+            provider="ledger",
+            consumer="reporting",
+            mode="projection",
+            reason="Reads posted ledger and account projections without creating or changing journal facts.",
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="reporting",
+            mode="published-language",
+            reason="Uses published safe logging and error-identification language for report generation diagnostics.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="reporting",
+            mode="composition",
+            reason="Uses platform persistence mixins and request-error helpers without owning the substrate.",
+        ),
+        ContextRelation(
+            provider="portfolio",
+            consumer="reporting",
+            mode="projection",
+            reason="Reads portfolio performance and holdings projections for report schedules without owning positions.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="reporting",
+            mode="projection",
+            reason="Reads decision-backed valuation and FX-resolution contributions without resolving prices itself.",
+        ),
+        ContextRelation(
+            provider="reconciliation",
+            consumer="reporting",
+            mode="projection",
+            reason="Reads reconciliation readiness and transfer-match state for report disclosure without making matches.",
+        ),
     ],
     roles=["base", "extension", "data"],
     units=[
