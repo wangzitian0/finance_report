@@ -256,6 +256,17 @@ CHECKS: tuple[Check, ...] = (
         why="package contract or context gate changed: context declarations and dependency semantics only shrink from the audited baseline",
     ),
     Check(
+        name="semantic-ownership",
+        globs=(
+            "common/*/contract.py",
+            "common/meta/base/package_contract.py",
+            "common/meta/extension/check_semantic_ownership.py",
+            "tools/check_semantic_ownership.py",
+        ),
+        commands=((PY, "tools/check_semantic_ownership.py"),),
+        why="package semantic declarations changed: every governed DDD concept must retain one canonical owner",
+    ),
+    Check(
         name="tooling",
         globs=("tools/*", "common/*"),
         commands=((PY, "-m", "pytest", "tests/tooling/", "-q", "--no-cov"),),
