@@ -371,6 +371,7 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
     source_classes=["bank_statement", "brokerage_statement"],
     scenario_id="trusted-year-v0",
     oracle_kind="independent_decimal",
+    required_observation_kind="terminal_audit",
     issue="#696",
 )
 async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle(
@@ -541,6 +542,7 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
                 ac_ids=proof_declaration.ac_ids,
                 stage=proof_declaration.stage,
                 task_category=proof_declaration.task_category,
+                required_observation_kind=proof_declaration.required_observation_kind,
             ),
         ),
         execution_id="trusted-year-graph-verification",
