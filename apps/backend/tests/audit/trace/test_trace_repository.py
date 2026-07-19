@@ -237,7 +237,9 @@ async def test_AC_audit_trace_record_7_decision_head_preserves_absent_current_an
     assert stale is not None
     assert stale.record == decision
     assert stale.ancestry_current is False
+    repository._restore = AsyncMock(wraps=repository._restore)
     assert await repository.current_decision(parent.scope, decision.lineage) is None
+    repository._restore.assert_not_awaited()
 
 
 async def test_repository_replays_policy_instead_of_trusting_decision_fields(db):

@@ -101,10 +101,10 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         lineage: TraceLineage,
     ) -> TraceRecord | None:
         try:
-            head = await self._read_decision_head(scope, lineage)
-            if head is None or not head.ancestry_current:
+            row = await self._decision_head_row(scope, lineage)
+            if row is None or not await self._has_current_ancestry(scope, row.id, frozenset()):
                 return None
-            return head.record
+            return await self._restore(row, frozenset({row.id}))
         except TraceRecordPersistenceError:
             raise
         except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
