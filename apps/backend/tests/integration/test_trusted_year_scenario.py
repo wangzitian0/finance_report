@@ -8,12 +8,17 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from common.testing.ac_proof import ac_proof
+from common.testing.ac_proof import PROOF_ATTR, ac_proof
+from common.testing.executed_proof import executed_proof_assertion_version
 from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
 from sqlalchemy import select
 
 from src.audit import (
     SqlTraceRecordRepository,
+    TerminalAuditSpec,
+    TerminalAuditVerifier,
+    TraceDecisionPolicyRegistry,
+    TraceDecisionRef,
     TraceEmitter,
     TraceRecord,
     TraceRecordPersistenceError,
@@ -56,14 +61,16 @@ from src.extraction.orm.layer3 import (
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, post_opening_balance_entry
+from src.ledger import Account, AccountType, ledger_trace_policy_registry, post_opening_balance_entry
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
+    pricing_trace_policy_registry,
     record_manual_valuation,
 )
 from src.pricing.orm.market_data import StockPrice
-from src.reporting import PackageAssembler
+from src.reporting import PackageAssembler, personal_report_package_decision_ref
+from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.routers.reports import (
     PackageSnapshotExportFormat,
     export_personal_report_package_snapshot,
@@ -467,6 +474,59 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         entry.decision_id and entry.target_kind and entry.target_id and entry.assertion_kind and entry.authority_tier
         for entry in document.input_manifest
     )
+
+    trace_repository = SqlTraceRecordRepository(
+        db,
+        TraceDecisionPolicyRegistry(
+            (
+                *extraction_trace_policy_registry().policies,
+                *ledger_trace_policy_registry().policies,
+                *pricing_trace_policy_registry().policies,
+                PackageReadinessDecisionPolicy(),
+            )
+        ),
+    )
+    scope = TraceScope.tenant(test_user.id)
+    terminal_inputs = []
+    for item in document.input_manifest:
+        terminal_inputs.append(
+            TraceDecisionRef(
+                decision_id=item.decision_id,
+                target=VersionedTraceRef(item.target_kind, item.target_id, item.target_version),
+                assertion=VersionedTraceRef(
+                    item.assertion_kind,
+                    item.assertion_id,
+                    item.assertion_version,
+                ),
+            )
+        )
+    proof_declaration = getattr(
+        test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle,
+        PROOF_ATTR,
+    )
+    terminal_spec = TerminalAuditSpec(
+        scope=scope,
+        package=personal_report_package_decision_ref(document),
+        manifest=tuple(terminal_inputs),
+        repository_id="wangzitian0/finance_report",
+        commit_sha="a" * 40,
+        scenario_id=scenario.scenario_id,
+        proof=VersionedTraceRef(
+            "executed_proof",
+            proof_declaration.proof_id,
+            executed_proof_assertion_version(
+                proof_id=proof_declaration.proof_id,
+                scenario_id=proof_declaration.scenario_id,
+                oracle_kind=proof_declaration.oracle_kind,
+                ac_ids=proof_declaration.ac_ids,
+                stage=proof_declaration.stage,
+                task_category=proof_declaration.task_category,
+            ),
+        ),
+        execution_id="trusted-year-graph-verification",
+    )
+    package_record = await TerminalAuditVerifier(trace_repository).verify_graph(terminal_spec)
+    assert package_record.record_id == terminal_spec.package.decision_id
 
     frozen = document.model_dump(mode="json")
     listed = await list_personal_report_package_snapshots(db, test_user.id, pagination=PaginationParams())

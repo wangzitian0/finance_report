@@ -1,9 +1,8 @@
 """TraceRecord codecs and persistence adapters."""
 
-from src.audit.extension.promotion_trace import (
-    PromotionTraceAdapter,
-    PromotionTraceContext,
-    PromotionTracePolicy,
+from src.audit.extension.terminal_audit import (
+    TERMINAL_AUDIT_POLICY_VERSION,
+    TerminalAuditVerifier,
 )
 from src.audit.extension.trace_adapters import JsonlTraceRecordStore, TraceJUnitAdapter
 from src.audit.extension.trace_codec import TraceRecordCodec
@@ -19,9 +18,8 @@ from src.audit.extension.trace_repository import (
 
 __all__ = [
     "JsonlTraceRecordStore",
-    "PromotionTraceAdapter",
-    "PromotionTraceContext",
-    "PromotionTracePolicy",
+    "TERMINAL_AUDIT_POLICY_VERSION",
+    "TerminalAuditVerifier",
     "SqlTraceRecordRepository",
     "TraceEmitter",
     "TraceJUnitAdapter",

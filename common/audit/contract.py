@@ -172,14 +172,14 @@ CONTRACT = PackageContract(
             module="extension/trace_adapters.py",
         ),
         Unit(
-            name="PromotionTraceAdapter",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/promotion_trace.py",
+            name="TerminalAuditSpec",
+            kind=Kind.VALUE_OBJECT,
+            module="base/terminal_audit.py",
         ),
         Unit(
-            name="PromotionTracePolicy",
+            name="TerminalAuditVerifier",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/promotion_trace.py",
+            module="extension/terminal_audit.py",
         ),
         Unit(
             name="TraceRecordRepository",
@@ -255,9 +255,9 @@ CONTRACT = PackageContract(
         "TraceEmitter",
         "TraceJUnitAdapter",
         "JsonlTraceRecordStore",
-        "PromotionTraceAdapter",
-        "PromotionTraceContext",
-        "PromotionTracePolicy",
+        "TERMINAL_AUDIT_POLICY_VERSION",
+        "TerminalAuditSpec",
+        "TerminalAuditVerifier",
         "TraceRecordRepository",
         "TraceRecordValidationError",
         "TraceRecordPersistenceError",
@@ -1598,6 +1598,81 @@ CONTRACT = PackageContract(
             ),
             priority="P0",
             status="done",
+        ),
+        ACRecord(
+            id="AC-audit.terminal-trace.1",
+            statement=(
+                "Exact selected package and manifest decision refs resolve in one tenant scope; "
+                "the package direct decision parents equal the selected manifest while canonical "
+                "non-decision parents remain part of the replayed graph."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_terminal_audit.py"
+                "::test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-audit.terminal-trace.2",
+            statement=(
+                "Missing, cross-scope, wrong type, result, target, assertion, disconnected, and "
+                "repository-read failures fail closed; available owner diagnostics derive from "
+                "the canonical record authority rather than caller input."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_terminal_audit.py"
+                "::test_AC_audit_terminal_trace_2_counterexamples_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-audit.terminal-trace.3",
+            statement=(
+                "Exact testing executed-proof coordinates are mandatory and successful "
+                "composition emits only a canonical TraceRecord round-trippable through the "
+                "existing TraceRecordCodec."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_terminal_audit.py"
+                "::test_AC_audit_terminal_trace_3_emits_only_canonical_trace_record"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-audit.terminal-trace.4",
+            statement=(
+                "The audit-owned promotion shadow exports, file, and tests are deleted without "
+                "embedding another package's producer, reader, status, or retired-symbol map in "
+                "the terminal verifier."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_terminal_audit.py"
+                "::test_AC_audit_terminal_trace_4_deletes_audit_owned_shadow_only"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-audit.terminal-trace.5",
+            statement=(
+                "The terminal TraceRecord and first-boundary failure diagnostics are "
+                "redaction-safe and contain no financial payload, source text, prompt, identity, "
+                "or secret."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_terminal_audit.py"
+                "::test_AC_audit_terminal_trace_5_output_and_diagnostics_are_redaction_safe"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
         ),
         ACRecord(
             id="AC-audit.trace-projection.1",

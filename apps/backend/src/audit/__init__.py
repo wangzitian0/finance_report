@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 # Eager mapper registration for Base.metadata discovery.
 from src.audit import orm as _orm  # noqa: F401
+from src.audit.base.terminal_audit import TerminalAuditSpec
 from src.audit.base.trace import (
     TraceAuthorityProfile,
     TraceCausality,
@@ -32,11 +33,10 @@ from src.audit.base.trace import (
 from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 from src.audit.data import TraceConfidenceProjection
 from src.audit.extension import (
+    TERMINAL_AUDIT_POLICY_VERSION,
     JsonlTraceRecordStore,
-    PromotionTraceAdapter,
-    PromotionTraceContext,
-    PromotionTracePolicy,
     SqlTraceRecordRepository,
+    TerminalAuditVerifier,
     TraceEmitter,
     TraceJUnitAdapter,
     TraceRecordCodec,
@@ -86,6 +86,7 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "TERMINAL_AUDIT_POLICY_VERSION",
     "CurrencyBalance",
     "CurrencyBalances",
     "Currency",
@@ -110,9 +111,8 @@ __all__ = [
     "evaluate_promotion",
     "tier_rank",
     "JsonlTraceRecordStore",
-    "PromotionTraceAdapter",
-    "PromotionTraceContext",
-    "PromotionTracePolicy",
+    "TerminalAuditSpec",
+    "TerminalAuditVerifier",
     "TraceAuthorityProfile",
     "TraceCausality",
     "TraceConfidenceProjection",
