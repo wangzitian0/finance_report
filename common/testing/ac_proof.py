@@ -57,6 +57,8 @@ class AcProof:
     source_classes: tuple[str, ...] = ()
     mirror_proof_id: str = ""
     issue: str = ""
+    scenario_id: str = ""
+    oracle_kind: str = ""
     required_markers: tuple[str, ...] = ()
     outcomes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -73,6 +75,8 @@ def ac_proof(
     source_classes: list[str] | tuple[str, ...] = (),
     mirror_proof_id: str = "",
     issue: str = "",
+    scenario_id: str = "",
+    oracle_kind: str = "",
     required_markers: list[str] | tuple[str, ...] = (),
     outcomes: list[str] | tuple[str, ...] = (),
 ) -> Callable[[F], F]:
@@ -108,6 +112,8 @@ def ac_proof(
         source_classes=tuple(source_classes),
         mirror_proof_id=mirror_proof_id,
         issue=issue,
+        scenario_id=scenario_id,
+        oracle_kind=oracle_kind,
         required_markers=tuple(required_markers),
         outcomes=tuple(outcomes),
     )
