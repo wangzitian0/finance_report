@@ -20,7 +20,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.audit.money import Currency, Money
+import src.audit.money as audit_money
+from src.audit.money import Money
 from src.audit.quantity import Quantity, Unit
 from src.database import Base
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
@@ -242,15 +243,15 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # (matching the existing ``or Decimal("0.00")`` call-site convention).
     @property
     def cost_basis_money(self) -> Money:
-        return Money(self.cost_basis, Currency.of(self.currency))
+        return Money(self.cost_basis, audit_money.Currency.of(self.currency))
 
     @property
     def unrealized_pnl_money(self) -> Money:
-        return Money(self.unrealized_pnl or Decimal("0.00"), Currency.of(self.currency))
+        return Money(self.unrealized_pnl or Decimal("0.00"), audit_money.Currency.of(self.currency))
 
     @property
     def realized_pnl_money(self) -> Money:
-        return Money(self.realized_pnl or Decimal("0.00"), Currency.of(self.currency))
+        return Money(self.realized_pnl or Decimal("0.00"), audit_money.Currency.of(self.currency))
 
     @property
     def quantity_qty(self) -> Quantity:
