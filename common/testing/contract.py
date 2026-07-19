@@ -4071,6 +4071,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.trusted-year.3",
+            statement=(
+                "Cross-scope and target-mismatched authority mutations are rejected, "
+                "and superseding every authority parent in the selected manifest makes "
+                "the next package candidate draft/unproven without changing the frozen package."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
+                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.package-lifecycle.1",
             statement=(
                 "A trusted package can be generated, listed, reopened, and exported without "

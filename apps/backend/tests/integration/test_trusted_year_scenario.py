@@ -5,11 +5,25 @@ from __future__ import annotations
 import hashlib
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from uuid import uuid4
 
+import pytest
 from common.testing.ac_proof import ac_proof
 from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
+from sqlalchemy import select
 
-from src.audit import SqlTraceRecordRepository, TraceEmitter
+from src.audit import (
+    SqlTraceRecordRepository,
+    TraceEmitter,
+    TraceRecord,
+    TraceRecordPersistenceError,
+    TraceRecordType,
+    TraceResult,
+    TraceScope,
+    VersionedTraceRef,
+    current_authoritative_trace_decision_projection,
+)
+from src.audit.orm.trace_record import TraceRecordParentRow, TraceRecordRow
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.deps import PaginationParams
@@ -47,6 +61,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, post_opening_balance_entry
 from src.pricing import record_manual_valuation
 from src.pricing.orm.market_data import StockPrice
+from src.reporting import PackageAssembler
 from src.routers.reports import (
     PackageSnapshotExportFormat,
     export_personal_report_package_snapshot,
@@ -219,10 +234,106 @@ async def _stream_body(response) -> str:
     return "".join([chunk.decode() if isinstance(chunk, bytes) else chunk async for chunk in response.body_iterator])
 
 
+async def _supersede_selected_authority_parents(db, *, user_id, document) -> None:
+    """Invalidate selected authority through the append-only graph product reads."""
+    decision_ids = {entry.decision_id for entry in document.input_manifest}
+    projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
+        "trusted_year_current_decisions"
+    )
+    current_ids = set(
+        (await db.execute(select(projection.c.decision_id).where(projection.c.decision_id.in_(decision_ids)))).scalars()
+    )
+    assert current_ids == decision_ids
+
+    observation_ids: set = set()
+    frontier = decision_ids
+    visited = set(decision_ids)
+    while frontier:
+        parent_ids = set(
+            (
+                await db.execute(
+                    select(TraceRecordParentRow.parent_id).where(TraceRecordParentRow.record_id.in_(frontier))
+                )
+            ).scalars()
+        )
+        unseen = parent_ids - visited
+        if not unseen:
+            break
+        rows = (
+            await db.execute(select(TraceRecordRow.id, TraceRecordRow.record_type).where(TraceRecordRow.id.in_(unseen)))
+        ).all()
+        observation_ids.update(
+            record_id for record_id, record_type in rows if record_type is TraceRecordType.OBSERVATION
+        )
+        frontier = {record_id for record_id, record_type in rows if record_type is TraceRecordType.DECISION}
+        visited.update(unseen)
+    assert observation_ids
+    repository = SqlTraceRecordRepository(db)
+    parents = [
+        parent
+        for parent_id in sorted(observation_ids, key=str)
+        if (parent := await repository.get(TraceScope.tenant(user_id), parent_id)) is not None
+    ]
+    assert {parent.record_id for parent in parents} == observation_ids
+
+    def correction(parent, *, scope, target_id: str, suffix: str) -> TraceRecord:
+        return TraceRecord.observation(
+            scope=scope,
+            target=VersionedTraceRef(
+                parent.target.kind,
+                target_id,
+                f"{parent.target.version}:{suffix}",
+            ),
+            target_class=parent.target_class,
+            assertion=parent.assertion,
+            authority=parent.authority,
+            result=TraceResult.UNPROVEN,
+            execution_id=f"trusted-year-v0:{suffix}:{parent.record_id}",
+            evidence_manifest_digest=hashlib.sha256(
+                f"trusted-year-v0:{suffix}:{parent.record_id}".encode()
+            ).hexdigest(),
+            occurred_at=datetime.now(UTC),
+            score=None,
+            reason_code="trusted_year_authority_counterfactual",
+            supersedes_id=parent.record_id,
+        )
+
+    first = parents[0]
+    with pytest.raises(TraceRecordPersistenceError, match="cross-scope"):
+        await repository.append(
+            correction(
+                first,
+                scope=TraceScope.tenant(uuid4()),
+                target_id=first.target.id,
+                suffix="cross-scope",
+            )
+        )
+    with pytest.raises(TraceRecordPersistenceError, match="lineage"):
+        await repository.append(
+            correction(
+                first,
+                scope=first.scope,
+                target_id=f"{first.target.id}:mismatch",
+                suffix="target-mismatch",
+            )
+        )
+
+    for parent in parents:
+        await repository.append(
+            correction(
+                parent,
+                scope=parent.scope,
+                target_id=parent.target.id,
+                suffix="superseded",
+            )
+        )
+
+
 @ac_proof(
     "trusted-year-v0-terminal",
     ac_ids=[
         "AC-testing.trusted-year.2",
+        "AC-testing.trusted-year.3",
         "AC-testing.package-lifecycle.1",
     ],
     scope="behavioral",
@@ -236,7 +347,7 @@ async def _stream_body(response) -> str:
 async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle(
     db, test_user, monkeypatch
 ) -> None:
-    """AC-testing.trusted-year.2 AC-testing.package-lifecycle.1."""
+    """AC-testing.trusted-year.2 AC-testing.trusted-year.3 AC-testing.package-lifecycle.1."""
     scenario = TRUSTED_YEAR_SCENARIO
     monkeypatch.setattr(settings, "enable_ai_classification", True)
 
@@ -331,15 +442,22 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
     assert document.sections.balance_sheet.net_income == expected.net_income
     assert document.sections.balance_sheet.net_worth_adjustment_gain_loss == expected.net_worth_adjustment
     assert document.sections.balance_sheet.is_balanced
+    assert document.sections.balance_sheet.assets
+    assert document.sections.income_statement.income
+    assert document.sections.income_statement.expenses
     assert document.sections.income_statement.net_income == expected.net_income
     assert document.sections.cash_flow.summary.ending_cash == expected.ending_cash
     assert document.sections.cash_flow.summary.investing_activities == -expected.investment_purchase
+    assert document.sections.cash_flow.operating
+    assert document.sections.cash_flow.investing
     holding = next(
         item
         for item in document.sections.investment_performance.holdings
         if item.asset_identifier == scenario.position.symbol
     )
     assert holding.market_value == expected.investment_market_value
+    assert document.sections.notes.notes
+    assert document.sections.traceability_appendix.lines
     assert document.readiness.input_coverage.unproven_input_count == 0
     manifest_refs = {input_ref for entry in document.input_manifest for input_ref in entry.input_refs}
     assert {input_ref.partition(":")[0] for input_ref in manifest_refs} == set(scenario.expected_manifest)
@@ -363,6 +481,30 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
     assert str(snapshot.id) in json_body
     assert "115250.00" in json_body
     assert "balance_sheet.total_assets" in await _stream_body(csv_export)
+
+    authority_counterfactual = await db.begin_nested()
+    await _supersede_selected_authority_parents(
+        db,
+        user_id=test_user.id,
+        document=document,
+    )
+    candidate = await PackageAssembler().assemble(
+        db,
+        user_id=test_user.id,
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 12, 31),
+        as_of_date=date(2026, 12, 31),
+        currency="SGD",
+        include_restricted=True,
+    )
+    assert candidate.status is PersonalReportPackageSnapshotStatus.DRAFT
+    assert candidate.readiness.state is PersonalReportPackageReadinessState.BLOCKED
+    assert candidate.package_decision_id is None
+    assert candidate.readiness.input_coverage.unproven_input_count > 0
+    assert "unproven_package_input" in {blocker.code for blocker in candidate.readiness.blockers}
+    await authority_counterfactual.rollback()
+    db.expire_all()
 
     db.add(
         StockPrice(
