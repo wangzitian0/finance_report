@@ -98,9 +98,7 @@ def github_execution_id(environ: Mapping[str, str]) -> str:
     run_id = environ.get("GITHUB_RUN_ID", "")
     run_attempt = environ.get("GITHUB_RUN_ATTEMPT", "")
     if not run_id.isdigit() or not run_attempt.isdigit():
-        raise ExecutedProofError(
-            "GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be numeric"
-        )
+        raise ExecutedProofError("GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT must be numeric")
     execution_id = f"{run_id}.{run_attempt}"
     if len(execution_id) > 200:
         raise ExecutedProofError("GitHub execution id must not exceed 200 characters")
