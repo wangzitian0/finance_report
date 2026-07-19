@@ -41,7 +41,6 @@
   "unbound::extraction::EvidenceLineageService",
   "unbound::extraction::EvidenceNode",
   "unbound::extraction::ManagedPosition",
-  "unbound::extraction::ManualValuationSnapshot",
   "unbound::extraction::RuleType",
   "unbound::extraction::StatementSummary",
   "unbound::extraction::TransactionClassification",
@@ -80,6 +79,7 @@
   "unbound::portfolio::RealizedPnLResponse",
   "unbound::portfolio::UnrealizedPnLResponse",
   "unbound::pricing::LatestPriceView",
+  "unbound::pricing::ManualValuationSnapshot",
   "unbound::pricing::MarketDataOverride",
   "unbound::pricing::PriceSource",
   "unbound::pricing::StalenessView",
@@ -109,6 +109,7 @@
   "unbound::reporting::ReportingReadRepository",
   "unbound::testing::Cassette",
   "unbound::testing::FixtureDocument",
+  "unbound::testing::TrustedYearScenario",
   "unbound::workflow::WorkflowEvent",
   "unbound::workflow::WorkflowSession"
 ]
