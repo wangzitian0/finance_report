@@ -10,6 +10,15 @@
 
 ## Why
 
+## Bounded-context decision
+
+`reconciliation` owns scored matching and review decisions between independent
+extraction and ledger facts. It consumes extraction projections, ledger
+language, pricing FX conversion, audit value/provenance language, an advisory
+LLM score, observability language, and platform persistence composition. It does
+not own either source fact, journal posting, price resolution, or workflow. The
+machine-readable boundary and relationships are in [`contract.py`](./contract.py).
+
 Extracted bank transactions and manually/portfolio-posted journal entries are
 two independent records of the same real-world event; `reconciliation` decides
 whether they refer to the same thing, at what confidence, and routes anything
