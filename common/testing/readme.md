@@ -143,6 +143,7 @@ test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
 
 scenario-bound @ac_proof
       --pytest call-phase PASS-------------------->  canonical trace_record property
+      --one registered post-proof consumer-------->  canonical observation property
       --tools/check_pr_ci_evidence.py------------->  exact repo/commit/run proof gate
       --tools/check_ac_score_baseline.py-->          L2 + L3 ratchet gate
 ```
@@ -220,6 +221,14 @@ pytest's real call-phase result and emits `PASS` only after the call passed. The
 existing `check_pr_ci_evidence` JUnit gate then requires the exact repository,
 checked-out commit, GitHub run attempt, scenario, proof declaration digest, and
 testing authority.
+
+A scenario may register one post-proof consumer on its pytest item when another
+package must compose evidence only after that real call result exists. The
+consumer receives the exact canonical executed-proof `TraceRecord` and may
+return one canonical `OBSERVATION`, which is attached to the same JUnit
+testcase. It is never called for failure, skip, or xfail; duplicate registration,
+consumer failure, and non-observation output fail the test run. This is a
+lifecycle seam, not another proof or status entity.
 Setup/teardown success, failure, skip/xfail, a static declaration, or a workflow
 conclusion cannot create or satisfy that record.
 

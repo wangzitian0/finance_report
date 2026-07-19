@@ -15,14 +15,26 @@ from typing import Any
 
 import pytest
 
-from common.audit.base import TraceRecordType, TraceResult, TraceScopeKind
+from common.audit.base import (
+    TraceAuthorityProfile,
+    TraceCausality,
+    TraceDecisionOutcome,
+    TraceRecord,
+    TraceRecordType,
+    TraceResult,
+    TraceScopeKind,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
 from common.audit.extension import TraceJUnitAdapter, TraceRecordCodec
 from common.testing.ac_proof import ac_proof
 from common.testing import check_pr_ci_evidence
 from common.testing.check_pr_ci_evidence import collect_executed_proofs
 from common.testing.executed_proof import (
+    ExecutedProofError,
     executed_proof_matches,
     record_executed_proof,
+    register_executed_proof_consumer,
 )
 
 COMMIT_SHA = "a" * 40
@@ -229,6 +241,129 @@ def test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates(
     missing_trace = tmp_path / "missing-trace.xml"
     tree.write(missing_trace, encoding="utf-8", xml_declaration=True)
     assert check_pr_ci_evidence.run_check([missing_trace]) == 1
+
+
+def _terminal_observation(proof: TraceRecord) -> TraceRecord:
+    return TraceRecord.observation(
+        scope=proof.scope,
+        target=proof.target,
+        target_class=TraceTargetClass.GENERAL,
+        assertion=VersionedTraceRef("terminal_audit", proof.target.id, "b" * 64),
+        authority=TraceAuthorityProfile(
+            package="audit",
+            tier="CODE-ONLY",
+            proof_kind="exact",
+            provenance="deterministic",
+            execution_stage=proof.authority.execution_stage,
+            assertion_owner_digest="c" * 64,
+            producer_version=f"git@{proof.target.version}",
+        ),
+        result=TraceResult.PASS,
+        execution_id=proof.execution_id,
+        evidence_manifest_digest="d" * 64,
+        occurred_at=proof.occurred_at,
+        score=None,
+        reason_code="terminal_audit_passed",
+    )
+
+
+def _terminal_decision(proof: TraceRecord) -> TraceRecord:
+    @dataclass(frozen=True)
+    class _Policy:
+        assertion: VersionedTraceRef = VersionedTraceRef(
+            "terminal_policy", "invalid", "v1"
+        )
+        authority: TraceAuthorityProfile = TraceAuthorityProfile(
+            package="audit",
+            tier="CODE-ONLY",
+            proof_kind="exact",
+            provenance="deterministic",
+            execution_stage="github_ci.merge_authority",
+            assertion_owner_digest="e" * 64,
+            producer_version="fixture@1",
+        )
+        causality: TraceCausality = TraceCausality.DIRECT
+        target_class: TraceTargetClass = TraceTargetClass.GENERAL
+
+        def fold(self, _parents) -> TraceDecisionOutcome:
+            return TraceDecisionOutcome(
+                TraceResult.AUTHORITATIVE, "invalid_terminal_decision"
+            )
+
+    return TraceRecord.decision(
+        scope=proof.scope,
+        target=proof.target,
+        policy=_Policy(),
+        execution_id=proof.execution_id,
+        occurred_at=proof.occurred_at,
+        parents=(proof,),
+    )
+
+
+def test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed() -> (
+    None
+):
+    """AC-testing.capability-proof.3: post-call composition has one fail-closed seam."""
+    item = _Item()
+    consumed: list[TraceRecord] = []
+
+    def consume(proof: TraceRecord) -> TraceRecord:
+        consumed.append(proof)
+        return _terminal_observation(proof)
+
+    register_executed_proof_consumer(item, consume)
+    with pytest.raises(ExecutedProofError, match="already registered"):
+        register_executed_proof_consumer(item, consume)
+
+    proof = record_executed_proof(
+        item, _Report(), environ=CI_ENV, occurred_at=OCCURRED_AT
+    )
+
+    assert proof is not None
+    assert consumed == [proof]
+    records = [TraceRecordCodec.decode(value) for name, value in item.user_properties]
+    assert [record.assertion.kind for record in records] == [
+        "executed_proof",
+        "terminal_audit",
+    ]
+    assert records[1] == _terminal_observation(proof)
+
+    failed_item = _Item()
+    register_executed_proof_consumer(failed_item, consume)
+    assert (
+        record_executed_proof(
+            failed_item,
+            _Report(passed=False, failed=True),
+            environ=CI_ENV,
+            occurred_at=OCCURRED_AT,
+        )
+        is None
+    )
+    assert consumed == [proof]
+    assert failed_item.user_properties == []
+
+    invalid_item = _Item()
+    register_executed_proof_consumer(invalid_item, _terminal_decision)
+    with pytest.raises(ExecutedProofError, match="OBSERVATION"):
+        record_executed_proof(
+            invalid_item, _Report(), environ=CI_ENV, occurred_at=OCCURRED_AT
+        )
+    assert len(invalid_item.user_properties) == 1
+
+    failed_consumer_item = _Item()
+
+    def fail_consumer(_proof: TraceRecord) -> TraceRecord:
+        raise RuntimeError("terminal consumer failed")
+
+    register_executed_proof_consumer(failed_consumer_item, fail_consumer)
+    with pytest.raises(RuntimeError, match="terminal consumer failed"):
+        record_executed_proof(
+            failed_consumer_item,
+            _Report(),
+            environ=CI_ENV,
+            occurred_at=OCCURRED_AT,
+        )
+    assert len(failed_consumer_item.user_properties) == 1
 
 
 @pytest.mark.parametrize(

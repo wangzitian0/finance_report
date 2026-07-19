@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from common.audit.base import (
     TraceAuthorityProfile,
@@ -27,6 +27,9 @@ from common.audit.extension import TraceJUnitAdapter
 from common.testing.ac_proof import PROOF_ATTR, AcProof
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+_CONSUMER_ATTR = "__executed_proof_consumer__"
+
+ExecutedProofConsumer = Callable[[TraceRecord], TraceRecord]
 
 
 class ExecutedProofError(ValueError):
@@ -43,6 +46,18 @@ class _PytestReport(Protocol):
     when: str
     passed: bool
     user_properties: list[tuple[str, str]]
+
+
+def register_executed_proof_consumer(
+    item: _PytestItem,
+    consumer: ExecutedProofConsumer,
+) -> None:
+    """Register the sole post-call consumer for one pytest item."""
+    if not callable(consumer):
+        raise ExecutedProofError("executed-proof consumer must be callable")
+    if getattr(item, _CONSUMER_ATTR, None) is not None:
+        raise ExecutedProofError("an executed-proof consumer is already registered")
+    setattr(item, _CONSUMER_ATTR, consumer)
 
 
 def _digest(payload: Mapping[str, Any]) -> str:
@@ -217,6 +232,20 @@ def record_executed_proof(
         lambda name, value: item.user_properties.append((name, value)),
         record,
     )
+    consumer = getattr(item, _CONSUMER_ATTR, None)
+    if consumer is not None:
+        output = consumer(record)
+        if (
+            not isinstance(output, TraceRecord)
+            or output.record_type is not TraceRecordType.OBSERVATION
+        ):
+            raise ExecutedProofError(
+                "executed-proof consumer must return one TraceRecord OBSERVATION"
+            )
+        TraceJUnitAdapter.emit(
+            lambda name, value: item.user_properties.append((name, value)),
+            output,
+        )
     return record
 
 
