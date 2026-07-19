@@ -226,9 +226,11 @@ A scenario may register one post-proof consumer on its pytest item when another
 package must compose evidence only after that real call result exists. The
 consumer receives the exact canonical executed-proof `TraceRecord` and may
 return one canonical `OBSERVATION`, which is attached to the same JUnit
-testcase. It is never called for failure, skip, or xfail; duplicate registration,
-consumer failure, and non-observation output fail the test run. This is a
-lifecycle seam, not another proof or status entity.
+testcase. `@ac_proof(required_observation_kind=...)` makes that output mandatory
+and includes the requirement in the proof declaration digest. The consumer is
+never called for failure, skip, or xfail; missing or duplicate registration,
+consumer failure, non-observation output, and the wrong assertion kind fail the
+test run. This is a lifecycle seam, not another proof or status entity.
 Setup/teardown success, failure, skip/xfail, a static declaration, or a workflow
 conclusion cannot create or satisfy that record.
 

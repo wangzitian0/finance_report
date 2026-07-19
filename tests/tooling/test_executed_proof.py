@@ -62,6 +62,18 @@ def _scenario_proof() -> None:
     pass
 
 
+@ac_proof(
+    "terminal-required-proof",
+    ac_ids=["AC-testing.capability-proof.3"],
+    ci_tier="pr_ci",
+    scenario_id="trusted-year-v0",
+    oracle_kind="independent_decimal",
+    required_observation_kind="terminal_audit",
+)
+def _terminal_required_proof() -> None:
+    pass
+
+
 @dataclass
 class _Item:
     obj: Any = _scenario_proof
@@ -364,6 +376,38 @@ def test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_clo
             occurred_at=OCCURRED_AT,
         )
     assert len(failed_consumer_item.user_properties) == 1
+
+    required_item = _Item(obj=_terminal_required_proof)
+    with pytest.raises(ExecutedProofError, match="requires a 'terminal_audit'"):
+        record_executed_proof(
+            required_item,
+            _Report(),
+            environ=CI_ENV,
+            occurred_at=OCCURRED_AT,
+        )
+    assert required_item.user_properties == []
+
+    wrong_kind_item = _Item(obj=_terminal_required_proof)
+    register_executed_proof_consumer(wrong_kind_item, lambda proof: proof)
+    with pytest.raises(ExecutedProofError, match="wrong observation assertion kind"):
+        record_executed_proof(
+            wrong_kind_item,
+            _Report(),
+            environ=CI_ENV,
+            occurred_at=OCCURRED_AT,
+        )
+    assert len(wrong_kind_item.user_properties) == 1
+
+    required_item = _Item(obj=_terminal_required_proof)
+    register_executed_proof_consumer(required_item, _terminal_observation)
+    required_proof = record_executed_proof(
+        required_item,
+        _Report(),
+        environ=CI_ENV,
+        occurred_at=OCCURRED_AT,
+    )
+    assert required_proof is not None
+    assert len(required_item.user_properties) == 2
 
 
 @pytest.mark.parametrize(

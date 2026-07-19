@@ -78,18 +78,20 @@ def executed_proof_assertion_version(
     ac_ids: tuple[str, ...] | list[str],
     stage: str,
     task_category: str,
+    required_observation_kind: str = "",
 ) -> str:
     """Hash the declaration fields that define one semantic proof contract."""
-    return _digest(
-        {
-            "ac_ids": list(ac_ids),
-            "oracle_kind": oracle_kind,
-            "proof_id": proof_id,
-            "scenario_id": scenario_id,
-            "stage": stage,
-            "task_category": task_category,
-        }
-    )
+    declaration = {
+        "ac_ids": list(ac_ids),
+        "oracle_kind": oracle_kind,
+        "proof_id": proof_id,
+        "scenario_id": scenario_id,
+        "stage": stage,
+        "task_category": task_category,
+    }
+    if required_observation_kind:
+        declaration["required_observation_kind"] = required_observation_kind
+    return _digest(declaration)
 
 
 def _ci_coordinates(environ: Mapping[str, str]) -> tuple[str, str, str, str]:
@@ -158,6 +160,7 @@ def _build_executed_proof(
         ac_ids=proof.ac_ids,
         stage=proof.stage,
         task_category=proof.task_category,
+        required_observation_kind=proof.required_observation_kind,
     )
     evidence_digest = _digest(
         {
@@ -221,6 +224,11 @@ def record_executed_proof(
         raise ExecutedProofError("a scenario-bound proof requires oracle_kind")
     if proof.ci_tier != "pr_ci":
         return None
+    consumer = getattr(item, _CONSUMER_ATTR, None)
+    if proof.required_observation_kind and consumer is None:
+        raise ExecutedProofError(
+            f"scenario proof requires a {proof.required_observation_kind!r} observation consumer"
+        )
 
     record = _build_executed_proof(
         proof,
@@ -232,7 +240,6 @@ def record_executed_proof(
         lambda name, value: item.user_properties.append((name, value)),
         record,
     )
-    consumer = getattr(item, _CONSUMER_ATTR, None)
     if consumer is not None:
         output = consumer(record)
         if (
@@ -241,6 +248,13 @@ def record_executed_proof(
         ):
             raise ExecutedProofError(
                 "executed-proof consumer must return one TraceRecord OBSERVATION"
+            )
+        if (
+            proof.required_observation_kind
+            and output.assertion.kind != proof.required_observation_kind
+        ):
+            raise ExecutedProofError(
+                "executed-proof consumer returned the wrong observation assertion kind"
             )
         TraceJUnitAdapter.emit(
             lambda name, value: item.user_properties.append((name, value)),

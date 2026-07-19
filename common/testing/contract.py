@@ -4050,8 +4050,9 @@ CONTRACT = PackageContract(
             statement=(
                 "After and only after a scenario-bound pytest call passes, one registered "
                 "consumer receives that exact canonical executed-proof TraceRecord and may "
-                "append one canonical observation to the same JUnit testcase; duplicate "
-                "registration, consumer failure, and non-observation output fail closed."
+                "append one declaration-required canonical observation to the same JUnit "
+                "testcase; missing or duplicate registration, consumer failure, and a wrong "
+                "observation kind fail closed."
             ),
             test=(
                 "tests/tooling/test_executed_proof.py::"
