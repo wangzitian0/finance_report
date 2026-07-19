@@ -76,7 +76,6 @@ class ReportingSnapshotService:
 
             ttl = datetime.now() + timedelta(seconds=ttl_seconds)
             snapshot = ReportSnapshot(
-                id=snapshot_id,
                 user_id=user_id,
                 report_type=report_type,
                 as_of_date=as_of_date,
@@ -86,6 +85,11 @@ class ReportingSnapshotService:
                 is_latest=True,
                 ttl=ttl,
             )
+            # Package assembly pre-allocates its UUID so the frozen document can
+            # bind its immutable identity before persistence. Other snapshots
+            # must leave the field unset for UUIDMixin's default to generate it.
+            if snapshot_id is not None:
+                snapshot.id = snapshot_id
             db.add(snapshot)
             await db.flush()
             return snapshot
