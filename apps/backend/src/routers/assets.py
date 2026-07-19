@@ -11,10 +11,7 @@ from sqlalchemy import select
 from src.audit.money import Currency, Money, to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.extraction.orm.layer3 import (
-    ManagedPosition,
-    PositionStatus,
-)
+from src.extraction import ManagedPosition, PositionStatus
 from src.ledger import Account
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_internal_error, raise_not_found

@@ -128,10 +128,6 @@ export default function PersonalReportPackagePage() {
   }
 
   function openPackageSnapshot(snapshot: PersonalReportPackageSnapshotSummary) {
-    if (snapshot.status === "legacy_unproven") {
-      setSnapshotError("This legacy snapshot cannot be reopened as a trusted package document.");
-      return;
-    }
     setSnapshotError(null);
     setSelectedSnapshotId(snapshot.id);
     setSelectedFrameworkId(snapshot.framework_id);

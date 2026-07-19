@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field
 
-from src.extraction.orm.layer3 import PositionStatus
+from src.extraction import PositionStatus
 from src.pricing import (
     ManualValuationBasis,
     ManualValuationComponentType,

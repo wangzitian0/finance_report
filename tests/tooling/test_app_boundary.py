@@ -101,9 +101,10 @@ def test_AC_meta_dependency_governance_3_l4_deep_imports_are_exact(
     (src / "routers" / "imports.py").write_text(
         "import src.audit.money\n", encoding="utf-8"
     )
-    assert "routers/imports.py::import src.audit.money" in l4_deep_import_edges(
-        src, {"audit"}
-    )
+    assert l4_deep_import_edges(src, {"audit"}) == [
+        "routers/imports.py::import src.audit.money",
+        "routers/reports.py::from src.audit.money import Money",
+    ]
 
 
 def test_outbound_upward_layer_detected(tmp_path: Path) -> None:
