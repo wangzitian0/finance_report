@@ -2507,6 +2507,24 @@ CONTRACT = PackageContract(
             parent="package_model",
         ),
         ConceptRecord(
+            key="base_purity_baseline",
+            owner="common/meta/data/base-purity-baseline.json",
+            description=(
+                "Exact shrink-only inventory of legacy ORM, configuration, observability, "
+                "network, and session dependencies in package base layers; "
+                "check_base_purity rejects newly introduced or stale entries."
+            ),
+            cross_refs=[
+                "common/meta/extension/base_purity.py",
+                "common/meta/extension/check_base_purity.py",
+                "tools/check_base_purity.py",
+            ],
+            family="package_model",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
+        ConceptRecord(
             key="l4_root_import_baseline",
             owner="common/meta/data/l4-root-import-baseline.json",
             description=(
