@@ -820,6 +820,34 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.governance-baseline.1",
+            statement=(
+                "The draft-package baseline equals the discovered set of "
+                "status='draft' package contracts in both directions, so a stale "
+                "registration or an unregistered draft fails CI."
+            ),
+            test=(
+                "tests/tooling/test_s4_gate_contracts.py"
+                "::test_AC_meta_governance_baseline_1_draft_baseline_is_bidirectionally_exact"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-baseline.2",
+            statement=(
+                "Every temporary SSOT governance exception has one unique target, "
+                "an issue URL, a reason, and an explicit removal condition; malformed "
+                "or duplicate exception debt fails CI."
+            ),
+            test=(
+                "tests/tooling/test_governance_exceptions_registry.py"
+                "::test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── migrated from EPIC-014, wave 2 (#1663): GitHub issue template
         # contract. Was AC14.1.11. ──
         ACRecord(

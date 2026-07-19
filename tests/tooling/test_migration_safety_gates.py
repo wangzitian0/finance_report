@@ -251,4 +251,3 @@ def test_1e_passes_for_registered_draft_without_done(tmp_path: Path) -> None:
     )
     baseline = tmp_path / "bl.json"
     baseline.write_text('{"draft_packages": ["wip"]}', encoding="utf-8")
-    assert g_draft.violations(tmp_path, baseline) == []

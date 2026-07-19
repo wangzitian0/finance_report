@@ -154,6 +154,13 @@ about a package is *derived from its contract*:
   `concepts`. Its incremental quality gate projects that same union from both
   HEAD and an isolated base-ref checkout, treats `common/*/contract.py` as a
   registry input, and fails closed when either projection cannot be loaded.
+- Package-draft registration is an exact baseline: `check_draft_packages`
+  rejects both an unregistered `status="draft"` contract and a baseline entry
+  with no matching draft contract. Rewrite the baseline only when the package
+  status change is intentional. Temporary incremental-governance exceptions in
+  [`data/governance-exceptions.yaml`](./data/governance-exceptions.yaml) are
+  likewise fail-closed and unique by target; each must link its issue, explain
+  the debt, and state the condition that removes it.
 - The vision proof matrix sources direct package backing from each roadmap AC's
   optional `vision_anchor` via the pure `ac_vision_index` projection. EPIC docs
   still declare which historical goal owns an anchor; no central AC-to-vision

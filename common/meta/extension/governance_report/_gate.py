@@ -151,28 +151,55 @@ def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> se
 
     _require_yaml()
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except Exception as exc:  # pragma: no cover - exact parser errors vary
         display_path = _display_path(path, repo_root)
         raise RuntimeError(
             f"Invalid SSOT governance exceptions YAML in {display_path}: {exc}"
         ) from exc
+    display_path = _display_path(path, repo_root)
     if not isinstance(data, Mapping):
-        return set()
-    raw_exceptions = data.get("exceptions", [])
+        raise RuntimeError(
+            f"Invalid SSOT governance exceptions YAML in {display_path}: "
+            "root must be a mapping"
+        )
+    raw_exceptions = data.get("exceptions")
     if not isinstance(raw_exceptions, list):
-        return set()
+        raise RuntimeError(
+            f"Invalid SSOT governance exceptions YAML in {display_path}: "
+            "exceptions must be a list"
+        )
 
     targets: set[str] = set()
-    for item in raw_exceptions:
+    required_fields = ("target", "issue", "reason", "remove_when")
+    for index, item in enumerate(raw_exceptions):
         if not isinstance(item, Mapping):
-            continue
-        target = item.get("target")
-        issue = item.get("issue")
-        if not isinstance(target, str) or not isinstance(issue, str):
-            continue
+            raise RuntimeError(
+                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"entry {index} must be a mapping"
+            )
+        missing = [
+            field
+            for field in required_fields
+            if not isinstance(item.get(field), str) or not item[field].strip()
+        ]
+        if missing:
+            raise RuntimeError(
+                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"entry {index} missing required field(s): {', '.join(missing)}"
+            )
+        target = item["target"]
+        issue = item["issue"]
         if "/issues/" not in issue:
-            continue
+            raise RuntimeError(
+                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"entry {index} issue must link a GitHub issue"
+            )
+        if target in targets:
+            raise RuntimeError(
+                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"duplicate exception target {target!r}"
+            )
         targets.add(target)
     return targets
 

@@ -111,6 +111,11 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
                 f"{baseline_path.name}: add it (deliberate, reviewed) or run "
                 "--rewrite-baseline."
             )
+    for name in sorted(baseline - set(drafts)):
+        errors.append(
+            f"stale draft registration {name!r} remains in {baseline_path.name}: "
+            "remove it or run --rewrite-baseline."
+        )
     return errors
 
 

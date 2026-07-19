@@ -10,8 +10,8 @@ proof chain deliberately does not gate as normal AC proof:
                               authoritative value lives in code or config.
 
 Each classified entry must declare ``id``, ``owner``, ``reason``, and a tracking
-``issue`` URL. The legacy ``exceptions`` list (SSOT governance gate exceptions)
-is left untouched so ``common/meta/extension/governance_report`` keeps reading it.
+``issue`` URL. Temporary SSOT governance-gate exceptions also declare one target
+and an explicit removal condition, so the report cannot silently carry stale debt.
 
 Exit code 0 on success, 1 on any violation.
 
@@ -35,6 +35,7 @@ DEFAULT_REGISTRY = REPO_ROOT / "common" / "meta" / "data" / "governance-exceptio
 
 CLASSIFIED_SECTIONS = ("proof_exceptions", "code_owned_surfaces")
 REQUIRED_FIELDS = ("id", "owner", "reason", "issue")
+TEMPORARY_EXCEPTION_FIELDS = ("target", "issue", "reason", "remove_when")
 
 
 def validate_registry(path: Path) -> list[str]:
@@ -49,6 +50,33 @@ def validate_registry(path: Path) -> list[str]:
 
     if not isinstance(data, dict):
         return [f"{path}: registry root must be a mapping"]
+
+    temporary_exceptions = data.get("exceptions")
+    if not isinstance(temporary_exceptions, list):
+        violations.append("exceptions: missing or must be a list")
+    else:
+        seen_targets: set[str] = set()
+        for index, entry in enumerate(temporary_exceptions):
+            label = f"exceptions[{index}]"
+            if not isinstance(entry, dict):
+                violations.append(f"{label}: entry must be a mapping")
+                continue
+            for field in TEMPORARY_EXCEPTION_FIELDS:
+                value = entry.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    violations.append(f"{label}: missing or empty '{field}'")
+            issue = entry.get("issue")
+            if isinstance(issue, str) and "/issues/" not in issue:
+                violations.append(
+                    f"{label}: 'issue' must link a GitHub issue (got {issue!r})"
+                )
+            target = entry.get("target")
+            if isinstance(target, str) and target.strip():
+                if target in seen_targets:
+                    violations.append(
+                        f"{label}: duplicate temporary exception target {target!r}"
+                    )
+                seen_targets.add(target)
 
     seen_ids: set[str] = set()
     for section in CLASSIFIED_SECTIONS:
