@@ -28,7 +28,7 @@ from src.audit.base.trace import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.audit.base.trace_repository import TraceRecordRepository
+from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 from src.audit.data import TraceConfidenceProjection
 from src.audit.extension import (
     JsonlTraceRecordStore,
@@ -118,6 +118,7 @@ __all__ = [
     "TraceDecisionOutcome",
     "TraceDecisionPolicy",
     "TraceDecisionPolicyRegistry",
+    "TraceDecisionHead",
     "TraceRecord",
     "TraceRecordCodec",
     "TraceRecordPersistenceError",

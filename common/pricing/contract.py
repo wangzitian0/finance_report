@@ -1028,7 +1028,9 @@ CONTRACT = PackageContract(
             statement=(
                 "An absent, stale, rejected, superseded, cross-tenant, or "
                 "target-mismatched valuation decision returns an explicit unproven "
-                "contribution; source, basis, rank, or freshness never grants trust."
+                "contribution; a stale physical authority head is not mistaken for a "
+                "never-authorized lineage or appended as a fork, and source, basis, "
+                "rank, or freshness never grants trust."
             ),
             test=(
                 "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"

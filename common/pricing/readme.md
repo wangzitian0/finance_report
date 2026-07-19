@@ -113,6 +113,13 @@ may display the value as a draft input but cannot call the resulting document
 trusted. A frozen package stores the returned IDs/digests and never re-runs
 this resolution when it is reopened or exported.
 
+Pricing distinguishes a lineage with no decision from one whose physical
+decision head has stale ancestry through audit's `TraceDecisionHead`. A first
+market selection may create authority only for the former; the latter returns
+`stale_observation_decision` without attempting an authority fork. An explicit
+new manual fact may supersede that exact physical head, preserving one linear
+decision lineage.
+
 For market-priced holdings, the investment schedule publishes the exact
 `MarketValuationSelection` identity it rendered. Reporting passes that typed
 selection back to pricing; pricing re-resolves under its policy and accepts it

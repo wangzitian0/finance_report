@@ -18,6 +18,7 @@ from src.audit.base.trace import (
     VersionedTraceRef,
     current_heads,
 )
+from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 
 __all__ = [
     "TRACE_SCHEMA_VERSION",
@@ -26,8 +27,10 @@ __all__ = [
     "TraceDecisionOutcome",
     "TraceDecisionPolicy",
     "TraceDecisionPolicyRegistry",
+    "TraceDecisionHead",
     "TraceLineage",
     "TraceRecord",
+    "TraceRecordRepository",
     "TraceRecordType",
     "TraceRecordValidationError",
     "TraceResult",

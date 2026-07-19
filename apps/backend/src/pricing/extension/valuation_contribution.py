@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
+    SqlTraceRecordRepository,
     TraceAuthorityProfile,
     TraceCausality,
     TraceDecisionOutcome,
@@ -31,7 +32,6 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.pricing.base.contribution import (
     MarketValuationSelection,
     ResolvedValuationContribution,
@@ -251,15 +251,16 @@ async def emit_manual_valuation_decision(
     policy = ManualValuationAttestationPolicy()
     repository = SqlTraceRecordRepository(db, pricing_trace_policy_registry())
     scope = TraceScope.tenant(user_id)
-    current = await repository.current_decision(scope, TraceLineage.from_refs(target, policy.assertion))
+    head = await repository.decision_head(scope, TraceLineage.from_refs(target, policy.assertion))
+    current = head.record if head is not None and head.ancestry_current else None
     if current is not None and current.target.version == target.version and current.result is TraceResult.AUTHORITATIVE:
         return current.record_id
 
     previous_decision_id = None
-    if current is not None:
-        if len(current.parent_ids) != 1:
+    if head is not None:
+        if len(head.record.parent_ids) != 1:
             raise ValueError("manual valuation decision must have exactly one input observation")
-        previous_decision_id = current.record_id
+        previous_decision_id = head.record.record_id
 
     occurred_at = datetime.now(UTC)
     execution_id = f"pricing-valuation:{target.id}:{target.version}"
@@ -312,7 +313,19 @@ async def _resolved_market_contribution(
     decision_policy = ResolvedMarketValuationPolicy()
     scope = TraceScope.tenant(user_id)
     repository = SqlTraceRecordRepository(db, pricing_trace_policy_registry())
-    current = await repository.current_decision(scope, TraceLineage.from_refs(target, decision_policy.assertion))
+    head = await repository.decision_head(
+        scope,
+        TraceLineage.from_refs(target, decision_policy.assertion),
+    )
+    if head is not None and not head.ancestry_current:
+        return _unproven(
+            subject=subject,
+            as_of=requested_as_of,
+            policy=policy,
+            reason_code="stale_observation_decision",
+            observation=observation,
+        )
+    current = head.record if head is not None else None
     if current is not None and current.target == target and current.result is TraceResult.AUTHORITATIVE:
         decision = current
     else:

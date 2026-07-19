@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -10,6 +10,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from src.audit import (
+    SqlTraceRecordRepository,
+    TraceRecord,
+    TraceRecordType,
+    TraceResult,
+    TraceScope,
+    VersionedTraceRef,
+)
 from src.audit.orm.trace_record import TraceRecordRow
 from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.pricing import (
@@ -18,6 +26,7 @@ from src.pricing import (
     ResolutionPolicy,
     StockPrice,
     build_manual_valuation_lines,
+    pricing_trace_policy_registry,
     record_manual_valuation,
     resolve_manual_valuation_contributions,
     resolve_selected_market_valuation_contribution,
@@ -27,6 +36,39 @@ from src.reporting.extension.package_document import PackageAssembler
 from src.schemas.portfolio import InvestmentPerformanceMarketValuationSelection
 
 pytestmark = pytest.mark.asyncio
+
+
+async def _supersede_decision_parent(db, *, user_id, decision_id) -> None:
+    repository = SqlTraceRecordRepository(db, pricing_trace_policy_registry())
+    scope = TraceScope.tenant(user_id)
+    decision = await repository.get(scope, decision_id)
+    assert decision is not None
+    assert len(decision.parent_ids) == 1
+    selected_observation = await repository.get(scope, decision.parent_ids[0])
+    assert selected_observation is not None
+    correction = TraceRecord.observation(
+        scope=scope,
+        target=VersionedTraceRef(
+            selected_observation.target.kind,
+            selected_observation.target.id,
+            f"{selected_observation.target.version}:corrected",
+        ),
+        target_class=selected_observation.target_class,
+        assertion=VersionedTraceRef(
+            selected_observation.assertion.kind,
+            selected_observation.assertion.id,
+            f"{selected_observation.assertion.version}:corrected",
+        ),
+        authority=selected_observation.authority,
+        result=TraceResult.PASS,
+        execution_id=f"{selected_observation.execution_id}:corrected",
+        evidence_manifest_digest="d" * 64,
+        occurred_at=selected_observation.occurred_at + timedelta(microseconds=1),
+        score=selected_observation.score,
+        reason_code="pricing_selection_corrected",
+        supersedes_id=selected_observation.record_id,
+    )
+    await repository.append(correction)
 
 
 async def test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision(db, test_user):
@@ -52,6 +94,12 @@ async def test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supers
     assert first_contribution.is_authoritative
     assert first_contribution.observation_id == first.id
     assert first_contribution.decision_id is not None
+
+    await _supersede_decision_parent(
+        db,
+        user_id=test_user.id,
+        decision_id=first_contribution.decision_id,
+    )
 
     second = await record_manual_valuation(
         db,
@@ -167,6 +215,54 @@ async def test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_
     )
     assert not cross_tenant.is_authoritative
     assert cross_tenant.reason_code == "no_eligible_observation"
+
+    market_row = StockPrice(
+        symbol="STALEHEAD",
+        price=Decimal("125.05"),
+        currency="SGD",
+        price_date=date(2026, 6, 15),
+        source="recorded-provider",
+    )
+    db.add(market_row)
+    await db.flush()
+    market = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=PriceableSubject.security("STALEHEAD"),
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=0),
+    )
+    assert market.is_authoritative
+    assert market.decision_id is not None
+
+    await _supersede_decision_parent(
+        db,
+        user_id=test_user.id,
+        decision_id=market.decision_id,
+    )
+
+    stale = await resolve_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        subject=PriceableSubject.security("STALEHEAD"),
+        as_of=date(2026, 6, 15),
+        policy=ResolutionPolicy(max_age_days=0),
+    )
+    decisions = tuple(
+        (
+            await db.execute(
+                select(TraceRecordRow.id)
+                .where(TraceRecordRow.scope_id == str(test_user.id))
+                .where(TraceRecordRow.record_type == TraceRecordType.DECISION)
+            )
+        ).scalars()
+    )
+
+    assert not stale.is_authoritative
+    assert stale.observation_id == market.observation_id
+    assert stale.decision_id is None
+    assert stale.reason_code == "stale_observation_decision"
+    assert decisions == (market.decision_id,)
 
 
 async def test_AC_pricing_valuation_contribution_4_rollback_is_atomic(db, test_user):

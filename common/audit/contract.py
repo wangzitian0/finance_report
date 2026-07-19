@@ -183,6 +183,11 @@ CONTRACT = PackageContract(
             impl="extension/trace_repository.py",
         ),
         Unit(
+            name="TraceDecisionHead",
+            kind=Kind.VALUE_OBJECT,
+            module="base/trace_repository.py",
+        ),
+        Unit(
             name="TraceConfidenceProjection",
             kind=Kind.PROJECTION,
             module="data/trace_confidence.py",
@@ -235,6 +240,7 @@ CONTRACT = PackageContract(
         "TraceDecisionOutcome",
         "TraceDecisionPolicy",
         "TraceDecisionPolicyRegistry",
+        "TraceDecisionHead",
         "TraceRecordType",
         "TraceResult",
         "VersionedTraceRef",
@@ -1567,6 +1573,22 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/audit/trace/test_trace_decision_projection.py"
                 "::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-audit.trace-record.7",
+            statement=(
+                "The TraceRecord repository exposes a typed physical decision head that "
+                "distinguishes an absent lineage from a head whose complete ancestry is "
+                "current or stale; current_decision remains the fail-closed authoritative "
+                "view, while a writer can supersede the exact stale head without guessing "
+                "from a missing result or importing audit persistence internals."
+            ),
+            test=(
+                "apps/backend/tests/audit/trace/test_trace_repository.py"
+                "::test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states"
             ),
             priority="P0",
             status="done",

@@ -19,7 +19,7 @@ from src.audit.base.trace import (
     TraceScope,
     VersionedTraceRef,
 )
-from src.audit.base.trace_repository import TraceRecordRepository
+from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 from src.audit.orm.trace_record import TraceRecordParentRow, TraceRecordRow
 from src.audit.ratio import Ratio
 
@@ -101,14 +101,39 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         lineage: TraceLineage,
     ) -> TraceRecord | None:
         try:
-            row = await self._decision_head_row(scope, lineage)
-            if row is None or not await self._has_current_ancestry(scope, row.id, frozenset()):
+            head = await self._read_decision_head(scope, lineage)
+            if head is None or not head.ancestry_current:
                 return None
-            return await self._restore(row, frozenset({row.id}))
+            return head.record
         except TraceRecordPersistenceError:
             raise
         except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
             raise TraceRecordPersistenceError(f"TraceRecord current read failed: {exc}") from exc
+
+    async def decision_head(
+        self,
+        scope: TraceScope,
+        lineage: TraceLineage,
+    ) -> TraceDecisionHead | None:
+        try:
+            return await self._read_decision_head(scope, lineage)
+        except TraceRecordPersistenceError:
+            raise
+        except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
+            raise TraceRecordPersistenceError(f"TraceRecord decision-head read failed: {exc}") from exc
+
+    async def _read_decision_head(
+        self,
+        scope: TraceScope,
+        lineage: TraceLineage,
+    ) -> TraceDecisionHead | None:
+        row = await self._decision_head_row(scope, lineage)
+        if row is None:
+            return None
+        return TraceDecisionHead(
+            record=await self._restore(row, frozenset({row.id})),
+            ancestry_current=await self._has_current_ancestry(scope, row.id, frozenset()),
+        )
 
     async def _decision_head_row(
         self,
