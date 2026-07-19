@@ -2519,7 +2519,7 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_base_purity.py",
                 "tools/check_base_purity.py",
             ],
-            family="package_model",
+            family="platform",
             kind="baseline",
             authority="machine_generated",
             parent="package_model",
