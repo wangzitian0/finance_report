@@ -10,7 +10,7 @@
 
 ## Why
 
-## Bounded-context decision
+### Bounded-context decision
 
 `portfolio` owns investment position accounting: lots, cost basis, quantities,
 and performance. It consumes extraction position projections, ledger posting
