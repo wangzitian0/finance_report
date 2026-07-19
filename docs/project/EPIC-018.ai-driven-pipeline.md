@@ -409,9 +409,8 @@ ledger facts that back reports (tier derived from journal `source_type` via
 and surfaced read-only via the API. Recording cadence (on report-package
 generation / scheduled) and the per-report-number confidence of #913 are separate.
 
-> This group's rows removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.north-star.1-4` (migration closeout continuation, #1663 /
-> #1716).
+> This source-type confidence metric group was removed by the reporting package
+> authority cutover (#567). TraceRecord cohort projections remain audit-owned.
 
 ### AC18.13: Promotion Gate — Confidence Is Load-Bearing
 

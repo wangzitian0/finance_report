@@ -1,7 +1,7 @@
 """Pure reporting calculation primitives (EPIC-025 AC25.1.1 / #1158).
 
-DB-free money, currency, accounting-sign, provenance, confidence-tier, and
-period math extracted verbatim from ``reporting.py`` so calculation has a single
+DB-free money, currency, accounting-sign, provenance, and period math extracted
+verbatim from ``reporting.py`` so calculation has a single
 owner separate from query orchestration and API shaping. ``reporting`` imports
 what it needs from here; callers that only need the pure helpers (routers/income,
 annualized_income, tests) import them directly from this module. The extracted
@@ -38,9 +38,6 @@ MAX_TREND_POINTS = 366
 MAX_NET_WORTH_DAILY_POINTS = 366
 
 
-# Confidence tiers ranked by trust (vision Axiom B). The worst-input rule rolls a
-# line/aggregate down to its least-trusted contributor — a defined rollup, never
-# an invented number.
 class ReportError(Exception):
     """Raised when report generation fails or input is invalid."""
 

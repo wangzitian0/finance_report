@@ -15,7 +15,6 @@ from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _REPORT_STATUSES,
-    _aggregate_account_confidence_tiers,
     _build_account_lines,
     _line_total,
     _load_accounts,
@@ -220,29 +219,16 @@ async def generate_income_statement(
         account_id: _combine_provenance(provenance_values)
         for account_id, provenance_values in provenance_inputs_by_account.items()
     }
-    # Per-line confidence tiers (#1483/#1545): derived from the contributing
-    # entries' source_type over the reporting window, same as the balance sheet.
-    # Income-statement lines previously always carried confidence_tier=None
-    # because the tier aggregation was never wired here.
-    tiers = await _aggregate_account_confidence_tiers(
-        db,
-        user_id,
-        (AccountType.INCOME, AccountType.EXPENSE),
-        end_date,
-        start_date=start_date,
-    )
     income_lines = _build_account_lines(
         accounts,
         balances,
         AccountType.INCOME,
-        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
     expense_lines = _build_account_lines(
         accounts,
         balances,
         AccountType.EXPENSE,
-        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
 
@@ -260,7 +246,6 @@ async def generate_income_statement(
                 "type": AccountType.EXPENSE,
                 "parent_id": None,
                 "amount": _quantize_money(converted_fee),
-                "confidence_tier": None,
                 "provenance": None,
                 "source_currency": target_currency,
                 "allocation_asset_class": None,

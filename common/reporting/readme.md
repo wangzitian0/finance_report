@@ -16,10 +16,9 @@
 >   `income_statement.py`, `cash_flow.py`, `net_worth.py`, `lineage.py`,
 >   `internal_transfer.py`, `portfolio_market.py`), framework assembly
 >   (`framework_policy.py`, `framework_report.py`), the package lane
->   (`report_readiness.py`, `report_traceability.py`, `report_package.py`,
+>   (`package_document.py`, `report_traceability.py`, `report_package.py`,
 >   `reporting_snapshot.py`), the calculation primitives
->   (`reporting_calc.py`), confidence (`confidence_tier.py`,
->   `confidence_metric.py`), and the injected FX seam (`fx_gateway.py`).
+>   (`reporting_calc.py`), and the injected FX seam (`fx_gateway.py`).
 > - `data/` — reserved for the declared projections (no module yet).
 >
 > Reporting keeps zero FX logic and zero manual-valuation logic of its own —
@@ -45,7 +44,7 @@ is reconciled; it consumes those facts.
 ## Scope correction (2026-07-06)
 
 `manual_valuation.py` belongs to the `pricing` cutover (#1610), not here:
-reporting keeps confidence-tier mapping and report assembly; `pricing` owns
+reporting assembles reports from ledger-owned trust facts; `pricing` owns
 valuation-observation staleness facts. This contract's
 `manual-valuation-excluded-from-reporting-language` invariant pins that
 boundary so it cannot silently drift back.
@@ -55,7 +54,7 @@ lines and the ledger-owned `worst_confidence_tier`; it defines neither helper.
 ## Ubiquitous language
 
 - **`ReportSnapshot`** — the aggregate root: a generated, framework-anchored
-  report as of a period, holding its own provenance/confidence-tier lineage.
+  report as of a period, holding its own provenance/traceability lineage.
 - **`generate_balance_sheet` / `generate_income_statement` / `generate_cash_flow`**
   — the three statement generators, each composing the shared aggregation
   core (`_aggregate_balances_sql`/`_aggregate_net_income_sql`).
@@ -439,43 +438,32 @@ only, never implying regulated filing compliance.
 | `restricted-asset-treatment` | EPIC-011 | `manual_valuation_snapshots` |
 
 **Traceability appendix** — `GET /api/reports/package/traceability`
-(status `ready`) extends the existing source-ledger-report traceability
-proof path without duplicating report calculations or changing ledger
-totals. Each line maps one section/line to source and ledger anchors:
-`line_id`, `section_id`, `label`, optional `amount_field`/`currency_field`,
+(status `ready`) is a pure projection of the exact
+`PackageSectionContribution` collection used to build the document manifest.
+Each line maps one section/line to source and ledger anchors: `line_id`,
+`section_id`, `label`, optional `amount_field`/`currency_field`,
 `source_state`, `source_anchor` (`state` ∈ `{available, unavailable,
-not_applicable}` + source types/identifiers), `ledger_anchor` (same shape),
-`review_state`, `confidence_tier`. Missing anchors are not an acceptable
-representation for trusted totals. With a current user and period params,
-the appendix adds privacy-safe `identifiers` (statement transactions,
-journal entries/lines, brokerage atomic positions/document IDs, market
-price overrides, dividend income records, manual valuation snapshots) —
-the static taxonomy without identifiers is returned only when no
-request-scoped DB context is available. Trusted package totals must expose
-source and ledger anchors unless the line is an explicit manual input (e.g.
-restricted compensation fair value). Anchors also expose typed `details`
-rows (anchor kind, source id/type, amount contribution, currency, review
-state, confidence tier, contribution basis); `JournalEntry.source_id` is
-never assumed to be a statement transaction — it must resolve to a
-user-owned typed record before it can support a trusted anchor. Unknown
-journal source ids surface as the `unknown_source_anchor` blocker (may
-appear as `unknown_source:<uuid>` for debugging, never as
-`statement_transaction:<uuid>`). Non-ledger disclosures (e.g. the
-non-compliance statement) use `ledger_anchor.state=not_applicable`. The
-representative package proof fixture pins Decimal expected outputs for
-bank cash, brokerage market value, dividend income, market-price
-freshness, manual property/liability values, restricted holdings, notes,
-and traceability identifiers; package E2E assertions consume those from the
-shared fixture contract rather than recalculating constants inline.
+not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
+carry the contribution input reference, amount/currency when present,
+current decision id, review state, and reason code.
+
+Reporting never follows a foreign ORM relation or guesses a source class from
+`JournalEntry.source_id`. Extraction publishes current immutable statement
+results, ledger publishes decision-anchored journal lines, and pricing
+publishes resolved valuation observations including component, liquidity, and
+valuation-basis metadata. An unproven contribution stays visible and blocks
+the package through the manifest fold. A populated investment schedule without
+an authoritative investment contribution is also blocked rather than silently
+packaged. Non-ledger disclosures (for example, the non-compliance statement)
+use `ledger_anchor.state=not_applicable`.
 
 Completeness warning taxonomy: `missing_source_anchor` (trusted totals
-aren't auditable until a source anchor or explicit manual input exists),
-`manual_only_source` (manual rows need visible snapshot identifiers +
+aren't auditable until a source contribution or explicit manual input exists),
+`manual_only_source` (manual rows need visible valuation observation +
 basis), `stale_market_data` (investment values need freshness disclosure or
 refreshed provider data), `duplicate_source_coverage` (must be excluded or
-reviewed before trust), `overlapping_statement_period` (needs review before
-period totals are trusted), `unknown_source_anchor` (journal source IDs
-must resolve to typed records first).
+reviewed before trust), and `overlapping_statement_period` (needs review
+before period totals are trusted).
 
 **Export contract** — formats `json`/`csv`; CSV columns `package_id`,
 `section_id`, `line_id`, `label`, `amount`, `currency`, `source_state`,

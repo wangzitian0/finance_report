@@ -20,12 +20,10 @@ from uuid import uuid4
 
 from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy import select
 
 from src.extraction.orm.layer3 import ClassificationRule, RuleType
 from src.identity import User
 from src.ledger import Account, AccountType
-from src.observability import ConfidenceMetricSnapshot
 from src.reporting import ReportSnapshot, ReportType
 
 
@@ -434,16 +432,8 @@ class TestReportsEndpoints:
         assert body["id"]
         assert body["currency"] == "SGD"
         assert body["status"]
-        payload = body["payload"]
-        assert isinstance(payload, dict)
-        section_payloads = payload["section_payloads"]
+        document = body["document"]
+        assert document["lifecycle"] == "frozen"
+        section_payloads = document["sections"]
         for section in ("balance_sheet", "income_statement", "cash_flow"):
             assert section in section_payloads
-
-        # AC18.12.4: generating a report package records exactly one North-Star snapshot.
-        metric_rows = (
-            (await db.execute(select(ConfidenceMetricSnapshot).where(ConfidenceMetricSnapshot.user_id == test_user.id)))
-            .scalars()
-            .all()
-        )
-        assert len(metric_rows) == 1

@@ -203,20 +203,18 @@ def wire_advisor_app_reads():
     The composition root (src/main.py) wires these at import time, but a test
     that registers a fake would otherwise leak it into the next test — this
     fixture restores the real providers before every test, mirroring what
-    main.py does at startup.  Only the fx-pair composer and windowed fx
-    conversion remain ports — #1666 folded the reporting summary trio,
+    main.py does at startup. Only the fx-pair composer remains a port; reporting
+    owns the annualized-income schedule and uses its existing FX gateway.
+    #1666 folded the reporting summary trio,
     report readiness, and the income bucket classifier into the published
     ``src.reporting`` root, so ``advisor`` imports those directly (no port
-    needed); #1610 P2 retired ``services/fx.py`` and
-    ``services/market_data_scheduler.py``, so both ports now repoint to
-    ``src.pricing``/``src.composition``.
+    needed); #1610 P2 retired ``services/market_data_scheduler.py``, so the
+    remaining port now points to ``src.composition``.
     """
-    from src.advisor import register_fx_conversion, register_fx_pairs_read
+    from src.advisor import register_fx_pairs_read
     from src.composition import observed_fx_pairs
-    from src.pricing import PricingError, convert_amount
 
     register_fx_pairs_read(observed_fx_pairs)
-    register_fx_conversion(convert_amount=convert_amount, error_type=PricingError)
 
 
 # --- Helper to ensure 127.0.0.1 consistency ---

@@ -210,12 +210,6 @@ export function PackageFrameworkSelection({
                 <dd className="mt-1 font-mono text-xs">{selectedFrameworkId}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted">Policy Endpoint</dt>
-                <dd className="mt-1 font-mono text-xs">
-                  {contract.framework_policy_endpoint}
-                </dd>
-              </div>
-              <div>
                 <dt className="text-xs text-muted">Supported Frameworks</dt>
                 <dd className="mt-1 font-mono text-xs">
                   {contract.supported_frameworks.join(", ")}

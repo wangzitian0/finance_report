@@ -916,16 +916,14 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-pricing.manualvaluation.8",
             statement=(
-                "A current manual valuation with no structured "
-                "valuation_basis (and no legacy notes) surfaces a "
-                "missing_valuation_basis readiness blocker, replacing the "
-                "free-text-notes proxy, so an unsubstantiated value cannot "
-                "silently feed trusted totals (#706)."
+                "A manual valuation correction with a structured valuation_basis appends a "
+                "new immutable head and supersedes the unsubstantiated version; reporting "
+                "carries the basis as provenance but never infers authority from it (#706)."
             ),
             # was AC11.9.5
             test=(
                 "apps/backend/tests/assets/test_manual_valuation_basis.py"
-                "::test_AC11_9_5_missing_basis_raises_then_clears_readiness_blocker"
+                "::test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head"
             ),
             priority="P1",
             status="done",
@@ -1045,8 +1043,9 @@ CONTRACT = PackageContract(
             statement=(
                 "Pricing resolves every current manual valuation lineage into the same "
                 "ResolvedValuationContribution shape, preserving multiple sources for one "
-                "component type independently; package-facing line builders expose no "
-                "source-derived confidence or trusted field."
+                "component type independently and carrying component, liquidity, and valuation-basis "
+                "metadata for display; package-facing line builders expose no source-derived confidence "
+                "or trusted field."
             ),
             test=(
                 "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"

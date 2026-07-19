@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
+import { renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
 import { apiDownload, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
@@ -46,49 +47,42 @@ const contract = {
       section_id: "balance_sheet",
       label: "Balance Sheet",
       owner_epic: "EPIC-005",
-      source_endpoint: "/api/reports/balance-sheet",
       status: "ready",
     },
     {
       section_id: "income_statement",
       label: "Income Statement",
       owner_epic: "EPIC-005",
-      source_endpoint: "/api/reports/income-statement",
       status: "ready",
     },
     {
       section_id: "cash_flow",
       label: "Cash Flow",
       owner_epic: "EPIC-005",
-      source_endpoint: "/api/reports/cash-flow",
       status: "ready",
     },
     {
       section_id: "investment_performance",
       label: "Investment Performance",
       owner_epic: "EPIC-017",
-      source_endpoint: "/api/portfolio/performance/report-schedule",
       status: "ready",
     },
     {
       section_id: "annualized_income_long_term",
       label: "Annualized Income & Long-Term Compensation",
       owner_epic: "EPIC-011",
-      source_endpoint: "/api/reports/package/annualized-income-schedule",
       status: "ready",
     },
     {
       section_id: "notes",
       label: "Notes & Disclosures",
       owner_epic: "EPIC-005",
-      source_endpoint: "/api/reports/package/notes",
       status: "ready",
     },
     {
       section_id: "traceability_appendix",
       label: "Traceability Appendix",
       owner_epic: "EPIC-018",
-      source_endpoint: "/api/reports/package/traceability",
       status: "ready",
     },
   ],
@@ -161,6 +155,11 @@ const readiness = {
   label: "Blocked",
   action_href: "/review",
   blocking_count: 2,
+  input_coverage: {
+    manifest_decision_count: 1,
+    authoritative_input_count: 4,
+    unproven_input_count: 2,
+  },
   blockers: [
     {
       code: "pending_review",
@@ -181,26 +180,6 @@ const readiness = {
       action_href: "/review",
     },
   ],
-  source_summary: {
-    statements: 3,
-    active_accounts: 2,
-    posted_journal_entries: 4,
-    positions: 1,
-    manual_valuations: 1,
-    dividends: 1,
-    market_prices: 1,
-    selected_framework_id: "personal_us_gaap_like",
-    framework_policy_decisions: 2,
-    framework_policy_gaps: 1,
-  },
-  source_trust_summary: {
-    source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
-    deterministic_pr_source_classes: ["bank_statement", "brokerage_statement", "property_statement", "liability_statement", "esop_rsu_plan", "csv_export", "manual_record"],
-    post_merge_llm_ocr_source_classes: ["bank_statement", "brokerage_statement"],
-    manual_trusted_source_classes: ["property_statement", "liability_statement", "esop_rsu_plan", "manual_record"],
-    gap_source_classes: ["manual_record"],
-    blocker_codes: ["missing_source_coverage", "pending_review"],
-  },
   generated_at: null,
   stale_since: null,
 };
@@ -252,7 +231,6 @@ const frameworkPolicy = {
         },
       ],
       provenance: "deterministic_matrix",
-      confidence_tier: "TRUSTED",
       review_state: "accepted",
       policy_field_name: "framework_policy_decision",
       accepted_value: "listed_security",
@@ -344,10 +322,6 @@ const traceabilityAppendix = {
           `journal_line:${journalLineId}`,
         ],
       },
-      review_state: "trusted_or_explicit_manual_input",
-      confidence_tier: "TRUSTED",
-      source_classes: ["bank_statement", "manual_record"],
-      proof_level: "hybrid",
       anchor_count: 4,
       blocker_codes: [],
     },
@@ -370,9 +344,6 @@ const traceabilityAppendix = {
         identifier_fields: [],
         identifiers: [],
       },
-      review_state: "not_applicable",
-      confidence_tier: "UNAVAILABLE",
-      source_classes: [],
       blocker_codes: ["static_contract_note"],
     },
   ],
@@ -386,6 +357,141 @@ const traceabilityAppendix = {
   ],
 };
 
+const balanceSheet = {
+  as_of_date: "2026-05-20",
+  currency: "SGD",
+  assets: [],
+  liabilities: [],
+  equity: [],
+  total_assets: "100000.00",
+  total_liabilities: "35000.00",
+  total_equity: "65000.00",
+  net_income: "25400.00",
+  unrealized_fx_gain_loss: "0.00",
+  net_worth_adjustment_gain_loss: "0.00",
+  equation_delta: "0.00",
+  is_balanced: true,
+};
+
+const incomeStatement = {
+  start_date: "2025-05-20",
+  end_date: "2026-05-20",
+  currency: "SGD",
+  income: [],
+  expenses: [],
+  total_income: "137400.00",
+  total_expenses: "112000.00",
+  net_income: "25400.00",
+  trends: [],
+};
+
+const cashFlow = {
+  start_date: "2025-05-20",
+  end_date: "2026-05-20",
+  currency: "SGD",
+  operating: [],
+  investing: [],
+  financing: [],
+  summary: {
+    operating_activities: "31000.00",
+    investing_activities: "-6000.00",
+    financing_activities: "-2500.00",
+    net_cash_flow: "22500.00",
+    beginning_cash: "30000.00",
+    ending_cash: "52500.00",
+  },
+};
+
+const investmentPerformance = {
+  period_start: "2025-05-20",
+  period_end: "2026-05-20",
+  as_of_date: "2026-05-20",
+  currency: "SGD",
+  xirr: "0.10",
+  time_weighted_return: "0.09",
+  money_weighted_return: "0.10",
+  realized_pnl: "1200.00",
+  unrealized_pnl: "3400.00",
+  dividend_income: "2400.00",
+  dividend_yield: "0.02",
+  holdings: [
+    {
+      asset_identifier: "ACME",
+      quantity: "10.00",
+      cost_basis: "8000.00",
+      market_value: "10000.00",
+      unrealized_pnl: "2000.00",
+      realized_pnl: "0.00",
+      dividend_income: "240.00",
+      currency: "SGD",
+    },
+  ],
+  allocation: [],
+  data_freshness: {
+    latest_price_date: "2026-05-20",
+    market_data_provider: "fixture",
+    stale: false,
+    stale_holdings: [],
+    manual_override_basis: null,
+  },
+  source_links: ["source_document:brokerage-1"],
+  notes: [],
+};
+
+function packageDocument(
+  readinessPayload = readiness,
+  policyPayload = frameworkPolicy,
+  traceabilityPayload: unknown = traceabilityAppendix,
+  lifecycle: "preview" | "frozen" = "preview",
+  snapshotId: string | null = null,
+) {
+  return {
+    schema_version: "2" as const,
+    lifecycle,
+    snapshot_id: snapshotId,
+    package_decision_id: lifecycle === "frozen" ? "88888888-8888-4888-8888-888888888888" : null,
+    generated_at: "2026-05-20T12:00:00Z",
+    frozen_at: lifecycle === "frozen" ? "2026-05-20T12:00:00Z" : null,
+    package_id: "personal-financial-report-package",
+    status: readinessPayload.blocking_count === 0 ? "trusted" : "draft",
+    context: {
+      framework_id: policyPayload.framework_id,
+      start_date: "2025-05-20",
+      end_date: "2026-05-20",
+      as_of_date: "2026-05-20",
+      currency: "SGD",
+    },
+    contract: {
+      ...contract,
+      selected_framework_id: policyPayload.framework_id,
+    },
+    readiness: readinessPayload,
+    framework_policy: policyPayload,
+    input_manifest: [
+      {
+        decision_id: "77777777-7777-4777-8777-777777777777",
+        input_refs: [`journal_entry:${journalEntryId}`],
+        target_kind: "journal_command",
+        target_id: `statement-transaction:${statementTxnId}`,
+        target_version: "fixture-v1",
+        assertion_kind: "promotion",
+        assertion_id: "reviewed_statement_posting",
+        assertion_version: "1",
+        authority_tier: "CODE-ONLY",
+      },
+    ],
+    sections: {
+      balance_sheet: balanceSheet,
+      income_statement: incomeStatement,
+      cash_flow: cashFlow,
+      investment_performance: investmentPerformance,
+      annualized_income_long_term: annualizedSchedule,
+      notes: packageNotes,
+      traceability_appendix: traceabilityPayload,
+    },
+  };
+}
+
 const packageSnapshot = {
   id: "snap-001",
   package_id: "personal-financial-report-package",
@@ -398,21 +504,7 @@ const packageSnapshot = {
   readiness_state: "ready",
   is_latest: true,
   created_at: "2026-05-20T12:00:00Z",
-  payload: {
-    package_id: "personal-financial-report-package",
-    version: "1.0",
-    status: "trusted",
-    framework_id: "personal_us_gaap_like",
-    start_date: "2025-05-20",
-    end_date: "2026-05-20",
-    as_of_date: "2026-05-20",
-    currency: "SGD",
-    readiness,
-    source_trust_summary: readiness.source_trust_summary,
-    section_payloads: {
-      traceability_appendix: traceabilityAppendix,
-    },
-  },
+  document: packageDocument({ ...readiness, state: "ready", label: "Ready", blocking_count: 0, blockers: [] }, frameworkPolicy, traceabilityAppendix, "frozen", "snap-001"),
 };
 const packageSnapshotJsonDownloadName =
   "Download JSON snapshot snap-001 for US-like 2025-05-20 to 2026-05-20";
@@ -531,34 +623,17 @@ function mockPackageApi(
   snapshotGenerateResult: unknown = packageSnapshot,
 ) {
   mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-    if (path === "/api/reports/package/contract")
-      return Promise.resolve(contract);
     if (path === "/api/reports/package/snapshots")
       return Promise.resolve(snapshotPayloads);
+    if (path === "/api/reports/package/snapshots/snap-001")
+      return Promise.resolve(snapshotGenerateResult);
     if (path === "/api/reports/package/generate" && options?.method === "POST") {
       if (snapshotGenerateResult instanceof Error)
         return Promise.reject(snapshotGenerateResult);
       return Promise.resolve(snapshotGenerateResult);
     }
-    if (path.startsWith("/api/reports/package/contract?framework_id=")) {
-      const frameworkId = new URL(path, "http://localhost").searchParams.get(
-        "framework_id",
-      );
-      return Promise.resolve({
-        ...contract,
-        selected_framework_id: frameworkId,
-      });
-    }
-    if (path.startsWith("/api/reports/package/readiness?framework_id="))
-      return Promise.resolve(readinessPayload);
-    if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
-      return Promise.resolve(policyPayload);
-    if (path.startsWith("/api/reports/package/annualized-income-schedule?"))
-      return Promise.resolve(annualizedSchedule);
-    if (path === "/api/reports/package/notes")
-      return Promise.resolve(packageNotes);
-    if (path.startsWith("/api/reports/package/traceability?"))
-      return Promise.resolve(traceabilityPayload);
+    if (path.startsWith("/api/reports/package?"))
+      return Promise.resolve(packageDocument(readinessPayload, policyPayload, traceabilityPayload));
     if (path.startsWith("/api/evidence/lineage?"))
       return lineagePayload instanceof Error
         ? Promise.reject(lineagePayload)
@@ -606,13 +681,13 @@ describe("PersonalReportPackagePage", () => {
   });
 
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("package contract unavailable"));
+    mockedApiFetch.mockRejectedValue(new Error("package document unavailable"));
 
     renderPackagePage();
 
-    expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
+    expect(screen.getByText("Loading package document...")).toBeInTheDocument();
     expect(
-      await screen.findByText("package contract unavailable"),
+      await screen.findByText("package document unavailable"),
     ).toBeInTheDocument();
   });
 
@@ -624,7 +699,8 @@ describe("PersonalReportPackagePage", () => {
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reports/package/contract",
+        expect.stringContaining("/api/reports/package?"),
+        expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     expect(
@@ -646,45 +722,52 @@ describe("PersonalReportPackagePage", () => {
     expect(
       within(setupToc).getByRole("link", { name: "Balance Sheet ready" }),
     ).toHaveAttribute("href", "#package-section-balance_sheet");
-    expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      "/api/reports/package/readiness",
-    );
+    expect(
+      mockedApiFetch.mock.calls.some(([path]) => String(path).includes("framework_id=")),
+    ).toBe(false);
     expect(screen.queryByText("Report Readiness")).not.toBeInTheDocument();
   });
 
-  it("AC20.6.1 renders the API error when the initial package contract cannot load", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("Contract unavailable"));
+  it("AC20.6.1 renders the API error when the initial package document cannot load", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/api/reports/package?"))
+        return Promise.reject(new Error("Document unavailable"));
+      if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
 
     renderPackagePage();
 
-    expect(await screen.findByText("Contract unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("Document unavailable")).toBeInTheDocument();
   });
 
-  it("AC20.6.1 ignores the initial package contract response after unmount", async () => {
-    let resolveContract!: (value: typeof contract) => void;
+  it("AC20.6.1 ignores the initial package document response after unmount", async () => {
+    let resolveDocument!: (value: ReturnType<typeof packageDocument>) => void;
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/reports/package/contract") {
+      if (path.startsWith("/api/reports/package?")) {
         return new Promise((resolve) => {
-          resolveContract = resolve;
+          resolveDocument = resolve;
         });
       }
+      if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
     const { unmount } = renderPackagePage();
 
-    expect(screen.getByText("Loading package contract...")).toBeInTheDocument();
+    expect(screen.getByText("Loading package document...")).toBeInTheDocument();
     unmount();
     await act(async () => {
-      resolveContract(contract);
+      resolveDocument(packageDocument());
     });
   });
 
   it("AC20.6.1 renders the API error when selected framework package output cannot load", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/reports/package/contract")
-        return Promise.resolve(contract);
-      if (path.startsWith("/api/reports/package/readiness?framework_id=")) {
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id="))
+        return Promise.resolve(packageDocument());
+      if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
+      if (path.startsWith("/api/reports/package?framework_id=")) {
         return Promise.reject(new Error("Framework package unavailable"));
       }
       return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -701,9 +784,10 @@ describe("PersonalReportPackagePage", () => {
 
   it("AC20.6.1 keeps canceled framework package requests from surfacing errors", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/reports/package/contract")
-        return Promise.resolve(contract);
-      if (path.startsWith("/api/reports/package/contract?framework_id=")) {
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id="))
+        return Promise.resolve(packageDocument());
+      if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
+      if (path.startsWith("/api/reports/package?framework_id=")) {
         return Promise.reject(new DOMException("Canceled", "AbortError"));
       }
       return new Promise(() => undefined);
@@ -741,7 +825,7 @@ describe("PersonalReportPackagePage", () => {
     }
   });
 
-  it("AC20.6.1 AC20.7.1 loads readiness and policy result with the selected framework", async () => {
+  it("AC20.6.1 AC20.7.1 loads one typed document with the selected framework", async () => {
     mockPackageApi();
 
     renderPackagePage();
@@ -751,23 +835,20 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         expect.stringContaining(
-          "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+          "/api/reports/package?framework_id=personal_us_gaap_like",
         ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
-    const readinessCall = mockedApiFetch.mock.calls.find(([path]) =>
-      String(path).startsWith("/api/reports/package/readiness?framework_id=personal_us_gaap_like"),
+    const documentCall = mockedApiFetch.mock.calls.find(([path]) =>
+      String(path).startsWith("/api/reports/package?framework_id=personal_us_gaap_like"),
     );
-    expect(readinessCall).toBeTruthy();
-    expectPinnedPackageDates(String(readinessCall![0]));
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "/api/reports/package/framework-policy?framework_id=personal_us_gaap_like",
-      ),
-      expect.objectContaining({ signal: expect.any(Object) }),
-    );
-    expect(await screen.findByText("Reporting Basis")).toBeInTheDocument();
+    expect(documentCall).toBeTruthy();
+    expectPinnedPackageDates(String(documentCall![0]));
+    for (const retiredPath of ["/readiness", "/framework-policy", "/annualized-income-schedule", "/traceability"]) {
+      expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes(retiredPath))).toBe(false);
+    }
+    expect(await screen.findByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(
       screen.getAllByText("US-like").length,
     ).toBeGreaterThanOrEqual(1);
@@ -784,7 +865,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Reporting Basis");
+    await screen.findByRole("heading", { name: "Reporting Basis" });
 
     fireEvent.change(screen.getByLabelText("Package report date"), {
       target: { value: "2026-04-30" },
@@ -802,14 +883,8 @@ describe("PersonalReportPackagePage", () => {
       .map(([path]) => String(path))
       .filter((path) => path.includes("end_date=2026-04-30"));
 
-    expect(selectedDateCalls).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("/api/reports/package/readiness?"),
-        expect.stringContaining("/api/reports/package/framework-policy?"),
-        expect.stringContaining("/api/reports/package/annualized-income-schedule?"),
-        expect.stringContaining("/api/reports/package/traceability?"),
-      ]),
-    );
+    expect(selectedDateCalls).toHaveLength(1);
+    expect(selectedDateCalls[0]).toContain("/api/reports/package?framework_id=personal_us_gaap_like");
     selectedDateCalls.forEach((path) =>
       expectPackageDates(path, "2026-04-30", "2025-04-30"),
     );
@@ -821,7 +896,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Reporting Basis");
+    await screen.findByRole("heading", { name: "Reporting Basis" });
 
     fireEvent.change(screen.getByLabelText("Package report date"), {
       target: { value: "2024-03-01" },
@@ -864,7 +939,7 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByText("Reporting Basis");
+    await screen.findByRole("heading", { name: "Reporting Basis" });
 
     const callCountBeforeEmptyDate = mockedApiFetch.mock.calls.length;
     fireEvent.change(screen.getByLabelText("Package report date"), {
@@ -936,6 +1011,7 @@ describe("PersonalReportPackagePage", () => {
         }),
       ),
     );
+    await screen.findByText("Frozen snapshot snap-001");
     expect(
       await screen.findByRole("heading", { name: "Recent Snapshots" }),
     ).toBeInTheDocument();
@@ -957,6 +1033,36 @@ describe("PersonalReportPackagePage", () => {
 
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
+  });
+
+  it("AC-reporting.package-document.3 renders a populated document and reopens the selected frozen snapshot", async () => {
+    mockPackageApi();
+
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    expect(await screen.findByText("SGD 100,000")).toBeInTheDocument();
+    expect(screen.getAllByText("SGD 137,400").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("SGD 22,500")).toBeInTheDocument();
+    expect(screen.getByText("ACME")).toBeInTheDocument();
+    expectInsideClosedAuditDetails(`statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`);
+    expect(screen.getByText("Live preview. Generate a snapshot to freeze these exact inputs and totals.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen" }));
+
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/reports/package/snapshots/snap-001",
+        expect.objectContaining({ signal: expect.any(Object) }),
+      ),
+    );
+    expect(await screen.findByText("Frozen snapshot snap-001")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("renders absent disclosure list values explicitly", () => {
+    expect(renderCsv()).toBe("none");
+    expect(renderSourceClasses([])).toBe("none");
   });
 
   it("AC22.18.3 tracks REPORT_GENERATED with the framework id after a successful snapshot", async () => {
@@ -1071,24 +1177,18 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         expect.stringContaining(
-          "/api/reports/package/readiness?framework_id=personal_hkfrs_like",
+          "/api/reports/package?framework_id=personal_hkfrs_like",
         ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "/api/reports/package/framework-policy?framework_id=personal_hkfrs_like",
-      ),
-      expect.objectContaining({ signal: expect.any(Object) }),
-    );
     expect(
-      screen.getByText("HK-like selected for this package."),
+      await screen.findByText("HK-like selected for this package."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("HK-like").length).toBeGreaterThan(
       0,
     );
-    expect(await screen.findByText("Reporting Basis")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
     expectInsideClosedAuditDetails("personal_hkfrs_like");
     expectInsideClosedAuditDetails("none");
@@ -1108,50 +1208,20 @@ describe("PersonalReportPackagePage", () => {
 
     mockedApiFetch.mockImplementation(
       (path: string, options?: RequestInit) => {
-        if (path === "/api/reports/package/contract")
-          return Promise.resolve(contract);
+        if (path.startsWith("/api/reports/package?") && !path.includes("framework_id="))
+          return Promise.resolve(packageDocument());
         if (path === "/api/reports/package/snapshots")
           return Promise.resolve([packageSnapshot]);
-        if (path.includes("framework_id=personal_us_gaap_like")) {
+        if (path.startsWith("/api/reports/package?framework_id=personal_us_gaap_like")) {
           if (options?.signal) usSignals.push(options.signal);
           return new Promise((resolve) => {
             resolveUsRequests.push(() => {
-              if (path.startsWith("/api/reports/package/contract?")) {
-                resolve({
-                  ...contract,
-                  selected_framework_id: "personal_us_gaap_like",
-                });
-                return;
-              }
-              if (path.startsWith("/api/reports/package/readiness?")) {
-                resolve(readiness);
-                return;
-              }
-              resolve(frameworkPolicy);
+              resolve(packageDocument(readiness, frameworkPolicy, traceabilityAppendix));
             });
           });
         }
-        if (path.startsWith("/api/reports/package/contract?framework_id="))
-          return Promise.resolve({
-            ...contract,
-            selected_framework_id: "personal_hkfrs_like",
-          });
-        if (path.startsWith("/api/reports/package/readiness?framework_id="))
-          return Promise.resolve({
-            ...readiness,
-            source_summary: {
-              ...readiness.source_summary,
-              selected_framework_id: "personal_hkfrs_like",
-            },
-          });
-        if (path.startsWith("/api/reports/package/framework-policy?framework_id="))
-          return Promise.resolve(hkPolicy);
-        if (path.startsWith("/api/reports/package/annualized-income-schedule?"))
-          return Promise.resolve(annualizedSchedule);
-        if (path === "/api/reports/package/notes")
-          return Promise.resolve(packageNotes);
-        if (path.startsWith("/api/reports/package/traceability?"))
-          return Promise.resolve(traceabilityAppendix);
+        if (path.startsWith("/api/reports/package?framework_id=personal_hkfrs_like"))
+          return Promise.resolve(packageDocument(readiness, hkPolicy, traceabilityAppendix));
         return Promise.reject(new Error(`Unexpected path ${path}`));
       },
     );
@@ -1161,7 +1231,7 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await waitFor(() => expect(usSignals.length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getByRole("button", { name: "HK-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "HK-like" }));
 
     await waitFor(() =>
       expect(usSignals.every((signal) => signal.aborted)).toBe(true),
@@ -1200,7 +1270,8 @@ describe("PersonalReportPackagePage", () => {
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reports/package/contract",
+        expect.stringContaining("/api/reports/package?"),
+        expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
@@ -1216,7 +1287,7 @@ describe("PersonalReportPackagePage", () => {
     // Sections are titled by their human label, not the raw snake_case section_id
     // (EPIC-022 AC22.8.1).
     expect(
-      screen.getByRole("heading", { name: "Annualized Income & Long-Term Compensation" }),
+      screen.getByRole("heading", { name: "Annualized Income Schedule" }),
     ).toBeInTheDocument();
   });
 
@@ -1228,10 +1299,10 @@ describe("PersonalReportPackagePage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     // Wait for the framework package output to load, then assert the sections.
-    await screen.findByText("Evidence Coverage");
+    await screen.findByRole("heading", { name: "Authority Coverage" });
 
     // Human section titles are present...
-    for (const heading of ["Report Readiness", "Evidence Coverage", "Reporting Basis", "Traceability Summary"]) {
+    for (const heading of ["Report Readiness", "Authority Coverage", "Reporting Basis", "Traceability Summary"]) {
       expect(screen.getAllByText(heading).length).toBeGreaterThanOrEqual(1);
     }
     // ...and the raw snake_case section eyebrows are gone.
@@ -1249,7 +1320,7 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.change(await screen.findByLabelText("Package report date"), {
       target: { value: "2026-05-20" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
     const cover = await screen.findByRole("region", {
       name: "Report package cover",
@@ -1266,7 +1337,7 @@ describe("PersonalReportPackagePage", () => {
     });
     for (const [label, href] of [
       ["Report Readiness", "#package-readiness"],
-      ["Evidence Coverage", "#package-source-trust"],
+      ["Authority Coverage", "#package-input-manifest"],
       ["Reporting Basis", "#package-framework-policy"],
       ["Balance Sheet ready", "#package-section-balance_sheet"],
       ["Traceability Summary", "#package-traceability-detail"],
@@ -1280,13 +1351,11 @@ describe("PersonalReportPackagePage", () => {
 
   it("AC22.8.3 reserves the framework-package layout while package sections load", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/reports/package/contract")
-        return Promise.resolve(contract);
-      if (path.startsWith("/api/reports/package/contract?framework_id="))
-        return Promise.resolve({
-          ...contract,
-          selected_framework_id: "personal_us_gaap_like",
-        });
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id="))
+        return Promise.resolve(packageDocument());
+      if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
+      if (path.startsWith("/api/reports/package?framework_id="))
+        return new Promise(() => undefined);
       return new Promise(() => undefined);
     });
 
@@ -1316,7 +1385,7 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
         expect.stringContaining(
-          "/api/reports/package/readiness?framework_id=personal_us_gaap_like",
+          "/api/reports/package?framework_id=personal_us_gaap_like",
         ),
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
@@ -1340,8 +1409,9 @@ describe("PersonalReportPackagePage", () => {
         "Opening and closing balances must validate before report totals are trusted.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Journal Entries")).toBeInTheDocument();
-    expect(screen.getByText("Manual Valuations")).toBeInTheDocument();
+    expect(screen.getByText("Authority Decisions")).toBeInTheDocument();
+    expect(screen.getByText("Authoritative Inputs")).toBeInTheDocument();
+    expect(screen.getByText("Unproven Inputs")).toBeInTheDocument();
   });
 
   // AC-reporting.fe-remainder-reports.12
@@ -1366,37 +1436,30 @@ describe("PersonalReportPackagePage", () => {
   });
 
   // AC-reporting.fe-remainder-reports.14
-  it("AC19.9.2 renders compact source trust summary before traceability details", async () => {
+  it("AC19.9.2 renders decision authority coverage before traceability details", async () => {
     mockPackageApi();
 
     renderPackagePage();
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
-    const sourceTrust = await screen.findByText("Evidence Coverage");
+    const authorityCoverage = await screen.findByRole("heading", {
+      name: "Authority Coverage",
+    });
     // The traceability section is titled by its human label (AC22.8.1), not the
-    // raw section_id; it must render after the source-trust summary.
+    // raw section_id; it must render after the pinned decision coverage.
     const traceability = await screen.findByRole("heading", { name: "Traceability Summary" });
     expect(traceability).toBeDefined();
     expect(
-      sourceTrust.compareDocumentPosition(traceability) &
+      authorityCoverage.compareDocumentPosition(traceability) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByText("7 evidence classes")).toBeInTheDocument();
-    expect(screen.getByText("Verified by automated checks")).toBeInTheDocument();
-    expect(screen.getByText("Verified with live extraction checks")).toBeInTheDocument();
-    expect(screen.getByText("Manual evidence")).toBeInTheDocument();
-    expect(screen.getByText("Missing or unsupported evidence")).toBeInTheDocument();
-    expect(
-      screen.getAllByText(
-        "Bank statements, Brokerage statements, Property statements, Liability statements, ESOP / RSU plans, CSV exports, Manual records",
-      ).length,
-    ).toBeGreaterThanOrEqual(1);
-    expectInsideClosedAuditDetails("bank_statement, brokerage_statement");
+    expect(screen.getByText("Trust comes from the current decision graph pinned into this document, not a source label.")).toBeInTheDocument();
+    expect(screen.getByText("1 decisions")).toBeInTheDocument();
+    expectInsideClosedAuditDetails(/77777777-7777-4777-8777-777777777777/);
     expectInsideClosedAuditDetails(
-      "property_statement, liability_statement, esop_rsu_plan, manual_record",
+      new RegExp(`journal_command:statement-transaction:${statementTxnId}@fixture-v1`),
     );
-    expectInsideClosedAuditDetails("missing_source_coverage, pending_review");
   });
 
   // AC-reporting.fe-ia-reports.23
@@ -1407,18 +1470,17 @@ describe("PersonalReportPackagePage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
 
-    expect(await screen.findByRole("heading", { name: "Evidence Coverage" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Evidence Coverage" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Authority Coverage" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Authority Coverage" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Traceability Summary" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Framework Policy" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Source Trust" })).not.toBeInTheDocument();
-    expect(screen.getByText("Missing or unsupported evidence")).toBeInTheDocument();
+    expect(screen.getByText("Trust comes from the current decision graph pinned into this document, not a source label.")).toBeInTheDocument();
     expect(screen.getByText("Report lines with evidence")).toBeInTheDocument();
     expect(screen.getByText("Reporting gaps")).toBeInTheDocument();
 
-    expectInsideClosedAuditDetails("Deterministic PR");
-    expectInsideClosedAuditDetails("Post-merge LLM/OCR");
+    expectInsideClosedAuditDetails(/77777777-7777-4777-8777-777777777777/);
     expectInsideClosedAuditDetails("Framework Policy Result");
     expectInsideClosedAuditDetails("unsupported_policy_domain");
     expectInsideClosedAuditDetails("pending_review");
@@ -1473,7 +1535,7 @@ describe("PersonalReportPackagePage", () => {
 
     for (const summary of [
       "Readiness audit details",
-      "Evidence audit details",
+      "Authority manifest audit details",
       "Reporting basis audit details",
       "Traceability audit details",
       "Export audit details",
@@ -1487,9 +1549,12 @@ describe("PersonalReportPackagePage", () => {
 
     expect(screen.getByText("Matrix Version")).toBeInTheDocument();
     expect(screen.getByText("balance_sheet.total_assets")).toBeInTheDocument();
-    expect(screen.getByText("trusted_or_explicit_manual_input")).toBeInTheDocument();
-    expect(screen.getAllByText("TRUSTED").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("hybrid")).toBeInTheDocument();
+    expect(screen.getByText(/77777777-7777-4777-8777-777777777777/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new RegExp(`journal_command:statement-transaction:${statementTxnId}@fixture-v1`),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("static_contract_note")).toBeInTheDocument();
   });
 
@@ -1543,13 +1608,13 @@ describe("PersonalReportPackagePage", () => {
         screen.getByText("Annualized Income Schedule"),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText("SGD 137,400")).toBeInTheDocument();
+    expect(screen.getAllByText("SGD 137,400").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Salary")).toBeInTheDocument();
     expect(screen.getByText("SGD 120,000")).toBeInTheDocument();
     expect(screen.getByText("Bonus")).toBeInTheDocument();
     expect(screen.getByText("SGD 15,000")).toBeInTheDocument();
     expect(screen.getByText("Dividend")).toBeInTheDocument();
-    expect(screen.getByText("SGD 2,400")).toBeInTheDocument();
+    expect(screen.getAllByText("SGD 2,400").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("SHOP-RSU")).toBeInTheDocument();
     expect(screen.getByText("SGD 12,500")).toBeInTheDocument();
     expect(screen.getByText("exclude_restricted_holdings")).toBeInTheDocument();
@@ -1580,7 +1645,7 @@ describe("PersonalReportPackagePage", () => {
   });
 
   // AC-reporting.fe-viz-reports.7 / AC-reporting.fe-viz-reports.10
-  it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, confidence, and identifiers", async () => {
+  it("AC5.13.3 AC5.16.3 AC5.16.4 renders traceability appendix source, ledger, review, and identifiers", async () => {
     mockPackageApi();
 
     renderPackagePage();
@@ -1606,12 +1671,7 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails(
       `journal_entry:${journalEntryId}, journal_line:${journalLineId}`,
     );
-    expectInsideClosedAuditDetails("trusted_or_explicit_manual_input");
-    expect(screen.getAllByText("TRUSTED").length).toBeGreaterThanOrEqual(1);
-    expectInsideClosedAuditDetails("hybrid");
     expectInsideClosedAuditDetails("4 anchors");
-    expectInsideClosedAuditDetails("unclassified");
-    expectInsideClosedAuditDetails("0 anchors");
     expectInsideClosedAuditDetails("static_contract_note");
     expectInsideClosedAuditDetails("manual_only_source");
     expectInsideClosedAuditDetails("explicit_manual_input_required");

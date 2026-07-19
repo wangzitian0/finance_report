@@ -17,45 +17,36 @@ from src.extraction.orm.layer3 import (
     ManualValuationSnapshot,
     PositionStatus,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
-from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType
 from src.portfolio import DividendIncome
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import StockPrice
+from src.reporting import PERSONAL_REPORT_PACKAGE_CONTRACT
 from src.reporting.extension.framework_policy import (
     _account_domain_and_instrument,
     _manual_domain_and_instrument,
     _position_domain_and_instrument,
+    derive_user_framework_policy_result,
     framework_policy_facts_for_user,
 )
-from src.reporting.extension.report_readiness import framework_policy_readiness_blockers
-from src.routers.reports import (
-    personal_report_package_contract,
-    personal_report_package_framework_policy,
-    personal_report_package_readiness,
-)
 from src.schemas.reporting import (
-    FrameworkPolicyDecision,
-    FrameworkPolicyGap,
-    FrameworkPolicyResult,
     PersonalReportingFrameworkId,
+    PersonalReportPackageContractResponse,
     PolicyFactDomain,
-    PolicyProvenance,
-    PolicyReviewState,
 )
 
 
-@pytest.mark.no_db
-def test_AC5_14_1_package_contract_accepts_selected_framework_policy_endpoint() -> None:
-    """AC5.14.1: Package contract consumes EPIC-020 policy result metadata, not raw market value rules."""
-    response = personal_report_package_contract(framework_id=PersonalReportingFrameworkId.HKFRS_LIKE)
+def test_AC5_14_1_package_contract_accepts_selected_framework() -> None:
+    """AC5.14.1: the embedded contract declares the selected framework vocabulary."""
+    payload = dict(PERSONAL_REPORT_PACKAGE_CONTRACT)
+    payload["selected_framework_id"] = PersonalReportingFrameworkId.HKFRS_LIKE.value
+    response = PersonalReportPackageContractResponse.model_validate(payload)
     payload = response.model_dump(mode="json")
 
     assert payload["selected_framework_id"] == "personal_hkfrs_like"
     assert payload["supported_frameworks"] == ["personal_us_gaap_like", "personal_hkfrs_like"]
-    assert payload["framework_policy_endpoint"] == "/api/reports/package/framework-policy"
+    assert "framework_policy_endpoint" not in payload
     assert payload["period_semantics"]["framework_id"] == "selected supported personal reporting framework"
 
 
@@ -88,21 +79,21 @@ async def test_AC20_5_1_package_policy_api_derives_framework_result_from_facts(
     db.add_all([position, price])
     await db.flush()
 
-    us_response = await personal_report_package_framework_policy(
+    us_response = await derive_user_framework_policy_result(
+        db,
+        test_user.id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2026, 5, 1),
-        end_date=report_date,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=report_date,
         as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
     )
-    hk_response = await personal_report_package_framework_policy(
+    hk_response = await derive_user_framework_policy_result(
+        db,
+        test_user.id,
         framework_id=PersonalReportingFrameworkId.HKFRS_LIKE,
-        start_date=date(2026, 5, 1),
-        end_date=report_date,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=report_date,
         as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
     )
 
     assert us_response.result_id.startswith("policy-result:personal_us_gaap_like:")
@@ -145,13 +136,13 @@ async def test_AC20_5_1_package_policy_uses_synced_stock_prices_when_no_manual_o
     db.add_all([position, synced_price])
     await db.flush()
 
-    response = await personal_report_package_framework_policy(
+    response = await derive_user_framework_policy_result(
+        db,
+        test_user.id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=date(2026, 5, 1),
-        end_date=report_date,
+        report_period_start=date(2026, 5, 1),
+        report_period_end=report_date,
         as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
     )
 
     anchors = response.decisions[0].evidence_anchors
@@ -160,301 +151,6 @@ async def test_AC20_5_1_package_policy_uses_synced_stock_prices_when_no_manual_o
     assert market_anchor.source_id == str(synced_price.id)
 
 
-async def test_AC19_7_1_readiness_consumes_framework_specific_evidence_blockers(
-    db: AsyncSession,
-    test_user: User,
-) -> None:
-    """AC-reporting.readiness.6: AC19.7.1: Framework-selected readiness blocks policy gaps and evidence deficiencies."""
-    report_date = date(2026, 5, 31)
-    stale_position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="STALE",
-        broker="Framework Broker",
-        quantity=Decimal("5"),
-        market_value=Decimal("50.00"),
-        currency="SGD",
-        asset_type=AssetType.STOCK,
-        dedup_hash=f"framework-stale-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "stale-doc", "doc_type": "brokerage_statement"}]},
-    )
-    unsupported_position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="PRIVATE-TOKEN",
-        broker="Framework Broker",
-        quantity=Decimal("1"),
-        market_value=Decimal("500.00"),
-        currency="SGD",
-        # asset_type=None is genuinely unclassifiable -> UNSUPPORTED/gap. (OTHER is
-        # now a mapped category since #1342, so it no longer produces a policy gap.)
-        asset_type=None,
-        dedup_hash=f"framework-token-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "token-doc", "doc_type": "brokerage_statement"}]},
-    )
-    stale_price = MarketDataOverride(
-        user_id=test_user.id,
-        asset_identifier="STALE",
-        price_date=date(2025, 12, 31),
-        price=Decimal("10.00"),
-        currency="SGD",
-        source=PriceSource.MANUAL,
-    )
-    missing_basis = ManualValuationSnapshot(
-        user_id=test_user.id,
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
-        as_of_date=report_date,
-        value=Decimal("500000.00"),
-        currency="SGD",
-        source="Manual property estimate",
-        notes=None,
-    )
-    db.add_all([stale_position, unsupported_position, stale_price, missing_basis])
-    await db.flush()
-
-    response = await personal_report_package_readiness(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        end_date=report_date,
-        as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
-    )
-    payload = response.model_dump(mode="json")
-    blockers = {blocker["code"]: blocker for blocker in payload["blockers"]}
-
-    assert payload["state"] == "blocked"
-    assert payload["source_summary"]["selected_framework_id"] == "personal_us_gaap_like"
-    assert payload["source_summary"]["framework_policy_gaps"] == 1
-    assert {
-        "unsupported_policy_domain",
-        "missing_valuation_basis",
-        "stale_market_data",
-    } <= set(blockers)
-    assert blockers["unsupported_policy_domain"]["count"] == 1
-    assert blockers["missing_valuation_basis"]["count"] == 1
-    assert blockers["stale_market_data"]["count"] == 1
-
-
-async def test_AC19_7_1_readiness_uses_freshest_stock_price_or_manual_override(
-    db: AsyncSession,
-    test_user: User,
-) -> None:
-    """AC19.7.1: Fresh synced StockPrice rows satisfy market-data freshness without manual overrides."""
-    report_date = date(2026, 5, 31)
-    position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="FRESH",
-        broker="Framework Broker",
-        quantity=Decimal("5"),
-        market_value=Decimal("50.00"),
-        currency="SGD",
-        asset_type=AssetType.STOCK,
-        dedup_hash=f"framework-fresh-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "fresh-doc", "doc_type": "brokerage_statement"}]},
-    )
-    stale_override = MarketDataOverride(
-        user_id=test_user.id,
-        asset_identifier="FRESH",
-        price_date=date(2025, 12, 31),
-        price=Decimal("9.00"),
-        currency="SGD",
-        source=PriceSource.MANUAL,
-    )
-    fresh_synced_price = StockPrice(
-        symbol="FRESH",
-        price_date=report_date,
-        price=Decimal("10.000000"),
-        currency="SGD",
-        source="test_provider",
-    )
-    db.add_all([position, stale_override, fresh_synced_price])
-    await db.flush()
-
-    response = await personal_report_package_readiness(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        end_date=report_date,
-        as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
-    )
-    blockers = {blocker.code: blocker for blocker in response.blockers}
-
-    assert "stale_market_data" not in blockers
-
-
-async def test_AC19_7_1_readiness_deduplicates_normalized_market_data_symbols(
-    db: AsyncSession,
-    test_user: User,
-) -> None:
-    """AC19.7.1: Normalized holdings dedupe while blank identifiers still block readiness."""
-    report_date = date(2026, 5, 31)
-    upper_position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="DUPCASE",
-        broker="Framework Broker",
-        quantity=Decimal("5"),
-        market_value=Decimal("50.00"),
-        currency="SGD",
-        asset_type=AssetType.STOCK,
-        dedup_hash=f"framework-dup-upper-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "dup-upper-doc", "doc_type": "brokerage_statement"}]},
-    )
-    lower_position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="dupcase",
-        broker="Framework Broker",
-        quantity=Decimal("5"),
-        market_value=Decimal("50.00"),
-        currency="SGD",
-        asset_type=AssetType.STOCK,
-        dedup_hash=f"framework-dup-lower-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "dup-lower-doc", "doc_type": "brokerage_statement"}]},
-    )
-    blank_position = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=report_date,
-        asset_identifier="   ",
-        broker="Framework Broker",
-        quantity=Decimal("5"),
-        market_value=Decimal("50.00"),
-        currency="SGD",
-        asset_type=AssetType.STOCK,
-        dedup_hash=f"framework-blank-{uuid4()}",
-        source_documents={"documents": [{"doc_id": "blank-doc", "doc_type": "brokerage_statement"}]},
-    )
-    db.add_all([upper_position, lower_position, blank_position])
-    await db.flush()
-
-    response = await personal_report_package_readiness(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        end_date=report_date,
-        as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
-    )
-    blockers = {blocker.code: blocker for blocker in response.blockers}
-
-    assert "stale_market_data" in blockers
-    assert blockers["stale_market_data"].count == 2
-
-
-@pytest.mark.no_db
-def test_AC20_6_1_ai_suggestions_require_reviewed_policy_fields_for_readiness() -> None:
-    """AC-reporting.ai.1: AC20.6.1: AI suggestions and incomplete policy fields become readiness blocker codes."""
-    decision = FrameworkPolicyDecision.model_construct(
-        domain=PolicyFactDomain.LISTED_SECURITY,
-        recognition="Recognize listed holding from broker evidence.",
-        measurement="AI-proposed fair-value measurement.",
-        classification="Marketable investment asset.",
-        presentation="Balance sheet investment line.",
-        disclosure=None,
-        line_mappings={"balance_sheet": "assets.marketable_securities"},
-        evidence_anchors=[],
-        provenance=PolicyProvenance.REVIEWED_AI_SUGGESTION,
-        confidence_tier="MEDIUM",
-        review_state=PolicyReviewState.PENDING_REVIEW,
-        policy_field_name="measurement_basis",
-        accepted_value=None,
-    )
-    policy_result = FrameworkPolicyResult.model_construct(
-        result_id="policy-result:ai-pending",
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        report_period_start=date(2026, 5, 1),
-        report_period_end=date(2026, 5, 31),
-        generated_at=date(2026, 5, 31),
-        required_statements=["balance_sheet"],
-        decisions=[decision],
-        gaps=[],
-    )
-
-    blockers = framework_policy_readiness_blockers(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        policy_result=policy_result,
-        report_input_count=1,
-        missing_valuation_basis_count=0,
-        stale_market_data_count=0,
-    )
-    blocker_codes = {blocker["code"] for blocker in blockers}
-
-    assert "framework_policy_missing_dimensions" in blocker_codes
-    assert "framework_ai_suggestion_unreviewed" in blocker_codes
-
-
-@pytest.mark.no_db
-def test_AC19_7_1_selected_framework_requires_non_empty_policy_result() -> None:
-    """AC19.7.1: Selected-framework readiness fails closed when no policy result can be derived."""
-    empty_policy_result = FrameworkPolicyResult.model_construct(
-        result_id="policy-result:empty",
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        report_period_start=date(2026, 5, 1),
-        report_period_end=date(2026, 5, 31),
-        generated_at=date(2026, 5, 31),
-        required_statements=["balance_sheet"],
-        decisions=[],
-        gaps=[],
-    )
-
-    blockers = framework_policy_readiness_blockers(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        policy_result=empty_policy_result,
-        report_input_count=1,
-        missing_valuation_basis_count=0,
-        stale_market_data_count=0,
-    )
-
-    assert {blocker["code"] for blocker in blockers} == {"missing_framework_policy_result"}
-
-
-async def test_AC19_7_1_statement_only_inputs_do_not_require_framework_policy_result(
-    db: AsyncSession,
-    test_user: User,
-) -> None:
-    """AC19.7.1: Statement-only package inputs do not require an empty framework policy result."""
-    report_date = date(2026, 5, 31)
-    account = Account(
-        user_id=test_user.id,
-        name="Framework Bank Checking",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
-    statement = StatementSummary(
-        user_id=test_user.id,
-        file_hash=uuid4().hex,
-        account_id=account.id,
-        institution="Framework Bank",
-        currency="SGD",
-        period_start=date(2026, 5, 1),
-        period_end=report_date,
-        opening_balance=Decimal("1000.00"),
-        closing_balance=Decimal("1200.00"),
-        status=BankStatementStatus.APPROVED,
-        balance_validated=True,
-        validation_error=None,
-        stage1_status=Stage1Status.APPROVED,
-    )
-    db.add(statement)
-    await db.flush()
-
-    response = await personal_report_package_readiness(
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        end_date=report_date,
-        as_of_date=report_date,
-        db=db,
-        user_id=test_user.id,
-    )
-    blocker_codes = {blocker.code for blocker in response.blockers}
-
-    assert response.source_summary["statements"] == 1
-    assert "missing_framework_policy_result" not in blocker_codes
-
-
-@pytest.mark.no_db
 def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instruments() -> None:
     """AC20.5.1: Manual valuation facts map to supported matrix instruments instead of policy gaps."""
     fixtures = [
@@ -488,7 +184,6 @@ def test_AC20_5_1_manual_valuation_components_map_to_supported_policy_instrument
         assert _manual_domain_and_instrument(snapshot) == (expected_domain, expected_instrument)
 
 
-@pytest.mark.no_db
 def test_AC20_5_1_atomic_position_asset_types_map_to_policy_domains() -> None:
     """AC20.5.1: Atomic positions map to supported policy domains or explicit unsupported facts."""
     fixtures = [
@@ -625,77 +320,3 @@ async def test_AC20_5_1_framework_facts_include_ledger_manual_position_and_divid
     assert f"manual_valuation_snapshot:{latest_manual.id}" in fact_ids
     assert f"manual_valuation_snapshot:{older_manual.id}" not in fact_ids
     assert f"dividend_income:{dividend.id}" in fact_ids
-
-
-@pytest.mark.no_db
-def test_AC19_7_1_framework_policy_helper_emits_all_evidence_blocker_codes() -> None:
-    """AC19.7.1: Readiness helper emits framework, policy gap, valuation, and market-data blockers."""
-    policy_result = FrameworkPolicyResult.model_construct(
-        result_id="policy-result:gap",
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        report_period_start=date(2026, 5, 1),
-        report_period_end=date(2026, 5, 31),
-        generated_at=date(2026, 5, 31),
-        required_statements=["balance_sheet"],
-        decisions=[
-            FrameworkPolicyDecision(
-                domain=PolicyFactDomain.CASH,
-                recognition="Recognize cash from reviewed source evidence.",
-                measurement="Measure cash at nominal amount.",
-                classification="Cash asset.",
-                presentation="Balance sheet cash.",
-                disclosure="Disclose source coverage.",
-                line_mappings={"balance_sheet": "assets.cash"},
-            )
-        ],
-        gaps=[
-            FrameworkPolicyGap(
-                code="unsupported_policy_domain",
-                fact_id="fact-private-token",
-                domain=PolicyFactDomain.UNSUPPORTED,
-                instrument_type="other",
-                blocker=True,
-                reason="Unsupported.",
-                remediation="Review policy rule.",
-                evidence_anchors=[],
-            )
-        ],
-    )
-
-    blockers = framework_policy_readiness_blockers(
-        framework_id=PersonalReportingFrameworkId.HKFRS_LIKE,
-        policy_result=policy_result,
-        report_input_count=1,
-        missing_valuation_basis_count=2,
-        stale_market_data_count=3,
-    )
-    blocker_codes = {blocker["code"] for blocker in blockers}
-
-    assert {
-        "missing_framework_policy_result",
-        "unsupported_policy_domain",
-        "missing_valuation_basis",
-        "stale_market_data",
-    } <= blocker_codes
-    framework_blockers = [
-        blocker
-        for blocker in blockers
-        if blocker["code"]
-        in {
-            "missing_framework_policy_result",
-            "unsupported_policy_domain",
-            "framework_policy_missing_dimensions",
-        }
-    ]
-    assert framework_blockers
-    assert {blocker["action_href"] for blocker in framework_blockers} == {"/reports/package"}
-    assert {
-        blocker["code"]
-        for blocker in framework_policy_readiness_blockers(
-            framework_id="personal_cn_cas_like",
-            policy_result=None,
-            report_input_count=1,
-            missing_valuation_basis_count=0,
-            stale_market_data_count=0,
-        )
-    } == {"unsupported_framework"}

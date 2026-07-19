@@ -67,7 +67,6 @@ from src.observability.telemetry_metrics import (
 settings = src.config.settings
 
 __all__ = [
-    "ConfidenceMetricSnapshot",
     "INVARIANT_VIOLATION_KINDS",
     "ErrorIds",
     "configure_database_pool_metrics",
@@ -96,18 +95,3 @@ __all__ = [
     "safe_log_fields",
     "track",
 ]
-
-
-def __getattr__(name: str):
-    # ConfidenceMetricSnapshot (orm/metrics.py, moved from src/models in
-    # #1675 D5) is published lazily: eagerly importing the ORM here would pull
-    # ``src.database`` (engine construction) into every logging/telemetry
-    # consumer of this package — and ``src.database`` itself imports this
-    # package. ``models/_registry.py`` triggers the mapper registration by
-    # importing the published name.
-    if name == "ConfidenceMetricSnapshot":
-        from src.observability.orm.metrics import ConfidenceMetricSnapshot
-
-        globals()[name] = ConfidenceMetricSnapshot
-        return ConfidenceMetricSnapshot
-    raise AttributeError(f"module 'src.observability' has no attribute {name!r}")

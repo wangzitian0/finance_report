@@ -3,6 +3,7 @@ import type {
   FrameworkPolicyResult,
   PersonalReportPackageContractResponse,
   PersonalReportPackageNotesResponse,
+  PersonalReportPackageSections,
 } from "@/lib/types";
 
 import { formatScheduleCurrency, FRAMEWORK_LABELS, sectionAnchorId } from "./shared";
@@ -10,51 +11,67 @@ import { formatScheduleCurrency, FRAMEWORK_LABELS, sectionAnchorId } from "./sha
 export function PackageSectionCards({
   sections,
 }: {
-  sections: PersonalReportPackageContractResponse["sections"];
+  sections: PersonalReportPackageSections;
 }) {
+  const balanceSheet = sections.balance_sheet;
+  const incomeStatement = sections.income_statement;
+  const cashFlow = sections.cash_flow;
+  const investment = sections.investment_performance;
   return (
     <div className="grid lg:grid-cols-2 gap-4 mb-6">
-      {sections.map((section) => (
-        <section
-          key={section.section_id}
-          id={sectionAnchorId(section.section_id)}
-          className="card p-5"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold">{section.label}</h2>
+      <section id={sectionAnchorId("balance_sheet")} className="card p-5">
+        <h2 className="font-semibold">Balance Sheet</h2>
+        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <PackageMetric label="Total Assets" value={balanceSheet.total_assets} currency={balanceSheet.currency} />
+          <PackageMetric label="Total Liabilities" value={balanceSheet.total_liabilities} currency={balanceSheet.currency} />
+          <PackageMetric label="Total Equity" value={balanceSheet.total_equity} currency={balanceSheet.currency} />
+          <PackageMetric label="Net Income" value={balanceSheet.net_income} currency={balanceSheet.currency} />
+        </dl>
+      </section>
+      <section id={sectionAnchorId("income_statement")} className="card p-5">
+        <h2 className="font-semibold">Income Statement</h2>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <PackageMetric label="Income" value={incomeStatement.total_income} currency={incomeStatement.currency} />
+          <PackageMetric label="Expenses" value={incomeStatement.total_expenses} currency={incomeStatement.currency} />
+          <PackageMetric label="Net Income" value={incomeStatement.net_income} currency={incomeStatement.currency} />
+        </dl>
+      </section>
+      <section id={sectionAnchorId("cash_flow")} className="card p-5">
+        <h2 className="font-semibold">Cash Flow</h2>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <PackageMetric label="Operating" value={cashFlow.summary.operating_activities} currency={cashFlow.currency} />
+          <PackageMetric label="Investing" value={cashFlow.summary.investing_activities} currency={cashFlow.currency} />
+          <PackageMetric label="Financing" value={cashFlow.summary.financing_activities} currency={cashFlow.currency} />
+          <PackageMetric label="Net Cash Flow" value={cashFlow.summary.net_cash_flow} currency={cashFlow.currency} />
+          <PackageMetric label="Beginning Cash" value={cashFlow.summary.beginning_cash} currency={cashFlow.currency} />
+          <PackageMetric label="Ending Cash" value={cashFlow.summary.ending_cash} currency={cashFlow.currency} />
+        </dl>
+      </section>
+      <section id={sectionAnchorId("investment_performance")} className="card p-5">
+        <h2 className="font-semibold">Investment Performance</h2>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <PackageMetric label="Realized P&L" value={investment.realized_pnl} currency={investment.currency} />
+          <PackageMetric label="Unrealized P&L" value={investment.unrealized_pnl} currency={investment.currency} />
+          <PackageMetric label="Dividend Income" value={investment.dividend_income} currency={investment.currency} />
+        </dl>
+        <div className="mt-4 space-y-2">
+          {investment.holdings.length ? investment.holdings.map((holding) => (
+            <div key={holding.asset_identifier} className="flex justify-between gap-3 border-t border-[var(--border)] pt-2 text-sm">
+              <span>{holding.asset_identifier}</span>
+              <span className="font-medium">{formatScheduleCurrency(holding.market_value, holding.currency)}</span>
             </div>
-            <span className="badge badge-muted">{section.status}</span>
-          </div>
-          <dl className="mt-4 space-y-2 text-sm">
-            {section.blocking_issue ? (
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Follow-up</dt>
-                <dd className="font-medium">{section.blocking_issue}</dd>
-              </div>
-            ) : null}
-          </dl>
-          <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
-            <summary className="cursor-pointer font-medium">Section audit details</summary>
-            <dl className="mt-3 space-y-2">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Section ID</dt>
-                <dd className="font-mono text-xs text-right">{section.section_id}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Owner</dt>
-                <dd className="font-medium">{section.owner_epic}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Endpoint</dt>
-                <dd className="font-mono text-xs text-right">
-                  {section.source_endpoint}
-                </dd>
-              </div>
-            </dl>
-          </details>
-        </section>
-      ))}
+          )) : <p className="text-sm text-muted">No investment holdings in this period.</p>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PackageMetric({ label, value, currency }: { label: string; value: string; currency: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-1 font-semibold">{formatScheduleCurrency(value, currency)}</dd>
     </div>
   );
 }

@@ -289,9 +289,9 @@ Worth aggregate rolls up to the worst-input tier (see
 Rollup) — a defined rollup, not an invented number. Income statement, cash flow,
 and the monthly cards are a follow-up; provenance (#888) is the co-equal sibling axis.
 
-> This group's rows removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.confidence.1-2` (migration closeout continuation, #1663 /
-> #1716).
+> This superseded source-type confidence group was removed by the reporting
+> package authority cutover (#567). It is not a package readiness or trust
+> authority.
 
 ### AC5.19: Report Package Snapshot Artifact
 

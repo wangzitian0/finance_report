@@ -1,17 +1,13 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
-import { useApiQuery } from "@/hooks/useApiQuery";
 import { isValidReportDate, packageQuery, packageSnapshotRequest } from "@/lib/reportPackage";
 import type {
-  AnnualizedIncomeScheduleResponse,
-  FrameworkPolicyResult,
+  PersonalReportPackageDocument,
   PersonalReportPackageContractResponse,
-  PersonalReportPackageNotesResponse,
-  PersonalReportPackageReadinessResponse,
   PersonalReportPackageSnapshotResponse,
   PersonalReportPackageSnapshotSummary,
-  PersonalReportPackageTraceabilityResponse,
 } from "@/lib/types";
 
 export async function generatePackageSnapshot(
@@ -27,58 +23,28 @@ export async function generatePackageSnapshot(
   );
 }
 
-type PersonalReportPackageData = {
-  readiness: PersonalReportPackageReadinessResponse;
-  annualizedSchedule: AnnualizedIncomeScheduleResponse;
-  packageNotes: PersonalReportPackageNotesResponse;
-  traceabilityAppendix: PersonalReportPackageTraceabilityResponse;
-  frameworkPolicy: FrameworkPolicyResult;
-};
-
 async function fetchPersonalReportPackage(
-  frameworkId: string,
+  frameworkId: string | null,
   reportDate: string,
   signal?: AbortSignal,
-): Promise<PersonalReportPackageData> {
-  const query = packageQuery(reportDate, frameworkId);
-  const sectionQuery = packageQuery(reportDate);
-  const requestOptions = signal ? { signal } : undefined;
-  const get = <TResponse>(path: string) => apiFetch<TResponse>(path, requestOptions);
-  const [
-    readiness,
-    frameworkPolicy,
-    annualizedSchedule,
-    packageNotes,
-    traceabilityAppendix,
-  ] = await Promise.all([
-    get<PersonalReportPackageReadinessResponse>(`/api/reports/package/readiness${query}`),
-    get<FrameworkPolicyResult>(`/api/reports/package/framework-policy${query}`),
-    get<AnnualizedIncomeScheduleResponse>(`/api/reports/package/annualized-income-schedule${sectionQuery}`),
-    get<PersonalReportPackageNotesResponse>("/api/reports/package/notes"),
-    get<PersonalReportPackageTraceabilityResponse>(`/api/reports/package/traceability${sectionQuery}`),
-  ]);
-
-  return {
-    readiness,
-    annualizedSchedule,
-    packageNotes,
-    traceabilityAppendix,
-    frameworkPolicy,
-  };
+): Promise<PersonalReportPackageDocument> {
+  const query = packageQuery(reportDate, frameworkId ?? undefined);
+  return apiFetch<PersonalReportPackageDocument>(
+    `/api/reports/package${query}`,
+    signal ? { signal } : undefined,
+  );
 }
 
 export function usePersonalReportPackage(
   selectedFrameworkId: string | null,
   reportDate: string,
+  selectedSnapshotId: string | null,
 ) {
-  const contractQuery = useApiQuery<PersonalReportPackageContractResponse>(
-    ["report-package", "contract"],
-    "/api/reports/package/contract",
-  );
+  const [lastContract, setLastContract] = useState<PersonalReportPackageContractResponse | null>(null);
   const packageQueryResult = useQuery({
     queryKey: ["report-package", "framework", selectedFrameworkId, reportDate],
-    queryFn: ({ signal }) => fetchPersonalReportPackage(selectedFrameworkId ?? "", reportDate, signal),
-    enabled: Boolean(selectedFrameworkId && isValidReportDate(reportDate)),
+    queryFn: ({ signal }) => fetchPersonalReportPackage(selectedFrameworkId, reportDate, signal),
+    enabled: Boolean(isValidReportDate(reportDate) && !selectedSnapshotId),
     gcTime: 0,
     staleTime: 0,
   });
@@ -89,21 +55,39 @@ export function usePersonalReportPackage(
         "/api/reports/package/snapshots",
         signal ? { signal } : undefined,
       ),
-    enabled: Boolean(contractQuery.data),
     staleTime: 0,
   });
-  const packageData = packageQueryResult.data ?? null;
+  const selectedSnapshotQuery = useQuery({
+    queryKey: ["report-package", "snapshot", selectedSnapshotId],
+    queryFn: ({ signal }) =>
+      apiFetch<PersonalReportPackageSnapshotResponse>(
+        `/api/reports/package/snapshots/${selectedSnapshotId}`,
+        signal ? { signal } : undefined,
+      ),
+    enabled: Boolean(selectedSnapshotId),
+    staleTime: 0,
+  });
+  const selectedSnapshot = selectedSnapshotQuery.data ?? null;
+  const document = selectedSnapshot?.document ?? packageQueryResult.data ?? null;
+
+  useEffect(() => {
+    if (document?.contract) setLastContract(document.contract);
+  }, [document?.contract]);
 
   return {
-    contract: contractQuery.data ?? null,
-    readiness: packageData?.readiness ?? null,
-    frameworkPolicy: packageData?.frameworkPolicy ?? null,
-    annualizedSchedule: packageData?.annualizedSchedule ?? null,
-    packageNotes: packageData?.packageNotes ?? null,
-    traceabilityAppendix: packageData?.traceabilityAppendix ?? null,
+    // The shell uses the last valid contract while a replacement document is
+    // loading. It never presents a stale document as output for the new date
+    // or framework.
+    contract: document?.contract ?? lastContract,
+    document,
+    selectedSnapshot,
     packageSnapshots: snapshotsQuery.data ?? [],
     refetchPackageSnapshots: snapshotsQuery.refetch,
-    isPackageLoading: packageQueryResult.isLoading,
-    error: contractQuery.error?.message ?? packageQueryResult.error?.message ?? snapshotsQuery.error?.message ?? null,
+    isPackageLoading: packageQueryResult.isLoading || selectedSnapshotQuery.isLoading,
+    error:
+      packageQueryResult.error?.message ??
+      selectedSnapshotQuery.error?.message ??
+      snapshotsQuery.error?.message ??
+      null,
   };
 }

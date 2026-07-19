@@ -11,7 +11,6 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
-import ConfidenceBadge, { type ConfidenceTier } from "@/components/ui/ConfidenceBadge";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ReportPageShell } from "@/components/reports/ReportPageShell";
 import { ReportToolbar } from "@/components/reports/ReportToolbar";
@@ -139,11 +138,6 @@ export default function BalanceSheetPage() {
           <span>Include restricted holdings</span>
         </label>
         <span className="self-end inline-flex items-center"><span className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>{report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}</span><InfoHint term={report?.is_balanced ? "balanced" : "drift"} label={report?.is_balanced ? "Balanced" : "Drift"} /></span>
-        {report?.confidence_tier ? (
-          <span className="self-end inline-flex items-center" title="Aggregate confidence of these totals">
-            <ConfidenceBadge tier={report.confidence_tier as ConfidenceTier} />
-          </span>
-        ) : null}
       </div>
 
       <FxWarningBanner warnings={report?.fx_warnings} />

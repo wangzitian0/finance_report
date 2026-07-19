@@ -82,44 +82,6 @@ def test_AC13_21_1_balance_invalid_routes_to_parsed_review():
     assert route_by_threshold(50, balance_valid=True) == BankStatementStatus.UPLOADED
 
 
-async def test_AC13_21_4_readiness_counts_parsed_balance_invalid(db, test_user):
-    """AC-extraction.121.4 (#1141): the balance-invalid resting state is readiness-visible.
-
-    A balance-invalid bank statement rests in `PARSED` (see routing below); report
-    readiness counts `PARSED` + `APPROVED` summaries, so the statement is an
-    available report input instead of an invisible `uploaded` orphan. This drives
-    the real readiness query against a seeded DB row rather than inspecting source
-    text, so a regression in the status filter would actually fail the test.
-    """
-    from src.extraction.orm.statement_summary import StatementSummary
-    from src.reporting.extension.report_readiness import get_personal_report_package_readiness
-
-    # The balance-invalid bank statement rests in PARSED, not UPLOADED.
-    resting_status = route_by_threshold(95, balance_valid=False)
-    assert resting_status == BankStatementStatus.PARSED
-
-    # Baseline: no statements seeded -> readiness counts zero.
-    baseline = await get_personal_report_package_readiness(db, test_user.id)
-    assert baseline["source_summary"]["statements"] == 0
-
-    # Seed a PARSED, balance-invalid statement (the exact resting state under test).
-    statement = StatementSummary(
-        user_id=test_user.id,
-        account_id=None,
-        file_hash="readiness-parsed-balance-invalid",
-        institution="DBS",
-        currency="SGD",
-        status=resting_status,
-        balance_validated=False,
-    )
-    db.add(statement)
-    await db.flush()
-
-    # The real readiness query must count the PARSED balance-invalid statement.
-    readiness = await get_personal_report_package_readiness(db, test_user.id)
-    assert readiness["source_summary"]["statements"] == 1
-
-
 def test_validate_balance_tolerance():
     """Balance within tolerance should be valid."""
     extracted = {

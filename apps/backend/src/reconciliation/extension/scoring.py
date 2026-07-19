@@ -6,6 +6,7 @@ import re
 from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -15,6 +16,17 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import AccountType, JournalEntry
 from src.reconciliation.base.config import ReconciliationConfig
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
+
+ReconciliationConfidenceTier = Literal["HIGH", "MEDIUM", "LOW"]
+
+
+def derive_reconciliation_score_tier(score: int | None) -> ReconciliationConfidenceTier:
+    """Map one reconciliation match score to its review-queue presentation tier."""
+    if score is None or score < 60:
+        return "LOW"
+    if score < 85:
+        return "MEDIUM"
+    return "HIGH"
 
 
 def normalize_text(value: str) -> str:

@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,6 +53,19 @@ async def get_pending_items(
         .offset(offset)
     )
     return cast(list[ReconciliationMatch], result.scalars().all())
+
+
+async def count_pending_review_items(db: AsyncSession, *, user_id: UUID) -> int:
+    """Return the exact user-scoped count for workflow-level review prompts."""
+    return int(
+        await db.scalar(
+            select(func.count(ReconciliationMatch.id))
+            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+            .where(AtomicTransaction.user_id == user_id)
+            .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        )
+        or 0
+    )
 
 
 async def accept_match(

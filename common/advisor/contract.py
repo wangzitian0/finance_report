@@ -4,11 +4,11 @@ This is the authoritative spec the governance gate
 (``tools/check_package_contract.py``) validates the BE implementation against.
 The implementation physically lives at ``apps/backend/src/advisor`` (#1671
 Wave B moved it out of ``apps/backend/src/services/ai_advisor``, absorbing
-``services/annualized_income.py``, ``prompts/ai_advisor.py``, and
-``models/chat.py`` → ``orm/chat.py``), so the ``interface == __all__`` check
-applies. Every ``invariants[].test`` and ``roadmap[].test`` must resolve to a
-real test function; ``depends_on`` must not introduce a forbidden
-upward/sideways edge.
+``prompts/ai_advisor.py`` and ``models/chat.py`` → ``orm/chat.py``; the
+annualized-income schedule is reporting-owned (#567), so the
+``interface == __all__`` check applies. Every ``invariants[].test`` and
+``roadmap[].test`` must resolve to a real test function; ``depends_on`` must
+not introduce a forbidden upward/sideways edge.
 
 ## What this package is
 
@@ -31,8 +31,7 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
   cross-domain read goes through the target package's *published* root
   (``ledger``/``platform``/``portfolio``/``pricing``/``reconciliation``/
   ``reporting``), and the one read whose owner still lives in the app
-  remainder (the fx-pair composer; windowed fx conversion for the
-  annualized-income schedule) is injected through ``extension/app_reads.py``
+  remainder (the fx-pair composer) is injected through ``extension/app_reads.py``
   by the composition root — never a direct ``src.services.*`` import, never
   a cross-domain FK).  It never *writes* into the ledger.
 * **LLM via ``llm``** — all provider calls go through the ``llm`` package
@@ -44,8 +43,8 @@ positions) and streams a grounded, cited, disclaimer-tagged response.
 ## Cross-domain read edges
 
 ``depends_on`` mirrors the real import set: ``audit`` (money formatting),
-``ledger`` (Account/AccountType/journal-line reads for the annualized-income
-schedule and category context — registered as advisor's dependency once
+``ledger`` (Account/AccountType/journal-line reads for category context —
+registered as advisor's dependency once
 #1675's D5 omnibus moved account.py/journal.py into ``ledger``, mid-flight of
 this PR), ``llm`` (scene binding + streaming transport), ``observability``
 (logging), ``platform`` (workflow status, HTTP error helpers), ``portfolio``
@@ -92,21 +91,15 @@ CONTRACT = PackageContract(
     # infra: llm (scene binding + streaming transport), observability
     # (logging), platform (workflow status, HTTP error helpers), audit
     # (money formatting).  Domain (same-layer, read-only, declared +
-    # acyclic): ledger (Account/AccountType/journal-line reads for the
-    # annualized-income schedule + category context — surfaced as a real
-    # edge only once #1675's D5 omnibus registered `ledger` as the owner of
-    # account.py/journal.py, mid-flight of this PR), portfolio, pricing,
+    # acyclic): ledger (AccountType + worst-confidence ranking for category
+    # context — surfaced as a real edge only once #1675's D5 omnibus
+    # registered `ledger` as the owner of account.py/journal.py, mid-flight
+    # of this PR), portfolio, pricing,
     # reconciliation, reporting (#1666).  The observed-FX-pair composer is
     # still consumed through an app_reads injection port until #1610
     # physically folds it (see the module docstring).
     depends_on=[
         "audit",
-        # extraction: the annualized-income schedule reads the published fact
-        # entities (ManualValuationComponentType/ManualValuationLiquidityClass
-        # /ManualValuationSnapshot, #1675 D5c) by id — surfaced as a real edge
-        # once extraction.orm.layer3 replaced src.models.layer3, mid-flight
-        # of this PR.
-        "extraction",
         "ledger",
         "llm",
         "observability",
@@ -169,7 +162,6 @@ CONTRACT = PackageContract(
         "build_refusal",
         "detect_language",
         "ensure_disclaimer",
-        "generate_annualized_income_schedule",
         "get_ai_advisor_prompt",
         "is_non_financial",
         "is_prompt_injection",
@@ -177,7 +169,6 @@ CONTRACT = PackageContract(
         "is_write_request",
         "normalize_question",
         "redact_sensitive",
-        "register_fx_conversion",
         "register_fx_pairs_read",
     ],
     events=[],

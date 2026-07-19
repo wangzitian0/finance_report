@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # can resolve cross-module string relationships (replaces the former
 # ``from src.models import ...`` hub side effect; issue #1461).
 import src.orm_registry  # noqa: E402, F401
-from src.advisor import register_fx_conversion, register_fx_pairs_read
+from src.advisor import register_fx_pairs_read
 from src.boot import Bootloader, BootMode
 from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
@@ -118,12 +118,8 @@ logger = get_logger(__name__)
 # while this PR was in flight (advisor now imports those directly, no port
 # needed); the fx-pair composer is cross-domain composition at this
 # composition root (src/composition.py, #1610 P2 re-homed it from
-# services/market_data_scheduler.py) and the FX conversion is pricing's
-# published surface (#1610 P2 retired services/fx.py) — both still arrive by
-# injection, same inversion as the platform port above, so a rename inside
-# either owner never touches advisor's consumer modules.
+# services/market_data_scheduler.py), so it still arrives by injection.
 register_fx_pairs_read(observed_fx_pairs)
-register_fx_conversion(convert_amount=convert_amount, error_type=PricingError)
 
 # Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
 # (L3) must not import the pricing package directly through the app

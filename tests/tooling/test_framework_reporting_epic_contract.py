@@ -106,7 +106,7 @@ def test_AC20_5_1_policy_layer_is_read_only_between_facts_and_report() -> None:
 
 
 def test_AC20_6_1_ai_suggestions_require_structured_reviewed_policy_fields() -> None:
-    """AC20.6.1: AI suggestions need structured fields and review before trusted output."""
+    """AC-reporting.ai.1 AC20.6.1: AI suggestions need structured reviewed fields."""
     ssot = read(FRAMEWORK_SSOT)
     epic = read(EPIC_020)
 

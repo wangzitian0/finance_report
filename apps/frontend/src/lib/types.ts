@@ -171,7 +171,6 @@ export interface PersonalReportPackageContractResponse {
   period_semantics: Record<string, string>;
   supported_frameworks: string[];
   selected_framework_id?: string | null;
-  framework_policy_endpoint?: string | null;
   sections: PersonalReportPackageSectionContract[];
   export_contract: {
     formats: string[];
@@ -181,6 +180,12 @@ export interface PersonalReportPackageContractResponse {
 
 export type PersonalReportPackageReadinessBlocker = Schemas["PersonalReportPackageReadinessBlocker"];
 
+export interface PersonalReportPackageInputCoverage {
+  manifest_decision_count: number;
+  authoritative_input_count: number;
+  unproven_input_count: number;
+}
+
 export interface PersonalReportPackageReadinessResponse {
   package_id: string;
   state: "ready" | "processing" | "blocked" | "draft" | "generated" | "stale";
@@ -188,37 +193,55 @@ export interface PersonalReportPackageReadinessResponse {
   action_href: string;
   blocking_count: number;
   blockers: PersonalReportPackageReadinessBlocker[];
-  source_summary: Record<string, number | string>;
-  source_trust_summary?: {
-    source_classes: string[];
-    deterministic_pr_source_classes: string[];
-    post_merge_llm_ocr_source_classes: string[];
-    manual_trusted_source_classes: string[];
-    gap_source_classes: string[];
-    blocker_codes: string[];
-  };
-  generated_at?: string | null;
-  stale_since?: string | null;
+  input_coverage: PersonalReportPackageInputCoverage;
 }
 
-export interface PersonalReportPackageSnapshotPayload {
-  package_id: string;
-  version: string;
-  status: "draft" | "trusted";
+export type PersonalReportPackageDocumentLifecycle =
+  Schemas["PersonalReportPackageDocumentLifecycle"];
+
+export type PersonalReportPackageTraceManifestEntry =
+  Schemas["PersonalReportPackageTraceManifestEntry"];
+
+export interface PersonalReportPackageSections {
+  balance_sheet: BalanceSheetResponse;
+  income_statement: IncomeStatementResponse;
+  cash_flow: CashFlowResponse;
+  investment_performance: InvestmentPerformanceReportSchedule;
+  annualized_income_long_term: AnnualizedIncomeScheduleResponse;
+  notes: PersonalReportPackageNotesResponse;
+  traceability_appendix: PersonalReportPackageTraceabilityResponse;
+}
+
+/** The package renderer receives a complete document, never partial endpoint data. */
+export interface PersonalReportPackageDocument {
+  schema_version: "2";
+  lifecycle: PersonalReportPackageDocumentLifecycle;
+  snapshot_id: string | null;
+  package_decision_id: string | null;
   generated_at: string;
-  framework_id: string;
-  start_date: string;
-  end_date: string;
-  as_of_date: string;
-  currency: string;
+  frozen_at: string | null;
+  package_id: string;
+  status: PersonalReportPackageSnapshotSummary["status"];
+  context: {
+    framework_id: Schemas["PersonalReportingFrameworkId"];
+    start_date: string;
+    end_date: string;
+    as_of_date: string;
+    currency: string;
+  };
+  contract: PersonalReportPackageContractResponse;
   readiness: PersonalReportPackageReadinessResponse;
-  source_trust_summary?: PersonalReportPackageReadinessResponse["source_trust_summary"];
-  section_payloads: Record<string, unknown>;
+  framework_policy: FrameworkPolicyResult;
+  input_manifest: PersonalReportPackageTraceManifestEntry[];
+  sections: PersonalReportPackageSections;
+}
+
+export interface PersonalReportPackageSnapshotResponse
+  extends PersonalReportPackageSnapshotSummary {
+  document: PersonalReportPackageDocument;
 }
 
 export type PersonalReportPackageSnapshotSummary = Schemas["PersonalReportPackageSnapshotSummary"];
-
-export type PersonalReportPackageSnapshotResponse = Schemas["PersonalReportPackageSnapshotResponse"];
 
 export interface AdvisorSuggestion {
   basis: string;
@@ -726,21 +749,6 @@ export type ProcessingPendingListResponse = ListResponse<ProcessingPendingItem>;
 // ── Brokerage Import (EPIC-017 / statement import completion) ─────────────
 
 export type BrokerageImportResponse = Schemas["BrokerageImportResponse"];
-
-// ── North-Star confidence metric (EPIC-018 AC18.12 / #1003, #1055 PR4) ─────
-//
-// The single measurable expression of Axiom B's loop: the share of posted
-// ledger facts that sit in the LOW confidence tier. Lower is better. Decimal
-// proportions arrive as strings (e.g. "0.12500") to preserve precision.
-
-export type ConfidenceMetricPoint = Schemas["ConfidenceMetricPoint"];
-
-export interface ConfidenceMetricSnapshot extends ConfidenceMetricPoint {
-  id: string;
-  captured_at: string;
-}
-
-export type ConfidenceNorthStarResponse = Schemas["ConfidenceNorthStarResponse"];
 
 export type CorrectionLoopReplayResponse = Schemas["CorrectionLoopReplayResponse"];
 

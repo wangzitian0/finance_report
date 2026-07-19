@@ -400,7 +400,6 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "type": AccountType.ASSET,
             "parent_id": None,
             "amount": Decimal("1600.00"),
-            "confidence_tier": "TRUSTED",
             "provenance": "manual",
         }
     ]
@@ -411,16 +410,11 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "type": AccountType.LIABILITY,
             "parent_id": None,
             "amount": Decimal("300.00"),
-            "confidence_tier": "TRUSTED",
             "provenance": "manual",
         }
     ]
-    # AC5.18.2: Net Worth aggregate rolls up to the worst-input tier across lines —
-    # but AC2.16.4 (#1481) floors it to LOW while no opening balance is recorded
-    # via the canonical mechanism (the day-one capital here is a regular equity
-    # entry, not a recorded opening balance), and surfaces a warning. The per-line
-    # tiers above stay TRUSTED; only the structural aggregate is gated.
-    assert balance_sheet["confidence_tier"] == "LOW"
+    # The day-one capital is a regular equity entry, not a recorded opening
+    # balance, so completeness remains an explicit warning.
     assert any(w.get("type") == "missing_opening_balance" for w in balance_sheet["opening_balance_warnings"])
 
     assert income_statement["total_income"] == Decimal("500.00")

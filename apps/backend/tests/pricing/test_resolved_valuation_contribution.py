@@ -220,6 +220,9 @@ async def test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_
     assert {item.observation_id for item in contributions} == {item.id for item in observations}
     assert len({item.lineage_id for item in contributions}) == 2
     assert all(item.is_authoritative and item.decision_id for item in contributions)
+    assert {item.component_type for item in contributions} == {"property_value"}
+    assert {item.liquidity_class for item in contributions} == {"illiquid"}
+    assert {item.valuation_basis for item in contributions} == {None}
 
     asset_lines, _ = await build_manual_valuation_lines(
         db,

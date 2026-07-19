@@ -18,9 +18,10 @@ import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { packageQuery } from "@/lib/reportPackage";
-import { countLabel, readinessVariant, sourceClassLabel } from "@/lib/statusLabels";
+import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type {
   AnnualizedIncomeResponse,
+  PersonalReportPackageDocument,
   PersonalReportPackageReadinessResponse,
   ReconciliationStatsResponse,
 } from "@/lib/types";
@@ -58,7 +59,8 @@ function isPackageReadiness(
     typeof candidate.label === "string" &&
     typeof candidate.action_href === "string" &&
     typeof candidate.blocking_count === "number" &&
-    Array.isArray(candidate.blockers),
+    Array.isArray(candidate.blockers) &&
+    typeof candidate.input_coverage === "object",
   );
 }
 
@@ -81,11 +83,11 @@ export default function ReportsPage() {
     apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats")
       .then((data) => active && setStats(data))
       .catch(() => active && setStats(null));
-    apiFetch<PersonalReportPackageReadinessResponse>(
-      `/api/reports/package/readiness${packageQuery(new Date().toISOString().slice(0, 10))}`,
+    apiFetch<PersonalReportPackageDocument>(
+      `/api/reports/package${packageQuery(new Date().toISOString().slice(0, 10))}`,
     )
-      .then((data) => {
-        if (!isPackageReadiness(data)) {
+      .then((document) => {
+        if (!isPackageReadiness(document.readiness)) {
           if (active) {
             setReadiness(null);
             setReadinessState("error");
@@ -93,7 +95,7 @@ export default function ReportsPage() {
           return;
         }
         if (active) {
-          setReadiness(data);
+          setReadiness(document.readiness);
           setReadinessState("loaded");
         }
       })
@@ -232,9 +234,8 @@ function ReportsReadinessCockpit({
   readiness: PersonalReportPackageReadinessResponse | null;
   loadState: ReadinessLoadState;
 }) {
-  const sourceTrust = readiness?.source_trust_summary;
-  const gapClasses = sourceTrust?.gap_source_classes ?? [];
-  const sourceClassCount = sourceTrust?.source_classes.length ?? 0;
+  const coverage = readiness?.input_coverage;
+  const unprovenInputCount = coverage?.unproven_input_count ?? 0;
   const blockers = readiness?.blockers ?? [];
 
   if (loadState === "error") {
@@ -315,33 +316,27 @@ function ReportsReadinessCockpit({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Source classes</dt>
+          <dt className="text-xs text-muted">Authority decisions</dt>
           <dd className="mt-1 font-semibold">
-            {countLabel(sourceClassCount, "class", "classes")}
+            {countLabel(coverage?.manifest_decision_count ?? 0, "decision")}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Trust gaps</dt>
+          <dt className="text-xs text-muted">Unproven inputs</dt>
           <dd className="mt-1 font-semibold">
-            {countLabel(gapClasses.length, "trust gap")}
+            {countLabel(unprovenInputCount, "unproven input")}
           </dd>
         </div>
       </dl>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded border border-[var(--border)] p-3">
-          <h3 className="text-sm font-semibold">Source gaps</h3>
-          {gapClasses.length ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {gapClasses.map((sourceClass) => (
-                <Badge key={sourceClass} variant="warning">
-                  {sourceClassLabel(sourceClass)}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-muted">No source gaps reported.</p>
-          )}
+          <h3 className="text-sm font-semibold">Authority coverage</h3>
+          <p className="mt-2 text-sm text-muted">
+            {unprovenInputCount
+              ? `${countLabel(unprovenInputCount, "input")} still need current authority decisions.`
+              : "All inputs in this package document have current authority decisions."}
+          </p>
         </div>
         <div className="rounded border border-[var(--border)] p-3">
           <h3 className="text-sm font-semibold">Blocking actions</h3>

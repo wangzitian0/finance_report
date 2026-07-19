@@ -6,18 +6,19 @@ layer — confidence-tagged extracted/reconciled inputs and append-only manual-v
 versioning — which is exactly where the recent audit bugs lived (#968 superseded
 valuation leaked into holdings; a missing `.distinct()` inflated provenance).
 
-This test stands up the *combined* state production actually has — a low-confidence
+This test stands up the *combined* state production actually has — a source-labelled
 extracted ledger input AND a corrected (superseded) valuation present at once — and
 asserts the report is right on every axis simultaneously:
 
 1. the ledger numbers are correct and the equation still holds with the valuation folded in,
-2. the low-confidence input is **not laundered**: its line carries the worst tier (Axiom B),
+2. source confidence is not misrepresented as report assurance: the statement does not
+   export a synthetic confidence tier,
 3. the **corrected** valuation reaches the balance sheet while the **superseded** one is
    excluded (the total carries 1,100,000, not 2,100,000) — the #968 class, proven at the
    balance-sheet level and again in net-worth components,
 4. the ledger Cash line itself is unchanged by the valuation (it stays 1,500).
 
-Existing tests cover (2) and (3) each in isolation; none exercises them composed,
+Existing tests cover the authority fold and (3) in isolation; none exercises them composed,
 which is where seam bugs hide.
 """
 
@@ -81,11 +82,11 @@ async def _posted(
     source_classes=["manual_record", "bank_statement"],
     issue="#1103 / #990 / #992",
 )
-async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confidence(
+async def test_AC8_16_1_augmentation_seam_excludes_superseded_without_source_assurance(
     db: AsyncSession, test_user: User, ac_evidence
 ) -> None:
-    """AC-reporting.augmentation.1: AC8.16.1: low-confidence extracted inputs and a corrected valuation reach the
-    report without leaking a superseded row or laundering a low-confidence input."""
+    """AC-reporting.augmentation.1: source-labelled inputs and a corrected valuation reach the
+    report without leaking a superseded row or presenting source metadata as assurance."""
     user_id = test_user.id
     as_of = date(2026, 5, 31)
     service = ValuationService()
@@ -94,8 +95,7 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     equity = await _account(db, user_id, name="Opening Equity", account_type=AccountType.EQUITY)
     salary = await _account(db, user_id, name="Salary", account_type=AccountType.INCOME)
 
-    # Reconcile/extract path: a TRUSTED manual entry and a LOW-confidence auto_parsed
-    # (simulated extraction→reconcile) entry both land on Cash → worst input tier is LOW.
+    # Reconcile/extract path: a manual entry and an auto-parsed entry both land on Cash.
     await _posted(
         db,
         user_id,
@@ -144,9 +144,9 @@ async def test_AC8_16_1_augmentation_seam_excludes_superseded_and_surfaces_confi
     assert balance_sheet["equation_delta"] == Decimal("0.00")
     assert balance_sheet["is_balanced"] is True
 
-    # (2) the low-confidence extracted input is not laundered to trusted — the ledger
-    # Cash line carries the worst-input tier, and its own amount is unchanged by the valuation.
-    assert asset_lines["Cash"]["confidence_tier"] == "LOW"
+    # (2) source confidence is not converted into report assurance. Package trust is
+    # represented by TraceRecord decisions, not a per-line confidence display.
+    assert "confidence_tier" not in asset_lines["Cash"]
     assert Decimal(str(asset_lines["Cash"]["amount"])) == Decimal("1500.00")
 
     # (3) the superseded valuation is also excluded from net-worth components (#968 class)

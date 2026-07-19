@@ -19,7 +19,7 @@ from src.extraction import DocumentType, UploadedDocument
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.reporting.extension.report_readiness import get_personal_report_package_readiness
+from src.reporting import current_package_document_summary
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventResponse,
@@ -54,14 +54,19 @@ ROOT_DIR = Path(__file__).resolve().parents[4]
 
 @pytest.fixture(autouse=True)
 def _restore_readiness_read() -> Iterator[None]:
-    """Keep test-local readiness overrides isolated without a production locator."""
-    workflow_events.get_personal_report_package_readiness = get_personal_report_package_readiness
+    """Keep test-local frozen-document summary overrides isolated."""
+    workflow_events.current_package_document_summary = current_package_document_summary
     yield
-    workflow_events.get_personal_report_package_readiness = get_personal_report_package_readiness
+    workflow_events.current_package_document_summary = current_package_document_summary
 
 
 def _override_readiness_for_test(provider) -> None:
-    workflow_events.get_personal_report_package_readiness = provider
+    async def summary_provider(db, *, user_id):
+        payload = await provider(db, user_id=user_id)
+        readiness = SimpleNamespace(model_dump=lambda mode="json": payload)
+        return SimpleNamespace(readiness=readiness)
+
+    workflow_events.current_package_document_summary = summary_provider
 
 
 async def _make_statement(
@@ -952,7 +957,9 @@ async def test_AC19_3_1_sync_uses_bounded_workflow_event_lookup(db, db_engine, t
     finally:
         sqlalchemy_event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
 
-    assert len(statements) <= 2
+    # The source-event batch lookup, stale-event sweep, and active-session
+    # aggregate are each constant-cost. The sync must not grow with statement count.
+    assert len(statements) <= 3
     # #1675 D6: platform reads StatementSummary through the registered
     # StatementEventSource port (extraction's own query against
     # statement_summaries, not workflow_events — so it never shows up in this
@@ -1227,7 +1234,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(
     """AC19.2.7: a single /workflow/events read derives the SSOT-consistent
     status without recomputing the multi-query package readiness twice. The
     events path syncs once and reuses that readiness in get_workflow_status,
-    so get_personal_report_package_readiness is invoked exactly once."""
+    so the frozen PackageDocument summary is read exactly once."""
 
     call_count = 0
 

@@ -55,6 +55,7 @@ class ReportingSnapshotService:
         report_data: dict,
         start_date: date | None = None,
         ttl_seconds: int = 3600,
+        snapshot_id: UUID | None = None,
     ) -> ReportSnapshot:
         """Create a new report snapshot and mark it as latest."""
         try:
@@ -84,6 +85,11 @@ class ReportingSnapshotService:
                 is_latest=True,
                 ttl=ttl,
             )
+            # Package assembly pre-allocates its UUID so the frozen document can
+            # bind its immutable identity before persistence. Other snapshots
+            # must leave the field unset for UUIDMixin's default to generate it.
+            if snapshot_id is not None:
+                snapshot.id = snapshot_id
             db.add(snapshot)
             await db.flush()
             return snapshot

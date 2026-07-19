@@ -361,9 +361,8 @@ missing settlement coverage, unresolved review, stale market data,
 missing valuation basis, and AI-only unreviewed policy suggestions —
 before marking US/HK personal reports trusted.
 
-> This group's row removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.readiness.6` (migration closeout continuation, #1663 /
-> #1716).
+> This legacy readiness row was removed by the reporting package authority
+> cutover (#567); readiness is now a typed field of the package document.
 
 ### AC19.8 — Workflow Session IA Hardening And CR Cleanup
 
@@ -376,16 +375,14 @@ before marking US/HK personal reports trusted.
 (AC19.8.4 removed, canonical: migrated to the `platform` package roadmap as `AC-platform.fe-workflow.6`, #1821 Wave B)
 (AC19.8.6 removed, canonical: migrated to the `advisor` package roadmap as `AC-advisor.fe-remainder-chat.1`, #1821 Wave B)
 (AC19.8.7 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-remainder-reports.13`, #1821 Wave B)
-> (AC19.8.8 removed — backend half migrated to the `reporting` package
-> roadmap as `AC-reporting.readiness.7`, #1821 Wave A. The
-> report-readiness.spec.ts Playwright assertion is not tracked by this
-> Python-only roadmap.)
+> (AC19.8.8's legacy readiness half was removed by the reporting package
+> authority cutover (#567). The package document now owns the corresponding
+> invariant and report-readiness.spec.ts remains a frontend interaction proof.)
 
 ### AC19.9 — Source Trust Readiness
 
-> *(AC19.9.1 removed — migrated to the `reporting` package roadmap as
-> `AC-reporting.source-trust.1`, migration closeout continuation, #1663 /
-> #1716.)* The frontend row below stays here.
+> *(AC19.9.1's source-class trust summary was removed by the reporting package
+> authority cutover (#567). The frontend row below stays here.)*
 
 (AC19.9.2 removed, canonical: migrated to the `reporting` package roadmap as `AC-reporting.fe-remainder-reports.14`, #1821 Wave B)
 

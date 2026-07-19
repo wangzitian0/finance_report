@@ -336,7 +336,7 @@ def test_portfolio_valuation_gate_failure_diagnostics_are_actionable() -> None:
     ci_tier="post_merge_environment",
     trust_mode="llm_ocr_post_merge",
     source_classes=["brokerage_statement"],
-    mirror_proof_id="personal-package-source-trust-pr",
+    mirror_proof_id="personal-package-document-pr",
     issue="#404",
     required_markers=["e2e", "tier3", "critical", "llm"],
 )

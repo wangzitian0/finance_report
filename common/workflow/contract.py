@@ -35,7 +35,7 @@ CONTRACT = PackageContract(
     name="workflow",
     status="active",
     tier="CODE-ONLY",
-    depends_on=["extraction", "platform", "reporting"],
+    depends_on=["extraction", "platform", "reconciliation", "reporting"],
     roles=["base", "extension"],
     units=[
         *[

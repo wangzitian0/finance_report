@@ -213,6 +213,8 @@ CONTRACT = PackageContract(
         "build_reconciliation_prompt",
         "calculate_match_score",
         "classify_internal_transfer",
+        "count_pending_review_items",
+        "derive_reconciliation_score_tier",
         "detect_anomalies",
         "discover_fx_conversions",
         "entry_bank_side_amount",
@@ -903,7 +905,7 @@ CONTRACT = PackageContract(
                 "None), MEDIUM (60-84), or HIGH (>=85)."
             ),
             test=(
-                "apps/backend/tests/reporting/test_confidence_tier.py"
+                "apps/backend/tests/reconciliation/test_confidence_tier.py"
                 "::test_ac4_9_4_derive_reconciliation_score_tier"
             ),
             priority="P1",

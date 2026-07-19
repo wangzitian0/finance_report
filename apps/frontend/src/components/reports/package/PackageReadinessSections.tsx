@@ -2,15 +2,13 @@ import Link from "next/link";
 
 import type {
   FrameworkPolicyResult,
+  PersonalReportPackageInputCoverage,
   PersonalReportPackageReadinessResponse,
+  PersonalReportPackageTraceManifestEntry,
 } from "@/lib/types";
-import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
+import { humanizeIdentifier } from "@/lib/statusLabels";
 
-import { FRAMEWORK_LABELS, renderCsv, renderSourceClasses } from "./shared";
-
-type SourceTrustSummary = NonNullable<
-  PersonalReportPackageReadinessResponse["source_trust_summary"]
->;
+import { FRAMEWORK_LABELS } from "./shared";
 
 export function PackageReadinessSection({
   readiness,
@@ -34,21 +32,21 @@ export function PackageReadinessSection({
       </div>
       <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
         <div>
-          <dt className="text-xs text-muted">Statements</dt>
+          <dt className="text-xs text-muted">Authority Decisions</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.source_summary.statements ?? 0}
+            {readiness.input_coverage.manifest_decision_count}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Journal Entries</dt>
+          <dt className="text-xs text-muted">Authoritative Inputs</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.source_summary.posted_journal_entries ?? 0}
+            {readiness.input_coverage.authoritative_input_count}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Manual Valuations</dt>
+          <dt className="text-xs text-muted">Unproven Inputs</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.source_summary.manual_valuations ?? 0}
+            {readiness.input_coverage.unproven_input_count}
           </dd>
         </div>
         <div>
@@ -119,84 +117,48 @@ export function PackageReadinessSection({
   );
 }
 
-export function PackageSourceTrustSection({
-  summary,
+export function PackageInputManifestSection({
+  coverage,
+  manifest,
 }: {
-  summary: SourceTrustSummary;
+  coverage: PersonalReportPackageInputCoverage;
+  manifest: PersonalReportPackageTraceManifestEntry[];
 }) {
-  const coverageItems = [
-    {
-      label: "Imported evidence",
-      values: summary.source_classes,
-    },
-    {
-      label: "Verified by automated checks",
-      values: summary.deterministic_pr_source_classes,
-    },
-    {
-      label: "Verified with live extraction checks",
-      values: summary.post_merge_llm_ocr_source_classes,
-    },
-    {
-      label: "Manual evidence",
-      values: summary.manual_trusted_source_classes,
-    },
-    {
-      label: "Missing or unsupported evidence",
-      values: summary.gap_source_classes,
-    },
-  ];
-
   return (
-    <section id="package-source-trust" className="card p-5 mb-6" aria-label="Evidence Coverage">
+    <section id="package-input-manifest" className="card p-5 mb-6" aria-label="Authority Coverage">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Evidence Coverage</h2>
+          <h2 className="font-semibold">Authority Coverage</h2>
+          <p className="mt-2 text-sm text-muted">
+            Trust comes from the current decision graph pinned into this document, not a source label.
+          </p>
         </div>
-        <span className="badge badge-muted">
-          {countLabel(summary.source_classes.length, "evidence class", "evidence classes")}
-        </span>
+        <span className="badge badge-muted">{coverage.manifest_decision_count} decisions</span>
       </div>
       <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-        {coverageItems.map((item) => (
-          <div key={item.label} className="rounded border border-[var(--border)] p-3">
-            <dt className="text-xs text-muted">{item.label}</dt>
-            <dd className="mt-1 font-medium">{renderSourceClasses(item.values)}</dd>
-          </div>
-        ))}
+        <CoverageMetric label="Authoritative inputs" value={coverage.authoritative_input_count} />
+        <CoverageMetric label="Unproven inputs" value={coverage.unproven_input_count} />
       </dl>
       <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
-        <summary className="cursor-pointer font-medium">Evidence audit details</summary>
-        <dl className="mt-3 grid gap-3 md:grid-cols-2">
-          <div>
-            <dt className="text-xs text-muted">Source classes</dt>
-            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.source_classes)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Deterministic PR</dt>
-            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.deterministic_pr_source_classes)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Post-merge LLM/OCR</dt>
-            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.post_merge_llm_ocr_source_classes)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Manual Trusted</dt>
-            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.manual_trusted_source_classes)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Trust Gaps</dt>
-            <dd className="mt-1 font-mono text-xs">{renderCsv(summary.gap_source_classes)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">Blocker Codes</dt>
-            <dd className="mt-1 font-mono text-xs">
-              {summary.blocker_codes.join(", ") || "none"}
-            </dd>
-          </div>
-        </dl>
+        <summary className="cursor-pointer font-medium">Authority manifest audit details</summary>
+        <div className="mt-3 space-y-2 font-mono text-xs">
+          {manifest.length ? manifest.map((entry) => (
+            <p key={entry.decision_id}>
+              {entry.decision_id} {entry.target_kind}:{entry.target_id}@{entry.target_version}
+            </p>
+          )) : <p>No authority decisions are pinned for this document.</p>}
+        </div>
       </details>
     </section>
+  );
+}
+
+function CoverageMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded border border-[var(--border)] p-3">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-1 font-semibold">{value}</dd>
+    </div>
   );
 }
 
@@ -309,7 +271,7 @@ export function PackageFrameworkPolicySection({
                   <p className="font-medium">{decision.domain}</p>
                   <p className="mt-1 text-xs font-mono text-muted">{decision.review_state}</p>
                 </div>
-                <span className="badge badge-muted">{decision.confidence_tier}</span>
+                <span className="badge badge-muted">{decision.provenance}</span>
               </div>
               <dl className="mt-3 space-y-1 text-xs">
                 {Object.entries(decision.line_mappings).map(([section, line]) => (

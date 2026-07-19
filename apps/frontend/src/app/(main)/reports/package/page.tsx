@@ -12,8 +12,8 @@ import {
 } from "@/components/reports/package/PackageChrome";
 import {
   PackageFrameworkPolicySection,
+  PackageInputManifestSection,
   PackageReadinessSection,
-  PackageSourceTrustSection,
 } from "@/components/reports/package/PackageReadinessSections";
 import {
   PackageAnnualizedScheduleSection,
@@ -49,6 +49,7 @@ export default function PersonalReportPackagePage() {
     null,
   );
   const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
     null,
   );
@@ -59,16 +60,12 @@ export default function PersonalReportPackagePage() {
   );
   const {
     contract,
-    readiness,
-    frameworkPolicy,
-    annualizedSchedule,
-    packageNotes,
-    traceabilityAppendix,
+    document: packageDocument,
     packageSnapshots,
     refetchPackageSnapshots,
     isPackageLoading,
     error,
-  } = usePersonalReportPackage(selectedFrameworkId, reportDate);
+  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId);
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
@@ -115,7 +112,8 @@ export default function PersonalReportPackagePage() {
     setGeneratingSnapshot(true);
     setSnapshotError(null);
     try {
-      await generatePackageSnapshot(selectedFrameworkId, reportDate);
+      const snapshot = await generatePackageSnapshot(selectedFrameworkId, reportDate);
+      setSelectedSnapshotId(snapshot.id);
       // EPIC-022 AC22.18.3 (#1109): instrument report-package generation. The
       // framework id is a safe, non-PII selector (e.g. personal_us_gaap_like).
       track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: selectedFrameworkId });
@@ -127,6 +125,17 @@ export default function PersonalReportPackagePage() {
     } finally {
       setGeneratingSnapshot(false);
     }
+  }
+
+  function openPackageSnapshot(snapshot: PersonalReportPackageSnapshotSummary) {
+    if (snapshot.status === "legacy_unproven") {
+      setSnapshotError("This legacy snapshot cannot be reopened as a trusted package document.");
+      return;
+    }
+    setSnapshotError(null);
+    setSelectedSnapshotId(snapshot.id);
+    setSelectedFrameworkId(snapshot.framework_id);
+    setReportDate(snapshot.end_date);
   }
 
   async function downloadPackageSnapshot(
@@ -161,7 +170,17 @@ export default function PersonalReportPackagePage() {
   }
 
   if (!contract) {
-    return <div className="p-6 text-muted">Loading package contract...</div>;
+    return (
+      <div
+        role="status"
+        aria-label="Loading report package"
+        aria-busy="true"
+        aria-live="polite"
+        className="p-6 text-muted"
+      >
+        Loading package document...
+      </div>
+    );
   }
 
   const selectedFrameworkLabel = selectedFrameworkId
@@ -174,8 +193,14 @@ export default function PersonalReportPackagePage() {
       selectedFrameworkId={selectedFrameworkId}
       selectedFrameworkLabel={selectedFrameworkLabel}
       reportDate={reportDate}
-      onSelectFramework={setSelectedFrameworkId}
-      onReportDateChange={setReportDate}
+      onSelectFramework={(frameworkId) => {
+        setSelectedSnapshotId(null);
+        setSelectedFrameworkId(frameworkId);
+      }}
+      onReportDateChange={(nextDate) => {
+        setSelectedSnapshotId(null);
+        setReportDate(nextDate);
+      }}
     />
   );
 
@@ -198,16 +223,9 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const outputTocLinks = packageTocLinks(contract, true);
+  const outputTocLinks = packageTocLinks(packageDocument?.contract ?? contract, true);
 
-  if (
-    isPackageLoading ||
-    !readiness ||
-    !annualizedSchedule ||
-    !packageNotes ||
-    !traceabilityAppendix ||
-    !frameworkPolicy
-  ) {
+  if (isPackageLoading || !packageDocument) {
     return (
       <div className="p-6">
         <div className="page-header">
@@ -226,7 +244,7 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const evidenceReferences = evidenceBundleReferences(frameworkPolicy);
+  const evidenceReferences = evidenceBundleReferences(packageDocument.framework_policy);
   const canGenerateSnapshot = Boolean(
     selectedFrameworkId && isValidReportDate(reportDate) && !generatingSnapshot,
   );
@@ -254,32 +272,51 @@ export default function PersonalReportPackagePage() {
         canGenerate={canGenerateSnapshot}
         generating={generatingSnapshot}
         downloading={downloadingSnapshot}
+        selectedSnapshotId={selectedSnapshotId}
         onGenerate={createPackageSnapshot}
+        onOpen={openPackageSnapshot}
         onDownload={downloadPackageSnapshot}
       />
 
-      <PackageReadinessSection readiness={readiness} />
+      <section className="card p-5 mb-6" aria-label="Package document identity">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Package Document</h2>
+            <p className="mt-2 text-sm text-muted">
+              {packageDocument.lifecycle === "frozen"
+                ? `Frozen snapshot ${packageDocument.snapshot_id}`
+                : "Live preview. Generate a snapshot to freeze these exact inputs and totals."}
+            </p>
+          </div>
+          <span className="badge badge-muted">
+            {packageDocument.status === "trusted" ? "Trusted" : "Draft"}
+          </span>
+        </div>
+      </section>
 
-      {readiness.source_trust_summary ? (
-        <PackageSourceTrustSection summary={readiness.source_trust_summary} />
-      ) : null}
+      <PackageReadinessSection readiness={packageDocument.readiness} />
 
-      <PackageFrameworkPolicySection policy={frameworkPolicy} />
+      <PackageInputManifestSection
+        coverage={packageDocument.readiness.input_coverage}
+        manifest={packageDocument.input_manifest}
+      />
 
-      <PackageSectionCards sections={contract.sections} />
+      <PackageFrameworkPolicySection policy={packageDocument.framework_policy} />
 
-      <PackageAnnualizedScheduleSection schedule={annualizedSchedule} />
+      <PackageSectionCards sections={packageDocument.sections} />
 
-      <PackageNotesSection notes={packageNotes} />
+      <PackageAnnualizedScheduleSection schedule={packageDocument.sections.annualized_income_long_term} />
+
+      <PackageNotesSection notes={packageDocument.sections.notes} />
 
       <PackageTraceabilitySection
-        appendix={traceabilityAppendix}
+        appendix={packageDocument.sections.traceability_appendix}
         onTrace={(line) => void openLineagePanel(line)}
       />
 
       <PackageExportContractSection
-        contract={contract}
-        policy={frameworkPolicy}
+        contract={packageDocument.contract}
+        policy={packageDocument.framework_policy}
         evidenceReferences={evidenceReferences}
       />
 

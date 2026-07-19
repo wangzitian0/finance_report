@@ -49,7 +49,7 @@ Examples:
 | DWM | `reconciliation_matches`, `consistency_checks`, `fx_conversions` (links a cross-currency transfer's out-leg + in-leg into one multi-leg event; #1123 AC2) |
 | DWS | `managed_positions`, `investment_lots`, derived balances and period aggregates |
 | ADS | `report_snapshots` |
-| Application / audit plane | `users`, chat/workflow tables, evidence graph tables, feedback/correction tables, `confidence_metric_snapshots` (append-only North-Star metric series) |
+| Application / audit plane | `users`, chat/workflow tables, evidence graph tables, feedback/correction tables, append-only `trace_records` assurance graph |
 
 The generated DB reference owns the current table inventory. Keep the layer list
 above as domain vocabulary and examples, not as a second column-by-column schema

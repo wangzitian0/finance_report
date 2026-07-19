@@ -261,7 +261,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         label="View processing",
         summary="Automation is processing source files; open the session timeline for progress.",
     )
-    assert processing["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports/package"}
+    assert processing["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
     assert processing["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
     assert processing["active_session"]["title"] == "Upload-to-report session"
     assert processing["active_session"]["source_count"] == 1
@@ -287,7 +287,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         label="Review required",
         summary="Confirm the source or review item so trusted report preparation can continue.",
     )
-    assert needs_action["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports/package"}
+    assert needs_action["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
     assert needs_action["event_counts"] == {"unread": 2, "action_required": 1, "blocked": 0}
 
     await _create_event(
@@ -310,15 +310,15 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert blocked["report_readiness"] == {"state": "processing", "blocking_count": 0, "href": "/reports/package"}
+    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
     assert blocked["event_counts"] == {"unread": 3, "action_required": 1, "blocked": 1}
 
-    ready_user = User(email=f"ready-{uuid4()}@example.com", hashed_password="hashed")
-    db.add(ready_user)
+    unproven_user = User(email=f"unproven-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(unproven_user)
     await db.flush()
     await _create_event(
         db,
-        user_id=ready_user.id,
+        user_id=unproven_user.id,
         family=WorkflowEventFamily.REPORT_READY,
         severity=WorkflowEventSeverity.SUCCESS,
         report_impact=WorkflowReportImpact.READY,
@@ -327,23 +327,23 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     )
     await create_valid_posted_entry(
         db,
-        ready_user.id,
+        unproven_user.id,
         entry_date=date(2026, 5, 31),
         memo="Ready report input",
         debit_account_type=AccountType.EXPENSE,
     )
 
-    ready = await _get_as_user(public_client, ready_user.id, "/workflow/status")
-    assert ready["primary_state"] == "ready"
-    assert ready["next_action"] == _next_action(
-        "open_report",
-        count=1,
+    unproven = await _get_as_user(public_client, unproven_user.id, "/workflow/status")
+    assert unproven["primary_state"] == "blocked"
+    assert unproven["next_action"] == _next_action(
+        "resolve_blocker",
+        count=4,
         href="/reports/package",
-        label="Open report package",
-        summary="Inspect the personal report package and its readiness evidence.",
+        label="Resolve blocker",
+        summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports/package"}
-    assert ready["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
+    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 4, "href": "/reports/package"}
+    assert unproven["event_counts"] == {"unread": 3, "action_required": 0, "blocked": 2}
 
 
 async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
@@ -351,7 +351,7 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC19.2.2: workflow status collapses package readiness instead of recalculating blockers."""
+    """AC19.2.2: workflow status ignores legacy snapshots and reads only the current package document."""
     account = Account(user_id=test_user.id, name="Workflow Cash", type=AccountType.ASSET, currency="SGD")
     db.add(account)
     await db.flush()
@@ -361,22 +361,22 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     await db.commit()
 
     ready = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert ready["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports/package"}
+    assert ready["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
 
     await _report_snapshot(db, test_user.id, updated_at=datetime(2026, 5, 2, tzinfo=UTC))
     await db.commit()
     generated = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert generated["report_readiness"] == {"state": "ready", "blocking_count": 0, "href": "/reports/package"}
+    assert generated["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
 
     statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
     await db.commit()
     stale = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert stale["report_readiness"] == {"state": "stale", "blocking_count": 0, "href": "/reports/package"}
+    assert stale["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
 
     blocked_user = User(email=f"package-blocked-{uuid4()}@example.com", hashed_password="hashed")
     db.add(blocked_user)
     await db.flush()
-    await _make_statement(
+    blocked_statement = await _make_statement(
         db,
         blocked_user.id,
         original_filename=f"{uuid4()}.csv",
@@ -390,15 +390,16 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     await db.commit()
 
     blocked = await _get_as_user(public_client, blocked_user.id, "/workflow/status")
-    assert blocked["primary_state"] == "blocked"
+    assert blocked["primary_state"] == "needs_action"
     assert blocked["next_action"] == _next_action(
-        "resolve_blocker",
-        count=3,
-        href="/statements",
-        label="Resolve blocker",
-        summary="Resolve the blocking condition before the report package can be trusted.",
+        "review_required",
+        count=1,
+        href=f"/statements/{blocked_statement.id}/review",
+        label="Review required",
+        summary="Confirm the source or review item so trusted report preparation can continue.",
     )
-    assert blocked["report_readiness"] == {"state": "blocked", "blocking_count": 3, "href": "/reports/package"}
+    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert blocked["event_counts"] == {"unread": 2, "action_required": 1, "blocked": 0}
 
 
 async def test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events(

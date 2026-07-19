@@ -90,6 +90,67 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
     expect(within(hops[1]).getByText("Version: 2")).toBeInTheDocument()
   })
 
+  it("keeps disconnected evidence visible after the connected lineage path", async () => {
+    mockedApiFetch.mockResolvedValue({
+      anchor: null,
+      max_depth: 6,
+      blockers: [],
+      edges: [
+        { id: "e1", relation: "posted_as", direction: "upstream", depth: 1, from_node_id: "source", to_node_id: "ledger", properties: {} },
+      ],
+      nodes: [
+        { id: "ledger", node_kind: "ledger_line", entity_type: "journal_line", entity_id: "j1", properties: {} },
+        { id: "orphan", node_kind: "source_document", entity_type: "uploaded_document", entity_id: "d2", properties: {} },
+        { id: "source", node_kind: "source_document", entity_type: "uploaded_document", entity_id: "d1", properties: {} },
+      ],
+    })
+
+    render(<LineagePanel anchor={JOURNAL_ANCHOR} title="Partially linked amount" onClose={() => {}} />)
+
+    const path = await screen.findByLabelText("Lineage path")
+    expect(within(path).getAllByRole("listitem").at(-1)).toHaveTextContent("uploaded_document:d2")
+  })
+
+  it("orders cyclic evidence deterministically when no graph root exists", async () => {
+    mockedApiFetch.mockResolvedValue({
+      anchor: null,
+      max_depth: 6,
+      blockers: [],
+      edges: [
+        { id: "e1", relation: "related_to", direction: "both", depth: 1, from_node_id: "ledger", to_node_id: "source", properties: {} },
+        { id: "e2", relation: "derived_from", direction: "both", depth: 2, from_node_id: "source", to_node_id: "ledger", properties: {} },
+      ],
+      nodes: [
+        { id: "ledger", node_kind: "ledger_line", entity_type: "journal_line", entity_id: "j1", properties: {} },
+        { id: "source", node_kind: "source_document", entity_type: "uploaded_document", entity_id: "d1", properties: {} },
+      ],
+    })
+
+    render(<LineagePanel anchor={JOURNAL_ANCHOR} title="Cyclic evidence" onClose={() => {}} />)
+
+    const path = await screen.findByLabelText("Lineage path")
+    expect(within(path).getAllByRole("listitem")).toHaveLength(2)
+    expect(within(path).getAllByRole("listitem")[0]).toHaveTextContent("source document")
+  })
+
+  it("keeps evidence visible when an edge references an unavailable node", async () => {
+    mockedApiFetch.mockResolvedValue({
+      anchor: null,
+      max_depth: 6,
+      blockers: [],
+      edges: [
+        { id: "e1", relation: "derived_from", direction: "upstream", depth: 1, from_node_id: "ledger", to_node_id: "missing", properties: {} },
+      ],
+      nodes: [
+        { id: "ledger", node_kind: "ledger_line", entity_type: "journal_line", entity_id: "j1", properties: {} },
+      ],
+    })
+
+    render(<LineagePanel anchor={JOURNAL_ANCHOR} title="Incomplete evidence" onClose={() => {}} />)
+
+    expect(await screen.findByText("ledger line")).toBeInTheDocument()
+  })
+
   it("AC22.3.5 shows a graceful empty/blocker state when nothing is linked", async () => {
     mockedApiFetch.mockResolvedValue({
       anchor: null,

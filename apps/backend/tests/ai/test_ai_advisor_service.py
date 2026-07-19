@@ -374,15 +374,19 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
                     "action_href": "/review",
                 }
             ],
-            "source_trust_summary": {
-                "source_classes": ["bank_statement", "manual_record"],
-                "deterministic_pr_source_classes": ["bank_statement"],
-                "post_merge_llm_ocr_source_classes": ["bank_statement"],
-                "manual_trusted_source_classes": ["manual_record"],
-                "gap_source_classes": ["bank_statement"],
-                "blocker_codes": ["pending_review"],
+            "input_coverage": {
+                "manifest_decision_count": 1,
+                "authoritative_input_count": 1,
+                "unproven_input_count": 2,
             },
         }
+
+    async def fake_package_summary(_db: AsyncSession, *, user_id):
+        payload = await fake_readiness(_db, user_id=user_id)
+        return SimpleNamespace(
+            status=SimpleNamespace(value="draft"),
+            readiness=SimpleNamespace(model_dump=lambda mode="json": payload),
+        )
 
     async def fake_workflow(_db: AsyncSession, *, user_id):
         assert user_id == test_user.id
@@ -435,7 +439,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             currency="SGD",
         )
 
-    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", fake_package_summary)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
@@ -454,7 +458,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
 
     assert context["report_readiness"]["state"] == "blocked"
     assert context["report_readiness"]["trusted"] is False
-    assert context["source_trust"]["blocker_codes"] == ["pending_review"]
+    assert context["authority_coverage"]["blocker_codes"] == ["pending_review"]
     assert context["workflow"]["event_counts"]["action_required"] == 2
     assert context["market_data"]["stale_count"] == 1
     assert context["portfolio"]["active_positions_count"] == 1
@@ -546,7 +550,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     async def raise_source_error(*_args, **_kwargs):
         raise RuntimeError("source unavailable")
 
-    monkeypatch.setattr(ai_advisor_service, "get_personal_report_package_readiness", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)

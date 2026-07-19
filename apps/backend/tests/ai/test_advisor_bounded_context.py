@@ -40,7 +40,7 @@ from src.schemas.workflow import (
 BOUNDED_CONTEXT_KEYS = {
     "financial_summary",
     "report_readiness",
-    "source_trust",
+    "authority_coverage",
     "workflow",
     "market_data",
     "portfolio",
@@ -71,13 +71,10 @@ def _fake_readiness_payload() -> dict:
                 "action_href": "/reports/package",
             }
         ],
-        "source_trust_summary": {
-            "source_classes": ["bank_statement"],
-            "deterministic_pr_source_classes": ["bank_statement"],
-            "post_merge_llm_ocr_source_classes": [],
-            "manual_trusted_source_classes": [],
-            "gap_source_classes": [],
-            "blocker_codes": [SENTINEL_BLOCKER_CODE],
+        "input_coverage": {
+            "manifest_decision_count": 1,
+            "authoritative_input_count": 1,
+            "unproven_input_count": 1,
         },
     }
 
@@ -90,6 +87,13 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
     async def fake_readiness(_db: AsyncSession, *, user_id):
         assert user_id == test_user.id
         return _fake_readiness_payload()
+
+    async def fake_package_summary(_db: AsyncSession, *, user_id):
+        payload = await fake_readiness(_db, user_id=user_id)
+        return SimpleNamespace(
+            status=SimpleNamespace(value="draft"),
+            readiness=SimpleNamespace(model_dump=lambda mode="json": payload),
+        )
 
     async def fake_fx_pairs(_db: AsyncSession, _user_id, *, include_default=True):
         del include_default
@@ -149,7 +153,7 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
             currency="SGD",
         )
 
-    monkeypatch.setattr(advisor_service_module, "get_personal_report_package_readiness", fake_readiness)
+    monkeypatch.setattr(advisor_service_module, "current_package_document_summary", fake_package_summary)
     register_fx_pairs_read(fake_fx_pairs)
     monkeypatch.setattr(advisor_service_module, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(advisor_service_module, "get_market_data_status", fake_market_data)
@@ -182,7 +186,7 @@ async def test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set(
     # (b) The readiness fact came through the actual call site (sentinel round-trip),
     # not a hardcoded/stale value.
     assert context["report_readiness"]["blocking_count"] == 1
-    assert context["source_trust"]["blocker_codes"] == [SENTINEL_BLOCKER_CODE]
+    assert context["authority_coverage"]["blocker_codes"] == [SENTINEL_BLOCKER_CODE]
 
     # (c) Every suggestion is grounded: cites only bounded sources, states a basis
     # and a safe next action.

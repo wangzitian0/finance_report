@@ -10,11 +10,10 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains, worst_confidence_tier
+from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
-    _aggregate_account_confidence_tiers,
     _aggregate_account_provenance,
     _aggregate_balances_sql,
     _aggregate_net_income_sql,
@@ -97,10 +96,10 @@ async def generate_balance_sheet(
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date.
 
-    ``include_trust_signals`` gates the two extra per-account ledger scans that
-    derive confidence tier and provenance. Callers that do not render per-line
-    trust badges (net-worth time series, the income statement's internal balance
-    sheets) pass False to avoid amplifying those scans.
+    ``include_trust_signals`` gates the extra per-account ledger scan that
+    derives provenance. Callers that do not render per-line provenance
+    (net-worth time series, the income statement's internal balance sheets)
+    pass False to avoid amplifying that scan.
     """
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
@@ -133,16 +132,8 @@ async def generate_balance_sheet(
         if account.id not in balances:
             balances[account.id] = Decimal("0")
 
-    tiers: dict[UUID, str] = {}
     provenance_by_account: dict[UUID, DataProvenance | None] = {}
     if include_trust_signals:
-        tiers = await _aggregate_account_confidence_tiers(
-            db,
-            user_id,
-            account_types,
-            as_of_date,
-            included_currencies=included_ledger_currencies,
-        )
         provenance_by_account = await _aggregate_account_provenance(
             db,
             user_id,
@@ -155,21 +146,18 @@ async def generate_balance_sheet(
         accounts,
         balances,
         AccountType.ASSET,
-        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
     liabilities = _build_account_lines(
         accounts,
         balances,
         AccountType.LIABILITY,
-        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
     equity = _build_account_lines(
         accounts,
         balances,
         AccountType.EQUITY,
-        tiers=tiers,
         provenance_by_account=provenance_by_account,
     )
     portfolio_adjustments = await _build_portfolio_market_adjustment_lines(
@@ -251,10 +239,8 @@ async def generate_balance_sheet(
     total_liab_equity_inc = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
     equation_delta = _quantize_money(total_assets - total_liab_equity_inc)
 
-    # Net Worth / balance-sheet aggregate tier: the worst-input tier across every
-    # rated line. Lines with no derivable tier (e.g. market-derived adjustments)
-    # are excluded rather than counted as trusted.
-    aggregate_tier = worst_confidence_tier(line.get("confidence_tier") for line in (*assets, *liabilities, *equity))
+    # Source provenance is display metadata. Reporting does not infer assurance
+    # from source labels; package authority is represented by TraceRecord.
     # Aggregate provenance: the shared provenance across rated lines, or "derived"
     # when sources mix. Mirrors the per-line provenance so the schema field is
     # populated rather than always None.
@@ -285,7 +271,6 @@ async def generate_balance_sheet(
             if earliest is not None:
                 warning["earliest_activity_date"] = earliest.isoformat()
             opening_balance_warnings.append(warning)
-            aggregate_tier = worst_confidence_tier([aggregate_tier, "LOW"])
 
     response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
     response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)
@@ -297,7 +282,6 @@ async def generate_balance_sheet(
         "assets": response_assets,
         "liabilities": response_liabilities,
         "equity": response_equity,
-        "confidence_tier": aggregate_tier,
         "provenance": aggregate_provenance,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,

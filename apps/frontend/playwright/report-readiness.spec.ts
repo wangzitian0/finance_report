@@ -1,6 +1,191 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import type { PersonalReportPackageDocument } from "../src/lib/types";
+
 const COLD_ROUTE_TIMEOUT_MS = 10_000;
+
+const packageDocument = {
+  schema_version: "2",
+  lifecycle: "preview",
+  snapshot_id: null,
+  package_decision_id: null,
+  generated_at: "2026-05-20T12:00:00Z",
+  frozen_at: null,
+  package_id: "personal-financial-report-package",
+  status: "draft",
+  context: {
+    framework_id: "personal_us_gaap_like",
+    start_date: "2025-05-20",
+    end_date: "2026-05-20",
+    as_of_date: "2026-05-20",
+    currency: "SGD",
+  },
+  contract: {
+    package_id: "personal-financial-report-package",
+    version: "2.0",
+    period_semantics: {},
+    supported_frameworks: ["personal_us_gaap_like", "personal_hkfrs_like"],
+    selected_framework_id: "personal_us_gaap_like",
+    export_contract: { formats: ["json", "csv"], csv_columns: [] },
+    sections: [
+      {
+        section_id: "balance_sheet",
+        label: "Balance Sheet",
+        owner_epic: "EPIC-005",
+        period_type: "as_of",
+        required: true,
+        status: "ready",
+      },
+    ],
+  },
+  readiness: {
+    package_id: "personal-financial-report-package",
+    state: "blocked",
+    label: "Blocked",
+    action_href: "/accounts/processing",
+    blocking_count: 1,
+    input_coverage: {
+      manifest_decision_count: 0,
+      authoritative_input_count: 0,
+      unproven_input_count: 1,
+    },
+    blockers: [
+      {
+        code: "processing_account_unresolved",
+        label: "Processing account unresolved",
+        severity: "blocking",
+        count: 1,
+        reason:
+          "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
+        action_href: "/accounts/processing",
+      },
+    ],
+  },
+  framework_policy: {
+    result_id: "policy-result:personal_us_gaap_like:smoke",
+    framework_id: "personal_us_gaap_like",
+    matrix_version: "2.0",
+    report_period_start: "2025-05-20",
+    report_period_end: "2026-05-20",
+    generated_at: "2026-05-20",
+    required_statements: ["balance_sheet", "notes", "traceability_appendix"],
+    decisions: [],
+    gaps: [],
+  },
+  input_manifest: [],
+  sections: {
+    balance_sheet: {
+      as_of_date: "2026-05-20",
+      currency: "SGD",
+      assets: [],
+      liabilities: [],
+      equity: [],
+      total_assets: "0.00",
+      total_liabilities: "0.00",
+      total_equity: "0.00",
+      net_income: "0.00",
+      unrealized_fx_gain_loss: "0.00",
+      net_worth_adjustment_gain_loss: "0.00",
+      fx_warnings: [],
+      portfolio_warnings: [],
+      opening_balance_warnings: [],
+      equation_delta: "0.00",
+      is_balanced: true,
+    },
+    income_statement: {
+      start_date: "2025-05-20",
+      end_date: "2026-05-20",
+      currency: "SGD",
+      income: [],
+      expenses: [],
+      total_income: "0.00",
+      total_expenses: "0.00",
+      net_income: "0.00",
+      fx_warnings: [],
+      trends: [],
+    },
+    cash_flow: {
+      start_date: "2025-05-20",
+      end_date: "2026-05-20",
+      currency: "SGD",
+      operating: [],
+      investing: [],
+      financing: [],
+      summary: {
+        operating_activities: "0.00",
+        investing_activities: "0.00",
+        financing_activities: "0.00",
+        net_cash_flow: "0.00",
+        beginning_cash: "0.00",
+        ending_cash: "0.00",
+      },
+      fx_warnings: [],
+    },
+    investment_performance: {
+      period_start: "2025-05-20",
+      period_end: "2026-05-20",
+      as_of_date: "2026-05-20",
+      currency: "SGD",
+      holdings: [],
+      xirr: null,
+      time_weighted_return: null,
+      money_weighted_return: null,
+      realized_pnl: "0.00",
+      unrealized_pnl: "0.00",
+      dividend_income: "0.00",
+      dividend_yield: null,
+      allocation: [],
+      data_freshness: {
+        stale: false,
+        latest_price_date: null,
+        market_data_provider: null,
+        stale_holdings: [],
+      },
+      source_links: [],
+      notes: [],
+    },
+    annualized_income_long_term: {
+      section_id: "annualized_income_long_term",
+      label: "Annualized Income & Long-Term Compensation",
+      as_of_date: "2026-05-20",
+      trailing_period_start: "2025-05-20",
+      trailing_period_end: "2026-05-20",
+      trailing_period_days: 365,
+      income: {
+        annualized_salary: "0.00",
+        annualized_bonus: "0.00",
+        annualized_dividend: "0.00",
+        annualized_total: "0.00",
+        currency: "SGD",
+        calculation_basis: "smoke",
+      },
+      restricted_holdings: [],
+      restricted_fair_value_total: "0.00",
+      restricted_fair_value_total_currency: "SGD",
+      net_worth_treatment: {
+        liquid_net_worth_default: "exclude_restricted",
+        restricted_wealth_basis: "disclose_separately",
+        exclude_restricted_query: "/reports/net-worth?include_restricted=false",
+        include_restricted_query: "/reports/net-worth?include_restricted=true",
+      },
+      notes: [],
+    },
+    notes: {
+      section_id: "notes",
+      label: "Notes & Disclosures",
+      status: "ready",
+      non_compliance_statement: "Not professional advice.",
+      notes: [],
+    },
+    traceability_appendix: {
+      section_id: "traceability_appendix",
+      label: "Traceability Appendix",
+      status: "ready",
+      lines: [],
+      completeness_warnings: [],
+    },
+  },
+} satisfies PersonalReportPackageDocument;
 
 async function installReportReadinessMocks(page: Page) {
   await page.addInitScript(() => {
@@ -10,9 +195,6 @@ async function installReportReadinessMocks(page: Page) {
 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const frameworkId = new URL(route.request().url()).searchParams.get(
-      "framework_id",
-    );
     let body: unknown = {};
 
     if (path === "/api/workflow/status") {
@@ -30,127 +212,10 @@ async function installReportReadinessMocks(page: Page) {
         },
         event_counts: { unread: 1, action_required: 0, blocked: 1 },
       };
-    } else if (path === "/api/reports/package/contract") {
-      body = {
-        package_id: "personal-financial-report-package",
-        version: "1.0",
-        period_semantics: {},
-        supported_frameworks: ["personal_us_gaap_like", "personal_hkfrs_like"],
-        selected_framework_id: frameworkId,
-        framework_policy_endpoint: "/api/reports/package/framework-policy",
-        export_contract: { formats: ["json"], csv_columns: [] },
-        sections: [
-          {
-            section_id: "balance_sheet",
-            label: "Balance Sheet",
-            owner_epic: "EPIC-005",
-            source_endpoint: "/api/reports/balance-sheet",
-            status: "ready",
-          },
-        ],
-      };
-    } else if (path === "/api/reports/package/framework-policy") {
-      body = {
-        result_id: "policy-result:personal_us_gaap_like:smoke",
-        framework_id: frameworkId ?? "personal_us_gaap_like",
-        matrix_version: "1.0",
-        report_period_start: "2025-05-20",
-        report_period_end: "2026-05-20",
-        generated_at: "2026-05-20",
-        required_statements: [
-          "balance_sheet",
-          "notes",
-          "traceability_appendix",
-        ],
-        decisions: [
-          {
-            domain: "listed_security",
-            recognition: "Recognize listed securities from brokerage evidence.",
-            measurement: "Measure at quoted fair value.",
-            classification: "Marketable investment asset.",
-            presentation: "US-like marketable securities.",
-            disclosure: "Disclose price source.",
-            line_mappings: {
-              balance_sheet: "assets.marketable_securities",
-              notes: "notes.market_price_basis",
-            },
-            evidence_anchors: [
-              {
-                anchor_id: "atomic_position:smoke",
-                anchor_type: "atomic_position",
-                source_system: "atomic_positions",
-                source_id: "smoke",
-                description: "Smoke position",
-              },
-            ],
-            provenance: "deterministic_matrix",
-            confidence_tier: "TRUSTED",
-            review_state: "accepted",
-            policy_field_name: "framework_policy_decision",
-            accepted_value: "listed_security",
-          },
-        ],
-        gaps: [],
-        disclosure_requirements: ["notes.market_price_basis"],
-      };
-    } else if (path === "/api/reports/package/readiness") {
-      body = {
-        package_id: "personal-financial-report-package",
-        state: "blocked",
-        label: "Blocked",
-        action_href: "/accounts/processing",
-        blocking_count: 1,
-        blockers: [
-          {
-            code: "processing_account_unresolved",
-            label: "Processing account unresolved",
-            severity: "blocking",
-            count: 1,
-            reason:
-              "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
-            action_href: "/accounts/processing",
-          },
-        ],
-        source_summary: {
-          statements: 2,
-          posted_journal_entries: 3,
-          manual_valuations: 1,
-        },
-      };
-    } else if (path === "/api/reports/package/annualized-income-schedule") {
-      body = {
-        section_id: "annualized_income_long_term",
-        trailing_period_days: 365,
-        income: {
-          annualized_salary: "0.00",
-          annualized_bonus: "0.00",
-          annualized_dividend: "0.00",
-          annualized_total: "0.00",
-          currency: "SGD",
-        },
-        restricted_holdings: [],
-        net_worth_treatment: {
-          liquid_net_worth_default: "exclude_restricted",
-          restricted_wealth_basis: "disclose_separately",
-        },
-        notes: ["Readiness smoke fixture."],
-      };
-    } else if (path === "/api/reports/package/notes") {
-      body = {
-        section_id: "notes",
-        label: "Notes",
-        status: "ready",
-        notes: [],
-        non_compliance_statement: "Not professional advice.",
-      };
-    } else if (path === "/api/reports/package/traceability") {
-      body = {
-        section_id: "traceability_appendix",
-        label: "Traceability Appendix",
-        status: "ready",
-        lines: [],
-        completeness_warnings: [],
-      };
+    } else if (path === "/api/reports/package/snapshots") {
+      body = [];
+    } else if (path === "/api/reports/package") {
+      body = packageDocument;
     }
 
     await route.fulfill({
@@ -228,6 +293,8 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
         "processing_account_unresolved",
       );
       await expect(readinessAuditDetails).not.toHaveAttribute("open", "");
+      // Each blocker code is shown once as the audit card heading and once as
+      // its labelled value; both must stay behind the collapsed disclosure.
       await expect(rawBlockerCode).toHaveCount(2);
       await expect(rawBlockerCode.first()).toBeHidden();
       await readinessAuditDetails.getByText("Readiness audit details").click();

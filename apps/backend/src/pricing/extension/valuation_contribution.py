@@ -212,6 +212,9 @@ def _unproven(
     policy: ResolutionPolicy,
     reason_code: str,
     observation: PriceObservation | None = None,
+    component_type: str | None = None,
+    valuation_basis: str | None = None,
+    liquidity_class: str | None = None,
 ) -> ResolvedValuationContribution:
     return ResolvedValuationContribution(
         subject=subject,
@@ -227,6 +230,9 @@ def _unproven(
         currency=observation.currency if observation else None,
         source=observation.source if observation else None,
         decision_id=None,
+        component_type=component_type,
+        valuation_basis=valuation_basis,
+        liquidity_class=liquidity_class,
     )
 
 
@@ -396,6 +402,9 @@ async def _manual_observation_contribution(
     observation: PriceObservation,
     as_of: date,
     policy: ResolutionPolicy,
+    component_type: str | None = None,
+    valuation_basis: str | None = None,
+    liquidity_class: str | None = None,
 ) -> ResolvedValuationContribution:
     """Validate one exact manual lineage head independently of sibling assets."""
     try:
@@ -408,6 +417,9 @@ async def _manual_observation_contribution(
             policy=policy,
             reason_code="missing_or_ineligible_observation_decision",
             observation=observation,
+            component_type=component_type,
+            valuation_basis=valuation_basis,
+            liquidity_class=liquidity_class,
         )
     policy_record = ManualValuationAttestationPolicy()
     repository = SqlTraceRecordRepository(db, pricing_trace_policy_registry())
@@ -422,6 +434,9 @@ async def _manual_observation_contribution(
             policy=policy,
             reason_code="missing_observation_decision",
             observation=observation,
+            component_type=component_type,
+            valuation_basis=valuation_basis,
+            liquidity_class=liquidity_class,
         )
     return ResolvedValuationContribution(
         subject=observation.subject,
@@ -437,6 +452,9 @@ async def _manual_observation_contribution(
         currency=observation.currency,
         source=observation.source,
         decision_id=decision.record_id,
+        component_type=component_type,
+        valuation_basis=valuation_basis,
+        liquidity_class=liquidity_class,
     )
 
 
@@ -497,6 +515,9 @@ async def resolve_manual_valuation_contributions(
                 observation=observation,
                 as_of=as_of,
                 policy=policy,
+                component_type=row.component_type.value,
+                valuation_basis=row.valuation_basis.value if row.valuation_basis else None,
+                liquidity_class=row.liquidity_class.value,
             )
         )
     return tuple(contributions)

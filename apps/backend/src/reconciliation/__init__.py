@@ -63,6 +63,7 @@ from src.reconciliation.extension.matching import (
 from src.reconciliation.extension.review_queue import (
     accept_match,
     batch_accept,
+    count_pending_review_items,
     get_pending_items,
     get_stage2_queue,
     reject_match,
@@ -72,6 +73,7 @@ from src.reconciliation.extension.reviewed_disposition import (
     submit_reviewed_disposition,
 )
 from src.reconciliation.extension.scoring import (
+    derive_reconciliation_score_tier,
     extract_merchant_tokens,
     is_cross_period,
     normalize_text,
@@ -135,7 +137,9 @@ __all__ = [
     "build_reconciliation_prompt",
     "calculate_match_score",
     "classify_internal_transfer",
+    "count_pending_review_items",
     "detect_anomalies",
+    "derive_reconciliation_score_tier",
     "discover_fx_conversions",
     "entry_bank_side_amount",
     "entry_total_amount",

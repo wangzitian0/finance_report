@@ -52,6 +52,5 @@ from src.identity import AiFeedback as _AiFeedback, User as _User  # noqa: F401,
 # observability publishes its one ORM class lazily (importing its root must
 # stay light for logging consumers); the published-name import below IS the
 # registration trigger for orm/metrics.py.
-from src.observability import ConfidenceMetricSnapshot as _ConfidenceMetricSnapshot  # noqa: E402, F401
 
 __all__: list[str] = []

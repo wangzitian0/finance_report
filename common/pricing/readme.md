@@ -92,8 +92,8 @@ freshness label into trust.
 current manual component/source lineage. Component type is presentation, not
 identity: two properties of the same type remain two independently selected
 observations and two independently current decisions. Package-facing line
-builders may expose provenance for display, but never a confidence/trusted
-field inferred from that provenance.
+builders may expose component type, liquidity class, and valuation basis for
+display, but never a confidence/trusted field inferred from that provenance.
 
 Manual valuations and overrides emit a `ManualValuationAttestationPolicy`
 decision in the same caller-owned transaction as the append-only snapshot.

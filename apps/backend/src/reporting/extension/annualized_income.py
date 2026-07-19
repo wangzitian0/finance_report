@@ -1,14 +1,4 @@
-"""Annualized income & long-term compensation schedule generation.
-
-Computes the trailing-12-month annualized income buckets and restricted
-compensation holdings for the personal report package.  Moved from
-``src/services/annualized_income.py`` (#1671 Wave B, per the #1416
-disposition table); behavior unchanged.  The income bucket classifier is
-published by ``src.reporting`` (folded from ``services/reporting_calc.py``
-by #1666 while this PR was in flight); the windowed FX conversion still
-lives in the app remainder (``services/fx.py``), so it is injected through
-:mod:`src.advisor.extension.app_reads` until #1610 publishes it.
-"""
+"""Reporting-owned annualized income and long-term compensation schedule."""
 
 from __future__ import annotations
 
@@ -20,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.advisor.extension import app_reads
 from src.audit import normalize_currency_code, to_money
 from src.extraction.orm.layer3 import (
     ManualValuationComponentType,
@@ -29,7 +18,8 @@ from src.extraction.orm.layer3 import (
 )
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.platform import raise_bad_request
-from src.reporting import income_bucket
+from src.reporting.extension import fx_gateway
+from src.reporting.extension.reporting_calc import income_bucket
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -37,7 +27,6 @@ from src.schemas import (
     AnnualizedIncomeScheduleResponse,
 )
 
-# Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
 
 
@@ -46,11 +35,9 @@ async def generate_annualized_income_schedule(
     user_id: UUID,
     *,
     as_of_date: date | None = None,
+    currency: str | None = None,
 ) -> AnnualizedIncomeScheduleResponse:
-    """Return report-ready annualized income and restricted compensation schedule."""
-    convert_amount = app_reads.convert_amount()
-    fx_error = app_reads.fx_error()
-
+    """Return report-ready annualized income and restricted compensation."""
     report_date = as_of_date or date.today()
     start_date = report_date - timedelta(days=365)
     income_result = await db.execute(
@@ -70,26 +57,22 @@ async def generate_annualized_income_schedule(
         "dividend": Decimal("0.00"),
         "total": Decimal("0.00"),
     }
-    currency = normalize_currency_code(settings.base_currency)
+    reporting_currency = normalize_currency_code(currency or settings.base_currency)
     for line, account in income_result.all():
-        # Currency is the line's own, resolved via the single base-currency SSOT
-        # (the previous per-site account/target fallback chain is dropped — only the
-        # impossible currency-is-None path differs, since the column is non-null).
         line_money = line.money
         signed_amount = line_money.amount if line.direction == Direction.CREDIT else -line_money.amount
-        source_currency = line_money.currency.code
         try:
-            signed_amount = await convert_amount(
+            signed_amount = await fx_gateway.convert_amount(
                 db,
                 amount=signed_amount,
-                currency=source_currency,
-                target_currency=currency,
+                currency=line_money.currency.code,
+                target_currency=reporting_currency,
                 rate_date=report_date,
                 average_start=start_date,
                 average_end=report_date,
                 lazy_load=True,
             )
-        except fx_error as exc:
+        except fx_gateway.FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
         bucket = income_bucket(account.name)
         if bucket:
@@ -133,17 +116,16 @@ async def generate_annualized_income_schedule(
             )
         )
         try:
-            restricted_total += await convert_amount(
+            restricted_total += await fx_gateway.convert_amount(
                 db,
                 amount=snapshot.value,
                 currency=snapshot.currency,
-                target_currency=currency,
+                target_currency=reporting_currency,
                 rate_date=report_date,
                 lazy_load=True,
             )
-        except fx_error as exc:
+        except fx_gateway.FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-    restricted_total = to_money(restricted_total)
 
     return AnnualizedIncomeScheduleResponse(
         section_id="annualized_income_long_term",
@@ -157,12 +139,12 @@ async def generate_annualized_income_schedule(
             annualized_bonus=to_money(totals["bonus"]),
             annualized_dividend=to_money(totals["dividend"]),
             annualized_total=to_money(totals["total"]),
-            currency=currency,
+            currency=reporting_currency,
             calculation_basis="posted_or_reconciled_income_journal_lines_trailing_12_months",
         ),
         restricted_holdings=holdings,
-        restricted_fair_value_total=restricted_total,
-        restricted_fair_value_total_currency=currency,
+        restricted_fair_value_total=to_money(restricted_total),
+        restricted_fair_value_total_currency=reporting_currency,
         net_worth_treatment=AnnualizedIncomeScheduleNetWorthTreatment(
             liquid_net_worth_default="exclude_restricted_holdings",
             restricted_wealth_basis="manual_valuation_snapshot_fair_value",

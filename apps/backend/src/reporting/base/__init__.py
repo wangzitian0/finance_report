@@ -7,9 +7,11 @@ reporting-owned framework/line vocabulary (``types``). Endpoint-only response
 DTOs remain in ``src/schemas/reporting.py``.
 """
 
+from src.reporting.base.package_contribution import PackageSectionContribution
 from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension, ReportLineId
 
 __all__ = [
+    "PackageSectionContribution",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportLineId",
