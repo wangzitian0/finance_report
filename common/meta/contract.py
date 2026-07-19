@@ -2460,7 +2460,7 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
             ],
-            family="package_model",
+            family="platform",
             kind="baseline",
             authority="machine_generated",
             parent="package_model",
