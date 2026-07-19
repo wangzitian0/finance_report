@@ -5,6 +5,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -36,6 +38,48 @@ CONTRACT = PackageContract(
     status="active",
     tier="CODE-ONLY",
     depends_on=["extraction", "platform", "reconciliation", "reporting"],
+    context=ContextScope(
+        purpose=(
+            "Own the user-facing upload-to-report process state: workflow sessions, "
+            "derived event inbox entries, readiness, and next-action guidance."
+        ),
+        in_scope=[
+            "WorkflowSession and WorkflowEvent lifecycle and response vocabulary",
+            "derived workflow status, report-readiness state, and next-action projections",
+            "cross-context process composition for a user's upload-to-report journey",
+        ],
+        out_of_scope=[
+            "statement parsing/source facts, reconciliation matching, and report-document ownership",
+            "generic event bus, outbox, HTTP, persistence substrate, or delivery routing",
+            "ledger, valuation, and other business-domain policy ownership",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="extraction",
+            consumer="workflow",
+            mode="projection",
+            reason="Reads published statement event sources to derive workflow lifecycle state.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="workflow",
+            mode="composition",
+            reason="Uses platform ORM mixins while workflow owns the process-state model itself.",
+        ),
+        ContextRelation(
+            provider="reconciliation",
+            consumer="workflow",
+            mode="projection",
+            reason="Reads pending-review counts to derive workflow readiness without making matches.",
+        ),
+        ContextRelation(
+            provider="reporting",
+            consumer="workflow",
+            mode="projection",
+            reason="Reads report-package summary state to derive user next actions without owning reports.",
+        ),
+    ],
     roles=["base", "extension"],
     units=[
         *[
