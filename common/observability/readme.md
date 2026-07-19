@@ -5,6 +5,15 @@
 
 ## What
 
+## Bounded-context decision
+
+`observability` owns cross-cutting telemetry and safe operational evidence, not
+the business behavior it observes. It publishes request/metrics/logging language
+and operator tooling while leaving financial policy, domain events, application
+workflow, lifecycle operations, and product decisions to their owning contexts.
+The machine-readable responsibility boundary is in
+[`contract.py`](./contract.py).
+
 Two cohesive surfaces under one `infra` package:
 
 1. **Backend observability language** (BE implementation:
