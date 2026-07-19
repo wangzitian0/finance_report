@@ -22,14 +22,12 @@ mirroring ``counter``. The headline is the **port/adapter split** (mechanism B,
 dependency inversion): the ``EventBus`` and ``OutboxRepository`` ports live in
 ``base`` so the pure core and consumer packages depend only on abstractions,
 while their concrete adapters (``OutboxEventBus``/``RecordingEventBus`` and the
-SQL ``Outbox`` adapter) live in ``extension``. Because the gate's ``KIND_LAYER``
+SQL ``OutboxRecord`` adapter) live in ``extension``. Because the gate's ``KIND_LAYER``
 has no separate "event-bus split" kind, the two ports are modelled with
 ``kind=REPOSITORY`` (the one base-port/extension-adapter split the gate
 recognises); the concrete bus adapters + relay are ``kind=EVENT_BUS`` (extension).
-``DomainEvent`` is a base ``domain-event`` record; ``Outbox`` is the entity whose
-ORM model lives with the SQL adapter in ``extension`` (declared taxonomy-only, no
-placed module, exactly as ``counter`` keeps its ``CounterTally`` table in
-``extension``).
+``DomainEvent`` and ``Outbox`` are base records; the private ``OutboxRecord`` ORM
+model lives with the SQL adapter in ``extension``.
 
 ### Why layer ``infra``
 
@@ -97,10 +95,9 @@ CONTRACT = PackageContract(
             module="base/outbox.py",
             impl="extension/sql.py",
         ),
-        # entity — the shared outbox row. Its ORM model lives with the SQL adapter
-        # in extension/ (like counter's CounterTally), so it is declared
-        # taxonomy-only (no placed module) to keep base/ free of the ORM.
-        Unit(name="Outbox", kind=Kind.ENTITY),
+        # entity — the public outbox event record stays pure in base/; its
+        # private SQLAlchemy persistence row is the extension adapter detail.
+        Unit(name="Outbox", kind=Kind.ENTITY, module="base/outbox.py"),
         # extension — the concrete event-bus adapters + the post-commit relay.
         Unit(name="OutboxEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
         Unit(name="RecordingEventBus", kind=Kind.EVENT_BUS, module="extension/bus.py"),
@@ -1162,6 +1159,20 @@ CONTRACT = PackageContract(
             statement="Dashboard status feed and event inbox render lightweight derived events as user actions while routine/internal details remain collapsed or absent",
             # was AC19.12.5
             test="apps/frontend/src/__tests__/workflowSurfaces.test.tsx::AC19.12.5 renders lightweight derived workflow events as user actions, not internal logs",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-platform.boundary.1",
+            statement=(
+                "The public Outbox symbol is a pure base-layer event record, "
+                "while the SQLAlchemy outbox row is an extension-internal adapter "
+                "type; public consumers cannot use the ORM model as a boundary."
+            ),
+            test=(
+                "tests/tooling/test_platform_package.py"
+                "::test_AC_platform_boundary_1_outbox_public_language_is_not_an_orm_row"
+            ),
             priority="P0",
             status="done",
         ),

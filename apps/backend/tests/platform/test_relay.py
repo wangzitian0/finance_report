@@ -14,12 +14,12 @@ from common.testing.ac_proof import ac_proof
 
 from src.platform import (
     DomainEvent,
-    Outbox,
     OutboxEventBus,
     OutboxRelay,
     SubscriberRegistry,
 )
 from src.platform.extension import STATUS_PUBLISHED
+from src.platform.extension.sql import OutboxRecord
 
 
 def _event(name="counter.Incremented", count=1):
@@ -50,7 +50,7 @@ async def test_run_once_dispatches_and_marks_published(db):
 
     assert published == 2
     assert [p["count"] for p in seen] == [1, 2]  # delivered in enqueue (id) order
-    rows = (await db.execute(sa.select(Outbox).order_by(Outbox.id))).scalars().all()
+    rows = (await db.execute(sa.select(OutboxRecord).order_by(OutboxRecord.id))).scalars().all()
     assert all(r.status == STATUS_PUBLISHED and r.published_at is not None for r in rows)
 
 
@@ -126,7 +126,7 @@ async def test_redelivery_of_pending_is_idempotent_safe(db):
     assert applied == {"u1"}  # but the idempotent effect collapses to one
 
 
-def _event_from_row(row: Outbox) -> DomainEvent:
+def _event_from_row(row: OutboxRecord) -> DomainEvent:
     ev = DomainEvent(event_type=row.event_type, occurred_at=row.occurred_at)
     object.__setattr__(ev, "payload", lambda: dict(row.payload))
     return ev

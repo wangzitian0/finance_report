@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.platform.base.bus import SubscriberRegistry
 from src.platform.base.event import DomainEvent
-from src.platform.extension.sql import Outbox, SqlOutboxRepository
+from src.platform.extension.sql import OutboxRecord, SqlOutboxRepository
 
 
 class _StoredEvent(DomainEvent):
@@ -40,6 +40,8 @@ class _StoredEvent(DomainEvent):
     transports opaque events.
     """
 
+    _payload: dict
+
     def __init__(self, *, event_type: str, occurred_at: datetime, payload: dict) -> None:
         super().__init__(event_type=event_type, occurred_at=occurred_at)
         object.__setattr__(self, "_payload", payload)
@@ -48,7 +50,7 @@ class _StoredEvent(DomainEvent):
         return dict(self._payload)
 
 
-def _to_event(row: Outbox) -> DomainEvent:
+def _to_event(row: OutboxRecord) -> DomainEvent:
     """Rehydrate a persisted outbox row into a dispatchable domain event."""
     return _StoredEvent(
         event_type=row.event_type,

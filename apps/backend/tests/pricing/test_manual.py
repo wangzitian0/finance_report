@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.platform import Outbox
+from src.platform.extension.sql import OutboxRecord
 from src.pricing.base.events import EVENT_TYPE
 from src.pricing.base.observation import Authority, ObservationSource
 from src.pricing.extension.manual import record_manual_valuation, record_override
@@ -25,7 +25,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def _outbox_rows(db: AsyncSession):
-    return (await db.execute(sa.select(Outbox).order_by(Outbox.id))).scalars().all()
+    return (await db.execute(sa.select(OutboxRecord).order_by(OutboxRecord.id))).scalars().all()
 
 
 async def test_record_manual_valuation_returns_a_manual_observation(db: AsyncSession, test_user):

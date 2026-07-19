@@ -105,7 +105,7 @@ The package follows the building-block layering (see
 | layer | what lives here |
 |------|-----------------|
 | `base/` | the pure core: `DomainEvent` (`event.py`), workflow request/response vocabulary (`workflow.py`), the `EventBus` **port** + `SubscriberRegistry` (`bus.py`), and the `OutboxRepository` **port** (`outbox.py`) — no I/O and no delivery-schema dependency |
-| `extension/` | the impure edges: `OutboxEventBus`/`RecordingEventBus` bus adapters (`bus.py`), the `OutboxRelay` (`relay.py`), and the shared `Outbox` ORM table + `SqlOutboxRepository` adapter (`sql.py`, the only role that touches the ORM/session) |
+| `extension/` | the impure edges: `OutboxEventBus`/`RecordingEventBus` bus adapters (`bus.py`), the `OutboxRelay` (`relay.py`), and the private `OutboxRecord` ORM table + `SqlOutboxRepository` adapter (`sql.py`, the only role that touches the ORM/session) |
 
 The **headline** is the port/adapter split (dependency inversion, mechanism B):
 the `EventBus` and `OutboxRepository` ports live in `base` so the pure core and
@@ -124,12 +124,13 @@ strictly downward edge. See [`contract.py`](./contract.py) for the full rational
 
 **Public** (`__all__`, == `contract.interface`): `DomainEvent`, `EventBus`,
 `OutboxEventBus`, `RecordingEventBus`, `SubscriberRegistry`, `OutboxRelay`,
-`Outbox`, `OutboxRepository` (the port), and the `Workflow*` request/response
-value objects. `src.schemas.workflow` only re-exports that vocabulary for
-delivery compatibility.
+the persistence-neutral `Outbox` event record, `OutboxRepository` (the port),
+and the `Workflow*` request/response value objects. `src.schemas.workflow` only
+re-exports that vocabulary for delivery compatibility.
 
-**Internal**: the `SqlOutboxRepository` adapter (reached only through its port),
-the rehydration helper in `extension/relay.py`, and module internals.
+**Internal**: the `OutboxRecord` SQLAlchemy row and `SqlOutboxRepository` adapter
+(reached only through its port), the rehydration helper in `extension/relay.py`,
+and module internals.
 
 ## Storage
 

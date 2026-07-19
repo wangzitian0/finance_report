@@ -15,6 +15,7 @@ carry no ``@ac_proof`` (the domain ACs are proven by the DB-backed tests under
 
 import ast
 import sys
+from dataclasses import is_dataclass
 from pathlib import Path
 
 from common.meta.extension.check_package_contract import discover_packages, run
@@ -72,6 +73,16 @@ def test_platform_repository_split():
     assert "class SqlOutboxRepository" in sql
     ext_bus = (PLATFORM / "extension/bus.py").read_text(encoding="utf-8")
     assert "class OutboxEventBus" in ext_bus
+
+
+def test_AC_platform_boundary_1_outbox_public_language_is_not_an_orm_row():
+    """AC-platform.boundary.1: public Outbox stays persistence-neutral."""
+    from src.platform import Outbox
+    from src.platform.extension.sql import OutboxRecord
+
+    assert is_dataclass(Outbox)
+    assert Outbox is not OutboxRecord
+    assert Outbox.__module__ == "src.platform.base.outbox"
 
 
 def test_platform_base_layer_is_pure():
