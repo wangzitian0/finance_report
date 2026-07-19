@@ -44,6 +44,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -65,6 +67,42 @@ CONTRACT = PackageContract(
     # mixins (UUIDMixin/TimestampMixin), moved from src/models/base.py to
     # platform.orm.base. Same-rank edge (both infra, L1), acyclic.
     depends_on=["observability", "platform"],
+    context=ContextScope(
+        purpose=(
+            "Own model-provider interaction: typed scenes and bindings, provider "
+            "secrets, deterministic cassettes, and the provider-facing client boundary."
+        ),
+        in_scope=[
+            "protocol-family, model, scene, and scene-binding language",
+            "provider-secret handling, routing, catalogues, and usage measurement",
+            "input-keyed cassette record/replay and model-call evaluation mechanisms",
+        ],
+        out_of_scope=[
+            "extraction, advisor, or reconciliation business prompts and decisions",
+            "runtime dependency presence, environment substitution, or deployment policy",
+            "generic telemetry policy or persistence-substrate ownership",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="observability",
+            consumer="llm",
+            mode="published-language",
+            reason=(
+                "Uses published safe logging and AI-provider-call telemetry while "
+                "retaining model usage semantics in the llm context."
+            ),
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="llm",
+            mode="composition",
+            reason=(
+                "Uses platform persistence mixins for LLM configuration rows without "
+                "owning the generic persistence substrate."
+            ),
+        ),
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the frozen value language (mechanism A) ──

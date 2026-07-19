@@ -17,6 +17,16 @@
 
 # LLM Provider Abstraction SSOT
 
+## Bounded-context decision
+
+`llm` owns the provider-facing model boundary: scenes, bindings, secrets,
+routing, deterministic cassettes, and provider-call evaluation machinery. It
+consumes `observability` as published logging/telemetry language and `platform`
+only as persistence composition support. It does not own callers' prompts or
+business decisions, runtime dependency presence, generic telemetry policy, or
+the persistence substrate. Its machine-readable context boundary is in
+[`contract.py`](./contract.py).
+
 > **SSOT Key**: `llm_provider_abstraction`
 > **Core Definition**: How the backend talks to language models — the three
 > orthogonal axes (protocol family × model × scene), the scene→model binding, and
