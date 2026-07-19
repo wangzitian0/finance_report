@@ -25,7 +25,7 @@ from src.audit import (
     current_authoritative_trace_decision_projection,
 )
 from src.config import settings
-from src.extraction import list_statement_contributions
+from src.extraction import current_statement_disposition_policy_snapshot, list_statement_contributions
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.ledger import ledger_trace_policy_registry, list_journal_contributions
 from src.portfolio import build_investment_performance_report_schedule
@@ -69,6 +69,7 @@ from src.schemas.reporting import (
     PersonalReportPackageReadinessState,
     PersonalReportPackageSections,
     PersonalReportPackageSnapshotStatus,
+    PersonalReportPackageStatementDispositionPolicy,
     PersonalReportPackageTraceabilityResponse,
     PersonalReportPackageTraceManifestEntry,
 )
@@ -95,6 +96,43 @@ def _contract(framework_id: PersonalReportingFrameworkId) -> PersonalReportPacka
     payload = dict(PERSONAL_REPORT_PACKAGE_CONTRACT)
     payload["selected_framework_id"] = framework_id.value
     return PersonalReportPackageContractResponse.model_validate(payload)
+
+
+def _package_statement_disposition_policy() -> PersonalReportPackageStatementDispositionPolicy:
+    """Adapt extraction's published snapshot without reconstructing policy semantics here."""
+    snapshot = current_statement_disposition_policy_snapshot()
+    return PersonalReportPackageStatementDispositionPolicy.model_validate(
+        {
+            **snapshot.semantic_payload(),
+            "semantic_digest": snapshot.semantic_digest,
+        }
+    )
+
+
+def _package_notes(
+    statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy,
+) -> PersonalReportPackageNotesResponse:
+    payload = dict(PERSONAL_REPORT_PACKAGE_NOTES)
+    payload["notes"] = [
+        *PERSONAL_REPORT_PACKAGE_NOTES["notes"],
+        {
+            "note_id": "statement-disposition-policy",
+            "label": "Statement Disposition Policy",
+            "owner_epic": "EPIC-018",
+            "basis": "immutable_statement_disposition_policy_snapshot",
+            "source_state": "frozen_runtime_policy_snapshot",
+            "applies_to_sections": ["balance_sheet", "income_statement", "cash_flow", "traceability_appendix"],
+            "disclosure": (
+                f"Statement disposition policy {statement_disposition_policy.policy_version} ran in "
+                f"{statement_disposition_policy.mode} mode. Machine and P&L authority thresholds are "
+                f"{statement_disposition_policy.machine_confidence_threshold}; unknown and ambiguous intent "
+                f"route to review. Live LLM proposals are "
+                f"{'enabled' if statement_disposition_policy.live_llm_proposals_enabled else 'disabled'}. "
+                f"Deployment commit: {statement_disposition_policy.deployment_git_sha}."
+            ),
+        },
+    ]
+    return PersonalReportPackageNotesResponse.model_validate(payload)
 
 
 def _policy_decisions_by_source_id(policy: Any) -> dict[str, Any]:
@@ -330,6 +368,7 @@ class PackageAssembler:
     ) -> PersonalReportPackageDocument:
         """Assemble the document and fail closed on unanchored contributing inputs."""
         contract = _contract(framework_id)
+        statement_disposition_policy = _package_statement_disposition_policy()
         policy = await derive_user_framework_policy_result(
             db,
             user_id,
@@ -358,6 +397,7 @@ class PackageAssembler:
             decisions_by_source_id=decisions_by_source_id,
             contributions=contributions,
         )
+        sections.notes = _package_notes(statement_disposition_policy)
         input_manifest, unproven_input_refs = await self._input_manifest(
             db,
             user_id=user_id,
@@ -401,6 +441,7 @@ class PackageAssembler:
                     "currency": currency,
                 },
                 framework_policy=policy.model_dump(mode="json"),
+                statement_disposition_policy=statement_disposition_policy.model_dump(mode="json"),
                 input_manifest=input_manifest,
                 sections=sections,
             )
@@ -426,6 +467,7 @@ class PackageAssembler:
             contract=contract,
             readiness=readiness,
             framework_policy=policy,
+            statement_disposition_policy=statement_disposition_policy,
             input_manifest=input_manifest,
             sections=sections,
         )
@@ -439,6 +481,7 @@ class PackageAssembler:
         occurred_at: datetime,
         context: dict[str, str],
         framework_policy: dict[str, Any],
+        statement_disposition_policy: dict[str, Any],
         input_manifest: list[PersonalReportPackageTraceManifestEntry],
         sections: PersonalReportPackageSections,
     ) -> UUID:
@@ -466,6 +509,7 @@ class PackageAssembler:
             "snapshot_id": str(snapshot_id),
             "context": context,
             "framework_policy": framework_policy,
+            "statement_disposition_policy": statement_disposition_policy,
             "input_manifest": [item.model_dump(mode="json") for item in input_manifest],
             "sections": sections.model_dump(mode="json"),
         }

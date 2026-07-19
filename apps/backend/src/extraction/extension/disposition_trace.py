@@ -28,8 +28,10 @@ from src.extraction.base.disposition import (
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
+    StatementDispositionPolicySnapshot,
     StatementTransaction,
 )
+from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.ledger import DecisionAnchor, journal_command_target
 
 
@@ -234,9 +236,15 @@ def build_disposition_trace_records(
     transaction: StatementTransaction,
     proposal: IntentProposal | None,
     decision: DispositionDecision,
+    policy_snapshot: StatementDispositionPolicySnapshot | None = None,
     invariant_supersedes_id: UUID | None = None,
     disposition_supersedes_id: UUID | None = None,
 ) -> tuple[TraceRecord, ...]:
+    runtime_policy = policy_snapshot or current_statement_disposition_policy_snapshot(mode=decision.mode)
+    if runtime_policy.mode is not decision.mode:
+        raise ValueError("disposition policy snapshot mode must match the decision mode")
+    if runtime_policy.policy_version != decision.policy_version:
+        raise ValueError("disposition policy snapshot version must match the decision policy")
     transaction_payload = {
         "id": str(transaction.transaction_id),
         "date": transaction.transaction_date.isoformat(),
@@ -251,7 +259,16 @@ def build_disposition_trace_records(
         version=_digest(json.dumps(transaction_payload, sort_keys=True, separators=(",", ":"))),
     )
     scope = TraceScope.tenant(user_id)
-    evidence_digest = _digest("|".join(proposal.evidence) if proposal else "no-intent-proposal")
+    evidence_digest = _digest(
+        json.dumps(
+            {
+                "proposal_evidence": list(proposal.evidence) if proposal else ["no-intent-proposal"],
+                "runtime_policy": runtime_policy.semantic_payload(),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     package, tier, proof_kind, provenance, execution_stage, producer_version = _proposal_authority(proposal)
     candidate = TraceRecord.observation(
         scope=scope,
@@ -260,7 +277,7 @@ def build_disposition_trace_records(
         assertion=VersionedTraceRef(
             kind="economic_intent",
             id=proposal.intent.value if proposal else EconomicIntent.UNKNOWN.value,
-            version=proposal.policy_version if proposal else "none",
+            version=runtime_policy.trace_version,
         ),
         authority=_authority(
             package=package,
@@ -285,7 +302,16 @@ def build_disposition_trace_records(
         authority=_authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1"),
         result=TraceResult.PASS,
         execution_id=execution_id,
-        evidence_manifest_digest=decision.semantic_digest,
+        evidence_manifest_digest=_digest(
+            json.dumps(
+                {
+                    "decision": decision.semantic_digest,
+                    "runtime_policy_digest": runtime_policy.semantic_digest,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        ),
         occurred_at=occurred_at,
         score=Ratio(Decimal("1")),
         reason_code="disposition_command_or_review_valid",
@@ -320,6 +346,7 @@ async def emit_disposition_trace_records(
     transaction: StatementTransaction,
     proposal: IntentProposal | None,
     decision: DispositionDecision,
+    policy_snapshot: StatementDispositionPolicySnapshot | None = None,
 ) -> tuple[TraceRecord, ...]:
     """Emit one causal set idempotently, superseding changed decision heads."""
     records = build_disposition_trace_records(
@@ -329,6 +356,7 @@ async def emit_disposition_trace_records(
         transaction=transaction,
         proposal=proposal,
         decision=decision,
+        policy_snapshot=policy_snapshot,
     )
     current_guard = await emitter.repository.current_decision(records[2].scope, records[2].lineage)
     guard_supersedes_id = (
@@ -344,6 +372,7 @@ async def emit_disposition_trace_records(
             transaction=transaction,
             proposal=proposal,
             decision=decision,
+            policy_snapshot=policy_snapshot,
             invariant_supersedes_id=guard_supersedes_id,
         )
 
@@ -361,6 +390,7 @@ async def emit_disposition_trace_records(
             transaction=transaction,
             proposal=proposal,
             decision=decision,
+            policy_snapshot=policy_snapshot,
             invariant_supersedes_id=guard_supersedes_id,
             disposition_supersedes_id=disposition_supersedes_id,
         )

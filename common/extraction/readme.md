@@ -72,6 +72,11 @@ matching asset/liability context and cannot be converted into income or expense
 by fallback. `off`, `observe`, and `enforce` calculate the same versioned
 decision; only `enforce` applies a command. Composition resolves the closed
 `STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
+Every decision also captures an immutable `StatementDispositionPolicySnapshot`:
+the policy/mode, machine and P&L confidence gates, unknown/ambiguous-review
+routes, live-proposal state, and deployment commit. Trace records bind that exact
+snapshot, while reporting receives the same published value object for frozen
+package disclosure instead of rebuilding policy facts from configuration.
 
 ## Upload-First Product Contract
 

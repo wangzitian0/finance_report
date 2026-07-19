@@ -6594,6 +6594,16 @@
             ],
             "title": "Snapshot Id"
           },
+          "statement_disposition_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalReportPackageStatementDispositionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/PersonalReportPackageSnapshotStatus"
           }
@@ -7205,6 +7215,77 @@
           "is_latest"
         ],
         "title": "PersonalReportPackageSnapshotSummary",
+        "type": "object"
+      },
+      "PersonalReportPackageStatementDispositionPolicy": {
+        "description": "Exact statement-disposition runtime policy frozen with one package document.",
+        "properties": {
+          "ambiguous_intent_outcome": {
+            "const": "review",
+            "title": "Ambiguous Intent Outcome",
+            "type": "string"
+          },
+          "deployment_git_sha": {
+            "title": "Deployment Git Sha",
+            "type": "string"
+          },
+          "live_llm_proposals_enabled": {
+            "title": "Live Llm Proposals Enabled",
+            "type": "boolean"
+          },
+          "machine_confidence_threshold": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Machine Confidence Threshold",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "off",
+              "observe",
+              "enforce"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "pnl_effect_confidence_threshold": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Pnl Effect Confidence Threshold",
+            "type": "string"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "semantic_digest": {
+            "description": "Canonical SHA-256 digest of the frozen extraction policy snapshot.",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Semantic Digest",
+            "type": "string"
+          },
+          "unknown_intent_outcome": {
+            "const": "review",
+            "title": "Unknown Intent Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "policy_version",
+          "mode",
+          "machine_confidence_threshold",
+          "pnl_effect_confidence_threshold",
+          "unknown_intent_outcome",
+          "ambiguous_intent_outcome",
+          "live_llm_proposals_enabled",
+          "deployment_git_sha",
+          "semantic_digest"
+        ],
+        "title": "PersonalReportPackageStatementDispositionPolicy",
         "type": "object"
       },
       "PersonalReportPackageTraceManifestEntry": {

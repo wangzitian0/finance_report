@@ -202,6 +202,9 @@ export type PersonalReportPackageDocumentLifecycle =
 export type PersonalReportPackageTraceManifestEntry =
   Schemas["PersonalReportPackageTraceManifestEntry"];
 
+export type PersonalReportPackageStatementDispositionPolicy =
+  Schemas["PersonalReportPackageStatementDispositionPolicy"];
+
 export interface PersonalReportPackageSections {
   balance_sheet: BalanceSheetResponse;
   income_statement: IncomeStatementResponse;
@@ -233,6 +236,7 @@ export interface PersonalReportPackageDocument {
   readiness: PersonalReportPackageReadinessResponse;
   framework_policy: FrameworkPolicyResult;
   input_manifest: PersonalReportPackageTraceManifestEntry[];
+  statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
   sections: PersonalReportPackageSections;
 }
 

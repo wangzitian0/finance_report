@@ -222,6 +222,11 @@ CONTRACT = PackageContract(
             module="base/disposition.py",
         ),
         Unit(
+            name="StatementDispositionPolicySnapshot",
+            kind=Kind.VALUE_OBJECT,
+            module="base/disposition.py",
+        ),
+        Unit(
             name="IntentProposal",
             kind=Kind.VALUE_OBJECT,
             module="base/disposition.py",
@@ -240,6 +245,11 @@ CONTRACT = PackageContract(
             name="emit_disposition_trace_records",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/disposition_trace.py",
+        ),
+        Unit(
+            name="current_statement_disposition_policy_snapshot",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/disposition_policy.py",
         ),
         Unit(
             name="StatementIngestionOutcome",
@@ -323,6 +333,7 @@ CONTRACT = PackageContract(
         "StatementIngestionOutcome",
         "StatementIngestionStatus",
         "StatementIngestionUseCase",
+        "StatementDispositionPolicySnapshot",
         "StatementExtractionResult",
         "ResolvedStatementContribution",
         "StatementEvidenceType",
@@ -349,6 +360,7 @@ CONTRACT = PackageContract(
         "confirm_reviewed_statement_envelope",
         "create_entry_from_txn",
         "current_reviewed_statement_envelope",
+        "current_statement_disposition_policy_snapshot",
         "detect_balance_chain_break",
         "dual_write_layer2",
         "emit_disposition_trace_records",
@@ -3929,7 +3941,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_1_preserves_source_absence_until_typed_command"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3944,7 +3956,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_2_rejects_invalid_or_stale_commands_atomically"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3959,7 +3971,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_3_appends_trace_and_preserves_source_payload"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3974,7 +3986,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -3989,7 +4001,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_5_reparse_and_retry_are_explicit"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4004,7 +4016,7 @@ CONTRACT = PackageContract(
                 "::AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4019,7 +4031,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_reviewed_envelope_7_database_rejects_fact_mutation"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         # ── group statement-contribution: source-to-package boundary (#1681) ──
@@ -4098,7 +4110,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_disposition_1_never_uses_direction_as_intent"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
         ),
         ACRecord(
@@ -4113,24 +4125,24 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_disposition_2_principal_and_transfer_never_enter_pnl"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
             id="AC-extraction.disposition.3",
             statement=(
-                "Salary, grocery, expense refund, dividend, fee, transfer, "
-                "investment purchase/sale, loan principal/interest, and card "
-                "repayment map to exact balanced custody/counter commands or an "
-                "explicit already-covered decision; only declared P&L intents "
-                "may affect profit or loss."
+                "A reviewed recorded-description rule traverses through proposal "
+                "origin, accounting intent/category, DispositionDecision, posted "
+                "ledger command, and report line for salary, grocery, expense refund, "
+                "dividend, fee, transfer, investment purchase/sale, loan principal/interest, "
+                "and card repayment. Only declared P&L intents may affect profit or loss."
             ),
             test=(
-                "apps/backend/tests/extraction/test_disposition_policy.py"
-                "::test_AC_extraction_disposition_3_semantic_oracle_yields_exact_commands"
+                "apps/backend/tests/integration/test_statement_disposition_semantic_oracle.py"
+                "::test_AC_extraction_disposition_3_reviewed_description_oracle_reaches_exact_report_lines"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4149,7 +4161,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_origin"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4164,7 +4176,7 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_disposition_5_stage1_requires_economic_review"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="invariant",
         ),
         ACRecord(
@@ -4194,8 +4206,25 @@ CONTRACT = PackageContract(
                 "::test_AC_extraction_disposition_rollout_1_modes_share_one_decision"
             ),
             priority="P0",
-            status="open",
+            status="done",
             proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.disposition.7",
+            statement=(
+                "Every disposition TraceRecord binds the exact versioned runtime policy "
+                "snapshot (mode, machine and P&L authority thresholds, unknown/ambiguous "
+                "routing, live-proposal state, and deployment commit); a newly frozen package "
+                "persists and reopens the same structured snapshot and disclosure without "
+                "recomputing it from current settings."
+            ),
+            test=(
+                "apps/backend/tests/api/test_personal_report_package_contract.py"
+                "::test_AC_extraction_disposition_7_frozen_package_persists_trace_bound_policy_snapshot"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="invariant",
         ),
         # ── group api-vectors: backend-owned API response conformance
         # vectors (#1827 G-contract-reddens, pattern from #1167). The wire

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.audit.orm.trace_record import TraceRecordRow
+from src.config import settings
 from src.deps import PaginationParams
 from src.extraction import DocumentType, EconomicIntent, ExtractedTransactionRow, UploadedDocument
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
@@ -642,6 +643,57 @@ async def test_AC5_19_1_package_generate_creates_draft_or_trusted_snapshot(
         .all()
     )
     assert [row.id for row in latest_rows] == [trusted.id]
+
+
+async def test_AC_extraction_disposition_7_frozen_package_persists_trace_bound_policy_snapshot(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """AC-extraction.disposition.7: package disclosure is a frozen policy snapshot, never a live config read."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    monkeypatch.setattr(settings, "git_commit_sha", "a" * 40)
+    await _install_trace_anchored_package_fixture(db, test_user, monkeypatch)
+
+    snapshot = await generate_personal_report_package_snapshot(
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 12, 31),
+            as_of_date=date(2025, 12, 31),
+            currency="SGD",
+        ),
+        db=db,
+        user_id=test_user.id,
+    )
+    policy = snapshot.document.statement_disposition_policy
+    assert policy is not None
+    assert policy.model_dump(mode="json") == {
+        "schema_version": "1",
+        "policy_version": "disposition-v1",
+        "mode": "enforce",
+        "machine_confidence_threshold": "0.85",
+        "pnl_effect_confidence_threshold": "0.85",
+        "unknown_intent_outcome": "review",
+        "ambiguous_intent_outcome": "review",
+        "live_llm_proposals_enabled": False,
+        "deployment_git_sha": "a" * 40,
+        "semantic_digest": policy.semantic_digest,
+    }
+    note = next(
+        note for note in snapshot.document.sections.notes.notes if note.note_id == "statement-disposition-policy"
+    )
+    assert note.source_state == "frozen_runtime_policy_snapshot"
+    assert "disposition-v1" in note.disclosure
+    assert "a" * 40 in note.disclosure
+
+    monkeypatch.setattr(settings, "git_commit_sha", "b" * 40)
+    reopened = await get_personal_report_package_snapshot(snapshot_id=snapshot.id, db=db, user_id=test_user.id)
+    assert reopened.document.statement_disposition_policy == policy
+    reopened_note = next(
+        note for note in reopened.document.sections.notes.notes if note.note_id == "statement-disposition-policy"
+    )
+    assert reopened_note.disclosure == note.disclosure
 
 
 async def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together(
