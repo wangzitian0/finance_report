@@ -21,6 +21,7 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -36,6 +37,22 @@ CONTRACT = PackageContract(
     # L0 depends on nothing: the tier vocabulary (base/authority_matrix.py) and
     # the five-layer topology (base/layering.py) are meta's own base modules.
     depends_on=[],
+    context=ContextScope(
+        purpose=(
+            "Define the package-governance language and compute the validations, "
+            "indexes, and impact evidence that keep package boundaries auditable."
+        ),
+        in_scope=[
+            "package-contract vocabulary and topology",
+            "computed package governance indexes and reports",
+            "contract and SSOT validation gates",
+        ],
+        out_of_scope=[
+            "individual package business goals and domain policy",
+            "product direction and prioritization",
+            "runtime delivery and application composition",
+        ],
+    ),
     roles=["base", "extension", "data"],
     units=[
         # base — the pure model: the PackageContract aggregate root + its value
