@@ -277,12 +277,24 @@ async def test_AC_pricing_valuation_contribution_6_selected_market_input_require
         ),
         policy=ResolutionPolicy(max_age_days=0),
     )
+    missing = await resolve_selected_market_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        selection=MarketValuationSelection(
+            subject=PriceableSubject.security("MISSING"),
+            observation_id=uuid4(),
+            requested_as_of=as_of,
+        ),
+        policy=ResolutionPolicy(max_age_days=0),
+    )
 
     assert contribution.is_authoritative
     assert contribution.observation_id == selected_price.id
     assert contribution.decision_id is not None
     assert not mismatch.is_authoritative
     assert mismatch.reason_code == "selected_observation_mismatch"
+    assert not missing.is_authoritative
+    assert missing.reason_code == "no_eligible_observation"
 
     package_contributions = await PackageAssembler()._selected_market_contributions(
         db,

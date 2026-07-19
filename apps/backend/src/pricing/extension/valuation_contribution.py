@@ -419,7 +419,9 @@ async def resolve_selected_market_valuation_contribution(
         as_of=selection.requested_as_of,
         policy=policy,
     )
-    if contribution.is_authoritative and contribution.observation_id == selection.observation_id:
+    if not contribution.is_authoritative:
+        return contribution
+    if contribution.observation_id == selection.observation_id:
         return contribution
     return _unproven(
         subject=selection.subject,

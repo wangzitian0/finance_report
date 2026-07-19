@@ -86,7 +86,7 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
     )
     db.add(atomic)
     await db.commit()
-    return {"position": position, "account": investment_account}
+    return {"position": position, "atomic": atomic, "account": investment_account}
 
 
 async def test_get_holdings_empty_portfolio(client: AsyncClient):
@@ -544,8 +544,25 @@ async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observat
     db: AsyncSession,
     portfolio_with_data,
 ):
-    """AC-portfolio.report-schedule.1: package consumers receive the actual stock-price identity, not a heuristic."""
+    """AC-portfolio.report-schedule.1: freeze only prices actually used by snapshot holdings."""
     as_of = date.today()
+    position = portfolio_with_data["position"]
+    atomic = portfolio_with_data["atomic"]
+    # Match the holdings service's normalised provider lookup while preserving
+    # the source identifier rendered in the schedule.
+    position.asset_identifier = " aapl "
+    atomic.asset_identifier = " aapl "
+    zero_position = ManagedPosition(
+        user_id=position.user_id,
+        account_id=position.account_id,
+        asset_identifier="ZERO",
+        quantity=Decimal("0"),
+        cost_basis=Decimal("0.00"),
+        currency="SGD",
+        acquisition_date=as_of,
+        status=PositionStatus.ACTIVE,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
     stock_price = StockPrice(
         symbol="AAPL",
         price=Decimal("125.05"),
@@ -553,7 +570,26 @@ async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observat
         price_date=as_of,
         source="recorded-provider",
     )
-    db.add(stock_price)
+    unused_zero_stock_price = StockPrice(
+        symbol="ZERO",
+        price=Decimal("5.00"),
+        currency="SGD",
+        price_date=as_of,
+        source="recorded-provider",
+    )
+    # A zero snapshot falls back to statement value, not its provider price.
+    zero_snapshot = AtomicPosition(
+        user_id=position.user_id,
+        snapshot_date=as_of,
+        asset_identifier="ZERO",
+        broker="Investment Account",
+        quantity=Decimal("0"),
+        market_value=Decimal("0.00"),
+        currency="SGD",
+        dedup_hash="zero_schedule_market_selection",
+        source_documents={},
+    )
+    db.add_all([zero_position, stock_price, unused_zero_stock_price, zero_snapshot])
     await db.commit()
 
     response = await client.get(
@@ -568,10 +604,13 @@ async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observat
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["holdings"][0]["market_value"] == "12505.00"
+    assert (
+        next(holding for holding in payload["holdings"] if holding["asset_identifier"] == " aapl ")["market_value"]
+        == "12505.00"
+    )
     assert payload["market_valuation_selections"] == [
         {
-            "asset_identifier": "AAPL",
+            "asset_identifier": " aapl ",
             "observation_id": str(stock_price.id),
             "requested_as_of": as_of.isoformat(),
         }
