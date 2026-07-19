@@ -28,6 +28,7 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextScope,
     Invariant,
     PackageContract,
 )
@@ -37,6 +38,22 @@ CONTRACT = PackageContract(
     status="active",
     tier="CODE-ONLY",
     depends_on=[],
+    context=ContextScope(
+        purpose=(
+            "Own the cross-cutting observability language that makes runtime behavior "
+            "and safe operational evidence visible without owning the behavior observed."
+        ),
+        in_scope=[
+            "vendor-neutral telemetry, metrics, and request identifiers",
+            "structured audit and security logging with PII-safe error summaries",
+            "operator-facing OpenPanel query tooling",
+        ],
+        out_of_scope=[
+            "business-domain state, financial policy, or domain-event ownership",
+            "application workflow, transaction, or lifecycle orchestration",
+            "product analytics interpretation or user-facing application decisions",
+        ],
+    ),
     implementations={"be": "apps/backend/src/observability", "fe": None},
     units=[],
     interface=[
