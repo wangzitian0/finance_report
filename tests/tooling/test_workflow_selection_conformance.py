@@ -8,11 +8,16 @@ in common/testing/matrix.py; workflows keep literal text proven equal here.
 
 from __future__ import annotations
 
+import os
 import re
+from html import escape
 from pathlib import Path
+from types import SimpleNamespace
 
 from common.testing import matrix
+from common.testing.ac_proof import PROOF_ATTR, AcProof
 from common.testing.check_pr_ci_evidence import _module_for, collect_executed
+from common.testing.executed_proof import record_executed_proof
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -127,7 +132,10 @@ def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
     )
 
 
-def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
+def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     """AC-testing.conformance.4: AC8.23.4: a behavioral pr_ci proof absent from PR junit evidence fails
     the reconciliation gate; present proofs pass; skipped-only warns."""
     from common.testing.check_pr_ci_evidence import run_check
@@ -145,15 +153,60 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
         and matrix.classify_stage(p.get("file", "")) in matrix.PR_EVIDENCE_STAGES
     ]
     assert proofs, "expected at least one scoped pr_ci proof in the repo"
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "wangzitian0/finance_report")
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
 
     def junit_for(subset: list[dict]) -> Path:
-        cases = "".join(
-            f'<testcase classname="{_module_for(p["file"])}" name="{p["test"]}" time="0.1"/>'
-            for p in subset
-        )
+        cases = []
+        for proof in subset:
+            properties = ""
+            if proof.get("scenario_id"):
+                test = lambda: None  # noqa: E731
+                setattr(
+                    test,
+                    PROOF_ATTR,
+                    AcProof(
+                        proof_id=proof["id"],
+                        ac_ids=tuple(proof["ac_ids"]),
+                        stage=proof["stage"],
+                        task_category=proof["task_category"],
+                        scope=proof["scope"],
+                        ci_tier=proof["ci_tier"],
+                        trust_mode=proof.get("trust_mode", ""),
+                        source_classes=tuple(proof.get("source_classes", ())),
+                        issue=proof.get("issue", ""),
+                        scenario_id=proof["scenario_id"],
+                        oracle_kind=proof["oracle_kind"],
+                    ),
+                )
+                item = SimpleNamespace(
+                    obj=test,
+                    nodeid=f"{proof['file']}::{proof['test']}",
+                    user_properties=[],
+                )
+                record_executed_proof(
+                    item,
+                    SimpleNamespace(when="call", passed=True, user_properties=[]),
+                    environ=os.environ,
+                )
+                properties = (
+                    "<properties>"
+                    + "".join(
+                        f'<property name="{escape(name)}" value="{escape(value)}"/>'
+                        for name, value in item.user_properties
+                    )
+                    + "</properties>"
+                )
+            cases.append(
+                f'<testcase classname="{_module_for(proof["file"])}" '
+                f'name="{proof["test"]}" time="0.1">{properties}</testcase>'
+            )
         path = tmp_path / f"junit-{len(subset)}.xml"
         path.write_text(
-            f'<testsuite name="s" tests="{len(subset)}">{cases}</testsuite>',
+            f'<testsuite name="s" tests="{len(subset)}">{"".join(cases)}</testsuite>',
             encoding="utf-8",
         )
         return path
@@ -164,13 +217,25 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(tmp_path: Path) -> None:
     # Skipped-only is a hard fail (#1558): a pr_ci proof that only ever skips
     # pre-merge is not executing its promise.
     skipped = tmp_path / "skipped.xml"
-    first = proofs[0]
+    scenario = next(proof for proof in proofs if proof.get("scenario_id"))
+    without_scenario = [proof for proof in proofs if proof is not scenario]
     skipped.write_text(
-        f'<testsuite name="s" tests="1"><testcase classname="{_module_for(first["file"])}"'
-        f' name="{first["test"]}"><skipped/></testcase></testsuite>',
+        f'<testsuite name="s" tests="1"><testcase classname="{_module_for(scenario["file"])}"'
+        f' name="{scenario["test"]}"><skipped/></testcase></testsuite>',
         encoding="utf-8",
     )
-    assert run_check([junit_for(proofs[1:]), skipped]) == 1
+    import common.testing.check_pr_ci_evidence as evidence_gate
+
+    def reject_match_for_nonexecuted_proof(*args, **kwargs):
+        raise AssertionError("a skipped proof must not enter TraceRecord validation")
+
+    with monkeypatch.context() as skipped_gate:
+        skipped_gate.setattr(
+            evidence_gate,
+            "_has_exact_executed_proof",
+            reject_match_for_nonexecuted_proof,
+        )
+        assert run_check([junit_for(without_scenario), skipped]) == 1
     # ...but a skip in one shard with a real run in another still passes.
     assert run_check([junit_for(proofs), skipped]) == 0
 
