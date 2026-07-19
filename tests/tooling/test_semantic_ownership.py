@@ -55,5 +55,32 @@ def test_same_spelling_needs_explicit_distinct_semantic_keys() -> None:
     assert duplicate_claims(packages) == []
 
 
+def test_duplicate_semantic_owner_output_is_stably_sorted() -> None:
+    packages = [
+        SimpleNamespace(
+            name="first",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(name="Zoo", kind=Kind.ENTITY),
+                    Unit(name="Alpha", kind=Kind.VALUE_OBJECT),
+                ]
+            ),
+        ),
+        SimpleNamespace(
+            name="second",
+            contract=SimpleNamespace(
+                units=[
+                    Unit(name="Zoo", kind=Kind.ENTITY),
+                    Unit(name="Alpha", kind=Kind.VALUE_OBJECT),
+                ]
+            ),
+        ),
+    ]
+    assert duplicate_claims(packages) == [
+        "duplicate semantic owner: entity::Zoo::first,second",
+        "duplicate semantic owner: value-object::Alpha::first,second",
+    ]
+
+
 def test_semantic_ownership_is_exact_on_real_repository() -> None:
     assert main() == 0

@@ -34,7 +34,9 @@ def duplicate_claims(packages: Sequence[DiscoveredPackage]) -> list[str]:
     return [
         "duplicate semantic owner: "
         f"{kind.value}::{identity}::{','.join(sorted(package_names))}"
-        for (kind, identity), package_names in sorted(owners.items(), key=str)
+        for (kind, identity), package_names in sorted(
+            owners.items(), key=lambda item: (item[0][0].value, item[0][1])
+        )
         if len(package_names) > 1
     ]
 
