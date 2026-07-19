@@ -1,7 +1,9 @@
 """Base-layer dependency purity ratchet for #1894."""
 
-from pathlib import Path
+from __future__ import annotations
+
 import json
+from pathlib import Path
 
 from common.meta.extension.base_purity import discover_impurities
 from common.meta.extension.check_base_purity import main, violations
@@ -37,3 +39,13 @@ def test_base_purity_gate_rejects_new_and_stale_debt(tmp_path: Path) -> None:
 
     assert any("new base impurity" in finding for finding in findings)
     assert any("stale base-purity baseline" in finding for finding in findings)
+
+
+def test_base_purity_gate_fails_when_scan_target_is_missing(tmp_path: Path) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text("[]\n", encoding="utf-8")
+
+    assert any(
+        "cannot scan package base layers" in finding
+        for finding in violations(tmp_path, baseline)
+    )

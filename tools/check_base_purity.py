@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Command wrapper for the base-purity shrink-only gate."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
@@ -10,5 +12,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.meta.extension.check_base_purity import main  # noqa: E402
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -25,7 +25,10 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
         baseline = set(json.loads(baseline_path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"cannot read base-purity baseline: {exc}"]
-    current = set(discover_impurities(repo_root / "apps/backend/src"))
+    backend_src = repo_root / "apps/backend/src"
+    if not backend_src.is_dir():
+        return [f"cannot scan package base layers: missing directory {backend_src}"]
+    current = set(discover_impurities(backend_src))
     return [
         *(f"new base impurity: {item}" for item in sorted(current - baseline)),
         *(f"stale base-purity baseline: {item}" for item in sorted(baseline - current)),
