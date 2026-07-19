@@ -1,7 +1,6 @@
 [
   "counter",
   "extraction",
-  "identity",
   "ledger",
   "llm",
   "observability",
