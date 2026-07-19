@@ -27,6 +27,8 @@ def test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed() -> None:
 
     with pytest.raises(TrustedYearError, match="must be Decimal"):
         replace(scenario, opening_cash=10000)  # type: ignore[arg-type]
+    with pytest.raises(TrustedYearError, match="balance-sheet equation"):
+        replace(scenario.expected, total_liabilities=Decimal("1.00"))
 
 
 def test_AC_testing_capability_proof_2_binding_rejects_stitching() -> None:

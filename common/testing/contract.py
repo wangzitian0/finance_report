@@ -4101,7 +4101,7 @@ CONTRACT = PackageContract(
     concepts=[
         ConceptRecord(
             key="trusted_year_scenario",
-            owner="common/testing/README.md#trusted-year-scenario",
+            owner="common/testing/readme.md#trusted-year-scenario",
             description=(
                 "Small immutable annual input, independent Decimal oracle, and "
                 "single-proof binding for terminal report-package verification."

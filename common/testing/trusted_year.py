@@ -94,7 +94,10 @@ class TrustedYearExpected:
         for field in self.__dataclass_fields__:
             _money(getattr(self, field), f"expected.{field}")
         if (
-            self.ledger_equity + self.net_income + self.net_worth_adjustment
+            self.total_liabilities
+            + self.ledger_equity
+            + self.net_income
+            + self.net_worth_adjustment
             != self.total_assets
         ):
             raise TrustedYearError("expected balance-sheet equation does not close")
