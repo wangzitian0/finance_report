@@ -15,14 +15,15 @@ from common.testing.ac_proof import ac_proof
 
 from src.counter import CounterKey, increment, read_count, record_increment
 from src.counter.base.types.events import EVENT_TYPE
-from src.platform import Outbox, RecordingEventBus
+from src.platform import RecordingEventBus
 from src.platform.extension import STATUS_PENDING
+from src.platform.extension.sql import OutboxRecord
 
 KEY = CounterKey("report.generated")
 
 
 async def _outbox_rows(db):
-    return (await db.execute(sa.select(Outbox).order_by(Outbox.id))).scalars().all()
+    return (await db.execute(sa.select(OutboxRecord).order_by(OutboxRecord.id))).scalars().all()
 
 
 @ac_proof(proof_id="test_counter_emits_to_outbox", ac_ids=["AC-platform.1.5"], ci_tier="pr_ci")

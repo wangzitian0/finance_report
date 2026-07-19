@@ -44,6 +44,26 @@ def test_public_orm_export_gate_rejects_new_and_stale_debt(tmp_path: Path) -> No
     assert any("stale public-ORM baseline" in finding for finding in findings)
 
 
+def test_public_orm_export_gate_follows_package_extension_reexports(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "apps/backend/src/platform/extension"
+    package.mkdir(parents=True)
+    (package / "sql.py").write_text("class Outbox(Base):\n    pass\n", encoding="utf-8")
+    (package / "__init__.py").write_text(
+        "from src.platform.extension.sql import Outbox\n__all__ = ['Outbox']\n",
+        encoding="utf-8",
+    )
+    (package.parent / "__init__.py").write_text(
+        "from src.platform.extension import Outbox\n__all__ = ['Outbox']\n",
+        encoding="utf-8",
+    )
+
+    assert discover_public_orm_exports(tmp_path / "apps/backend/src") == [
+        "platform::Outbox"
+    ]
+
+
 def test_public_orm_export_gate_fails_on_missing_scan_target(tmp_path: Path) -> None:
     baseline = tmp_path / "baseline.json"
     baseline.write_text("[]\n", encoding="utf-8")

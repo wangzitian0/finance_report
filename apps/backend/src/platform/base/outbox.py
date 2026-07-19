@@ -3,7 +3,7 @@
 Dependency inversion, mechanism B: the abstract persistence contract the bus and
 relay depend on lives here in ``base``; its concrete SQLAlchemy adapter
 (:class:`~src.platform.extension.sql.SqlOutboxRepository`, against the shared
-:class:`~src.platform.extension.sql.Outbox` table) lives in ``extension`` and
+:class:`~src.platform.extension.sql.OutboxRecord` table) lives in ``extension`` and
 depends back on this port. This keeps ``base`` pure: it speaks plain primitives
 and a structural :class:`OutboxRow`, never the ORM/session.
 
@@ -16,8 +16,23 @@ post-commit and at-least-once.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
+
+
+@dataclass(frozen=True)
+class Outbox:
+    """Public, persistence-neutral description of one enqueued domain event."""
+
+    occurred_at: datetime
+    event_type: str
+    source_pkg: str
+    payload: dict
+    aggregate_id: str | None = None
+    id: int | None = None
+    status: str = "pending"
+    published_at: datetime | None = None
 
 
 class OutboxRow(Protocol):
@@ -32,6 +47,8 @@ class OutboxRow(Protocol):
     occurred_at: datetime
     event_type: str
     payload: dict | None
+    status: str
+    published_at: datetime | None
 
 
 class OutboxRepository(Protocol):

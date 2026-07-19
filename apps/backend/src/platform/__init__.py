@@ -19,7 +19,7 @@ Files converge by layer (see common/meta/migration-standard.md): ``base`` (the
 :class:`DomainEvent` record + the :class:`EventBus`/:class:`OutboxRepository`
 *ports* + :class:`SubscriberRegistry`) and ``extension`` (the
 :class:`OutboxEventBus`/:class:`RecordingEventBus` bus adapters, the
-:class:`OutboxRelay`, the SQL :class:`Outbox` table + adapter — the only role
+:class:`OutboxRelay`, the SQL ``OutboxRecord`` table + adapter — the only role
 that touches the ORM — and the cross-cutting request :class:`RateLimiter`
 middleware service plus its app-wide ``api_rate_limiter`` instance). The names
 re-exported below are the *entire* public surface (``__all__`` must equal
@@ -35,10 +35,10 @@ from typing import TYPE_CHECKING
 from src.platform.base import (
     DomainEvent,
     EventBus,
+    Outbox,
     OutboxRepository,
     SubscriberRegistry,
 )
-from src.platform.extension.sql import Outbox
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
@@ -116,7 +116,6 @@ def __getattr__(name: str) -> object:
 if TYPE_CHECKING:
     from src.platform.extension import (
         BaseAppException,
-        Outbox,
         OutboxEventBus,
         OutboxRelay,
         PingStateResponse,

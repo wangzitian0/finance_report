@@ -22,12 +22,14 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.platform.base.bus import SubscriberRegistry
 from src.platform.base.event import DomainEvent
-from src.platform.extension.sql import Outbox, SqlOutboxRepository
+from src.platform.base.outbox import OutboxRow
+from src.platform.extension.sql import SqlOutboxRepository
 
 
 class _StoredEvent(DomainEvent):
@@ -40,6 +42,8 @@ class _StoredEvent(DomainEvent):
     transports opaque events.
     """
 
+    _payload: dict
+
     def __init__(self, *, event_type: str, occurred_at: datetime, payload: dict) -> None:
         super().__init__(event_type=event_type, occurred_at=occurred_at)
         object.__setattr__(self, "_payload", payload)
@@ -48,7 +52,7 @@ class _StoredEvent(DomainEvent):
         return dict(self._payload)
 
 
-def _to_event(row: Outbox) -> DomainEvent:
+def _to_event(row: OutboxRow) -> DomainEvent:
     """Rehydrate a persisted outbox row into a dispatchable domain event."""
     return _StoredEvent(
         event_type=row.event_type,
@@ -79,7 +83,8 @@ class OutboxRelay:
         published = 0
         try:
             for row in rows:
-                event = _to_event(row)
+                outbox_row = cast(OutboxRow, row)
+                event = _to_event(outbox_row)
                 for handler in self._registry.handlers_for(row.event_type):
                     # Handlers may be sync or async (EventHandler admits both);
                     # an async handler's work must complete before the row is

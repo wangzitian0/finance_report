@@ -33,6 +33,64 @@ def _literal_exports(tree: ast.Module, path: Path) -> set[str]:
     return set(values)
 
 
+def _local_module_path(backend_src: Path, package: str, module: str) -> Path | None:
+    """Resolve a package-local import path without importing application code."""
+    prefix = f"src.{package}."
+    if not module.startswith(prefix):
+        return None
+    relative = Path(*module.removeprefix(prefix).split("."))
+    module_file = backend_src / package / relative.with_suffix(".py")
+    package_init = backend_src / package / relative / "__init__.py"
+    if module_file.is_file():
+        return module_file
+    if package_init.is_file():
+        return package_init
+    return None
+
+
+def _orm_class_names(path: Path) -> set[str]:
+    """Return locally-defined SQLAlchemy model names from one source module."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError) as exc:
+        raise ValueError(f"cannot parse re-export source {path}: {exc}") from exc
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and any(isinstance(base, ast.Name) and base.id == "Base" for base in node.bases)
+    }
+
+
+def _local_orm_exports(
+    backend_src: Path, package: str, module: str, seen: frozenset[str] = frozenset()
+) -> set[str]:
+    """Return ORM names exported by a local module, following local re-exports."""
+    if module in seen:
+        return set()
+    path = _local_module_path(backend_src, package, module)
+    if path is None:
+        return set()
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError) as exc:
+        raise ValueError(f"cannot parse re-export source {path}: {exc}") from exc
+
+    exports = _orm_class_names(path)
+    for node in tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            continue
+        source_names = _local_orm_exports(
+            backend_src, package, node.module, seen | {module}
+        )
+        exports.update(
+            alias.asname or alias.name
+            for alias in node.names
+            if alias.name in source_names
+        )
+    return exports
+
+
 def discover_public_orm_exports(backend_src: Path) -> list[str]:
     """Return canonical ``package::symbol`` records for root-exported ORM names."""
     if not backend_src.is_dir():
@@ -54,5 +112,15 @@ def discover_public_orm_exports(backend_src: Path) -> list[str]:
                 f"src.{package}.orm."
             ):
                 orm_names.update(alias.asname or alias.name for alias in node.names)
+                continue
+            source = _local_module_path(backend_src, package, node.module)
+            if source is None:
+                continue
+            source_orm_names = _local_orm_exports(backend_src, package, node.module)
+            orm_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name in source_orm_names
+            )
         findings.extend(f"{package}::{name}" for name in sorted(exports & orm_names))
     return sorted(findings)

@@ -3,7 +3,7 @@
 This is the ``extension`` (impure) half of the persistence split: the concrete
 :class:`SqlOutboxRepository` adapter that satisfies the
 :class:`~src.platform.base.outbox.OutboxRepository` port, backed by the shared
-:class:`Outbox` ORM table. The only role that touches the ORM/session.
+:class:`OutboxRecord` ORM table. The only role that touches the ORM/session.
 
 The transactional-outbox pattern hangs on ONE invariant: a domain event row is
 INSERTed in the *same* DB transaction as the domain state change that produced
@@ -11,7 +11,7 @@ it. Because the write shares the caller's :class:`AsyncSession`, the event and
 the state change commit together or roll back together — there is no window where
 one persists without the other.
 
-``Outbox`` is the single shared table (owned by the ``platform`` package); every
+``OutboxRecord`` is the single shared table (owned by the ``platform`` package); every
 package that emits through the bus writes its events here, tagged with
 ``source_pkg``/``event_type``. The relay (``extension/relay.py``) later reads
 committed ``pending`` rows in id order and dispatches them, so dispatch is
@@ -38,7 +38,7 @@ STATUS_PENDING = "pending"
 STATUS_PUBLISHED = "published"
 
 
-class Outbox(Base):
+class OutboxRecord(Base):
     """One enqueued domain event awaiting (or having had) relay dispatch.
 
     The ``(status, id)`` index backs the relay's hot query — "the oldest pending
@@ -77,14 +77,14 @@ class SqlOutboxRepository:
         source_pkg: str,
         payload: dict,
         aggregate_id: str | None = None,
-    ) -> Outbox:
+    ) -> OutboxRecord:
         """Add a ``pending`` outbox row to the session (no commit).
 
         The row is flushed with the caller's transaction; the caller (the domain
         write) owns the commit, which is what makes the event atomic with the
         state change. Returns the pending row (its ``id`` is assigned on flush).
         """
-        row = Outbox(
+        row = OutboxRecord(
             occurred_at=occurred_at,
             event_type=event_type,
             source_pkg=source_pkg,
@@ -95,14 +95,14 @@ class SqlOutboxRepository:
         self._session.add(row)
         return row
 
-    async def fetch_pending(self, *, limit: int) -> list[Outbox]:
+    async def fetch_pending(self, *, limit: int) -> list[OutboxRecord]:
         """Return up to ``limit`` ``pending`` rows in id (enqueue) order."""
         result = await self._session.execute(
-            sa.select(Outbox).where(Outbox.status == STATUS_PENDING).order_by(Outbox.id).limit(limit)
+            sa.select(OutboxRecord).where(OutboxRecord.status == STATUS_PENDING).order_by(OutboxRecord.id).limit(limit)
         )
         return list(result.scalars().all())
 
-    async def mark_published(self, row: Outbox, *, published_at: datetime) -> None:
+    async def mark_published(self, row: OutboxRecord, *, published_at: datetime) -> None:
         """Flip a row to ``published`` and stamp ``published_at`` (no commit)."""
         row.status = STATUS_PUBLISHED
         row.published_at = published_at

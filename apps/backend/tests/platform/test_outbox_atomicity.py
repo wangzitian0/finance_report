@@ -13,8 +13,9 @@ import pytest
 import sqlalchemy as sa
 from common.testing.ac_proof import ac_proof
 
-from src.platform import DomainEvent, Outbox, OutboxEventBus
+from src.platform import DomainEvent, OutboxEventBus
 from src.platform.extension import STATUS_PENDING
+from src.platform.extension.sql import OutboxRecord
 
 
 def _event(name: str = "test.Thing") -> DomainEvent:
@@ -22,7 +23,7 @@ def _event(name: str = "test.Thing") -> DomainEvent:
 
 
 async def _outbox_count(db) -> int:
-    result = await db.execute(sa.select(sa.func.count()).select_from(Outbox))
+    result = await db.execute(sa.select(sa.func.count()).select_from(OutboxRecord))
     return int(result.scalar_one())
 
 
@@ -35,7 +36,7 @@ async def test_commit_leaves_exactly_one_outbox_row(db):
     await db.commit()
 
     assert await _outbox_count(db) == 1
-    row = (await db.execute(sa.select(Outbox))).scalar_one()
+    row = (await db.execute(sa.select(OutboxRecord))).scalar_one()
     assert row.status == STATUS_PENDING
     assert row.event_type == "test.Thing"
     assert row.source_pkg == "test"

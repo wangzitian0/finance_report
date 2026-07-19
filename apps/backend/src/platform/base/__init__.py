@@ -13,12 +13,13 @@ from __future__ import annotations
 
 from src.platform.base.bus import EventBus, EventHandler, SubscriberRegistry
 from src.platform.base.event import DomainEvent
-from src.platform.base.outbox import OutboxRepository, OutboxRow
+from src.platform.base.outbox import Outbox, OutboxRepository, OutboxRow
 
 __all__ = [
     "DomainEvent",
     "EventBus",
     "EventHandler",
+    "Outbox",
     "OutboxRepository",
     "OutboxRow",
     "SubscriberRegistry",

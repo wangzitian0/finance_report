@@ -1,7 +1,7 @@
 """``platform.extension`` — the impure edges: ORM, session, and the bus adapters.
 
 Depends on ``src.database`` (the shared ORM Base/session) and on the package's own
-``base`` ports. This is where the package reaches I/O: the shared :class:`Outbox`
+``base`` ports. This is where the package reaches I/O: the shared ``OutboxRecord``
 table + its :class:`SqlOutboxRepository` adapter (``sql.py``), the
 :class:`OutboxEventBus`/:class:`RecordingEventBus` bus adapters (``bus.py``), the
 :class:`OutboxRelay` post-commit dispatcher (``relay.py``), the cross-cutting
@@ -38,13 +38,11 @@ from src.platform.extension.relay import OutboxRelay
 from src.platform.extension.sql import (
     STATUS_PENDING,
     STATUS_PUBLISHED,
-    Outbox,
     SqlOutboxRepository,
 )
 
 __all__ = [
     "BaseAppException",
-    "Outbox",
     "OutboxEventBus",
     "OutboxRelay",
     "PingStateResponse",
