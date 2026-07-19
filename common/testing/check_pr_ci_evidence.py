@@ -14,12 +14,20 @@ make it run or declare post_merge_environment.
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from xml.etree import ElementTree
 
+from common.audit.base import TraceRecord, TraceRecordValidationError
+from common.audit.extension import TraceJUnitAdapter, TraceRecordCodec
 from common.meta.base.gate_cli import run_gate
+from common.testing.executed_proof import (
+    executed_proof_assertion_version,
+    executed_proof_matches,
+    github_execution_id,
+)
 from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage
 
 
@@ -51,6 +59,86 @@ def collect_executed(junit_paths: list[Path]) -> dict[tuple[str, str], bool]:
             key = (classname, name)
             executed[key] = executed.get(key, False) or not skipped
     return executed
+
+
+def collect_executed_proofs(
+    junit_paths: list[Path],
+) -> tuple[dict[tuple[str, str], tuple[TraceRecord, ...]], set[tuple[str, str]]]:
+    """Collect canonical trace properties and retain malformed testcase keys."""
+    records: dict[tuple[str, str], list[TraceRecord]] = {}
+    malformed: set[tuple[str, str]] = set()
+    for path in junit_paths:
+        if not path.exists():
+            continue
+        try:
+            tree = ElementTree.parse(path)
+        except ElementTree.ParseError:
+            continue
+        for case in tree.iter("testcase"):
+            key = (
+                case.get("classname") or "",
+                (case.get("name") or "").split("[", 1)[0],
+            )
+            for prop in case.findall("./properties/property"):
+                if prop.get("name") != TraceJUnitAdapter.PROPERTY_KEY:
+                    continue
+                raw = prop.get("value")
+                if raw is None:
+                    malformed.add(key)
+                    continue
+                try:
+                    records.setdefault(key, []).append(TraceRecordCodec.decode(raw))
+                except TraceRecordValidationError:
+                    malformed.add(key)
+    return ({key: tuple(value) for key, value in records.items()}, malformed)
+
+
+def _matching_testcase_keys(
+    proof: dict[str, object],
+    keys: set[tuple[str, str]],
+) -> tuple[tuple[str, str], ...]:
+    module = _module_for(str(proof["file"]))
+    test = str(proof["test"])
+    return tuple(
+        key
+        for key in keys
+        if (key[0] == module or key[0].startswith(module + ".")) and key[1] == test
+    )
+
+
+def _has_exact_executed_proof(
+    proof: dict[str, object],
+    *,
+    records: dict[tuple[str, str], tuple[TraceRecord, ...]],
+    malformed: set[tuple[str, str]],
+    repository_id: str,
+    commit_sha: str,
+    execution_id: str,
+) -> bool:
+    keys = _matching_testcase_keys(proof, set(records) | malformed)
+    if not keys or any(key in malformed for key in keys):
+        return False
+    assertion_version = executed_proof_assertion_version(
+        proof_id=str(proof["id"]),
+        scenario_id=str(proof["scenario_id"]),
+        oracle_kind=str(proof["oracle_kind"]),
+        ac_ids=[str(item) for item in proof.get("ac_ids", [])],
+        stage=str(proof["stage"]),
+        task_category=str(proof["task_category"]),
+    )
+    return any(
+        executed_proof_matches(
+            record,
+            proof_id=str(proof["id"]),
+            scenario_id=str(proof["scenario_id"]),
+            repository_id=repository_id,
+            commit_sha=commit_sha,
+            execution_id=execution_id,
+            assertion_version=assertion_version,
+        )
+        for key in keys
+        for record in records.get(key, ())
+    )
 
 
 def run_check(junit_paths: list[Path]) -> int:
@@ -89,10 +177,31 @@ def run_check(junit_paths: list[Path]) -> int:
         elif hit is False:
             skipped_only.append(label)
 
-    if missing or skipped_only:
+    invalid_executed_proof: list[str] = []
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        repository_id = os.environ.get("GITHUB_REPOSITORY", "")
+        commit_sha = os.environ.get("GITHUB_SHA", "")
+        execution_id = github_execution_id(os.environ)
+        records, malformed = collect_executed_proofs(junit_paths)
+        for proof in scoped:
+            if not proof.get("scenario_id"):
+                continue
+            label = f"{proof['id']}: {proof['file']}::{proof['test']}"
+            if not _has_exact_executed_proof(
+                proof,
+                records=records,
+                malformed=malformed,
+                repository_id=repository_id,
+                commit_sha=commit_sha,
+                execution_id=execution_id,
+            ):
+                invalid_executed_proof.append(label)
+
+    if missing or skipped_only or invalid_executed_proof:
         print(
             f"ERROR: {len(missing)} behavioral pr_ci proof(s) never executed and "
-            f"{len(skipped_only)} only ever skipped in PR junit evidence. Either "
+            f"{len(skipped_only)} only ever skipped; {len(invalid_executed_proof)} "
+            "scenario proof(s) lack one exact canonical executed TraceRecord. Either "
             "the test does not run pre-merge (fix the marker/stage/skip condition "
             "so it does) or the proof's ci_tier is wrong (declare "
             "post_merge_environment).",
@@ -102,6 +211,8 @@ def run_check(junit_paths: list[Path]) -> int:
             print(f"  - missing: {label}", file=sys.stderr)
         for label in skipped_only:
             print(f"  - skipped-only: {label}", file=sys.stderr)
+        for label in invalid_executed_proof:
+            print(f"  - invalid-executed-proof: {label}", file=sys.stderr)
         return 1
     print(f"pr_ci evidence reconciliation: {len(scoped)} proofs executed.")
     return 0

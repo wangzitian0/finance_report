@@ -4021,12 +4021,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.capability-proof.1",
             statement=(
-                "A PR-CI behavioral proof is collected with an explicit scenario id "
-                "and independent oracle kind, and its execution is reconciled from JUnit."
+                "A scenario-bound PR-CI behavioral proof emits one canonical TraceRecord "
+                "only after its pytest call phase passes; the JUnit gate requires exact "
+                "repository, commit, run, scenario, and proof coordinates."
             ),
             test=(
-                "tests/tooling/test_trusted_year_scenario.py::"
-                "test_AC_testing_capability_proof_1_collector_preserves_scenario_binding"
+                "tests/tooling/test_executed_proof.py::"
+                "test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates"
             ),
             priority="P0",
             status="done",

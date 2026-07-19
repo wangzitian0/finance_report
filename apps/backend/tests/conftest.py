@@ -76,6 +76,8 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[3])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+pytest_plugins = ("common.testing.executed_proof_plugin",)
+
 logger = get_logger(__name__)
 
 

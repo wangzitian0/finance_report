@@ -140,6 +140,10 @@ just `assert True` moved up one level.
 test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
       --package-contract resolver----------------->  canonical trace_record property
       --tools/aggregate_ac_evidence.py-->            per-AC aggregate JSON
+
+scenario-bound @ac_proof
+      --pytest call-phase PASS-------------------->  canonical trace_record property
+      --tools/check_pr_ci_evidence.py------------->  exact repo/commit/run proof gate
       --tools/check_ac_score_baseline.py-->          L2 + L3 ratchet gate
 ```
 
@@ -209,13 +213,21 @@ with `merge=union` so independent ACs auto-merge — one AC per line — instead
 all ACs colliding in one central JSON object). Hermetic proof of the whole chain:
 `tests/tooling/test_ac_evidence_pipeline.py`.
 
+`record_ac_evidence()` still emits its in-body `pass` as `UNPROVEN`: a measured
+score is not automatically a terminal execution proof. A scenario-bound
+`@ac_proof` is different. `common.testing.executed_proof_plugin` observes
+pytest's real call-phase result and emits `PASS` only after the call passed. The
+existing `check_pr_ci_evidence` JUnit gate then requires the exact repository,
+checked-out commit, GitHub run attempt, scenario, proof declaration digest, and
+testing authority.
+Setup/teardown success, failure, skip/xfail, a static declaration, or a workflow
+conclusion cannot create or satisfy that record.
+
 ## Deliberately **out of scope** (follow-ups)
 
-1. Deriving `code` from the actual test report via a `pytest_runtest_makereport`
-   hook instead of trusting the in-body default.
-2. A periodic mutation / golden-swap audit that verifies scores actually drop
+1. A periodic mutation / golden-swap audit that verifies scores actually drop
    when behavior breaks (the real L3 proof).
-3. Migrating additional ACs and front-end (vitest) emission.
+2. Migrating additional ACs and front-end (vitest) emission.
 
 ## <a id="trusted-year-scenario"></a>TrustedYearScenario
 
@@ -226,13 +238,16 @@ brokerage position and selected market price; and one reviewed manual
 valuation. It is test truth, not a second product capability registry or a new
 transaction taxonomy.
 
-One `pr_ci` behavioral proof must bind the scenario to one independent oracle
-through explicit `scenario_id` and `oracle_kind` metadata. The integration path
-uses existing authority boundaries: LLM-led classification for supported P&L
-categories, a reviewed deterministic rule with explicit intent for the asset
-movement, immutable extraction results, ledger decisions, valuation decisions,
-and the frozen report-package lifecycle. Source-matrix expansion, deployed
-replay, operator evidence, and broader proof-format deletion remain outside v0.
+One `pr_ci` behavioral proof binds the scenario to one independent oracle
+through explicit `scenario_id` and `oracle_kind` metadata. After its real pytest
+call passes, the testing plugin emits one canonical `TraceRecord` observation;
+the JUnit reconciliation gate rejects missing or stale execution coordinates.
+The integration path uses existing authority boundaries: LLM-led classification
+for supported P&L categories, a reviewed deterministic rule with explicit intent
+for the asset movement, immutable extraction results, ledger decisions,
+valuation decisions, and the frozen report-package lifecycle. Source-matrix
+expansion, deployed replay, operator evidence, and broader proof-format deletion
+remain outside v0.
 
 ---
 
