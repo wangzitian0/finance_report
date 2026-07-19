@@ -62,6 +62,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -80,6 +82,72 @@ CONTRACT = PackageContract(
     # package, so it's never governed by depends_on — no other package
     # declares it either despite importing it directly.
     depends_on=["audit", "extraction", "platform", "observability"],
+    context=ContextScope(
+        purpose=(
+            "Own price and valuation observations, their bitemporal authority, and "
+            "the policy-driven resolution of a subject's value at a time."
+        ),
+        in_scope=[
+            "PriceObservation, PriceableSubject, authority, staleness, and resolution policy",
+            "FX rate lookup, valuation observation ingestion, and manual/override observations",
+            "pricing-owned PriceObserved events and decision-backed valuation contributions",
+        ],
+        out_of_scope=[
+            "document extraction facts and re-parse lifecycle",
+            "shared money arithmetic and assurance-language ownership",
+            "portfolio position ownership, report presentation, and cross-domain workflow",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="pricing",
+            mode="published-language",
+            reason=(
+                "Uses audit Money, exchange-rate arithmetic, and assurance value language "
+                "while pricing owns rate lookup and valuation selection."
+            ),
+        ),
+        ContextRelation(
+            provider="audit",
+            consumer="pricing",
+            mode="consumer-port",
+            reason=(
+                "Consumes audit decision-evidence repository/emitter ports rather than "
+                "owning assurance authority or its persistence."
+            ),
+        ),
+        ContextRelation(
+            provider="extraction",
+            consumer="pricing",
+            mode="event",
+            reason=(
+                "Ingests extraction-owned statement-price facts as id-referenced copies "
+                "after PriceObserved events; no extraction lifecycle is owned here."
+            ),
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="pricing",
+            mode="consumer-port",
+            reason=(
+                "Uses platform EventBus/outbox ports to publish pricing events atomically "
+                "with pricing-owned observations."
+            ),
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="pricing",
+            mode="composition",
+            reason="Uses platform persistence mixins without owning the shared persistence substrate.",
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="pricing",
+            mode="published-language",
+            reason="Uses published safe logging language for provider and resolution diagnostics.",
+        ),
+    ],
     roles=["base", "extension", "data"],
     units=[
         # ── base: the pure observation + subject-identity + policy language ──
