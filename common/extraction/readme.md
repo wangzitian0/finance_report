@@ -20,6 +20,17 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
+## Bounded-context decision
+
+`extraction` owns the source-document-to-fact boundary: ingestion, parsing,
+validation, review disposition, correction, and provenance. It consumes audit
+value/evidence ports, identity's user language, ledger command ports, the LLM
+facade, observability language, platform composition, and runtime storage ports
+without taking ownership of those concerns. It does not own final ledger facts,
+provider configuration, valuation resolution, reconciliation matching, or
+report presentation. The machine-readable boundary and relationships are in
+[`contract.py`](./contract.py).
+
 The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-4.6v`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.1`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction disables GLM thinking by default and caps output tokens to keep provider latency bounded. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Statement ingestion application boundary

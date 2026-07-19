@@ -59,6 +59,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -88,6 +90,87 @@ CONTRACT = PackageContract(
         # ``register_fx_rate_provider``, also wired by main.py — extraction
         # no longer imports either package directly.
         "runtime",
+    ],
+    context=ContextScope(
+        purpose=(
+            "Own source-document ingestion, parsing, validation, and evidence lineage "
+            "that turn supported financial documents into reviewable source facts."
+        ),
+        in_scope=[
+            "uploaded-document and statement source lifecycle, parsed facts, and provenance",
+            "document parsing, confidence/balance validation, review disposition, and corrections",
+            "extraction-owned AtomicTransaction/position facts and source-to-fact evidence lineage",
+        ],
+        out_of_scope=[
+            "double-entry journal ownership, account policy, and final ledger facts",
+            "model-provider configuration, shared financial value/assurance ownership, and storage infrastructure",
+            "portfolio valuation, pricing resolution, reconciliation matching, and report presentation",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="audit",
+            consumer="extraction",
+            mode="published-language",
+            reason=(
+                "Uses audit monetary, quantity, source-type, and invariant language while "
+                "retaining source-document semantics."
+            ),
+        ),
+        ContextRelation(
+            provider="audit",
+            consumer="extraction",
+            mode="consumer-port",
+            reason=(
+                "Consumes audit TraceRecord ports to attach evidence to extraction decisions "
+                "without owning assurance authority or persistence."
+            ),
+        ),
+        ContextRelation(
+            provider="identity",
+            consumer="extraction",
+            mode="published-language",
+            reason="Uses the identity-owned user language to scope source documents and parsing work.",
+        ),
+        ContextRelation(
+            provider="ledger",
+            consumer="extraction",
+            mode="consumer-port",
+            reason=(
+                "Uses ledger command and account ports to submit reviewed, dispositioned "
+                "financial facts without owning double-entry state."
+            ),
+        ),
+        ContextRelation(
+            provider="llm",
+            consumer="extraction",
+            mode="published-language",
+            reason=(
+                "Uses the LLM facade's typed OCR/vision/JSON call language while keeping "
+                "document parsing and acceptance policy in extraction."
+            ),
+        ),
+        ContextRelation(
+            provider="observability",
+            consumer="extraction",
+            mode="published-language",
+            reason="Uses published safe logging, PII, and parse-outcome telemetry language.",
+        ),
+        ContextRelation(
+            provider="platform",
+            consumer="extraction",
+            mode="composition",
+            reason="Uses platform persistence mixins and shared application exceptions without owning the substrate.",
+        ),
+        ContextRelation(
+            provider="runtime",
+            consumer="extraction",
+            mode="consumer-port",
+            reason=(
+                "Consumes the runtime storage port and redaction helper for source content "
+                "without owning environment dependency configuration."
+            ),
+        ),
     ],
     roles=["base", "extension", "data"],
     units=[
