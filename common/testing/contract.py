@@ -45,6 +45,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     Kind,
     PackageContract,
@@ -66,6 +68,33 @@ CONTRACT = PackageContract(
     # — it was a dark edge before the scan learned to recognise common.<pkg>
     # imports, not just src.<pkg>).
     depends_on=["meta"],
+    context=ContextScope(
+        purpose=(
+            "Execute and prove package guarantees through reusable test selection, "
+            "fixtures, evidence aggregation, and CI-quality gates."
+        ),
+        in_scope=[
+            "test selection and execution evidence",
+            "shared fixtures and deterministic test helpers",
+            "test and gate quality governance",
+        ],
+        out_of_scope=[
+            "business-domain acceptance semantics",
+            "runtime environment and deployment ownership",
+            "product prioritization and policy",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="meta",
+            consumer="testing",
+            mode="published-language",
+            reason=(
+                "Testing consumes meta's published contract and registry language "
+                "to project, select, and validate package-owned proofs."
+            ),
+        )
+    ],
     roles=[],
     # No base/extension split yet, so these are taxonomy-only (no module path;
     # the gate skips placement for units with no module, same as money's VOs).
