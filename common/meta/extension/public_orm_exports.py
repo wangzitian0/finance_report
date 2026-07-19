@@ -7,22 +7,30 @@ from pathlib import Path
 
 
 def _literal_exports(tree: ast.Module, path: Path) -> set[str]:
+    value: ast.expr | None = None
     for node in tree.body:
-        if not isinstance(node, ast.Assign) or not any(
+        if isinstance(node, ast.Assign) and any(
             isinstance(target, ast.Name) and target.id == "__all__"
             for target in node.targets
         ):
-            continue
-        try:
-            values = ast.literal_eval(node.value)
-        except ValueError as exc:
-            raise ValueError(f"unreadable __all__ in {path}") from exc
-        if not isinstance(values, (list, tuple)) or not all(
-            isinstance(value, str) for value in values
+            value = node.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and (node.target.id == "__all__")
         ):
-            raise ValueError(f"unreadable __all__ in {path}")
-        return set(values)
-    raise ValueError(f"missing __all__ in {path}")
+            value = node.value
+    if value is None:
+        raise ValueError(f"missing or unreadable __all__ in {path}")
+    try:
+        values = ast.literal_eval(value)
+    except (SyntaxError, TypeError, ValueError) as exc:
+        raise ValueError(f"unreadable __all__ in {path}") from exc
+    if not isinstance(values, (list, tuple)) or not all(
+        isinstance(value, str) for value in values
+    ):
+        raise ValueError(f"unreadable __all__ in {path}")
+    return set(values)
 
 
 def discover_public_orm_exports(backend_src: Path) -> list[str]:

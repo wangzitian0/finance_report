@@ -16,7 +16,9 @@ def test_AC_meta_dependency_governance_5_public_orm_exports_are_exact(
     src = tmp_path / "apps/backend/src/ledger"
     src.mkdir(parents=True)
     (src / "__init__.py").write_text(
-        "from src.ledger.orm.entry import JournalEntry\n__all__ = ['JournalEntry']\n",
+        "from src.ledger.orm.entry import JournalEntry\n"
+        "__all__ = []\n"
+        "__all__: list[str] = ['JournalEntry']\n",
         encoding="utf-8",
     )
 

@@ -49,7 +49,6 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
         print("[PUBLIC-ORM] FAILED", file=sys.stderr)
         print("\n".join(findings), file=sys.stderr)
         return 1
-    print("[PUBLIC-ORM] PASSED.")
     return 0
 
 
