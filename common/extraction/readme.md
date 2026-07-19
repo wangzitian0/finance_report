@@ -80,12 +80,13 @@ package disclosure instead of rebuilding policy facts from configuration.
 
 ## Upload-First Product Contract
 
-The user-facing input model is upload-first: users provide supported source
-documents and exports, and the system converts them into reviewed records before
-ledger/report use. Supported upload classes include bank statements, brokerage
-statements or settlement notes, CSV exports, ESOP/RSU grant or vesting
-documents, property appraisals, insurance or liability statements, and other
-future document types registered through the schema and AC workflow.
+The user-facing input model is upload-first: users provide source documents and
+exports, and the system converts them into reviewed records before ledger/report
+use. `SourceCapability` is the semantic registry for every source class named by
+the product vision. Bank and brokerage statements are `supported`; CSV, ESOP/RSU,
+property, liability, and explicit manual records are `manual_trusted` inputs;
+settlement notes remain a `gap`. A recognized format is not automatically a
+supported parsing capability.
 
 Extraction owns parsing, source metadata, validation results, and lineage back
 to the original file. Downstream automation such as market-data refresh,
@@ -95,11 +96,12 @@ weaken extraction confidence or balance-validation rules.
 
 ## Source Coverage Matrix
 
-Supported source classes, proof levels, review requirements, and traceability
-targets are owned by
-[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml). This document
-explains extraction behavior; source-class changes must land through the matrix
-and its EPIC -> AC -> test anchors.
+Semantic source status, review requirements, produced facts, and traceability
+targets are owned by extraction's `SourceCapability` registry. Testing's
+[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)
+may map those stable capability ids to executable proof requirements, but it
+cannot redefine product support. Source-class changes start in extraction's
+contract and then update their testing proof mapping.
 
 ## Data Flow
 

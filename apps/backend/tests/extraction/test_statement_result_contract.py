@@ -287,8 +287,17 @@ def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
     """AC-extraction.source-capability.1: capability truth is semantic product data."""
     by_id = {capability.capability_id: capability for capability in SOURCE_CAPABILITIES}
 
-    assert by_id["settlement_note"].status is SourceCapabilityStatus.GAP
-    assert by_id["csv_export"].status is SourceCapabilityStatus.MANUAL_TRUSTED
+    assert len(by_id) == len(SOURCE_CAPABILITIES)
+    assert {capability_id: capability.status for capability_id, capability in by_id.items()} == {
+        "bank_statement": SourceCapabilityStatus.SUPPORTED,
+        "brokerage_statement": SourceCapabilityStatus.SUPPORTED,
+        "csv_export": SourceCapabilityStatus.MANUAL_TRUSTED,
+        "esop_rsu_plan": SourceCapabilityStatus.MANUAL_TRUSTED,
+        "liability_statement": SourceCapabilityStatus.MANUAL_TRUSTED,
+        "manual_record": SourceCapabilityStatus.MANUAL_TRUSTED,
+        "property_statement": SourceCapabilityStatus.MANUAL_TRUSTED,
+        "settlement_note": SourceCapabilityStatus.GAP,
+    }
     assert "pytest" not in repr(SOURCE_CAPABILITIES).lower()
 
 
