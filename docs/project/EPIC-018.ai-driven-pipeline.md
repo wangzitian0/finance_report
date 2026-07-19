@@ -37,8 +37,8 @@ EPIC for source confidence, extraction provenance, review status, and
 source-to-ledger-to-report traceability notes. AI remains a parsing and
 explanation layer; deterministic ledger and reporting logic remain the source
 of record. The package traceability appendix is delivered by
-[#572](https://github.com/wangzitian0/finance_report/issues/572) through
-`GET /api/reports/package/traceability`; the representative E2E fixture that
+[#572](https://github.com/wangzitian0/finance_report/issues/572) as a typed
+section of `PersonalReportPackageDocument`; the representative E2E fixture that
 must include confidence/review provenance is tracked by
 [#573](https://github.com/wangzitian0/finance_report/issues/573).
 
@@ -523,8 +523,8 @@ from deterministic ledger/reporting services, while the appendix exposes source
 anchors, ledger anchors, review state, confidence tier, and completeness
 warnings for package consumers.
 
-Owned endpoint:
-`GET /api/reports/package/traceability`
+Owned surface: the `traceability_appendix` section of the one
+`PersonalReportPackageDocument` preview/frozen artifact.
 
 The appendix must disclose explicit `available`, `unavailable`, or
 `not_applicable` anchor states instead of relying on missing fields. Trusted

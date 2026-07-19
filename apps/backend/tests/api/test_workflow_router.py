@@ -576,8 +576,8 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot
-    assert "GET /api/reports/package/readiness" in ssot
-    assert "generated -> ready" in ssot
+    assert "current_package_document_summary" in ssot
+    assert "PackageDocument readiness" in ssot
 
 
 async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(

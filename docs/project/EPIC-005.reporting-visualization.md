@@ -450,20 +450,17 @@ management reports and does not claim regulated filing compliance.
 Remaining blocker breakdown after the #565 post-merge proof:
 
 - [#570](https://github.com/wangzitian0/finance_report/issues/570) defined the
-  package-level API/export contract and stable section IDs through
-  `GET /api/reports/package/contract`.
+  package-level document/export contract and stable section IDs now embedded
+  in `PersonalReportPackageDocument`.
 - [#564](https://github.com/wangzitian0/finance_report/issues/564) supplies the
   investment performance schedule input from EPIC-017.
 - [#566](https://github.com/wangzitian0/finance_report/issues/566) supplies the
-  annualized income and long-term compensation schedule input from EPIC-011
-  through `GET /api/reports/package/annualized-income-schedule`.
+  embedded annualized income and long-term compensation section from EPIC-011.
 - [#571](https://github.com/wangzitian0/finance_report/issues/571) codifies the
-  standards-inspired note and disclosure taxonomy through
-  `GET /api/reports/package/notes` without claiming regulated filing
-  compliance.
+  embedded standards-inspired note and disclosure taxonomy without claiming
+  regulated filing compliance.
 - [#572](https://github.com/wangzitian0/finance_report/issues/572) defines the
-  source-ledger-report traceability appendix for package output through
-  `GET /api/reports/package/traceability`.
+  embedded source-ledger-report traceability appendix.
 - [#573](https://github.com/wangzitian0/finance_report/issues/573) supplies the
   representative fixture contract consumed by the package E2E for exact
   Decimal expected outputs.
@@ -474,9 +471,9 @@ Closure status:
    current baseline proof anchor for
    `personal-financial-report-package` in
    the derived critical-proof matrix (source `common/testing/data/critical-proof-outcomes.yaml`).
-2. Done: #570 defines `GET /api/reports/package/contract` so backend,
-   frontend, export, and E2E assertions share stable package section IDs,
-   labels, period semantics, and Decimal-safe export fields.
+2. Done: #570 defines the PackageDocument contract so backend, frontend,
+   export, and E2E assertions share stable section IDs, labels, period
+   semantics, and Decimal-safe export fields.
 3. Done: deliver the investment-performance schedule input consumed by this
    package (#564, promoted by #596).
 4. Done: deliver the annualized income and long-term compensation schedule

@@ -396,6 +396,27 @@ def test_AC_reporting_package_document_6_producer_and_consumer_closure() -> None
         assert "get_personal_report_package_readiness" not in path.read_text(), path
     for path in (REPOSITORY_ROOT / "apps/frontend/src").rglob("*.ts*"):
         assert "/api/reports/package/readiness" not in path.read_text(), path
+    current_docs = (
+        "common/reporting/readme.md",
+        "common/reporting/framework-reporting.md",
+        "common/workflow/workflow-events.md",
+        "common/pricing/readme.md",
+        "docs/user-guide/reports.md",
+    )
+    retired_package_routes = (
+        "/api/reports/package/contract",
+        "/api/reports/package/readiness",
+        "/api/reports/package/framework-policy",
+        "/api/reports/package/annualized-income-schedule",
+        "/api/reports/package/notes",
+        "/api/reports/package/traceability",
+    )
+    for relative_path in current_docs:
+        source = (REPOSITORY_ROOT / relative_path).read_text()
+        for retired_route in retired_package_routes:
+            assert retired_route not in source, (relative_path, retired_route)
+    anonymizer = (REPOSITORY_ROOT / "apps/backend/src/runtime/extension/snapshot_anonymizer.py").read_text()
+    assert "confidence_metric_snapshots" not in anonymizer
 
 
 def test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions() -> None:

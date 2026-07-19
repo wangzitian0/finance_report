@@ -359,7 +359,7 @@ For #521 closure, this EPIC sequence is:
 
 1. Consume the package section contract from `#570`.
 2. Finalize annualized income and long-term compensation schedule data
-   (`#566`, done via `GET /api/reports/package/annualized-income-schedule`).
+   (`#566`, now embedded in the one `PersonalReportPackageDocument`).
 3. Prove the annualized income and long-term compensation schedule in the
    implemented `#565` post-merge package proof.
 4. Land supporting explanation assets for the broader package:

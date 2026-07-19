@@ -206,9 +206,9 @@ with no basis (and no legacy notes) surfaces a `missing_valuation_basis`
 readiness blocker rather than being rejected.
 
 **Report artifacts that surface the basis** — the captured basis flows,
-null-safe (falling back to `unspecified`), into: the annualized income
-schedule (`GET /api/reports/package/annualized-income-schedule`, each
-restricted holding's `valuation_basis` carries the snapshot enum value);
+null-safe (falling back to `unspecified`), into: the PackageDocument
+annualized-income section (each restricted holding's `valuation_basis` carries
+the snapshot enum value);
 balance sheet / net worth (manual snapshots aggregate into asset/liability
 and restricted/illiquid totals by `liquidity_class`); the package
 `valuation-basis` note (surfaces the `manual_valuation_snapshots` source
