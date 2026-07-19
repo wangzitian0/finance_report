@@ -59,6 +59,8 @@ from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
 __all__ = [
     "ACRecord",
     "ConceptRecord",
+    "ContextRelation",
+    "ContextScope",
     "Invariant",
     "Kind",
     "KIND_LAYER",
@@ -271,6 +273,43 @@ class ConceptRecord(BaseModel):
     parent: str | None = None
 
 
+class ContextScope(BaseModel):
+    """One bounded context's purpose and explicit responsibility boundary."""
+
+    purpose: str
+    in_scope: list[str]
+    out_of_scope: list[str]
+
+    @model_validator(mode="after")
+    def _is_non_vacuous(self) -> ContextScope:
+        if not self.purpose.strip():
+            raise ValueError("context purpose must be non-empty")
+        if not self.in_scope or not self.out_of_scope:
+            raise ValueError("context scope must declare in_scope and out_of_scope")
+        if set(self.in_scope) & set(self.out_of_scope):
+            raise ValueError("context in_scope and out_of_scope must not overlap")
+        return self
+
+
+class ContextRelation(BaseModel):
+    """A declared inter-context coupling with an explicit justification."""
+
+    provider: str
+    consumer: str
+    mode: Literal[
+        "published-language", "consumer-port", "event", "projection", "composition"
+    ]
+    reason: str
+
+    @model_validator(mode="after")
+    def _is_explicit(self) -> ContextRelation:
+        if self.provider == self.consumer:
+            raise ValueError("context relation provider and consumer must be different")
+        if not self.reason.strip():
+            raise ValueError("context relation reason must be non-empty")
+        return self
+
+
 class PackageContract(BaseModel):
     """The contract a package publishes — the unit the governance gate checks.
 
@@ -302,6 +341,8 @@ class PackageContract(BaseModel):
         concepts:        the SSOT concepts this package owns (the package-model
                          concept registry, #1799) — the computed counterpart to
                          the hand-authored ``common/meta/data/MANIFEST.yaml``.
+        context:         the bounded-context purpose and responsibility boundary.
+        relationships:   this package's outgoing, justified context relationships.
     """
 
     name: str
@@ -324,6 +365,38 @@ class PackageContract(BaseModel):
     units: list[Unit] = []
     implementations: dict[str, str | None] = {}
     concepts: list[ConceptRecord] = []
+    context: ContextScope | None = None
+    relationships: list[ContextRelation] = []
+
+    @model_validator(mode="after")
+    def _context_relationships_are_owned_and_declared(self) -> PackageContract:
+        """Keep relationship semantics with their consumer package contract.
+
+        A relationship is an outgoing dependency declaration: the consumer is
+        this contract, and its provider must already be a declared dependency.
+        This prevents a central map from inventing semantics or silently adding
+        topology not represented by the package contract.
+        """
+        if self.context is None and self.relationships:
+            raise ValueError(
+                f"package {self.name!r}: relationships require a context declaration"
+            )
+        providers = {relation.provider for relation in self.relationships}
+        undeclared = sorted(providers - set(self.depends_on))
+        if undeclared:
+            raise ValueError(
+                f"package {self.name!r}: context relationship providers must be "
+                f"declared dependencies (undeclared: {undeclared})"
+            )
+        foreign_consumers = sorted(
+            {relation.consumer for relation in self.relationships} - {self.name}
+        )
+        if foreign_consumers:
+            raise ValueError(
+                f"package {self.name!r}: context relationships must be owned by "
+                f"their consumer (found: {foreign_consumers})"
+            )
+        return self
 
     @model_validator(mode="after")
     def _layer_resolves_from_the_central_map(self) -> PackageContract:
