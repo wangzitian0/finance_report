@@ -9,7 +9,7 @@
 
 ## What audit governs
 
-## Bounded-context decision
+### Bounded-context decision
 
 `audit` owns the shared numeric and executable-assurance language, not a
 business domain. Its value types, promotion vocabulary, and `TraceRecord`
