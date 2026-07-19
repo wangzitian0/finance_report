@@ -280,6 +280,7 @@ def test_AC_reporting_package_document_7_manifest_folds_only_typed_contributions
         "list_statement_contributions",
         "list_journal_contributions",
         "resolve_manual_valuation_contributions",
+        "resolve_selected_market_valuation_contribution",
     ):
         assert public_boundary in assembler_source
     input_manifest_source = assembler_source.split("async def _input_manifest", 1)[1]

@@ -7,7 +7,7 @@ import json
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -30,9 +30,12 @@ from src.extraction.extension.extraction_trace import extraction_trace_policy_re
 from src.ledger import ledger_trace_policy_registry, list_journal_contributions
 from src.portfolio import build_investment_performance_report_schedule
 from src.pricing import (
+    MarketValuationSelection,
+    PriceableSubject,
     ResolutionPolicy,
     pricing_trace_policy_registry,
     resolve_manual_valuation_contributions,
+    resolve_selected_market_valuation_contribution,
 )
 from src.reporting.base.package_contribution import PackageSectionContribution, PackageSectionId
 from src.reporting.base.package_decision import (
@@ -206,9 +209,19 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
     if not input_refs:
         identity = contribution.lineage_id or f"{contribution.subject.kind.value}:{contribution.subject.key}"
         input_refs = (f"valuation:{identity}",)
+    if contribution.subject.kind.value == "security":
+        sections = cast(
+            tuple[PackageSectionId, ...],
+            ("balance_sheet", "investment_performance", "traceability_appendix"),
+        )
+    else:
+        sections = cast(
+            tuple[PackageSectionId, ...],
+            ("balance_sheet", "annualized_income_long_term", "traceability_appendix"),
+        )
     return PackageSectionContribution(
         contribution_type="valuation",
-        section_ids=("balance_sheet", "annualized_income_long_term", "traceability_appendix"),
+        section_ids=sections,
         payload=contribution,
         state=contribution.state,
         decision_id=contribution.decision_id,
@@ -379,7 +392,7 @@ class PackageAssembler:
             as_of_date=as_of_date,
         )
         decisions_by_source_id = _policy_decisions_by_source_id(policy)
-        contributions = await self._contributions(
+        base_contributions = await self._contributions(
             db,
             user_id=user_id,
             start_date=start_date,
@@ -396,7 +409,16 @@ class PackageAssembler:
             currency=currency,
             include_restricted=include_restricted,
             decisions_by_source_id=decisions_by_source_id,
-            contributions=contributions,
+            contributions=base_contributions,
+        )
+        market_contributions = await self._selected_market_contributions(
+            db,
+            user_id=user_id,
+            selections=sections.investment_performance.market_valuation_selections,
+        )
+        contributions = (*base_contributions, *market_contributions)
+        sections.traceability_appendix = PersonalReportPackageTraceabilityResponse.model_validate(
+            await build_personal_report_package_traceability_payload(contributions=contributions)
         )
         sections.notes = _package_notes(statement_disposition_policy)
         input_manifest, unproven_input_refs = await self._input_manifest(
@@ -681,6 +703,30 @@ class PackageAssembler:
             ),
             *(_valuation_section_contribution(item) for item in valuation_results),
         )
+
+    async def _selected_market_contributions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        selections: list[Any],
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Freeze only the exact external prices rendered by the investment schedule."""
+        contributions = []
+        policy = ResolutionPolicy(max_age_days=0)
+        for selection in selections:
+            contribution = await resolve_selected_market_valuation_contribution(
+                db,
+                user_id=user_id,
+                selection=MarketValuationSelection(
+                    subject=PriceableSubject.security(selection.asset_identifier),
+                    observation_id=selection.observation_id,
+                    requested_as_of=selection.requested_as_of,
+                ),
+                policy=policy,
+            )
+            contributions.append(_valuation_section_contribution(contribution))
+        return tuple(contributions)
 
     async def _input_manifest(
         self,

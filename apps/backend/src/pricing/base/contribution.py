@@ -45,6 +45,15 @@ class ResolvedValuationContribution:
         return (f"pricing_observation:{self.observation_id}",)
 
 
+@dataclass(frozen=True, slots=True)
+class MarketValuationSelection:
+    """The exact market observation a report schedule rendered for one security."""
+
+    subject: PriceableSubject
+    observation_id: UUID
+    requested_as_of: date
+
+
 def resolution_policy_identity(policy: ResolutionPolicy) -> str:
     """Stable package-visible identity of one value-selection policy."""
     return f"max_age_days={policy.max_age_days};min_authority={policy.min_authority.name}"

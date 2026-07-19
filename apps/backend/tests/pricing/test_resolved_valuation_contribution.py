@@ -13,14 +13,18 @@ from sqlalchemy import select
 from src.audit.orm.trace_record import TraceRecordRow
 from src.extraction.orm.layer3 import ManualValuationSnapshot
 from src.pricing import (
+    MarketValuationSelection,
     PriceableSubject,
     ResolutionPolicy,
     StockPrice,
     build_manual_valuation_lines,
     record_manual_valuation,
     resolve_manual_valuation_contributions,
+    resolve_selected_market_valuation_contribution,
     resolve_valuation_contribution,
 )
+from src.reporting.extension.package_document import PackageAssembler
+from src.schemas.portfolio import InvestmentPerformanceMarketValuationSelection
 
 pytestmark = pytest.mark.asyncio
 
@@ -234,3 +238,88 @@ async def test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_
     assert all("confidence_tier" not in line and "trusted" not in line for line in asset_lines)
     pricing_source = Path(__file__).parents[2] / "src" / "pricing"
     assert all("confidence_tier" not in path.read_text() for path in pricing_source.rglob("*.py"))
+
+
+async def test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation(
+    db,
+    test_user,
+):
+    """AC-pricing.valuation-contribution.6: a package can freeze only its schedule's exact market input."""
+    as_of = date(2026, 12, 31)
+    selected_price = StockPrice(
+        symbol="PKGSEC",
+        price=Decimal("125.05"),
+        currency="SGD",
+        price_date=as_of,
+        source="recorded-provider",
+    )
+    db.add(selected_price)
+    await db.flush()
+
+    selection = MarketValuationSelection(
+        subject=PriceableSubject.security("PKGSEC"),
+        observation_id=selected_price.id,
+        requested_as_of=as_of,
+    )
+    contribution = await resolve_selected_market_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        selection=selection,
+        policy=ResolutionPolicy(max_age_days=0),
+    )
+    mismatch = await resolve_selected_market_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        selection=MarketValuationSelection(
+            subject=PriceableSubject.security("PKGSEC"),
+            observation_id=uuid4(),
+            requested_as_of=as_of,
+        ),
+        policy=ResolutionPolicy(max_age_days=0),
+    )
+    missing = await resolve_selected_market_valuation_contribution(
+        db,
+        user_id=test_user.id,
+        selection=MarketValuationSelection(
+            subject=PriceableSubject.security("MISSING"),
+            observation_id=uuid4(),
+            requested_as_of=as_of,
+        ),
+        policy=ResolutionPolicy(max_age_days=0),
+    )
+
+    assert contribution.is_authoritative
+    assert contribution.observation_id == selected_price.id
+    assert contribution.decision_id is not None
+    assert not mismatch.is_authoritative
+    assert mismatch.reason_code == "selected_observation_mismatch"
+    assert not missing.is_authoritative
+    assert missing.reason_code == "no_eligible_observation"
+
+    package_contributions = await PackageAssembler()._selected_market_contributions(
+        db,
+        user_id=test_user.id,
+        selections=[
+            InvestmentPerformanceMarketValuationSelection(
+                asset_identifier="PKGSEC",
+                observation_id=selected_price.id,
+                requested_as_of=as_of,
+            )
+        ],
+    )
+    manifest, unproven = await PackageAssembler()._input_manifest(
+        db,
+        user_id=test_user.id,
+        contributions=package_contributions,
+    )
+
+    assert len(package_contributions) == 1
+    assert package_contributions[0].is_authoritative
+    assert package_contributions[0].section_ids == (
+        "balance_sheet",
+        "investment_performance",
+        "traceability_appendix",
+    )
+    assert unproven == []
+    assert manifest[0].decision_id == contribution.decision_id
+    assert manifest[0].input_refs == [f"pricing_observation:{selected_price.id}"]

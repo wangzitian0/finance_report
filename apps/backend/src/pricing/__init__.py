@@ -47,6 +47,7 @@ from src.pricing.base import (
     PricingError,
     ResolutionPolicy,
 )
+from src.pricing.base.contribution import MarketValuationSelection
 from src.pricing.extension import (
     MARKET_DATA_QUANTITY_UNIT,
     MARKET_DATA_SYNC_TZ,
@@ -75,6 +76,7 @@ from src.pricing.extension import (
     resolve,
     resolve_manual_valuation_contributions,
     resolve_missing_fx_rate,
+    resolve_selected_market_valuation_contribution,
     resolve_valuation_contribution,
     run_daily_market_data_sync,
     run_market_data_scheduler,
@@ -111,6 +113,7 @@ __all__ = [
     "MarketDataSyncResult",
     "ManualValuationAttestationPolicy",
     "MarketDataSyncState",
+    "MarketValuationSelection",
     "ObservationRepository",
     "ObservationSource",
     "PrefetchedFxRates",
@@ -143,6 +146,7 @@ __all__ = [
     "record_override",
     "resolve",
     "resolve_manual_valuation_contributions",
+    "resolve_selected_market_valuation_contribution",
     "resolve_valuation_contribution",
     "resolve_missing_fx_rate",
     "run_daily_market_data_sync",

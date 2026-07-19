@@ -2091,36 +2091,43 @@
             "type": "string"
           },
           "created_atomic_positions": {
+            "description": "New immutable position snapshots created.",
             "minimum": 0.0,
             "title": "Created Atomic Positions",
             "type": "integer"
           },
           "existing_atomic_positions": {
+            "description": "Existing immutable position snapshots reused.",
             "minimum": 0.0,
             "title": "Existing Atomic Positions",
             "type": "integer"
           },
           "parsed_positions": {
+            "description": "Parsed brokerage position count.",
             "minimum": 0.0,
             "title": "Parsed Positions",
             "type": "integer"
           },
           "reconcile_created": {
+            "description": "Managed positions created by reconciliation.",
             "minimum": 0.0,
             "title": "Reconcile Created",
             "type": "integer"
           },
           "reconcile_disposed": {
+            "description": "Managed positions marked disposed by reconciliation.",
             "minimum": 0.0,
             "title": "Reconcile Disposed",
             "type": "integer"
           },
           "reconcile_updated": {
+            "description": "Managed positions updated by reconciliation.",
             "minimum": 0.0,
             "title": "Reconcile Updated",
             "type": "integer"
           },
           "skipped": {
+            "description": "Parsed positions skipped during import.",
             "minimum": 0.0,
             "title": "Skipped",
             "type": "integer"
@@ -4046,6 +4053,7 @@
             "type": "boolean"
           },
           "stale_holdings": {
+            "description": "Holdings whose selected price predates the schedule as-of date.",
             "items": {
               "type": "string"
             },
@@ -4118,6 +4126,32 @@
         "title": "InvestmentPerformanceHoldingRow",
         "type": "object"
       },
+      "InvestmentPerformanceMarketValuationSelection": {
+        "description": "External market observation actually used for a schedule holding.",
+        "properties": {
+          "asset_identifier": {
+            "title": "Asset Identifier",
+            "type": "string"
+          },
+          "observation_id": {
+            "format": "uuid",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "requested_as_of": {
+            "format": "date",
+            "title": "Requested As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_identifier",
+          "observation_id",
+          "requested_as_of"
+        ],
+        "title": "InvestmentPerformanceMarketValuationSelection",
+        "type": "object"
+      },
       "InvestmentPerformanceReportScheduleResponse": {
         "description": "Report-ready investment performance schedule consumed by EPIC-005.",
         "properties": {
@@ -4164,6 +4198,14 @@
               "$ref": "#/components/schemas/InvestmentPerformanceHoldingRow"
             },
             "title": "Holdings",
+            "type": "array"
+          },
+          "market_valuation_selections": {
+            "description": "Exact external market observations rendered for schedule holdings.",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentPerformanceMarketValuationSelection"
+            },
+            "title": "Market Valuation Selections",
             "type": "array"
           },
           "money_weighted_return": {
@@ -7739,6 +7781,7 @@
         "description": "Typed response for ``POST /portfolio/prices/update`` (#1008).\n\nReplaces a raw ``dict`` return so the batch result is declared in OpenAPI and\nconsumable by the generated frontend client.",
         "properties": {
           "results": {
+            "description": "Per-asset price override results.",
             "items": {
               "$ref": "#/components/schemas/PriceUpdateResponse"
             },

@@ -65,6 +65,7 @@ from src.pricing.extension.valuation_contribution import (
     ResolvedValuationContribution,
     pricing_trace_policy_registry,
     resolve_manual_valuation_contributions,
+    resolve_selected_market_valuation_contribution,
     resolve_valuation_contribution,
 )
 
@@ -94,6 +95,7 @@ __all__ = [
     "ResolvedMarketValuationPolicy",
     "resolve",
     "resolve_manual_valuation_contributions",
+    "resolve_selected_market_valuation_contribution",
     "resolve_valuation_contribution",
     "resolve_missing_fx_rate",
     "run_daily_market_data_sync",

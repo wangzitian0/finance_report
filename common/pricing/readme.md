@@ -46,6 +46,9 @@ policy)` call.
   selected observation, its immutable digest, the resolution policy, exact
   `TraceRecord` decision id, and an explicit `authoritative` or `unproven`
   state. It is the only valuation input a report package may freeze.
+- **`MarketValuationSelection`** — the exact external observation identity
+  actually rendered by an investment schedule; pricing verifies it against the
+  current resolution policy before a package may freeze it.
 
 ## Boundary rulings (record, don't relitigate — see #1610)
 
@@ -109,6 +112,13 @@ superseded, rejected, cross-tenant, or target-mismatched decision. A package
 may display the value as a draft input but cannot call the resulting document
 trusted. A frozen package stores the returned IDs/digests and never re-runs
 this resolution when it is reopened or exported.
+
+For market-priced holdings, the investment schedule publishes the exact
+`MarketValuationSelection` identity it rendered. Reporting passes that typed
+selection back to pricing; pricing re-resolves under its policy and accepts it
+only when the resolved observation is the same immutable identity. A source
+statement fallback remains a statement contribution, rather than being
+misrepresented as a market-price decision.
 
 Reserved (declared in [`contract.py`](./contract.py), no `module=` yet): the
 `LatestPriceView`/`StalenessView` read projections.

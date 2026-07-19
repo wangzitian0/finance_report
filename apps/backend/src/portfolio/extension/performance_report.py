@@ -15,12 +15,13 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import cast, overload
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Money, to_money
+from src.audit.money import Currency, Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
@@ -38,8 +39,17 @@ from src.schemas.portfolio import (
     InvestmentPerformanceAllocationRow,
     InvestmentPerformanceDataFreshness,
     InvestmentPerformanceHoldingRow,
+    InvestmentPerformanceMarketValuationSelection,
     InvestmentPerformanceReportScheduleResponse,
 )
+
+
+@overload
+def _percent(value: Decimal) -> Decimal: ...
+
+
+@overload
+def _percent(value: None) -> None: ...
 
 
 def _percent(value: Decimal | None) -> Decimal | None:
@@ -47,6 +57,44 @@ def _percent(value: Decimal | None) -> Decimal | None:
         return None
     percent_ratio = Ratio.from_percent(value)
     return percent_ratio.to_percent()
+
+
+def _stock_symbol(asset_identifier: str) -> str:
+    """Use the holdings service's stock-symbol normalization at every schedule boundary."""
+    return asset_identifier.strip().upper()
+
+
+def _market_valuation_selections(
+    *,
+    holdings: list[HoldingResponse],
+    stock_prices_by_symbol: dict[str, StockPrice],
+    as_of_date: date,
+    used_report_preparation_evidence: bool,
+) -> list[InvestmentPerformanceMarketValuationSelection]:
+    """Publish only external prices that the point-in-time schedule actually rendered."""
+    if used_report_preparation_evidence:
+        # This mode can render a post-period manual override; it has no
+        # point-in-time stock-price selection to freeze.
+        return []
+
+    selections: dict[tuple[str, UUID], InvestmentPerformanceMarketValuationSelection] = {}
+    for holding in holdings:
+        if holding.quantity == Decimal("0"):
+            # Snapshot holdings fall back to the atomic zero-value row rather
+            # than multiplying a provider price, so no market price was used.
+            continue
+        stock_price = stock_prices_by_symbol.get(_stock_symbol(holding.asset_identifier))
+        if stock_price is None:
+            # The point-in-time holdings service rendered the statement-backed
+            # atomic valuation, which is covered by the statement contribution.
+            continue
+        observation_id = cast(UUID, stock_price.id)
+        selections[(holding.asset_identifier, observation_id)] = InvestmentPerformanceMarketValuationSelection(
+            asset_identifier=holding.asset_identifier,
+            observation_id=observation_id,
+            requested_as_of=as_of_date,
+        )
+    return [selections[key] for key in sorted(selections)]
 
 
 def _source_document_links(source_documents: object) -> list[str]:
@@ -205,7 +253,9 @@ async def build_investment_performance_report_schedule(
         position = position_by_asset.get(holding.asset_identifier)
         if position is None:
             cost_basis = (
-                await _schedule_amount(Money(holding.cost_basis, holding.currency), holding.acquisition_date)
+                await _schedule_amount(
+                    Money(holding.cost_basis, Currency.of(holding.currency)), holding.acquisition_date
+                )
             ).quantize()
         else:
             cost_basis = (await _schedule_amount(position.cost_basis_money, position.acquisition_date)).quantize()
@@ -247,10 +297,10 @@ async def build_investment_performance_report_schedule(
             ("asset_class", "asset_type", "Unclassified"),
         ]:
             grouped: dict[str, tuple[Decimal, int]] = {}
-            for holding, row in zip(holdings, holding_rows, strict=True):
+            for holding, holding_row in zip(holdings, holding_rows, strict=True):
                 category = getattr(holding, attribute) or fallback_category
                 current_value, current_count = grouped.get(category, (Decimal("0.00"), 0))
-                grouped[category] = (current_value + row.market_value, current_count + 1)
+                grouped[category] = (current_value + holding_row.market_value, current_count + 1)
             for category, (value, count) in grouped.items():
                 allocation_ratio = Ratio.fraction_or_zero(value, total_market_value)
                 allocation_rows.append(
@@ -305,33 +355,56 @@ async def build_investment_performance_report_schedule(
         latest_override_by_asset.setdefault(override.asset_identifier, override)
 
     stock_prices: list[StockPrice] = []
-    if asset_identifiers:
+    stock_symbols = {_stock_symbol(asset_identifier) for asset_identifier in asset_identifiers}
+    if stock_symbols:
         stock_price_result = await db.execute(
             select(StockPrice)
-            .where(StockPrice.symbol.in_(asset_identifiers))
+            .where(StockPrice.symbol.in_(stock_symbols))
             .where(StockPrice.price_date <= as_of_date)
-            .order_by(StockPrice.price_date.desc(), StockPrice.created_at.desc(), StockPrice.source.asc())
+            .order_by(
+                StockPrice.price_date.desc(),
+                StockPrice.created_at.desc(),
+                StockPrice.source.asc(),
+                StockPrice.currency.asc(),
+                StockPrice.id.asc(),
+            )
         )
         stock_prices = list(stock_price_result.scalars().all())
-    latest_stock_price_by_asset: dict[str, StockPrice] = {}
+    latest_stock_price_by_symbol: dict[str, StockPrice] = {}
     for stock_price in stock_prices:
-        latest_stock_price_by_asset.setdefault(stock_price.symbol, stock_price)
+        latest_stock_price_by_symbol.setdefault(stock_price.symbol, stock_price)
 
     price_dates: list[date] = []
     providers: set[str] = set()
     stale_holdings: list[str] = []
     for asset_identifier in asset_identifiers:
-        override = latest_override_by_asset.get(asset_identifier)
-        stock_price = latest_stock_price_by_asset.get(asset_identifier)
-        atomic = latest_atomic_by_asset.get(asset_identifier)
+        selected_override: MarketDataOverride | None = latest_override_by_asset.get(asset_identifier)
+        selected_stock_price: StockPrice | None = latest_stock_price_by_symbol.get(_stock_symbol(asset_identifier))
+        selected_atomic: AtomicPosition | None = latest_atomic_by_asset.get(asset_identifier)
 
         candidates: list[tuple[date, str, object, str | None]] = []
-        if override is not None:
-            candidates.append((override.price_date, "market_data_override", override.id, override.source.value))
-        if stock_price is not None:
-            candidates.append((stock_price.price_date, "stock_price", stock_price.id, stock_price.source))
-        if atomic is not None:
-            candidates.append((atomic.snapshot_date, "atomic_position", atomic.id, atomic.broker))
+        if selected_override is not None:
+            candidates.append(
+                (
+                    selected_override.price_date,
+                    "market_data_override",
+                    selected_override.id,
+                    selected_override.source.value,
+                )
+            )
+        if selected_stock_price is not None:
+            candidates.append(
+                (
+                    selected_stock_price.price_date,
+                    "stock_price",
+                    selected_stock_price.id,
+                    selected_stock_price.source,
+                )
+            )
+        if selected_atomic is not None:
+            candidates.append(
+                (selected_atomic.snapshot_date, "atomic_position", selected_atomic.id, selected_atomic.broker)
+            )
 
         if not candidates:
             stale_holdings.append(asset_identifier)
@@ -375,6 +448,12 @@ async def build_investment_performance_report_schedule(
         dividend_income=to_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
         dividend_yield=_percent(dividend_yield),
         holdings=holding_rows,
+        market_valuation_selections=_market_valuation_selections(
+            holdings=holdings,
+            stock_prices_by_symbol=latest_stock_price_by_symbol,
+            as_of_date=as_of_date,
+            used_report_preparation_evidence=used_report_preparation_evidence,
+        ),
         allocation=allocation_rows,
         data_freshness=data_freshness,
         source_links=sorted(source_links),
