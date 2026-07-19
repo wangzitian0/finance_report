@@ -99,7 +99,7 @@ CONTRACT = PackageContract(
         in_scope=[
             "uploaded-document and statement source lifecycle, parsed facts, and provenance",
             "document parsing, confidence/balance validation, review disposition, and corrections",
-            "extraction-owned AtomicTransaction/position facts and source-to-fact evidence lineage",
+            "extraction-owned AtomicTransaction and AtomicPosition facts and source-to-fact evidence lineage",
         ],
         out_of_scope=[
             "double-entry journal ownership, account policy, and final ledger facts",

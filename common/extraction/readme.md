@@ -20,7 +20,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-## Bounded-context decision
+### Bounded-context decision
 
 `extraction` owns the source-document-to-fact boundary: ingestion, parsing,
 validation, review disposition, correction, and provenance. It consumes audit
