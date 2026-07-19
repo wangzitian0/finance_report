@@ -2442,7 +2442,7 @@ CONTRACT = PackageContract(
                 "tools/check_public_orm_exports.py",
                 "tests/tooling/test_public_orm_exports.py",
             ],
-            family="package_model",
+            family="platform",
             kind="baseline",
             authority="machine_generated",
             parent="package_model",
