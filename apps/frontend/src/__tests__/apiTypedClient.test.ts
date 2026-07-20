@@ -8,7 +8,7 @@ import type { Schemas } from "@/lib/api-schema";
 // against the generated `Schemas[...]` aliases, so a backend contract change that
 // isn't regenerated would fail the type-check.
 describe("generated typed client (#1004)", () => {
-    // AC-meta.fe-http-client.2
+    // AC-meta.fe-http-client.23
     it("test_AC12_28_3_types_stage2_batch_responses_against_generated_schema", () => {
         const approve: Schemas["BatchApproveResponse"] = {
             approved_count: 2,

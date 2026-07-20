@@ -58,17 +58,34 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
     }
 
     ac_index: dict[str, str] = {}
+    roadmap: dict[str, dict] = {}
     for c in contracts:
         for ac in c.roadmap:
             owner = ac_index.get(ac.id)
-            if owner is not None and owner != c.name:
-                # No AC is owned twice. A duplicate id across packages is a
-                # contract-integrity violation; surface it instead of silently
-                # overwriting the owner mapping.
+            if owner is not None:
                 raise ValueError(
-                    f"AC {ac.id!r} is claimed by two packages: {owner!r} and {c.name!r}"
+                    f"AC {ac.id!r} is claimed by two packages or twice within one "
+                    f"package: {owner!r} and {c.name!r}"
                 )
             ac_index[ac.id] = c.name
+            roadmap[ac.id] = {
+                "owner": c.name,
+                "statement": ac.statement,
+                "test": ac.test,
+                "priority": ac.priority,
+                "status": ac.status,
+                "proof_kind": ac.proof_kind,
+                "vision_anchor": ac.vision_anchor,
+            }
+
+    governance: dict[str, dict] = {}
+    for c in contracts:
+        for initiative in c.governance:
+            key = f"{c.name}/{initiative.id}"
+            governance[key] = {
+                "owner": c.name,
+                **initiative.model_dump(mode="json"),
+            }
 
     consumers: dict[str, list[str]] = {name: [] for name in by_name}
     for c in contracts:
@@ -93,6 +110,8 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
     return {
         "registry": registry,
         "ac_index": ac_index,
+        "roadmap": roadmap,
+        "governance": governance,
         "consumers": consumers,
         "units_by_layer": units_by_layer,
     }

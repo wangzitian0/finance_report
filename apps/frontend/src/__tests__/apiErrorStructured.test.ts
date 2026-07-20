@@ -43,7 +43,7 @@ describe("structured ApiError (#1005)", () => {
     vi.stubGlobal("localStorage", localStorageMock);
   });
 
-  // AC-meta.fe-http-client.1
+  // AC-meta.fe-http-client.22
   it("test_AC12_27_3_api_error_carries_error_id parses error_id from the body", async () => {
     const fetchMock = makeFetchMock(409, {
       error_id: "conflict",

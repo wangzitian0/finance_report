@@ -21,6 +21,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    GovernanceGuarantee,
+    GovernanceInitiative,
     Invariant,
     Kind,
     PackageContract,
@@ -59,6 +61,16 @@ CONTRACT = PackageContract(
         ),
         Unit(name="Kind", kind=Kind.VALUE_OBJECT, module="base/package_contract.py"),
         Unit(
+            name="GovernanceGuarantee",
+            kind=Kind.VALUE_OBJECT,
+            module="base/governance_control.py",
+        ),
+        Unit(
+            name="GovernanceInitiative",
+            kind=Kind.VALUE_OBJECT,
+            module="base/governance_control.py",
+        ),
+        Unit(
             name="DependencyKind",
             kind=Kind.VALUE_OBJECT,
             module="base/dependency_graph.py",
@@ -93,6 +105,8 @@ CONTRACT = PackageContract(
         "ConceptRecord",
         "DependencyEdge",
         "DependencyKind",
+        "GovernanceGuarantee",
+        "GovernanceInitiative",
         "Invariant",
         "Kind",
         "PackageContract",
@@ -2375,7 +2389,7 @@ CONTRACT = PackageContract(
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(
-            id="AC-meta.fe-http-client.1",
+            id="AC-meta.fe-http-client.22",
             statement="Frontend `apiFetch` throws `ApiError` carrying the parsed `errorId`",
             # was AC12.27.3
             test="apps/frontend/src/__tests__/apiErrorStructured.test.ts::test_AC12_27_3_api_error_carries_error_id parses error_id from the body",
@@ -2399,7 +2413,7 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-meta.fe-http-client.2",
+            id="AC-meta.fe-http-client.23",
             statement="High-traffic call sites type responses against the generated schema",
             # was AC12.28.3
             test="apps/frontend/src/__tests__/apiTypedClient.test.ts::test_AC12_28_3_types_stage2_batch_responses_against_generated_schema",
@@ -2477,6 +2491,143 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.governance-control.1",
+            statement=(
+                "Package contracts own governance initiatives and guarantees, "
+                "and every roadmap AC projects owner, status, priority, test, "
+                "proof kind, and vision anchor without loss; duplicate AC ids "
+                "fail closed before a registry can overwrite either record."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_1_contract_and_roadmap_projection_are_lossless"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-control.2",
+            statement=(
+                "One pure joined projection connects package initiative, "
+                "guarantee, affected ACs, detector result, exact proof outcome, "
+                "and enforcement observation, with completion derived from those "
+                "facts rather than an authored done flag."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_2_completion_is_derived_from_joined_facts"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-control.3",
+            statement=(
+                "The governance report lists package initiatives with current and "
+                "target progress plus open or blocked guarantee counts, and stable "
+                "ids drill down to findings, ACs, proof SHA/result/time/evidence, "
+                "and the enforcing edge."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_3_report_exposes_summary_and_exact_detail"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-control.4",
+            statement=(
+                "Proof policy distinguishes reference-only, report-only, stale, "
+                "non-required, and exact executed evidence, and rejects evidence "
+                "whose strength cannot prove the declared guarantee."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_4_weak_stale_and_non_required_proof_stays_red"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.governance-control.5",
+            statement=(
+                "Declared blocking gates, workflow aggregation, and supplied live "
+                "required contexts reconcile bidirectionally and fail closed for "
+                "empty, partial, unknown, or green-but-non-required discovery."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_5_enforcement_reconciliation_fails_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+    ],
+    governance=[
+        GovernanceInitiative(
+            id="governance-control-plane",
+            title="Package governance control plane",
+            issue="https://github.com/wangzitian0/finance_report/issues/1893",
+            guarantees=[
+                GovernanceGuarantee(
+                    id="lossless-roadmap-projection",
+                    statement="Roadmap and governance declarations project without loss or overwrite.",
+                    affected_acs=["AC-meta.governance-control.1"],
+                    detector="package-roadmap-cardinality",
+                    target="source records equal unique projected records",
+                    lock="ci.lint",
+                    proof="governance-control-lossless",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="derived-joined-state",
+                    statement="Completion is derived from joined target, proof, and enforcement facts.",
+                    affected_acs=["AC-meta.governance-control.2"],
+                    detector="governance-join-completeness",
+                    target="zero missing joins",
+                    lock="ci.lint",
+                    proof="governance-control-derived-state",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="summary-and-detail",
+                    statement="Stable package summaries drill into exact guarantee evidence.",
+                    affected_acs=["AC-meta.governance-control.3"],
+                    detector="governance-report-completeness",
+                    target="zero missing detail coordinates",
+                    lock="ci.lint",
+                    proof="governance-control-report",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="proof-strength",
+                    statement="Weak, stale, or non-required evidence cannot satisfy a guarantee.",
+                    affected_acs=["AC-meta.governance-control.4"],
+                    detector="governance-proof-policy",
+                    target="zero invalid proof promotions",
+                    lock="ci.lint",
+                    proof="governance-control-proof-strength",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="enforcement-and-work-truth",
+                    statement="Workflow, live ruleset, and issue observations reconcile fail closed.",
+                    affected_acs=["AC-meta.governance-control.5"],
+                    detector="governance-enforcement-reconciliation",
+                    target="zero missing or contradictory observations",
+                    lock="ci.lint",
+                    proof="governance-control-enforcement",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+            ],
+        )
     ],
     concepts=[
         ConceptRecord(
