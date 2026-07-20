@@ -154,6 +154,10 @@ run before keyword-based transfer fallback. Transfer fallback uses only ledger's
 typed Processing commands and the transaction's own currency. Once both legs
 exist, reconciliation persists their pair; logs and ledger inference are not
 authoritative pair state.
+The pair command validates its own aggregate boundary: the two distinct
+dispositions must belong to the same tenant and currency and must carry OUT
+and IN source directions respectively. Ledger discovery narrows candidates,
+but it is not a substitute for these reconciliation-owned write invariants.
 
 ### Design constraints
 

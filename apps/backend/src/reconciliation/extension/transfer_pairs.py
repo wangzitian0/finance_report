@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import TransferPair
 from src.reconciliation.orm.reconciliation import (
     DispositionKind,
@@ -23,6 +23,10 @@ from src.reconciliation.orm.reconciliation import (
     TransferPairLegRole,
     TransferPairReviewState,
 )
+
+
+class InvalidTransferPairError(ValueError):
+    """A candidate violates the reconciliation transfer-pair aggregate."""
 
 
 async def persist_transfer_pairs(
@@ -39,10 +43,17 @@ async def persist_transfer_pairs(
             select(
                 ReconciliationMatchJournalEntry.journal_entry_id,
                 ReconciliationMatch,
+                AtomicTransaction.user_id,
+                AtomicTransaction.direction,
+                AtomicTransaction.currency,
             )
             .join(
                 ReconciliationMatch,
                 ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
+            )
+            .join(
+                AtomicTransaction,
+                AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
             )
             .where(
                 ReconciliationMatchJournalEntry.journal_entry_id.in_(entry_ids),
@@ -52,13 +63,30 @@ async def persist_transfer_pairs(
             )
         )
     ).all()
-    disposition_by_entry = {entry_id: disposition for entry_id, disposition in rows}
+    disposition_by_entry = {
+        entry_id: (disposition, txn_user_id, direction, currency)
+        for entry_id, disposition, txn_user_id, direction, currency in rows
+    }
     persisted: list[ReconciliationTransferPair] = []
     for pair in pairs:
-        out_disposition = disposition_by_entry.get(pair.out_entry.id)
-        in_disposition = disposition_by_entry.get(pair.in_entry.id)
-        if out_disposition is None or in_disposition is None:
+        out_leg = disposition_by_entry.get(pair.out_entry.id)
+        in_leg = disposition_by_entry.get(pair.in_entry.id)
+        if out_leg is None or in_leg is None:
             continue
+        out_disposition, out_user_id, out_direction, out_currency = out_leg
+        in_disposition, in_user_id, in_direction, in_currency = in_leg
+        if (
+            pair.out_entry.id == pair.in_entry.id
+            or pair.out_entry.user_id != out_user_id
+            or pair.in_entry.user_id != in_user_id
+            or out_user_id != in_user_id
+            or out_direction != TransactionDirection.OUT
+            or in_direction != TransactionDirection.IN
+            or out_currency.upper() != in_currency.upper()
+        ):
+            raise InvalidTransferPairError(
+                "Transfer pair legs must be distinct, tenant-consistent, opposite-direction, and same-currency"
+            )
         pair_id = uuid4()
         persisted_pair = ReconciliationTransferPair(
             id=pair_id,
@@ -121,4 +149,4 @@ async def list_unpaired_transfer_dispositions(
     return list(result.scalars().all())
 
 
-__all__ = ["list_unpaired_transfer_dispositions", "persist_transfer_pairs"]
+__all__ = ["InvalidTransferPairError", "list_unpaired_transfer_dispositions", "persist_transfer_pairs"]

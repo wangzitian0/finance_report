@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import JournalEntrySourceType
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.identity import User
 from src.ledger import (
     Account,
     AccountType,
@@ -29,6 +30,7 @@ from src.reconciliation import entry_bank_side_amount, entry_total_amount
 from src.reconciliation.extension.matching import execute_matching
 from src.reconciliation.extension.repository import SqlReconciliationRepository
 from src.reconciliation.extension.transfer_pairs import (
+    InvalidTransferPairError,
     list_unpaired_transfer_dispositions,
     persist_transfer_pairs,
 )
@@ -70,53 +72,43 @@ def _match(txn_id: UUID, *, kind: DispositionKind = DispositionKind.JOURNAL_MATC
 async def test_AC_reconciliation_economic_disposition_1_normal_candidate_precedes_transfer(
     db: AsyncSession,
     test_user,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC-reconciliation.economic-disposition.1: journal evidence wins."""
     txn = _atomic(test_user.id, description="internal transfer rent")
-
-    class Repository:
-        async def list_pending_transactions(self, _user_id, _limit=None):
-            return [txn]
-
-        async def list_journal_candidates(self, **_kwargs):
-            return []
-
-    calls: list[str] = []
-
-    async def many(*_args, **_kwargs):
-        calls.append("many")
-        return []
-
-    async def normal(*_args, matched_txn_ids, **_kwargs):
-        calls.append("normal")
-        matched_txn_ids.add(txn.id)
-        return []
-
-    async def transfer(*_args, matched_txn_ids, **_kwargs):
-        calls.append("transfer")
-        assert txn.id in matched_txn_ids
-        return []
-
-    monkeypatch.setattr("src.reconciliation.extension.phases.run_many_to_one_phase", many)
-    monkeypatch.setattr("src.reconciliation.extension.phases.run_normal_matching_phase", normal)
-    monkeypatch.setattr("src.reconciliation.extension.phases.run_transfer_detection_phase", transfer)
-    monkeypatch.setattr("src.reconciliation.extension.matching.find_transfer_pairs", _empty_pairs)
-
-    assert (
-        await execute_matching(
-            db,
-            user_id=test_user.id,
-            currency="SGD",
-            repository=Repository(),  # type: ignore[arg-type]
-        )
-        == []
+    cash = Account(user_id=test_user.id, name="Cash", code="1001", type=AccountType.ASSET, currency="SGD")
+    expense = Account(
+        user_id=test_user.id,
+        name="Rent",
+        code="5001",
+        type=AccountType.EXPENSE,
+        currency="SGD",
     )
-    assert calls == ["many", "normal", "transfer"]
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=txn.txn_date,
+        memo=txn.description,
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    entry.lines = [
+        JournalLine(account=expense, direction=Direction.DEBIT, amount=txn.amount, currency="SGD"),
+        JournalLine(account=cash, direction=Direction.CREDIT, amount=txn.amount, currency="SGD"),
+    ]
+    db.add_all([txn, entry])
+    await db.flush()
 
+    matches = await execute_matching(db, user_id=test_user.id, currency="SGD")
 
-async def _empty_pairs(*_args, **_kwargs):
-    return []
+    assert len(matches) == 1
+    assert matches[0].disposition_kind == DispositionKind.JOURNAL_MATCH
+    assert matches[0].journal_entry_ids == [str(entry.id)]
+    processing_lines = await db.scalar(
+        select(func.count())
+        .select_from(JournalLine)
+        .join(Account, Account.id == JournalLine.account_id)
+        .where(Account.user_id == test_user.id, Account.code == "1199")
+    )
+    assert processing_lines == 0
 
 
 @pytest.mark.asyncio
@@ -220,6 +212,40 @@ async def test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
         score_breakdown={"amount": 100.0},
     )
 
+    in_txn.direction = TransactionDirection.OUT
+    await db.flush()
+    with pytest.raises(InvalidTransferPairError):
+        await persist_transfer_pairs(db, [candidate])
+    in_txn.direction = TransactionDirection.IN
+    in_txn.currency = "USD"
+    await db.flush()
+    with pytest.raises(InvalidTransferPairError):
+        await persist_transfer_pairs(db, [candidate])
+    in_txn.currency = "SGD"
+
+    other_user = User(email=f"pair-{uuid4()}@example.com", hashed_password="hashed")
+    db.add(other_user)
+    await db.flush()
+    foreign_txn = _atomic(other_user.id, description="foreign transfer")
+    foreign_txn.direction = TransactionDirection.IN
+    foreign_entry = _journal(other_user.id, "foreign transfer")
+    db.add_all([foreign_txn, foreign_entry])
+    await db.flush()
+    foreign_match = _match(foreign_txn.id, kind=DispositionKind.TRANSFER_LEG)
+    foreign_match.journal_entry_ids = [str(foreign_entry.id)]
+    db.add(foreign_match)
+    await db.flush()
+    db.add(ReconciliationMatchJournalEntry(match_id=foreign_match.id, journal_entry_id=foreign_entry.id))
+    await db.flush()
+    cross_tenant = TransferPair(
+        out_entry=out_entry,
+        in_entry=foreign_entry,
+        confidence=96,
+        score_breakdown={"amount": 100.0},
+    )
+    with pytest.raises(InvalidTransferPairError):
+        await persist_transfer_pairs(db, [cross_tenant])
+
     assert len(await persist_transfer_pairs(db, [candidate])) == 1
     assert await persist_transfer_pairs(db, [candidate]) == []
     reversed_candidate = TransferPair(
@@ -228,7 +254,8 @@ async def test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
         confidence=95,
         score_breakdown={"amount": 100.0},
     )
-    assert await persist_transfer_pairs(db, [reversed_candidate]) == []
+    with pytest.raises(InvalidTransferPairError):
+        await persist_transfer_pairs(db, [reversed_candidate])
     assert await db.scalar(select(func.count()).select_from(ReconciliationTransferPair)) == 1
     assert await db.scalar(select(func.count()).select_from(ReconciliationTransferPairLeg)) == 2
     unpaired = await list_unpaired_transfer_dispositions(db, user_id=test_user.id)
