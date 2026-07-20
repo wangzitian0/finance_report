@@ -1966,7 +1966,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Statement
-         * @description Delete a statement.
+         * @description Retire a statement from product views while retaining source history.
          */
         delete: operations["delete_statement_statements__statement_id__delete"];
         options?: never;
@@ -3146,7 +3146,7 @@ export interface components {
          * @description Statement processing status.
          * @enum {string}
          */
-        BankStatementStatus: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
+        BankStatementStatus: "uploaded" | "parsing" | "parsed" | "approved" | "rejected" | "retired";
         /**
          * BankTransactionSummary
          * @description Summary of a transaction for reconciliation.
