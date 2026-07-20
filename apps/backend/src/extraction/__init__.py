@@ -75,6 +75,7 @@ from src.extraction.base.types import (
     DocumentSource,
     ExtractedTransactionRow,
     ParseJob,
+    RetireStatementCommand,
     RetryableStatementIngestionError,
     StatementIngestionConfigurationError,
     StatementIngestionError,
@@ -148,6 +149,7 @@ from src.extraction.extension.reviewed_statement_envelope import (
     persist_statement_extraction_result,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.extraction.extension.source_lifecycle import retire_statement
 from src.extraction.extension.statement_contribution import (
     list_statement_contributions,
     resolve_statement_contribution,
@@ -266,6 +268,7 @@ __all__ = [
     "PositionStatus",
     "ParseJob",
     "RetryableStatementIngestionError",
+    "RetireStatementCommand",
     "ReviewedStatementEnvelopeCommand",
     "ReviewedStatementEnvelopeConflict",
     "ResolvedStatementContribution",
@@ -337,6 +340,7 @@ __all__ = [
     "register_fx_rate_provider",
     "register_position_reconciler",
     "reject_statement_workflow",
+    "retire_statement",
     "resolve_custody_account_id",
     "register_statement_source",
     "resolve_ingest_currency",

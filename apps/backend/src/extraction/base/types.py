@@ -49,6 +49,20 @@ class RetryableStatementIngestionError(StatementIngestionError):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class RetireStatementCommand:
+    """Idempotently retire one user-owned statement without purging facts."""
+
+    statement_id: UUID
+    user_id: UUID
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.statement_id, UUID):
+            raise TypeError("statement_id must be a UUID")
+        if not isinstance(self.user_id, UUID):
+            raise TypeError("user_id must be a UUID")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class StatementIngestionOutcome:
     """Typed result returned by every statement-ingestion transport."""
 

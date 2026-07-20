@@ -154,3 +154,11 @@ migrations:
     staging_validation: Deploy the pinned PR commit, run matching twice over one transfer-shaped statement with an eligible journal candidate and one true two-leg transfer, and verify one active head per source transaction, no extra Processing entry, one persisted pair with two unique memberships, and unchanged cardinality on retry.
     production_preflight: Before upgrade, count active reconciliation heads grouped by atomic_txn_id and retain the result as release evidence; verify every duplicate group has a deterministic newest row by created_at/id, take a database backup, and ensure no long-running reconciliation worker transaction is open while the repair and index build run.
     rollback_strategy: The upgrade is transactional. Before application cutover, downgrade removes only additive pair/kind schema and the unique index; repaired rows remain valid superseded history. Restore the pre-upgrade backup only if exact recreation of the previously invalid duplicate-active state is operationally required.
+  0059_source_lifecycle:
+    file: 0059_source_lifecycle.py
+    risk: medium
+    issue: "#1970"
+    proof: Adds only the retired value to extraction-owned statement and document lifecycle enums; AC-extraction.source-lifecycle.4-.6 prove retained source/result/envelope/transaction cardinality, idempotent retirement, rollback, and retry.
+    staging_validation: Deploy the pinned PR commit, retire one non-production statement through DELETE, verify it disappears from list/get while its statement summary, uploaded document, immutable extraction result, reviewed envelope, atomic facts, lineage, and object remain stored, then repeat DELETE and confirm no cardinality change.
+    production_preflight: Confirm no deployed consumer exhaustively rejects unknown statement_summary_status_enum or document_status_enum values, take a database backup, and verify the application commit that excludes retired rows from product views is deployed with this additive enum migration.
+    rollback_strategy: Roll back the application while leaving the additive enum values in place; PostgreSQL enum value removal requires a destructive type rebuild and is intentionally not attempted. Any already-retired rows remain preserved and can be restored to a prior visible state only through an explicit governed correction.

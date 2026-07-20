@@ -191,15 +191,16 @@ async def test_statement_router_error_cases(db, test_user, monkeypatch):
         session_maker=session_maker,
     )
 
-    # Delete statement storage error (should continue to DB delete)
+    # Ordinary removal retires without touching storage.
     # Already created sid in DB above
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage = mock_storage_cls.return_value
         mock_storage.delete_object.side_effect = StorageError("Failed")
         await delete_statement(sid, db, uid)
-        # Verify it was deleted from DB
+        mock_storage.delete_object.assert_not_called()
         result = await db.get(StatementSummary, sid)
-        assert result is None
+        assert result is not None
+        assert result.status is BankStatementStatus.RETIRED
 
 
 async def test_upload_statement_db_commit_failure(db, test_user, monkeypatch):
