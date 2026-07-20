@@ -195,9 +195,19 @@ jobs:
 
           uv run --with pydantic python tools/report_ddd_dependencies.py \
             --base-ref "$base_sha" \
+            --fail-on-breaking \
             --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
+            --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
             --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
           cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish DDD governance observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddd-governance-observations
+          path: ${{ runner.temp }}/ddd-governance-observations.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Migration Risk Contract Check
         run: |
           uv run --with pyyaml python tools/check_migration_risk.py

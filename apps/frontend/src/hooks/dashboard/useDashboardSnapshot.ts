@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
+import type { components } from "@/lib/api-types";
 import { formatDateInput } from "@/lib/date";
+import {
+  normalizeAdvisorSuggestions,
+  normalizeFxWarningRows,
+} from "@/lib/types";
 import type {
   AccountListResponse,
   AdvisorSuggestion,
@@ -76,11 +81,12 @@ const EMPTY_STATS: ReconciliationStatsResponse = {
 };
 
 function normalizeBalanceSheet(
-  data?: Partial<BalanceSheetResponse> | null,
+  data?: Partial<components["schemas"]["BalanceSheetResponse"]> | null,
 ): BalanceSheetResponse {
+  const { fx_warnings, opening_balance_warnings, ...values } = data ?? {};
   return {
     ...EMPTY_BALANCE_SHEET,
-    ...data,
+    ...values,
     assets: data?.assets ?? [],
     liabilities: data?.liabilities ?? [],
     equity: data?.equity ?? [],
@@ -94,15 +100,18 @@ function normalizeBalanceSheet(
     currency: data?.currency ?? "SGD",
     as_of_date: data?.as_of_date ?? "",
     is_balanced: data?.is_balanced ?? true,
+    fx_warnings: normalizeFxWarningRows(fx_warnings),
+    opening_balance_warnings: normalizeFxWarningRows(opening_balance_warnings),
   };
 }
 
 function normalizeIncomeStatement(
-  data?: Partial<IncomeStatementResponse> | null,
+  data?: Partial<components["schemas"]["IncomeStatementResponse"]> | null,
 ): IncomeStatementResponse {
+  const { fx_warnings, ...values } = data ?? {};
   return {
     ...EMPTY_INCOME_STATEMENT,
-    ...data,
+    ...values,
     income: data?.income ?? [],
     expenses: data?.expenses ?? [],
     trends: data?.trends ?? [],
@@ -110,6 +119,7 @@ function normalizeIncomeStatement(
     total_expenses: data?.total_expenses ?? "0",
     net_income: data?.net_income ?? "0",
     currency: data?.currency ?? "SGD",
+    fx_warnings: normalizeFxWarningRows(fx_warnings),
   };
 }
 
@@ -150,22 +160,37 @@ export interface DashboardSnapshot {
   retry: () => void;
 }
 
-export function useDashboardSnapshot(includeRestricted: boolean): DashboardSnapshot {
-  const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(null);
-  const [incomeStatement, setIncomeStatement] = useState<IncomeStatementResponse | null>(null);
-  const [annualizedIncome, setAnnualizedIncome] = useState<AnnualizedIncomeResponse | null>(null);
-  const [restrictedHoldings, setRestrictedHoldings] = useState<RestrictedHolding[]>([]);
+export function useDashboardSnapshot(
+  includeRestricted: boolean,
+): DashboardSnapshot {
+  const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(
+    null,
+  );
+  const [incomeStatement, setIncomeStatement] =
+    useState<IncomeStatementResponse | null>(null);
+  const [annualizedIncome, setAnnualizedIncome] =
+    useState<AnnualizedIncomeResponse | null>(null);
+  const [restrictedHoldings, setRestrictedHoldings] = useState<
+    RestrictedHolding[]
+  >([]);
   const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
-  const [unmatched, setUnmatched] = useState<UnmatchedTransactionsResponse | null>(null);
-  const [recentEntries, setRecentEntries] = useState<JournalEntryListResponse | null>(null);
-  const [onboardingStatus, setOnboardingStatus] = useState<DashboardOnboardingStatus | null>(null);
-  const [advisorSuggestions, setAdvisorSuggestions] = useState<AdvisorSuggestion[]>([]);
+  const [unmatched, setUnmatched] =
+    useState<UnmatchedTransactionsResponse | null>(null);
+  const [recentEntries, setRecentEntries] =
+    useState<JournalEntryListResponse | null>(null);
+  const [onboardingStatus, setOnboardingStatus] =
+    useState<DashboardOnboardingStatus | null>(null);
+  const [advisorSuggestions, setAdvisorSuggestions] = useState<
+    AdvisorSuggestion[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const today = new Date();
-    const incomeStart = formatDateInput(new Date(today.getFullYear(), today.getMonth() - 11, 1));
+    const incomeStart = formatDateInput(
+      new Date(today.getFullYear(), today.getMonth() - 11, 1),
+    );
     const incomeEnd = formatDateInput(today);
     setLoading(true);
     try {
@@ -182,28 +207,36 @@ export function useDashboardSnapshot(includeRestricted: boolean): DashboardSnaps
         postedJournalData,
         chatSuggestionsData,
       ] = await Promise.all([
-        apiFetch<BalanceSheetResponse>(
-          `/api/reports/balance-sheet?include_restricted=${includeRestricted ? "true" : "false"}`,
-        ),
-        apiFetch<IncomeStatementResponse>(
-          `/api/reports/income-statement?start_date=${incomeStart}&end_date=${incomeEnd}`,
-        ),
-        apiFetch<AnnualizedIncomeResponse>("/api/income/annualized"),
-        apiFetch<RestrictedHolding[]>("/api/assets/restricted"),
-        apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
-        apiFetch<UnmatchedTransactionsResponse>("/api/reconciliation/unmatched?limit=5"),
-        apiFetch<JournalEntryListResponse>("/api/journal-entries?page=1&page_size=5"),
-        apiFetch<AccountListResponse>("/api/accounts?limit=1"),
-        apiFetch<BankStatementListResponse>("/api/statements"),
-        apiFetch<JournalEntryListResponse>("/api/journal-entries?status_filter=posted&limit=1"),
-        apiFetch<ChatSuggestionsResponse>(
-          "/api/chat/suggestions?language=en&include_structured=true",
-        ).catch(() => ({ suggestions: [], structured_suggestions: [] })),
+        apiOperation("balance_sheet_reports_balance_sheet_get", {
+          query: { include_restricted: includeRestricted },
+        }),
+        apiOperation("income_statement_reports_income_statement_get", {
+          query: { start_date: incomeStart, end_date: incomeEnd },
+        }),
+        apiOperation("get_annualized_income_income_annualized_get"),
+        apiOperation("list_restricted_holdings_assets_restricted_get"),
+        apiOperation("reconciliation_stats_reconciliation_stats_get"),
+        apiOperation("list_unmatched_reconciliation_unmatched_get", {
+          query: { limit: 5 },
+        }),
+        apiOperation("list_journal_entries_journal_entries_get", {
+          query: { limit: 5, offset: 0 },
+        }),
+        apiOperation("list_accounts_accounts_get", { query: { limit: 1 } }),
+        apiOperation("list_statements_statements_get"),
+        apiOperation("list_journal_entries_journal_entries_get", {
+          query: { status_filter: "posted", limit: 1 },
+        }),
+        apiOperation("suggestions_chat_suggestions_get", {
+          query: { language: "en", include_structured: true },
+        }).catch(() => ({ suggestions: [], structured_suggestions: [] })),
       ]);
       setBalanceSheet(normalizeBalanceSheet(balanceData));
       setIncomeStatement(normalizeIncomeStatement(incomeData));
       setAnnualizedIncome(normalizeAnnualizedIncome(annualizedData));
-      setRestrictedHoldings(Array.isArray(restrictedData) ? restrictedData : []);
+      setRestrictedHoldings(
+        Array.isArray(restrictedData) ? restrictedData : [],
+      );
       setStats(statsData || EMPTY_STATS);
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
@@ -211,13 +244,21 @@ export function useDashboardSnapshot(includeRestricted: boolean): DashboardSnaps
         accountCount: accountData?.total ?? 0,
         statementCount: statementData?.total ?? 0,
         approvedStatementCount:
-          statementData?.items?.filter((statement) => statement.status === "approved").length ?? 0,
+          statementData?.items?.filter(
+            (statement) => statement.status === "approved",
+          ).length ?? 0,
         postedEntryCount: postedJournalData?.total ?? 0,
       });
-      setAdvisorSuggestions(chatSuggestionsData?.structured_suggestions ?? []);
+      setAdvisorSuggestions(
+        normalizeAdvisorSuggestions(
+          chatSuggestionsData?.structured_suggestions,
+        ),
+      );
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+      setError(
+        err instanceof Error ? err.message : "Failed to load dashboard data.",
+      );
     } finally {
       setLoading(false);
     }

@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 interface PingState {
-  state: "ping" | "pong";
+  state: string;
   toggle_count: number;
-  updated_at: string | null;
+  updated_at?: string | null;
 }
 
 export default function PingPongPage() {
@@ -18,7 +18,7 @@ export default function PingPongPage() {
 
   const fetchState = useCallback(async () => {
     try {
-      const data = await apiFetch<PingState>("/api/ping");
+      const data = await apiOperation("get_ping_state_ping_get");
       setPingState(data);
       setError(null);
     } catch (err) {
@@ -31,7 +31,7 @@ export default function PingPongPage() {
   const toggleState = async () => {
     setToggling(true);
     try {
-      const data = await apiFetch<PingState>("/api/ping/toggle", { method: "POST" });
+      const data = await apiOperation("toggle_ping_state_ping_toggle_post");
       setPingState(data);
       setError(null);
     } catch (err) {
@@ -41,7 +41,9 @@ export default function PingPongPage() {
     }
   };
 
-  useEffect(() => { fetchState(); }, [fetchState]);
+  useEffect(() => {
+    fetchState();
+  }, [fetchState]);
 
   return (
     <div className="p-6 flex items-center justify-center min-h-[80vh]">
@@ -56,11 +58,15 @@ export default function PingPongPage() {
         ) : error ? (
           <div className="p-4 rounded-md bg-[var(--error-muted)] border border-[var(--error)]/30 text-center">
             <p className="text-sm text-[var(--error)]">{error}</p>
-            <button onClick={fetchState} className="btn-secondary mt-3">Retry</button>
+            <button onClick={fetchState} className="btn-secondary mt-3">
+              Retry
+            </button>
           </div>
         ) : (
           <>
-            <div className={`text-6xl font-black mb-6 ${pingState?.state === "ping" ? "text-[var(--info)]" : "text-[var(--accent)]"}`}>
+            <div
+              className={`text-6xl font-black mb-6 ${pingState?.state === "ping" ? "text-[var(--info)]" : "text-[var(--accent)]"}`}
+            >
               {pingState?.state?.toUpperCase()}
             </div>
 
@@ -73,9 +79,17 @@ export default function PingPongPage() {
             </button>
 
             <div className="mt-6 text-sm text-muted space-y-1">
-              <p>Toggle count: <span className="font-mono">{pingState?.toggle_count}</span></p>
+              <p>
+                Toggle count:{" "}
+                <span className="font-mono">{pingState?.toggle_count}</span>
+              </p>
               {pingState?.updated_at && (
-                <p>Last toggled: <span className="font-mono">{new Date(pingState.updated_at).toLocaleTimeString()}</span></p>
+                <p>
+                  Last toggled:{" "}
+                  <span className="font-mono">
+                    {new Date(pingState.updated_at).toLocaleTimeString()}
+                  </span>
+                </p>
               )}
             </div>
           </>

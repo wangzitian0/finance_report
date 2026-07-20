@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     )
     from src.ledger.extension import (
         AnchoredJournalCommand,
+        AnchoredJournalCommandV2,
         RevaluationError,
         calculate_unrealized_fx_gains,
         create_transfer_in_entry,
@@ -73,6 +74,7 @@ if TYPE_CHECKING:
         post_journal_entry,
         register_fx_revaluation_provider,
         submit_anchored_journal_entry,
+        submit_anchored_journal_entry_v2,
         submit_manual_journal_entry,
         used_currencies,
         validate_line_account_ownership,
@@ -105,6 +107,7 @@ __all__ = [
     "AccountType",
     "AccountingError",
     "AnchoredJournalCommand",
+    "AnchoredJournalCommandV2",
     "current_anchored_journal_entries",
     "ConfidenceTier",
     "DEFAULT_STALE_AFTER_DAYS",
@@ -151,6 +154,7 @@ __all__ = [
     "list_processing_transfer_legs",
     "post_entry",
     "submit_anchored_journal_entry",
+    "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",
@@ -193,6 +197,7 @@ _BASE_NAMES = {
 _EXTENSION_NAMES = {
     "AccountNotFoundError",
     "AnchoredJournalCommand",
+    "AnchoredJournalCommandV2",
     "current_anchored_journal_entries",
     "ledger_trace_policy_registry",
     "RevaluationError",
@@ -210,6 +215,7 @@ _EXTENSION_NAMES = {
     "list_processing_transfer_legs",
     "post_entry",
     "submit_anchored_journal_entry",
+    "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",

@@ -4,8 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
-import { apiFetch } from "@/lib/api";
-import { buildAttentionItems, summarizeTrust, type TrustSummary } from "@/lib/attention";
+import { apiOperation } from "@/lib/api-client";
+import {
+  buildAttentionItems,
+  summarizeTrust,
+  type TrustSummary,
+} from "@/lib/attention";
 import type {
   BankStatementListResponse,
   ProcessingPendingListResponse,
@@ -24,9 +28,11 @@ export function TrustMeter() {
     (async () => {
       try {
         const [statements, stats, processing] = await Promise.all([
-          apiFetch<BankStatementListResponse>("/api/statements"),
-          apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
-          apiFetch<ProcessingPendingListResponse>("/api/accounts/processing/pending"),
+          apiOperation("list_statements_statements_get"),
+          apiOperation("reconciliation_stats_reconciliation_stats_get"),
+          apiOperation(
+            "list_processing_pending_accounts_processing_pending_get",
+          ),
         ]);
         if (!active) return;
         const items = buildAttentionItems({
@@ -56,7 +62,10 @@ export function TrustMeter() {
     >
       <div className="flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
+          <ShieldCheck
+            className="h-4 w-4 text-[var(--accent)]"
+            aria-hidden="true"
+          />
           <h2 className="font-semibold">Data trust</h2>
         </div>
         <span className="inline-flex items-center gap-1 text-sm text-[var(--accent)]">
@@ -65,8 +74,16 @@ export function TrustMeter() {
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3 text-center">
         <Bucket label="Trusted" value={summary.trusted} tone="success" />
-        <Bucket label="Needs your confirmation" value={summary.needsConfirmation} tone="warning" />
-        <Bucket label="Low confidence" value={summary.lowConfidence} tone="error" />
+        <Bucket
+          label="Needs your confirmation"
+          value={summary.needsConfirmation}
+          tone="warning"
+        />
+        <Bucket
+          label="Low confidence"
+          value={summary.lowConfidence}
+          tone="error"
+        />
       </div>
     </Link>
   );
@@ -82,7 +99,11 @@ function Bucket({
   tone: "success" | "warning" | "error";
 }) {
   const color =
-    tone === "success" ? "var(--success)" : tone === "warning" ? "var(--warning)" : "var(--error)";
+    tone === "success"
+      ? "var(--success)"
+      : tone === "warning"
+        ? "var(--warning)"
+        : "var(--error)";
   return (
     <div className="rounded-md bg-[var(--background-muted)] p-3">
       <p className="text-2xl font-semibold" style={{ color }}>

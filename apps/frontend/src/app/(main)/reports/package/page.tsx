@@ -33,23 +33,30 @@ import {
   packageTocLinks,
   type LineagePanelState,
 } from "@/components/reports/package/shared";
-import { generatePackageSnapshot, usePersonalReportPackage } from "@/hooks/usePersonalReportPackage";
-import { apiDownload, apiFetch } from "@/lib/api";
+import {
+  generatePackageSnapshot,
+  usePersonalReportPackage,
+} from "@/hooks/usePersonalReportPackage";
+import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { formatDateInput } from "@/lib/date";
-import { lineageUrl } from "@/lib/lineage";
+import { lineageQuery } from "@/lib/lineage";
 import { isValidReportDate } from "@/lib/reportPackage";
 import type {
   EvidenceLineageResponse,
   PersonalReportPackageSnapshotSummary,
   PersonalReportPackageTraceabilityLine,
+  PersonalReportingFrameworkId,
 } from "@/lib/types";
 
 export default function PersonalReportPackagePage() {
-  const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(
+  const [selectedFrameworkId, setSelectedFrameworkId] =
+    useState<PersonalReportingFrameworkId | null>(null);
+  const [reportDate, setReportDate] = useState(() =>
+    formatDateInput(new Date()),
+  );
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
     null,
   );
-  const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
     null,
   );
@@ -65,7 +72,11 @@ export default function PersonalReportPackagePage() {
     refetchPackageSnapshots,
     isPackageLoading,
     error,
-  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId);
+  } = usePersonalReportPackage(
+    selectedFrameworkId,
+    reportDate,
+    selectedSnapshotId,
+  );
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
@@ -80,7 +91,8 @@ export default function PersonalReportPackagePage() {
           blockers: [
             {
               code: "lineage_anchor_missing",
-              message: "No graph-compatible UUID anchor exists for this traceability row.",
+              message:
+                "No graph-compatible UUID anchor exists for this traceability row.",
             },
           ],
           max_depth: 6,
@@ -92,8 +104,11 @@ export default function PersonalReportPackagePage() {
     }
 
     try {
-      const response = await apiFetch<EvidenceLineageResponse>(
-        lineageUrl(anchor),
+      const response = await apiOperation(
+        "get_evidence_lineage_evidence_lineage_get",
+        {
+          query: lineageQuery(anchor),
+        },
       );
       setLineagePanel({ line, response, isLoading: false, error: null });
     } catch (err) {
@@ -102,7 +117,9 @@ export default function PersonalReportPackagePage() {
         response: null,
         isLoading: false,
         error:
-          err instanceof Error ? err.message : "Failed to load evidence lineage.",
+          err instanceof Error
+            ? err.message
+            : "Failed to load evidence lineage.",
       });
     }
   }
@@ -112,15 +129,22 @@ export default function PersonalReportPackagePage() {
     setGeneratingSnapshot(true);
     setSnapshotError(null);
     try {
-      const snapshot = await generatePackageSnapshot(selectedFrameworkId, reportDate);
+      const snapshot = await generatePackageSnapshot(
+        selectedFrameworkId,
+        reportDate,
+      );
       setSelectedSnapshotId(snapshot.id);
       // EPIC-022 AC22.18.3 (#1109): instrument report-package generation. The
       // framework id is a safe, non-PII selector (e.g. personal_us_gaap_like).
-      track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: selectedFrameworkId });
+      track(ANALYTICS_EVENTS.REPORT_GENERATED, {
+        framework_id: selectedFrameworkId,
+      });
       await refetchPackageSnapshots();
     } catch (err) {
       setSnapshotError(
-        err instanceof Error ? err.message : "Failed to generate package snapshot.",
+        err instanceof Error
+          ? err.message
+          : "Failed to generate package snapshot.",
       );
     } finally {
       setGeneratingSnapshot(false);
@@ -141,20 +165,24 @@ export default function PersonalReportPackagePage() {
     setDownloadingSnapshot(`${snapshot.id}:${format}`);
     setSnapshotError(null);
     try {
-      const { blob, filename } = await apiDownload(
-        `/api/reports/package/snapshots/${snapshot.id}/export?format=${format}`,
+      const { blob, filename } = await apiOperationDownload(
+        "export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get",
+        { path: { snapshot_id: snapshot.id }, query: { format } },
       );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filename || `personal-report-package-${snapshot.id}.${format}`;
+      link.download =
+        filename || `personal-report-package-${snapshot.id}.${format}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
       setSnapshotError(
-        err instanceof Error ? err.message : `Failed to download ${format.toUpperCase()} snapshot.`,
+        err instanceof Error
+          ? err.message
+          : `Failed to download ${format.toUpperCase()} snapshot.`,
       );
     } finally {
       setDownloadingSnapshot(null);
@@ -190,6 +218,11 @@ export default function PersonalReportPackagePage() {
       selectedFrameworkLabel={selectedFrameworkLabel}
       reportDate={reportDate}
       onSelectFramework={(frameworkId) => {
+        if (
+          frameworkId !== "personal_us_gaap_like" &&
+          frameworkId !== "personal_hkfrs_like"
+        )
+          return;
         setSelectedSnapshotId(null);
         setSelectedFrameworkId(frameworkId);
       }}
@@ -219,7 +252,10 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const outputTocLinks = packageTocLinks(packageDocument?.contract ?? contract, true);
+  const outputTocLinks = packageTocLinks(
+    packageDocument?.contract ?? contract,
+    true,
+  );
 
   if (isPackageLoading || !packageDocument) {
     return (
@@ -240,7 +276,9 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const evidenceReferences = evidenceBundleReferences(packageDocument.framework_policy);
+  const evidenceReferences = evidenceBundleReferences(
+    packageDocument.framework_policy,
+  );
   const canGenerateSnapshot = Boolean(
     selectedFrameworkId && isValidReportDate(reportDate) && !generatingSnapshot,
   );
@@ -297,11 +335,15 @@ export default function PersonalReportPackagePage() {
         manifest={packageDocument.input_manifest}
       />
 
-      <PackageFrameworkPolicySection policy={packageDocument.framework_policy} />
+      <PackageFrameworkPolicySection
+        policy={packageDocument.framework_policy}
+      />
 
       <PackageSectionCards sections={packageDocument.sections} />
 
-      <PackageAnnualizedScheduleSection schedule={packageDocument.sections.annualized_income_long_term} />
+      <PackageAnnualizedScheduleSection
+        schedule={packageDocument.sections.annualized_income_long_term}
+      />
 
       <PackageNotesSection notes={packageDocument.sections.notes} />
 

@@ -8,7 +8,6 @@
 // the low-confidence tail Axiom B says a human should look at.
 
 import type {
-  BankStatement,
   ProcessingPendingItem,
   ReconciliationStatsResponse,
 } from "@/lib/types";
@@ -38,7 +37,13 @@ export interface AttentionItem {
 }
 
 export interface AttentionSources {
-  statements?: BankStatement[] | null;
+  statements?: Array<{
+    id: string;
+    status: string;
+    confidence_score?: number | null;
+    balance_validated?: boolean | null;
+    original_filename: string;
+  }> | null;
   stats?: ReconciliationStatsResponse | null;
   processing?: ProcessingPendingItem[] | null;
 }
@@ -50,7 +55,8 @@ export const PROCESSING_STALE_DAYS = 7;
 export const LOW_CONFIDENCE_THRESHOLD = 50;
 
 function clampConfidence(value: number): number {
-  const percent = percentNumberFromPercentValue(String(value), { dp: 0, fallback: 0 }) ?? 0;
+  const percent =
+    percentNumberFromPercentValue(String(value), { dp: 0, fallback: 0 }) ?? 0;
   return Math.max(0, Math.min(100, percent));
 }
 
@@ -59,7 +65,9 @@ function clampConfidence(value: number): number {
  * confidence (the most uncertain items first). Ties break by id for a stable
  * order across re-syncs.
  */
-export function buildAttentionItems(sources: AttentionSources): AttentionItem[] {
+export function buildAttentionItems(
+  sources: AttentionSources,
+): AttentionItem[] {
   const items: AttentionItem[] = [];
 
   // Stage 1 — parsed statements awaiting human review. A failed balance check
@@ -67,13 +75,17 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
   for (const statement of sources.statements ?? []) {
     if (statement.status !== "parsed") continue;
     const score =
-      typeof statement.confidence_score === "number" ? statement.confidence_score : 0;
+      typeof statement.confidence_score === "number"
+        ? statement.confidence_score
+        : 0;
     const balanceFailed = statement.balance_validated === false;
     items.push({
       id: `statement:${statement.id}`,
       kind: "statement_review",
       title: statement.original_filename,
-      detail: balanceFailed ? "Balance needs review" : "Parsed — ready to review",
+      detail: balanceFailed
+        ? "Balance needs review"
+        : "Parsed — ready to review",
       reason: balanceFailed
         ? "The statement's closing balance didn't reconcile against the parsed transactions, so the extraction may have missed or misread a line."
         : "Parsed from your upload and waiting for you to confirm the entries before they post to the ledger.",
@@ -93,7 +105,8 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
       kind: "reconciliation_review",
       title: `${stats.pending_review} match${stats.pending_review > 1 ? "es" : ""} need review`,
       detail: "Reconciliation review",
-      reason: "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
+      reason:
+        "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
       confidence: clampConfidence(stats.match_rate ?? 0),
       // #1001: the dedicated Stage-2 review surface, decoupled from the
       // reconciliation workbench.
@@ -110,7 +123,8 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
         stats.unmatched_transactions > 1 ? "s" : ""
       }`,
       detail: "No ledger match yet",
-      reason: "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
+      reason:
+        "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,
       href: "/reconciliation/unmatched",
     });
@@ -121,7 +135,10 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
     (item) => item.days_outstanding >= PROCESSING_STALE_DAYS,
   );
   if (stalled.length > 0) {
-    const oldest = stalled.reduce((max, item) => Math.max(max, item.days_outstanding), 0);
+    const oldest = stalled.reduce(
+      (max, item) => Math.max(max, item.days_outstanding),
+      0,
+    );
     items.push({
       id: "processing:stalled",
       kind: "processing_stalled",
@@ -133,7 +150,9 @@ export function buildAttentionItems(sources: AttentionSources): AttentionItem[] 
     });
   }
 
-  return items.sort((a, b) => a.confidence - b.confidence || a.id.localeCompare(b.id));
+  return items.sort(
+    (a, b) => a.confidence - b.confidence || a.id.localeCompare(b.id),
+  );
 }
 
 export interface TrustSummary {
@@ -156,6 +175,8 @@ export function summarizeTrust(
   return {
     trusted: stats?.matched_transactions ?? 0,
     needsConfirmation: items.length,
-    lowConfidence: items.filter((item) => item.confidence < LOW_CONFIDENCE_THRESHOLD).length,
+    lowConfidence: items.filter(
+      (item) => item.confidence < LOW_CONFIDENCE_THRESHOLD,
+    ).length,
   };
 }

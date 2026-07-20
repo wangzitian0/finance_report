@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import {
   formatPercentFromPercentValue,
   percentNumberFromPercentValue,
@@ -19,6 +19,13 @@ const CHART_PALETTE = [
 
 type AllocationType = "sector" | "geography" | "asset-class";
 
+const ALLOCATION_OPERATIONS = {
+  sector: "get_sector_allocation_portfolio_allocation_sector_get",
+  geography: "get_geography_allocation_portfolio_allocation_geography_get",
+  "asset-class":
+    "get_asset_class_allocation_portfolio_allocation_asset_class_get",
+} as const;
+
 interface AllocationChartProps {
   type: AllocationType;
   title: string;
@@ -33,8 +40,7 @@ const LABELS: Record<AllocationType, string> = {
 export function AllocationChart({ type, title }: AllocationChartProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["portfolio-allocation", type],
-    queryFn: () =>
-      apiFetch<AllocationBreakdown[]>(`/api/portfolio/allocation/${type}`),
+    queryFn: () => apiOperation(ALLOCATION_OPERATIONS[type]),
   });
 
   if (isLoading) {

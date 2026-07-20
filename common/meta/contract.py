@@ -413,6 +413,79 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.public-boundary.1",
+            statement=(
+                "One generated boundary graph classifies every registered package, "
+                "public Python symbol, runtime/context relation, published event, L4 "
+                "OpenAPI operation, and production frontend operation consumer; empty, "
+                "partial, duplicate, or unclassified discovery fails closed."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_1_snapshot_is_complete_and_single_source"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.public-boundary.2",
+            statement=(
+                "Every public Python callable, DTO, and value object has a complete "
+                "parameter/default/return fingerprint, and decision-authorized financial "
+                "commands reject dynamic mappings, untyped financial primitives, broad "
+                "Callable signatures, and missing return shapes."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_2_financial_signatures_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.public-boundary.3",
+            statement=(
+                "Production frontend requests bind path, method, parameters, body, success "
+                "response, and error handling to generated OpenAPI operations; arbitrary "
+                "generic path/type assertions are not a production contract and generated "
+                "types plus consumer compilation execute on the required proof path."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_3_frontend_uses_generated_operations"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.public-boundary.4",
+            statement=(
+                "Base-vs-HEAD compatibility classifies every boundary change and selects "
+                "all direct and transitive consumers with executable proofs; an unversioned "
+                "breaking change or an unproved consumer fails closed."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_4_breaking_consumers_block"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-meta.public-boundary.5",
+            statement=(
+                "The existing dependency-impact step enforces boundary compatibility and "
+                "publishes detector, exact proof, and live-required enforcement observations "
+                "to the package-governance projection without adding a parallel required gate."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.context-governance.1",
             statement=(
                 "A package can publish its bounded-context purpose, explicit "
@@ -2627,7 +2700,70 @@ CONTRACT = PackageContract(
                     enforcing_gate="ci.lint",
                 ),
             ],
-        )
+        ),
+        GovernanceInitiative(
+            id="public-boundary-control",
+            title="Stable public boundaries and consumer-safe evolution",
+            issue="https://github.com/wangzitian0/finance_report/issues/1894",
+            depends_on=["meta/governance-control-plane"],
+            guarantees=[
+                GovernanceGuarantee(
+                    id="one-boundary-graph",
+                    statement="One generated graph discovers package, Python, delivery, and frontend consumer boundaries.",
+                    affected_acs=["AC-meta.public-boundary.1"],
+                    detector="boundary-discovery-completeness",
+                    target="zero duplicate, partial, or unclassified boundaries",
+                    lock="ci.lint",
+                    proof="public-boundary-graph",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="financial-signatures",
+                    statement="Decision-authorized financial commands expose complete typed signatures.",
+                    affected_acs=["AC-meta.public-boundary.2"],
+                    detector="financial-command-signature-census",
+                    target="zero dynamic financial command signatures",
+                    lock="ci.lint",
+                    proof="public-boundary-financial-signatures",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="operation-client",
+                    statement="Every production frontend transport binds to a generated OpenAPI operation.",
+                    affected_acs=["AC-meta.public-boundary.3"],
+                    detector="frontend-operation-consumer-census",
+                    target="zero untyped or unknown production transports",
+                    lock="ci.lint",
+                    proof="public-boundary-operation-client",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="consumer-impact",
+                    statement="Breaking boundary changes select every direct and transitive consumer for exact proof.",
+                    affected_acs=["AC-meta.public-boundary.4"],
+                    detector="boundary-consumer-proof-census",
+                    target="zero unproved consumers",
+                    lock="ci.lint",
+                    proof="public-boundary-consumer-impact",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="enforced-compatibility",
+                    statement="The existing dependency-impact path blocks incompatible boundaries and publishes evidence.",
+                    affected_acs=["AC-meta.public-boundary.5"],
+                    detector="boundary-compatibility-status",
+                    target="zero blocking compatibility findings",
+                    lock="ci.lint",
+                    proof="public-boundary-enforcement",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+            ],
+        ),
     ],
     concepts=[
         ConceptRecord(

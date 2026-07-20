@@ -23,13 +23,15 @@ export function reportPeriodStart(reportDate: string): string {
   const [year, month, day] = reportDate.split("-").map(Number);
   if (!year || !month || !day) return reportDate;
   const previousYear = year - 1;
-  const lastDayOfMonth = new Date(Date.UTC(previousYear, month, 0)).getUTCDate();
+  const lastDayOfMonth = new Date(
+    Date.UTC(previousYear, month, 0),
+  ).getUTCDate();
   const clampedDay = Math.min(day, lastDayOfMonth);
   return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
 }
 
 export function packageSnapshotRequest(
-  frameworkId: string,
+  frameworkId: import("./api-schema").Schemas["PersonalReportingFrameworkId"],
   reportDate: string,
   currency = "SGD",
 ) {
@@ -39,12 +41,15 @@ export function packageSnapshotRequest(
     end_date: reportDate,
     as_of_date: reportDate,
     currency,
+    include_restricted: false,
   };
 }
 
 /** `?start_date=...&end_date=...&as_of_date=...[&framework_id=...]` for a package-scoped GET. */
 export function packageQuery(reportDate: string, frameworkId?: string): string {
-  const params = new URLSearchParams(frameworkId ? { framework_id: frameworkId } : undefined);
+  const params = new URLSearchParams(
+    frameworkId ? { framework_id: frameworkId } : undefined,
+  );
   params.set("start_date", reportPeriodStart(reportDate));
   params.set("end_date", reportDate);
   params.set("as_of_date", reportDate);

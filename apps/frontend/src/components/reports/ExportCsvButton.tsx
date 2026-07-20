@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 
-import { apiDownload } from "@/lib/api";
+import {
+  apiOperationDownload,
+  type ApiOperationRequest,
+} from "@/lib/api-client";
 
 interface ExportCsvButtonProps {
-  path: string;
+  request: ApiOperationRequest<"export_report_reports_export_get">;
 }
 
-export function ExportCsvButton({ path }: ExportCsvButtonProps) {
+export function ExportCsvButton({ request }: ExportCsvButtonProps) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,7 +19,10 @@ export function ExportCsvButton({ path }: ExportCsvButtonProps) {
     setDownloading(true);
     setError(null);
     try {
-      const { blob, filename } = await apiDownload(path);
+      const { blob, filename } = await apiOperationDownload(
+        "export_report_reports_export_get",
+        request,
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

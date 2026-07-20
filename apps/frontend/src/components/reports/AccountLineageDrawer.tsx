@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { LineagePanel } from "@/components/reports/LineagePanel";
 import Sheet from "@/components/ui/Sheet";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { anchorFromTypedIdentifier, type LineageAnchor } from "@/lib/lineage";
 import type { AccountLineageResponse } from "@/lib/types";
@@ -27,14 +27,13 @@ interface DrawerState {
 
 const EMPTY: DrawerState = { isLoading: false, error: null, response: null };
 
-function accountLineageUrl(target: AccountLineageTarget): string {
-  const params = new URLSearchParams({
+function accountLineageQuery(target: AccountLineageTarget) {
+  return {
     account_id: target.accountId,
     as_of_date: target.asOfDate,
     currency: target.currency,
-  });
-  if (target.startDate) params.set("start_date", target.startDate);
-  return `/api/reports/account-lineage?${params.toString()}`;
+    start_date: target.startDate,
+  };
 }
 
 /**
@@ -53,7 +52,9 @@ export function AccountLineageDrawer({
   const [anchor, setAnchor] = useState<LineageAnchor | null>(null);
   const [anchorTitle, setAnchorTitle] = useState("");
 
-  const targetKey = target ? `${target.accountId}:${target.asOfDate}:${target.startDate ?? ""}:${target.currency}` : null;
+  const targetKey = target
+    ? `${target.accountId}:${target.asOfDate}:${target.startDate ?? ""}:${target.currency}`
+    : null;
 
   useEffect(() => {
     // Reset any selected lineage line whenever the target changes or closes,
@@ -65,7 +66,9 @@ export function AccountLineageDrawer({
     }
     let active = true;
     setState({ isLoading: true, error: null, response: null });
-    apiFetch<AccountLineageResponse>(accountLineageUrl(target))
+    apiOperation("account_lineage_reports_account_lineage_get", {
+      query: accountLineageQuery(target),
+    })
       .then((response) => {
         if (active) setState({ isLoading: false, error: null, response });
       })
@@ -73,7 +76,10 @@ export function AccountLineageDrawer({
         if (active) {
           setState({
             isLoading: false,
-            error: err instanceof Error ? err.message : "Failed to load contributing transactions",
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to load contributing transactions",
             response: null,
           });
         }
@@ -102,24 +108,39 @@ export function AccountLineageDrawer({
 
           {error && <div className="alert-error text-sm">{error}</div>}
 
-          {!isLoading && !error && response && (
-            response.lines.length === 0 ? (
-              <p className="text-sm text-muted">No source transactions contribute to this balance yet.</p>
+          {!isLoading &&
+            !error &&
+            response &&
+            (response.lines.length === 0 ? (
+              <p className="text-sm text-muted">
+                No source transactions contribute to this balance yet.
+              </p>
             ) : (
-              <ul className="divide-y divide-[var(--border)]" aria-label="Contributing transactions">
+              <ul
+                className="divide-y divide-[var(--border)]"
+                aria-label="Contributing transactions"
+              >
                 {response.lines.map((line) => (
                   <li key={line.journal_line_id}>
                     <button
                       type="button"
                       className="flex w-full items-center justify-between gap-3 px-1 py-3 text-left text-sm hover:bg-[var(--background-muted)]/50"
                       onClick={() => {
-                        setAnchor(anchorFromTypedIdentifier(`journal_line:${line.journal_line_id}`));
+                        setAnchor(
+                          anchorFromTypedIdentifier(
+                            `journal_line:${line.journal_line_id}`,
+                          ),
+                        );
                         setAnchorTitle(line.memo || "Journal line");
                       }}
                     >
                       <span className="min-w-0">
-                        <span className="block truncate font-medium">{line.memo || "Journal line"}</span>
-                        <span className="block text-xs text-muted">{line.entry_date}</span>
+                        <span className="block truncate font-medium">
+                          {line.memo || "Journal line"}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {line.entry_date}
+                        </span>
                       </span>
                       <span className="shrink-0 font-medium tabular-nums">
                         {formatCurrencyLocale(line.amount, response.currency)}
@@ -128,12 +149,15 @@ export function AccountLineageDrawer({
                   </li>
                 ))}
               </ul>
-            )
-          )}
+            ))}
         </div>
       </Sheet>
 
-      <LineagePanel anchor={anchor} title={anchorTitle} onClose={() => setAnchor(null)} />
+      <LineagePanel
+        anchor={anchor}
+        title={anchorTitle}
+        onClose={() => setAnchor(null)}
+      />
     </>
   );
 }
