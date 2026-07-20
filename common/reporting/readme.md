@@ -202,16 +202,24 @@ owned by [`common/ledger/readme.md`](../ledger/readme.md); this doc owns
 only how the resulting positions present in the balance sheet.
 
 **Income statement** (income/expenses over a period) and **cash flow
-statement** — cash-flow balances and activities use two different
-accounting views: `beginning_cash`/`ending_cash` are cumulative signed
-balances of cash/bank asset accounts before/through the period bounds;
-`net_cash_flow = ending_cash - beginning_cash`; operating/investing/
-financing activity rows are period movements only (inflows positive,
-outflows negative), and activity totals sum signed row amounts, never
-absolute values. Classification: operating = income/expense accounts,
-investing = non-cash asset accounts, financing = liability/equity accounts;
-cash/bank asset accounts fund beginning/ending cash and are not repeated as
-activity rows.
+statement** — cash flow is a journal-entry event projection, not a projection
+of every account's period movement. An activity exists only when an eligible
+entry touches an exact cash identity. The non-cash counterpart determines
+operating (income/expense), investing (asset), or financing
+(liability/equity); non-cash accruals and liability-financed asset purchases
+therefore emit no cash activity, while their later settlements do. Direct
+cash-to-cash and Processing-mediated internal transfers are neutral because
+the ledger-defined Processing identity is a cash equivalent for this
+projection. Mixed-category events remain explicitly unproven instead of being
+guessed.
+
+`beginning_cash` and `ending_cash` value the selected cash identities at the
+period bounds. The additive cash bridge proves that classified activity,
+unclassified cash, and the separately disclosed FX effect equal
+`ending_cash - beginning_cash`. Missing FX evidence fails report generation;
+it is never silently treated as zero. Each classified event exposes its exact
+journal-entry and journal-line anchors, and every loader predicate requires
+both entry and account tenant ownership.
 
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement

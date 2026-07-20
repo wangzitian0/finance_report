@@ -2146,6 +2146,96 @@
         "title": "BrokerageImportResponse",
         "type": "object"
       },
+      "CashFlowBridge": {
+        "description": "Exact reconciliation from classified events to the cash-balance delta.",
+        "properties": {
+          "cash_delta": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cash Delta",
+            "type": "string"
+          },
+          "classified_activity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Classified Activity",
+            "type": "string"
+          },
+          "fx_effect": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fx Effect",
+            "type": "string"
+          },
+          "reconciles": {
+            "title": "Reconciles",
+            "type": "boolean"
+          },
+          "unclassified_cash": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unclassified Cash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "classified_activity",
+          "unclassified_cash",
+          "fx_effect",
+          "cash_delta",
+          "reconciles"
+        ],
+        "title": "CashFlowBridge",
+        "type": "object"
+      },
+      "CashFlowEventLineage": {
+        "description": "Exact ledger anchors for one classified cash event.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Operating",
+                  "Investing",
+                  "Financing"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "journal_entry_id": {
+            "format": "uuid",
+            "title": "Journal Entry Id",
+            "type": "string"
+          },
+          "journal_line_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Journal Line Ids",
+            "type": "array"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "journal_entry_id",
+          "journal_line_ids",
+          "activity"
+        ],
+        "title": "CashFlowEventLineage",
+        "type": "object"
+      },
       "CashFlowItem": {
         "description": "Cash flow item for operating, investing, financing activities.",
         "properties": {
@@ -2198,6 +2288,17 @@
       "CashFlowResponse": {
         "description": "Cash flow statement response schema.",
         "properties": {
+          "cash_bridge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashFlowBridge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cash-delta reconciliation proof."
+          },
           "currency": {
             "description": "Cash-flow presentation currency.",
             "maxLength": 3,
@@ -2209,6 +2310,14 @@
             "format": "date",
             "title": "End Date",
             "type": "string"
+          },
+          "event_lineage": {
+            "description": "Exact journal event and line evidence for classified cash movements.",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowEventLineage"
+            },
+            "title": "Event Lineage",
+            "type": "array"
           },
           "financing": {
             "items": {
@@ -2241,6 +2350,23 @@
             },
             "title": "Operating",
             "type": "array"
+          },
+          "proof_reasons": {
+            "description": "Machine-readable reasons that prevent authoritative cash-flow output.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Proof Reasons",
+            "type": "array"
+          },
+          "proof_state": {
+            "default": "unproven",
+            "enum": [
+              "proven",
+              "unproven"
+            ],
+            "title": "Proof State",
+            "type": "string"
           },
           "start_date": {
             "format": "date",

@@ -288,6 +288,25 @@ class CashFlowSummary(BaseModel):
     ending_cash: Decimal
 
 
+class CashFlowEventLineage(BaseModel):
+    """Exact ledger anchors for one classified cash event."""
+
+    journal_entry_id: UUID
+    journal_line_ids: list[UUID]
+    activity: Literal["Operating", "Investing", "Financing"] | None
+    reason_code: str | None = None
+
+
+class CashFlowBridge(BaseModel):
+    """Exact reconciliation from classified events to the cash-balance delta."""
+
+    classified_activity: Decimal
+    unclassified_cash: Decimal
+    fx_effect: Decimal
+    cash_delta: Decimal
+    reconciles: bool
+
+
 class CashFlowResponse(BaseModel):
     """Cash flow statement response schema."""
 
@@ -299,6 +318,14 @@ class CashFlowResponse(BaseModel):
     financing: list[CashFlowItem]
     summary: CashFlowSummary
     fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
+    cash_bridge: CashFlowBridge | None = Field(default=None, description="Cash-delta reconciliation proof.")
+    event_lineage: list[CashFlowEventLineage] = Field(
+        default_factory=list, description="Exact journal event and line evidence for classified cash movements."
+    )
+    proof_state: Literal["proven", "unproven"] = "unproven"
+    proof_reasons: list[str] = Field(
+        default_factory=list, description="Machine-readable reasons that prevent authoritative cash-flow output."
+    )
 
 
 class PersonalReportPackageSectionContract(BaseModel):
