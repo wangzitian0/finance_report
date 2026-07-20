@@ -8,7 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.ledger import AccountType, Direction
+from src.audit import JournalEntrySourceType
+from src.ledger import AccountType, Direction, JournalEntryAuthorityState
 from src.reporting import ReportType
 from src.reporting.base.types import (
     PersonalReportingFrameworkId,
@@ -289,10 +290,18 @@ class CashFlowSummary(BaseModel):
 
 
 class CashFlowEventLineage(BaseModel):
-    """Exact ledger anchors for one classified cash event."""
+    """Exact ledger and producer evidence for one cash event."""
 
     journal_entry_id: UUID
     journal_line_ids: list[UUID]
+    source_type: JournalEntrySourceType
+    source_id: UUID | None = None
+    decision_anchor_id: UUID | None = None
+    decision_authority_state: JournalEntryAuthorityState
+    event_types: list[str] = Field(
+        default_factory=list,
+        description="Distinct journal-line event semantics evaluated by cash-flow classification.",
+    )
     activity: Literal["Operating", "Investing", "Financing"] | None
     reason_code: str | None = None
 
@@ -320,7 +329,8 @@ class CashFlowResponse(BaseModel):
     fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
     cash_bridge: CashFlowBridge | None = Field(default=None, description="Cash-delta reconciliation proof.")
     event_lineage: list[CashFlowEventLineage] = Field(
-        default_factory=list, description="Exact journal event and line evidence for classified cash movements."
+        default_factory=list,
+        description="Exact journal, producer, decision, and event-semantic evidence for cash movements.",
     )
     proof_state: Literal["proven", "unproven"] = "unproven"
     proof_reasons: list[str] = Field(

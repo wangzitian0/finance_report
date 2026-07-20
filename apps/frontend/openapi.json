@@ -2185,7 +2185,7 @@
         "type": "object"
       },
       "CashFlowEventLineage": {
-        "description": "Exact ledger anchors for one classified cash event.",
+        "description": "Exact ledger and producer evidence for one cash event.",
         "properties": {
           "activity": {
             "anyOf": [
@@ -2202,6 +2202,29 @@
               }
             ],
             "title": "Activity"
+          },
+          "decision_anchor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Anchor Id"
+          },
+          "decision_authority_state": {
+            "$ref": "#/components/schemas/JournalEntryAuthorityState"
+          },
+          "event_types": {
+            "description": "Distinct journal-line event semantics evaluated by cash-flow classification.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Event Types",
+            "type": "array"
           },
           "journal_entry_id": {
             "format": "uuid",
@@ -2226,11 +2249,28 @@
               }
             ],
             "title": "Reason Code"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/JournalEntrySourceType"
           }
         },
         "required": [
           "journal_entry_id",
           "journal_line_ids",
+          "source_type",
+          "decision_authority_state",
           "activity"
         ],
         "title": "CashFlowEventLineage",
@@ -2312,7 +2352,7 @@
             "type": "string"
           },
           "event_lineage": {
-            "description": "Exact journal event and line evidence for classified cash movements.",
+            "description": "Exact journal, producer, decision, and event-semantic evidence for cash movements.",
             "items": {
               "$ref": "#/components/schemas/CashFlowEventLineage"
             },

@@ -8,11 +8,20 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import exists, select
+from sqlalchemy import Select, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, ProcessingAccount
+from src.audit import JournalEntrySourceType
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalLine,
+    ProcessingAccount,
+)
 from src.observability import ErrorIds, get_logger
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _REPORT_STATUSES, _line_total
@@ -22,6 +31,14 @@ logger = get_logger(__name__)
 _PROCESSING_ACCOUNT = ProcessingAccount()
 
 CashActivity = Literal["Operating", "Investing", "Financing"]
+_EXPLICIT_EVENT_ACTIVITIES: dict[str, CashActivity] = {
+    "investment_buy": "Investing",
+    "investment_sell": "Investing",
+}
+_EXPLICIT_EVENT_COMPANIONS: dict[str, frozenset[str]] = {
+    "investment_buy": frozenset({"investment_buy"}),
+    "investment_sell": frozenset({"investment_sell", "investment_realized_pnl"}),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,24 +50,58 @@ class _CashEvent:
     counterpart_lines: tuple[tuple[JournalLine, Account], ...]
 
     @property
+    def has_authoritative_decision(self) -> bool:
+        return (
+            self.entry.decision_authority_state == JournalEntryAuthorityState.ANCHORED
+            and self.entry.decision_anchor_id is not None
+        )
+
+    @property
     def activity(self) -> CashActivity | None:
-        categories = {_activity_for_account(account) for _line, account in self.counterpart_lines}
-        categories.discard(None)
-        return next(iter(categories)) if len(categories) == 1 else None
+        cash_event_types = {line.event_type for line, _account in self.cash_lines}
+        has_authoritative_producer = (
+            self.entry.source_type == JournalEntrySourceType.SYSTEM and self.has_authoritative_decision
+        )
+        if has_authoritative_producer and len(cash_event_types) == 1:
+            event_type = next(iter(cash_event_types))
+            if event_type is not None:
+                explicit_activity = _EXPLICIT_EVENT_ACTIVITIES.get(event_type)
+                allowed_companions = _EXPLICIT_EVENT_COMPANIONS.get(event_type, frozenset())
+                counterpart_event_types = {line.event_type for line, _account in self.counterpart_lines}
+                if explicit_activity is not None and counterpart_event_types <= allowed_companions:
+                    return explicit_activity
 
-
-def _activity_for_account(account: Account) -> CashActivity | None:
-    if account.type in (AccountType.INCOME, AccountType.EXPENSE):
-        return "Operating"
-    if account.type == AccountType.ASSET:
-        return "Investing"
-    if account.type in (AccountType.LIABILITY, AccountType.EQUITY):
-        return "Financing"
-    return None
+        counterpart_types = {account.type for _line, account in self.counterpart_lines}
+        if counterpart_types and counterpart_types <= {AccountType.INCOME, AccountType.EXPENSE}:
+            # P&L accounts are unambiguous operating evidence. Balance-sheet
+            # account types cannot distinguish AR/AP settlement from investing
+            # or financing, so unsupported events deliberately remain unproven.
+            return "Operating"
+        return None
 
 
 def _cash_delta(line: JournalLine) -> Decimal:
     return line.amount if line.direction == Direction.DEBIT else -line.amount
+
+
+def _event_lineage(
+    event: _CashEvent,
+    *,
+    activity: CashActivity | None,
+    reason_code: str | None,
+) -> dict[str, object]:
+    all_lines = (*event.cash_lines, *event.counterpart_lines)
+    return {
+        "journal_entry_id": event.entry.id,
+        "journal_line_ids": [line.id for line, _account in all_lines],
+        "source_type": event.entry.source_type.value,
+        "source_id": event.entry.source_id,
+        "decision_anchor_id": event.entry.decision_anchor_id,
+        "decision_authority_state": event.entry.decision_authority_state.value,
+        "event_types": sorted({line.event_type for line, _account in all_lines if line.event_type is not None}),
+        "activity": activity,
+        "reason_code": reason_code,
+    }
 
 
 async def _load_cash_events(
@@ -61,27 +112,7 @@ async def _load_cash_events(
     cash_account_ids: frozenset[UUID],
 ) -> tuple[_CashEvent, ...]:
     """Load complete entries only when both the entry and every account belong to the tenant."""
-    foreign_line = aliased(JournalLine)
-    foreign_account = aliased(Account)
-    voided_entry = aliased(JournalEntry)
-    has_foreign_account = exists(
-        select(foreign_line.id)
-        .join(foreign_account, foreign_line.account_id == foreign_account.id)
-        .where(foreign_line.journal_entry_id == JournalEntry.id)
-        .where(foreign_account.user_id != user_id)
-    )
-    stmt = (
-        select(JournalLine, Account, JournalEntry)
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(Account.user_id == user_id)
-        .where(~has_foreign_account)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(~exists(select(voided_entry.id).where(voided_entry.void_reversal_entry_id == JournalEntry.id)))
-        .where(JournalEntry.entry_date <= end_date)
-        .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
-    )
+    stmt = _cash_event_rows_statement(user_id, end_date=end_date)
     grouped: dict[UUID, tuple[JournalEntry, list[tuple[JournalLine, Account]]]] = {}
     for line, account, entry in (await db.execute(stmt)).all():
         grouped.setdefault(entry.id, (entry, []))[1].append((line, account))
@@ -99,6 +130,35 @@ async def _load_cash_events(
             )
         )
     return tuple(events)
+
+
+def _cash_event_rows_statement(
+    user_id: UUID,
+    *,
+    end_date: date,
+) -> Select[tuple[JournalLine, Account, JournalEntry]]:
+    """Build the complete-entry query so tenant predicates remain directly provable."""
+    foreign_line = aliased(JournalLine)
+    foreign_account = aliased(Account)
+    voided_entry = aliased(JournalEntry)
+    has_foreign_account = exists(
+        select(foreign_line.id)
+        .join(foreign_account, foreign_line.account_id == foreign_account.id)
+        .where(foreign_line.journal_entry_id == JournalEntry.id)
+        .where(foreign_account.user_id != user_id)
+    )
+    return (
+        select(JournalLine, Account, JournalEntry)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(Account.user_id == user_id)
+        .where(~has_foreign_account)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(~exists(select(voided_entry.id).where(voided_entry.void_reversal_entry_id == JournalEntry.id)))
+        .where(JournalEntry.entry_date <= end_date)
+        .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
+    )
 
 
 async def generate_cash_flow(
@@ -186,6 +246,8 @@ async def generate_cash_flow(
         proof_reasons.add("cash_identity_missing")
 
     for event in events:
+        if not event.has_authoritative_decision:
+            proof_reasons.add("cash_event_decision_unproven")
         if event.entry.entry_date < start_date:
             beginning_cash += sum(
                 (converted_delta(line, start_date) for line, _account in event.cash_lines), Decimal("0")
@@ -204,12 +266,11 @@ async def generate_cash_flow(
             unclassified_cash += movement
             proof_reasons.add("cash_event_classification_ambiguous")
             event_lineage.append(
-                {
-                    "journal_entry_id": event.entry.id,
-                    "journal_line_ids": [line.id for line, _account in (*event.cash_lines, *event.counterpart_lines)],
-                    "activity": None,
-                    "reason_code": "cash_event_classification_ambiguous",
-                }
+                _event_lineage(
+                    event,
+                    activity=None,
+                    reason_code="cash_event_classification_ambiguous",
+                )
             )
             continue
         counterpart_accounts = {account.id: account for _line, account in event.counterpart_lines}
@@ -221,14 +282,7 @@ async def generate_cash_flow(
             + ", ".join(sorted(account.name for account in counterpart_accounts.values())),
             "account_id": next(iter(counterpart_accounts)) if len(counterpart_accounts) == 1 else None,
         }
-        event_lineage.append(
-            {
-                "journal_entry_id": event.entry.id,
-                "journal_line_ids": [line.id for line, _account in (*event.cash_lines, *event.counterpart_lines)],
-                "activity": activity,
-                "reason_code": None,
-            }
-        )
+        event_lineage.append(_event_lineage(event, activity=activity, reason_code=None))
         if activity == "Operating":
             operating_items.append(item)
         elif activity == "Investing":

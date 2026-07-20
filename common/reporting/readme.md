@@ -204,22 +204,30 @@ only how the resulting positions present in the balance sheet.
 **Income statement** (income/expenses over a period) and **cash flow
 statement** — cash flow is a journal-entry event projection, not a projection
 of every account's period movement. An activity exists only when an eligible
-entry touches an exact cash identity. The non-cash counterpart determines
-operating (income/expense), investing (asset), or financing
-(liability/equity); non-cash accruals and liability-financed asset purchases
-therefore emit no cash activity, while their later settlements do. Direct
-cash-to-cash and Processing-mediated internal transfers are neutral because
-the ledger-defined Processing identity is a cash equivalent for this
-projection. Mixed-category events remain explicitly unproven instead of being
-guessed.
+entry touches an exact cash identity. Income/expense counterparts are exact
+operating evidence; non-operating activity requires an explicit, supported
+event semantic carried consistently by a deterministic SYSTEM journal event.
+Caller-supplied event strings on manual or statement-derived entries have no
+classification authority. Broad asset, liability, and equity types do not
+authorize a category because they cannot distinguish an investment from
+receivable settlement or financing from payable settlement. Unsupported and
+mixed events remain in `unclassified_cash` with an explicit unproven reason
+instead of being guessed. Non-cash accruals and liability-financed asset
+purchases therefore emit no cash activity, while their later settlements still
+enter the cash bridge. Direct cash-to-cash and Processing-mediated internal
+transfers are neutral because the ledger-defined Processing identity is a cash
+equivalent for this projection.
 
 `beginning_cash` and `ending_cash` value the selected cash identities at the
 period bounds. The additive cash bridge proves that classified activity,
 unclassified cash, and the separately disclosed FX effect equal
 `ending_cash - beginning_cash`. Missing FX evidence fails report generation;
-it is never silently treated as zero. Each classified event exposes its exact
-journal-entry and journal-line anchors, and every loader predicate requires
-both entry and account tenant ownership.
+it is never silently treated as zero. Each classified or unclassified event
+exposes its exact journal-entry/line anchors, source provenance, decision
+authority and anchor, and event semantics. Every loader predicate requires both
+entry and account tenant ownership. Any contributing event without an anchored
+decision keeps the result explicitly unproven even when its cash identity is
+exact; trusted package assembly cannot treat lineage visibility as authority.
 
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement
