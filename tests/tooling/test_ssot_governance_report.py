@@ -1332,9 +1332,8 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
 
     # The extraction SSOT is internalized into the `extraction` package
     # (common/extraction/{readme,audit-failed-cases.yaml}); docs/ssot/ pages now
-    # link the moved registry via its GitHub blob URL (the docs/ -> common/
-    # cross-tree convention), and the package readme links its sibling registry
-    # via a relative path.
+    # Link the runtime registry directly from every governance surface; the
+    # extraction contract remains its semantic owner.
     #
     # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
     # dissolution) and no longer indexes individual concepts by name, so it is
@@ -1343,16 +1342,16 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     inbound_refs = {
         "common/extraction/readme.md": [
             "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
-            "[`source_capability_registry`](./source_capability.py)",
+            "[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py)",
         ],
         "docs/project/EPIC-003.statement-parsing.md": [
             f"[`extraction_failed_case_registry`]({blob})",
         ],
         "docs/project/EPIC-013.statement-parsing-v2.md": [
-            "[`source_capability_registry`](../../common/extraction/source_capability.py)",
+            "[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py)",
         ],
         "vision.md": [
-            "[`source_capability_registry`](common/extraction/source_capability.py)",
+            "[`source_capability_registry`](apps/backend/src/extraction/base/source_capability.py)",
         ],
         "common/testing/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",

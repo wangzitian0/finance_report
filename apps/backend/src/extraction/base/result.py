@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid5
 
-from common.extraction.source_capability import (
+from src.extraction.base.source_capability import (
     SOURCE_CAPABILITIES as SOURCE_CAPABILITIES,
     SourceCapability as SourceCapability,
     SourceCapabilityStatus as SourceCapabilityStatus,

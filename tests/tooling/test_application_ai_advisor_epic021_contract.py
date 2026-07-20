@@ -53,6 +53,6 @@ def test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics() -> None:
         "report package snapshots and export scale stay in EPIC-005 / EPIC-008" in epic
     )
     assert "manual evidence intake stays in EPIC-011 / EPIC-005" in epic
-    assert "SourceCapability` registry" in ssot
+    assert "`SourceCapability` registry" in ssot
     assert "docs/project/EPIC-021.application-ai-advisor.md" in root_readme
     assert "EPIC-021.application-ai-advisor.md" in project_readme

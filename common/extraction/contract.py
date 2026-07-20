@@ -210,6 +210,11 @@ CONTRACT = PackageContract(
             module="extension/reviewed_statement_envelope.py",
         ),
         Unit(
+            name="SourceCapability",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_capability.py",
+        ),
+        Unit(
             name="DispositionPolicy",
             kind=Kind.DOMAIN_SERVICE,
         ),
@@ -4673,7 +4678,7 @@ CONTRACT = PackageContract(
     concepts=[
         ConceptRecord(
             key="source_capability_registry",
-            owner="common/extraction/source_capability.py",
+            owner="apps/backend/src/extraction/base/source_capability.py",
             description=(
                 "Canonical semantic registry for product source classes, their support "
                 "status, accepted evidence, produced facts, review semantics, and "

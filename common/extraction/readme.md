@@ -98,7 +98,8 @@ weaken extraction confidence or balance-validation rules.
 
 Semantic source status, review requirements, produced facts, and traceability
 targets have one owner: extraction's
-[`source_capability_registry`](./source_capability.py). Testing derives proof
+[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py).
+Testing derives proof
 requirements by joining those stable capability ids to co-located `@ac_proof`
 metadata; it has no second support registry and cannot redefine product
 support. Source-class changes start in extraction's contract, and the

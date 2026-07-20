@@ -109,7 +109,7 @@ Expected routing behavior remains threshold-based (See: `common/reconciliation/r
 
 > Machine-owned SSOT anchor (governance report requirement): product source
 > semantics stay registered in extraction's
-> [`source_capability_registry`](../../common/extraction/source_capability.py).
+> [`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py).
 
 ## 📌 Future Work (from Vision Recovery Audit)
 

@@ -1,5 +1,8 @@
 """Contract tests for the extraction package's source-to-fact narrow waist."""
 
+import os
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -299,6 +302,19 @@ def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
         "settlement_note": SourceCapabilityStatus.GAP,
     }
     assert "pytest" not in repr(SOURCE_CAPABILITIES).lower()
+
+    backend_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [sys.executable, "-c", "from src.extraction.base.result import SOURCE_CAPABILITIES"],
+        cwd=backend_root,
+        env=env,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 @ac_proof(

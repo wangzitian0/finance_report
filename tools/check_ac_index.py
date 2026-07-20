@@ -10,13 +10,16 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+BACKEND_DIR = ROOT_DIR / "apps" / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
-from common.extraction.source_capability import SOURCE_CAPABILITIES  # noqa: E402
 from common.testing.ac_graph import AcGraph  # noqa: E402
 from common.testing.check_ac_index import run_ac_index  # noqa: E402
 from common.testing.source_capability_proof import (  # noqa: E402
     validate_source_capability_proofs,
 )
+from src.extraction.base.source_capability import SOURCE_CAPABILITIES  # noqa: E402
 
 
 def _source_capability_proof_errors(_repo_root: Path, graph: AcGraph) -> list[str]:

@@ -34,18 +34,14 @@ class SourceCapability:
     traceability_target: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "capability_id", _text(self.capability_id, "capability_id")
-        )
+        object.__setattr__(self, "capability_id", _text(self.capability_id, "capability_id"))
         if not isinstance(self.status, SourceCapabilityStatus):
             raise TypeError("status must be SourceCapabilityStatus")
         for name in ("intake_modes", "evidence_kinds", "produced_facts"):
             values = getattr(self, name)
             if not values or any(not item.strip() for item in values):
                 raise ValueError(f"{name} requires semantic identifiers")
-            if any(
-                "pytest" in item.lower() or "::test" in item.lower() for item in values
-            ):
+            if any("pytest" in item.lower() or "::test" in item.lower() for item in values):
                 raise ValueError("SourceCapability cannot own test paths")
         _text(self.review_semantics, "review_semantics")
         _text(self.traceability_target, "traceability_target")
@@ -76,9 +72,7 @@ SOURCE_CAPABILITIES: tuple[SourceCapability, ...] = (
         intake_modes=("csv",),
         evidence_kinds=("transaction_export",),
         produced_facts=("transaction",),
-        review_semantics=(
-            "missing statement identity, currency, period, or balances require human confirmation"
-        ),
+        review_semantics=("missing statement identity, currency, period, or balances require human confirmation"),
         traceability_target="statement-extraction-result",
     ),
     SourceCapability(

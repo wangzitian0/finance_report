@@ -4485,7 +4485,7 @@ CONTRACT = PackageContract(
                 "existing AC proof graph; it owns proof requirements, not product support."
             ),
             cross_refs=[
-                "common/extraction/source_capability.py",
+                "apps/backend/src/extraction/base/source_capability.py",
                 "common/testing/ac_proof.py",
                 "common/testing/check_ac_index.py",
                 "tools/check_ac_index.py",

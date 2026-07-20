@@ -1,20 +1,25 @@
 """Derived SourceCapability-to-proof join contract."""
 
+import sys
 from pathlib import Path
 
 import pytest
 
-from common.extraction.source_capability import (
+ROOT = Path(__file__).resolve().parents[2]
+BACKEND = ROOT / "apps" / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
+
+from src.extraction.base.source_capability import (  # noqa: E402
     SOURCE_CAPABILITIES,
     SourceCapability,
     SourceCapabilityStatus,
 )
-from common.testing.ac_graph import ProofEdge, build_ac_graph
-from common.testing.source_capability_proof import validate_source_capability_proofs
-from tools import check_ac_index as ac_index_wrapper
-
-ROOT = Path(__file__).resolve().parents[2]
-
+from common.testing.ac_graph import ProofEdge, build_ac_graph  # noqa: E402
+from common.testing.source_capability_proof import (  # noqa: E402
+    validate_source_capability_proofs,
+)
+from tools import check_ac_index as ac_index_wrapper  # noqa: E402
 
 def _capability(
     capability_id: str,
