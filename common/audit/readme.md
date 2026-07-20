@@ -89,15 +89,28 @@ MANIFEST accepts them only through a versioned policy's complete parent set. An
 LLM-produced financial observation requires a same-target CODE-ONLY
 invariant/promotion decision parent before an authoritative decision can exist.
 
-Audit PR-A retains legacy readers and provides the explicit repository, emitter,
-and shadow adapters. Each package replacement then injects `TraceEmitter` at its
-composition boundary and flushes the complete causal set into the same
-caller-owned transaction as the authoritative side effect; the emitter never
-commits or rolls back independently. Any append failure propagates so the
-package UoW must roll back both. There is no process-global emitter or mutable
-authority registry. Shadow paths are deleted by Audit PR-Z. See the
-language-neutral contract at
+Each package injects `TraceEmitter` at its composition boundary and flushes the
+complete causal set into the same caller-owned transaction as the authoritative
+side effect; the emitter never commits or rolls back independently. Any append
+failure propagates so the package UoW must roll back both. There is no
+process-global emitter, mutable authority registry, or promotion shadow adapter.
+See the language-neutral contract at
 [`trace/contract/trace_record.contract.md`](trace/contract/trace_record.contract.md).
+
+## Terminal audit
+
+`TerminalAuditVerifier` consumes one selected frozen package decision, its exact
+manifest decision coordinates, and the canonical testing `TraceRecord` emitted
+after pytest's real call-phase PASS. Repository reads replay the owning policies;
+the verifier only checks exact scope, type, result, coordinates, and direct
+decision-parent membership. It neither reconstructs package policy nor requires
+frozen history to remain the current lineage head.
+
+Success emits one ordinary `TraceRecord` observation through the existing codec.
+There is no certificate schema, verdict model, persisted projection, runtime
+source-tree scanner, or second assurance entity. Failure is a non-zero,
+redaction-safe first-boundary diagnostic; owner packages retain their own
+producer, reader, and deletion gates.
 
 <a id="deletion-ownership"></a>
 ## Deletion ownership

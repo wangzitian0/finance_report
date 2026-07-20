@@ -2,20 +2,34 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import os
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from common.testing.ac_proof import ac_proof
+from common.audit.base import TraceRecord as CommonTraceRecord
+from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
+from common.testing.ac_proof import PROOF_ATTR, ac_proof
+from common.testing.executed_proof import (
+    executed_proof_assertion_version,
+    register_executed_proof_consumer,
+)
 from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
 from sqlalchemy import select
 
 from src.audit import (
     SqlTraceRecordRepository,
+    TerminalAuditSpec,
+    TerminalAuditVerifier,
+    TraceDecisionPolicyRegistry,
+    TraceDecisionRef,
     TraceEmitter,
     TraceRecord,
+    TraceRecordCodec as BackendTraceRecordCodec,
     TraceRecordPersistenceError,
     TraceRecordType,
     TraceResult,
@@ -56,14 +70,16 @@ from src.extraction.orm.layer3 import (
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, post_opening_balance_entry
+from src.ledger import Account, AccountType, ledger_trace_policy_registry, post_opening_balance_entry
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
+    pricing_trace_policy_registry,
     record_manual_valuation,
 )
 from src.pricing.orm.market_data import StockPrice
-from src.reporting import PackageAssembler
+from src.reporting import PackageAssembler, personal_report_package_decision_ref
+from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.routers.reports import (
     PackageSnapshotExportFormat,
     export_personal_report_package_snapshot,
@@ -79,6 +95,17 @@ from src.schemas import (
     PersonalReportPackageSnapshotStatus,
 )
 from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies
+
+
+class _FrozenTraceRepository:
+    """Replay the SQL-verified graph after pytest resolves the call outcome."""
+
+    def __init__(self, records: tuple[TraceRecord, ...]) -> None:
+        self._records = {record.record_id: record for record in records}
+
+    async def get(self, scope, record_id):
+        record = self._records.get(record_id)
+        return record if record is not None and record.scope == scope else None
 
 
 def _bank_csv() -> bytes:
@@ -344,10 +371,11 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
     source_classes=["bank_statement", "brokerage_statement"],
     scenario_id="trusted-year-v0",
     oracle_kind="independent_decimal",
+    required_observation_kind="terminal_audit",
     issue="#696",
 )
 async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle(
-    db, test_user, monkeypatch
+    db, test_user, monkeypatch, request
 ) -> None:
     """AC-testing.trusted-year.2 AC-testing.trusted-year.3 AC-testing.package-lifecycle.1."""
     scenario = TRUSTED_YEAR_SCENARIO
@@ -467,6 +495,86 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
         entry.decision_id and entry.target_kind and entry.target_id and entry.assertion_kind and entry.authority_tier
         for entry in document.input_manifest
     )
+
+    trace_repository = SqlTraceRecordRepository(
+        db,
+        TraceDecisionPolicyRegistry(
+            (
+                *extraction_trace_policy_registry().policies,
+                *ledger_trace_policy_registry().policies,
+                *pricing_trace_policy_registry().policies,
+                PackageReadinessDecisionPolicy(),
+            )
+        ),
+    )
+    scope = TraceScope.tenant(test_user.id)
+    terminal_inputs = []
+    for item in document.input_manifest:
+        terminal_inputs.append(
+            TraceDecisionRef(
+                decision_id=item.decision_id,
+                target=VersionedTraceRef(item.target_kind, item.target_id, item.target_version),
+                assertion=VersionedTraceRef(
+                    item.assertion_kind,
+                    item.assertion_id,
+                    item.assertion_version,
+                ),
+            )
+        )
+    proof_declaration = getattr(
+        test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle,
+        PROOF_ATTR,
+    )
+    terminal_spec = TerminalAuditSpec(
+        scope=scope,
+        package=personal_report_package_decision_ref(document),
+        manifest=tuple(terminal_inputs),
+        repository_id="wangzitian0/finance_report",
+        commit_sha="a" * 40,
+        scenario_id=scenario.scenario_id,
+        proof=VersionedTraceRef(
+            "executed_proof",
+            proof_declaration.proof_id,
+            executed_proof_assertion_version(
+                proof_id=proof_declaration.proof_id,
+                scenario_id=proof_declaration.scenario_id,
+                oracle_kind=proof_declaration.oracle_kind,
+                ac_ids=proof_declaration.ac_ids,
+                stage=proof_declaration.stage,
+                task_category=proof_declaration.task_category,
+                required_observation_kind=proof_declaration.required_observation_kind,
+            ),
+        ),
+        execution_id="trusted-year-graph-verification",
+    )
+    package_record = await TerminalAuditVerifier(trace_repository).verify_graph(terminal_spec)
+    assert package_record.record_id == terminal_spec.package.decision_id
+
+    graph_records: list[TraceRecord] = []
+    graph_record_ids = {
+        package_record.record_id,
+        *package_record.parent_ids,
+        *(item.decision_id for item in terminal_spec.manifest),
+    }
+    for record_id in graph_record_ids:
+        record = await trace_repository.get(scope, record_id)
+        assert record is not None
+        graph_records.append(record)
+
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        frozen_repository = _FrozenTraceRepository(tuple(graph_records))
+
+        def emit_terminal_trace(executed_proof: CommonTraceRecord) -> CommonTraceRecord:
+            backend_proof = BackendTraceRecordCodec.decode(CommonTraceRecordCodec.encode(executed_proof))
+            exact_spec = replace(
+                terminal_spec,
+                commit_sha=backend_proof.target.version,
+                execution_id=backend_proof.execution_id,
+            )
+            terminal = asyncio.run(TerminalAuditVerifier(frozen_repository).audit(exact_spec, backend_proof))
+            return CommonTraceRecordCodec.decode(BackendTraceRecordCodec.encode(terminal))
+
+        register_executed_proof_consumer(request.node, emit_terminal_trace)
 
     frozen = document.model_dump(mode="json")
     listed = await list_personal_report_package_snapshots(db, test_user.id, pagination=PaginationParams())

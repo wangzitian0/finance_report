@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,11 +15,7 @@ from uuid import uuid4
 import pytest
 
 from src.audit import (
-    InvariantResult,
     JsonlTraceRecordStore,
-    PromotionTraceAdapter,
-    PromotionTraceContext,
-    PromotionTracePolicy,
     Ratio,
     TraceAuthorityProfile,
     TraceCausality,
@@ -257,99 +253,6 @@ async def test_emitter_returns_the_complete_ordered_graph():
     repository.append.side_effect = lambda record: record
 
     assert await TraceEmitter(repository).emit_many(records) == records
-
-
-def _promotion_context() -> PromotionTraceContext:
-    return PromotionTraceContext(
-        scope=TraceScope.tenant(uuid4()),
-        target=VersionedTraceRef("promotion_candidate", "candidate", "v1"),
-        execution_id="promotion-edge-run",
-        evidence_manifest_digest="b" * 64,
-        occurred_at=datetime(2026, 7, 17, tzinfo=UTC),
-    )
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"policy_id": ""},
-        {"required_invariants": ()},
-        {"required_invariants": ("balance", "balance")},
-        {"min_confidence": -1},
-        {"min_confidence": 101},
-    ],
-)
-def test_promotion_policy_rejects_ambiguous_configuration(kwargs):
-    values = {
-        "policy_id": "edge-promotion",
-        "required_invariants": ("balance",),
-        "min_confidence": 80,
-    }
-    values.update(kwargs)
-    with pytest.raises(TraceRecordValidationError):
-        PromotionTracePolicy(**values)
-
-
-@pytest.mark.parametrize(
-    ("passed", "confidence", "expected"),
-    [
-        (True, 90, TraceResult.AUTHORITATIVE),
-        (True, 70, TraceResult.REVIEW),
-        (False, 90, TraceResult.REJECTED),
-    ],
-)
-def test_promotion_policy_replays_all_verdicts(passed, confidence, expected):
-    policy = PromotionTracePolicy(
-        policy_id="edge-promotion",
-        required_invariants=("balance",),
-        min_confidence=80,
-    )
-    records = PromotionTraceAdapter(policy).records(
-        _promotion_context(),
-        [InvariantResult(name="balance", passed=passed)],
-        confidence_rank=confidence,
-    )
-    assert records[-1].result is expected
-    assert policy.fold(records[:-1]).result is expected
-
-
-def test_promotion_fold_and_adapter_reject_tampered_parent_sets():
-    policy = PromotionTracePolicy(
-        policy_id="edge-promotion",
-        required_invariants=("balance",),
-        min_confidence=80,
-    )
-    adapter = PromotionTraceAdapter(policy)
-    records = adapter.records(
-        _promotion_context(),
-        [InvariantResult("balance", True)],
-        confidence_rank=90,
-    )
-    invariant, confidence = records[:-1]
-
-    with pytest.raises(TraceRecordValidationError, match="required assertions"):
-        policy.fold([invariant])
-    wrong_authority = _construct_from(
-        invariant,
-        authority=replace(invariant.authority, producer_version="tampered@1"),
-    )
-    with pytest.raises(TraceRecordValidationError, match="registered authority"):
-        policy.fold([wrong_authority, confidence])
-    skipped = _construct_from(invariant, result=TraceResult.SKIPPED)
-    with pytest.raises(TraceRecordValidationError, match="must pass or fail"):
-        policy.fold([skipped, confidence])
-    unscored = _construct_from(confidence, score=None)
-    with pytest.raises(TraceRecordValidationError, match="scored pass"):
-        policy.fold([invariant, unscored])
-
-    with pytest.raises(TraceRecordValidationError, match="invariant order"):
-        adapter.records(_promotion_context(), [], confidence_rank=90)
-    with pytest.raises(TraceRecordValidationError, match="within"):
-        adapter.records(
-            _promotion_context(),
-            [InvariantResult(name="balance", passed=True)],
-            confidence_rank=101,
-        )
 
 
 def test_confidence_projection_rejects_invalid_or_ambiguous_fixed_cohorts():

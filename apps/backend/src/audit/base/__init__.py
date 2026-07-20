@@ -1,5 +1,6 @@
 """Pure assurance value objects and ports."""
 
+from src.audit.base.terminal_audit import TerminalAuditSpec
 from src.audit.base.trace import (
     TRACE_SCHEMA_VERSION,
     TraceAuthorityProfile,
@@ -22,6 +23,7 @@ from src.audit.base.trace import (
 from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 
 __all__ = [
+    "TerminalAuditSpec",
     "TRACE_SCHEMA_VERSION",
     "TraceAuthorityProfile",
     "TraceCausality",
