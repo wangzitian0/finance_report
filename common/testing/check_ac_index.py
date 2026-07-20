@@ -83,7 +83,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -97,6 +97,7 @@ from common.testing.protection import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_UPDATE_MODE = "raise-only"
+RepoIntegrityCheck = Callable[[Path, AcGraph], list[str]]
 
 
 def _escape_workflow_command(message: str) -> str:
@@ -349,7 +350,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_command(argv: Sequence[str] | None = None) -> int:
+def _run_command(
+    argv: Sequence[str] | None = None,
+    *,
+    repo_integrity_checks: Sequence[RepoIntegrityCheck] = (),
+) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
     floor_file = args.floor_file or (
@@ -370,6 +375,8 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
     # Graph obligations (managed + dangling links) plus the two folded repo
     # contracts (CI-stage traceability + critical-proof matrix), run as one gate.
     integrity_errors = check_integrity(graph) + check_repo_contracts(repo_root)
+    for check in repo_integrity_checks:
+        integrity_errors.extend(check(repo_root, graph))
     if integrity_errors:
         for error in integrity_errors:
             print(
@@ -429,6 +436,27 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
 
     print(f"[PROTECTION] PASSED: no per-type count regression; {score_message}")
     return 0
+
+
+def run_ac_index(
+    argv: Sequence[str] | None = None,
+    *,
+    repo_integrity_checks: Sequence[RepoIntegrityCheck] = (),
+) -> int:
+    try:
+        if repo_integrity_checks:
+            status = _run_command(
+                argv,
+                repo_integrity_checks=repo_integrity_checks,
+            )
+        else:
+            status = _run_command(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+    if status == 2:
+        return 2
+    findings = [] if status == 0 else [f"command returned status {status}"]
+    return run_gate("AC-INDEX", lambda _repo_root: findings, [], failure_status=status)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

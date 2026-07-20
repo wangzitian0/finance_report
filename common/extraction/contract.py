@@ -212,7 +212,7 @@ CONTRACT = PackageContract(
         Unit(
             name="SourceCapability",
             kind=Kind.VALUE_OBJECT,
-            module="base/result.py",
+            module="base/source_capability.py",
         ),
         Unit(
             name="DispositionPolicy",
@@ -1654,24 +1654,24 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.112.1",
-            statement="Source coverage matrix covers every source class named by vision.md with owner EPICs, proof levels, ingestion path, review requirement, traceability target, and test anchors",  # was AC13.12.1
-            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_1_source_coverage_matrix_covers_vision_source_classes",
+            statement="The canonical SourceCapability registry contains exactly one semantic entry for every product source class and contains no testing paths",  # was AC13.12.1
+            test="apps/backend/tests/extraction/test_statement_result_contract.py::test_AC_extraction_source_capability_1_declares_semantics_not_test_paths",
             priority="P0",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.112.2",
-            statement="Source coverage matrix rejects source classes whose only proof level is post-merge LLM/OCR unless an explicit exception is recorded",  # was AC13.12.2
-            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_2_source_coverage_matrix_rejects_llm_only_sources",
+            statement="Every supported automated SourceCapability resolves to both deterministic PR proof and release-validation proof",  # was AC13.12.2
+            test="tests/tooling/test_source_capability_proof.py::test_AC_extraction_112_2_supported_capabilities_require_release_proof",
             priority="P0",
             status="done",
             proof_kind="property",
         ),
         ACRecord(
             id="AC-extraction.112.3",
-            statement="Source coverage matrix requires a gap issue for any source class still classified as a gap",  # was AC13.12.3
-            test="tests/tooling/test_source_coverage_matrix.py::test_AC13_12_3_source_coverage_matrix_requires_gap_issue",
+            statement="A gap SourceCapability cannot be claimed as covered by the positive semantic proof graph",  # was AC13.12.3
+            test="tests/tooling/test_source_capability_proof.py::test_AC_extraction_112_3_gap_capabilities_cannot_claim_proof",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -4676,6 +4676,26 @@ CONTRACT = PackageContract(
         ),
     ],
     concepts=[
+        ConceptRecord(
+            key="source_capability_registry",
+            owner="apps/backend/src/extraction/base/source_capability.py",
+            description=(
+                "Canonical semantic registry for product source classes, their support "
+                "status, accepted evidence, produced facts, review semantics, and "
+                "traceability target."
+            ),
+            cross_refs=[
+                "common/extraction/readme.md#sourcecapability-registry",
+                "vision.md",
+                "common/testing/source_capability_proof.py",
+            ],
+            proofs=[
+                "apps/backend/tests/extraction/test_statement_result_contract.py",
+                "tests/tooling/test_source_capability_proof.py",
+            ],
+            family="source",
+            kind="registry",
+        ),
         ConceptRecord(
             key="confidence_tier_rollup",
             owner="common/extraction/confirmation-workflow.md#confidence-tier-rollup",

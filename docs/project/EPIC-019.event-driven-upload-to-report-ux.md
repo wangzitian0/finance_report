@@ -457,8 +457,9 @@ checklist that forces the user to pre-classify their evidence:
 This supersedes the earlier per-source-class "intake checklist" (and its SSOT
 parity guard), which drifted from the single-entry + LLM-typed + passive design.
 This slice is UI structure only; it does not introduce new parsers or change
-backend source-trust decisions. Required-source-class coverage remains governed
-independently by AC-extraction.112 over `common/testing/data/source-coverage-matrix.yaml`.
+backend source-trust decisions. Required-source-class semantics remain governed
+independently by AC-extraction.112 over extraction's canonical
+`SourceCapability` registry; testing derives proof coverage from the AC graph.
 
 (AC19.15.1 removed and AC19.15.2 removed and AC19.15.3 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-remainder-extraction.2` through `.4`, #1821 Wave B)
 

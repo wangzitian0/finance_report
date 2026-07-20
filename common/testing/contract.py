@@ -4064,6 +4064,34 @@ CONTRACT = PackageContract(
             proof_kind="exact",
         ),
         ACRecord(
+            id="AC-testing.source-capability-proof.1",
+            statement=(
+                "Every non-gap extraction SourceCapability resolves to a behavioral "
+                "PR merge-authority proof, supported automated capabilities also resolve "
+                "to release-validation proof, and gap or unknown capability claims fail closed."
+            ),
+            test=(
+                "tests/tooling/test_source_capability_proof.py::"
+                "test_AC_testing_source_capability_proof_1_real_registry_resolves_to_required_proofs"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.source-capability-proof.2",
+            statement=(
+                "The consolidated AC-index gate composes extraction's canonical capability "
+                "registry with testing's proof graph, while the duplicate source-coverage "
+                "YAML, path checker, shim, and product-support documentation routes are absent."
+            ),
+            test=(
+                "tests/tooling/test_source_capability_proof.py::"
+                "test_AC_testing_source_capability_proof_2_static_matrix_is_retired"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.trusted-year.1",
             statement=(
                 "TrustedYearScenario is a testing-owned immutable entity whose monetary "
@@ -4450,23 +4478,24 @@ CONTRACT = PackageContract(
             parent="tdd_workflow",
         ),
         ConceptRecord(
-            key="source_coverage_matrix",
-            owner="common/testing/data/source-coverage-matrix.yaml",
+            key="source_capability_proof_join",
+            owner="common/testing/source_capability_proof.py",
             description=(
-                "Machine-readable source-class coverage, proof level, review requirement, and "
-                "traceability target registry."
+                "Generic fail-closed join from owner-declared source capabilities to the "
+                "existing AC proof graph; it owns proof requirements, not product support."
             ),
             cross_refs=[
-                "vision.md",
-                "common/extraction/readme.md",
-                "docs/project/EPIC-013.statement-parsing-v2.md",
+                "apps/backend/src/extraction/base/source_capability.py",
+                "common/testing/ac_proof.py",
+                "common/testing/check_ac_index.py",
+                "tools/check_ac_index.py",
             ],
             proofs=[
-                "tests/tooling/test_source_coverage_matrix.py",
-                "tools/check_source_coverage_matrix.py",
+                "tests/tooling/test_source_capability_proof.py",
+                "tools/check_ac_index.py",
             ],
             family="source",
-            kind="matrix",
+            kind="concept",
         ),
         ConceptRecord(
             key="ssot_governance_gates",

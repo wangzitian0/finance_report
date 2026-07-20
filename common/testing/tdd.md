@@ -352,9 +352,10 @@ actively used as the source of truth:
 - [`extraction_failed_case_registry`](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml)
   declares `family: extraction`, `kind: registry`, its executable registry
   proof, and inbound links from the extraction package readme and EPIC-003.
-- [`source_coverage_matrix`](data/source-coverage-matrix.yaml) declares
-  `family: source`, `kind: matrix`, and both its validator and test proof, with
-  inbound links from the extraction SSOT, EPIC-013, and vision routing.
+- [`source_capability_proof_join`](source_capability_proof.py) declares
+  `family: source`, `kind: concept`, and derives proof requirements from
+  extraction's canonical capability ids plus the existing AC proof graph. It
+  owns no duplicate product-support data.
 
 Future cleanup slices should remain narrow and metric-selected. FR and infra2
 cleanup should stay in separate PRs unless the selected finding is explicitly a

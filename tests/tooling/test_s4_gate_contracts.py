@@ -79,7 +79,6 @@ MIGRATED_GATE_MODULES = (
     "common.testing.check_pr_ci_evidence",
     "common.testing.check_pr_review_threads",
     "common.testing.coverage.check_policy",
-    "common.testing.coverage.check_source_coverage_matrix",
 )
 
 

@@ -168,7 +168,7 @@ only explain, prioritize, and phrase those facts. Application context can
 include report package readiness/snapshot/export status and traceability
 gaps (from `reporting`), upload-to-report workflow events and blocked steps
 (from `platform`'s workflow events), source-class trust/proof-level/review
-requirements (from the source coverage matrix), portfolio holdings and
+requirements (from extraction's `SourceCapability` registry), portfolio holdings and
 valuation facts (from `portfolio`/`reporting`), market-data freshness (from
 `pricing`), and cash-flow observations from posted/reconciled ledger
 summaries.

@@ -94,14 +94,16 @@ portfolio valuation, ESOP schedule presentation, recurring accrual treatment,
 and report preparation is delegated to the owning SSOT documents and must not
 weaken extraction confidence or balance-validation rules.
 
-## Source Coverage Matrix
+## SourceCapability Registry
 
 Semantic source status, review requirements, produced facts, and traceability
-targets are owned by extraction's `SourceCapability` registry. Testing's
-[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)
-may map those stable capability ids to executable proof requirements, but it
-cannot redefine product support. Source-class changes start in extraction's
-contract and then update their testing proof mapping.
+targets have one owner: extraction's
+[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py).
+Testing derives proof
+requirements by joining those stable capability ids to co-located `@ac_proof`
+metadata; it has no second support registry and cannot redefine product
+support. Source-class changes start in extraction's contract, and the
+consolidated AC-index gate fails until the existing proof graph covers them.
 
 ## Data Flow
 
