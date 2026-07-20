@@ -59,6 +59,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    GovernanceGuarantee,
+    GovernanceInitiative,
     Invariant,
     Kind,
     PackageContract,
@@ -176,6 +178,16 @@ CONTRACT = PackageContract(
             module="base/types.py",
         ),
         Unit(name="ParseJob", kind=Kind.VALUE_OBJECT, module="base/types.py"),
+        Unit(
+            name="RetireStatementCommand",
+            kind=Kind.VALUE_OBJECT,
+            module="base/types.py",
+        ),
+        Unit(
+            name="retire_statement",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/source_lifecycle.py",
+        ),
         Unit(
             name="StatementExtractionResult",
             kind=Kind.VALUE_OBJECT,
@@ -309,6 +321,7 @@ CONTRACT = PackageContract(
         "PositionStatus",
         "ParseJob",
         "RetryableStatementIngestionError",
+        "RetireStatementCommand",
         "ReviewedStatementEnvelopeCommand",
         "ReviewedStatementEnvelopeConflict",
         "RuleType",
@@ -388,6 +401,7 @@ CONTRACT = PackageContract(
         "register_statement_source",
         "reject_json_floats",
         "reject_statement_workflow",
+        "retire_statement",
         "resolve_custody_account_id",
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
@@ -1678,7 +1692,10 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.111.1",
-            statement="Dual-write handles duplicate document hash / IntegrityError without failing.",  # was AC13.11.1
+            statement=(
+                "Dual-write handles a duplicate document identity by selecting and continuing with "
+                "the canonical database winner without failing or duplicating the source row."
+            ),  # was AC13.11.1
             test="apps/backend/tests/extraction/test_extraction_error_paths.py::test_dual_write_layer2_integrity_error_is_non_fatal",
             priority="P1",
             status="done",
@@ -4674,6 +4691,268 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        # #1970: one extraction-owned source lifecycle, reusing the existing
+        # ingestion/result/envelope aggregates rather than adding a platform.
+        ACRecord(
+            id="AC-extraction.source-lifecycle.1",
+            statement=(
+                "Stage-1 approval validates every declared currency independently and "
+                "never permits opposite differences in distinct currencies to cancel."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_1_approval_is_per_currency"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.2",
+            statement=(
+                "Concurrent ingestion of one user-owned content digest converges on one "
+                "canonical UploadedDocument and immutable extraction-result identity."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_2_two_sessions_share_source_identity"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.3",
+            statement=(
+                "A source-identity uniqueness conflict is isolated by a savepoint; the outer "
+                "session selects the winner and remains usable for deterministic commit."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_3_conflict_preserves_outer_session"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.4",
+            statement=(
+                "Ordinary statement removal is an idempotent retire transition that preserves "
+                "source results, reviewed envelopes, transactions, and lineage."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_4_retire_preserves_history"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.5",
+            statement=(
+                "Retirement changes durable reference state without deleting object content, so "
+                "object-storage failure cannot split source truth from database truth."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_5_retire_does_not_delete_storage"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.6",
+            statement=(
+                "Rollback, commit failure, restart, and repeated lifecycle commands converge on "
+                "the same canonical source state without duplicate financial facts."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_6_failure_and_retry_converge"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.7",
+            statement=(
+                "The audited lifecycle boundary accepts typed UUID, currency, Decimal, date, and "
+                "immutable transaction/result values rather than list-of-dict financial payloads."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_7_boundary_is_typed"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.8",
+            statement=(
+                "Physical purge is absent from ordinary statement lifecycle commands and remains "
+                "a separately governed cross-package operation."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_8_ordinary_api_has_no_purge_path"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.9",
+            statement=(
+                "Governance detail derives detector, proof-strength, exact target SHA, issue, "
+                "progress, and live enforcement state for every source-lifecycle guarantee."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle_governance.py"
+                "::test_AC_extraction_source_lifecycle_9_governance_detail_is_exact"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-lifecycle.10",
+            statement=(
+                "Counterfactual tests exercise cross-currency cancellation, independent-session "
+                "conflict, failed commit, storage outage, retry, and retained history."
+            ),
+            test=(
+                "apps/backend/tests/extraction/test_source_lifecycle.py"
+                "::test_AC_extraction_source_lifecycle_10_counterfactual_matrix_is_locked"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+    ],
+    governance=[
+        GovernanceInitiative(
+            id="source-lifecycle-convergence",
+            title="Source-fact lifecycle and failure convergence",
+            issue="https://github.com/wangzitian0/finance_report/issues/1970",
+            depends_on=["meta/governance-control-plane"],
+            guarantees=[
+                GovernanceGuarantee(
+                    id="per-currency-approval",
+                    statement="Approval proves each declared currency without scalar cancellation.",
+                    affected_acs=["AC-extraction.source-lifecycle.1"],
+                    detector="cross-currency-stage1-validation-paths",
+                    target="0 cross-currency scalar approval paths",
+                    lock="ci.backend",
+                    proof="source-lifecycle-per-currency-oracle",
+                    required_proof_strength="value-oracle",
+                    enforcing_gate="ci.backend",
+                ),
+                GovernanceGuarantee(
+                    id="one-source-identity",
+                    statement="Concurrent ingestion converges on one canonical source identity.",
+                    affected_acs=["AC-extraction.source-lifecycle.2"],
+                    detector="duplicate-canonical-source-identities",
+                    target="0 duplicate source identities",
+                    lock="ci.backend_integration",
+                    proof="source-lifecycle-two-session-identity",
+                    required_proof_strength="concurrency",
+                    enforcing_gate="ci.backend_integration",
+                ),
+                GovernanceGuarantee(
+                    id="session-recovery",
+                    statement="Dedup conflicts preserve the outer database session.",
+                    affected_acs=["AC-extraction.source-lifecycle.3"],
+                    detector="unprotected-source-dedup-conflicts",
+                    target="0 unprotected conflict sites",
+                    lock="ci.backend_integration",
+                    proof="source-lifecycle-savepoint-recovery",
+                    required_proof_strength="concurrency",
+                    enforcing_gate="ci.backend_integration",
+                ),
+                GovernanceGuarantee(
+                    id="append-only-retirement",
+                    statement="Ordinary removal retires and preserves source history.",
+                    affected_acs=["AC-extraction.source-lifecycle.4"],
+                    detector="destructive-statement-lifecycle-paths",
+                    target="0 destructive ordinary lifecycle paths",
+                    lock="ci.backend_integration",
+                    proof="source-lifecycle-history-preservation",
+                    required_proof_strength="schema",
+                    enforcing_gate="ci.backend_integration",
+                ),
+                GovernanceGuarantee(
+                    id="storage-db-consistency",
+                    statement="Retirement cannot split object state from database source truth.",
+                    affected_acs=["AC-extraction.source-lifecycle.5"],
+                    detector="storage-database-split-lifecycle-paths",
+                    target="0 split lifecycle paths",
+                    lock="ci.backend",
+                    proof="source-lifecycle-storage-failure",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.backend",
+                ),
+                GovernanceGuarantee(
+                    id="failure-convergence",
+                    statement="Failure and retry preserve canonical lifecycle cardinality.",
+                    affected_acs=["AC-extraction.source-lifecycle.6"],
+                    detector="non-idempotent-source-lifecycle-retries",
+                    target="0 retry cardinality drift",
+                    lock="ci.backend_integration",
+                    proof="source-lifecycle-failure-retry",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.backend_integration",
+                ),
+                GovernanceGuarantee(
+                    id="typed-command-boundary",
+                    statement="Financial lifecycle inputs cross typed extraction boundaries.",
+                    affected_acs=["AC-extraction.source-lifecycle.7"],
+                    detector="untyped-source-lifecycle-boundaries",
+                    target="0 untyped audited boundaries",
+                    lock="ci.lint",
+                    proof="source-lifecycle-signature-contract",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="purge-boundary",
+                    statement="Ordinary extraction commands cannot physically purge source facts.",
+                    affected_acs=["AC-extraction.source-lifecycle.8"],
+                    detector="ordinary-api-physical-purge-paths",
+                    target="0 ordinary purge paths",
+                    lock="ci.lint",
+                    proof="source-lifecycle-purge-boundary",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="exact-governance-detail",
+                    statement="Control-plane detail exposes exact current proof and enforcement facts.",
+                    affected_acs=["AC-extraction.source-lifecycle.9"],
+                    detector="source-lifecycle-governance-join-gaps",
+                    target="0 missing detail facts",
+                    lock="ci.lint",
+                    proof="source-lifecycle-governance-detail",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.lint",
+                ),
+                GovernanceGuarantee(
+                    id="counterfactual-lock",
+                    statement="The adversarial lifecycle matrix remains executable and blocking.",
+                    affected_acs=["AC-extraction.source-lifecycle.10"],
+                    detector="missing-source-lifecycle-counterfactuals",
+                    target="0 missing counterfactuals",
+                    lock="ci.backend_integration",
+                    proof="source-lifecycle-counterfactual-matrix",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.backend_integration",
+                ),
+            ],
+        )
     ],
     concepts=[
         ConceptRecord(

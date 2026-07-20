@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.base.types import ExtractedTransactionRow
+from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity
 from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
 from src.extraction.orm.layer2 import (
     AtomicPosition,
@@ -543,11 +544,9 @@ async def dual_write_layer2(
     Precondition: each immutable row carries its precomputed ``dedup_hash`` and
     every value needed by persistence; no transient ORM attributes are accepted.
 
-    Raises RuntimeError on non-IntegrityError failures. IntegrityError (duplicate
-    upload) is silently ignored.
+    Expected source-identity conflicts select the canonical winner under a
+    savepoint. Every other persistence failure raises ``RuntimeError``.
     """
-    from sqlalchemy.exc import IntegrityError
-
     if any(not isinstance(txn, ExtractedTransactionRow) for txn in transactions):
         raise TypeError(
             "dual_write_layer2 requires ExtractedTransactionRow values; "
@@ -579,15 +578,18 @@ async def dual_write_layer2(
         # raising on the unique key (which previously aborted the whole dual-write and
         # made reparse a silent no-op). On reparse, drop this document's prior parse
         # output first so the fresh extraction replaces it rather than accumulating.
-        existing_doc = (
-            await db.execute(
-                select(UploadedDocument)
-                .where(UploadedDocument.user_id == user_id)
-                .where(UploadedDocument.file_hash == file_hash)
-            )
-        ).scalar_one_or_none()
-        if existing_doc is not None:
-            uploaded_doc = existing_doc
+        uploaded_doc, document_created = await resolve_source_identity(
+            db,
+            SourceIdentityCommand(
+                user_id=user_id,
+                file_path=str(file_path) if file_path else file_hash,
+                file_hash=file_hash,
+                original_filename=original_filename or file_hash,
+                document_type=doc_type,
+                extraction_metadata=effective_metadata,
+            ),
+        )
+        if not document_created:
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
             # The upload registers an artifact before parsing can determine
             # whether it is a bank or brokerage statement.  Resolve that
@@ -601,17 +603,6 @@ async def dual_write_layer2(
             # ends in quarantine would delete a prior good parse's transactions.
             if not envelope_only:
                 await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
-        else:
-            uploaded_doc = await dedup_service.create_uploaded_document(
-                db=db,
-                user_id=user_id,
-                file_path=str(file_path) if file_path else file_hash,
-                file_hash=file_hash,
-                original_filename=original_filename or file_hash,
-                document_type=doc_type,
-                extraction_metadata=effective_metadata,
-            )
-
         # Lazily import to avoid an import cycle (evidence_graph_integration imports
         # models that transitively reach back here).
         from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
@@ -719,13 +710,6 @@ async def dual_write_layer2(
             layer2_transactions=layer2_count,
         )
 
-    except IntegrityError:
-        # Duplicate upload - acceptable silent failure
-        logger.warning(
-            "Dual write skipped - document already exists",
-            file_hash=file_hash,
-            user_id=str(user_id),
-        )
     except Exception as e:
         # All other errors are CRITICAL - must be visible to user
         logger.error(

@@ -2,12 +2,11 @@ from datetime import date
 from decimal import Decimal  # noqa: F401
 from pathlib import Path
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from src.extraction import (
     DocumentSource,
@@ -1378,57 +1377,76 @@ async def test_parse_document_csv_no_institution():
         )
 
 
-async def test_dual_write_layer2_integrity_error_is_non_fatal():
-    """AC-extraction.111.1: Dual-write handles duplicate document hash / IntegrityError without failing."""
-    db = AsyncMock()
-    # No pre-existing UploadedDocument for (user_id, file_hash), so dual_write takes the
-    # create branch; a concurrent race then makes create_uploaded_document raise
-    # IntegrityError, which must be swallowed without failing ingestion.
-    no_existing = MagicMock()
-    no_existing.scalar_one_or_none.return_value = None
-    db.execute.return_value = no_existing
-    with patch("src.extraction.extension.deduplication.DeduplicationService") as mock_dedup_cls:
-        mock_dedup = mock_dedup_cls.return_value
-        mock_dedup.create_uploaded_document.side_effect = IntegrityError("x", {}, Exception("dup"))
+async def test_dual_write_layer2_integrity_error_is_non_fatal(db, test_user):
+    """AC-extraction.111.1: duplicate source identity reuses the winner."""
+    txn_date = date(2025, 1, 1)
+    amount = Decimal("1.00")
+    direction = TransactionDirection.IN
+    description = "txn"
+    txn = ExtractedTransactionRow(
+        user_id=test_user.id,
+        txn_date=txn_date,
+        amount=amount,
+        direction=direction.value,
+        description=description,
+        reference=None,
+        currency="SGD",
+        currency_unresolved=False,
+        balance_after=None,
+        occurrence_index=0,
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
+            test_user.id,
+            txn_date,
+            amount,
+            direction,
+            description,
+        ),
+    )
+    first = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        file_hash="abc123",
+        institution="DBS",
+        currency="SGD",
+    )
+    await dual_write_layer2(
+        db=db,
+        user_id=test_user.id,
+        statement=first,
+        transactions=[txn],
+        file_path=Path("statement.pdf"),
+        original_filename="statement.pdf",
+    )
+    await db.commit()
 
-        user_id = uuid4()
-        txn_date = date(2025, 1, 1)
-        amount = Decimal("1.00")
-        direction = TransactionDirection.IN
-        description = "txn"
-        txn = ExtractedTransactionRow(
-            user_id=user_id,
-            txn_date=txn_date,
-            amount=amount,
-            direction=direction.value,
-            description=description,
-            reference=None,
-            currency="SGD",
-            currency_unresolved=False,
-            balance_after=None,
-            occurrence_index=0,
-            dedup_hash=DeduplicationService.calculate_transaction_hash(
-                user_id,
-                txn_date,
-                amount,
-                direction,
-                description,
-            ),
+    repeated = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        file_hash="abc123",
+        institution="DBS",
+        currency="SGD",
+    )
+    await dual_write_layer2(
+        db=db,
+        user_id=test_user.id,
+        statement=repeated,
+        transactions=[txn],
+        file_path=Path("statement.pdf"),
+        original_filename="statement.pdf",
+    )
+    await db.commit()
+
+    rows = (
+        (
+            await db.execute(
+                select(UploadedDocument).where(
+                    UploadedDocument.user_id == test_user.id,
+                    UploadedDocument.file_hash == "abc123",
+                )
+            )
         )
-        statement = StatementSummaryFactory.build(
-            user_id=user_id,
-            file_hash="abc123",
-            institution="DBS",
-            currency="SGD",
-        )
-        await dual_write_layer2(
-            db=db,
-            user_id=user_id,
-            statement=statement,
-            transactions=[txn],
-            file_path=Path("statement.pdf"),
-            original_filename="statement.pdf",
-        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
 
 
 # ---------------------------------------------------------------------------

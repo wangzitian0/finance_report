@@ -26,6 +26,7 @@ class DocumentStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    RETIRED = "retired"
 
 
 class UploadedDocument(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

@@ -1645,7 +1645,7 @@ async def test_handle_parse_failure_rollback_fails(db, test_user):
 async def test_delete_statement_success(db, test_user, monkeypatch):
     """Given an existing statement with a file_path,
     When delete_statement is called,
-    Then it deletes from storage and DB (lines 685-698).
+    Then it retires the DB/reference state without deleting storage.
     """
     statement = build_statement(test_user.id, "hash_del", 90)
     db.add(statement)
@@ -1658,8 +1658,9 @@ async def test_delete_statement_success(db, test_user, monkeypatch):
 
     await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
-    deleted = await db.get(StatementSummary, statement_id)
-    assert deleted is None
+    retired = await db.get(StatementSummary, statement_id)
+    assert retired is not None
+    assert retired.status is BankStatementStatus.RETIRED
 
 
 async def test_delete_statement_not_found(db, test_user):
@@ -1679,7 +1680,7 @@ async def test_delete_statement_not_found(db, test_user):
 async def test_delete_statement_storage_error_still_deletes(db, test_user, monkeypatch):
     """Given a statement whose storage delete fails,
     When delete_statement is called,
-    Then the DB record is still deleted to avoid zombie records (lines 690-696).
+    Then retirement does not call storage and preserves the DB record.
     """
     statement = build_statement(test_user.id, "hash_del_err", 90)
     db.add(statement)
@@ -1694,8 +1695,10 @@ async def test_delete_statement_storage_error_still_deletes(db, test_user, monke
 
     await statements_router.delete_statement(statement_id=statement_id, db=db, user_id=test_user.id)
 
-    deleted = await db.get(StatementSummary, statement_id)
-    assert deleted is None
+    mock_storage.delete_object.assert_not_called()
+    retired = await db.get(StatementSummary, statement_id)
+    assert retired is not None
+    assert retired.status is BankStatementStatus.RETIRED
 
 
 async def test_get_statement_for_review(db, test_user, monkeypatch):
