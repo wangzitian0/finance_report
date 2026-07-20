@@ -113,8 +113,26 @@ async def validate_balance_chain(
                 }
             )
 
+        primary_currency = (statement.currency or "").strip().upper()
+        if (
+            primary_currency
+            and primary_currency not in declared
+            and not any(row["currency"] == primary_currency for row in per_currency)
+        ):
+            per_currency.append(
+                {
+                    "currency": primary_currency,
+                    "opening_balance": None,
+                    "closing_balance": None,
+                    "calculated_closing": "0",
+                    "closing_delta": "0",
+                    "closing_match": False,
+                    "declared_balance": False,
+                }
+            )
+
         primary = next(
-            (row for row in per_currency if row["currency"] == (statement.currency or "").upper()),
+            (row for row in per_currency if row["currency"] == primary_currency),
             per_currency[0],
         )
         return {
@@ -127,6 +145,45 @@ async def validate_balance_chain(
             "closing_known": True,
             "closing_match": primary["closing_match"],
             "balance_valid": all(row["closing_match"] for row in per_currency),
+            "per_currency": per_currency,
+            "validated_at": datetime.now(UTC).isoformat(),
+        }
+
+    transaction_currencies = {txn.currency.strip().upper() for txn in transactions}
+    scalar_currency = (statement.currency or "").strip().upper()
+    if len(transaction_currencies) > 1 or (transaction_currencies and scalar_currency not in transaction_currencies):
+        nets = {currency: Decimal("0") for currency in transaction_currencies}
+        for txn in transactions:
+            currency = txn.currency.strip().upper()
+            nets[currency] += txn.amount if _direction_is_in(txn.direction) else -txn.amount
+        per_currency = []
+        for currency in sorted(nets):
+            expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
+            per_currency.append(
+                {
+                    "currency": currency,
+                    "opening_balance": None,
+                    "closing_balance": None,
+                    "calculated_closing": str(expected),
+                    "closing_delta": str(delta),
+                    "closing_match": False,
+                    "declared_balance": False,
+                }
+            )
+        primary = next(
+            (row for row in per_currency if row["currency"] == scalar_currency),
+            per_currency[0],
+        )
+        return {
+            "opening_balance": primary["opening_balance"],
+            "closing_balance": primary["closing_balance"],
+            "calculated_closing": primary["calculated_closing"],
+            "opening_delta": "0",
+            "closing_delta": primary["closing_delta"],
+            "opening_match": False,
+            "closing_known": False,
+            "closing_match": False,
+            "balance_valid": False,
             "per_currency": per_currency,
             "validated_at": datetime.now(UTC).isoformat(),
         }

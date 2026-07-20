@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from io import BytesIO
 from typing import get_type_hints
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction import DocumentStatus, DocumentType, UploadedDocument, get_known_storage_paths
 from src.extraction.base.result import (
     ExtractedTransactionFact,
     ExtractionMethod,
@@ -46,6 +47,8 @@ from src.ledger import Account, AccountType
 from src.routers import statements as statements_router
 from src.routers.reconciliation import run_reconciliation
 from src.routers.review import get_review_conflicts, run_stage2_checks
+from src.runtime import StorageError, register_known_storage_paths_provider
+from src.runtime.extension import storage_sweep
 from src.schemas.reconciliation import ReconciliationRunRequest
 
 
@@ -147,6 +150,63 @@ async def test_AC_extraction_source_lifecycle_1_approval_is_per_currency(
     assert all(row["closing_match"] is False for row in result["per_currency"])
     with pytest.raises(ValueError, match="currency"):
         _raise_if_balance_chain_invalid(result)
+
+    legacy_document = _document(test_user.id, file_hash="legacy-scalar-multi-currency")
+    db.add(legacy_document)
+    await db.flush()
+    legacy_statement = _summary(
+        test_user.id,
+        file_hash=legacy_document.file_hash,
+        uploaded_document_id=legacy_document.id,
+    )
+    db.add(legacy_statement)
+    db.add_all(
+        [
+            _atomic(
+                test_user.id,
+                legacy_document.id,
+                currency="SGD",
+                direction=TransactionDirection.IN,
+                amount="10.00",
+            ),
+            _atomic(
+                test_user.id,
+                legacy_document.id,
+                currency="USD",
+                direction=TransactionDirection.OUT,
+                amount="10.00",
+            ),
+        ]
+    )
+    await db.flush()
+
+    legacy_result = await validate_balance_chain(db, legacy_statement.id)
+
+    assert legacy_result["balance_valid"] is False
+    assert {row["currency"] for row in legacy_result["per_currency"]} == {"SGD", "USD"}
+    assert all(row["declared_balance"] is False for row in legacy_result["per_currency"])
+    with pytest.raises(ValueError, match="currency"):
+        _raise_if_balance_chain_invalid(legacy_result)
+
+    mismatched_document = _document(test_user.id, file_hash="mismatched-primary-currency")
+    db.add(mismatched_document)
+    await db.flush()
+    mismatched_statement = _summary(
+        test_user.id,
+        file_hash=mismatched_document.file_hash,
+        uploaded_document_id=mismatched_document.id,
+    )
+    mismatched_statement.currency_balances = [{"currency": "USD", "opening": "0.00", "closing": "0.00"}]
+    db.add(mismatched_statement)
+    await db.flush()
+
+    mismatched_result = await validate_balance_chain(db, mismatched_statement.id)
+
+    assert mismatched_result["balance_valid"] is False
+    primary_finding = next(row for row in mismatched_result["per_currency"] if row["currency"] == "SGD")
+    assert primary_finding["declared_balance"] is False
+    with pytest.raises(ValueError, match="currency"):
+        _raise_if_balance_chain_invalid(mismatched_result)
 
 
 def _identity(user_id: UUID, *, file_hash: str) -> SourceIdentityCommand:
@@ -422,6 +482,7 @@ async def test_AC_extraction_source_lifecycle_6_failure_and_retry_converge(
     db: AsyncSession,
     db_engine,
     test_user,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC-extraction.source-lifecycle.6: rollback and retry keep one state."""
     statement, _ = await _history_fixture(db, test_user.id)
@@ -458,6 +519,72 @@ async def test_AC_extraction_source_lifecycle_6_failure_and_retry_converge(
             select(func.count()).select_from(StatementSummary).where(StatementSummary.id == statement.id)
         )
         assert count == 1
+
+    class FailingThenRecoveringStorage:
+        def __init__(self) -> None:
+            self.keys: set[str] = set()
+            self.delete_attempts = 0
+
+        def upload_bytes(self, *, key: str, **_kwargs) -> None:
+            self.keys.add(key)
+
+        def delete_object(self, key: str) -> None:
+            self.delete_attempts += 1
+            if self.delete_attempts == 1:
+                raise StorageError("immediate cleanup unavailable")
+            self.keys.remove(key)
+
+    storage = FailingThenRecoveringStorage()
+    monkeypatch.setattr(statements_router, "StorageService", lambda: storage)
+    original_commit = db.commit
+
+    async def fail_commit() -> None:
+        raise RuntimeError("database commit unavailable")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    upload = UploadFile(filename="failure-convergence.pdf", file=BytesIO(b"source bytes"))
+    with pytest.raises(HTTPException) as exc:
+        await statements_router.upload_statement(
+            file=upload,
+            institution="Example Bank",
+            model=None,
+            db=db,
+            user_id=test_user.id,
+        )
+    await upload.close()
+    assert exc.value.status_code == 500
+    assert storage.delete_attempts == 1
+    assert len(storage.keys) == 1
+    orphan_key = next(iter(storage.keys))
+    monkeypatch.setattr(db, "commit", original_commit)
+    assert (
+        await db.scalar(
+            select(func.count()).select_from(UploadedDocument).where(UploadedDocument.file_path == orphan_key)
+        )
+        == 0
+    )
+
+    class SessionContext:
+        async def __aenter__(self):
+            return db
+
+        async def __aexit__(self, *_args):
+            return False
+
+    register_known_storage_paths_provider(get_known_storage_paths)
+    monkeypatch.setattr(storage_sweep, "StorageService", lambda: storage)
+    monkeypatch.setattr(
+        storage_sweep,
+        "_list_storage_keys",
+        lambda _storage: [(orphan_key, datetime.now(UTC) - timedelta(hours=2))],
+    )
+    monkeypatch.setattr(storage_sweep.settings, "s3_bucket", "acceptance")
+    monkeypatch.setattr(storage_sweep.settings, "storage_sweep_grace_period_hours", 1)
+
+    deleted = await storage_sweep.sweep_orphaned_storage_objects(sessionmaker=lambda: SessionContext())
+
+    assert deleted == 1
+    assert storage.keys == set()
 
 
 def test_AC_extraction_source_lifecycle_7_boundary_is_typed() -> None:
