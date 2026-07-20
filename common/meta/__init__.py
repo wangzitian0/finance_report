@@ -33,6 +33,8 @@ from __future__ import annotations
 __all__ = [
     "ACRecord",
     "ConceptRecord",
+    "GovernanceGuarantee",
+    "GovernanceInitiative",
     "DependencyEdge",
     "DependencyKind",
     "Invariant",
@@ -63,6 +65,8 @@ __all__ = [
 _BASE_NAMES = {
     "ACRecord",
     "ConceptRecord",
+    "GovernanceGuarantee",
+    "GovernanceInitiative",
     "DependencyEdge",
     "DependencyKind",
     "Invariant",

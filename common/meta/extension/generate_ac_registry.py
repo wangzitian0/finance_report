@@ -452,8 +452,12 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                     {
                         "id": ac_id,
                         "statement": _ac_record_field(elt, "statement") or "",
+                        "test": _ac_record_field(elt, "test") or "",
+                        "priority": _ac_record_field(elt, "priority"),
+                        "status": _ac_record_field(elt, "status"),
                         "tier": package_tier,
                         "proof_kind": _ac_record_field(elt, "proof_kind"),
+                        "vision_anchor": _ac_record_field(elt, "vision_anchor"),
                     }
                 )
     return records
@@ -514,6 +518,20 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
                 entry["tier"] = tier
                 entry["proof_kind"] = record["proof_kind"] or _default_proof_for_tier(
                     tier
+                )
+            entry.update(
+                {
+                    "owner": contract_path.parent.name,
+                    "test": record["test"],
+                    "priority": record["priority"],
+                    "status": record["status"],
+                    "vision_anchor": record["vision_anchor"],
+                }
+            )
+            if ac_id in acs:
+                raise ValueError(
+                    f"duplicate package roadmap AC id {ac_id!r}; registry generation "
+                    "refuses last-write-wins projection"
                 )
             acs[ac_id] = entry
     return acs

@@ -652,6 +652,27 @@ the role-to-layer migration is still pending.
 `__init__.__all__` (must equal `contract.interface`): the tier vocabulary +
 matrix + the classifier's `band` / `classify_repo` / `BANDS`.
 
+## Governance control plane
+
+Governance work is declared with the package that owns the behavior. A package
+contract may contain `GovernanceInitiative` records; each initiative groups the
+guarantees produced by one root-cause design and links them to package-owned ACs,
+a detector and target, a lock, an exact proof, and an enforcing gate. There is no
+central authored initiative registry.
+
+`common/meta/data/governance_control.py` joins those declarations to supplied
+detector, proof, workflow/ruleset, and GitHub issue observations. Its state is
+derived: an authored `status="done"`, a test reference, or a green report-only
+job cannot make a guarantee complete. The target must be met, the declared proof
+must pass at the target SHA with the required strength, and the proof's gate must
+reach a supplied live required context. Missing observations remain findings in
+the stable package/initiative and package/guarantee detail records.
+
+External systems stay outside meta's L0 base. Testing adapters and authenticated
+GitHub collectors serialize neutral observations into this projection; stale or
+partial snapshots must be treated as missing enforcement rather than cached
+success.
+
 ## Follow-ups (out of scope here)
 
 - Migrating the remaining EPIC-table ACs into package `roadmap`s (the ratchet
