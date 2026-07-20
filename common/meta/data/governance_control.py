@@ -43,7 +43,15 @@ def governance_control_index(
     proofs = _unique(proof_observations, "guarantee_id", "proof")
     gates = _unique(enforcement_observations, "gate_id", "enforcement")
     issues = _unique(issue_observations, "issue", "issue")
-    roadmap = {ac.id: ac for contract in contracts for ac in contract.roadmap}
+    roadmap = {}
+    for contract in contracts:
+        for ac in contract.roadmap:
+            if ac.id in roadmap:
+                raise ValueError(
+                    f"duplicate roadmap AC {ac.id!r} across package contracts; "
+                    "governance projection refuses last-write-wins"
+                )
+            roadmap[ac.id] = ac
 
     initiative_rows: dict[str, dict] = {}
     guarantee_rows: dict[str, dict] = {}
@@ -56,11 +64,17 @@ def governance_control_index(
             issue = issues.get(initiative.issue)
             if issue is None:
                 initiative_findings.append(
-                    _finding("missing-issue-observation", "No current GitHub issue observation was supplied.")
+                    _finding(
+                        "missing-issue-observation",
+                        "No current GitHub issue observation was supplied.",
+                    )
                 )
             elif issue.state == "CLOSED":
                 initiative_findings.append(
-                    _finding("closed-issue-has-active-initiative", "The issue is closed while its package initiative remains declared.")
+                    _finding(
+                        "closed-issue-has-active-initiative",
+                        "The issue is closed while its package initiative remains declared.",
+                    )
                 )
 
             for guarantee in initiative.guarantees:
@@ -72,56 +86,148 @@ def governance_control_index(
                 gate = gates.get(guarantee.enforcing_gate)
 
                 open_acs = [
-                    ac_id for ac_id in guarantee.affected_acs if roadmap[ac_id].status == "open"
+                    ac_id
+                    for ac_id in guarantee.affected_acs
+                    if roadmap[ac_id].status == "open"
                 ]
                 if open_acs:
-                    findings.append(_finding("open-acceptance-criteria", f"Open ACs: {open_acs}"))
+                    findings.append(
+                        _finding("open-acceptance-criteria", f"Open ACs: {open_acs}")
+                    )
                 if detector is None:
-                    findings.append(_finding("missing-detector-observation", "Detector did not produce a result."))
+                    findings.append(
+                        _finding(
+                            "missing-detector-observation",
+                            "Detector did not produce a result.",
+                        )
+                    )
                 else:
-                    findings.extend(_finding("detector-finding", item) for item in detector.findings)
+                    findings.extend(
+                        _finding("detector-finding", item) for item in detector.findings
+                    )
                     if detector.current != detector.target:
-                        findings.append(_finding("target-not-met", "Detector current value does not equal target."))
+                        findings.append(
+                            _finding(
+                                "target-not-met",
+                                "Detector current value does not equal target.",
+                            )
+                        )
 
                 if proof is None:
-                    findings.append(_finding("missing-proof-observation", "No executed proof was supplied."))
+                    findings.append(
+                        _finding(
+                            "missing-proof-observation",
+                            "No executed proof was supplied.",
+                        )
+                    )
                 else:
                     if proof.proof_id != guarantee.proof:
-                        findings.append(_finding("wrong-proof", "Observed proof does not match the declaration."))
+                        findings.append(
+                            _finding(
+                                "wrong-proof",
+                                "Observed proof does not match the declaration.",
+                            )
+                        )
                     if proof.result != "passed":
-                        findings.append(_finding("proof-not-passed", f"Proof result is {proof.result}."))
+                        findings.append(
+                            _finding(
+                                "proof-not-passed", f"Proof result is {proof.result}."
+                            )
+                        )
                     if proof.target_sha != target_sha:
-                        findings.append(_finding("stale-proof", "Proof did not execute against the target SHA."))
+                        findings.append(
+                            _finding(
+                                "stale-proof",
+                                "Proof did not execute against the target SHA.",
+                            )
+                        )
                     if proof.strength != guarantee.required_proof_strength:
-                        findings.append(_finding("proof-strength-mismatch", "Observed proof strength cannot establish this guarantee."))
+                        findings.append(
+                            _finding(
+                                "proof-strength-mismatch",
+                                "Observed proof strength cannot establish this guarantee.",
+                            )
+                        )
                     if proof.gate_id != guarantee.enforcing_gate:
-                        findings.append(_finding("proof-not-on-declared-gate", "Proof ran on a different gate."))
+                        findings.append(
+                            _finding(
+                                "proof-not-on-declared-gate",
+                                "Proof ran on a different gate.",
+                            )
+                        )
 
                 if gate is None:
-                    findings.append(_finding("missing-enforcement-observation", "No workflow/ruleset observation was supplied."))
+                    findings.append(
+                        _finding(
+                            "missing-enforcement-observation",
+                            "No workflow/ruleset observation was supplied.",
+                        )
+                    )
                 else:
                     if not gate.declared_blocking:
-                        findings.append(_finding("gate-not-declared-blocking", "Gate is not declared blocking."))
+                        findings.append(
+                            _finding(
+                                "gate-not-declared-blocking",
+                                "Gate is not declared blocking.",
+                            )
+                        )
                     if not gate.workflow_required:
-                        findings.append(_finding("gate-not-in-workflow-aggregation", "Gate does not reach merge aggregation."))
+                        findings.append(
+                            _finding(
+                                "gate-not-in-workflow-aggregation",
+                                "Gate does not reach merge aggregation.",
+                            )
+                        )
                     if not gate.live_required or not gate.required_context:
-                        findings.append(_finding("gate-not-live-required", "No live required status context enforces the gate."))
+                        findings.append(
+                            _finding(
+                                "gate-not-live-required",
+                                "No live required status context enforces the gate.",
+                            )
+                        )
 
-                if any(item["code"] == "proof-not-passed" for item in findings):
+                detector_valid = (
+                    detector is not None
+                    and detector.current == detector.target
+                    and not detector.findings
+                )
+                proof_valid = (
+                    proof is not None
+                    and proof.proof_id == guarantee.proof
+                    and proof.result == "passed"
+                    and proof.target_sha == target_sha
+                    and proof.strength == guarantee.required_proof_strength
+                    and proof.gate_id == guarantee.enforcing_gate
+                )
+                enforcement_codes = {
+                    "missing-enforcement-observation",
+                    "gate-not-declared-blocking",
+                    "gate-not-in-workflow-aggregation",
+                    "gate-not-live-required",
+                }
+                finding_codes = {item["code"] for item in findings}
+                if "proof-not-passed" in finding_codes:
                     state = "regressed"
-                elif findings:
-                    target_met = detector is not None and detector.current == detector.target and not detector.findings
-                    exact = proof is not None and proof.result == "passed" and proof.target_sha == target_sha
-                    state = "proven" if target_met and exact else "active"
-                else:
+                elif not findings:
                     state = "enforced"
+                elif (
+                    not open_acs
+                    and detector_valid
+                    and proof_valid
+                    and finding_codes <= enforcement_codes
+                ):
+                    state = "proven"
+                else:
+                    state = "active"
 
                 row = {
                     "id": guarantee_id,
                     "initiative_id": initiative_id,
                     "statement": guarantee.statement,
                     "affected_acs": list(guarantee.affected_acs),
-                    "test_refs": [roadmap[ac_id].test for ac_id in guarantee.affected_acs],
+                    "test_refs": [
+                        roadmap[ac_id].test for ac_id in guarantee.affected_acs
+                    ],
                     "detector": guarantee.detector,
                     "target_label": guarantee.target,
                     "current": detector.current if detector else None,
@@ -137,7 +243,9 @@ def governance_control_index(
             rows = [guarantee_rows[key] for key in guarantee_keys]
             open_count = sum(row["state"] != "enforced" for row in rows)
             blocked_count = sum(bool(row["findings"]) for row in rows)
-            state = "enforced" if not initiative_findings and open_count == 0 else "active"
+            state = (
+                "enforced" if not initiative_findings and open_count == 0 else "active"
+            )
             if any(row["state"] == "regressed" for row in rows):
                 state = "regressed"
             initiative_rows[initiative_id] = {

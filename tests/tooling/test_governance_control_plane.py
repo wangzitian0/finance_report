@@ -75,9 +75,18 @@ def _observations(
     workflow_required: bool = True,
     live_required: bool = True,
     issue_state: str = "OPEN",
-) -> tuple[list[DetectorObservation], list[ProofObservation], list[EnforcementObservation], list[IssueObservation]]:
+) -> tuple[
+    list[DetectorObservation],
+    list[ProofObservation],
+    list[EnforcementObservation],
+    list[IssueObservation],
+]:
     return (
-        [DetectorObservation(guarantee_id="demo/exact-control", current=0, target=0, findings=[])],
+        [
+            DetectorObservation(
+                guarantee_id="demo/exact-control", current=0, target=0, findings=[]
+            )
+        ],
         [
             ProofObservation(
                 guarantee_id="demo/exact-control",
@@ -144,7 +153,9 @@ def test_AC_meta_governance_control_1_contract_and_roadmap_projection_are_lossle
 
     duplicate = contract.roadmap[0].model_copy()
     with pytest.raises(ValueError, match="duplicate roadmap AC"):
-        contract.model_copy(update={"roadmap": [contract.roadmap[0], duplicate]}).model_validate(
+        contract.model_copy(
+            update={"roadmap": [contract.roadmap[0], duplicate]}
+        ).model_validate(
             contract.model_dump() | {"roadmap": [contract.roadmap[0], duplicate]}
         )
 
@@ -277,11 +288,7 @@ def test_governance_declarations_reject_vacuous_duplicate_and_foreign_edges() ->
     with pytest.raises(ValueError, match="references unowned ACs"):
         PackageContract.model_validate(
             contract_data
-            | {
-                "governance": [
-                    initiative.model_copy(update={"guarantees": [foreign]})
-                ]
-            }
+            | {"governance": [initiative.model_copy(update={"guarantees": [foreign]})]}
         )
 
 
@@ -348,6 +355,65 @@ def test_joined_projection_exposes_every_missing_and_regressed_edge() -> None:
             observed_at=NOW,
         )
 
+    duplicate_ac_contract = _contract().model_copy(
+        update={"name": "other", "governance": []}
+    )
+    with pytest.raises(ValueError, match="duplicate roadmap AC"):
+        governance_control_index(
+            [_contract(), duplicate_ac_contract],
+            target_sha=TARGET_SHA,
+            detector_observations=detectors,
+            proof_observations=proofs,
+            enforcement_observations=enforcement,
+            issue_observations=issues,
+            observed_at=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    ("proof_update", "finding"),
+    [
+        ({"proof_id": "wrong"}, "wrong-proof"),
+        ({"strength": "report-only"}, "proof-strength-mismatch"),
+        ({"gate_id": "wrong-gate"}, "proof-not-on-declared-gate"),
+    ],
+)
+def test_invalid_passing_proof_never_becomes_proven(
+    proof_update: dict[str, str], finding: str
+) -> None:
+    """AC-meta.governance-control.4: every declared proof edge must match."""
+    detectors, proofs, _enforcement, issues = _observations()
+    proofs[0] = proofs[0].model_copy(update=proof_update)
+    index = governance_control_index(
+        [_contract()],
+        target_sha=TARGET_SHA,
+        detector_observations=detectors,
+        proof_observations=proofs,
+        enforcement_observations=[],
+        issue_observations=issues,
+        observed_at=NOW,
+    )
+    guarantee = index["guarantees"]["demo/exact-control"]
+
+    assert guarantee["state"] == "active"
+    assert finding in {item["code"] for item in guarantee["findings"]}
+
+
+def test_exact_proof_without_enforcement_is_proven_not_enforced() -> None:
+    """AC-meta.governance-control.5: proof and enforcement remain distinct states."""
+    detectors, proofs, _enforcement, issues = _observations()
+    index = governance_control_index(
+        [_contract()],
+        target_sha=TARGET_SHA,
+        detector_observations=detectors,
+        proof_observations=proofs,
+        enforcement_observations=[],
+        issue_observations=issues,
+        observed_at=NOW,
+    )
+
+    assert index["guarantees"]["demo/exact-control"]["state"] == "proven"
+
 
 def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -375,18 +441,21 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     )
     json_out = tmp_path / "report.json"
     markdown_out = tmp_path / "report.md"
-    assert package_governance.main(
-        [
-            "--repo-root",
-            str(tmp_path),
-            "--observations",
-            str(observations),
-            "--json-out",
-            str(json_out),
-            "--markdown-out",
-            str(markdown_out),
-        ]
-    ) == 0
+    assert (
+        package_governance.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--observations",
+                str(observations),
+                "--json-out",
+                str(json_out),
+                "--markdown-out",
+                str(markdown_out),
+            ]
+        )
+        == 0
+    )
     assert "demo/control-plane" in json_out.read_text(encoding="utf-8")
     assert "# Package Governance" in markdown_out.read_text(encoding="utf-8")
 
