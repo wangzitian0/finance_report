@@ -2,6 +2,7 @@ import * as api from "./api";
 import { API_OPERATIONS, type ApiOperationId } from "./api-operations";
 
 export type {
+  ApiOperationArgs,
   ApiOperationRequest,
   ApiOperationResponse,
   ApiOperationUploadRequest,
@@ -50,10 +51,11 @@ function compatibilityPath(
 
 export async function apiOperation<Id extends ApiOperationId>(
   operationId: Id,
-  request: api.ApiOperationRequest<Id> = {} as api.ApiOperationRequest<Id>,
+  ...args: api.ApiOperationArgs<Id>
 ): Promise<api.ApiOperationResponse<Id>> {
+  const request = (args[0] ?? {}) as api.ApiOperationRequest<Id>;
   if (useProductionOperationClient && "apiOperation" in api) {
-    return api.apiOperation(operationId, request);
+    return api.apiOperation(operationId, ...args);
   }
   const parts = request as OperationRequest;
   const path = compatibilityPath(operationId, parts);

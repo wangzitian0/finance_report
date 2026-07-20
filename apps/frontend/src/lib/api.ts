@@ -244,6 +244,13 @@ export type ApiOperationRequest<Id extends ApiOperationId> = RequiredParameter<
     headers?: HeadersInit;
     signal?: AbortSignal;
   };
+type RequiredKeys<Value> = {
+  [Key in keyof Value]-?: object extends Pick<Value, Key> ? never : Key;
+}[keyof Value];
+export type ApiOperationArgs<Id extends ApiOperationId> =
+  RequiredKeys<ApiOperationRequest<Id>> extends never
+    ? [request?: ApiOperationRequest<Id>]
+    : [request: ApiOperationRequest<Id>];
 export type MultipartOperationId = {
   [Id in ApiOperationId]: operations[Id] extends {
     requestBody: { content: { "multipart/form-data": unknown } };
@@ -286,8 +293,9 @@ function appendOperationQuery(path: string, query: object | undefined): string {
 
 export async function apiOperation<Id extends ApiOperationId>(
   operationId: Id,
-  request: ApiOperationRequest<Id> = {} as ApiOperationRequest<Id>,
+  ...args: ApiOperationArgs<Id>
 ): Promise<ApiOperationResponse<Id>> {
+  const request = (args[0] ?? {}) as ApiOperationRequest<Id>;
   const definition = API_OPERATIONS[operationId];
   const parts = request as {
     path?: Record<string, unknown>;
