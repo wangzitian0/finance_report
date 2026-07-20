@@ -4046,6 +4046,24 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.capability-proof.3",
+            statement=(
+                "After and only after a scenario-bound pytest call passes, one registered "
+                "consumer receives that exact canonical executed-proof TraceRecord and may "
+                "append one declaration-required canonical observation to the same JUnit "
+                "testcase; GitHub merge-authority execution requires that consumer while "
+                "local advisory execution may omit it, and duplicate registration, consumer "
+                "failure, and a wrong observation kind fail closed."
+            ),
+            test=(
+                "tests/tooling/test_executed_proof.py::"
+                "test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
             id="AC-testing.trusted-year.1",
             statement=(
                 "TrustedYearScenario is a testing-owned immutable entity whose monetary "

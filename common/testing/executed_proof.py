@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from common.audit.base import (
     TraceAuthorityProfile,
@@ -27,6 +27,9 @@ from common.audit.extension import TraceJUnitAdapter
 from common.testing.ac_proof import PROOF_ATTR, AcProof
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+_CONSUMER_ATTR = "__executed_proof_consumer__"
+
+ExecutedProofConsumer = Callable[[TraceRecord], TraceRecord]
 
 
 class ExecutedProofError(ValueError):
@@ -43,6 +46,18 @@ class _PytestReport(Protocol):
     when: str
     passed: bool
     user_properties: list[tuple[str, str]]
+
+
+def register_executed_proof_consumer(
+    item: _PytestItem,
+    consumer: ExecutedProofConsumer,
+) -> None:
+    """Register the sole post-call consumer for one pytest item."""
+    if not callable(consumer):
+        raise ExecutedProofError("executed-proof consumer must be callable")
+    if getattr(item, _CONSUMER_ATTR, None) is not None:
+        raise ExecutedProofError("an executed-proof consumer is already registered")
+    setattr(item, _CONSUMER_ATTR, consumer)
 
 
 def _digest(payload: Mapping[str, Any]) -> str:
@@ -63,18 +78,20 @@ def executed_proof_assertion_version(
     ac_ids: tuple[str, ...] | list[str],
     stage: str,
     task_category: str,
+    required_observation_kind: str = "",
 ) -> str:
     """Hash the declaration fields that define one semantic proof contract."""
-    return _digest(
-        {
-            "ac_ids": list(ac_ids),
-            "oracle_kind": oracle_kind,
-            "proof_id": proof_id,
-            "scenario_id": scenario_id,
-            "stage": stage,
-            "task_category": task_category,
-        }
-    )
+    declaration = {
+        "ac_ids": list(ac_ids),
+        "oracle_kind": oracle_kind,
+        "proof_id": proof_id,
+        "scenario_id": scenario_id,
+        "stage": stage,
+        "task_category": task_category,
+    }
+    if required_observation_kind:
+        declaration["required_observation_kind"] = required_observation_kind
+    return _digest(declaration)
 
 
 def _ci_coordinates(environ: Mapping[str, str]) -> tuple[str, str, str, str]:
@@ -143,6 +160,7 @@ def _build_executed_proof(
         ac_ids=proof.ac_ids,
         stage=proof.stage,
         task_category=proof.task_category,
+        required_observation_kind=proof.required_observation_kind,
     )
     evidence_digest = _digest(
         {
@@ -206,17 +224,44 @@ def record_executed_proof(
         raise ExecutedProofError("a scenario-bound proof requires oracle_kind")
     if proof.ci_tier != "pr_ci":
         return None
+    execution_environ = environ if environ is not None else os.environ
+    is_merge_authority = execution_environ.get("GITHUB_ACTIONS") == "true"
+    consumer = getattr(item, _CONSUMER_ATTR, None)
+    if proof.required_observation_kind and is_merge_authority and consumer is None:
+        raise ExecutedProofError(
+            f"scenario proof requires a {proof.required_observation_kind!r} observation consumer"
+        )
 
     record = _build_executed_proof(
         proof,
         item,
-        environ=environ if environ is not None else os.environ,
+        environ=execution_environ,
         occurred_at=occurred_at or datetime.now(UTC),
     )
     TraceJUnitAdapter.emit(
         lambda name, value: item.user_properties.append((name, value)),
         record,
     )
+    if consumer is not None:
+        output = consumer(record)
+        if (
+            not isinstance(output, TraceRecord)
+            or output.record_type is not TraceRecordType.OBSERVATION
+        ):
+            raise ExecutedProofError(
+                "executed-proof consumer must return one TraceRecord OBSERVATION"
+            )
+        if (
+            proof.required_observation_kind
+            and output.assertion.kind != proof.required_observation_kind
+        ):
+            raise ExecutedProofError(
+                "executed-proof consumer returned the wrong observation assertion kind"
+            )
+        TraceJUnitAdapter.emit(
+            lambda name, value: item.user_properties.append((name, value)),
+            output,
+        )
     return record
 
 

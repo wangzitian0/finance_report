@@ -61,6 +61,7 @@ _PROOF_KEY_ORDER = (
     "issue",
     "scenario_id",
     "oracle_kind",
+    "required_observation_kind",
     "file",
     "test",
     "required_markers",
@@ -177,6 +178,7 @@ def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
             "issue",
             "scenario_id",
             "oracle_kind",
+            "required_observation_kind",
         ):
             value = kwargs.get(optional)
             if value:

@@ -125,6 +125,7 @@ def _has_exact_executed_proof(
         ac_ids=[str(item) for item in proof.get("ac_ids", [])],
         stage=str(proof["stage"]),
         task_category=str(proof["task_category"]),
+        required_observation_kind=str(proof.get("required_observation_kind", "")),
     )
     return any(
         executed_proof_matches(

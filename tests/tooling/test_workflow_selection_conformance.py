@@ -14,10 +14,19 @@ from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 
+from common.audit.base import (
+    TraceRecord,
+    TraceResult,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
 from common.testing import matrix
 from common.testing.ac_proof import PROOF_ATTR, AcProof
 from common.testing.check_pr_ci_evidence import _module_for, collect_executed
-from common.testing.executed_proof import record_executed_proof
+from common.testing.executed_proof import (
+    record_executed_proof,
+    register_executed_proof_consumer,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -180,6 +189,9 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
                         issue=proof.get("issue", ""),
                         scenario_id=proof["scenario_id"],
                         oracle_kind=proof["oracle_kind"],
+                        required_observation_kind=proof.get(
+                            "required_observation_kind", ""
+                        ),
                     ),
                 )
                 item = SimpleNamespace(
@@ -187,6 +199,29 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
                     nodeid=f"{proof['file']}::{proof['test']}",
                     user_properties=[],
                 )
+                required_kind = proof.get("required_observation_kind", "")
+                if required_kind:
+
+                    def required_observation(record, kind=required_kind):
+                        return TraceRecord.observation(
+                            scope=record.scope,
+                            target=record.target,
+                            target_class=TraceTargetClass.GENERAL,
+                            assertion=VersionedTraceRef(
+                                kind,
+                                record.assertion.id,
+                                record.assertion.version,
+                            ),
+                            authority=record.authority,
+                            result=TraceResult.PASS,
+                            execution_id=record.execution_id,
+                            evidence_manifest_digest=record.evidence_manifest_digest,
+                            occurred_at=record.occurred_at,
+                            score=None,
+                            reason_code="required_observation_passed",
+                        )
+
+                    register_executed_proof_consumer(item, required_observation)
                 record_executed_proof(
                     item,
                     SimpleNamespace(when="call", passed=True, user_properties=[]),

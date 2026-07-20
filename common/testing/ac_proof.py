@@ -59,6 +59,7 @@ class AcProof:
     issue: str = ""
     scenario_id: str = ""
     oracle_kind: str = ""
+    required_observation_kind: str = ""
     required_markers: tuple[str, ...] = ()
     outcomes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -77,6 +78,7 @@ def ac_proof(
     issue: str = "",
     scenario_id: str = "",
     oracle_kind: str = "",
+    required_observation_kind: str = "",
     required_markers: list[str] | tuple[str, ...] = (),
     outcomes: list[str] | tuple[str, ...] = (),
 ) -> Callable[[F], F]:
@@ -114,6 +116,7 @@ def ac_proof(
         issue=issue,
         scenario_id=scenario_id,
         oracle_kind=oracle_kind,
+        required_observation_kind=required_observation_kind,
         required_markers=tuple(required_markers),
         outcomes=tuple(outcomes),
     )
