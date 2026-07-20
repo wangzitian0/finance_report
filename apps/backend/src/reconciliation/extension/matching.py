@@ -48,6 +48,7 @@ from src.reconciliation.extension.scoring import (  # noqa: F401
     score_pattern,
     weighted_total,
 )
+from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
 from src.reconciliation.orm.reconciliation import (
     ReconciliationMatch,
     ReconciliationMatchJournalEntry,
@@ -97,6 +98,7 @@ def prune_candidates(
     *,
     txn_date: date,
     target_amount: Decimal,
+    currency: str,
     limit: int = MAX_COMBINATION_CANDIDATES,
 ) -> list[JournalEntry]:
     """Reduce candidates before combinational matching to avoid blow-ups.
@@ -113,7 +115,7 @@ def prune_candidates(
 
     scored: list[tuple[int, Decimal, int, JournalEntry]] = []
     for entry in candidates:
-        amount_diff = abs(entry_total_amount(entry) - target_amount)
+        amount_diff = abs(entry_total_amount(entry, currency=currency) - target_amount)
         date_diff = abs((txn_date - entry.entry_date).days)
         # Exact match bonus: 0 if within tolerance, 1 otherwise
         exact_match = 0 if amount_diff <= tolerance else 1
@@ -136,7 +138,9 @@ async def _calculate_candidate_score(
     history_score: float | None,
 ) -> MatchCandidate:
     """Calculate the common score after the public mode selected semantics."""
-    entry_amounts = [entry_bank_side_amount(entry, transaction.direction) for entry in entries]
+    entry_amounts = [
+        entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries
+    ]
     total_amount = sum(entry_amounts, Decimal("0.00"))
     entry_dates = [entry.entry_date for entry in entries]
     entry_memo = " / ".join([entry.memo for entry in entries]).strip()
@@ -269,7 +273,7 @@ def build_many_to_one_groups(
             continue
         if not any(keyword in key for keyword in keywords):
             continue
-        group_key = f"{key}:{txn.txn_date.isoformat()}"
+        group_key = f"{key}:{txn.txn_date.isoformat()}:{txn.direction}:{txn.currency}"
         groups.setdefault(group_key, []).append(txn)
     return [group for group in groups.values() if len(group) > 1]
 
@@ -402,6 +406,7 @@ def _find_many_to_one_candidates(
             candidates,
             txn_date=group_date,
             target_amount=group_total,
+            currency=group[0].currency,
         )
 
         tokens = extract_merchant_tokens(group[0].description)
@@ -414,7 +419,7 @@ def _find_many_to_one_candidates(
 
             # Inline scoring using pure functions (no DB)
             txn_amount = group_total
-            entry_amount = entry_bank_side_amount(entry, group[0].direction)
+            entry_amount = entry_bank_side_amount(entry, group[0].direction, currency=group[0].currency)
             amount_score = score_amount(txn_amount, entry_amount, config, is_multi=True)
             date_score = score_date(group[0].txn_date, entry.entry_date, config)
             description_score = score_description(group[0].description, entry.memo)
@@ -478,7 +483,7 @@ def _find_normal_candidates(
         history_score: float,
         is_multi: bool = False,
     ) -> MatchCandidate:
-        entry_amounts = [entry_bank_side_amount(e, txn.direction) for e in entries]
+        entry_amounts = [entry_bank_side_amount(e, txn.direction, currency=txn.currency) for e in entries]
         total_amount = sum(entry_amounts, Decimal("0.00"))
         entry_dates = [e.entry_date for e in entries]
         entry_memo = " / ".join([e.memo for e in entries]).strip()
@@ -512,6 +517,7 @@ def _find_normal_candidates(
             candidates,
             txn_date=txn.txn_date,
             target_amount=txn.amount,
+            currency=txn.currency,
         )
 
         tokens = extract_merchant_tokens(txn.description)
@@ -534,7 +540,9 @@ def _find_normal_candidates(
                 and is_entry_balanced(entry_b, base_currency=base_currency)
             ):
                 continue
-            combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
+            combined = entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency) + entry_bank_side_amount(
+                entry_b, txn.direction, currency=txn.currency
+            )
             if not _within_combination_tolerance(combined, txn, config):
                 continue
             candidate = _score_entries(txn, [entry_a, entry_b], history_score, is_multi=True)
@@ -551,9 +559,9 @@ def _find_normal_candidates(
             ):
                 continue
             combined = (
-                entry_bank_side_amount(entry_a, txn.direction)
-                + entry_bank_side_amount(entry_b, txn.direction)
-                + entry_bank_side_amount(entry_c, txn.direction)
+                entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency)
+                + entry_bank_side_amount(entry_b, txn.direction, currency=txn.currency)
+                + entry_bank_side_amount(entry_c, txn.direction, currency=txn.currency)
             )
             if not _within_combination_tolerance(combined, txn, config):
                 continue
@@ -634,18 +642,8 @@ async def execute_matching(
         run_transfer_detection_phase,
     )
 
-    # Phase 1: Transfer Detection (BEFORE normal matching)
-    matches.extend(
-        await run_transfer_detection_phase(
-            db,
-            transactions=transactions,
-            matched_txn_ids=matched_txn_ids,
-            repository=repo,
-            user_id=user_id,
-            currency=currency,
-        )
-    )
-
+    # Journal evidence is authoritative; keyword-based transfer detection is
+    # only a fallback for transactions left without a disposition.
     matches.extend(
         await run_many_to_one_phase(
             db,
@@ -668,30 +666,18 @@ async def execute_matching(
         )
     )
 
-    # Phase 3: Auto-Pair Transfers (AFTER all matching complete)
-    # Find and pair transfers automatically per common/ledger/readme.md
-    try:
-        transfer_pairs = await find_transfer_pairs(
+    matches.extend(
+        await run_transfer_detection_phase(
             db,
-            user_id,
-            currency=currency,
-            description_scorer=score_description,
-            threshold=85,
+            transactions=transactions,
+            matched_txn_ids=matched_txn_ids,
+            repository=repo,
+            user_id=user_id,
         )
-        if transfer_pairs:
-            logger.info(
-                "Auto-pairing complete",
-                user_id=str(user_id),
-                pairs_found=len(transfer_pairs),
-            )
-    except Exception as e:
-        logger.error(
-            "Failed to auto-pair transfers",
-            user_id=str(user_id),
-            error=str(e),
-        )
-        # Non-fatal error - continue with existing matches
+    )
 
+    # Materialize normalized anchors before pairing so pair persistence resolves
+    # ledger entries back to the winning disposition heads.
     try:
         await db.flush()
         for match in matches:
@@ -705,6 +691,34 @@ async def execute_matching(
             error_type=type(e).__name__,
         )
         raise
+
+    # Auto-pair transfers only after every current disposition is durable in
+    # the transaction. Pair persistence is idempotent under unique leg indexes.
+    # Find and pair transfers automatically per common/ledger/readme.md
+    try:
+        transfer_pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency=currency,
+            description_scorer=score_description,
+            threshold=85,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to auto-pair transfers",
+            user_id=str(user_id),
+            error=str(e),
+        )
+        # Non-fatal error - continue with existing matches
+        transfer_pairs = []
+
+    if transfer_pairs:
+        await persist_transfer_pairs(db, transfer_pairs)
+        logger.info(
+            "Auto-pairing complete",
+            user_id=str(user_id),
+            pairs_found=len(transfer_pairs),
+        )
 
     # AC-observability.10.4: emit one business metric per resolved match, labelled by its
     # final disposition (auto_accepted / pending_review / rejected). Low

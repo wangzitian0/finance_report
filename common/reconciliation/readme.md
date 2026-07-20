@@ -19,8 +19,16 @@ either side.
 ## Ubiquitous language
 
 - **`ReconciliationMatch`** — the aggregate root linking an `AtomicTransaction`
-  to one or more `JournalEntry` rows. At most one *active* match exists per
-  transaction; a newer match supersedes the prior one rather than mutating it.
+  to one or more `JournalEntry` rows and the canonical persisted economic-
+  disposition head for that source transaction. At most one *active* head
+  exists per transaction; a newer head supersedes the prior one.
+- **Disposition kind** — `journal_match`, `transfer_leg`, or
+  `reviewed_unmatched`. It is part of the same aggregate, not a parallel
+  decision table.
+- **`ReconciliationTransferPair`** — a persistent decision joining one OUT and
+  one IN transfer disposition. Each disposition can belong to at most one pair;
+  normalized `ReconciliationTransferPairLeg` membership enforces this across
+  both roles. Decision, review state, confidence, and version survive restart.
 - **Status lifecycle** —
   `PENDING_REVIEW → ACCEPTED/AUTO_ACCEPTED/REJECTED → SUPERSEDED`; posted
   entries behind an active match are immutable.
@@ -102,7 +110,8 @@ scoring:
     date_days: 7            # Date tolerance days
 ```
 
-Amount matching uses the bank/cash side of each candidate journal entry:
+Amount matching always names `AtomicTransaction.currency` and uses only the
+same-currency bank/cash side of each candidate journal entry:
 statement `IN` transactions match asset debit lines, statement `OUT`
 transactions match asset credit lines, and scoring falls back to the entry
 debit total only when no bank/cash-side asset line is available. This keeps
@@ -133,6 +142,19 @@ stateDiagram-v2
 (`version` + `superseded_by_id`). An active match satisfies
 `status != superseded AND superseded_by_id IS NULL`.
 
+The database enforces one active head per `atomic_txn_id` with a partial unique
+index. Selection is transactional: the repository locks the immutable source
+transaction, re-reads the current head, and only the winner may invoke a ledger
+side effect. A concurrent loser reuses the committed winner. The migration
+preserves dirty historical rows by deterministically retaining the newest head
+and linking older active rows to it as superseded before installing the index.
+
+Matching priority is evidence-first: many-to-one and normal journal candidates
+run before keyword-based transfer fallback. Transfer fallback uses only ledger's
+typed Processing commands and the transaction's own currency. Once both legs
+exist, reconciliation persists their pair; logs and ledger inference are not
+authoritative pair state.
+
 ### Design constraints
 
 - Auto-matches must record `score_breakdown` for audit.
@@ -143,7 +165,8 @@ stateDiagram-v2
 - The matching engine pre-fetches candidates for the whole statement period
   and caches historical-pattern scores to avoid N+1 queries.
 - `execute_matching` uses the `ReconciliationRepository` port for pending
-  transactions, journal candidates, active matches, and writes. Its phases
+  transactions, journal candidates, transaction claims, active matches, and
+  writes. Its phases
   receive one typed `MatchingContext` and return their created matches; they do
   not mutate a caller-owned output list or accept module helpers as untyped
   callback parameters.

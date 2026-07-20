@@ -49,6 +49,7 @@ def _hybrid_band_txn_and_entry() -> tuple[AtomicTransaction, JournalEntry]:
         amount=Decimal("100.00"),
         txn_date=date(2024, 1, 1),
         direction="IN",
+        currency="SGD",
     )
     entry = JournalEntry(
         memo="",

@@ -26,7 +26,10 @@ class SqlReconciliationRepository(ReconciliationRepository):
         user_id: UUID,
         limit: int | None = None,
     ) -> list[AtomicTransaction]:
-        subquery = select(ReconciliationMatch.atomic_txn_id).where(ReconciliationMatch.atomic_txn_id.isnot(None))
+        subquery = select(ReconciliationMatch.atomic_txn_id).where(
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
         query = (
             select(AtomicTransaction)
             .where(AtomicTransaction.user_id == user_id)
@@ -63,6 +66,11 @@ class SqlReconciliationRepository(ReconciliationRepository):
             )
         )
         return result.scalar_one_or_none()
+
+    async def claim_transaction(self, txn_id: UUID) -> ReconciliationMatch | None:
+        """Lock the immutable source row before selecting its disposition head."""
+        await self._db.execute(select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update())
+        return await self.get_active_match(txn_id)
 
     async def add_match(self, match: ReconciliationMatch) -> None:
         self._db.add(match)

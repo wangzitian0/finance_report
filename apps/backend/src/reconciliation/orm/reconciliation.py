@@ -11,7 +11,7 @@ now that ``AtomicTransaction`` has moved into ``extraction/orm/layer2.py``).
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import Enum as SQLEnum, ForeignKey, Index, Integer, String
+from sqlalchemy import Enum as SQLEnum, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,11 +29,48 @@ class ReconciliationStatus(str, Enum):
     SUPERSEDED = "superseded"
 
 
+class DispositionKind(str, Enum):
+    """The economic meaning selected for one source transaction."""
+
+    JOURNAL_MATCH = "journal_match"
+    TRANSFER_LEG = "transfer_leg"
+    REVIEWED_UNMATCHED = "reviewed_unmatched"
+
+
+class TransferPairDecision(str, Enum):
+    """Bounded decisions for a persisted transfer pair."""
+
+    AUTO_PAIRED = "auto_paired"
+    REVIEWER_PAIRED = "reviewer_paired"
+
+
+class TransferPairReviewState(str, Enum):
+    """Whether a persisted pair still requires human confirmation."""
+
+    PAIRED = "paired"
+    PENDING_REVIEW = "pending_review"
+
+
+class TransferPairLegRole(str, Enum):
+    """The direction a disposition occupies inside one transfer pair."""
+
+    OUT = "out"
+    IN = "in"
+
+
 class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
     """Match record between bank transaction and journal entries."""
 
     __tablename__ = "reconciliation_matches"
-    __table_args__ = (Index("idx_reconciliation_matches_run_id", "run_id"),)
+    __table_args__ = (
+        Index("idx_reconciliation_matches_run_id", "run_id"),
+        Index(
+            "uq_reconciliation_matches_active_atomic_txn",
+            "atomic_txn_id",
+            unique=True,
+            postgresql_where=text("superseded_by_id IS NULL AND status <> 'superseded'::reconciliation_status_enum"),
+        ),
+    )
 
     atomic_txn_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -51,6 +88,16 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
             values_callable=lambda obj: [e.value for e in obj],
         ),
         default=ReconciliationStatus.PENDING_REVIEW,
+    )
+    disposition_kind: Mapped[DispositionKind] = mapped_column(
+        SQLEnum(
+            DispositionKind,
+            name="reconciliation_disposition_kind_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=DispositionKind.JOURNAL_MATCH,
+        server_default=DispositionKind.JOURNAL_MATCH.value,
     )
     version: Mapped[int] = mapped_column(Integer, default=1)
     superseded_by_id: Mapped[UUID | None] = mapped_column(
@@ -81,3 +128,54 @@ class ReconciliationMatchJournalEntry(Base, TimestampMixin):
 
     reconciliation_match: Mapped[ReconciliationMatch] = relationship("ReconciliationMatch")
     # No relationship() to ledger's JournalEntry: resolve by id (#1675 ruling).
+
+
+class ReconciliationTransferPair(Base, UUIDMixin, TimestampMixin):
+    """Persistent pairing decision over two transfer-leg dispositions."""
+
+    __tablename__ = "reconciliation_transfer_pairs"
+    decision: Mapped[TransferPairDecision] = mapped_column(
+        SQLEnum(
+            TransferPairDecision,
+            name="reconciliation_transfer_pair_decision_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    review_state: Mapped[TransferPairReviewState] = mapped_column(
+        SQLEnum(
+            TransferPairReviewState,
+            name="reconciliation_transfer_pair_review_state_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    score_breakdown: Mapped[dict[str, float | str]] = mapped_column(JSONB, default=dict)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class ReconciliationTransferPairLeg(Base):
+    """Uniquely owned disposition membership in a transfer pair."""
+
+    __tablename__ = "reconciliation_transfer_pair_legs"
+
+    pair_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("reconciliation_transfer_pairs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    role: Mapped[TransferPairLegRole] = mapped_column(
+        SQLEnum(
+            TransferPairLegRole,
+            name="reconciliation_transfer_pair_leg_role_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        primary_key=True,
+    )
+    disposition_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("reconciliation_matches.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
