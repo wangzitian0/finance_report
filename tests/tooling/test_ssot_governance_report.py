@@ -1321,11 +1321,13 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     assert concepts["extraction_failed_case_registry"]["proofs"] == [
         "tests/tooling/test_extraction_failed_case_registry.py",
     ]
-    assert concepts["source_coverage_matrix"]["family"] == "source"
-    assert concepts["source_coverage_matrix"]["kind"] == "matrix"
-    assert concepts["source_coverage_matrix"]["proofs"] == [
-        "tests/tooling/test_source_coverage_matrix.py",
-        "tools/check_source_coverage_matrix.py",
+    assert concepts["source_capability_registry"]["family"] == "source"
+    assert concepts["source_capability_registry"]["kind"] == "registry"
+    assert concepts["source_capability_proof_join"]["family"] == "source"
+    assert concepts["source_capability_proof_join"]["kind"] == "concept"
+    assert concepts["source_capability_proof_join"]["proofs"] == [
+        "tests/tooling/test_source_capability_proof.py",
+        "tools/check_ac_index.py",
     ]
 
     # The extraction SSOT is internalized into the `extraction` package
@@ -1341,20 +1343,20 @@ def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() ->
     inbound_refs = {
         "common/extraction/readme.md": [
             "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
-            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
+            "[`source_capability_registry`](./source_capability.py)",
         ],
         "docs/project/EPIC-003.statement-parsing.md": [
             f"[`extraction_failed_case_registry`]({blob})",
         ],
         "docs/project/EPIC-013.statement-parsing-v2.md": [
-            "[`source_coverage_matrix`](../../common/testing/data/source-coverage-matrix.yaml)",
+            "[`source_capability_registry`](../../common/extraction/source_capability.py)",
         ],
         "vision.md": [
-            "[`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml)",
+            "[`source_capability_registry`](common/extraction/source_capability.py)",
         ],
         "common/testing/tdd.md": [
             f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_coverage_matrix`](data/source-coverage-matrix.yaml)",
+            "[`source_capability_proof_join`](source_capability_proof.py)",
         ],
     }
     for path, markers in inbound_refs.items():

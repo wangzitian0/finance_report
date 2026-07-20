@@ -1249,7 +1249,7 @@ CONTRACT = PackageContract(
                 "common/llm/ai.md",
                 "common/reporting/reporting.md",
                 "common/workflow/workflow-events.md",
-                "common/testing/data/source-coverage-matrix.yaml",
+                "common/extraction/source_capability.py",
                 "common/pricing/market_data.md",
                 "docs/project/EPIC-021.application-ai-advisor.md",
             ],

@@ -284,7 +284,7 @@ async def test_AC_extraction_result_envelope_1_live_missing_facts_are_review_onl
 
 
 def test_AC_extraction_source_capability_1_declares_semantics_not_test_paths():
-    """AC-extraction.source-capability.1: capability truth is semantic product data."""
+    """AC-extraction.source-capability.1 / AC-extraction.112.1: semantic source truth."""
     by_id = {capability.capability_id: capability for capability in SOURCE_CAPABILITIES}
 
     assert len(by_id) == len(SOURCE_CAPABILITIES)

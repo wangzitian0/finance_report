@@ -62,7 +62,7 @@ Owned here:
 Not owned here:
 
 - Source format expansion or source confidence improvements; those stay in
-  EPIC-003 / EPIC-013 and the source coverage matrix.
+  EPIC-003 / EPIC-013 and extraction's `SourceCapability` registry.
 - report package snapshots and export scale stay in EPIC-005 / EPIC-008, tracked
   by [#705](https://github.com/wangzitian0/finance_report/issues/705).
 - manual evidence intake stays in EPIC-011 / EPIC-005, tracked by
@@ -120,7 +120,7 @@ their tests are introduced.
 - [ai.md](../../common/llm/ai.md)
 - [reporting.md](../../common/reporting/reporting.md)
 - [workflow-events.md](../../common/workflow/workflow-events.md)
-- [source-coverage-matrix.yaml](../../common/testing/data/source-coverage-matrix.yaml)
+- [SourceCapability registry](../../common/extraction/source_capability.py)
 - [EPIC-006](./EPIC-006.ai-advisor.md)
 - [EPIC-018](./EPIC-018.ai-driven-pipeline.md)
 - [EPIC-019](./EPIC-019.event-driven-upload-to-report-ux.md)

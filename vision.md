@@ -266,7 +266,7 @@ owners:
   concept). The staged confidence pipeline (raw -> extracted -> validated ->
   confirmed -> reconciled -> trusted -> reports) is owned by
   `common/extraction/confirmation-workflow.md`; supported source classes by
-  [`source_coverage_matrix`](common/testing/data/source-coverage-matrix.yaml).
+  [`source_capability_registry`](common/extraction/source_capability.py).
 - **Delivery scope & status** → `docs/project/` (EPICs) and `README.md`.
 - **Agent process & governance** → `AGENTS.md` and `docs/agents/`.
 

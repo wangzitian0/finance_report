@@ -476,7 +476,7 @@ output; the no-regression comparison still runs on PRs but is **report-only**
    - CI fails on mandatory AC coverage that is missing, placeholder-only, or stub-only; mandatory AC proof must also come from a CI-required execution stage in `common/testing/data/test-execution-matrix.yaml`
    - E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs, project EPICs without product E2E owner tests, README EPIC map drift, and unclassified E2E-like assets outside declared roots
    - The critical proof matrix protects only selected core proof paths from broad/reference-only AC strings
-   - The source coverage matrix treats `required_source_classes` and per-source `proof_levels` as strict lists; scalar YAML values fail directly instead of being iterated character-by-character
+   - The source-capability proof join fails closed on duplicate or unknown capability ids and requires supported sources to have both PR merge-authority and release-validation proof
    - Critical proof IDs are unique; duplicate IDs fail before mirror proof resolution can silently overwrite an earlier proof
    - Behavioral product coverage must be proven by Tier 1+ tests and explicit product E2E gates, not by an AC string appearing in a test file
    - Stub and placeholder assertions cannot count as proof; the CI gate runs before the traceability audit artifact is generated
