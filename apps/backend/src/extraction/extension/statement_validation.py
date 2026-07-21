@@ -14,6 +14,7 @@ from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
+from src.audit.money.adopt import balance_check
 from src.extraction.extension.reviewed_statement_envelope import require_current_statement_envelope_trust
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
@@ -69,6 +70,124 @@ async def validate_balance_chain(
 
     transactions = await resolve_statement_transactions(db, statement)
 
+    typed_balances = statement.typed_currency_balances()
+    if len(typed_balances):
+        nets = {currency: Decimal("0") for currency in typed_balances.currencies()}
+        for txn in transactions:
+            currency = txn.currency.strip().upper()
+            nets.setdefault(currency, Decimal("0"))
+            nets[currency] += txn.amount if _direction_is_in(txn.direction) else -txn.amount
+
+        per_currency = []
+        for balance in typed_balances:
+            currency = balance.currency.code
+            expected, delta = balance_check(
+                balance.opening.amount,
+                balance.closing.amount,
+                nets.get(currency, Decimal("0")),
+                currency,
+            )
+            per_currency.append(
+                {
+                    "currency": currency,
+                    "opening_balance": str(balance.opening.amount),
+                    "closing_balance": str(balance.closing.amount),
+                    "calculated_closing": str(expected),
+                    "closing_delta": str(delta),
+                    "closing_match": delta <= BALANCE_TOLERANCE,
+                    "declared_balance": True,
+                }
+            )
+        declared = set(typed_balances.currencies())
+        for currency in sorted(set(nets) - declared):
+            expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
+            per_currency.append(
+                {
+                    "currency": currency,
+                    "opening_balance": None,
+                    "closing_balance": None,
+                    "calculated_closing": str(expected),
+                    "closing_delta": str(delta),
+                    "closing_match": False,
+                    "declared_balance": False,
+                }
+            )
+
+        primary_currency = (statement.currency or "").strip().upper()
+        if (
+            primary_currency
+            and primary_currency not in declared
+            and not any(row["currency"] == primary_currency for row in per_currency)
+        ):
+            per_currency.append(
+                {
+                    "currency": primary_currency,
+                    "opening_balance": None,
+                    "closing_balance": None,
+                    "calculated_closing": "0",
+                    "closing_delta": "0",
+                    "closing_match": False,
+                    "declared_balance": False,
+                }
+            )
+
+        primary = next(
+            (row for row in per_currency if row["currency"] == primary_currency),
+            per_currency[0],
+        )
+        return {
+            "opening_balance": primary["opening_balance"],
+            "closing_balance": primary["closing_balance"],
+            "calculated_closing": primary["calculated_closing"],
+            "opening_delta": "0",
+            "closing_delta": primary["closing_delta"],
+            "opening_match": True,
+            "closing_known": True,
+            "closing_match": primary["closing_match"],
+            "balance_valid": all(row["closing_match"] for row in per_currency),
+            "per_currency": per_currency,
+            "validated_at": datetime.now(UTC).isoformat(),
+        }
+
+    transaction_currencies = {txn.currency.strip().upper() for txn in transactions}
+    scalar_currency = (statement.currency or "").strip().upper()
+    if len(transaction_currencies) > 1 or (transaction_currencies and scalar_currency not in transaction_currencies):
+        nets = {currency: Decimal("0") for currency in transaction_currencies}
+        for txn in transactions:
+            currency = txn.currency.strip().upper()
+            nets[currency] += txn.amount if _direction_is_in(txn.direction) else -txn.amount
+        per_currency = []
+        for currency in sorted(nets):
+            expected, delta = balance_check(Decimal("0"), Decimal("0"), nets[currency], currency)
+            per_currency.append(
+                {
+                    "currency": currency,
+                    "opening_balance": None,
+                    "closing_balance": None,
+                    "calculated_closing": str(expected),
+                    "closing_delta": str(delta),
+                    "closing_match": False,
+                    "declared_balance": False,
+                }
+            )
+        primary = next(
+            (row for row in per_currency if row["currency"] == scalar_currency),
+            per_currency[0],
+        )
+        return {
+            "opening_balance": primary["opening_balance"],
+            "closing_balance": primary["closing_balance"],
+            "calculated_closing": primary["calculated_closing"],
+            "opening_delta": "0",
+            "closing_delta": primary["closing_delta"],
+            "opening_match": False,
+            "closing_known": False,
+            "closing_match": False,
+            "balance_valid": False,
+            "per_currency": per_currency,
+            "validated_at": datetime.now(UTC).isoformat(),
+        }
+
     opening_balance = await _get_opening_balance(db, statement)
     opening_delta = abs((statement.opening_balance or Decimal("0")) - opening_balance)
 
@@ -98,6 +217,9 @@ async def validate_balance_chain(
         "opening_match": opening_delta <= BALANCE_TOLERANCE,
         "closing_known": closing_known,
         "closing_match": closing_known and closing_delta <= BALANCE_TOLERANCE,
+        "balance_valid": (opening_delta <= BALANCE_TOLERANCE)
+        and (not closing_known or closing_delta <= BALANCE_TOLERANCE),
+        "per_currency": [],
         "validated_at": datetime.now(UTC).isoformat(),
     }
 
@@ -147,6 +269,11 @@ async def _get_statement_for_update(
 
 
 def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: bool = False) -> None:
+    per_currency = validation_result.get("per_currency", [])
+    failed_currencies = [row["currency"] for row in per_currency if not row["closing_match"]]
+    if failed_currencies:
+        raise ValueError(f"Balance mismatch for currency: {', '.join(failed_currencies)}")
+
     # Route the Stage-1 approval decision through the promotion gate: the
     # balance-chain checks are the deterministic invariants, with no confidence
     # term (min_confidence=0). The gate disposes; a failed invariant blocks

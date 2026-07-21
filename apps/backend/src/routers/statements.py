@@ -17,8 +17,10 @@ from src.composition import compose_statement_posting_dependencies
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    BankStatementStatus,
     BrokeragePositionImportService,
     ParseJob,
+    RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
     StatementPostingOutcome,
@@ -38,18 +40,17 @@ from src.extraction import (
     reject_statement_workflow,
     resolve_statement_posting_account,
     resolve_statement_transactions,
+    retire_statement,
     set_opening_balance,
     submit_parse_pipeline,
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
-    get_owned_or_404,
     raise_bad_request,
     raise_conflict,
     raise_internal_error,
@@ -140,7 +141,17 @@ async def _get_statement_or_404(
     statement_id: UUID,
     user_id: UUID,
 ) -> StatementSummary:
-    return await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    result = await db.execute(
+        select(StatementSummary).where(
+            StatementSummary.id == statement_id,
+            StatementSummary.user_id == user_id,
+            StatementSummary.status != BankStatementStatus.RETIRED,
+        )
+    )
+    statement = result.scalar_one_or_none()
+    if statement is None:
+        raise_not_found("Statement")
+    return statement
 
 
 async def _queue_statement_reparse(
@@ -495,12 +506,22 @@ async def list_statements(
 ) -> BankStatementListResponse:
     """List all statements for the current user."""
     result = await db.execute(
-        select(StatementSummary).where(StatementSummary.user_id == user_id).order_by(StatementSummary.created_at.desc())
+        select(StatementSummary)
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status != BankStatementStatus.RETIRED,
+        )
+        .order_by(StatementSummary.created_at.desc())
     )
     statements = result.scalars().all()
 
     total_result = await db.execute(
-        select(func.count()).select_from(StatementSummary).where(StatementSummary.user_id == user_id)
+        select(func.count())
+        .select_from(StatementSummary)
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status != BankStatementStatus.RETIRED,
+        )
     )
     total = total_result.scalar() or 0
 
@@ -701,27 +722,16 @@ async def delete_statement(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> None:
-    """Delete a statement."""
-    statement = await _get_statement_or_404(db, statement_id, user_id)
-
-    # Resolve the MinIO object key via the ODS document and delete from storage.
-    uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
-    storage_key = uploaded_document.file_path if uploaded_document else None
-    if storage_key:
-        storage = StorageService()
-        try:
-            await run_in_threadpool(storage.delete_object, storage_key)
-        except StorageError as exc:
-            logger.error(
-                "Failed to delete file from storage",
-                error=str(exc),
-                error_id=ErrorIds.STORAGE_DELETE_FAILED,
-                file_path=storage_key,
-            )
-            # Proceed to delete from DB to avoid zombie record
-
-    await db.delete(statement)
-    await db.commit()
+    """Retire a statement from product views while retaining source history."""
+    try:
+        await retire_statement(
+            db,
+            RetireStatementCommand(statement_id=statement_id, user_id=user_id),
+        )
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise_not_found("Statement", cause=exc)
 
 
 # --- Two-Stage Review Endpoints ---

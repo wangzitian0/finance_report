@@ -15,7 +15,6 @@
   "routers/review.py::from src.extraction.orm.layer2 import AtomicTransaction",
   "routers/review.py::from src.extraction.orm.statement_summary import StatementSummary",
   "routers/review.py::from src.reconciliation.orm.consistency_check import CheckStatus, CheckType",
-  "routers/statements.py::from src.extraction.orm.statement_enums import BankStatementStatus",
   "routers/statements.py::from src.extraction.orm.statement_summary import StatementSummary",
   "schemas/app_config.py::from src.audit.money import Currency, InvalidCurrencyError",
   "schemas/base.py::from src.audit.money.currency import normalize_currency_code",

@@ -16,6 +16,7 @@ class BankStatementStatus(str, Enum):
     PARSED = "parsed"
     APPROVED = "approved"
     REJECTED = "rejected"
+    RETIRED = "retired"
 
 
 class Stage1Status(str, Enum):

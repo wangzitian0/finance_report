@@ -1966,7 +1966,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Statement
-         * @description Delete a statement.
+         * @description Retire a statement from product views while retaining source history.
          */
         delete: operations["delete_statement_statements__statement_id__delete"];
         options?: never;
@@ -3146,7 +3146,7 @@ export interface components {
          * @description Statement processing status.
          * @enum {string}
          */
-        BankStatementStatus: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
+        BankStatementStatus: "uploaded" | "parsing" | "parsed" | "approved" | "rejected" | "retired";
         /**
          * BankTransactionSummary
          * @description Summary of a transaction for reconciliation.
@@ -3302,19 +3302,40 @@ export interface components {
             account_id?: string | null;
             /** Broker */
             broker: string;
-            /** Created Atomic Positions */
+            /**
+             * Created Atomic Positions
+             * @description New immutable position snapshots created.
+             */
             created_atomic_positions: number;
-            /** Existing Atomic Positions */
+            /**
+             * Existing Atomic Positions
+             * @description Existing immutable position snapshots reused.
+             */
             existing_atomic_positions: number;
-            /** Parsed Positions */
+            /**
+             * Parsed Positions
+             * @description Parsed brokerage position count.
+             */
             parsed_positions: number;
-            /** Reconcile Created */
+            /**
+             * Reconcile Created
+             * @description Managed positions created by reconciliation.
+             */
             reconcile_created: number;
-            /** Reconcile Disposed */
+            /**
+             * Reconcile Disposed
+             * @description Managed positions marked disposed by reconciliation.
+             */
             reconcile_disposed: number;
-            /** Reconcile Updated */
+            /**
+             * Reconcile Updated
+             * @description Managed positions updated by reconciliation.
+             */
             reconcile_updated: number;
-            /** Skipped */
+            /**
+             * Skipped
+             * @description Parsed positions skipped during import.
+             */
             skipped: number;
         };
         /**
@@ -4198,7 +4219,10 @@ export interface components {
             market_data_provider: string | null;
             /** Stale */
             stale: boolean;
-            /** Stale Holdings */
+            /**
+             * Stale Holdings
+             * @description Holdings whose selected price predates the schedule as-of date.
+             */
             stale_holdings?: string[];
         };
         /**
@@ -4224,6 +4248,24 @@ export interface components {
             unrealized_pnl: string;
         };
         /**
+         * InvestmentPerformanceMarketValuationSelection
+         * @description External market observation actually used for a schedule holding.
+         */
+        InvestmentPerformanceMarketValuationSelection: {
+            /** Asset Identifier */
+            asset_identifier: string;
+            /**
+             * Observation Id
+             * Format: uuid
+             */
+            observation_id: string;
+            /**
+             * Requested As Of
+             * Format: date
+             */
+            requested_as_of: string;
+        };
+        /**
          * InvestmentPerformanceReportScheduleResponse
          * @description Report-ready investment performance schedule consumed by EPIC-005.
          */
@@ -4244,6 +4286,11 @@ export interface components {
             dividend_yield: string | null;
             /** Holdings */
             holdings: components["schemas"]["InvestmentPerformanceHoldingRow"][];
+            /**
+             * Market Valuation Selections
+             * @description Exact external market observations rendered for schedule holdings.
+             */
+            market_valuation_selections?: components["schemas"]["InvestmentPerformanceMarketValuationSelection"][];
             /** Money Weighted Return */
             money_weighted_return: string | null;
             /** Notes */
@@ -4772,22 +4819,19 @@ export interface components {
         };
         /**
          * ManualValuationBasis
-         * @description How a manual valuation's value was determined — the evidence basis.
-         *
-         *     Captured for guided evidence intake (#706) so a manual-trusted value carries
-         *     a structured, auditable basis (not just a free-text source).
+         * @description Evidence basis attached to a human-entered valuation.
          * @enum {string}
          */
         ManualValuationBasis: "market_appraisal" | "broker_statement" | "employer_grant_document" | "bank_statement" | "government_statement" | "insurer_statement" | "self_estimate";
         /**
          * ManualValuationComponentType
-         * @description Manual net worth component type.
+         * @description Manual net-worth component classification owned by pricing.
          * @enum {string}
          */
         ManualValuationComponentType: "property_value" | "mortgage_balance" | "cpf_balance" | "retirement_account" | "social_security_personal_account" | "long_term_benefit_asset" | "long_term_savings" | "tax_payable" | "tax_refund" | "insurance_cash_value" | "esop" | "rsu" | "stock_options" | "other_asset" | "other_liability";
         /**
          * ManualValuationLiquidityClass
-         * @description How a manual valuation should be presented in net worth views.
+         * @description Presentation liquidity of a pricing-owned valuation fact.
          * @enum {string}
          */
         ManualValuationLiquidityClass: "liquid" | "restricted" | "illiquid" | "liability";
@@ -5851,7 +5895,10 @@ export interface components {
          *     consumable by the generated frontend client.
          */
         PriceUpdateBatchResponse: {
-            /** Results */
+            /**
+             * Results
+             * @description Per-asset price override results.
+             */
             results?: components["schemas"]["PriceUpdateResponse"][];
             /**
              * Updated Count
@@ -6023,20 +6070,33 @@ export interface components {
          * @description Response for position reconciliation.
          */
         ReconcilePositionsResponse: {
-            /** Created */
+            /**
+             * Created
+             * @description Number of managed positions created by reconciliation.
+             */
             created: number;
-            /** Disposed */
+            /**
+             * Disposed
+             * @description Number of managed positions marked disposed by reconciliation.
+             */
             disposed: number;
             /** Message */
             message: string;
             /**
              * Skipped
+             * @description Number of source positions skipped by reconciliation.
              * @default 0
              */
             skipped: number;
-            /** Skipped Assets */
+            /**
+             * Skipped Assets
+             * @description Asset identifiers skipped during reconciliation.
+             */
             skipped_assets?: string[];
-            /** Updated */
+            /**
+             * Updated
+             * @description Number of managed positions updated by reconciliation.
+             */
             updated: number;
         };
         /**

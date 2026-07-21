@@ -9,6 +9,7 @@ from sqlalchemy import select
 from src.audit.money import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    BankStatementStatus,
     resolve_statement_conflicts,
     resolve_statement_transactions,
     resolve_transaction_currency,
@@ -17,7 +18,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
-from src.platform import get_owned_or_404, raise_conflict
+from src.platform import get_owned_or_404, raise_conflict, raise_not_found
 from src.reconciliation import (
     CheckResolutionAction,
     ReconciliationError,
@@ -64,6 +65,8 @@ async def get_review_conflicts(
 ) -> ReviewConflictsResponse:
     """Return duplicate and transfer-pair candidates for a statement."""
     statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    if statement.status is BankStatementStatus.RETIRED:
+        raise_not_found("Statement")
 
     transactions = await resolve_statement_transactions(db, statement)
 
@@ -230,7 +233,9 @@ async def run_stage2_checks(
 ) -> ConsistencyCheckListResponse:
     """Run consistency checks for a statement."""
     # Existence/ownership guard (404); the checks below key off statement_id.
-    await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    statement = await get_owned_or_404(db, StatementSummary, statement_id, user_id, name="Statement")
+    if statement.status is BankStatementStatus.RETIRED:
+        raise_not_found("Statement")
 
     checks = await run_all_consistency_checks(db, user_id, statement_id)
     await db.commit()

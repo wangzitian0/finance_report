@@ -13,6 +13,7 @@ from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import compose_reviewed_disposition_dependencies
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
+from src.extraction import BankStatementStatus
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
@@ -204,6 +205,7 @@ async def run_reconciliation(
             select(StatementSummary)
             .where(StatementSummary.id == payload.statement_id)
             .where(StatementSummary.user_id == user_id)
+            .where(StatementSummary.status != BankStatementStatus.RETIRED)
         )
         statement = stmt_result.scalar_one_or_none()
         if statement is None:

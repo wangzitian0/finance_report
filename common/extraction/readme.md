@@ -43,6 +43,37 @@ exceptions raise typed ingestion errors so durable execution can retry without
 misrepresenting infrastructure failure as bad user data. Retrying finalization
 is idempotent by statement and atomic-transaction identity.
 
+### Source lifecycle convergence
+
+`StatementSummary` and its `UploadedDocument` share one extraction-owned source
+lifecycle. Canonical identity is `(user_id, file_hash)`: insertion is isolated
+under a database savepoint, and a concurrent loser selects and continues with
+the unique database winner without poisoning the outer ingestion transaction.
+The uniqueness constraint, not an application pre-read, is the final lock.
+
+Stage-1 approval consumes `StatementSummary.currency_balances` through the typed
+`CurrencyBalances` container. Each declared currency independently proves
+`opening + IN - OUT = closing`; an undeclared transaction currency blocks
+approval. The scalar balance response remains only the backward-compatible
+projection when every transaction belongs to the statement's one explicitly
+declared currency. Missing or multiple transaction currency domains fail closed
+with per-currency findings and never govern approval through a nominal scalar
+sum.
+
+Ordinary `DELETE /statements/{id}` means **retire**, not physical purge. It
+atomically marks the statement and source reference retired, removes the item
+from normal product reads, and preserves the stored object, immutable extraction
+results, reviewed envelopes, atomic facts, and lineage. Repeating retirement is
+idempotent. Because retirement does not delete object content, an object-store
+outage cannot split database source truth from storage state. Physical
+purge/anonymization is a separately named cross-package operation governed by
+#1898/#1848 and is not callable through ordinary statement APIs.
+If upload persists object bytes but database persistence and immediate cleanup
+both fail, the existing default-enabled runtime orphan sweep reconciles the
+unreferenced object after its grace period; extraction remains the owner of the
+canonical storage-reference query rather than duplicating a second cleanup
+mechanism.
+
 ## Extraction Result And Economic Disposition
 
 Every transport receives the same `StatementExtractionResult`; it is the

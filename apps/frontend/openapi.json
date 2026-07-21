@@ -1772,7 +1772,8 @@
           "parsing",
           "parsed",
           "approved",
-          "rejected"
+          "rejected",
+          "retired"
         ],
         "title": "BankStatementStatus",
         "type": "string"
@@ -24400,7 +24401,7 @@
     },
     "/statements/{statement_id}": {
       "delete": {
-        "description": "Delete a statement.",
+        "description": "Retire a statement from product views while retaining source history.",
         "operationId": "delete_statement_statements__statement_id__delete",
         "parameters": [
           {

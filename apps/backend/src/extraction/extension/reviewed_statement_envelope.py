@@ -11,6 +11,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import desc, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -148,32 +149,35 @@ async def persist_statement_extraction_result(
     if StatementExtractionResult.from_payload(payload) != result:
         raise ValueError("statement extraction result failed typed persistence validation")
 
-    existing = (
-        await db.execute(
-            select(StatementExtractionResultRecord)
-            .where(StatementExtractionResultRecord.user_id == statement.user_id)
-            .where(StatementExtractionResultRecord.statement_id == statement.id)
-            .where(StatementExtractionResultRecord.content_digest == result.content_digest)
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        if existing.payload != payload:
-            raise ValueError("statement extraction result digest collision")
-        source_record = existing
-    else:
-        source_record = StatementExtractionResultRecord(
-            user_id=statement.user_id,
-            statement_id=statement.id,
-            content_digest=result.content_digest,
-            source_content_digest=result.source_content_digest,
-            schema_version=result.schema_version,
-            producer_version=result.producer_version,
-            payload=payload,
-            source_trace_record_id=source_trace_record_id,
-            created_at=datetime.now(UTC),
-        )
-        db.add(source_record)
-        await db.flush()
+    candidate = StatementExtractionResultRecord(
+        user_id=statement.user_id,
+        statement_id=statement.id,
+        content_digest=result.content_digest,
+        source_content_digest=result.source_content_digest,
+        schema_version=result.schema_version,
+        producer_version=result.producer_version,
+        payload=payload,
+        source_trace_record_id=source_trace_record_id,
+        created_at=datetime.now(UTC),
+    )
+    try:
+        async with db.begin_nested():
+            db.add(candidate)
+            await db.flush()
+        source_record = candidate
+    except IntegrityError:
+        source_record = (
+            await db.execute(
+                select(StatementExtractionResultRecord)
+                .where(StatementExtractionResultRecord.user_id == statement.user_id)
+                .where(StatementExtractionResultRecord.statement_id == statement.id)
+                .where(StatementExtractionResultRecord.content_digest == result.content_digest)
+            )
+        ).scalar_one_or_none()
+        if source_record is None:
+            raise RuntimeError("source-result conflict did not expose a canonical winner") from None
+    if source_record.payload != payload:
+        raise ValueError("statement extraction result digest collision")
 
     previous_source_result_id = statement.current_extraction_result_id
     if previous_source_result_id != source_record.id:
