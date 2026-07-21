@@ -288,7 +288,7 @@ async def test_AC_reporting_cash_events_6_7_one_projection_serves_proven_and_unp
     db: AsyncSession, test_user
 ):
     """AC-reporting.cash-events.6 AC-reporting.cash-events.7: one projection reports exact proof state."""
-    cash = await _account(db, test_user.id, "Cash", AccountType.ASSET)
+    cash = await _account(db, test_user.id, "Generic Custody", AccountType.ASSET, code="AUTO-BANK")
     income = await _account(db, test_user.id, "Income", AccountType.INCOME)
     await post_entry(
         db,
@@ -310,7 +310,7 @@ async def test_AC_reporting_cash_events_6_7_one_projection_serves_proven_and_unp
     assert proven["summary"] == standalone["summary"]
     assert proven["proof_state"] == "proven"
     assert standalone["proof_state"] == "unproven"
-    assert standalone["proof_reasons"] == ["cash_identity_lexical_fallback"]
+    assert standalone["proof_reasons"] == ["cash_identity_compatibility_fallback"]
 
     await _entry(
         db,

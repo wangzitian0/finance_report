@@ -29,6 +29,7 @@ from src.reporting.extension.reporting_calc import ReportError, _normalize_curre
 
 logger = get_logger(__name__)
 _PROCESSING_ACCOUNT = ProcessingAccount()
+_AUTO_BANK_ACCOUNT_CODE = "AUTO-BANK"
 
 CashActivity = Literal["Operating", "Investing", "Financing"]
 _EXPLICIT_EVENT_ACTIVITIES: dict[str, CashActivity] = {
@@ -188,7 +189,10 @@ async def generate_cash_flow(
         selected_ids = {
             account.id
             for account in accounts
-            if account.type == AccountType.ASSET and any(keyword in account.name.lower() for keyword in keywords)
+            if account.type == AccountType.ASSET
+            and (
+                account.code == _AUTO_BANK_ACCOUNT_CODE or any(keyword in account.name.lower() for keyword in keywords)
+            )
         }
     else:
         selected_ids = {account_id for account_id in cash_account_ids if account_id in account_by_id}
@@ -241,7 +245,7 @@ async def generate_cash_flow(
     unclassified_cash = Decimal("0")
     proof_reasons: set[str] = set()
     if not explicit_cash_identity:
-        proof_reasons.add("cash_identity_lexical_fallback")
+        proof_reasons.add("cash_identity_compatibility_fallback")
     elif not exact_selected_ids:
         proof_reasons.add("cash_identity_missing")
 

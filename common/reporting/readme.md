@@ -233,8 +233,9 @@ For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement
 contributions and their exact custody `account_id` refs. The package path never
 classifies cash from `Account.name`; a missing or unproven cash input blocks
-trusted output. Standalone analytical cash-flow views retain a bounded lexical
-fallback only for compatibility and cannot authorize, persist, reopen, or export
+trusted output. Standalone analytical cash-flow views retain a bounded
+compatibility fallback over the extraction-created `AUTO-BANK` account code and
+legacy cash-name vocabulary; it cannot authorize, persist, reopen, or export
 a package. Brokerage cash decomposition remains a separate evidence problem: a
 brokerage container is not assigned a global binary cash role.
 
