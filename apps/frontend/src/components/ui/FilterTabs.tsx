@@ -1,11 +1,11 @@
 "use client";
 
-interface FilterTabsProps {
+interface FilterTabsProps<Option extends string> {
   /** The selectable filter values (rendered verbatim as the button labels). */
-  options: readonly string[];
+  options: readonly Option[];
   /** The currently-active value. */
-  value: string;
-  onChange: (value: string) => void;
+  value: Option;
+  onChange: (value: Option) => void;
   /** Capitalize the label (matches the journal/assets `capitalize` styling). */
   capitalize?: boolean;
   /** When set, renders `role="tablist"`/`role="tab"`/`aria-selected` (accessible tabs). */
@@ -14,7 +14,8 @@ interface FilterTabsProps {
   className?: string;
 }
 
-const CONTAINER_DEFAULT = "flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit";
+const CONTAINER_DEFAULT =
+  "flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit";
 
 /**
  * The segmented filter pill-bar repeated across journal / accounts / assets:
@@ -22,21 +23,26 @@ const CONTAINER_DEFAULT = "flex gap-1 bg-[var(--background-muted)] p-1 rounded-l
  * button markup (and its active/inactive className) was duplicated; the
  * container styling and a11y wrapper vary per page, so they stay props.
  */
-export function FilterTabs({
+export function FilterTabs<Option extends string>({
   options,
   value,
   onChange,
   capitalize = false,
   ariaLabel,
   className,
-}: FilterTabsProps) {
+}: FilterTabsProps<Option>) {
   return (
-    <div className={className ?? CONTAINER_DEFAULT} {...(ariaLabel ? { role: "tablist", "aria-label": ariaLabel } : {})}>
+    <div
+      className={className ?? CONTAINER_DEFAULT}
+      {...(ariaLabel ? { role: "tablist", "aria-label": ariaLabel } : {})}
+    >
       {options.map((option) => (
         <button
           key={option}
           type="button"
-          {...(ariaLabel ? { role: "tab", "aria-selected": value === option } : {})}
+          {...(ariaLabel
+            ? { role: "tab", "aria-selected": value === option }
+            : {})}
           onClick={() => onChange(option)}
           className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${capitalize ? "capitalize " : ""}${
             value === option

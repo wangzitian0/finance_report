@@ -55,7 +55,10 @@ from common.meta.base.authority_matrix import (
     TIER_VALID_PROOF_KINDS,
 )
 from common.meta.base.layering import LAYER_RANK, PACKAGE_LAYER, PackageClass
-from common.meta.base.governance_control import GovernanceGuarantee, GovernanceInitiative
+from common.meta.base.governance_control import (
+    GovernanceGuarantee,
+    GovernanceInitiative,
+)
 
 __all__ = [
     "ACRecord",
@@ -332,6 +335,22 @@ class ContextRelation(BaseModel):
         return self
 
 
+class CommandBoundary(BaseModel):
+    """One package-owned, decision-authorized public command boundary."""
+
+    symbol: str
+    version: str
+    proof: str
+
+    @field_validator("symbol", "version", "proof")
+    @classmethod
+    def _nonempty(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("command boundary fields must be non-empty")
+        return normalized
+
+
 class PackageContract(BaseModel):
     """The contract a package publishes — the unit the governance gate checks.
 
@@ -389,6 +408,7 @@ class PackageContract(BaseModel):
     concepts: list[ConceptRecord] = []
     context: ContextScope | None = None
     relationships: list[ContextRelation] = []
+    command_boundaries: list[CommandBoundary] = []
     governance: list[GovernanceInitiative] = []
 
     @model_validator(mode="after")
@@ -399,7 +419,9 @@ class PackageContract(BaseModel):
 
         initiative_ids = [initiative.id for initiative in self.governance]
         if len(initiative_ids) != len(set(initiative_ids)):
-            raise ValueError(f"package {self.name!r}: duplicate governance initiative id")
+            raise ValueError(
+                f"package {self.name!r}: duplicate governance initiative id"
+            )
 
         guarantee_ids: set[str] = set()
         owned_acs = set(ac_ids)
@@ -417,6 +439,21 @@ class PackageContract(BaseModel):
                         f"package {self.name!r}: governance guarantee "
                         f"{guarantee.id!r} references unowned ACs {unknown}"
                     )
+        return self
+
+    @model_validator(mode="after")
+    def _command_boundaries_are_public_and_unique(self) -> PackageContract:
+        symbols = [boundary.symbol for boundary in self.command_boundaries]
+        if len(symbols) != len(set(symbols)):
+            raise ValueError(
+                f"package {self.name!r}: duplicate command boundary symbol"
+            )
+        unknown = sorted(set(symbols) - set(self.interface))
+        if unknown:
+            raise ValueError(
+                f"package {self.name!r}: command boundaries must be public interface "
+                f"symbols (unknown: {unknown})"
+            )
         return self
 
     @model_validator(mode="after")

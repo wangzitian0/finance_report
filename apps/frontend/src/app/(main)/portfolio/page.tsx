@@ -5,12 +5,9 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
-import {
-  HoldingsListResponse,
-  PortfolioSummaryResponse,
-} from "@/lib/types";
+import { HoldingsListResponse, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { LoadingState } from "@/components/ui";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
@@ -31,7 +28,7 @@ import type {
   NetWorthAllocationRow,
 } from "@/lib/types";
 
-function allocationBarWidth(percentage: string | null): string {
+function allocationBarWidth(percentage: string | null | undefined): string {
   return clampPercentWidthFromPercentValue(percentage);
 }
 
@@ -65,17 +62,6 @@ export default function PortfolioPage() {
   const [includeRestrictedAllocation, setIncludeRestrictedAllocation] =
     useState(true);
 
-  const netWorthAllocationQueryString = useMemo(() => {
-    const params = new URLSearchParams({
-      currency: reportCurrency,
-      include_restricted: includeRestrictedAllocation ? "true" : "false",
-    });
-    if (asOfDate) {
-      params.set("as_of_date", asOfDate);
-    }
-    return params.toString();
-  }, [asOfDate, includeRestrictedAllocation, reportCurrency]);
-
   const {
     data: holdings,
     isLoading,
@@ -84,25 +70,20 @@ export default function PortfolioPage() {
   } = useQuery({
     queryKey: ["portfolio-holdings", showDisposed, asOfDate],
     queryFn: () => {
-      const params = new URLSearchParams();
-      if (showDisposed) {
-        params.set("include_disposed", "true");
-      }
-      if (asOfDate) {
-        params.set("as_of_date", asOfDate);
-      }
-      const query = params.toString();
-      return apiFetch<HoldingsListResponse>(
-        `/api/portfolio/holdings${query ? `?${query}` : ""}`,
-      ).then((response) => response.items);
+      return apiOperation("get_holdings_portfolio_holdings_get", {
+        query: {
+          include_disposed: showDisposed || undefined,
+          as_of_date: asOfDate || undefined,
+        },
+      }).then((response) => response.items);
     },
   });
   const { data: summary } = useQuery({
     queryKey: ["portfolio-summary", asOfDate],
     queryFn: () =>
-      apiFetch<PortfolioSummaryResponse>(
-        `/api/portfolio/summary${asOfDate ? `?as_of_date=${asOfDate}` : ""}`,
-      ),
+      apiOperation("get_portfolio_summary_portfolio_summary_get", {
+        query: { as_of_date: asOfDate || undefined },
+      }),
   });
   const {
     data: performanceSchedule,
@@ -111,20 +92,17 @@ export default function PortfolioPage() {
   } = useQuery({
     queryKey: ["portfolio-performance-report-schedule", asOfDate],
     queryFn: () => {
-      if (!asOfDate) {
-        return apiFetch<InvestmentPerformanceReportSchedule>(
-          "/api/portfolio/performance/report-schedule",
-        );
-      }
-      const yearStart = `${asOfDate.slice(0, 4)}-01-01`;
-      const params = new URLSearchParams({
-        period_start: yearStart,
-        period_end: asOfDate,
-        as_of_date: asOfDate,
-        currency: "SGD",
-      });
-      return apiFetch<InvestmentPerformanceReportSchedule>(
-        `/api/portfolio/performance/report-schedule?${params}`,
+      const yearStart = asOfDate ? `${asOfDate.slice(0, 4)}-01-01` : undefined;
+      return apiOperation(
+        "get_investment_performance_report_schedule_portfolio_performance_report_schedule_get",
+        {
+          query: {
+            period_start: yearStart,
+            period_end: asOfDate || undefined,
+            as_of_date: asOfDate || undefined,
+            currency: "SGD",
+          },
+        },
       );
     },
   });
@@ -133,11 +111,20 @@ export default function PortfolioPage() {
     isLoading: isNetWorthAllocationLoading,
     error: netWorthAllocationError,
   } = useQuery({
-    queryKey: ["reports-net-worth-allocation", netWorthAllocationQueryString],
+    queryKey: [
+      "reports-net-worth-allocation",
+      asOfDate,
+      reportCurrency,
+      includeRestrictedAllocation,
+    ],
     queryFn: () =>
-      apiFetch<NetWorthAllocationResponse>(
-        `/api/reports/net-worth/allocation?${netWorthAllocationQueryString}`,
-      ),
+      apiOperation("net_worth_allocation_reports_net_worth_allocation_get", {
+        query: {
+          as_of_date: asOfDate || undefined,
+          currency: reportCurrency,
+          include_restricted: includeRestrictedAllocation,
+        },
+      }),
   });
 
   const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];

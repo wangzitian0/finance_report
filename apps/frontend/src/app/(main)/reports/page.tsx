@@ -12,12 +12,12 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import { packageQuery } from "@/lib/reportPackage";
+import { reportPeriodStart } from "@/lib/reportPackage";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type {
   AnnualizedIncomeResponse,
@@ -77,15 +77,22 @@ export default function ReportsPage() {
 
   useEffect(() => {
     let active = true;
-    apiFetch<AnnualizedIncomeResponse>("/api/income/annualized")
+    apiOperation("get_annualized_income_income_annualized_get")
       .then((data) => active && setAnnualized(data))
       .catch(() => active && setAnnualized(null));
-    apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats")
+    apiOperation("reconciliation_stats_reconciliation_stats_get")
       .then((data) => active && setStats(data))
       .catch(() => active && setStats(null));
-    apiFetch<PersonalReportPackageDocument>(
-      `/api/reports/package${packageQuery(new Date().toISOString().slice(0, 10))}`,
-    )
+    apiOperation("preview_personal_report_package_reports_package_get", {
+      query: (() => {
+        const reportDate = new Date().toISOString().slice(0, 10);
+        return {
+          start_date: reportPeriodStart(reportDate),
+          end_date: reportDate,
+          as_of_date: reportDate,
+        };
+      })(),
+    })
       .then((document) => {
         if (!isPackageReadiness(document.readiness)) {
           if (active) {

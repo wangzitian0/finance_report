@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { compareAmounts } from "@/lib/audit/money";
 import type { BalanceSheetResponse, TrendResponse } from "@/lib/types";
 
@@ -22,14 +22,18 @@ export interface AssetTrend {
   setTrendAccountId: (id: string | null) => void;
 }
 
-export function useAssetTrend(balanceSheet: BalanceSheetResponse | null): AssetTrend {
+export function useAssetTrend(
+  balanceSheet: BalanceSheetResponse | null,
+): AssetTrend {
   const [trend, setTrend] = useState<TrendResponse | null>(null);
   const [trendAccountId, setTrendAccountId] = useState<string | null>(null);
   const [trendAccountName, setTrendAccountName] = useState<string>("Top Asset");
 
   const fetchTrend = useCallback(async () => {
     if (!balanceSheet || !balanceSheet.assets) return;
-    const sortedAssets = [...balanceSheet.assets].sort((a, b) => compareAmounts(b.amount, a.amount));
+    const sortedAssets = [...balanceSheet.assets].sort((a, b) =>
+      compareAmounts(b.amount, a.amount),
+    );
     const selected = trendAccountId
       ? sortedAssets.find((a) => a.account_id === trendAccountId)
       : undefined;
@@ -45,9 +49,9 @@ export function useAssetTrend(balanceSheet: BalanceSheetResponse | null): AssetT
     if (!target) return;
     setTrendAccountName(target.name);
     try {
-      const trendData = await apiFetch<TrendResponse>(
-        `/api/reports/trend?account_id=${target.account_id}&period=monthly`,
-      );
+      const trendData = await apiOperation("account_trend_reports_trend_get", {
+        query: { account_id: target.account_id, period: "monthly" },
+      });
       setTrend(trendData);
     } catch (err) {
       console.error("Failed to fetch trend data:", err);

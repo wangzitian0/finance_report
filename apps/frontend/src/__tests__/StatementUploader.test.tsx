@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StatementUploader from "@/components/statements/StatementUploader";
 import { fetchAiModels } from "@/lib/aiModels";
-import { apiUpload } from "@/lib/api";
+import { apiOperationUpload } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 import { statementUploadAcceptedVector } from "./fixtures/apiVectors";
@@ -19,8 +19,8 @@ vi.mock("@/components/ui/Toast", () => ({
   }),
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiUpload: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperationUpload: vi.fn(),
 }));
 
 vi.mock("@/lib/analytics", async (importOriginal) => ({
@@ -48,9 +48,12 @@ const baseModels = [
 describe("AC3.5.3 StatementUploader model selection", () => {
   beforeEach(() => {
     vi.mocked(fetchAiModels).mockReset();
-    vi.mocked(apiUpload).mockReset();
+    vi.mocked(apiOperationUpload).mockReset();
     vi.mocked(track).mockReset();
-    if (!globalThis.localStorage || typeof globalThis.localStorage.clear !== "function") {
+    if (
+      !globalThis.localStorage ||
+      typeof globalThis.localStorage.clear !== "function"
+    ) {
       const store = new Map<string, string>();
       globalThis.localStorage = {
         getItem: (key: string) => store.get(key) ?? null,
@@ -79,7 +82,10 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       models: baseModels,
     });
 
-    localStorage.setItem("statement_model_v1", "qwen/qwen-2.5-vl-7b-instruct:free");
+    localStorage.setItem(
+      "statement_model_v1",
+      "qwen/qwen-2.5-vl-7b-instruct:free",
+    );
 
     render(<StatementUploader />);
 
@@ -88,18 +94,25 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       expect(select).toHaveValue("qwen/qwen-2.5-vl-7b-instruct:free");
     });
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
 
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
 
     await waitFor(() => {
-      expect(apiUpload).toHaveBeenCalledTimes(1);
+      expect(apiOperationUpload).toHaveBeenCalledTimes(1);
     });
 
-    const formData = vi.mocked(apiUpload).mock.calls[0]?.[1] as FormData;
+    const formData = vi.mocked(apiOperationUpload).mock.calls[0]?.[1]
+      .body as FormData;
     expect(formData.get("model")).toBe("qwen/qwen-2.5-vl-7b-instruct:free");
   });
 
@@ -127,22 +140,31 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
     render(<StatementUploader />);
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["date,description,amount"], "statement.csv", { type: "text/csv" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["date,description,amount"], "statement.csv", {
+      type: "text/csv",
+    });
     await userEvent.upload(fileInput, file);
 
     expect(screen.queryByLabelText(/ai model/i)).not.toBeInTheDocument();
-    expect(screen.getByText("CSV files are parsed directly")).toBeInTheDocument();
+    expect(
+      screen.getByText("CSV files are parsed directly"),
+    ).toBeInTheDocument();
     expect(screen.getByText("No AI model needed.")).toBeInTheDocument();
 
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
 
     await waitFor(() => {
-      expect(apiUpload).toHaveBeenCalledTimes(1);
+      expect(apiOperationUpload).toHaveBeenCalledTimes(1);
     });
 
-    const formData = vi.mocked(apiUpload).mock.calls[0]?.[1] as FormData;
+    const formData = vi.mocked(apiOperationUpload).mock.calls[0]?.[1]
+      .body as FormData;
     expect(formData.get("file")).toBe(file);
     expect(formData.get("model")).toBeNull();
   });
@@ -156,17 +178,25 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
     render(<StatementUploader />);
 
-    await screen.findByText("We couldn't find a default AI model. Refresh and try again.");
+    await screen.findByText(
+      "We couldn't find a default AI model. Refresh and try again.",
+    );
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
 
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
 
     await screen.findByText("Please select an AI model");
-    expect(apiUpload).not.toHaveBeenCalled();
+    expect(apiOperationUpload).not.toHaveBeenCalled();
   });
 
   it("handles model change and storage", async () => {
@@ -184,7 +214,9 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     });
     await userEvent.selectOptions(select, "qwen/qwen-2.5-vl-7b-instruct:free");
     expect(select).toHaveValue("qwen/qwen-2.5-vl-7b-instruct:free");
-    expect(localStorage.getItem("statement_model_v1")).toBe("qwen/qwen-2.5-vl-7b-instruct:free");
+    expect(localStorage.getItem("statement_model_v1")).toBe(
+      "qwen/qwen-2.5-vl-7b-instruct:free",
+    );
   });
 
   it("handles institution input change", async () => {
@@ -286,9 +318,11 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     });
     localStorage.setItem("statement_model_v1", "obsolete-model");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const removeSpy = vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
-      throw new Error("remove blocked");
-    });
+    const removeSpy = vi
+      .spyOn(localStorage, "removeItem")
+      .mockImplementation(() => {
+        throw new Error("remove blocked");
+      });
 
     render(<StatementUploader />);
 
@@ -312,7 +346,9 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       models: baseModels,
     });
     render(<StatementUploader />);
-    const dropZone = screen.getByText(/drop files here or click to upload/i).closest('.card')!;
+    const dropZone = screen
+      .getByText(/drop files here or click to upload/i)
+      .closest(".card")!;
     fireEvent.dragOver(dropZone);
     expect(dropZone).toHaveClass("border-[var(--accent)]");
     fireEvent.dragLeave(dropZone);
@@ -328,12 +364,19 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     render(<StatementUploader />);
     const input = screen.getByLabelText(/bank \/ institution/i);
     await userEvent.type(input, "DBS");
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
-    const formData = vi.mocked(apiUpload).mock.calls[0]?.[1] as FormData;
+    const formData = vi.mocked(apiOperationUpload).mock.calls[0]?.[1]
+      .body as FormData;
     expect(formData.get("institution")).toBe("DBS");
   });
 
@@ -343,12 +386,18 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.mocked(apiUpload).mockRejectedValue(new Error("Server Error"));
+    vi.mocked(apiOperationUpload).mockRejectedValue(new Error("Server Error"));
     render(<StatementUploader />);
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
     await screen.findByText("Server Error");
   });
@@ -362,16 +411,34 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
     render(<StatementUploader />);
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
     fireEvent.change(fileInput, {
-      target: { files: [new File(["data"], "statement.exe", { type: "application/octet-stream" })] },
+      target: {
+        files: [
+          new File(["data"], "statement.exe", {
+            type: "application/octet-stream",
+          }),
+        ],
+      },
     });
-    expect(await screen.findByText("Invalid file type: .exe. Allowed: PDF, CSV, PNG, or JPG")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Invalid file type: .exe. Allowed: PDF, CSV, PNG, or JPG",
+      ),
+    ).toBeInTheDocument();
 
-    const hugeFile = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "statement.pdf", { type: "application/pdf" });
+    const hugeFile = new File(
+      [new Uint8Array(10 * 1024 * 1024 + 1)],
+      "statement.pdf",
+      { type: "application/pdf" },
+    );
     fireEvent.change(fileInput, { target: { files: [hugeFile] } });
-    expect(await screen.findByText("File exceeds 10MB limit")).toBeInTheDocument();
-    expect(apiUpload).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText("File exceeds 10MB limit"),
+    ).toBeInTheDocument();
+    expect(apiOperationUpload).not.toHaveBeenCalled();
   });
 
   // AC-extraction.fe-remainder-extraction.4
@@ -387,14 +454,20 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       target: { files: [new File(["a,b"], "data.csv", { type: "text/csv" })] },
     });
     expect(
-      await screen.findByText("Invalid file type: .csv. Allowed: PDF, PNG, or JPG"),
+      await screen.findByText(
+        "Invalid file type: .csv. Allowed: PDF, PNG, or JPG",
+      ),
     ).toBeInTheDocument();
     unmount();
 
     render(<StatementUploader kind="csv" />);
     const csvInput = screen.getByTestId("uploader-file-csv");
     fireEvent.change(csvInput, {
-      target: { files: [new File(["data"], "statement.pdf", { type: "application/pdf" })] },
+      target: {
+        files: [
+          new File(["data"], "statement.pdf", { type: "application/pdf" }),
+        ],
+      },
     });
     expect(
       await screen.findByText("Invalid file type: .pdf. Allowed: CSV"),
@@ -418,23 +491,36 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     const vector = statementUploadAcceptedVector();
     expect(vector.status).toBe("parsing");
     expect(vector.transactions).toEqual([]);
-    vi.mocked(apiUpload).mockResolvedValue(vector);
+    vi.mocked(apiOperationUpload).mockResolvedValue(vector);
     const onUploadComplete = vi.fn();
 
     render(<StatementUploader onUploadComplete={onUploadComplete} />);
 
-    const uploadButton = screen.getByRole("button", { name: /upload & parse statement/i });
+    const uploadButton = screen.getByRole("button", {
+      name: /upload & parse statement/i,
+    });
     await userEvent.click(uploadButton);
     expect(await screen.findByText("Please select a file")).toBeInTheDocument();
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
     await userEvent.click(uploadButton);
 
-    await waitFor(() => expect(apiUpload).toHaveBeenCalledWith("/api/statements/upload", expect.any(FormData)));
+    await waitFor(() =>
+      expect(apiOperationUpload).toHaveBeenCalledWith(
+        "upload_statement_statements_upload_post",
+        { body: expect.any(FormData) },
+      ),
+    );
     expect(onUploadComplete).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/drop files here or click to upload/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/drop files here or click to upload/i),
+    ).toBeInTheDocument();
   });
 
   it("AC8.4.1 accepts dropped statement files", async () => {
@@ -446,7 +532,9 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
     render(<StatementUploader />);
 
-    const dropZone = screen.getByText(/drop files here or click to upload/i).closest(".card")!;
+    const dropZone = screen
+      .getByText(/drop files here or click to upload/i)
+      .closest(".card")!;
     const file = new File(["data"], "statement.png", { type: "image/png" });
     fireEvent.drop(dropZone, { dataTransfer: { files: [file] } });
 
@@ -460,16 +548,24 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.mocked(apiUpload).mockResolvedValue(statementUploadAcceptedVector());
+    vi.mocked(apiOperationUpload).mockResolvedValue(
+      statementUploadAcceptedVector(),
+    );
 
     render(<StatementUploader />);
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
-    await userEvent.click(screen.getByRole("button", { name: /upload & parse statement/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /upload & parse statement/i }),
+    );
 
-    await waitFor(() => expect(apiUpload).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiOperationUpload).toHaveBeenCalledTimes(1));
 
     expect(vi.mocked(track)).toHaveBeenCalledWith(
       ANALYTICS_EVENTS.UPLOAD_STARTED,
@@ -492,14 +588,20 @@ describe("AC3.5.3 StatementUploader model selection", () => {
       fallback_models: [],
       models: baseModels,
     });
-    vi.mocked(apiUpload).mockRejectedValue(new Error("Server Error"));
+    vi.mocked(apiOperationUpload).mockRejectedValue(new Error("Server Error"));
 
     render(<StatementUploader />);
 
-    const fileInput = screen.getByLabelText(/drop files here or click to upload/i);
-    const file = new File(["data"], "statement.pdf", { type: "application/pdf" });
+    const fileInput = screen.getByLabelText(
+      /drop files here or click to upload/i,
+    );
+    const file = new File(["data"], "statement.pdf", {
+      type: "application/pdf",
+    });
     await userEvent.upload(fileInput, file);
-    await userEvent.click(screen.getByRole("button", { name: /upload & parse statement/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /upload & parse statement/i }),
+    );
 
     await screen.findByText("Server Error");
 

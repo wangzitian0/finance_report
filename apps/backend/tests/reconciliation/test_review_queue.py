@@ -714,7 +714,7 @@ async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, 
     await db.commit()
 
     with patch(
-        "src.extraction.extension.review_queue.submit_anchored_journal_entry",
+        "src.extraction.extension.review_queue.submit_anchored_journal_entry_v2",
         side_effect=ValidationError("not balanced"),
     ):
         with pytest.raises(ValueError, match="Generated entry does not balance"):

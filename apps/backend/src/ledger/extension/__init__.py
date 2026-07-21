@@ -15,9 +15,11 @@ from src.ledger.extension.accounting import (
 )
 from src.ledger.extension.anchored_posting import (
     AnchoredJournalCommand,
+    AnchoredJournalCommandV2,
     current_anchored_journal_entries,
     ledger_trace_policy_registry,
     submit_anchored_journal_entry,
+    submit_anchored_journal_entry_v2,
     submit_manual_journal_entry,
     validate_manual_journal_entry_for_post,
 )
@@ -47,6 +49,7 @@ from src.ledger.extension.repository import (
 __all__ = [
     "AccountNotFoundError",
     "AnchoredJournalCommand",
+    "AnchoredJournalCommandV2",
     "current_anchored_journal_entries",
     "ledger_trace_policy_registry",
     "list_journal_contributions",
@@ -63,6 +66,7 @@ __all__ = [
     "list_processing_transfer_legs",
     "post_entry",
     "submit_anchored_journal_entry",
+    "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",

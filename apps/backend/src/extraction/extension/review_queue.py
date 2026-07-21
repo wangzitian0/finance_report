@@ -27,12 +27,12 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
     AccountType,
+    AnchoredJournalCommandV2,
     Direction,
     JournalEntry,
     ValidationError,
-    submit_anchored_journal_entry,
+    submit_anchored_journal_entry_v2,
 )
-from src.ledger.extension.anchored_posting import AnchoredJournalCommand
 from src.observability import get_logger
 
 
@@ -340,13 +340,14 @@ async def _create_entry_from_txn(
             base_currency=base_currency,
             source_id=txn.id,
         )
-        entry = await submit_anchored_journal_entry(
+        entry = await submit_anchored_journal_entry_v2(
             db,
             user_id=user_id,
-            command=AnchoredJournalCommand(
+            command=AnchoredJournalCommandV2.from_mappings(
                 entry_date=txn.txn_date,
                 memo=txn.description,
                 lines_data=lines_data,
+                base_currency=base_currency,
                 source_type=source_type,
                 source_id=txn.id,
                 source_identity=f"statement-transaction:{txn.id}",

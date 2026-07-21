@@ -83,6 +83,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    CommandBoundary,
     ConceptRecord,
     Invariant,
     Kind,
@@ -204,6 +205,7 @@ CONTRACT = PackageContract(
         "AccountType",
         "AccountingError",
         "AnchoredJournalCommand",
+        "AnchoredJournalCommandV2",
         "ConfidenceTier",
         "DEFAULT_STALE_AFTER_DAYS",
         "DegenerateEntryError",
@@ -250,6 +252,7 @@ CONTRACT = PackageContract(
         "list_processing_transfer_legs",
         "post_entry",
         "submit_anchored_journal_entry",
+        "submit_anchored_journal_entry_v2",
         "submit_manual_journal_entry",
         "validate_manual_journal_entry_for_post",
         "post_journal_entry",
@@ -264,6 +267,16 @@ CONTRACT = PackageContract(
         "validate_line_account_ownership",
         "verify_accounting_equation",
         "void_journal_entry",
+    ],
+    command_boundaries=[
+        CommandBoundary(
+            symbol="AnchoredJournalCommandV2",
+            version="2",
+            proof=(
+                "apps/backend/tests/ledger/test_decision_anchor.py"
+                "::test_submit_anchored_journal_entry_is_idempotent_and_conflicts_on_new_authority"
+            ),
+        )
     ],
     events=[],
     invariants=[

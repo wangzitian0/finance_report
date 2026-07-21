@@ -11,12 +11,15 @@ import argparse
 import ast
 import io
 import json
+import os
+import re
 import subprocess
 import sys
 import tarfile
 import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from common.meta.base.dependency_graph import build_dependency_graph
@@ -29,6 +32,7 @@ class SnapshotPackage:
     name: str
     depends_on: tuple[str, ...]
     interface: tuple[str, ...]
+    command_boundaries: tuple[tuple[str, str, str], ...]
     impl_dir: Path | None
 
 
@@ -1226,6 +1230,10 @@ def _public_symbol_records(
 
     init_path = package.impl_dir / "__init__.py"
     records: list[dict[str, str]] = []
+    command_boundaries = {
+        symbol: {"version": version, "proof": proof}
+        for symbol, version, proof in package.command_boundaries
+    }
     for symbol in sorted(package.interface):
         resolved = (
             _resolve_export(init_path, symbol, repo_root)
@@ -1233,15 +1241,20 @@ def _public_symbol_records(
             else None
         )
         if resolved is not None:
-            records.append(
-                {
-                    "package": package.name,
-                    "symbol": symbol,
-                    "signature": f"{resolved.binding} => {resolved.signature}",
-                    "resolution": "reexport" if resolved.reexported else "definition",
-                    "source": resolved.source.relative_to(repo_root).as_posix(),
-                }
-            )
+            record = {
+                "package": package.name,
+                "symbol": symbol,
+                "signature": f"{resolved.binding} => {resolved.signature}",
+                "resolution": "reexport" if resolved.reexported else "definition",
+                "source": resolved.source.relative_to(repo_root).as_posix(),
+            }
+            if symbol in command_boundaries:
+                record.update(command_boundaries[symbol])
+                record["command_boundary"] = "true"
+                record["command_signature"] = _shallow_definition_signature(
+                    resolved.source, symbol
+                )
+            records.append(record)
             continue
 
         records.append(
@@ -1254,6 +1267,31 @@ def _public_symbol_records(
             }
         )
     return records
+
+
+def _shallow_definition_signature(source: Path, symbol: str) -> str:
+    """Fingerprint only a command's own fields or callable signature."""
+
+    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    for node in tree.body:
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == symbol
+        ):
+            prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+            return f"{prefix}({ast.unparse(node.args)}) -> {_annotation(node.returns)}"
+        if isinstance(node, ast.ClassDef) and node.name == symbol:
+            fields = [
+                f"{child.target.id}: {_annotation(child.annotation)}"
+                for child in node.body
+                if isinstance(child, ast.AnnAssign)
+                and isinstance(child.target, ast.Name)
+                and not child.target.id.startswith("_")
+            ]
+            return f"class {symbol}({'; '.join(fields)})"
+    raise RuntimeError(
+        f"{source}: command boundary {symbol!r} has no direct definition"
+    )
 
 
 def _contract_call(contract_path: Path) -> ast.Call:
@@ -1289,6 +1327,38 @@ def _literal_keyword(call: ast.Call, name: str, contract_path: Path) -> object:
                 f"{contract_path}: {name!r} must be a literal for dependency reporting"
             ) from exc
     raise RuntimeError(f"{contract_path}: missing {name!r} contract field")
+
+
+def _command_boundary_keyword(
+    call: ast.Call, contract_path: Path
+) -> tuple[tuple[str, str, str], ...]:
+    for keyword in call.keywords:
+        if keyword.arg != "command_boundaries":
+            continue
+        if not isinstance(keyword.value, (ast.List, ast.Tuple)):
+            raise RuntimeError(
+                f"{contract_path}: command_boundaries must be a literal list"
+            )
+        records: list[tuple[str, str, str]] = []
+        for item in keyword.value.elts:
+            if not isinstance(item, ast.Call):
+                raise RuntimeError(
+                    f"{contract_path}: invalid command boundary declaration"
+                )
+            values = {
+                field.arg: ast.literal_eval(field.value)
+                for field in item.keywords
+                if field.arg in {"symbol", "version", "proof"}
+            }
+            if set(values) != {"symbol", "version", "proof"} or not all(
+                isinstance(value, str) for value in values.values()
+            ):
+                raise RuntimeError(
+                    f"{contract_path}: incomplete command boundary declaration"
+                )
+            records.append((values["symbol"], values["version"], values["proof"]))
+        return tuple(records)
+    return ()
 
 
 def _implementation_dir(be_path: object, repo_root: Path) -> Path | None:
@@ -1330,6 +1400,7 @@ def _snapshot_packages(repo_root: Path) -> list[SnapshotPackage]:
                 name=name,
                 depends_on=tuple(depends_on),
                 interface=tuple(interface),
+                command_boundaries=_command_boundary_keyword(call, contract_path),
                 impl_dir=_implementation_dir(implementations.get("be"), repo_root),
             )
         )
@@ -1352,6 +1423,7 @@ def build_dependency_snapshot(repo_root: Path) -> dict[str, object]:
     ]
     snapshot = graph.as_dict()
     snapshot["public_symbols"] = public_symbols
+    snapshot["delivery_boundaries"] = discover_delivery_boundaries(root)
     return snapshot
 
 
@@ -1364,6 +1436,18 @@ def _symbol_map(snapshot: dict[str, object]) -> dict[tuple[str, str], dict[str, 
     assert isinstance(records, list)
     return {
         (record["package"], record["symbol"]): record
+        for record in records
+        if isinstance(record, dict)
+    }
+
+
+def _delivery_map(
+    snapshot: dict[str, object],
+) -> dict[tuple[str, str], dict[str, object]]:
+    records = snapshot.get("delivery_boundaries", [])
+    assert isinstance(records, list)
+    return {
+        (str(record["kind"]), str(record["id"])): record
         for record in records
         if isinstance(record, dict)
     }
@@ -1429,6 +1513,28 @@ def compare_dependency_snapshots(
                 }
             )
 
+    base_delivery = _delivery_map(base)
+    head_delivery = _delivery_map(head)
+    added_delivery = [
+        head_delivery[key] for key in sorted(head_delivery.keys() - base_delivery)
+    ]
+    removed_delivery = [
+        base_delivery[key] for key in sorted(base_delivery.keys() - head_delivery)
+    ]
+    changed_delivery: list[dict[str, object]] = []
+    for key in sorted(base_delivery.keys() & head_delivery):
+        before = base_delivery[key]
+        after = head_delivery[key]
+        if before != after:
+            changed_delivery.append(
+                {
+                    "kind": key[0],
+                    "id": key[1],
+                    "before": before,
+                    "after": after,
+                }
+            )
+
     affected_packages = {
         record["package"]
         for record in (*added_symbols, *removed_symbols, *changed_symbols)
@@ -1455,6 +1561,9 @@ def compare_dependency_snapshots(
         "added_public_symbols": added_symbols,
         "removed_public_symbols": removed_symbols,
         "changed_public_symbols": changed_symbols,
+        "added_delivery_boundaries": added_delivery,
+        "removed_delivery_boundaries": removed_delivery,
+        "changed_delivery_boundaries": changed_delivery,
         "affected_consumers": affected_consumers,
         "errors": [],
     }
@@ -1525,6 +1634,500 @@ def build_impact_report(repo_root: Path, *, base_ref: str) -> dict[str, object]:
     report = compare_dependency_snapshots(base, head)
     report["base_ref"] = base_ref
     return report
+
+
+_HTTP_METHODS = {"get", "put", "post", "delete", "patch", "options", "head", "trace"}
+_OPERATION_CALL = re.compile(
+    r"\bapiOperation(?:Stream|Download|Upload)?\s*(?:<[^>]+>)?\s*\(\s*['\"]([^'\"]+)['\"]",
+    re.DOTALL,
+)
+_QUERY_OPERATION_CALL = re.compile(
+    r"\buseApiQuery\s*\(\s*(?:\[[^\]]*\]|[^,]+),\s*['\"]([^'\"]+)['\"]",
+    re.DOTALL,
+)
+_UNTYPED_TRANSPORT = re.compile(
+    r"\bapi(?:Fetch|Stream|Upload|Download|Delete)\s*(?:<[^>]+>)?\s*\("
+)
+
+
+def _without_typescript_comments(source: str) -> str:
+    """Remove comments while retaining strings and newline/offset positions."""
+
+    output = list(source)
+    index = 0
+    quote: str | None = None
+    escaped = False
+    while index < len(source):
+        character = source[index]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {'"', "'", "`"}:
+            quote = character
+            index += 1
+            continue
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            end = len(source) if end == -1 else end
+            for position in range(index, end):
+                output[position] = " "
+            index = end
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = len(source) if end == -1 else end + 2
+            for position in range(index, end):
+                if output[position] != "\n":
+                    output[position] = " "
+            index = end
+            continue
+        index += 1
+    return "".join(output)
+
+
+def discover_frontend_operation_consumers(repo_root: Path) -> list[dict[str, object]]:
+    """Classify generated-operation and generic production API consumers."""
+
+    source_root = repo_root / "apps/frontend/src"
+    if not source_root.is_dir():
+        return []
+    records: list[dict[str, object]] = []
+    for path in sorted((*source_root.rglob("*.ts"), *source_root.rglob("*.tsx"))):
+        relative = path.relative_to(repo_root).as_posix()
+        if "__tests__" in path.parts or path.name.endswith((".test.ts", ".test.tsx")):
+            continue
+        if path.name in {
+            "api.ts",
+            "api-client.ts",
+            "api-operations.ts",
+            "api-types.ts",
+        }:
+            continue
+        source = _without_typescript_comments(path.read_text(encoding="utf-8"))
+        operation_matches = sorted(
+            (
+                *_OPERATION_CALL.finditer(source),
+                *_QUERY_OPERATION_CALL.finditer(source),
+            ),
+            key=lambda match: match.start(),
+        )
+        for match in operation_matches:
+            line_number = source.count("\n", 0, match.start()) + 1
+            operation_id = match.group(1)
+            records.append(
+                {
+                    "kind": "frontend-operation-consumer",
+                    "id": f"{operation_id}@{relative}:{line_number}",
+                    "operation_id": operation_id,
+                    "source": relative,
+                    "line": line_number,
+                    "classification": "generated-operation",
+                    "blocking": False,
+                }
+            )
+        for match in _UNTYPED_TRANSPORT.finditer(source):
+            line_number = source.count("\n", 0, match.start()) + 1
+            records.append(
+                {
+                    "kind": "frontend-operation-consumer",
+                    "id": f"untyped@{relative}:{line_number}",
+                    "operation_id": None,
+                    "source": relative,
+                    "line": line_number,
+                    "classification": "untyped-api-fetch",
+                    "blocking": True,
+                }
+            )
+    return records
+
+
+def discover_delivery_boundaries(repo_root: Path) -> list[dict[str, object]]:
+    """Discover OpenAPI operations and their production frontend consumers."""
+
+    openapi_path = repo_root / "apps/frontend/openapi.json"
+    operations: list[dict[str, object]] = []
+    if openapi_path.is_file():
+        payload = json.loads(openapi_path.read_text(encoding="utf-8"))
+        paths = payload.get("paths")
+        if not isinstance(paths, dict):
+            raise RuntimeError(f"{openapi_path}: paths must be an object")
+        seen: set[str] = set()
+        for path, path_item in sorted(paths.items()):
+            if not isinstance(path_item, dict):
+                raise RuntimeError(
+                    f"{openapi_path}: operation path {path!r} is unreadable"
+                )
+            for method, operation in sorted(path_item.items()):
+                if method not in _HTTP_METHODS:
+                    continue
+                if not isinstance(operation, dict) or not isinstance(
+                    operation.get("operationId"), str
+                ):
+                    raise RuntimeError(
+                        f"{openapi_path}: {method.upper()} {path} has no operationId"
+                    )
+                operation_id = operation["operationId"]
+                if operation_id in seen:
+                    raise RuntimeError(
+                        f"{openapi_path}: duplicate operationId {operation_id!r}"
+                    )
+                seen.add(operation_id)
+                operations.append(
+                    {
+                        "kind": "openapi-operation",
+                        "id": operation_id,
+                        "path": path,
+                        "method": method.upper(),
+                    }
+                )
+    return [*operations, *discover_frontend_operation_consumers(repo_root)]
+
+
+def financial_signature_findings(
+    records: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Reject dynamic types on decision-authorized financial package boundaries."""
+
+    findings: list[dict[str, object]] = []
+    for record in records:
+        if record.get("package") not in {"ledger", "extraction"} or not record.get(
+            "command_boundary"
+        ):
+            continue
+        signature = str(record.get("command_signature") or record.get("signature", ""))
+        codes: list[str] = []
+        if re.search(
+            r"\b(?:list|List)\s*\[\s*(?:dict|Dict)\b|\b(?:dict|Dict)\s*\[", signature
+        ):
+            codes.append("dynamic-mapping")
+        if re.search(r"\bcurrency\s*(?:[,)=]|$)", signature):
+            codes.append("missing-currency-type")
+        if re.search(r"\b(?:date|posted_at|occurred_at)\s*(?:[,)=]|$)", signature):
+            codes.append("missing-date-type")
+        if re.search(r"Callable\s*\[\s*\.\.\.|->\s*(?:Any|dict|list)\b", signature):
+            codes.append("dynamic-return")
+        if codes:
+            findings.append(
+                {
+                    "package": str(record["package"]),
+                    "symbol": str(record["symbol"]),
+                    "codes": codes,
+                }
+            )
+    return findings
+
+
+def _strip_resolved_annotations(signature: str) -> str:
+    """Retain the declared surface while removing resolved annotation details."""
+
+    marker = " [annotations:"
+    output: list[str] = []
+    index = 0
+    while index < len(signature):
+        start = signature.find(marker, index)
+        if start == -1:
+            output.append(signature[index:])
+            break
+        output.append(signature[index:start])
+        depth = 1
+        cursor = start + len(marker)
+        while cursor < len(signature) and depth:
+            if signature[cursor] == "[":
+                depth += 1
+            elif signature[cursor] == "]":
+                depth -= 1
+            cursor += 1
+        index = cursor
+    return "".join(output)
+
+
+def _declared_public_surface(record: dict[str, object], key: str) -> str:
+    signature = str(record.get(key, ""))
+    marker = f"::{record.get('symbol')} => "
+    start = signature.find(marker)
+    primary = signature[start + len(marker) :] if start >= 0 else signature
+    return _strip_resolved_annotations(primary)
+
+
+def _top_level_class_members(surface: str) -> list[str] | None:
+    start = surface.find("{")
+    if not surface.startswith("class(") or start < 0 or not surface.endswith("}"):
+        return None
+    members: list[str] = []
+    item_start = start + 1
+    depths = {"[": 0, "(": 0, "{": 0}
+    pairs = {"]": "[", ")": "(", "}": "{"}
+    for index in range(item_start, len(surface) - 1):
+        character = surface[index]
+        if character in depths:
+            depths[character] += 1
+        elif character in pairs:
+            depths[pairs[character]] -= 1
+        elif character == ";" and not any(depths.values()):
+            members.append(surface[item_start:index].strip())
+            item_start = index + 1
+    final = surface[item_start:-1].strip()
+    if final:
+        members.append(final)
+    return members
+
+
+def _is_compatible_public_change(record: dict[str, object]) -> bool:
+    """Accept unchanged declarations and additive defaulted class fields."""
+
+    before = _declared_public_surface(record, "before")
+    after = _declared_public_surface(record, "after")
+    if before == after:
+        return True
+    before_members = _top_level_class_members(before)
+    after_members = _top_level_class_members(after)
+    if before_members is None or after_members is None:
+        return False
+    cursor = 0
+    for member in after_members:
+        if cursor < len(before_members) and member == before_members[cursor]:
+            cursor += 1
+        elif "=" not in member:
+            return False
+    return cursor == len(before_members)
+
+
+def evaluate_boundary_compatibility(
+    report: dict[str, object],
+    *,
+    consumer_proofs: dict[str, dict[str, str]],
+) -> dict[str, object]:
+    """Classify breaking public changes and require an exact proof per consumer."""
+
+    breaking: list[dict[str, object]] = []
+    for record in report.get("removed_public_symbols", []):
+        if isinstance(record, dict):
+            breaking.append({"kind": "removed-public-symbol", **record})
+    for record in report.get("changed_public_symbols", []):
+        if isinstance(record, dict) and not _is_compatible_public_change(record):
+            breaking.append({"kind": "changed-public-signature", **record})
+
+    for record in report.get("removed_delivery_boundaries", []):
+        if isinstance(record, dict) and record.get("kind") == "openapi-operation":
+            breaking.append(
+                {
+                    **record,
+                    "boundary_kind": record["kind"],
+                    "kind": "removed-openapi-operation",
+                }
+            )
+    for record in report.get("changed_delivery_boundaries", []):
+        if isinstance(record, dict) and record.get("kind") == "openapi-operation":
+            breaking.append(
+                {
+                    **record,
+                    "boundary_kind": record["kind"],
+                    "kind": "changed-openapi-operation",
+                }
+            )
+
+    head = report.get("head", {})
+    head_delivery = (
+        head.get("delivery_boundaries", []) if isinstance(head, dict) else []
+    )
+    operation_ids = {
+        str(record["id"])
+        for record in head_delivery
+        if isinstance(record, dict) and record.get("kind") == "openapi-operation"
+    }
+    breaking_operation_ids = {
+        str(change["id"])
+        for change in breaking
+        if change["kind"] in {"removed-openapi-operation", "changed-openapi-operation"}
+    }
+    delivery_consumers = [
+        record
+        for snapshot_name in ("base", "head")
+        for record in (
+            report.get(snapshot_name, {}).get("delivery_boundaries", [])
+            if isinstance(report.get(snapshot_name), dict)
+            else []
+        )
+        if isinstance(record, dict)
+        and record.get("kind") == "frontend-operation-consumer"
+        and record.get("operation_id") in breaking_operation_ids
+    ]
+    for record in head_delivery:
+        if (
+            not isinstance(record, dict)
+            or record.get("kind") != "frontend-operation-consumer"
+        ):
+            continue
+        if record.get("classification") == "untyped-api-fetch":
+            breaking.append(
+                {
+                    **record,
+                    "boundary_kind": record["kind"],
+                    "kind": "untyped-api-fetch",
+                }
+            )
+        elif record.get("operation_id") not in operation_ids:
+            breaking.append(
+                {
+                    **record,
+                    "boundary_kind": record["kind"],
+                    "kind": "unknown-openapi-operation",
+                }
+            )
+
+    public_symbols = head.get("public_symbols", []) if isinstance(head, dict) else []
+    for finding in financial_signature_findings(
+        [record for record in public_symbols if isinstance(record, dict)]
+    ):
+        breaking.append({"kind": "dynamic-financial-signature", **finding})
+
+    affected = report.get("affected_consumers", {})
+    consumers: set[str] = {
+        str(record["source"])
+        for record in delivery_consumers
+        if isinstance(record.get("source"), str)
+    }
+    if isinstance(affected, dict):
+        for change in breaking:
+            row = affected.get(change.get("package"), {})
+            if isinstance(row, dict):
+                consumers.update(
+                    value
+                    for value in row.get("transitive", [])
+                    if isinstance(value, str)
+                )
+    unproved = sorted(
+        consumer
+        for consumer in consumers
+        if consumer_proofs.get(consumer, {}).get("result") != "passed"
+        or consumer_proofs.get(consumer, {}).get("strength") != "exact"
+    )
+    migration_required = any(
+        change["kind"]
+        in {
+            "removed-public-symbol",
+            "changed-public-signature",
+            "removed-openapi-operation",
+            "changed-openapi-operation",
+        }
+        for change in breaking
+    )
+    local_violation = any(
+        change["kind"]
+        in {
+            "untyped-api-fetch",
+            "unknown-openapi-operation",
+            "dynamic-financial-signature",
+        }
+        for change in breaking
+    )
+    status = (
+        "blocked"
+        if local_violation or (migration_required and (unproved or not consumers))
+        else "compatible"
+    )
+    return {
+        "status": status,
+        "breaking_changes": breaking,
+        "affected_consumers": sorted(consumers),
+        "unproved_consumers": unproved,
+    }
+
+
+def _write_governance_observations(path: Path, report: dict[str, object]) -> None:
+    compatibility = report.get("compatibility", {})
+    blocked = (
+        isinstance(compatibility, dict) and compatibility.get("status") == "blocked"
+    )
+    changes = (
+        compatibility.get("breaking_changes", [])
+        if isinstance(compatibility, dict)
+        else []
+    )
+    now = datetime.now(UTC).isoformat()
+    target_sha = os.environ.get("GITHUB_SHA", "working-tree")
+    public_symbols = (
+        report.get("head", {}).get("public_symbols", [])
+        if isinstance(report.get("head"), dict)
+        else []
+    )
+    delivery = (
+        report.get("head", {}).get("delivery_boundaries", [])
+        if isinstance(report.get("head"), dict)
+        else []
+    )
+    signature_findings = financial_signature_findings(
+        [record for record in public_symbols if isinstance(record, dict)]
+    )
+    transport_findings = [
+        record
+        for record in delivery
+        if isinstance(record, dict) and record.get("blocking")
+    ]
+    unproved = (
+        compatibility.get("unproved_consumers", [])
+        if isinstance(compatibility, dict)
+        else []
+    )
+    dimensions = [
+        ("one-boundary-graph", "public-boundary-graph", []),
+        (
+            "financial-signatures",
+            "public-boundary-financial-signatures",
+            signature_findings,
+        ),
+        ("operation-client", "public-boundary-operation-client", transport_findings),
+        ("consumer-impact", "public-boundary-consumer-impact", unproved),
+        (
+            "enforced-compatibility",
+            "public-boundary-enforcement",
+            changes if blocked else [],
+        ),
+    ]
+    payload = {
+        "target_sha": target_sha,
+        "observed_at": now,
+        "detectors": [
+            {
+                "guarantee_id": f"meta/{guarantee_id}",
+                "current": len(findings) if isinstance(findings, list) else 1,
+                "target": 0,
+                "findings": [str(finding) for finding in findings],
+            }
+            for guarantee_id, _proof_id, findings in dimensions
+        ],
+        "proofs": [
+            {
+                "guarantee_id": f"meta/{guarantee_id}",
+                "proof_id": proof_id,
+                "result": "failed" if findings else "passed",
+                "strength": "exact",
+                "target_sha": target_sha,
+                "occurred_at": now,
+                "evidence_url": os.environ.get("GITHUB_SERVER_URL", "local"),
+                "gate_id": "ci.lint",
+            }
+            for guarantee_id, proof_id, findings in dimensions
+        ],
+        "enforcement": [
+            {
+                "gate_id": "ci.lint",
+                "declared_blocking": True,
+                "workflow_required": True,
+                "live_required": True,
+                "required_context": "finish",
+                "observed_at": now,
+            }
+        ],
+        "issues": [],
+    }
+    _write(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def render_markdown(report: dict[str, object]) -> str:
@@ -1642,9 +2245,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--base-ref", required=True)
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--markdown-out", type=Path)
+    parser.add_argument("--consumer-proofs", type=Path)
+    parser.add_argument("--fail-on-breaking", action="store_true")
+    parser.add_argument("--governance-observations-out", type=Path)
     args = parser.parse_args(argv)
 
     report = build_impact_report(args.repo_root, base_ref=args.base_ref)
+    if "compatibility" not in report:
+        proofs = (
+            json.loads(args.consumer_proofs.read_text(encoding="utf-8"))
+            if args.consumer_proofs
+            else {}
+        )
+        report["compatibility"] = evaluate_boundary_compatibility(
+            report, consumer_proofs=proofs
+        )
     json_text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     markdown = render_markdown(report)
     if args.json_out:
@@ -1653,4 +2268,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         _write(args.markdown_out, markdown)
     if not args.json_out and not args.markdown_out:
         print(json_text, end="")
-    return 0
+    if args.governance_observations_out:
+        _write_governance_observations(args.governance_observations_out, report)
+    compatibility = report["compatibility"]
+    assert isinstance(compatibility, dict)
+    return int(args.fail_on_breaking and compatibility.get("status") == "blocked")

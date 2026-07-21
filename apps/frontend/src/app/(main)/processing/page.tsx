@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { AuditBackLink } from "@/components/audit/AuditBackLink";
 import { LoadingState } from "@/components/ui";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { ProcessingPendingListResponse } from "@/lib/types";
 import { formatDateDisplay } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/audit/money";
@@ -17,10 +17,16 @@ export default function ProcessingPage() {
   useEffect(() => {
     async function fetchPending() {
       try {
-        const response = await apiFetch<ProcessingPendingListResponse>("/api/accounts/processing/pending");
+        const response = await apiOperation(
+          "list_processing_pending_accounts_processing_pending_get",
+        );
         setData(response);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load pending transfers");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load pending transfers",
+        );
       } finally {
         setLoading(false);
       }
@@ -36,7 +42,9 @@ export default function ProcessingPage() {
 
       <div className="page-header mb-6">
         <h1 className="page-title">Processing Transfers</h1>
-        <p className="page-description">Transactions currently in flight between accounts</p>
+        <p className="page-description">
+          Transactions currently in flight between accounts
+        </p>
       </div>
 
       {loading ? (
@@ -65,8 +73,13 @@ export default function ProcessingPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {data.items.map((item) => (
-                  <tr key={item.entry_id} className="hover:bg-[var(--background-muted)]/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">{formatDateDisplay(item.initiated_date)}</td>
+                  <tr
+                    key={item.entry_id}
+                    className="hover:bg-[var(--background-muted)]/50 transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {formatDateDisplay(item.initiated_date)}
+                    </td>
                     <td className="px-6 py-4">{item.from_account}</td>
                     <td className="px-6 py-4">{item.to_account}</td>
                     <td className="px-6 py-4 text-right font-mono">
@@ -76,7 +89,10 @@ export default function ProcessingPage() {
                       <div className="flex items-center gap-2">
                         <span>{item.days_outstanding}d</span>
                         {item.days_outstanding > 7 && (
-                          <span className="badge badge-error inline-flex items-center gap-1" aria-label="warning overdue">
+                          <span
+                            className="badge badge-error inline-flex items-center gap-1"
+                            aria-label="warning overdue"
+                          >
                             <AlertTriangle className="w-3 h-3" />
                             {item.days_outstanding}d
                           </span>

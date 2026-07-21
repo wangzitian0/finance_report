@@ -190,20 +190,33 @@ binding is exposed as `dynamic-export` rather than silently matched to an
 unrelated same-named definition. Unreadable refs, empty discovery,
 duplicate/unknown/self edges, and cycles fail closed.
 
-The report is ephemeral CI output, not SSOT: `.github/workflows/ci.yml` appends
-its Markdown view to `GITHUB_STEP_SUMMARY`, while the contracts remain the only
-authored dependency source. Run the same report locally with:
+The report is generated CI evidence, not an authored SSOT:
+`.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`
+and uploads exact governance observations for the package control-plane join,
+while contracts and OpenAPI remain the authored sources. The existing
+dependency-impact step exits non-zero on an incompatible boundary; it is not a
+second required gate. Run the same enforcement locally with:
 
 ```bash
 apps/backend/.venv/bin/python tools/report_ddd_dependencies.py \
   --base-ref origin/main \
+  --fail-on-breaking \
   --json-out /tmp/ddd-dependencies.json \
+  --governance-observations-out /tmp/ddd-governance-observations.json \
   --markdown-out /tmp/ddd-dependencies.md
 ```
 
-This first plane represents `depends_on` as `compile` edges. Typed ports, event
-subscriptions, delivery/composition bindings, and the frontend L4 graph extend
-the same vocabulary in later #1894 slices; they do not create parallel graphs.
+The same snapshot contains declared compile/runtime/context/event relations,
+resolved Python public signatures and explicit financial command boundaries,
+L4 OpenAPI operations, and production frontend operation consumers. The
+generated TypeScript operation table binds each consumer to OpenAPI's method,
+path, parameters, request body, success response, and declared error envelope.
+JSON, stream, multipart upload, and binary download all use that operation
+identity. Deprecated arbitrary-URL helpers remain only as compatibility seams
+for older tests; any production call to them is a blocking finding. OpenAPI
+removals or changes select their frontend source consumers alongside Python's
+direct/transitive package consumers, and every selected consumer requires an
+exact passing proof.
 
 That additive discovery has a blind spot: a directory with no discoverable
 `CONTRACT = PackageContract(...)` export is invisible to

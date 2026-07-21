@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -32,12 +33,63 @@ from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
 from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry
-from src.ledger.orm.journal import JournalEntry, JournalEntryAuthorityState
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState
+
+
+@dataclass(frozen=True, slots=True)
+class JournalCommandLine:
+    """One typed persistence-neutral line carried by an anchored command."""
+
+    account_id: UUID
+    direction: Direction
+    amount: Decimal
+    currency: str
+    fx_rate: Decimal | None = None
+    event_type: str | None = None
+    tags: Mapping[str, object] | None = None
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, object], *, base_currency: str) -> JournalCommandLine:
+        account_id = value.get("account_id")
+        amount = value.get("amount")
+        if not isinstance(account_id, UUID):
+            raise TypeError("journal command line account_id must be a UUID")
+        if not isinstance(amount, Decimal):
+            raise TypeError("journal command line amount must be a Decimal")
+        raw_direction = value.get("direction")
+        direction = raw_direction if isinstance(raw_direction, Direction) else Direction(str(raw_direction))
+        fx_rate = value.get("fx_rate")
+        if fx_rate is not None and not isinstance(fx_rate, Decimal):
+            raise TypeError("journal command line fx_rate must be a Decimal")
+        tags = value.get("tags")
+        if tags is not None and not isinstance(tags, Mapping):
+            raise TypeError("journal command line tags must be a mapping")
+        event_type = value.get("event_type")
+        return cls(
+            account_id=account_id,
+            direction=direction,
+            amount=amount,
+            currency=str(value.get("currency") or base_currency).upper(),
+            fx_rate=fx_rate,
+            event_type=str(event_type) if event_type is not None else None,
+            tags=tags,
+        )
+
+    def as_mapping(self) -> dict[str, object]:
+        return {
+            "account_id": self.account_id,
+            "direction": self.direction,
+            "amount": self.amount,
+            "currency": self.currency,
+            "fx_rate": self.fx_rate,
+            "event_type": self.event_type,
+            "tags": dict(self.tags) if self.tags is not None else None,
+        }
 
 
 @dataclass(frozen=True, slots=True)
 class AnchoredJournalCommand:
-    """A balanced journal payload plus the exact decision that authorizes it."""
+    """Legacy v1 command retained for source-compatible evolution."""
 
     entry_date: date
     memo: str
@@ -47,6 +99,50 @@ class AnchoredJournalCommand:
     source_identity: str
     decision_anchor: DecisionAnchor
     post_immediately: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AnchoredJournalCommandV2:
+    """A balanced journal payload plus the exact decision that authorizes it."""
+
+    entry_date: date
+    memo: str
+    lines: tuple[JournalCommandLine, ...]
+    source_type: JournalEntrySourceType
+    source_id: UUID | None
+    source_identity: str
+    decision_anchor: DecisionAnchor
+    post_immediately: bool
+
+    @classmethod
+    def from_mappings(
+        cls,
+        *,
+        entry_date: date,
+        memo: str,
+        lines_data: Sequence[Mapping[str, object]],
+        base_currency: str,
+        source_type: JournalEntrySourceType,
+        source_id: UUID | None,
+        source_identity: str,
+        decision_anchor: DecisionAnchor,
+        post_immediately: bool,
+    ) -> AnchoredJournalCommandV2:
+        """Validate legacy mappings once when they enter the typed command port."""
+        return cls(
+            entry_date=entry_date,
+            memo=memo,
+            lines=tuple(JournalCommandLine.from_mapping(line, base_currency=base_currency) for line in lines_data),
+            source_type=source_type,
+            source_id=source_id,
+            source_identity=source_identity,
+            decision_anchor=decision_anchor,
+            post_immediately=post_immediately,
+        )
+
+    @property
+    def lines_data(self) -> list[dict[str, object]]:
+        return [line.as_mapping() for line in self.lines]
 
 
 def current_anchored_journal_entries(
@@ -477,6 +573,42 @@ async def submit_anchored_journal_entry(
     *,
     user_id: UUID,
     command: AnchoredJournalCommand,
+    base_currency: str,
+    trace_repository: TraceRecordRepository | None = None,
+) -> JournalEntry:
+    """Submit the source-compatible v1 command."""
+    return await _submit_anchored_journal_entry(
+        db,
+        user_id=user_id,
+        command=command,
+        base_currency=base_currency,
+        trace_repository=trace_repository,
+    )
+
+
+async def submit_anchored_journal_entry_v2(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    command: AnchoredJournalCommandV2,
+    base_currency: str,
+    trace_repository: TraceRecordRepository | None = None,
+) -> JournalEntry:
+    """Submit a typed v2 command without changing the v1 public contract."""
+    return await _submit_anchored_journal_entry(
+        db,
+        user_id=user_id,
+        command=command,
+        base_currency=base_currency,
+        trace_repository=trace_repository,
+    )
+
+
+async def _submit_anchored_journal_entry(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    command: AnchoredJournalCommand | AnchoredJournalCommandV2,
     base_currency: str,
     trace_repository: TraceRecordRepository | None = None,
 ) -> JournalEntry:

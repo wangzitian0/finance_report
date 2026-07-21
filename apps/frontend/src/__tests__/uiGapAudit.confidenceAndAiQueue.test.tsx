@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
@@ -30,7 +36,13 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-meta.fe-app-shell2.1
   it("AC18.5.1 — ConfidenceBadge renders confidence tier labels", () => {
-    const tiers = ["TRUSTED", "HIGH", "MEDIUM", "LOW"] as const;
+    const tiers = [
+      "DETERMINISTIC",
+      "TRUSTED",
+      "HIGH",
+      "MEDIUM",
+      "LOW",
+    ] as const;
 
     render(
       <div>
@@ -45,7 +57,9 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       expect(badge).toBeInTheDocument();
       expect(badge).toHaveAttribute(
         "title",
-        expect.stringContaining("Manual entries are TRUSTED; AI-extracted are LOW"),
+        expect.stringContaining(
+          "Deterministic system facts and manual entries are trusted",
+        ),
       );
     }
   });
@@ -61,7 +75,15 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
           source_type: "system",
           confidence_tier: "LOW",
           status: "posted",
-          lines: [{ id: "line-1", account_id: "account-1", direction: "DEBIT", amount: 10, currency: "SGD" }],
+          lines: [
+            {
+              id: "line-1",
+              account_id: "account-1",
+              direction: "DEBIT",
+              amount: 10,
+              currency: "SGD",
+            },
+          ],
           created_at: "2026-04-01T00:00:00Z",
         },
       ],
@@ -71,7 +93,11 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     const { default: JournalPage } = await import("@/app/(main)/journal/page");
     render(<JournalPage />);
 
-    await waitFor(() => expect(screen.getByText("Processing account transfer")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText("Processing account transfer"),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByText("LOW")).toBeInTheDocument();
   });
 
@@ -92,9 +118,15 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     render(<AiSuggestionsPage />);
 
-    expect((await screen.findAllByText("CARD PURCHASE COFFEE")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Expense - Food & Dining").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Merchant name indicates dining.").length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("CARD PURCHASE COFFEE")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Expense - Food & Dining").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Merchant name indicates dining.").length,
+    ).toBeGreaterThan(0);
   });
 
   // AC-reconciliation.fe-remainder-reconciliation.3
@@ -119,11 +151,17 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     render(<AiSuggestionsPage />);
 
     await screen.findAllByText("PAYNOW TRANSFER");
-    const mobileCard = screen.getByTestId("ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000012");
+    const mobileCard = screen.getByTestId(
+      "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000012",
+    );
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
-    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), { target: { value: "Expense - Transport" } });
-    fireEvent.click(within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }));
+    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
+      target: { value: "Expense - Transport" },
+    });
+    fireEvent.click(
+      within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
+    );
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
@@ -146,7 +184,8 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
             transaction: "MOBILE CARD PURCHASE",
             suggested_category_or_match: "Expense - Food & Dining",
             ai_score: 72,
-            ai_reasoning: "Merchant category and prior corrections match dining.",
+            ai_reasoning:
+              "Merchant category and prior corrections match dining.",
           },
         ],
         total: 1,
@@ -162,14 +201,20 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000025",
     );
 
-    expect(within(mobileCard).getByText("MOBILE CARD PURCHASE")).toBeInTheDocument();
-    expect(within(mobileCard).getByLabelText("Corrected value")).toBeInTheDocument();
+    expect(
+      within(mobileCard).getByText("MOBILE CARD PURCHASE"),
+    ).toBeInTheDocument();
+    expect(
+      within(mobileCard).getByLabelText("Corrected value"),
+    ).toBeInTheDocument();
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
       target: { value: "Expense - Transport" },
     });
-    fireEvent.click(within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }));
+    fireEvent.click(
+      within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
+    );
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
@@ -188,18 +233,30 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     render(<AiSuggestionsPage />);
 
-    expect(await screen.findByText("suggestions unavailable")).toBeInTheDocument();
+    expect(
+      await screen.findByText("suggestions unavailable"),
+    ).toBeInTheDocument();
   });
 
   // AC-llm.fe-ai-settings2.1
   it("AC18.5.5 — Settings AI toggles persist", async () => {
-    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: false });
-    mockedPatchUserSettings.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: true });
+    mockedFetchUserSettings.mockResolvedValue({
+      enable_ai_reconciliation: true,
+      enable_ai_classification: false,
+    });
+    mockedPatchUserSettings.mockResolvedValue({
+      enable_ai_reconciliation: true,
+      enable_ai_classification: true,
+    });
 
     render(<AiSettingsPage />);
 
-    const reconciliationToggle = await screen.findByLabelText("Enable AI reconciliation");
-    const classificationToggle = screen.getByLabelText("Enable AI classification");
+    const reconciliationToggle = await screen.findByLabelText(
+      "Enable AI reconciliation",
+    );
+    const classificationToggle = screen.getByLabelText(
+      "Enable AI classification",
+    );
     expect(reconciliationToggle).toBeChecked();
     expect(classificationToggle).not.toBeChecked();
 
@@ -228,7 +285,9 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       ],
     });
 
-    render(<AuditTrailPanel transactionId="00000000-0000-0000-0000-000000000013" />);
+    render(
+      <AuditTrailPanel transactionId="00000000-0000-0000-0000-000000000013" />,
+    );
 
     expect(await screen.findByText("Audit Trail")).toBeInTheDocument();
     expect(screen.getByText("ai")).toBeInTheDocument();
@@ -238,28 +297,42 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-llm.fe-ai-settings2.2
   it("AC18.5.7 — AI settings mount reflects saved toggles", async () => {
-    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: false, enable_ai_classification: true });
+    mockedFetchUserSettings.mockResolvedValue({
+      enable_ai_reconciliation: false,
+      enable_ai_classification: true,
+    });
 
     render(<AiSettingsPage />);
 
-    expect(await screen.findByLabelText("Enable AI reconciliation")).not.toBeChecked();
+    expect(
+      await screen.findByLabelText("Enable AI reconciliation"),
+    ).not.toBeChecked();
     expect(screen.getByLabelText("Enable AI classification")).toBeChecked();
   });
 
   it("test_AC8_13_48 — AI settings handles load and reconciliation update failures", async () => {
-    mockedFetchUserSettings.mockRejectedValueOnce(new Error("settings unavailable"));
+    mockedFetchUserSettings.mockRejectedValueOnce(
+      new Error("settings unavailable"),
+    );
 
     render(<AiSettingsPage />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("settings unavailable");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "settings unavailable",
+    );
 
     mockedFetchUserSettings.mockReset();
-    mockedFetchUserSettings.mockResolvedValue({ enable_ai_reconciliation: false, enable_ai_classification: true });
+    mockedFetchUserSettings.mockResolvedValue({
+      enable_ai_reconciliation: false,
+      enable_ai_classification: true,
+    });
     mockedPatchUserSettings.mockRejectedValueOnce(new Error("update failed"));
 
     render(<AiSettingsPage />);
 
-    const reconciliationToggle = await screen.findByLabelText("Enable AI reconciliation");
+    const reconciliationToggle = await screen.findByLabelText(
+      "Enable AI reconciliation",
+    );
     fireEvent.click(reconciliationToggle);
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
 
