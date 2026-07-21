@@ -1047,7 +1047,7 @@ dev = [
     { name = "faker", specifier = ">=33.0.0" },
     { name = "freezegun", specifier = ">=1.2.0" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "infra2-sdk", url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.3.0/infra2_sdk-0.3.0-py3-none-any.whl" },
+    { name = "infra2-sdk", url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.4.1/infra2_sdk-0.4.1-py3-none-any.whl" },
     { name = "locust", specifier = ">=2.20.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
     { name = "pdfplumber", specifier = ">=0.11.0" },
@@ -1592,13 +1592,13 @@ wheels = [
 
 [[package]]
 name = "infra2-sdk"
-version = "0.3.0"
-source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.3.0/infra2_sdk-0.3.0-py3-none-any.whl" }
+version = "0.4.1"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.4.1/infra2_sdk-0.4.1-py3-none-any.whl" }
 dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.3.0/infra2_sdk-0.3.0-py3-none-any.whl", hash = "sha256:2046043be5d1072fe405851e7b5b9c9e2d0729a5ac8273552f24bd1228347c5c" },
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.4.1/infra2_sdk-0.4.1-py3-none-any.whl", hash = "sha256:55df39bf72e89f7f1d980b369535cb87fd8fad8c71ac01b39439781ade378a10" },
 ]
 
 [package.metadata]

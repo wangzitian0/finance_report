@@ -1,0 +1,15 @@
+{
+  "id": 29717946445,
+  "name": "Release Images v0.1.45",
+  "display_title": "Release Images v0.1.45",
+  "run_number": 64,
+  "event": "push",
+  "status": "completed",
+  "conclusion": "success",
+  "workflow_id": 300068562,
+  "head_branch": "v0.1.45",
+  "head_sha": "5897d5b4aa123e85b574f258fad79b92154d09f8",
+  "path": ".github/workflows/deploy.yml",
+  "created_at": "2026-07-20T04:54:44Z",
+  "html_url": "https://github.com/wangzitian0/finance_report/actions/runs/29717946445"
+}

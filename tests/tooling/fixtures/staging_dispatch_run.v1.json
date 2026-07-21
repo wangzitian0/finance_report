@@ -1,0 +1,15 @@
+{
+  "id": 29664376825,
+  "name": "Deploy Staging v0.1.44",
+  "display_title": "Deploy Staging v0.1.44",
+  "run_number": 63,
+  "event": "workflow_dispatch",
+  "status": "completed",
+  "conclusion": "success",
+  "workflow_id": 300068562,
+  "head_branch": "main",
+  "head_sha": "f7345b272abe28bd67e8457a0ed48f56e878c9a5",
+  "path": ".github/workflows/deploy.yml",
+  "created_at": "2026-07-18T22:57:41Z",
+  "html_url": "https://github.com/wangzitian0/finance_report/actions/runs/29664376825"
+}

@@ -147,6 +147,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
 | `tests/tooling/test_csp_script_src_contract.py` | `common/testing/ci-cd.md` (#1623 CSP script-src allowlist contract) |
+| `tests/tooling/test_production_evidence_policy.py` | `tools/production_evidence_policy.json` (#1977 own-repo Production evidence contract vs real CI drift lock; infra2#576) |
 | `tests/tooling/test_required_env_keys_contract.py` | `common/testing/ci-cd.md` (#1623 manifest<->config env-key drift contract) |
 | `tests/tooling/test_critical_value_proof_ratchet.py` | `common/testing/ci-cd.md` (#1623 value-asserting ratchet for critical outcomes) |
 | `tests/tooling/test_cassette_replay_wired.py` | `common/testing/ci-cd.md` (#1623 lock: cassette-replay net cannot silently skip) |
