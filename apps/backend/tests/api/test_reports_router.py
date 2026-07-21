@@ -129,6 +129,8 @@ class TestReportsEndpoints:
             "operating": [],
             "investing": [],
             "financing": [],
+            "proof_state": "proven",
+            "proof_reasons": [],
             "summary": {
                 "operating_activities": Decimal("0.00"),
                 "investing_activities": Decimal("0.00"),

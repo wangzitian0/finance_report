@@ -253,7 +253,12 @@ def _package_snapshot_sections(label: str = "Total Assets") -> dict:
     return {
         "balance_sheet": {"total_assets": "100.00", "currency": "SGD"},
         "income_statement": {"net_income": "25.00", "currency": "SGD"},
-        "cash_flow": {"summary": {"net_cash_flow": "25.00"}, "currency": "SGD"},
+        "cash_flow": {
+            "summary": {"net_cash_flow": "25.00"},
+            "currency": "SGD",
+            "proof_state": "proven",
+            "proof_reasons": [],
+        },
         "investment_performance": {"market_value": "75.00", "currency": "SGD"},
         "annualized_income_long_term": {
             "income": {"annualized_total": "120000.00", "currency": "SGD"},
@@ -408,6 +413,8 @@ def _package_document(
                     "start_date": "2025-01-01",
                     "end_date": "2025-12-31",
                     "currency": "SGD",
+                    "proof_state": "proven",
+                    "proof_reasons": [],
                     "operating": [],
                     "investing": [],
                     "financing": [],

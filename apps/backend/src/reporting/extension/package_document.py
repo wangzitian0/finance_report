@@ -365,7 +365,9 @@ def _section_invariant_blockers(
                 "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
             )
         )
-    if cash_flow.proof_state != "proven":
+    # An empty package asserts no financial facts. Enforce cash-event proof
+    # once at least one authoritative or unproven package input is projected.
+    if contributions and cash_flow.proof_state != "proven":
         reason_code = cash_flow.proof_reasons[0] if cash_flow.proof_reasons else "cash_flow_unproven"
         blockers.append(
             _section_blocker(
@@ -373,8 +375,8 @@ def _section_invariant_blockers(
                 "Cash-flow event classification or lineage is unproven and cannot authorize a package.",
             )
         )
-    # An empty package asserts no financial facts. Once any package input exists,
-    # however, a zero cash balance also requires exact source evidence.
+    # Once any package input exists, a zero cash balance also requires exact
+    # source evidence.
     if contributions and not cash_inputs.is_complete:
         blockers.append(
             _section_blocker(

@@ -296,6 +296,16 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         contributions=(),
         cash_inputs=PackageCashInputs.missing(),
     )
+    assert "cash_event_classification_ambiguous" not in {blocker.code for blocker in proof_blockers}
+    proof_blockers = _section_invariant_blockers(
+        sections,
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(SimpleNamespace(is_authoritative=False, section_ids=("cash_flow",)),),
+        cash_inputs=PackageCashInputs.missing(),
+    )
     assert "cash_event_classification_ambiguous" in {blocker.code for blocker in proof_blockers}
 
 
