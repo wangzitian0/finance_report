@@ -352,6 +352,14 @@
     "issue": null
   },
   {
+    "site": "reconciliation/orm/reconciliation.py::ReconciliationTransferPairLeg.pair_id->reconciliation_transfer_pairs.id",
+    "source_owner": "reconciliation",
+    "target_owner": "reconciliation",
+    "classification": "aggregate_internal",
+    "rationale": "A transfer-pair leg is a reconciliation-owned child of its transfer-pair aggregate.",
+    "issue": null
+  },
+  {
     "site": "reporting/orm/snapshot.py::ReportSnapshot.rule_version_id->classification_rules.id",
     "source_owner": "reporting",
     "target_owner": "extraction",
