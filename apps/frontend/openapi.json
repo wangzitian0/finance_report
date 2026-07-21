@@ -2146,8 +2146,138 @@
         "title": "BrokerageImportResponse",
         "type": "object"
       },
+      "CashFlowBridge": {
+        "description": "Exact reconciliation from classified events to the cash-balance delta.",
+        "properties": {
+          "cash_delta": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cash Delta",
+            "type": "string"
+          },
+          "classified_activity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Classified Activity",
+            "type": "string"
+          },
+          "fx_effect": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fx Effect",
+            "type": "string"
+          },
+          "reconciles": {
+            "title": "Reconciles",
+            "type": "boolean"
+          },
+          "unclassified_cash": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unclassified Cash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "classified_activity",
+          "unclassified_cash",
+          "fx_effect",
+          "cash_delta",
+          "reconciles"
+        ],
+        "title": "CashFlowBridge",
+        "type": "object"
+      },
+      "CashFlowEventLineage": {
+        "description": "Exact ledger and producer evidence for one cash event.",
+        "properties": {
+          "activity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Operating",
+                  "Investing",
+                  "Financing"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity"
+          },
+          "decision_anchor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Anchor Id"
+          },
+          "decision_authority_state": {
+            "$ref": "#/components/schemas/JournalEntryAuthorityState"
+          },
+          "event_types": {
+            "description": "Distinct journal-line event semantics evaluated by cash-flow classification.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Event Types",
+            "type": "array"
+          },
+          "journal_entry_id": {
+            "format": "uuid",
+            "title": "Journal Entry Id",
+            "type": "string"
+          },
+          "journal_line_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Journal Line Ids",
+            "type": "array"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/JournalEntrySourceType"
+          }
+        },
+        "required": [
+          "journal_entry_id",
+          "journal_line_ids",
+          "source_type",
+          "decision_authority_state",
+          "activity"
+        ],
+        "title": "CashFlowEventLineage",
+        "type": "object"
+      },
       "CashFlowItem": {
-        "description": "Cash flow item for operating, investing, financing activities.",
+        "description": "One classified cash-flow activity.",
         "properties": {
           "account_id": {
             "anyOf": [
@@ -2196,8 +2326,19 @@
         "type": "object"
       },
       "CashFlowResponse": {
-        "description": "Cash flow statement response schema.",
+        "description": "Cash-flow statement plus its machine-readable proof.",
         "properties": {
+          "cash_bridge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CashFlowBridge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cash-delta reconciliation proof."
+          },
           "currency": {
             "description": "Cash-flow presentation currency.",
             "maxLength": 3,
@@ -2209,6 +2350,14 @@
             "format": "date",
             "title": "End Date",
             "type": "string"
+          },
+          "event_lineage": {
+            "description": "Exact journal, producer, decision, and event-semantic evidence for cash movements.",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowEventLineage"
+            },
+            "title": "Event Lineage",
+            "type": "array"
           },
           "financing": {
             "items": {
@@ -2242,6 +2391,22 @@
             "title": "Operating",
             "type": "array"
           },
+          "proof_reasons": {
+            "description": "Machine-readable reasons that prevent authoritative cash-flow output.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Proof Reasons",
+            "type": "array"
+          },
+          "proof_state": {
+            "enum": [
+              "proven",
+              "unproven"
+            ],
+            "title": "Proof State",
+            "type": "string"
+          },
           "start_date": {
             "format": "date",
             "title": "Start Date",
@@ -2258,13 +2423,15 @@
           "operating",
           "investing",
           "financing",
-          "summary"
+          "summary",
+          "proof_state",
+          "proof_reasons"
         ],
         "title": "CashFlowResponse",
         "type": "object"
       },
       "CashFlowSummary": {
-        "description": "Cash flow summary totals.",
+        "description": "Cash-flow statement totals.",
         "properties": {
           "beginning_cash": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",

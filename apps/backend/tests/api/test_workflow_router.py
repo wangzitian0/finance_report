@@ -337,13 +337,13 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert unproven["primary_state"] == "blocked"
     assert unproven["next_action"] == _next_action(
         "resolve_blocker",
-        count=5,
+        count=6,
         href="/reports/package",
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 5, "href": "/reports/package"}
-    assert unproven["event_counts"] == {"unread": 4, "action_required": 0, "blocked": 3}
+    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 6, "href": "/reports/package"}
+    assert unproven["event_counts"] == {"unread": 5, "action_required": 0, "blocked": 4}
 
 
 async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(

@@ -202,23 +202,42 @@ owned by [`common/ledger/readme.md`](../ledger/readme.md); this doc owns
 only how the resulting positions present in the balance sheet.
 
 **Income statement** (income/expenses over a period) and **cash flow
-statement** — cash-flow balances and activities use two different
-accounting views: `beginning_cash`/`ending_cash` are cumulative signed
-balances of cash/bank asset accounts before/through the period bounds;
-`net_cash_flow = ending_cash - beginning_cash`; operating/investing/
-financing activity rows are period movements only (inflows positive,
-outflows negative), and activity totals sum signed row amounts, never
-absolute values. Classification: operating = income/expense accounts,
-investing = non-cash asset accounts, financing = liability/equity accounts;
-cash/bank asset accounts fund beginning/ending cash and are not repeated as
-activity rows.
+statement** — cash flow is a journal-entry event projection, not a projection
+of every account's period movement. An activity exists only when an eligible
+entry touches an exact cash identity. Income/expense counterparts are exact
+operating evidence; non-operating activity requires an explicit, supported
+event semantic carried consistently by a deterministic SYSTEM journal event.
+Caller-supplied event strings on manual or statement-derived entries have no
+classification authority. Broad asset, liability, and equity types do not
+authorize a category because they cannot distinguish an investment from
+receivable settlement or financing from payable settlement. Unsupported and
+mixed events remain in `unclassified_cash` with an explicit unproven reason
+instead of being guessed. Non-cash accruals and liability-financed asset
+purchases therefore emit no cash activity, while their later settlements still
+enter the cash bridge. Direct cash-to-cash and Processing-mediated internal
+transfers are neutral because the ledger-defined Processing identity is a cash
+equivalent for this projection.
+
+`beginning_cash` and `ending_cash` value the selected cash identities at the
+period bounds. The additive cash bridge proves that classified activity,
+unclassified cash, and the separately disclosed FX effect equal
+`ending_cash - beginning_cash`. Missing FX evidence fails report generation;
+it is never silently treated as zero. Each classified or unclassified event
+exposes its exact journal-entry/line anchors, source provenance, decision
+authority and anchor, and event semantics. Every loader predicate requires both
+entry and account tenant ownership. Any contributing event without an anchored
+decision keeps the result explicitly unproven even when its cash identity is
+exact. Package readiness consumes this proof state as a blocking section
+invariant, so lineage visibility or a balanced bridge alone cannot authorize,
+freeze, reopen, or export an unproven cash-flow section as trusted.
 
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement
 contributions and their exact custody `account_id` refs. The package path never
 classifies cash from `Account.name`; a missing or unproven cash input blocks
-trusted output. Standalone analytical cash-flow views retain a bounded lexical
-fallback only for compatibility and cannot authorize, persist, reopen, or export
+trusted output. Standalone analytical cash-flow views retain a bounded
+compatibility fallback over the extraction-created `AUTO-BANK` account code and
+legacy cash-name vocabulary; it cannot authorize, persist, reopen, or export
 a package. Brokerage cash decomposition remains a separate evidence problem: a
 brokerage container is not assigned a global binary cash role.
 

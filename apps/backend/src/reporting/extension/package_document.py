@@ -40,6 +40,7 @@ from src.pricing import (
     resolve_manual_valuation_contributions,
     resolve_selected_market_valuation_contribution,
 )
+from src.reporting.base.cash_flow_types import CashFlowResponse
 from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution, PackageSectionId
 from src.reporting.base.package_decision import (
     PACKAGE_DECISION_POLICY_VERSION,
@@ -62,7 +63,6 @@ from src.reporting.extension.report_traceability import build_personal_report_pa
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.reporting import (
     BalanceSheetResponse,
-    CashFlowResponse,
     IncomeStatementResponse,
     PersonalReportPackageContext,
     PersonalReportPackageContractResponse,
@@ -365,8 +365,18 @@ def _section_invariant_blockers(
                 "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
             )
         )
-    # An empty package asserts no financial facts. Once any package input exists,
-    # however, a zero cash balance also requires exact source evidence.
+    # An empty package asserts no financial facts. Enforce cash-event proof
+    # once at least one authoritative or unproven package input is projected.
+    if contributions and cash_flow.proof_state != "proven":
+        reason_code = cash_flow.proof_reasons[0] if cash_flow.proof_reasons else "cash_flow_unproven"
+        blockers.append(
+            _section_blocker(
+                reason_code,
+                "Cash-flow event classification or lineage is unproven and cannot authorize a package.",
+            )
+        )
+    # Once any package input exists, a zero cash balance also requires exact
+    # source evidence.
     if contributions and not cash_inputs.is_complete:
         blockers.append(
             _section_blocker(

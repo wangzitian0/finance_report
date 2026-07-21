@@ -2782,6 +2782,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     assert account.name == "DBS *9876"
     assert account.type == AccountType.ASSET
     assert account.currency == "SGD"
+    assert account.code == "AUTO-BANK"
 
     entry_result = await db.execute(
         select(JournalEntry)

@@ -3302,24 +3302,89 @@ export interface components {
             account_id?: string | null;
             /** Broker */
             broker: string;
-            /** Created Atomic Positions */
+            /**
+             * Created Atomic Positions
+             * @description New immutable position snapshots created.
+             */
             created_atomic_positions: number;
-            /** Existing Atomic Positions */
+            /**
+             * Existing Atomic Positions
+             * @description Existing immutable position snapshots reused.
+             */
             existing_atomic_positions: number;
-            /** Parsed Positions */
+            /**
+             * Parsed Positions
+             * @description Parsed brokerage position count.
+             */
             parsed_positions: number;
-            /** Reconcile Created */
+            /**
+             * Reconcile Created
+             * @description Managed positions created by reconciliation.
+             */
             reconcile_created: number;
-            /** Reconcile Disposed */
+            /**
+             * Reconcile Disposed
+             * @description Managed positions marked disposed by reconciliation.
+             */
             reconcile_disposed: number;
-            /** Reconcile Updated */
+            /**
+             * Reconcile Updated
+             * @description Managed positions updated by reconciliation.
+             */
             reconcile_updated: number;
-            /** Skipped */
+            /**
+             * Skipped
+             * @description Parsed positions skipped during import.
+             */
             skipped: number;
         };
         /**
+         * CashFlowBridge
+         * @description Exact reconciliation from classified events to the cash-balance delta.
+         */
+        CashFlowBridge: {
+            /** Cash Delta */
+            cash_delta: string;
+            /** Classified Activity */
+            classified_activity: string;
+            /** Fx Effect */
+            fx_effect: string;
+            /** Reconciles */
+            reconciles: boolean;
+            /** Unclassified Cash */
+            unclassified_cash: string;
+        };
+        /**
+         * CashFlowEventLineage
+         * @description Exact ledger and producer evidence for one cash event.
+         */
+        CashFlowEventLineage: {
+            /** Activity */
+            activity: ("Operating" | "Investing" | "Financing") | null;
+            /** Decision Anchor Id */
+            decision_anchor_id?: string | null;
+            decision_authority_state: components["schemas"]["JournalEntryAuthorityState"];
+            /**
+             * Event Types
+             * @description Distinct journal-line event semantics evaluated by cash-flow classification.
+             */
+            event_types?: string[];
+            /**
+             * Journal Entry Id
+             * Format: uuid
+             */
+            journal_entry_id: string;
+            /** Journal Line Ids */
+            journal_line_ids: string[];
+            /** Reason Code */
+            reason_code?: string | null;
+            /** Source Id */
+            source_id?: string | null;
+            source_type: components["schemas"]["JournalEntrySourceType"];
+        };
+        /**
          * CashFlowItem
-         * @description Cash flow item for operating, investing, financing activities.
+         * @description One classified cash-flow activity.
          */
         CashFlowItem: {
             /**
@@ -3338,9 +3403,11 @@ export interface components {
         };
         /**
          * CashFlowResponse
-         * @description Cash flow statement response schema.
+         * @description Cash-flow statement plus its machine-readable proof.
          */
         CashFlowResponse: {
+            /** @description Cash-delta reconciliation proof. */
+            cash_bridge?: components["schemas"]["CashFlowBridge"] | null;
             /**
              * Currency
              * @description Cash-flow presentation currency.
@@ -3351,6 +3418,11 @@ export interface components {
              * Format: date
              */
             end_date: string;
+            /**
+             * Event Lineage
+             * @description Exact journal, producer, decision, and event-semantic evidence for cash movements.
+             */
+            event_lineage?: components["schemas"]["CashFlowEventLineage"][];
             /** Financing */
             financing: components["schemas"]["CashFlowItem"][];
             /**
@@ -3365,6 +3437,16 @@ export interface components {
             /** Operating */
             operating: components["schemas"]["CashFlowItem"][];
             /**
+             * Proof Reasons
+             * @description Machine-readable reasons that prevent authoritative cash-flow output.
+             */
+            proof_reasons: string[];
+            /**
+             * Proof State
+             * @enum {string}
+             */
+            proof_state: "proven" | "unproven";
+            /**
              * Start Date
              * Format: date
              */
@@ -3373,7 +3455,7 @@ export interface components {
         };
         /**
          * CashFlowSummary
-         * @description Cash flow summary totals.
+         * @description Cash-flow statement totals.
          */
         CashFlowSummary: {
             /** Beginning Cash */
@@ -4198,7 +4280,10 @@ export interface components {
             market_data_provider: string | null;
             /** Stale */
             stale: boolean;
-            /** Stale Holdings */
+            /**
+             * Stale Holdings
+             * @description Holdings whose selected price predates the schedule as-of date.
+             */
             stale_holdings?: string[];
         };
         /**
@@ -4224,6 +4309,24 @@ export interface components {
             unrealized_pnl: string;
         };
         /**
+         * InvestmentPerformanceMarketValuationSelection
+         * @description External market observation actually used for a schedule holding.
+         */
+        InvestmentPerformanceMarketValuationSelection: {
+            /** Asset Identifier */
+            asset_identifier: string;
+            /**
+             * Observation Id
+             * Format: uuid
+             */
+            observation_id: string;
+            /**
+             * Requested As Of
+             * Format: date
+             */
+            requested_as_of: string;
+        };
+        /**
          * InvestmentPerformanceReportScheduleResponse
          * @description Report-ready investment performance schedule consumed by EPIC-005.
          */
@@ -4244,6 +4347,11 @@ export interface components {
             dividend_yield: string | null;
             /** Holdings */
             holdings: components["schemas"]["InvestmentPerformanceHoldingRow"][];
+            /**
+             * Market Valuation Selections
+             * @description Exact external market observations rendered for schedule holdings.
+             */
+            market_valuation_selections?: components["schemas"]["InvestmentPerformanceMarketValuationSelection"][];
             /** Money Weighted Return */
             money_weighted_return: string | null;
             /** Notes */
@@ -4772,22 +4880,19 @@ export interface components {
         };
         /**
          * ManualValuationBasis
-         * @description How a manual valuation's value was determined — the evidence basis.
-         *
-         *     Captured for guided evidence intake (#706) so a manual-trusted value carries
-         *     a structured, auditable basis (not just a free-text source).
+         * @description Evidence basis attached to a human-entered valuation.
          * @enum {string}
          */
         ManualValuationBasis: "market_appraisal" | "broker_statement" | "employer_grant_document" | "bank_statement" | "government_statement" | "insurer_statement" | "self_estimate";
         /**
          * ManualValuationComponentType
-         * @description Manual net worth component type.
+         * @description Manual net-worth component classification owned by pricing.
          * @enum {string}
          */
         ManualValuationComponentType: "property_value" | "mortgage_balance" | "cpf_balance" | "retirement_account" | "social_security_personal_account" | "long_term_benefit_asset" | "long_term_savings" | "tax_payable" | "tax_refund" | "insurance_cash_value" | "esop" | "rsu" | "stock_options" | "other_asset" | "other_liability";
         /**
          * ManualValuationLiquidityClass
-         * @description How a manual valuation should be presented in net worth views.
+         * @description Presentation liquidity of a pricing-owned valuation fact.
          * @enum {string}
          */
         ManualValuationLiquidityClass: "liquid" | "restricted" | "illiquid" | "liability";
@@ -5851,7 +5956,10 @@ export interface components {
          *     consumable by the generated frontend client.
          */
         PriceUpdateBatchResponse: {
-            /** Results */
+            /**
+             * Results
+             * @description Per-asset price override results.
+             */
             results?: components["schemas"]["PriceUpdateResponse"][];
             /**
              * Updated Count
@@ -6023,20 +6131,33 @@ export interface components {
          * @description Response for position reconciliation.
          */
         ReconcilePositionsResponse: {
-            /** Created */
+            /**
+             * Created
+             * @description Number of managed positions created by reconciliation.
+             */
             created: number;
-            /** Disposed */
+            /**
+             * Disposed
+             * @description Number of managed positions marked disposed by reconciliation.
+             */
             disposed: number;
             /** Message */
             message: string;
             /**
              * Skipped
+             * @description Number of source positions skipped by reconciliation.
              * @default 0
              */
             skipped: number;
-            /** Skipped Assets */
+            /**
+             * Skipped Assets
+             * @description Asset identifiers skipped during reconciliation.
+             */
             skipped_assets?: string[];
-            /** Updated */
+            /**
+             * Updated
+             * @description Number of managed positions updated by reconciliation.
+             */
             updated: number;
         };
         /**
