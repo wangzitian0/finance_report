@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import get_type_hints
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -230,6 +230,44 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
             user_id=uuid4(),
             currency="USD",
         )
+
+
+@pytest.mark.asyncio
+async def test_transfer_detection_logs_context_before_propagating(monkeypatch) -> None:
+    """AC-reconciliation.signature-surgery.6: failed commands retain operator context."""
+    transaction = SimpleNamespace(
+        id=uuid4(),
+        description="Transfer to savings",
+        direction="OUT",
+        amount=Decimal("25.00"),
+        txn_date=date(2026, 1, 1),
+        currency="SGD",
+    )
+    repository = SimpleNamespace(
+        claim_transaction=AsyncMock(return_value=None),
+        add_match=AsyncMock(),
+    )
+    failure = RuntimeError("ledger unavailable")
+    log_exception = Mock()
+    monkeypatch.setattr(transfer_detection, "resolve_custody_account_id", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(transfer_detection, "create_transfer_out_entry", AsyncMock(side_effect=failure))
+    monkeypatch.setattr(transfer_detection.logger, "exception", log_exception)
+
+    with pytest.raises(RuntimeError, match="ledger unavailable"):
+        await transfer_detection.run_transfer_detection_phase(
+            SimpleNamespace(),
+            transactions=[transaction],
+            matched_txn_ids=set(),
+            repository=repository,
+            user_id=uuid4(),
+        )
+
+    log_exception.assert_called_once_with(
+        "Transfer detection failed; propagating to transaction owner",
+        txn_id=str(transaction.id),
+        direction="OUT",
+        error="ledger unavailable",
+    )
 
 
 @pytest.mark.asyncio

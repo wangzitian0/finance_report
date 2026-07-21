@@ -151,7 +151,7 @@ class ReconciliationTransferPair(Base, UUIDMixin, TimestampMixin):
         nullable=False,
     )
     confidence: Mapped[int] = mapped_column(Integer, nullable=False)
-    score_breakdown: Mapped[dict[str, float | str]] = mapped_column(JSONB, default=dict)
+    score_breakdown: Mapped[dict[str, float | str]] = mapped_column(JSONB, nullable=False, default=dict)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 

@@ -129,9 +129,15 @@ async def run_transfer_detection_phase(
                 direction=txn.direction,
                 error=str(exc),
             )
-        except Exception:
+        except Exception as exc:
             # The caller owns the transaction. Propagating guarantees that a
             # failed ledger command cannot commit a disposition reservation or
             # a partial Processing effect.
+            logger.exception(
+                "Transfer detection failed; propagating to transaction owner",
+                txn_id=str(txn.id),
+                direction=txn.direction,
+                error=str(exc),
+            )
             raise
     return created_matches

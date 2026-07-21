@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import Currency, InvalidCurrencyError
 from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
 from src.ledger import TransferPair
 from src.reconciliation.orm.reconciliation import (
@@ -75,6 +76,11 @@ async def persist_transfer_pairs(
             continue
         out_disposition, out_user_id, out_direction, out_currency = out_leg
         in_disposition, in_user_id, in_direction, in_currency = in_leg
+        try:
+            out_currency_code = Currency.of(out_currency).code
+            in_currency_code = Currency.of(in_currency).code
+        except InvalidCurrencyError as exc:
+            raise InvalidTransferPairError("Transfer pair legs require valid ISO-4217 currencies") from exc
         if (
             pair.out_entry.id == pair.in_entry.id
             or pair.out_entry.user_id != out_user_id
@@ -82,7 +88,7 @@ async def persist_transfer_pairs(
             or out_user_id != in_user_id
             or out_direction != TransactionDirection.OUT
             or in_direction != TransactionDirection.IN
-            or out_currency.upper() != in_currency.upper()
+            or out_currency_code != in_currency_code
         ):
             raise InvalidTransferPairError(
                 "Transfer pair legs must be distinct, tenant-consistent, opposite-direction, and same-currency"

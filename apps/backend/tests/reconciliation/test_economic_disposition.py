@@ -222,6 +222,15 @@ async def test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
     with pytest.raises(InvalidTransferPairError):
         await persist_transfer_pairs(db, [candidate])
     in_txn.currency = "SGD"
+    out_txn.currency = "sgd"
+    await db.flush()
+
+    invalid_currency = "XYZ"
+    in_txn.currency = invalid_currency
+    await db.flush()
+    with pytest.raises(InvalidTransferPairError, match="valid ISO-4217"):
+        await persist_transfer_pairs(db, [candidate])
+    in_txn.currency = "SGD"
 
     other_user = User(email=f"pair-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
@@ -258,6 +267,7 @@ async def test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
         await persist_transfer_pairs(db, [reversed_candidate])
     assert await db.scalar(select(func.count()).select_from(ReconciliationTransferPair)) == 1
     assert await db.scalar(select(func.count()).select_from(ReconciliationTransferPairLeg)) == 2
+    assert ReconciliationTransferPair.__table__.c.score_breakdown.nullable is False
     unpaired = await list_unpaired_transfer_dispositions(db, user_id=test_user.id)
     assert [item.id for item in unpaired] == [extra_match.id]
 
