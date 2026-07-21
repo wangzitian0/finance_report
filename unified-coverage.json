@@ -1,7 +1,7 @@
 {
-  "total_lines": 37804,
-  "covered_lines": 36133,
-  "coverage_percent": 95.58,
+  "total_lines": 46937,
+  "covered_lines": 44882,
+  "coverage_percent": 95.62,
   "breakdown": {
     "backend": {
       "total_lines": 18892,
@@ -16,16 +16,16 @@
       "file_count": 175
     },
     "common": {
-      "total_lines": 11563,
-      "covered_lines": 10800,
-      "coverage_percent": 93.4,
-      "file_count": 144
+      "total_lines": 16210,
+      "covered_lines": 15157,
+      "coverage_percent": 93.5,
+      "file_count": 184
     },
     "tools": {
-      "total_lines": 3128,
-      "covered_lines": 2832,
-      "coverage_percent": 90.54,
-      "file_count": 95
+      "total_lines": 3382,
+      "covered_lines": 3130,
+      "coverage_percent": 92.55,
+      "file_count": 113
     }
   }
 }
