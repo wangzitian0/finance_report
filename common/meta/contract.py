@@ -102,6 +102,7 @@ CONTRACT = PackageContract(
     implementations={"be": "common/meta", "fe": None},
     interface=[
         "ACRecord",
+        "CommandBoundary",
         "ConceptRecord",
         "DependencyEdge",
         "DependencyKind",
