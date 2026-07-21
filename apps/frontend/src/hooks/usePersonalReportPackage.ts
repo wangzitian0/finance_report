@@ -78,20 +78,20 @@ export function usePersonalReportPackage(
   });
   const selectedSnapshotQuery = useQuery({
     queryKey: ["report-package", "snapshot", selectedSnapshotId],
-    queryFn: ({ signal }) =>
-      apiOperation(
-        "get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get",
-        {
-          path: { snapshot_id: selectedSnapshotId! },
-          signal,
-        },
+    queryFn: async ({ signal }) =>
+      normalizePersonalReportPackageSnapshot(
+        await apiOperation(
+          "get_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__get",
+          {
+            path: { snapshot_id: selectedSnapshotId! },
+            signal,
+          },
+        ),
       ),
     enabled: Boolean(selectedSnapshotId),
     staleTime: 0,
   });
-  const selectedSnapshot = selectedSnapshotQuery.data
-    ? normalizePersonalReportPackageSnapshot(selectedSnapshotQuery.data)
-    : null;
+  const selectedSnapshot = selectedSnapshotQuery.data ?? null;
   const document =
     selectedSnapshot?.document ?? packageQueryResult.data ?? null;
 
