@@ -93,11 +93,9 @@ async def test_get_reconciliation_stats_basic(db, test_user):
 
 
 async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, test_user):
-    """AC-reconciliation.stats.1: Two accepted matches on the same atomic txn count as one matched txn.
+    """AC-reconciliation.stats.1: Historical and active heads count as one matched txn.
 
-    ``matched`` counts DISTINCT atomic transactions, so multiple active accepted
-    matches on a single transaction must not inflate the count or push
-    ``match_rate`` above 100%.
+    ``matched`` counts DISTINCT atomic transactions and ignores superseded history.
     """
     user_id = test_user.id
     account = Account(
@@ -113,13 +111,13 @@ async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, tes
     db.add(txn)
     await db.flush()
 
-    # Two active accepted matches on the SAME atomic transaction.
+    # One historical head and one current head on the same atomic transaction.
     match_a = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(uuid4())],
         match_score=95,
         score_breakdown={"amount": 100.0, "date": 100.0},
-        status=ReconciliationStatus.ACCEPTED,
+        status=ReconciliationStatus.SUPERSEDED,
     )
     match_b = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -128,13 +126,16 @@ async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, tes
         score_breakdown={"amount": 100.0, "date": 90.0},
         status=ReconciliationStatus.AUTO_ACCEPTED,
     )
-    db.add_all([match_a, match_b])
+    db.add(match_b)
+    await db.flush()
+    match_a.superseded_by_id = match_b.id
+    db.add(match_a)
     await db.flush()
 
     stats = await get_reconciliation_stats(db, user_id, include_distribution=False)
 
     assert stats.total_transactions == 1
-    # Two accepted matches on one txn => counted once.
+    # Superseded history plus one active head => counted once.
     assert stats.matched_transactions == 1
     assert stats.unmatched_transactions == 0
     assert stats.match_rate == pytest.approx(100.0)

@@ -23,7 +23,7 @@ from src.reconciliation.extension.matching import (
     prune_candidates,
     score_single,
 )
-from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
 
 
 async def run_normal_matching_phase(
@@ -44,6 +44,7 @@ async def run_normal_matching_phase(
             context.get_candidates_for_date(txn.txn_date),
             txn_date=txn.txn_date,
             target_amount=txn.amount,
+            currency=txn.currency,
         )
         if not candidates:
             continue
@@ -71,7 +72,9 @@ async def run_normal_matching_phase(
                 and is_entry_balanced(entry_b, base_currency=context.base_currency)
             ):
                 continue
-            combined = entry_bank_side_amount(entry_a, txn.direction) + entry_bank_side_amount(entry_b, txn.direction)
+            combined = entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency) + entry_bank_side_amount(
+                entry_b, txn.direction, currency=txn.currency
+            )
             if not _within_combination_tolerance(combined, txn, context.config):
                 continue
             candidate = await score_single(
@@ -94,9 +97,9 @@ async def run_normal_matching_phase(
             ):
                 continue
             combined = (
-                entry_bank_side_amount(entry_a, txn.direction)
-                + entry_bank_side_amount(entry_b, txn.direction)
-                + entry_bank_side_amount(entry_c, txn.direction)
+                entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency)
+                + entry_bank_side_amount(entry_b, txn.direction, currency=txn.currency)
+                + entry_bank_side_amount(entry_c, txn.direction, currency=txn.currency)
             )
             if not _within_combination_tolerance(combined, txn, context.config):
                 continue
@@ -115,7 +118,7 @@ async def run_normal_matching_phase(
         if not best_match or best_match.score < context.config.pending_review:
             continue
 
-        existing_match = await repository.get_active_match(txn.id)
+        existing_match = await repository.claim_transaction(txn.id)
         if existing_match:
             existing_je_ids = set(existing_match.journal_entry_ids or [])
             new_je_ids = set(best_match.journal_entry_ids or [])
@@ -137,6 +140,7 @@ async def run_normal_matching_phase(
         match_kwargs["atomic_txn_id"] = txn.id
 
         match = ReconciliationMatch(**match_kwargs)
+        match.disposition_kind = DispositionKind.JOURNAL_MATCH
         await repository.add_match(match)
 
         if existing_match:

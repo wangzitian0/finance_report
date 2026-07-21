@@ -13,7 +13,7 @@ from src.audit import (
     RECONCILIATION_REVIEW_SCORE,
     source_type_rank,
 )
-from src.audit.money import Money
+from src.audit.money import Currency, Money
 from src.ledger import AccountType, Direction, JournalEntry, ValidationError, validate_journal_balance
 from src.observability import get_logger
 
@@ -78,26 +78,35 @@ def _candidate_is_better(
     return False
 
 
-def entry_total_amount(entry: JournalEntry) -> Decimal:
-    """Return total debit amount for matching."""
-    debits = [line.money for line in entry.lines if line.direction == Direction.DEBIT]
-    return Money.sum(debits).amount if debits else Decimal("0.00")
+def entry_total_amount(entry: JournalEntry, *, currency: str) -> Decimal:
+    """Return debit magnitude in one explicit transaction currency."""
+    target = Currency.of(currency)
+    debits = [line.money for line in entry.lines if line.direction == Direction.DEBIT and line.money.currency == target]
+    return Money.sum(debits, currency=target).amount
 
 
-def entry_bank_side_amount(entry: JournalEntry, transaction_direction: str | None) -> Decimal:
+def entry_bank_side_amount(
+    entry: JournalEntry,
+    transaction_direction: str | None,
+    *,
+    currency: str,
+) -> Decimal:
     """Return the bank/cash-side amount that should match a statement transaction."""
     if not transaction_direction:
-        return entry_total_amount(entry)
+        return entry_total_amount(entry, currency=currency)
     direction = transaction_direction.upper()
     bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
     bank_lines = [
         line.money
         for line in entry.lines
-        if line.direction == bank_line_direction and line.account and line.account.type == AccountType.ASSET
+        if line.direction == bank_line_direction
+        and line.account
+        and line.account.type == AccountType.ASSET
+        and line.money.currency == Currency.of(currency)
     ]
     if bank_lines:
-        return Money.sum(bank_lines).amount
-    return entry_total_amount(entry)
+        return Money.sum(bank_lines, currency=currency).amount
+    return entry_total_amount(entry, currency=currency)
 
 
 def is_entry_balanced(entry: JournalEntry, *, base_currency: str) -> bool:
