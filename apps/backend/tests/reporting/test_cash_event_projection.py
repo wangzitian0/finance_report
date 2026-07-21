@@ -188,6 +188,8 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
         "cash_delta": Decimal("0.00"),
         "reconciles": True,
     }
+    assert report["proof_state"] == "proven"
+    assert report["proof_reasons"] == []
 
     usd_cash = await _account(db, test_user.id, "USD Custody", AccountType.ASSET, currency="USD")
     usd_income = await _account(db, test_user.id, "USD Income", AccountType.INCOME, currency="USD")
@@ -259,7 +261,11 @@ async def test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_
     )
 
     report = await _report(db, test_user.id, {cash.id})
-    statement = _cash_event_rows_statement(test_user.id, end_date=date(2026, 1, 31))
+    statement = _cash_event_rows_statement(
+        test_user.id,
+        end_date=date(2026, 1, 31),
+        cash_account_ids=frozenset({cash.id}),
+    )
     equality_columns = {
         (element.left.table.name, element.left.name)
         for element in visitors.iterate(statement)
@@ -274,9 +280,17 @@ async def test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_
         and element.operator is operators.ne
         and getattr(element.left, "name", None) == "user_id"
     ]
+    cash_leg_guards = [
+        element
+        for element in visitors.iterate(statement)
+        if isinstance(element, BinaryExpression)
+        and element.operator is operators.in_op
+        and getattr(element.left, "name", None) == "account_id"
+    ]
 
     assert {("journal_entries", "user_id"), ("accounts", "user_id")} <= equality_columns
     assert len(foreign_account_guards) == 1
+    assert len(cash_leg_guards) == 1
     assert report["summary"]["net_cash_flow"] == Decimal("20.00")
     assert len(report["event_lineage"]) == 1
     assert report["event_lineage"][0]["journal_entry_id"] == own_entry.id

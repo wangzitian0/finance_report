@@ -8,9 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.audit import JournalEntrySourceType
-from src.ledger import AccountType, Direction, JournalEntryAuthorityState
-from src.reporting import ReportType
+from src.ledger import AccountType, Direction
+from src.reporting import CashFlowResponse, ReportType
 from src.reporting.base.types import (
     PersonalReportingFrameworkId,
     PolicyDimension,
@@ -259,83 +258,6 @@ class CategoryBreakdownResponse(BaseModel):
     period_start: date
     period_end: date
     items: list[CategoryBreakdownItem]
-
-
-class CashFlowItem(BaseModel):
-    """Cash flow item for operating, investing, financing activities."""
-
-    category: str
-    subcategory: str
-    amount: Decimal
-    description: str | None = None
-    # EPIC-022 #887: the account whose movement this line represents, so the
-    # frontend can drill the amount down to its contributing journal lines via
-    # /api/reports/account-lineage (each cash-flow line maps to exactly one
-    # account). None for any future aggregate line with no single anchor.
-    account_id: UUID | None = Field(
-        default=None,
-        description="Account this line's movement belongs to, for report drill-down.",
-    )
-
-
-class CashFlowSummary(BaseModel):
-    """Cash flow summary totals."""
-
-    operating_activities: Decimal
-    investing_activities: Decimal
-    financing_activities: Decimal
-    net_cash_flow: Decimal
-    beginning_cash: Decimal
-    ending_cash: Decimal
-
-
-class CashFlowEventLineage(BaseModel):
-    """Exact ledger and producer evidence for one cash event."""
-
-    journal_entry_id: UUID
-    journal_line_ids: list[UUID]
-    source_type: JournalEntrySourceType
-    source_id: UUID | None = None
-    decision_anchor_id: UUID | None = None
-    decision_authority_state: JournalEntryAuthorityState
-    event_types: list[str] = Field(
-        default_factory=list,
-        description="Distinct journal-line event semantics evaluated by cash-flow classification.",
-    )
-    activity: Literal["Operating", "Investing", "Financing"] | None
-    reason_code: str | None = None
-
-
-class CashFlowBridge(BaseModel):
-    """Exact reconciliation from classified events to the cash-balance delta."""
-
-    classified_activity: Decimal
-    unclassified_cash: Decimal
-    fx_effect: Decimal
-    cash_delta: Decimal
-    reconciles: bool
-
-
-class CashFlowResponse(BaseModel):
-    """Cash flow statement response schema."""
-
-    start_date: date
-    end_date: date
-    currency: str = Field(min_length=3, max_length=3, description="Cash-flow presentation currency.")
-    operating: list[CashFlowItem]
-    investing: list[CashFlowItem]
-    financing: list[CashFlowItem]
-    summary: CashFlowSummary
-    fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
-    cash_bridge: CashFlowBridge | None = Field(default=None, description="Cash-delta reconciliation proof.")
-    event_lineage: list[CashFlowEventLineage] = Field(
-        default_factory=list,
-        description="Exact journal, producer, decision, and event-semantic evidence for cash movements.",
-    )
-    proof_state: Literal["proven", "unproven"] = "unproven"
-    proof_reasons: list[str] = Field(
-        default_factory=list, description="Machine-readable reasons that prevent authoritative cash-flow output."
-    )
 
 
 class PersonalReportPackageSectionContract(BaseModel):

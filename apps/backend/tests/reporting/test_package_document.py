@@ -183,7 +183,7 @@ def test_AC_reporting_package_document_3_trust_is_one_trace_decision_fold() -> N
 
 
 def test_AC_reporting_package_document_3_blocks_failed_section_observations() -> None:
-    """The package decision cannot label unverified accounting sections PASS."""
+    """AC-reporting.package-document.3 AC-reporting.cash-events.7: unproven sections block authority."""
     period_start = datetime(2025, 1, 1).date()
     period_end = datetime(2025, 12, 31).date()
     sections = SimpleNamespace(
@@ -206,6 +206,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
             start_date=period_start,
             end_date=period_end,
             currency="SGD",
+            proof_state="proven",
+            proof_reasons=[],
             summary=SimpleNamespace(
                 beginning_cash=Decimal("10.00"),
                 net_cash_flow=Decimal("5.00"),
@@ -282,6 +284,19 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "portfolio_value_incomplete",
         "section_period_mismatch",
     } <= {blocker.code for blocker in warning_blockers}
+
+    sections.cash_flow.proof_state = "unproven"
+    sections.cash_flow.proof_reasons = ["cash_event_classification_ambiguous"]
+    proof_blockers = _section_invariant_blockers(
+        sections,
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(),
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    assert "cash_event_classification_ambiguous" in {blocker.code for blocker in proof_blockers}
 
 
 def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:

@@ -3384,7 +3384,7 @@ export interface components {
         };
         /**
          * CashFlowItem
-         * @description Cash flow item for operating, investing, financing activities.
+         * @description One classified cash-flow activity.
          */
         CashFlowItem: {
             /**
@@ -3403,7 +3403,7 @@ export interface components {
         };
         /**
          * CashFlowResponse
-         * @description Cash flow statement response schema.
+         * @description Cash-flow statement plus its machine-readable proof.
          */
         CashFlowResponse: {
             /** @description Cash-delta reconciliation proof. */
@@ -3440,10 +3440,9 @@ export interface components {
              * Proof Reasons
              * @description Machine-readable reasons that prevent authoritative cash-flow output.
              */
-            proof_reasons?: string[];
+            proof_reasons: string[];
             /**
              * Proof State
-             * @default unproven
              * @enum {string}
              */
             proof_state: "proven" | "unproven";
@@ -3456,7 +3455,7 @@ export interface components {
         };
         /**
          * CashFlowSummary
-         * @description Cash flow summary totals.
+         * @description Cash-flow statement totals.
          */
         CashFlowSummary: {
             /** Beginning Cash */

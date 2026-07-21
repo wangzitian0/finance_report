@@ -227,7 +227,9 @@ exposes its exact journal-entry/line anchors, source provenance, decision
 authority and anchor, and event semantics. Every loader predicate requires both
 entry and account tenant ownership. Any contributing event without an anchored
 decision keeps the result explicitly unproven even when its cash identity is
-exact; trusted package assembly cannot treat lineage visibility as authority.
+exact. Package readiness consumes this proof state as a blocking section
+invariant, so lineage visibility or a balanced bridge alone cannot authorize,
+freeze, reopen, or export an unproven cash-flow section as trusted.
 
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement

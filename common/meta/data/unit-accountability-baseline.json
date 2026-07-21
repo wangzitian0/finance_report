@@ -92,7 +92,6 @@
   "unbound::reporting::AccountLineageTreeProjection",
   "unbound::reporting::AnnualizedIncomeTotals",
   "unbound::reporting::BalanceSheetResponse",
-  "unbound::reporting::CashFlowResponse",
   "unbound::reporting::FrameworkPolicyDecision",
   "unbound::reporting::FrameworkPolicyDecisionProjection",
   "unbound::reporting::FrameworkPolicyGap",

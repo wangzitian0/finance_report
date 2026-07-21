@@ -2277,7 +2277,7 @@
         "type": "object"
       },
       "CashFlowItem": {
-        "description": "Cash flow item for operating, investing, financing activities.",
+        "description": "One classified cash-flow activity.",
         "properties": {
           "account_id": {
             "anyOf": [
@@ -2326,7 +2326,7 @@
         "type": "object"
       },
       "CashFlowResponse": {
-        "description": "Cash flow statement response schema.",
+        "description": "Cash-flow statement plus its machine-readable proof.",
         "properties": {
           "cash_bridge": {
             "anyOf": [
@@ -2400,7 +2400,6 @@
             "type": "array"
           },
           "proof_state": {
-            "default": "unproven",
             "enum": [
               "proven",
               "unproven"
@@ -2424,13 +2423,15 @@
           "operating",
           "investing",
           "financing",
-          "summary"
+          "summary",
+          "proof_state",
+          "proof_reasons"
         ],
         "title": "CashFlowResponse",
         "type": "object"
       },
       "CashFlowSummary": {
-        "description": "Cash flow summary totals.",
+        "description": "Cash-flow statement totals.",
         "properties": {
           "beginning_cash": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",

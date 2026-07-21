@@ -504,7 +504,10 @@ async def test_cash_flow_raises_when_end_date_rate_missing(db: AsyncSession, tes
         patch(
             "src.reporting.extension.fx_gateway.PrefetchedFxRates.prefetch", new_callable=AsyncMock, return_value=None
         ),
-        patch("src.reporting.extension.fx_gateway.PrefetchedFxRates.get_rate", side_effect=[Decimal("1"), None]),
+        patch(
+            "src.reporting.extension.fx_gateway.PrefetchedFxRates.get_rate",
+            side_effect=lambda _source, _target, rate_date: None if rate_date == date(2025, 1, 31) else Decimal("1"),
+        ),
     ):
         with pytest.raises(ReportError, match="on 2025-01-31"):
             await generate_cash_flow(

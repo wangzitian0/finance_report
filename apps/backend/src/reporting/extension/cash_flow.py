@@ -113,7 +113,7 @@ async def _load_cash_events(
     cash_account_ids: frozenset[UUID],
 ) -> tuple[_CashEvent, ...]:
     """Load complete entries only when both the entry and every account belong to the tenant."""
-    stmt = _cash_event_rows_statement(user_id, end_date=end_date)
+    stmt = _cash_event_rows_statement(user_id, end_date=end_date, cash_account_ids=cash_account_ids)
     grouped: dict[UUID, tuple[JournalEntry, list[tuple[JournalLine, Account]]]] = {}
     for line, account, entry in (await db.execute(stmt)).all():
         grouped.setdefault(entry.id, (entry, []))[1].append((line, account))
@@ -137,10 +137,12 @@ def _cash_event_rows_statement(
     user_id: UUID,
     *,
     end_date: date,
+    cash_account_ids: frozenset[UUID] | None = None,
 ) -> Select[tuple[JournalLine, Account, JournalEntry]]:
     """Build the complete-entry query so tenant predicates remain directly provable."""
     foreign_line = aliased(JournalLine)
     foreign_account = aliased(Account)
+    cash_line = aliased(JournalLine)
     voided_entry = aliased(JournalEntry)
     has_foreign_account = exists(
         select(foreign_line.id)
@@ -148,7 +150,7 @@ def _cash_event_rows_statement(
         .where(foreign_line.journal_entry_id == JournalEntry.id)
         .where(foreign_account.user_id != user_id)
     )
-    return (
+    stmt = (
         select(JournalLine, Account, JournalEntry)
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
@@ -160,6 +162,14 @@ def _cash_event_rows_statement(
         .where(JournalEntry.entry_date <= end_date)
         .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
     )
+    if cash_account_ids is not None:
+        has_cash_leg = exists(
+            select(cash_line.id)
+            .where(cash_line.journal_entry_id == JournalEntry.id)
+            .where(cash_line.account_id.in_(cash_account_ids))
+        )
+        stmt = stmt.where(has_cash_leg)
+    return stmt
 
 
 async def generate_cash_flow(
@@ -214,8 +224,9 @@ async def generate_cash_flow(
             source = line.currency.upper()
             if source == target_currency:
                 continue
-            fx_needs.add((source, target_currency, start_date, None, None))
             fx_needs.add((source, target_currency, end_date, None, None))
+            if event.entry.entry_date < start_date:
+                fx_needs.add((source, target_currency, start_date, None, None))
             if start_date <= event.entry.entry_date <= end_date:
                 fx_needs.add((source, target_currency, event.entry.entry_date, None, None))
 
@@ -250,13 +261,18 @@ async def generate_cash_flow(
         proof_reasons.add("cash_identity_missing")
 
     for event in events:
-        if not event.has_authoritative_decision:
-            proof_reasons.add("cash_event_decision_unproven")
+        beginning_movement = Decimal("0")
         if event.entry.entry_date < start_date:
-            beginning_cash += sum(
+            beginning_movement = sum(
                 (converted_delta(line, start_date) for line, _account in event.cash_lines), Decimal("0")
             )
-        ending_cash += sum((converted_delta(line, end_date) for line, _account in event.cash_lines), Decimal("0"))
+            beginning_cash += beginning_movement
+        ending_movement = sum((converted_delta(line, end_date) for line, _account in event.cash_lines), Decimal("0"))
+        ending_cash += ending_movement
+        if not event.has_authoritative_decision and (
+            beginning_movement != Decimal("0") or ending_movement != Decimal("0")
+        ):
+            proof_reasons.add("cash_event_decision_unproven")
         if not (start_date <= event.entry.entry_date <= end_date):
             continue
 
