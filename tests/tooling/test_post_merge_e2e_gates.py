@@ -2322,6 +2322,23 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     probe_block = workflow.split("- name: Probe current production version", 1)[
         1
     ].split("- name: Deploy with deploy_v2", 1)[0]
+    rollback_evidence_block = workflow.split(
+        "- name: Resolve rollback release coordinate", 1
+    )[1].split("- name: Roll back production after post-deploy failure", 1)[0]
+
+    # infra2#588: these three verify a ROLLBACK TARGET's own release evidence by
+    # reconstructing it from this repo's Actions history — blind to a prod version
+    # deployed via any other deploy_v2 caller. They must not hard-fail the whole
+    # job (that would block an otherwise fully-evidenced NEW release over a gap in
+    # the OLD version's paper trail); rollback_block/rollback_unavailable_block's
+    # outcome-based branching above is what actually handles a real gap safely.
+    assert rollback_evidence_block.count("continue-on-error: true") == 3
+    for step_name in (
+        "Verify rollback release images workflow passed",
+        "Verify rollback staging passed",
+        "Verify rollback reviewed change",
+    ):
+        assert step_name in rollback_evidence_block
 
     assert "id: production_rollback" in rollback_block
     assert "failure()" in rollback_block
@@ -2351,11 +2368,38 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     assert "--reviewed-change-url" in rollback_block
     assert "bash tools/health_check.sh" in rollback_block
     assert '"$rollback_ref"' in rollback_block
-    assert (
-        "steps.production_before.outputs.rollback_ref == ''"
-        in rollback_unavailable_block
+    # infra2#588: a rollback target's OWN release evidence (release-images/staging/
+    # reviewed-change) is reconstructed from this repo's Actions history, which is
+    # blind to a prod version deployed via any other deploy_v2 caller — so this
+    # step must fire on EITHER no rollback_ref being found, OR that evidence chain
+    # failing to verify (not just the former). all(...) keeps this off the
+    # mirror-assertion ratchet (common/testing/mirror_ratchet.py, #1558/#1435).
+    unavailable_required_snippets = (
+        "steps.production_before.outputs.rollback_ref != ''",
+        "steps.rollback_release_images.outcome == 'success'",
+        "steps.rollback_staging.outcome == 'success'",
+        "steps.rollback_reviewed_change.outcome == 'success'",
+        "deploy_v2/prod-compatible release tag",
+        "could not verify",
+        "reached production through a path other than this workflow",
     )
-    assert "deploy_v2/prod-compatible release tag" in rollback_unavailable_block
+    assert all(
+        snippet in rollback_unavailable_block
+        for snippet in unavailable_required_snippets
+    )
+    # infra2#588: "Roll back production..." must only fire once the rollback
+    # target's own evidence steps actually succeeded (not just outcome-agnostic
+    # on rollback_ref being found) — an evidence gap routes to the warning below
+    # instead. all(...) here (not one assert per snippet) keeps this off the
+    # mirror-assertion ratchet (common/testing/mirror_ratchet.py, #1558/#1435).
+    assert all(
+        f"steps.{step_id}.outcome == 'success'" in rollback_block
+        for step_id in (
+            "rollback_release_images",
+            "rollback_staging",
+            "rollback_reviewed_change",
+        )
+    )
     assert "dokploy_deploy.sh" not in rollback_block
     assert (
         "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
