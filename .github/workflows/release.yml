@@ -413,9 +413,20 @@ jobs:
           echo "version_ref=${ROLLBACK_REF}" >> "$GITHUB_OUTPUT"
           echo "full_sha=${rollback_sha}" >> "$GITHUB_OUTPUT"
 
+      # continue-on-error on these three: a rollback TARGET's evidence trail is
+      # reconstructed from this repo's own GitHub Actions history, which is blind
+      # to a prod version deployed via any other legitimate deploy_v2 caller (CLI,
+      # the app-deploy-request receiver triggered directly, etc — deploy_v2 has
+      # never required going through THIS workflow). A gap here says "we could not
+      # prove today's rollback target was itself staged," which must not block
+      # promoting a NEW release that has already passed its own full evidence
+      # chain above — it only means an automated rollback-on-failure later in this
+      # run can't safely proceed either; "Warn when production rollback cannot
+      # run" below covers exactly that case.
       - name: Verify rollback release images workflow passed
         id: rollback_release_images
         if: steps.production_before.outputs.rollback_ref != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ steps.rollback_release.outputs.full_sha }}
@@ -428,6 +439,7 @@ jobs:
       - name: Verify rollback staging passed
         id: rollback_staging
         if: steps.production_before.outputs.rollback_ref != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_REF: ${{ steps.rollback_release.outputs.version_ref }}
@@ -442,6 +454,7 @@ jobs:
       - name: Verify rollback reviewed change
         id: rollback_reviewed_change
         if: steps.production_before.outputs.rollback_ref != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ steps.rollback_release.outputs.full_sha }}
@@ -514,7 +527,7 @@ jobs:
 
       - name: Roll back production after post-deploy failure
         id: production_rollback
-        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref != '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref != '' && steps.rollback_release_images.outcome == 'success' && steps.rollback_staging.outcome == 'success' && steps.rollback_reviewed_change.outcome == 'success' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
         env:
           INFRA2_PAT: ${{ secrets.INFRA2_PAT }}
           SOURCE_RUN_ID: ${{ steps.rollback_release_images.outputs.run_id }}
@@ -546,9 +559,13 @@ jobs:
 
       - name: Warn when production rollback cannot run
         id: production_rollback_unavailable
-        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && steps.production_before.outputs.rollback_ref == '' && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
+        if: ${{ failure() && steps.deploy_v2.outcome == 'success' && !(steps.production_before.outputs.rollback_ref != '' && steps.rollback_release_images.outcome == 'success' && steps.rollback_staging.outcome == 'success' && steps.rollback_reviewed_change.outcome == 'success') && (steps.deploy_health.outcome == 'failure' || steps.production_infra_smoke.outcome == 'failure' || steps.production_smoke.outcome == 'failure' || steps.production_readonly_e2e.outcome == 'failure') }}
         run: |
-          echo "::warning::Production rollback skipped: pre-deploy health did not expose a deploy_v2/prod-compatible release tag. health_version='${{ steps.production_before.outputs.health_version }}' git_sha='${{ steps.production_before.outputs.git_sha }}'"
+          if [ -z "${{ steps.production_before.outputs.rollback_ref }}" ]; then
+            echo "::warning::Production rollback skipped: pre-deploy health did not expose a deploy_v2/prod-compatible release tag. health_version='${{ steps.production_before.outputs.health_version }}' git_sha='${{ steps.production_before.outputs.git_sha }}'"
+          else
+            echo "::warning::Production rollback skipped: could not verify ${{ steps.production_before.outputs.rollback_ref }}'s own release evidence (release-images=${{ steps.rollback_release_images.outcome }} staging=${{ steps.rollback_staging.outcome }} reviewed-change=${{ steps.rollback_reviewed_change.outcome }}) — it may have reached production through a path other than this workflow. Manual intervention required; deploy_v2 will refuse an unevidenced rollback the same as it would any other release."
+          fi
 
       - name: Write production deploy context
         if: ${{ always() }}
