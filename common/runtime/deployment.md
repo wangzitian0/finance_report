@@ -26,13 +26,16 @@ dispatches canonical requests to the infra2 receiver.
 The target repository boundary is one-way: Finance Report owns application
 artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
 credentials, and every deployment side effect. The application pins
-[`infra2-sdk v0.3.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.3.0)
+[`infra2-sdk v0.5.1`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v0.5.1)
 as the wire-contract authority and `tools/app_deploy_request.py` renders only
 canonical staging or Production requests for `finance_report/app`. The renderer
 performs no network or subprocess operations. Production requires exact source,
-staging, and merged-review evidence. `tools/app_deploy_transport.py` dispatches
-the request, correlates exactly one receiver workflow run, waits for success,
-and verifies the exact request id in receiver logs.
+staging, and merged-review evidence. `tools/app_deploy_transport.py` validates
+the request under Finance Report's own authority, then delegates dispatch —
+correlating exactly one receiver workflow run, waiting for success, and
+verifying the exact request id in receiver logs — to
+`infra2_sdk.dispatch.dispatch_and_wait` (the same infra2-receiver-boundary
+implementation any app dispatching a `DeployRequest` reuses).
 
 **Key implications**:
 - Workflows build images and trigger deployments
@@ -142,7 +145,10 @@ eliminating drift from base images, build-time dependencies, or workflow changes
 The staging deploy gate separates platform rollout from application readiness.
 `.github/workflows/deploy.yml` renders a canonical request and dispatches it to
 infra2. The app waits for one correlated receiver run to succeed before
-`tools/health_check.sh` polls `/api/health` for the target release tag. infra2
+`tools/health_check.sh` (a thin delegate to `tools/health_check.py`, which
+polls via `infra2_sdk.deploy_health.poll_until_healthy` and layers Finance
+Report's own route-shadow diagnostics on top) polls `/api/health` for the
+target release tag. infra2
 owns Dokploy mutation, effective-config validation, and terminal rollout proof;
 Finance Report owns evidence selection and public application readiness.
 

@@ -10,10 +10,8 @@ import re
 import shlex
 import subprocess
 import tomllib
-import zipfile
 from pathlib import Path
 
-import httpx
 import pytest
 import yaml
 from tools import app_deploy_request as renderer
@@ -21,10 +19,10 @@ from tools import app_deploy_request as renderer
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools/app_deploy_request.py"
 SDK_URL = (
-    "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.4.1/"
-    "infra2_sdk-0.4.1-py3-none-any.whl"
+    "https://github.com/wangzitian0/infra2-sdk/releases/download/v0.5.1/"
+    "infra2_sdk-0.5.1-py3-none-any.whl"
 )
-SDK_HASH = "sha256:55df39bf72e89f7f1d980b369535cb87fd8fad8c71ac01b39439781ade378a10"
+SDK_HASH = "sha256:7ccbcfa2017c45ca14d7b29d74f4bd1c8164d573aa4543c5420249784c5e94ba"
 
 VALID_REQUEST = {
     "contract_version": 1,
@@ -69,7 +67,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
-    assert package["version"] == "0.4.1"
+    assert package["version"] == "0.5.1"
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
@@ -95,7 +93,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     tooling_run = tooling_step["run"]
     assert f'sdk_url="{SDK_URL}"' in tooling_run
     assert f'sdk_sha256="{sdk_hash_hex}"' in tooling_run
-    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-0.4.1-py3-none-any.whl"' in tooling_run
+    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-0.5.1-py3-none-any.whl"' in tooling_run
     assert (
         'curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"'
         in tooling_run
@@ -304,11 +302,13 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
     transport = importlib.import_module("tools.app_deploy_transport")
     source = (ROOT / "tools/app_deploy_transport.py").read_text(encoding="utf-8")
 
-    assert "repository_dispatch" in source
-    assert "app-deploy-request.yml" in source
-    assert "request_id" in source
-    assert "watermark" in source
-    assert "logs" in source
+    # The watermark/ambiguity-guard/log-content-verification algorithm itself, and
+    # the "app-deploy-request.yml"/"repository_dispatch" receiver facts, now live in
+    # infra2_sdk.dispatch (infra2-sdk's own tests cover them) -- this module is a
+    # thin, validating wrapper that delegates to it.
+    assert "from infra2_sdk.dispatch import" in source
+    assert "dispatch_and_wait as _sdk_dispatch_and_wait" in source
+    assert "request_from_mapping" in source
     assert hasattr(transport, "dispatch_and_wait")
 
     staging_workflow = (ROOT / ".github/workflows/deploy.yml").read_text(
@@ -481,55 +481,9 @@ def test_AC_runtime_deploy_request_3_transport_fail_closed_edges() -> None:
     with pytest.raises(RuntimeError, match="has no canonical URL"):
         run_failure("success", "https://example.com/actions/runs/101")
 
-    for payload in ([], {}, {"workflow_runs": ["not-a-run"]}):
-        with pytest.raises(RuntimeError, match="workflow-runs response"):
-            transport._workflow_runs(payload)
-    for run_id in (True, 0, "101"):
-        with pytest.raises(RuntimeError, match="positive integer"):
-            transport._run_id({"id": run_id})
-
-
-def test_AC_runtime_deploy_request_3_github_transport_adapters_fail_closed() -> None:
-    """AC-runtime.deploy-request.3: GitHub API and log adapters validate responses."""
-    transport = importlib.import_module("tools.app_deploy_transport")
-
-    def client_for(response: httpx.Response) -> httpx.Client:
-        return httpx.Client(
-            base_url="https://api.github.test",
-            transport=httpx.MockTransport(lambda _request: response),
-        )
-
-    with client_for(httpx.Response(200, json={"workflow_runs": []})) as client:
-        assert transport._github_api(client, "GET", "/runs", None) == {
-            "workflow_runs": []
-        }
-    with client_for(httpx.Response(204)) as client:
-        assert transport._github_api(client, "POST", "/dispatches", {}) is None
-    with client_for(httpx.Response(403, text="secret response body")) as client:
-        with pytest.raises(RuntimeError, match="HTTP 403") as exc_info:
-            transport._github_api(client, "GET", "/runs?token=hidden", None)
-        assert "secret response body" not in str(exc_info.value)
-        assert "token=hidden" not in str(exc_info.value)
-    with client_for(httpx.Response(200)) as client:
-        with pytest.raises(RuntimeError, match="expected HTTP 204"):
-            transport._github_api(client, "POST", "/dispatches", {})
-    with client_for(httpx.Response(200, text="{")) as client:
-        with pytest.raises(RuntimeError, match="not valid JSON"):
-            transport._github_api(client, "GET", "/runs", None)
-
-    archive_bytes = io.BytesIO()
-    with zipfile.ZipFile(archive_bytes, "w") as archive:
-        archive.writestr("receiver/1.txt", b"first")
-        archive.writestr("receiver/2.txt", b"second")
-    with client_for(httpx.Response(200, content=archive_bytes.getvalue())) as client:
-        assert transport._github_logs(client, 101) == b"first\nsecond"
-    with client_for(httpx.Response(404, text="private logs")) as client:
-        with pytest.raises(RuntimeError, match="HTTP 404") as exc_info:
-            transport._github_logs(client, 101)
-        assert "private logs" not in str(exc_info.value)
-    with client_for(httpx.Response(200, content=b"not-a-zip")) as client:
-        with pytest.raises(RuntimeError, match="not a zip archive"):
-            transport._github_logs(client, 101)
+    # Malformed workflow-runs payloads / non-positive run ids: covered by
+    # infra2-sdk's own test_dispatch.py (_workflow_runs / _run_id no longer exist
+    # locally -- the watermark/ambiguity algorithm they support moved to the sdk).
 
 
 def test_AC_runtime_deploy_request_3_transport_cli_contract(
@@ -552,19 +506,8 @@ def test_AC_runtime_deploy_request_3_transport_cli_contract(
     assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
     assert "must be a JSON object" in capsys.readouterr().err
 
-    class DummyClient:
-        def __init__(self, **kwargs: object) -> None:
-            self.kwargs = kwargs
-
-        def __enter__(self) -> DummyClient:
-            return self
-
-        def __exit__(self, *args: object) -> None:
-            return None
-
     output_path = tmp_path / "github-output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
-    monkeypatch.setattr(transport.httpx, "Client", DummyClient)
     dispatch_options: dict[str, object] = {}
 
     def successful_dispatch(*args: object, **kwargs: object) -> object:

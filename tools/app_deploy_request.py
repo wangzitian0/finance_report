@@ -15,32 +15,16 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from infra2_sdk.deploy import DeployOperation, DeployRequest, DeployType  # noqa: E402
+from infra2_sdk.deploy import (  # noqa: E402
+    DeployOperation,
+    DeployRequest,
+    DeployType,
+    validate_wire_shape,
+)
 
 SERVICE = "finance_report/app"
 SOURCE_REPOSITORY = "wangzitian0/finance_report"
 CONTRACT_VERSION = 1
-_REQUEST_FIELDS = frozenset(
-    {
-        "contract_version",
-        "request_id",
-        "operation",
-        "service",
-        "deploy_type",
-        "version_ref",
-        "source_repository",
-        "source_sha",
-        "evidence",
-    }
-)
-_EVIDENCE_FIELDS = frozenset(
-    {
-        "source_run_url",
-        "source_run_id",
-        "staging_run_url",
-        "reviewed_change_url",
-    }
-)
 _RELEASE_REF_RE = re.compile(r"\Av[0-9]+\.[0-9]+\.[0-9]+\Z")
 _SOURCE_RUN_PATH_RE = re.compile(
     rf"\A/{re.escape(SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
@@ -105,8 +89,7 @@ def canonical_json(request: DeployRequest) -> str:
 
 
 def _validate_authority(raw: Mapping[str, Any]) -> None:
-    if set(raw) != _REQUEST_FIELDS:
-        raise ValueError("request fields must exactly match DeployRequest v1")
+    validate_wire_shape(raw)
     contract_version = raw.get("contract_version")
     if isinstance(contract_version, bool) or contract_version != CONTRACT_VERSION:
         raise ValueError(f"contract_version must be {CONTRACT_VERSION}")
@@ -133,10 +116,6 @@ def _validate_authority(raw: Mapping[str, Any]) -> None:
         raise ValueError("source_sha must be a lowercase 40-hex commit sha")
 
     evidence = raw.get("evidence")
-    if not isinstance(evidence, Mapping):
-        raise ValueError("evidence must be an object")
-    if set(evidence) != _EVIDENCE_FIELDS:
-        raise ValueError("evidence fields must exactly match DeployEvidence v1")
     source_run_url = evidence.get("source_run_url")
     if not isinstance(source_run_url, str) or not source_run_url:
         raise ValueError("evidence.source_run_url is required")
