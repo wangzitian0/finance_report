@@ -480,18 +480,21 @@ def test_AC8_13_8_upload_readiness_gate_rejects_rejected_status() -> None:
 
 def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     """AC-testing.deploy-gates.2: AC8.13.11: Staging health 404 reports API route diagnostics."""
-    health_check = read("tools/_lib/shell/health_check.sh")
+    health_check = read("common/runtime/health_check.py")
 
-    assert "print_health_route_probe" in health_check
+    # The generic polling algorithm moved to infra2_sdk.deploy_health (#1535,
+    # infra2-sdk v0.5.0); this module keeps only the route-shadow diagnostics.
+    assert "from infra2_sdk.deploy_health import" in health_check
+    assert "_print_route_probe" in health_check
     assert "route_probe attempt=" in health_check
     assert "platform_failure_domain=traefik-public-route" in health_check
-    assert "api_status=$api_status" in health_check
-    assert "frontend_status=$frontend_status" in health_check
-    assert "print_404_route_diagnostics" in health_check
+    assert "api_status={api_status}" in health_check
+    assert "frontend_status={frontend_status}" in health_check
+    assert "_print_404_route_diagnostics" in health_check
     assert "Traefik API route is missing or shadowed" in health_check
-    assert 'probe_route "API ping" "$APP_BASE_URL/api/ping"' in health_check
-    assert 'probe_route "Frontend shell" "$APP_BASE_URL/"' in health_check
-    assert '[[ "$http_code" == "404" ]]' in health_check
+    assert '"API ping", f"{app_base_url}/api/ping"' in health_check
+    assert '"Frontend shell", f"{app_base_url}/"' in health_check
+    assert "status_code == 404" in health_check
 
 
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:

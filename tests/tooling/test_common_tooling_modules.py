@@ -231,6 +231,7 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.github_workflow_timing_summary": (
             "common.testing.github_workflow_timing_summary"
         ),
+        "tools.health_check": "common.runtime.health_check",
         "tools.production_infra_smoke": "common.runtime.production_infra_smoke",
         "tools.staging_ai_ocr_gate_contract": (
             "common.testing.staging_ai_ocr_gate_contract"
