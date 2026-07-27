@@ -151,6 +151,8 @@ async def test_AC5_16_2_cash_flow_response_preserves_fx_warnings(
             "operating": [],
             "investing": [],
             "financing": [],
+            "proof_state": "unproven",
+            "proof_reasons": ["fx_rate_missing"],
             "summary": {
                 "operating_activities": Decimal("0.00"),
                 "investing_activities": Decimal("0.00"),

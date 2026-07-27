@@ -3339,8 +3339,52 @@ export interface components {
             skipped: number;
         };
         /**
+         * CashFlowBridge
+         * @description Exact reconciliation from classified events to the cash-balance delta.
+         */
+        CashFlowBridge: {
+            /** Cash Delta */
+            cash_delta: string;
+            /** Classified Activity */
+            classified_activity: string;
+            /** Fx Effect */
+            fx_effect: string;
+            /** Reconciles */
+            reconciles: boolean;
+            /** Unclassified Cash */
+            unclassified_cash: string;
+        };
+        /**
+         * CashFlowEventLineage
+         * @description Exact ledger and producer evidence for one cash event.
+         */
+        CashFlowEventLineage: {
+            /** Activity */
+            activity: ("Operating" | "Investing" | "Financing") | null;
+            /** Decision Anchor Id */
+            decision_anchor_id?: string | null;
+            decision_authority_state: components["schemas"]["JournalEntryAuthorityState"];
+            /**
+             * Event Types
+             * @description Distinct journal-line event semantics evaluated by cash-flow classification.
+             */
+            event_types?: string[];
+            /**
+             * Journal Entry Id
+             * Format: uuid
+             */
+            journal_entry_id: string;
+            /** Journal Line Ids */
+            journal_line_ids: string[];
+            /** Reason Code */
+            reason_code?: string | null;
+            /** Source Id */
+            source_id?: string | null;
+            source_type: components["schemas"]["JournalEntrySourceType"];
+        };
+        /**
          * CashFlowItem
-         * @description Cash flow item for operating, investing, financing activities.
+         * @description One classified cash-flow activity.
          */
         CashFlowItem: {
             /**
@@ -3359,9 +3403,11 @@ export interface components {
         };
         /**
          * CashFlowResponse
-         * @description Cash flow statement response schema.
+         * @description Cash-flow statement plus its machine-readable proof.
          */
         CashFlowResponse: {
+            /** @description Cash-delta reconciliation proof. */
+            cash_bridge?: components["schemas"]["CashFlowBridge"] | null;
             /**
              * Currency
              * @description Cash-flow presentation currency.
@@ -3372,6 +3418,11 @@ export interface components {
              * Format: date
              */
             end_date: string;
+            /**
+             * Event Lineage
+             * @description Exact journal, producer, decision, and event-semantic evidence for cash movements.
+             */
+            event_lineage?: components["schemas"]["CashFlowEventLineage"][];
             /** Financing */
             financing: components["schemas"]["CashFlowItem"][];
             /**
@@ -3386,6 +3437,16 @@ export interface components {
             /** Operating */
             operating: components["schemas"]["CashFlowItem"][];
             /**
+             * Proof Reasons
+             * @description Machine-readable reasons that prevent authoritative cash-flow output.
+             */
+            proof_reasons: string[];
+            /**
+             * Proof State
+             * @enum {string}
+             */
+            proof_state: "proven" | "unproven";
+            /**
              * Start Date
              * Format: date
              */
@@ -3394,7 +3455,7 @@ export interface components {
         };
         /**
          * CashFlowSummary
-         * @description Cash flow summary totals.
+         * @description Cash-flow statement totals.
          */
         CashFlowSummary: {
             /** Beginning Cash */

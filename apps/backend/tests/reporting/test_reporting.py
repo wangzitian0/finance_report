@@ -449,22 +449,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         },
     ]
     assert cash_flow["investing"] == []
-    assert cash_flow["financing"] == [
-        {
-            "category": "Financing",
-            "subcategory": "Owner Equity",
-            "amount": Decimal("1000.00"),
-            "description": "Inflow - Owner Equity",
-            "account_id": equity.id,
-        },
-        {
-            "category": "Financing",
-            "subcategory": "Credit Card",
-            "amount": Decimal("300.00"),
-            "description": "Inflow - Credit Card",
-            "account_id": liability.id,
-        },
-    ]
+    assert cash_flow["financing"] == []
     # EPIC-022 AC22.7.1 (#887): every cash-flow line carries the account anchor
     # used for report drill-down.
     for line in cash_flow["operating"] + cash_flow["investing"] + cash_flow["financing"]:
@@ -472,11 +457,13 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
     assert cash_flow["summary"] == {
         "operating_activities": Decimal("300.00"),
         "investing_activities": Decimal("0.00"),
-        "financing_activities": Decimal("1300.00"),
+        "financing_activities": Decimal("0.00"),
         "net_cash_flow": Decimal("1600.00"),
         "beginning_cash": Decimal("0.00"),
         "ending_cash": Decimal("1600.00"),
     }
+    assert cash_flow["cash_bridge"]["unclassified_cash"] == Decimal("1300.00")
+    assert cash_flow["proof_state"] == "unproven"
 
     # Behavioral evidence: each statement's headline total matches the golden value
     # computed from the deterministic fixture above; any drift in the report math
@@ -499,7 +486,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
         ac_id="AC-reporting.cash-flow.1",
         score=1.0,
         metric="cash_flow_net_match_golden",
-        comment="operating 300.00 + financing 1300.00 == net_cash_flow 1600.00; ending_cash 1600.00",
+        comment="operating 300.00 + unclassified 1300.00 == net_cash_flow 1600.00; ending_cash 1600.00",
         provenance="deterministic",
     )
 
@@ -1166,11 +1153,9 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
 
     operating_names = [item["subcategory"] for item in operating]
     investing_names = [item["subcategory"] for item in investing]
-    financing_names = [item["subcategory"] for item in financing]
-
     assert income.name in operating_names, "Income account should be in operating activities"
     assert expense.name in operating_names, "Expense account should be in operating activities"
-    assert equity.name in financing_names, "Equity account should be in financing activities"
+    assert financing == [], "Equity without explicit event semantics must remain unclassified"
     # Cash accounts are excluded from activity categories - they ARE the cash flow
     # Their movements are reflected in beginning_cash and ending_cash
     assert cash.name not in investing_names, "Cash account should NOT be in investing (it's the subject of the report)"
@@ -1185,11 +1170,13 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     assert summary == {
         "operating_activities": Decimal("2500.00"),
         "investing_activities": Decimal("0.00"),
-        "financing_activities": Decimal("5000.00"),
+        "financing_activities": Decimal("0.00"),
         "net_cash_flow": Decimal("7500.00"),
         "beginning_cash": Decimal("0.00"),
         "ending_cash": Decimal("7500.00"),
     }
+    assert report["cash_bridge"]["unclassified_cash"] == Decimal("5000.00")
+    assert report["proof_state"] == "unproven"
 
 
 async def test_cash_flow_empty_period(db: AsyncSession, chart_of_accounts, test_user_id):

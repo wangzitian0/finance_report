@@ -37,6 +37,7 @@ from src.audit import (
     VersionedTraceRef,
     current_authoritative_trace_decision_projection,
 )
+from src.audit.money import Money
 from src.audit.orm.trace_record import TraceRecordParentRow, TraceRecordRow
 from src.config import settings
 from src.database import create_session_maker_from_db
@@ -70,7 +71,7 @@ from src.extraction.orm.layer3 import (
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, ledger_trace_policy_registry, post_opening_balance_entry
+from src.ledger import Account, AccountType, Entry, ledger_trace_policy_registry, post_entry, post_opening_balance_entry
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -117,7 +118,7 @@ def _bank_csv() -> bytes:
     )
 
 
-async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account) -> None:
+async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account, securities_id) -> None:
     content = _bank_csv()
     digest = hashlib.sha256(content).hexdigest()
     bank_id = bank.id
@@ -149,6 +150,22 @@ async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account) -> None
     statement = await db.get(StatementSummary, statement_id)
     assert statement is not None
     transactions = await resolve_statement_transactions(db, statement)
+    investment_txn = next(transaction for transaction in transactions if transaction.description == "Buy security")
+    await post_entry(
+        db,
+        user_id=user_id,
+        entry_date=investment_txn.txn_date,
+        memo="TrustedYearScenario v0 investment purchase",
+        source_id=investment_txn.id,
+        operation="trusted-year-investment-purchase",
+        entry=Entry.transfer(
+            debit=securities_id,
+            credit=bank_id,
+            money=Money(investment_txn.amount, investment_txn.currency),
+            event_type="investment_buy",
+            tags={"asset_identifier": TRUSTED_YEAR_SCENARIO.position.symbol},
+        ),
+    )
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
     assert source_record is not None
     statement.account_id = bank_id
@@ -176,9 +193,14 @@ async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account) -> None
         trace_emitter=emitter,
     )
     approved = await approve_statement(db, statement.id, user_id)
-    outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies())
+
+    async def covered_by_system_posting(_db, transaction_ids):
+        return {investment_txn.id} & set(transaction_ids)
+
+    dependencies = replace(posting_dependencies(), transfer_exclusions=covered_by_system_posting)
+    outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=dependencies)
     assert outcome.review_reasons == ()
-    assert outcome.created_count == 3
+    assert outcome.created_count == 2
 
 
 async def _import_brokerage_position(db, *, user_id) -> None:
@@ -410,19 +432,19 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
             rule_name="Reviewed TrustedYear investment purchase",
             rule_type=RuleType.KEYWORD_MATCH,
             rule_config={"keywords": ["Buy security"]},
-            tag_mappings={"intent": "investment_purchase"},
+            tag_mappings={"intent": "transfer"},
             default_account_id=securities.id,
         )
     )
     await post_opening_balance_entry(
         db,
         test_user.id,
-        entry_date=date(2026, 1, 1),
+        entry_date=date(2025, 12, 31),
         balances={bank.id: scenario.opening_cash},
         currency="SGD",
         memo="TrustedYearScenario v0 opening cash",
     )
-    await _ingest_reviewed_bank_statement(db, user_id=test_user.id, bank=bank)
+    await _ingest_reviewed_bank_statement(db, user_id=test_user.id, bank=bank, securities_id=securities.id)
     await _import_brokerage_position(db, user_id=test_user.id)
     db.add(
         StockPrice(
@@ -478,6 +500,10 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
     assert document.sections.income_statement.net_income == expected.net_income
     assert document.sections.cash_flow.summary.ending_cash == expected.ending_cash
     assert document.sections.cash_flow.summary.investing_activities == -expected.investment_purchase
+    assert document.sections.cash_flow.cash_bridge is not None
+    assert document.sections.cash_flow.cash_bridge.unclassified_cash == Decimal("0.00")
+    assert document.sections.cash_flow.proof_state == "proven"
+    assert document.sections.cash_flow.proof_reasons == []
     assert document.sections.cash_flow.operating
     assert document.sections.cash_flow.investing
     holding = next(

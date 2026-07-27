@@ -120,6 +120,8 @@ const packageDocument = {
         ending_cash: "0.00",
       },
       fx_warnings: [],
+      proof_state: "unproven",
+      proof_reasons: ["cash_identity_missing"],
     },
     investment_performance: {
       period_start: "2025-05-20",

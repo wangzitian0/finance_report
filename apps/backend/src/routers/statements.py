@@ -219,6 +219,7 @@ async def _create_statement_account_from_confirmation(
         name=account_name,
         type=AccountType.ASSET,
         currency=currency,
+        code="AUTO-BANK",
         description=f"Created from confirmed statement import {source_filename}",
     )
     db.add(account)

@@ -718,13 +718,11 @@ async def test_reporting_breakdown_income_expense_validation(db: AsyncSession, t
 
 
 async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_accounts, test_user_id):
-    """Test cash flow with investing/financing activities and FX errors."""
+    """A mixed balance-sheet event stays in the bridge without guessed activity."""
     sgd_bank, usd_savings, capital, salary, dining = multi_currency_accounts
     sgd_bank.name = "Bank account"
 
-    # Investing activity (Non-cash asset)
     equipment = Account(user_id=test_user_id, name="Equipment", type=AccountType.ASSET, currency="SGD")
-    # Financing activity (Liability)
     loan = Account(user_id=test_user_id, name="Bank Loan", type=AccountType.LIABILITY, currency="SGD")
     db.add_all([equipment, loan, sgd_bank])
     await db.commit()
@@ -774,9 +772,11 @@ async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_a
     cf = await generate_cash_flow(db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31))
     summary = cf["summary"]
     assert isinstance(summary, dict)
-    assert summary["financing_activities"] == Decimal("5000.00")
-    assert summary["investing_activities"] == Decimal("-2000.00")
+    assert summary["financing_activities"] == Decimal("0.00")
+    assert summary["investing_activities"] == Decimal("0.00")
     assert summary["net_cash_flow"] == Decimal("3000.00")
+    assert cf["cash_bridge"]["unclassified_cash"] == Decimal("3000.00")
+    assert cf["proof_state"] == "unproven"
 
 
 async def test_reporting_remaining_branches(db: AsyncSession, multi_currency_accounts, test_user_id):

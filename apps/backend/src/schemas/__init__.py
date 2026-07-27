@@ -42,9 +42,9 @@ _LAZY = {
     "BreakdownPeriod": ("src.schemas.reporting", "BreakdownPeriod"),
     "BreakdownType": ("src.schemas.reporting", "BreakdownType"),
     "COMMON_ERROR_RESPONSES": ("src.schemas.errors", "COMMON_ERROR_RESPONSES"),
-    "CashFlowItem": ("src.schemas.reporting", "CashFlowItem"),
-    "CashFlowResponse": ("src.schemas.reporting", "CashFlowResponse"),
-    "CashFlowSummary": ("src.schemas.reporting", "CashFlowSummary"),
+    "CashFlowItem": ("src.reporting", "CashFlowItem"),
+    "CashFlowResponse": ("src.reporting", "CashFlowResponse"),
+    "CashFlowSummary": ("src.reporting", "CashFlowSummary"),
     "CategoryBreakdownResponse": ("src.schemas.reporting", "CategoryBreakdownResponse"),
     "ChatHistoryResponse": ("src.schemas.chat", "ChatHistoryResponse"),
     "ChatMessageResponse": ("src.schemas.chat", "ChatMessageResponse"),
@@ -300,6 +300,7 @@ def __getattr__(name: str) -> object:
 
 
 if TYPE_CHECKING:  # pragma: no cover - static view of the lazy exports
+    from src.reporting import CashFlowItem, CashFlowResponse, CashFlowSummary
     from src.schemas.account import (
         AccountCoverageCadence,
         AccountCoverageIssue,
@@ -379,9 +380,6 @@ if TYPE_CHECKING:  # pragma: no cover - static view of the lazy exports
         BalanceSheetResponse,
         BreakdownPeriod,
         BreakdownType,
-        CashFlowItem,
-        CashFlowResponse,
-        CashFlowSummary,
         CategoryBreakdownResponse,
         FrameworkPolicyDecision,
         FrameworkPolicyEvidenceAnchor,
