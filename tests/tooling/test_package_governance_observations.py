@@ -331,8 +331,13 @@ def test_github_collector_retains_only_current_redacted_facts(
     assert snapshot["issues"] == [
         {"html_url": ISSUE_URL, "state": "open", "updated_at": NOW.isoformat()}
     ]
-    assert "body" not in snapshot["issues"][0]
-    assert "bypass_actors" not in snapshot["rulesets"][0]
+    assert set(snapshot["rulesets"][0]) == {
+        "id",
+        "name",
+        "enforcement",
+        "updated_at",
+        "rules",
+    }
 
     monkeypatch.setattr(
         "common.testing.package_governance_observations.subprocess.run",
@@ -505,7 +510,7 @@ def test_AC_testing_governance_25_existing_finish_path_blocks_false_green() -> N
     )
     jobs = workflow["jobs"]
     finish_needs = jobs["finish"]["needs"]
-    assert "ac-traceability" in finish_needs
+    assert finish_needs.count("ac-traceability") == 1
 
     package_step = next(
         step
@@ -513,9 +518,8 @@ def test_AC_testing_governance_25_existing_finish_path_blocks_false_green() -> N
         if "report_package_governance.py" in str(step.get("run", ""))
     )
     command = package_step["run"]
-    assert "--observations" in command
-    assert "--expected-target-sha" in command
-    assert "${{ github.sha }}" in command
+    required_arguments = ("--observations", "--expected-target-sha", "${{ github.sha }}")
+    assert all(command.count(argument) >= 1 for argument in required_arguments)
 
 
 def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
