@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import {
   buildAttentionItems,
   type AttentionItem,
@@ -16,7 +16,13 @@ import type {
   ProcessingPendingListResponse,
   ReconciliationStatsResponse,
 } from "@/lib/types";
-import { Badge, EmptyState, LoadingState, PageHeader, type BadgeVariant } from "@/components/ui";
+import {
+  Badge,
+  EmptyState,
+  LoadingState,
+  PageHeader,
+  type BadgeVariant,
+} from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 
 // Each attention kind borrows the closest plain-language glossary term so the
@@ -43,9 +49,9 @@ export default function AttentionPage() {
     setError(null);
     try {
       const [statements, stats, processing] = await Promise.all([
-        apiFetch<BankStatementListResponse>("/api/statements"),
-        apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
-        apiFetch<ProcessingPendingListResponse>("/api/accounts/processing/pending"),
+        apiOperation("list_statements_statements_get"),
+        apiOperation("reconciliation_stats_reconciliation_stats_get"),
+        apiOperation("list_processing_pending_accounts_processing_pending_get"),
       ]);
       setItems(
         buildAttentionItems({
@@ -55,7 +61,9 @@ export default function AttentionPage() {
         }),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load attention items");
+      setError(
+        err instanceof Error ? err.message : "Failed to load attention items",
+      );
       setItems([]);
     }
   }, []);
@@ -71,7 +79,9 @@ export default function AttentionPage() {
         description="The lowest-confidence items first — the few things the system could not settle on its own. Everything else is already handled automatically."
       />
 
-      {items === null && !error && <LoadingState label="Loading attention items" />}
+      {items === null && !error && (
+        <LoadingState label="Loading attention items" />
+      )}
 
       {error && (
         <EmptyState
@@ -105,15 +115,22 @@ export default function AttentionPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium truncate">{item.title}</span>
                   {KIND_TERM[item.kind] && (
-                    <InfoHint term={KIND_TERM[item.kind] as GlossaryTerm} label={item.detail} />
+                    <InfoHint
+                      term={KIND_TERM[item.kind] as GlossaryTerm}
+                      label={item.detail}
+                    />
                   )}
                 </div>
                 <p className="text-xs text-muted mt-0.5">{item.detail}</p>
                 {/* AC22.11.2 — explain why this was flagged, not just a score. */}
-                <p className="text-xs text-muted mt-1 max-w-prose">{item.reason}</p>
+                <p className="text-xs text-muted mt-1 max-w-prose">
+                  {item.reason}
+                </p>
               </div>
               <div className="flex flex-shrink-0 items-center gap-3">
-                <Badge variant={confidenceVariant(item.confidence)}>{item.confidence}% confidence</Badge>
+                <Badge variant={confidenceVariant(item.confidence)}>
+                  {item.confidence}% confidence
+                </Badge>
                 <ArrowRight className="h-4 w-4 text-muted" aria-hidden="true" />
               </div>
             </Link>
@@ -124,7 +141,8 @@ export default function AttentionPage() {
       {items !== null && items.length > 0 && (
         <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-          Sorted by confidence — clearing these drives your low-confidence data down.
+          Sorted by confidence — clearing these drives your low-confidence data
+          down.
         </p>
       )}
     </div>

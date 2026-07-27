@@ -135,7 +135,7 @@ async def accept_match(
             )
 
         # Use entry_total_amount() to correctly sum all debit lines
-        total_entry_amount = sum(entry_total_amount(entry) for entry in entries)
+        total_entry_amount = sum(entry_total_amount(entry, currency=txn.currency) for entry in entries)
 
         # Allow 1% tolerance or $0.10, whichever is greater
         tolerance = max(txn.amount * Decimal("0.01"), Decimal("0.10"))

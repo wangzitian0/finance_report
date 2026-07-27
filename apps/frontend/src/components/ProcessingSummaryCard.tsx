@@ -16,9 +16,10 @@ const EMPTY_PROCESSING_SUMMARY: ProcessingSummaryResponse = {
 };
 
 export default function ProcessingSummaryCard() {
-  const { data: summary = EMPTY_PROCESSING_SUMMARY, isError } = useApiQuery<ProcessingSummaryResponse>(
+  const { data: summary = EMPTY_PROCESSING_SUMMARY, isError } = useApiQuery(
     ["processing-summary"],
-    "/api/accounts/processing/summary",
+    "get_processing_summary_accounts_processing_summary_get",
+    {},
     { placeholderData: EMPTY_PROCESSING_SUMMARY },
   );
 
@@ -32,12 +33,16 @@ export default function ProcessingSummaryCard() {
   }
 
   const pendingCount = summary?.pending_count ?? 0;
-  const currentBalance = summary?.current_balance ?? summary?.pending_total ?? "0.00";
+  const currentBalance =
+    summary?.current_balance ?? summary?.pending_total ?? "0.00";
   const currency = summary?.currency ?? "SGD";
   const hasUnresolvedBalance = !isAmountZero(currentBalance, 0);
 
   return (
-    <Link href="/processing" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
+    <Link
+      href="/processing"
+      className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block"
+    >
       <div className="flex justify-between items-start">
         <div>
           <p className="text-xs text-muted uppercase">Processing</p>
@@ -47,7 +52,10 @@ export default function ProcessingSummaryCard() {
           >
             {formatCurrency(currentBalance, currency)}
           </p>
-          <p className="text-sm font-medium mt-1" data-testid="processing-count">
+          <p
+            className="text-sm font-medium mt-1"
+            data-testid="processing-count"
+          >
             {pendingCount} Pending
           </p>
         </div>
@@ -61,7 +69,9 @@ export default function ProcessingSummaryCard() {
         )}
       </div>
       {hasUnresolvedBalance ? (
-        <p className="text-xs text-[var(--warning)] mt-2">Unresolved in-transit balance</p>
+        <p className="text-xs text-[var(--warning)] mt-2">
+          Unresolved in-transit balance
+        </p>
       ) : (
         <p className="text-xs text-muted mt-2">Balanced</p>
       )}

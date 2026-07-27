@@ -37,6 +37,9 @@ _EXPORTS = {
     "current_package_document_summary": "src.reporting.extension.package_document",
     "PackageDocumentVersionError": "src.reporting.extension.report_package",
     "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
+    "CashFlowItem": "src.reporting.base.cash_flow_types",
+    "CashFlowResponse": "src.reporting.base.cash_flow_types",
+    "CashFlowSummary": "src.reporting.base.cash_flow_types",
     "PersonalReportingFrameworkId": "src.reporting.base.types",
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
@@ -94,6 +97,9 @@ __all__ = [
     "current_package_document_summary",
     "PackageDocumentVersionError",
     "AnnualizedIncomeTotals",
+    "CashFlowItem",
+    "CashFlowResponse",
+    "CashFlowSummary",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportError",
@@ -152,6 +158,7 @@ def __getattr__(name: str) -> object:
 
 
 if TYPE_CHECKING:
+    from src.reporting.base.cash_flow_types import CashFlowItem, CashFlowResponse, CashFlowSummary
     from src.reporting.base.l1_registry import is_valid_line_for_framework
     from src.reporting.base.package_contribution import PackageSectionContribution
     from src.reporting.base.package_decision import personal_report_package_target

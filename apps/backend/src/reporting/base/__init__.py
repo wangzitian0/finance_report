@@ -2,9 +2,10 @@
 
 No ORM sessions, no network, no cross-package extension imports: the L1
 report-line registry (``l1_registry``) and the static personal report-package
-contract/notes/traceability data (``report_package_contract``), and the
-reporting-owned framework/line vocabulary (``types``). Endpoint-only response
-DTOs remain in ``src/schemas/reporting.py``.
+contract/notes/traceability data (``report_package_contract``), the
+reporting-owned framework/line vocabulary (``types``), and cash-flow proof DTOs
+(``cash_flow_types``). Other endpoint-only response DTOs remain in
+``src/schemas/reporting.py``.
 """
 
 from src.reporting.base.package_contribution import PackageSectionContribution

@@ -1,20 +1,33 @@
-import { useQuery, type UseQueryOptions, type QueryKey } from "@tanstack/react-query";
+import {
+  useQuery,
+  type UseQueryOptions,
+  type QueryKey,
+} from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import {
+  apiOperation,
+  type ApiOperationRequest,
+  type ApiOperationResponse,
+} from "@/lib/api-client";
+import type { ApiOperationId } from "@/lib/api-operations";
 
-type ApiQueryOptions<TData> = Omit<
-  UseQueryOptions<TData, Error, TData, QueryKey>,
+type ApiQueryOptions<TQueryData, TData = TQueryData> = Omit<
+  UseQueryOptions<TQueryData, Error, TData, QueryKey>,
   "queryKey" | "queryFn"
 >;
 
-export function useApiQuery<TData>(
+export function useApiQuery<
+  Id extends ApiOperationId,
+  TData = ApiOperationResponse<Id>,
+>(
   queryKey: QueryKey,
-  path: string,
-  options: ApiQueryOptions<TData> = {},
+  operationId: Id,
+  request: ApiOperationRequest<Id>,
+  options: ApiQueryOptions<ApiOperationResponse<Id>, TData> = {},
 ) {
-  return useQuery<TData, Error>({
+  return useQuery<ApiOperationResponse<Id>, Error, TData>({
     queryKey,
-    queryFn: () => apiFetch<TData>(path),
+    queryFn: () => apiOperation(operationId, request),
     ...options,
   });
 }

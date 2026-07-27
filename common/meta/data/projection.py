@@ -114,6 +114,12 @@ def contract_index(contracts: list[PackageContract]) -> dict[str, dict]:
         "governance": governance,
         "consumers": consumers,
         "units_by_layer": units_by_layer,
+        "command_boundaries": {
+            c.name: [
+                boundary.model_dump(mode="json") for boundary in c.command_boundaries
+            ]
+            for c in contracts
+        },
     }
 
 
