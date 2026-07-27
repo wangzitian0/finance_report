@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type { Schemas } from "@/lib/api-schema";
 
 export interface AiModelInfo {
@@ -18,13 +18,12 @@ export interface AiModelListResponse {
 export async function fetchAiModels(
   options: { modality?: string; freeOnly?: boolean } = {},
 ): Promise<AiModelListResponse> {
-  const params = new URLSearchParams();
-  if (options.modality) params.set("modality", options.modality);
-  if (options.freeOnly) params.set("free_only", "true");
-  const query = params.toString();
-  const catalog = await apiFetch<Schemas["LlmCatalogResponse"]>(
-    `/api/llm/catalog${query ? `?${query}` : ""}`,
-  );
+  const catalog = await apiOperation("get_catalog_llm_catalog_get", {
+    query: {
+      modality: options.modality as Schemas["Modality"] | undefined,
+      free_only: options.freeOnly || undefined,
+    },
+  });
 
   const models: AiModelInfo[] = catalog.models.map((m) => ({
     id: m.id,

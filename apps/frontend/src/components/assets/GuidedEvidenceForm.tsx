@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateInput } from "@/lib/date";
 import type {
@@ -32,9 +32,7 @@ import type {
 
 /** The three guided source classes from issue #706. */
 export type EvidenceSourceClass =
-  | "esop_rsu_plan"
-  | "property_statement"
-  | "liability_statement";
+  "esop_rsu_plan" | "property_statement" | "liability_statement";
 
 interface SourceClassConfig {
   value: EvidenceSourceClass;
@@ -216,9 +214,9 @@ export default function GuidedEvidenceForm({
   const { data: snapshotData } = useQuery({
     queryKey: ["valuation-snapshots", "guided-evidence"],
     queryFn: () =>
-      apiFetch<ManualValuationSnapshotListResponse>(
-        "/api/assets/valuation-snapshots?limit=10",
-      ),
+      apiOperation("list_valuation_snapshots_assets_valuation_snapshots_get", {
+        query: { limit: 10 },
+      }),
   });
 
   const recentEvidence: ManualValuationSnapshot[] = snapshotData?.items ?? [];
@@ -230,11 +228,10 @@ export default function GuidedEvidenceForm({
       const sourceLabel = form.source_anchor.trim()
         ? `${form.source_label.trim()} (${form.source_anchor.trim()})`
         : form.source_label.trim();
-      return apiFetch<ManualValuationSnapshot>(
-        "/api/assets/valuation-snapshots",
+      return apiOperation(
+        "create_valuation_snapshot_assets_valuation_snapshots_post",
         {
-          method: "POST",
-          body: JSON.stringify({
+          body: {
             component_type: activeConfig.componentType,
             as_of_date: form.as_of_date,
             // Decimal-safe: forward the raw trimmed string, no float math.
@@ -243,7 +240,7 @@ export default function GuidedEvidenceForm({
             source: sourceLabel,
             valuation_basis: form.valuation_basis || null,
             notes: form.notes.trim() || null,
-          }),
+          },
         },
       );
     },
@@ -254,7 +251,8 @@ export default function GuidedEvidenceForm({
         ...initialFormState(),
         source_class: current.source_class,
         currency: current.currency,
-        valuation_basis: configForSourceClass(current.source_class).defaultBasis,
+        valuation_basis: configForSourceClass(current.source_class)
+          .defaultBasis,
       }));
       queryClient.invalidateQueries({ queryKey: ["valuation-snapshots"] });
     },
@@ -291,13 +289,17 @@ export default function GuidedEvidenceForm({
             </Badge>
           </div>
           <p className="text-xs text-muted mt-1">
-            Structured evidence with a source anchor. Manually entered values are
-            labelled manual-trusted in reports and the traceability appendix.
+            Structured evidence with a source anchor. Manually entered values
+            are labelled manual-trusted in reports and the traceability
+            appendix.
           </p>
         </div>
 
         <div className="grid gap-1">
-          <label htmlFor="evidence-source-class" className="text-xs font-medium text-muted">
+          <label
+            htmlFor="evidence-source-class"
+            className="text-xs font-medium text-muted"
+          >
             Source class
           </label>
           <select
@@ -324,7 +326,10 @@ export default function GuidedEvidenceForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="grid gap-1">
-            <label htmlFor="evidence-value" className="text-xs font-medium text-muted">
+            <label
+              htmlFor="evidence-value"
+              className="text-xs font-medium text-muted"
+            >
               Value / amount
             </label>
             <input
@@ -333,7 +338,10 @@ export default function GuidedEvidenceForm({
               className="input"
               value={form.value}
               onChange={(event) =>
-                setForm((current) => ({ ...current, value: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  value: event.target.value,
+                }))
               }
               aria-invalid={Boolean(showError("value"))}
             />
@@ -344,7 +352,10 @@ export default function GuidedEvidenceForm({
             )}
           </div>
           <div className="grid gap-1">
-            <label htmlFor="evidence-currency" className="text-xs font-medium text-muted">
+            <label
+              htmlFor="evidence-currency"
+              className="text-xs font-medium text-muted"
+            >
               Currency
             </label>
             <input
@@ -364,7 +375,10 @@ export default function GuidedEvidenceForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="grid gap-1">
-            <label htmlFor="evidence-as-of" className="text-xs font-medium text-muted">
+            <label
+              htmlFor="evidence-as-of"
+              className="text-xs font-medium text-muted"
+            >
               As-of date
             </label>
             <input
@@ -373,7 +387,10 @@ export default function GuidedEvidenceForm({
               className="input"
               value={form.as_of_date}
               onChange={(event) =>
-                setForm((current) => ({ ...current, as_of_date: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  as_of_date: event.target.value,
+                }))
               }
               aria-invalid={Boolean(showError("as_of_date"))}
             />
@@ -384,7 +401,10 @@ export default function GuidedEvidenceForm({
             )}
           </div>
           <div className="grid gap-1">
-            <label htmlFor="evidence-basis" className="text-xs font-medium text-muted">
+            <label
+              htmlFor="evidence-basis"
+              className="text-xs font-medium text-muted"
+            >
               Valuation basis
             </label>
             <select
@@ -394,7 +414,8 @@ export default function GuidedEvidenceForm({
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
-                  valuation_basis: event.target.value as ManualValuationBasis | "",
+                  valuation_basis: event.target.value as
+                    ManualValuationBasis | "",
                 }))
               }
               aria-invalid={Boolean(showError("valuation_basis"))}
@@ -415,7 +436,10 @@ export default function GuidedEvidenceForm({
         </div>
 
         <div className="grid gap-1">
-          <label htmlFor="evidence-source-label" className="text-xs font-medium text-muted">
+          <label
+            htmlFor="evidence-source-label"
+            className="text-xs font-medium text-muted"
+          >
             Source label
           </label>
           <input
@@ -424,7 +448,10 @@ export default function GuidedEvidenceForm({
             placeholder="e.g. Acme RSU grant 2026"
             value={form.source_label}
             onChange={(event) =>
-              setForm((current) => ({ ...current, source_label: event.target.value }))
+              setForm((current) => ({
+                ...current,
+                source_label: event.target.value,
+              }))
             }
             aria-invalid={Boolean(showError("source_label"))}
           />
@@ -436,7 +463,10 @@ export default function GuidedEvidenceForm({
         </div>
 
         <div className="grid gap-1">
-          <label htmlFor="evidence-source-anchor" className="text-xs font-medium text-muted">
+          <label
+            htmlFor="evidence-source-anchor"
+            className="text-xs font-medium text-muted"
+          >
             Source anchor (optional)
           </label>
           <input
@@ -445,13 +475,19 @@ export default function GuidedEvidenceForm({
             placeholder="Document reference, page, or URL"
             value={form.source_anchor}
             onChange={(event) =>
-              setForm((current) => ({ ...current, source_anchor: event.target.value }))
+              setForm((current) => ({
+                ...current,
+                source_anchor: event.target.value,
+              }))
             }
           />
         </div>
 
         <div className="grid gap-1">
-          <label htmlFor="evidence-notes" className="text-xs font-medium text-muted">
+          <label
+            htmlFor="evidence-notes"
+            className="text-xs font-medium text-muted"
+          >
             Notes (optional)
           </label>
           <input
@@ -465,7 +501,11 @@ export default function GuidedEvidenceForm({
         </div>
 
         {submitted && blockers.length > 0 && (
-          <div className="alert-error" role="alert" data-testid="evidence-readiness-blocker">
+          <div
+            className="alert-error"
+            role="alert"
+            data-testid="evidence-readiness-blocker"
+          >
             Resolve the highlighted fields before saving. Missing a valuation
             basis or as-of date blocks report readiness.
           </div>
@@ -481,7 +521,9 @@ export default function GuidedEvidenceForm({
       </form>
 
       <div className="card p-5" data-testid="recent-evidence-panel">
-        <p className="text-xs text-muted uppercase tracking-wide">Recent evidence</p>
+        <p className="text-xs text-muted uppercase tracking-wide">
+          Recent evidence
+        </p>
         <h2 className="font-semibold mt-1 mb-4">Manually entered records</h2>
         {recentEvidence.length ? (
           <ul className="divide-y divide-[var(--border)]">

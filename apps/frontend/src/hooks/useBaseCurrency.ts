@@ -13,7 +13,11 @@ type UseBaseCurrencyResult = {
 
 /** The user's effective base/reporting currency (ISO 4217), from app config. */
 export function useBaseCurrency(): UseBaseCurrencyResult {
-  const query = useApiQuery<BaseCurrency>(["app-config", "base-currency"], "/api/app-config/base-currency");
+  const query = useApiQuery(
+    ["app-config", "base-currency"],
+    "get_base_currency_app_config_base_currency_get",
+    {},
+  );
   return {
     baseCurrency: query.data?.base_currency ?? DEFAULT_BASE_CURRENCY,
     loading: query.isLoading,

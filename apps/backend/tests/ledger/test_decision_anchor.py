@@ -516,7 +516,7 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
     assert raw_post_files == allowed_raw_post
 
     extraction_writer = source_root / "extraction" / "extension" / "review_queue.py"
-    assert "submit_anchored_journal_entry(" in extraction_writer.read_text()
+    assert "submit_anchored_journal_entry_v2(" in extraction_writer.read_text()
 
     journal_model = (source_root / "ledger" / "orm" / "journal.py").read_text()
     migration = (

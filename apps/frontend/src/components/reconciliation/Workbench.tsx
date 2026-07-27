@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { BackLink } from "@/components/ui/BackLink";
 import { InfoHint } from "@/components/ui/InfoHint";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { formatAmount } from "@/lib/audit/money";
 import {
   clampPercentWidthFromPercentValue,
@@ -38,7 +38,7 @@ export default function ReconciliationWorkbench() {
   const { data: stats, error: statsError } = useQuery({
     queryKey: ["reconciliation", "stats"],
     queryFn: () =>
-      apiFetch<ReconciliationStatsResponse>("/api/reconciliation/stats"),
+      apiOperation("reconciliation_stats_reconciliation_stats_get"),
   });
 
   const {
@@ -48,7 +48,7 @@ export default function ReconciliationWorkbench() {
   } = useQuery({
     queryKey: ["reconciliation", "pending"],
     queryFn: () =>
-      apiFetch<ReconciliationMatchListResponse>("/api/reconciliation/pending"),
+      apiOperation("pending_review_queue_reconciliation_pending_get"),
   });
 
   useEffect(() => {
@@ -86,17 +86,19 @@ export default function ReconciliationWorkbench() {
   const { data: anomalies = [] } = useQuery({
     queryKey: ["reconciliation", "anomalies", selected?.transaction?.id],
     queryFn: () =>
-      apiFetch<AnomalyResponse[]>(
-        `/api/reconciliation/transactions/${selected!.transaction!.id}/anomalies`,
+      apiOperation(
+        "list_anomalies_reconciliation_transactions__txn_id__anomalies_get",
+        {
+          path: { txn_id: selected!.transaction!.id },
+        },
       ),
     enabled: !!selected?.transaction?.id,
   });
 
   const runReconciliationMutation = useMutation({
     mutationFn: () =>
-      apiFetch("/api/reconciliation/runs", {
-        method: "POST",
-        body: JSON.stringify({}),
+      apiOperation("run_reconciliation_reconciliation_runs_post", {
+        body: {},
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
@@ -109,9 +111,12 @@ export default function ReconciliationWorkbench() {
 
   const acceptMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiFetch(`/api/reconciliation/matches/${matchId}/accept`, {
-        method: "POST",
-      }),
+      apiOperation(
+        "accept_match_reconciliation_matches__match_id__accept_post",
+        {
+          path: { match_id: matchId },
+        },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
       setError(null);
@@ -123,9 +128,12 @@ export default function ReconciliationWorkbench() {
 
   const rejectMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiFetch(`/api/reconciliation/matches/${matchId}/reject`, {
-        method: "POST",
-      }),
+      apiOperation(
+        "reject_match_reconciliation_matches__match_id__reject_post",
+        {
+          path: { match_id: matchId },
+        },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
       setError(null);
@@ -137,9 +145,8 @@ export default function ReconciliationWorkbench() {
 
   const batchAcceptMutation = useMutation({
     mutationFn: (matchIds: string[]) =>
-      apiFetch("/api/reconciliation/batch-accept", {
-        method: "POST",
-        body: JSON.stringify({ match_ids: matchIds }),
+      apiOperation("batch_accept_reconciliation_batch_accept_post", {
+        body: { match_ids: matchIds },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
@@ -304,7 +311,7 @@ export default function ReconciliationWorkbench() {
                         ? formatQueueAmount(match.transaction.amount)
                         : "—"}
                     </span>
-                    <span>{match.entries.length} entries</span>
+                    <span>{match.entries?.length ?? 0} entries</span>
                   </div>
                 </button>
               ))}
@@ -341,7 +348,7 @@ export default function ReconciliationWorkbench() {
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {selected.entries.map((entry) => (
+                {(selected.entries ?? []).map((entry) => (
                   <div
                     key={entry.id}
                     className="p-3 rounded-md border border-[var(--border)]"

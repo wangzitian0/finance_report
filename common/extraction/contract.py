@@ -58,6 +58,7 @@ from __future__ import annotations
 
 from common.meta.package_contract import (
     ACRecord,
+    CommandBoundary,
     ConceptRecord,
     Invariant,
     Kind,
@@ -402,6 +403,16 @@ CONTRACT = PackageContract(
         "validate_balance",
         "validate_balance_chain",
         "validation",
+    ],
+    command_boundaries=[
+        CommandBoundary(
+            symbol="ReviewedStatementEnvelopeCommand",
+            version="1",
+            proof=(
+                "apps/backend/tests/extraction/test_reviewed_statement_envelope.py"
+                "::test_AC_extraction_reviewed_envelope_1_preserves_source_absence_until_typed_command"
+            ),
+        )
     ],
     events=[],
     invariants=[

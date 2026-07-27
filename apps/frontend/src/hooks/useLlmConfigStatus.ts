@@ -25,9 +25,10 @@ export interface UseLlmConfigStatus {
  * modal on a transient error.
  */
 export function useLlmConfigStatus(): UseLlmConfigStatus {
-  const query = useApiQuery<LlmConfigStatusResponse>(
+  const query = useApiQuery(
     ["llm", "config-status"],
-    "/api/llm/config/status",
+    "get_config_status_llm_config_status_get",
+    {},
     { enabled: getUserId() !== null },
   );
 

@@ -5,12 +5,8 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { apiFetch } from "@/lib/api";
-import {
-  DividendEvent,
-  HoldingsListResponse,
-  RealizedLot,
-} from "@/lib/types";
+import { apiOperation } from "@/lib/api-client";
+import { DividendEvent, HoldingsListResponse, RealizedLot } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
@@ -33,22 +29,25 @@ export default function HoldingDetailPage() {
   } = useQuery({
     queryKey: ["portfolio-holdings-all"],
     queryFn: () =>
-      apiFetch<HoldingsListResponse>(
-        "/api/portfolio/holdings?include_disposed=true",
-      ).then((response) => response.items),
+      apiOperation("get_holdings_portfolio_holdings_get", {
+        query: { include_disposed: true },
+      }).then((response) => response.items),
   });
   const { data: dividends = [], refetch: refetchDividends } = useQuery({
     queryKey: ["portfolio-dividends", ticker],
     queryFn: () =>
-      apiFetch<DividendEvent[]>(
-        `/api/portfolio/${encodeURIComponent(ticker)}/dividends`,
-      ),
+      apiOperation("get_holding_dividends_portfolio__ticker__dividends_get", {
+        path: { ticker },
+      }),
   });
   const { data: realizedLots = [], refetch: refetchRealized } = useQuery({
     queryKey: ["portfolio-realized", ticker],
     queryFn: () =>
-      apiFetch<RealizedLot[]>(
-        `/api/portfolio/${encodeURIComponent(ticker)}/realized`,
+      apiOperation(
+        "get_holding_realized_lots_portfolio__ticker__realized_get",
+        {
+          path: { ticker },
+        },
       ),
   });
 
@@ -142,10 +141,13 @@ export default function HoldingDetailPage() {
   const updateCostBasisMethod = async (method: "FIFO" | "LIFO" | "AvgCost") => {
     setSavingMethod(true);
     try {
-      await apiFetch(`/api/portfolio/${encodeURIComponent(ticker)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ cost_basis_method: method }),
-      });
+      await apiOperation(
+        "update_holding_cost_basis_method_portfolio__ticker__patch",
+        {
+          path: { ticker },
+          body: { cost_basis_method: method },
+        },
+      );
       await Promise.all([refetch(), refetchRealized(), refetchDividends()]);
     } finally {
       setSavingMethod(false);

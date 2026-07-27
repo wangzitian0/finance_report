@@ -17,8 +17,9 @@
     "test:e2e": "playwright test",
     "test:e2e:telemetry": "playwright test --config playwright.telemetry.config.ts",
     "audit:prod": "npm audit --omit=dev",
-    "gen:api-types": "openapi-typescript openapi.json -o src/lib/api-types.ts",
-    "check:api-types": "openapi-typescript openapi.json -o /tmp/api-types.check.ts && diff -q src/lib/api-types.ts /tmp/api-types.check.ts"
+    "gen:api-operations": "python ../../tools/generate_api_operations.py --spec openapi.json --out src/lib/api-operations.ts",
+    "gen:api-types": "openapi-typescript openapi.json -o src/lib/api-types.ts && npm run gen:api-operations",
+    "check:api-types": "openapi-typescript openapi.json -o /tmp/api-types.check.ts && python ../../tools/generate_api_operations.py --spec openapi.json --out /tmp/api-operations.check.ts && diff -q src/lib/api-types.ts /tmp/api-types.check.ts && diff -q src/lib/api-operations.ts /tmp/api-operations.check.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

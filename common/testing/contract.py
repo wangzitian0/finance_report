@@ -3760,8 +3760,8 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/frontend/src/__tests__/useApiQuery.test.tsx"
-                "::AC-testing.fe-async.1 fetches the given path through "
-                "apiFetch and exposes the data"
+                "::AC-testing.fe-async.1 fetches the given operation through "
+                "apiOperation and exposes the data"
             ),
             priority="P1",
             status="done",
