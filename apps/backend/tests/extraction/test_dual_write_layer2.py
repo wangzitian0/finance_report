@@ -343,7 +343,7 @@ class TestDualWriteLayer2:
 
         with patch.object(service, "extract_financial_data", return_value=mock_ai_response):
             with patch(
-                "src.extraction.extension.service.DeduplicationService.create_uploaded_document",
+                "src.extraction.extension.deduplication.resolve_source_identity",
                 side_effect=Exception("DB error"),
             ):
                 with pytest.raises(ExtractionError) as exc_info:

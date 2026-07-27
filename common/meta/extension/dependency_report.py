@@ -1878,12 +1878,57 @@ def _top_level_class_members(surface: str) -> list[str] | None:
     return members
 
 
+_ENUM_FINGERPRINT = re.compile(r"class\(([^{}]*\bEnum\b[^{}]*)\)\{([^{}]*)\}")
+
+
+def _members_are_additive(before: str, after: str) -> bool:
+    """Return whether ``after`` only inserts assigned enum members."""
+
+    before_members = [member.strip() for member in before.split(";") if member.strip()]
+    after_members = [member.strip() for member in after.split(";") if member.strip()]
+    cursor = 0
+    for member in after_members:
+        if cursor < len(before_members) and member == before_members[cursor]:
+            cursor += 1
+        elif "=" not in member:
+            return False
+    return cursor == len(before_members)
+
+
+def _is_additive_nested_enum_expansion(before: str, after: str) -> bool:
+    """Ignore additive enum detail propagated into an unchanged declaration."""
+
+    before_enums = list(_ENUM_FINGERPRINT.finditer(before))
+    after_enums = list(_ENUM_FINGERPRINT.finditer(after))
+    if (
+        not before_enums
+        or len(before_enums) != len(after_enums)
+        or before_enums[0].start() == 0
+        or after_enums[0].start() == 0
+    ):
+        return False
+
+    normalized = after
+    replacements: list[tuple[int, int, str]] = []
+    for before_enum, after_enum in zip(before_enums, after_enums, strict=True):
+        if before_enum.group(1) != after_enum.group(1) or not _members_are_additive(
+            before_enum.group(2), after_enum.group(2)
+        ):
+            return False
+        replacements.append(
+            (after_enum.start(), after_enum.end(), before_enum.group(0))
+        )
+    for start, end, replacement in reversed(replacements):
+        normalized = normalized[:start] + replacement + normalized[end:]
+    return normalized == before
+
+
 def _is_compatible_public_change(record: dict[str, object]) -> bool:
     """Accept unchanged declarations and additive defaulted class fields."""
 
     before = _declared_public_surface(record, "before")
     after = _declared_public_surface(record, "after")
-    if before == after:
+    if before == after or _is_additive_nested_enum_expansion(before, after):
         return True
     before_members = _top_level_class_members(before)
     after_members = _top_level_class_members(after)

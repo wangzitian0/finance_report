@@ -227,6 +227,44 @@ def test_AC_meta_public_boundary_4_defaulted_field_and_annotation_propagation_ar
     assert result["breaking_changes"] == []
 
 
+def test_AC_meta_public_boundary_4_nested_enum_addition_is_not_a_dto_break() -> None:
+    """AC-meta.public-boundary.4: recursive enum growth is not a DTO declaration change."""
+    before_enum = "class(str, Enum){ACTIVE='active'; FAILED='failed'}"
+    after_enum = "class(str, Enum){ACTIVE='active'; FAILED='failed'; RETIRED='retired'}"
+    changed_dto = {
+        "package": "extraction",
+        "symbol": "Source",
+        "before": (
+            "pkg.py::Source => class(Base){status: Mapped[Status]="
+            f"mapped_column(Status.ACTIVE) [Status={before_enum}]}}"
+        ),
+        "after": (
+            "pkg.py::Source => class(Base){status: Mapped[Status]="
+            f"mapped_column(Status.ACTIVE) [Status={after_enum}]}}"
+        ),
+    }
+    changed_public_enum = {
+        "package": "extraction",
+        "symbol": "Status",
+        "before": f"pkg.py::Status => {before_enum}",
+        "after": f"pkg.py::Status => {after_enum}",
+    }
+    changed_enum_value = {
+        **changed_dto,
+        "after": changed_dto["after"].replace("FAILED='failed'", "FAILED='error'"),
+    }
+    removed_enum_member = {
+        **changed_public_enum,
+        "before": changed_public_enum["after"],
+        "after": changed_public_enum["before"],
+    }
+
+    assert dependency_report._is_compatible_public_change(changed_dto)
+    assert dependency_report._is_compatible_public_change(changed_public_enum)
+    assert not dependency_report._is_compatible_public_change(changed_enum_value)
+    assert not dependency_report._is_compatible_public_change(removed_enum_member)
+
+
 def test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
