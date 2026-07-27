@@ -105,7 +105,7 @@ export interface BankStatement {
   period_end?: string | null;
   opening_balance?: MoneyValue | null;
   closing_balance?: MoneyValue | null;
-  status: "uploaded" | "parsing" | "parsed" | "approved" | "rejected";
+  status: Schemas["BankStatementStatus"];
   confidence_score?: number | null;
   balance_validated?: boolean | null;
   validation_error?: string | null;
