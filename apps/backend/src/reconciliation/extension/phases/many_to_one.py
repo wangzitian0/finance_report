@@ -17,7 +17,7 @@ from src.reconciliation.extension.matching import (
     prune_candidates,
     score_group,
 )
-from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
 
 
 async def run_many_to_one_phase(
@@ -44,6 +44,7 @@ async def run_many_to_one_phase(
             candidates,
             txn_date=group_date,
             target_amount=group_total,
+            currency=group[0].currency,
         )
 
         best_candidate = None
@@ -79,7 +80,7 @@ async def run_many_to_one_phase(
             for txn in group:
                 if txn.id in matched_txn_ids:
                     continue
-                existing_match = await repository.get_active_match(txn.id)
+                existing_match = await repository.claim_transaction(txn.id)
                 if existing_match:
                     existing_je_ids = set(existing_match.journal_entry_ids or [])
                     new_je_ids = set(best_candidate.journal_entry_ids or [])
@@ -97,6 +98,7 @@ async def run_many_to_one_phase(
                 match_kwargs["atomic_txn_id"] = txn.id
 
                 match = ReconciliationMatch(**match_kwargs)
+                match.disposition_kind = DispositionKind.JOURNAL_MATCH
                 await repository.add_match(match)
 
                 if existing_match:

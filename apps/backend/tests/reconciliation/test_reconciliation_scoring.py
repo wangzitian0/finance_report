@@ -208,6 +208,8 @@ def test_build_many_to_one_groups_skips_empty_descriptions() -> None:
     class MockTxn:
         description: str
         txn_date: date
+        direction: str = "OUT"
+        currency: str = "SGD"
 
     txns = [
         MockTxn(description="", txn_date=date(2024, 1, 1)),  # Empty - should skip
@@ -362,7 +364,7 @@ def test_weighted_total_and_balance_helpers() -> None:
             currency="SGD",
         )
     )
-    assert entry_total_amount(entry) == Decimal("50.00")
+    assert entry_total_amount(entry, currency="SGD") == Decimal("50.00")
     assert is_entry_balanced(entry, base_currency="SGD")
 
     entry.lines.append(
@@ -388,6 +390,7 @@ def test_prune_candidates_orders_and_limits() -> None:
         candidates,
         txn_date=txn_date,
         target_amount=Decimal("100.00"),
+        currency="SGD",
         limit=2,
     )
     # New heuristic prioritizes exact amount match over date:
@@ -400,6 +403,7 @@ def test_prune_candidates_orders_and_limits() -> None:
             candidates,
             txn_date=txn_date,
             target_amount=Decimal("100.00"),
+            currency="SGD",
             limit=5,
         )
         == candidates

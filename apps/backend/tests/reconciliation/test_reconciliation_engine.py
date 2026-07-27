@@ -1191,7 +1191,7 @@ async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
         patch(
             "src.reconciliation.extension.matching.find_transfer_pairs",
             new_callable=AsyncMock,
-            return_value=[("a", "b")],
+            return_value=[],
         ),
         patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
     ):

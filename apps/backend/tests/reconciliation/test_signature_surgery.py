@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import get_type_hints
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -105,7 +105,7 @@ def test_matching_phases_return_created_matches() -> None:
     for repository_call in (
         "list_pending_transactions",
         "list_journal_candidates",
-        "get_active_match",
+        "claim_transaction",
         "add_match",
     ):
         assert repository_call in source
@@ -138,13 +138,14 @@ async def test_scoring_has_explicit_modes_and_no_hidden_environment_switch(monke
         direction="OUT",
         txn_date=date(2024, 1, 1),
         description="split payment",
+        currency="SGD",
     )
     entries = [SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="split payment") for _ in amounts]
     amount_by_id = dict(zip((entry.id for entry in entries), amounts, strict=True))
     monkeypatch.setattr(
         matching,
         "entry_bank_side_amount",
-        lambda entry, _direction: amount_by_id[entry.id],
+        lambda entry, _direction, *, currency: amount_by_id[entry.id],
     )
     monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
 
@@ -168,9 +169,14 @@ async def test_group_scoring_keeps_bonus_separate_from_multi_tolerance(monkeypat
         direction="OUT",
         txn_date=date(2024, 1, 1),
         description="batch",
+        currency="SGD",
     )
     entry = SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="batch")
-    monkeypatch.setattr(matching, "entry_bank_side_amount", lambda _entry, _direction: Decimal("1009"))
+    monkeypatch.setattr(
+        matching,
+        "entry_bank_side_amount",
+        lambda _entry, _direction, *, currency: Decimal("1009"),
+    )
     monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
 
     candidate = await score_group(
@@ -196,9 +202,10 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
         direction="OUT",
         amount=Decimal("25.00"),
         txn_date=date(2026, 1, 1),
+        currency="USD",
     )
     repository = SimpleNamespace(
-        get_active_match=AsyncMock(return_value=None),
+        claim_transaction=AsyncMock(return_value=None),
         add_match=AsyncMock(),
     )
     monkeypatch.setattr(
@@ -226,6 +233,44 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_transfer_detection_logs_context_before_propagating(monkeypatch) -> None:
+    """AC-reconciliation.signature-surgery.6: failed commands retain operator context."""
+    transaction = SimpleNamespace(
+        id=uuid4(),
+        description="Transfer to savings",
+        direction="OUT",
+        amount=Decimal("25.00"),
+        txn_date=date(2026, 1, 1),
+        currency="SGD",
+    )
+    repository = SimpleNamespace(
+        claim_transaction=AsyncMock(return_value=None),
+        add_match=AsyncMock(),
+    )
+    failure = RuntimeError("ledger unavailable")
+    log_exception = Mock()
+    monkeypatch.setattr(transfer_detection, "resolve_custody_account_id", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(transfer_detection, "create_transfer_out_entry", AsyncMock(side_effect=failure))
+    monkeypatch.setattr(transfer_detection.logger, "exception", log_exception)
+
+    with pytest.raises(RuntimeError, match="ledger unavailable"):
+        await transfer_detection.run_transfer_detection_phase(
+            SimpleNamespace(),
+            transactions=[transaction],
+            matched_txn_ids=set(),
+            repository=repository,
+            user_id=uuid4(),
+        )
+
+    log_exception.assert_called_once_with(
+        "Transfer detection failed; propagating to transaction owner",
+        txn_id=str(transaction.id),
+        direction="OUT",
+        error="ledger unavailable",
+    )
+
+
+@pytest.mark.asyncio
 async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(monkeypatch) -> None:
     """AC-reconciliation.signature-surgery.7: unsupported foreign legs remain candidates."""
     transaction = SimpleNamespace(
@@ -234,9 +279,10 @@ async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(mon
         direction="OUT",
         amount=Decimal("25.00"),
         txn_date=date(2026, 1, 1),
+        currency="USD",
     )
     repository = SimpleNamespace(
-        get_active_match=AsyncMock(return_value=None),
+        claim_transaction=AsyncMock(return_value=None),
         add_match=AsyncMock(),
     )
     monkeypatch.setattr(

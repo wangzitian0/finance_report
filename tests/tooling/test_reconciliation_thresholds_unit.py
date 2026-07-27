@@ -65,6 +65,7 @@ def _make_pending_txn() -> SimpleNamespace:
         description="Payroll transfer",
         amount=Decimal("100.00"),
         direction="IN",
+        currency="SGD",
     )
 
 
@@ -103,7 +104,7 @@ def _make_repository(
     return SimpleNamespace(
         list_pending_transactions=AsyncMock(return_value=[txn]),
         list_journal_candidates=AsyncMock(return_value=[entry]),
-        get_active_match=AsyncMock(return_value=existing_match),
+        claim_transaction=AsyncMock(return_value=existing_match),
         add_match=AsyncMock(side_effect=add_match),
     )
 

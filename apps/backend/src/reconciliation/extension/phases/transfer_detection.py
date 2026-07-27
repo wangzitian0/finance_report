@@ -18,7 +18,7 @@ from src.ledger import (
 )
 from src.observability import get_logger
 from src.reconciliation.base import ReconciliationRepository
-from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
 
@@ -30,10 +30,12 @@ async def run_transfer_detection_phase(
     matched_txn_ids: set[UUID],
     repository: ReconciliationRepository,
     user_id: UUID,
-    currency: str,
+    currency: str | None = None,
 ) -> list[ReconciliationMatch]:
-    """Detect and materialize transfer matches before normal scoring."""
+    """Materialize transfer fallback only after normal candidates are exhausted."""
     created_matches: list[ReconciliationMatch] = []
+    # Kept for call compatibility; AtomicTransaction.currency is authoritative.
+    del currency
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
@@ -42,7 +44,7 @@ async def run_transfer_detection_phase(
             continue
 
         try:
-            existing_transfer_match = await repository.get_active_match(txn.id)
+            existing_transfer_match = await repository.claim_transaction(txn.id)
             if existing_transfer_match:
                 logger.warning(
                     "Transfer already matched - skipping duplicate match creation",
@@ -68,7 +70,7 @@ async def run_transfer_detection_phase(
                     amount=txn.amount,
                     txn_date=txn.txn_date,
                     description=txn.description,
-                    currency=currency,
+                    currency=txn.currency,
                 )
                 matched_txn_ids.add(txn.id)
                 match = ReconciliationMatch(
@@ -77,6 +79,7 @@ async def run_transfer_detection_phase(
                     match_score=100,
                     score_breakdown={"transfer_out": 100.0},
                     status=ReconciliationStatus.AUTO_ACCEPTED,
+                    disposition_kind=DispositionKind.TRANSFER_LEG,
                 )
                 await repository.add_match(match)
                 created_matches.append(match)
@@ -96,7 +99,7 @@ async def run_transfer_detection_phase(
                     amount=txn.amount,
                     txn_date=txn.txn_date,
                     description=txn.description,
-                    currency=currency,
+                    currency=txn.currency,
                 )
                 matched_txn_ids.add(txn.id)
                 match = ReconciliationMatch(
@@ -105,6 +108,7 @@ async def run_transfer_detection_phase(
                     match_score=100,
                     score_breakdown={"transfer_in": 100.0},
                     status=ReconciliationStatus.AUTO_ACCEPTED,
+                    disposition_kind=DispositionKind.TRANSFER_LEG,
                 )
                 await repository.add_match(match)
                 created_matches.append(match)
@@ -125,11 +129,15 @@ async def run_transfer_detection_phase(
                 direction=txn.direction,
                 error=str(exc),
             )
-        except Exception as e:
-            logger.error(
-                "Failed to create Processing account entry for transfer",
+        except Exception as exc:
+            # The caller owns the transaction. Propagating guarantees that a
+            # failed ledger command cannot commit a disposition reservation or
+            # a partial Processing effect.
+            logger.exception(
+                "Transfer detection failed; propagating to transaction owner",
                 txn_id=str(txn.id),
                 direction=txn.direction,
-                error=str(e),
+                error=str(exc),
             )
+            raise
     return created_matches

@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -95,7 +95,7 @@ def test_entry_total_amount():
             JournalLine(direction=Direction.DEBIT, amount=Decimal("50.00")),
         ]
     )
-    assert entry_total_amount(entry) == Decimal("150.00")
+    assert entry_total_amount(entry, currency="SGD") == Decimal("150.00")
 
 
 def test_entry_bank_side_amount_missing_direction_falls_back_to_debit_total():
@@ -105,7 +105,7 @@ def test_entry_bank_side_amount_missing_direction_falls_back_to_debit_total():
             JournalLine(direction=Direction.CREDIT, amount=Decimal("150.00")),
         ]
     )
-    assert entry_bank_side_amount(entry, None) == Decimal("150.00")
+    assert entry_bank_side_amount(entry, None, currency="SGD") == Decimal("150.00")
 
 
 def test_is_entry_balanced():
@@ -316,6 +316,7 @@ def test_AC4_2_3_normal_candidates_cover_multi_entry_boundaries():
         description="Vendor ABC",
         amount=Decimal("100.00"),
         direction="OUT",
+        currency="SGD",
     )
 
     def entry(amount: str, memo: str, *, balanced: bool = True) -> JournalEntry:
@@ -435,7 +436,13 @@ def test_prune_candidates():
 
     # Target 100.00 on Jan 1st
     candidates = [c1, c2, c3]
-    pruned = prune_candidates(candidates, txn_date=date(2024, 1, 1), target_amount=Decimal("100.00"), limit=2)
+    pruned = prune_candidates(
+        candidates,
+        txn_date=date(2024, 1, 1),
+        target_amount=Decimal("100.00"),
+        currency="SGD",
+        limit=2,
+    )
 
     assert len(pruned) == 2
     assert pruned[0].id == c1.id  # Exact amount AND exact date
@@ -443,7 +450,12 @@ def test_prune_candidates():
 
 
 async def test_calculate_match_score_overrides(db: AsyncSession):
-    txn = AtomicTransaction(description="Test", amount=Decimal("100.00"), txn_date=date(2024, 1, 1))
+    txn = AtomicTransaction(
+        description="Test",
+        amount=Decimal("100.00"),
+        txn_date=date(2024, 1, 1),
+        currency="SGD",
+    )
     entry = JournalEntry(
         memo="Test",
         entry_date=date(2024, 1, 1),
@@ -1461,19 +1473,14 @@ async def test_final_flush_failure(db: AsyncSession, test_user):
     db.add(txn)
     await db.commit()
 
-    # Mock the final flush to raise an exception
-    original_flush = db.flush
-    call_count = 0
-
-    async def counting_flush(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        # Allow first flush (transfer pair search), fail on second (final flush at line 1014)
-        if call_count >= 2:
-            raise RuntimeError("Final flush failed")
-        return await original_flush(*args, **kwargs)
-
-    with patch.object(db, "flush", side_effect=counting_flush):
+    with (
+        patch.object(db, "flush", side_effect=RuntimeError("Final flush failed")),
+        patch(
+            "src.reconciliation.extension.matching.find_transfer_pairs",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+    ):
         with pytest.raises(RuntimeError, match="Final flush failed"):
             await execute_matching(db, user_id=user_id, currency="SGD")
 
