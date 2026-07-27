@@ -2285,9 +2285,10 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.1",
             statement=(
                 "Full CI starts deterministic test and image jobs after change "
-                "classification while finish aggregates lint, AC traceability, tests, "
-                "image validation, coverage, and skipped-job semantics (Was EPIC-008 "
-                "AC8.13.25)."
+                "classification, joins their execution evidence in AC traceability only "
+                "after its required producers finish, and uses finish to aggregate lint, "
+                "AC traceability, tests, image validation, coverage, and skipped-job "
+                "semantics (Was EPIC-008 AC8.13.25)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
