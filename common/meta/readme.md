@@ -686,6 +686,15 @@ GitHub collectors serialize neutral observations into this projection; stale or
 partial snapshots must be treated as missing enforcement rather than cached
 success.
 
+The blocking adapter consumes an explicit target SHA. Package detector artifacts
+may contain detector results only; they cannot manufacture proof or enforcement.
+Independent proof comes from the declared AC testcase's JUnit outcome, while
+workflow reachability is derived from `finish.needs` and reconciled exactly with
+the checked-in gate inventory and the authenticated live ruleset. Open issue work
+must be fully enforced. Closed initiatives remain visible as historical, possibly
+unverified detail; a closed issue with an open AC is contradictory and blocks.
+Generating JSON or Markdown never counts as a passing policy result.
+
 ## Follow-ups (out of scope here)
 
 - Migrating the remaining EPIC-table ACs into package `roadmap`s (the ratchet

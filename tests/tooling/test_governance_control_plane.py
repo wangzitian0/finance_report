@@ -226,7 +226,6 @@ def test_AC_meta_governance_control_4_weak_stale_and_non_required_proof_stays_re
     ("overrides", "finding"),
     [
         ({"live_required": False}, "gate-not-live-required"),
-        ({"issue_state": "CLOSED"}, "closed-issue-has-active-initiative"),
     ],
 )
 def test_AC_meta_governance_control_5_enforcement_reconciliation_fails_closed(
@@ -250,6 +249,27 @@ def test_AC_meta_governance_control_5_enforcement_reconciliation_fails_closed(
     )
     findings = missing["initiatives"]["demo/control-plane"]["findings"]
     assert "missing-enforcement-observation" in {item["code"] for item in findings}
+
+
+def test_closed_issue_is_history_unless_it_still_owns_open_acceptance() -> None:
+    """AC-meta.governance-control.5: issue state is observed without inventing work."""
+    historical = _index(issue_state="CLOSED")["initiatives"]["demo/control-plane"]
+    assert historical["state"] == "enforced"
+    assert historical["issue_state"] == "CLOSED"
+
+    detectors, proofs, enforcement, issues = _observations(issue_state="CLOSED")
+    contradictory = governance_control_index(
+        [_contract(ac_status="open")],
+        target_sha=TARGET_SHA,
+        detector_observations=detectors,
+        proof_observations=proofs,
+        enforcement_observations=enforcement,
+        issue_observations=issues,
+        observed_at=NOW,
+    )["initiatives"]["demo/control-plane"]
+    assert "closed-issue-has-open-acceptance-criteria" in {
+        item["code"] for item in contradictory["findings"]
+    }
 
 
 def test_governance_declarations_reject_vacuous_duplicate_and_foreign_edges() -> None:
@@ -424,10 +444,15 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     observations.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "target_sha": TARGET_SHA,
                 "observed_at": NOW.isoformat(),
                 "detectors": [item.model_dump(mode="json") for item in detectors],
-                "proofs": [item.model_dump(mode="json") for item in proofs],
+                "proofs": [
+                    item.model_dump(mode="json")
+                    | {"source": "junit-executed-proof"}
+                    for item in proofs
+                ],
                 "enforcement": [item.model_dump(mode="json") for item in enforcement],
                 "issues": [item.model_dump(mode="json") for item in issues],
             }
@@ -439,6 +464,7 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
         "discover_packages",
         lambda _root: [SimpleNamespace(contract=_contract())],
     )
+    monkeypatch.setattr(package_governance, "_now", lambda: NOW)
     json_out = tmp_path / "report.json"
     markdown_out = tmp_path / "report.md"
     assert (
@@ -448,6 +474,8 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
                 str(tmp_path),
                 "--observations",
                 str(observations),
+                "--expected-target-sha",
+                TARGET_SHA,
                 "--json-out",
                 str(json_out),
                 "--markdown-out",
@@ -460,5 +488,52 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     assert "# Package Governance" in markdown_out.read_text(encoding="utf-8")
 
     monkeypatch.setattr(package_governance, "_head_sha", lambda _root: TARGET_SHA)
-    assert package_governance.main(["--repo-root", str(tmp_path)]) == 0
+    assert package_governance.main(["--repo-root", str(tmp_path)]) == 1
     assert "# Package Governance" in capsys.readouterr().out
+
+
+def test_AC_meta_governance_control_6_cli_fails_closed_on_unproven_guarantees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-meta.governance-control.6: report generation is not a green policy result."""
+    monkeypatch.setattr(
+        package_governance,
+        "discover_packages",
+        lambda _root: [SimpleNamespace(contract=_contract())],
+    )
+    monkeypatch.setattr(package_governance, "_head_sha", lambda _root: TARGET_SHA)
+    monkeypatch.setattr(package_governance, "_now", lambda: NOW)
+
+    assert package_governance.main(["--repo-root", str(tmp_path)]) == 1
+
+    detectors, proofs, enforcement, issues = _observations()
+    observations = tmp_path / "observations.json"
+    observations.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "target_sha": TARGET_SHA,
+                "observed_at": NOW.isoformat(),
+                "detectors": [item.model_dump(mode="json") for item in detectors],
+                "proofs": [
+                    item.model_dump(mode="json")
+                    | {"source": "junit-executed-proof"}
+                    for item in proofs
+                ],
+                "enforcement": [item.model_dump(mode="json") for item in enforcement],
+                "issues": [item.model_dump(mode="json") for item in issues],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        package_governance.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--observations",
+                str(observations),
+            ]
+        )
+        == 0
+    )

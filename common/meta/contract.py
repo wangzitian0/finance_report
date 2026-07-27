@@ -2638,12 +2638,28 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-meta.governance-control.6",
+            statement=(
+                "Package governance fails closed unless every required guarantee is "
+                "backed by a complete current-SHA observation bundle whose detector, "
+                "independent executed proof, issue state, workflow aggregation, and "
+                "live GitHub ruleset edge reconcile without authored enforcement facts."
+            ),
+            test=(
+                "tests/tooling/test_governance_control_plane.py"
+                "::test_AC_meta_governance_control_6_cli_fails_closed_on_unproven_guarantees"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
     ],
     governance=[
         GovernanceInitiative(
             id="governance-control-plane",
             title="Package governance control plane",
-            issue="https://github.com/wangzitian0/finance_report/issues/1893",
+            issue="https://github.com/wangzitian0/finance_report/issues/1983",
             guarantees=[
                 GovernanceGuarantee(
                     id="lossless-roadmap-projection",
@@ -2651,10 +2667,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-meta.governance-control.1"],
                     detector="package-roadmap-cardinality",
                     target="source records equal unique projected records",
-                    lock="ci.lint",
+                    lock="ci.tooling_coverage",
                     proof="governance-control-lossless",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.tooling_coverage",
                 ),
                 GovernanceGuarantee(
                     id="derived-joined-state",
@@ -2662,10 +2678,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-meta.governance-control.2"],
                     detector="governance-join-completeness",
                     target="zero missing joins",
-                    lock="ci.lint",
+                    lock="ci.tooling_coverage",
                     proof="governance-control-derived-state",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.tooling_coverage",
                 ),
                 GovernanceGuarantee(
                     id="summary-and-detail",
@@ -2673,10 +2689,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-meta.governance-control.3"],
                     detector="governance-report-completeness",
                     target="zero missing detail coordinates",
-                    lock="ci.lint",
+                    lock="ci.tooling_coverage",
                     proof="governance-control-report",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.tooling_coverage",
                 ),
                 GovernanceGuarantee(
                     id="proof-strength",
@@ -2684,10 +2700,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-meta.governance-control.4"],
                     detector="governance-proof-policy",
                     target="zero invalid proof promotions",
-                    lock="ci.lint",
+                    lock="ci.tooling_coverage",
                     proof="governance-control-proof-strength",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.tooling_coverage",
                 ),
                 GovernanceGuarantee(
                     id="enforcement-and-work-truth",
@@ -2695,10 +2711,24 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-meta.governance-control.5"],
                     detector="governance-enforcement-reconciliation",
                     target="zero missing or contradictory observations",
-                    lock="ci.lint",
+                    lock="ci.tooling_coverage",
                     proof="governance-control-enforcement",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="live-observation-pipeline",
+                    statement=(
+                        "Only complete current-SHA independent observations can make "
+                        "package governance green and merge-enforced."
+                    ),
+                    affected_acs=["AC-meta.governance-control.6"],
+                    detector="package-governance-observation-completeness",
+                    target="zero missing, stale, self-certified, or unenforced observations",
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-live-observation-policy",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
                 ),
             ],
         ),

@@ -2136,6 +2136,7 @@ def _write_governance_observations(path: Path, report: dict[str, object]) -> Non
         ),
     ]
     payload = {
+        "source": "package-detector",
         "target_sha": target_sha,
         "observed_at": now,
         "detectors": [
@@ -2147,30 +2148,6 @@ def _write_governance_observations(path: Path, report: dict[str, object]) -> Non
             }
             for guarantee_id, _proof_id, findings in dimensions
         ],
-        "proofs": [
-            {
-                "guarantee_id": f"meta/{guarantee_id}",
-                "proof_id": proof_id,
-                "result": "failed" if findings else "passed",
-                "strength": "exact",
-                "target_sha": target_sha,
-                "occurred_at": now,
-                "evidence_url": os.environ.get("GITHUB_SERVER_URL", "local"),
-                "gate_id": "ci.lint",
-            }
-            for guarantee_id, proof_id, findings in dimensions
-        ],
-        "enforcement": [
-            {
-                "gate_id": "ci.lint",
-                "declared_blocking": True,
-                "workflow_required": True,
-                "live_required": True,
-                "required_context": "finish",
-                "observed_at": now,
-            }
-        ],
-        "issues": [],
     }
     _write(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 

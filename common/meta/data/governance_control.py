@@ -69,13 +69,6 @@ def governance_control_index(
                         "No current GitHub issue observation was supplied.",
                     )
                 )
-            elif issue.state == "CLOSED":
-                initiative_findings.append(
-                    _finding(
-                        "closed-issue-has-active-initiative",
-                        "The issue is closed while its package initiative remains declared.",
-                    )
-                )
 
             for guarantee in initiative.guarantees:
                 guarantee_id = f"{contract.name}/{guarantee.id}"
@@ -241,6 +234,22 @@ def governance_control_index(
                 initiative_findings.extend(findings)
 
             rows = [guarantee_rows[key] for key in guarantee_keys]
+            if issue is not None and issue.state == "CLOSED":
+                open_acs = sorted(
+                    {
+                        ac_id
+                        for row in rows
+                        for ac_id in row["affected_acs"]
+                        if roadmap[ac_id].status == "open"
+                    }
+                )
+                if open_acs:
+                    initiative_findings.append(
+                        _finding(
+                            "closed-issue-has-open-acceptance-criteria",
+                            f"Closed issue still owns open ACs: {open_acs}",
+                        )
+                    )
             open_count = sum(row["state"] != "enforced" for row in rows)
             blocked_count = sum(bool(row["findings"]) for row in rows)
             state = (
@@ -253,6 +262,7 @@ def governance_control_index(
                 "package": contract.name,
                 "title": initiative.title,
                 "issue": initiative.issue,
+                "issue_state": issue.state if issue else None,
                 "state": state,
                 "current": sum((row["current"] or 0) for row in rows),
                 "target": sum((row["target"] or 0) for row in rows),

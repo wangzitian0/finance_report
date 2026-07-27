@@ -303,7 +303,9 @@ def test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects(
     payload = observations.read_text(encoding="utf-8")
     assert '"guarantee_id": "meta/one-boundary-graph"' in payload
     assert '"guarantee_id": "meta/enforced-compatibility"' in payload
-    assert '"strength": "exact"' in payload
+    assert '"source": "package-detector"' in payload
+    assert '"proofs"' not in payload
+    assert '"enforcement"' not in payload
 
 
 def test_AC_meta_public_boundary_5_untyped_and_unknown_consumers_block() -> None:

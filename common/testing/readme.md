@@ -92,6 +92,18 @@ unrelated test name, constant callbacks, or a happy-path call.
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires
 `data/fat-tool-baseline.json` to shrink whenever historical debt is re-homed.
+
+### Package-governance observation adapter
+
+`package_governance_observations.py` is the single testing-owned execution
+adapter for the meta governance projection. On heavy CI it joins package detector
+artifacts with the exact declared AC testcases in backend/frontend/tooling JUnit,
+collects a minimized current GitHub issue/ruleset snapshot through authenticated
+`gh`, and derives workflow enforcement from the live `finish` context plus
+`ci.yml` reachability. Detector artifacts are forbidden from containing proof;
+mixed target SHAs, stale bundles, missing JUnit, inactive/unknown rulesets, and
+inventory/workflow drift fail closed. The existing `ac-traceability` job consumes
+the bundle and remains an input to the one required `finish` context.
 The staging AI-OCR implementation now lives in
 `staging_ai_ocr_gate_contract.py`, with replay-count data in
 `data/staging-ai-ocr-replay-counters.json`; its workflow-facing tools file is a
