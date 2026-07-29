@@ -454,6 +454,13 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=test-results/backend-tier1-e2e.xml",
     ),
     WorkflowPytestContract(
+        stage="tooling_ci",
+        workflow=".github/workflows/ci.yml",
+        marker=None,
+        paths=("tests/tooling/",),
+        anchor="--junit-xml=coverage/tooling-junit.xml",
+    ),
+    WorkflowPytestContract(
         stage=PR_PREVIEW_E2E_STAGE,
         workflow=".github/workflows/preview.yml",
         marker=None,  # runtime-derived: eval tools/test_selection.py --shell

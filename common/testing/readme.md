@@ -19,7 +19,10 @@ path→stage classification (whose generated view is
 (marker expression, explicit node sets, parallelism). Workflows consume
 selection at runtime via `tools/test_selection.py --stage <stage> --shell` —
 they never restate test lists (the `preview.yml` whitelist retired by #1547
-is the canonical counterexample).
+is the canonical counterexample). Every JUnit-emitting workflow pytest command,
+including the tooling evidence producer, is registered in
+`WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
+unregistered live invocation or a registration with no live command.
 
 ### Package declaration protocol
 
