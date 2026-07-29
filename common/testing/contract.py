@@ -2341,8 +2341,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.ci-structure.5",
             statement=(
-                "CI fast feedback jobs start after change classification without "
-                "waiting for behavior-only backend gates (Was EPIC-008 AC8.13.86)."
+                "CI fast-feedback producer jobs start after change classification "
+                "without waiting for behavior-only backend gates, while the package "
+                "governance traceability consumer waits for its declared evidence "
+                "producers (Was EPIC-008 AC8.13.86)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"

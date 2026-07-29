@@ -19,12 +19,13 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) follows this job depend
 
 ```
 standalone: lint ─────────────────────────────────────────────────────────────────────┐
-standalone: ac-traceability ─────────────────────────────────────────────────────────┤
 changes (Classify Changes) ──→ backend shards ───────┬→ ac-behavioral-ratchet ───────┤
                          ├────→ backend-integration ─┤                               │
                          ├────→ backend-e2e-tier1 ───┤                               │
                          ├────→ frontend-vitest ─────┴→ unified-coverage ────────────┤→ finish
                          ├────→ tooling-coverage ─────→ unified-coverage ────────────┤
+                         │             └──────────────┐                               │
+                         ├────────────────────────────┴→ ac-traceability ─────────────┤
                          ├────→ schema-migrations ───────────────────────────────────┤
                          ├────→ frontend-build ──────────────────────────────────────┤
                          ├────→ frontend-playwright ─────────────────────────────────┤
@@ -528,8 +529,9 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes. Preview-action changes include `.github/workflows/preview.yml`, `.github/workflows/maintenance.yml`, `.github/actions/setup-e2e-tests/action.yml`, `tools/pr_preview_lifecycle.py`, and `tools/_lib/dev/pr_preview_lifecycle.py`. App test-only and app Markdown changes still run CI and AC gates without consuming a Dokploy preview slot.
 - Staging deploy is manual (`workflow_dispatch`) only; a manual dispatch always deploys staging, runs release-critical smoke/non-LLM E2E, and records the provider-backed AI/OCR regression against the dispatched release `version_ref`. The diff-based change classifier no longer scopes the staging deploy by changed paths — it remains the scoping mechanism for CI/PR gates. Normal staging deploys still run staging smoke and non-LLM E2E against the exact dispatched `version_ref`.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
-- Standalone lint and AC traceability start immediately with change classification. Deterministic test and image jobs start after change classification, then backend shards, frontend build/typecheck, frontend Vitest coverage, frontend Playwright, frontend telemetry E2E, image build validation, tooling coverage, integration, and Tier-1 API E2E run in parallel. The `ac-behavioral-ratchet` job starts after the JUnit-emitting backend/frontend Vitest stages and feeds the same `finish` aggregate as the other merge gates. The `finish` job aggregates lint, AC traceability, the AC behavioral score ratchet, deterministic tests, image validation, coverage, and skipped heavy-job semantics so earlier job starts improve wall-clock throughput without weakening merge authority.
+- Standalone lint starts immediately. Deterministic test and image jobs start after change classification, then backend shards, frontend build/typecheck, frontend Vitest coverage, frontend Playwright, frontend telemetry E2E, image build validation, tooling coverage, integration, and Tier-1 API E2E run in parallel. Behavior-only backend gates run in parallel with the other producers rather than serializing fast feedback. The `ac-traceability` job is intentionally a late evidence consumer that waits for lint plus its detector/JUnit producers; `if: always()` preserves its static checks when heavy producers skip. The `ac-behavioral-ratchet` job starts after the JUnit-emitting backend/frontend Vitest stages and feeds the same `finish` aggregate as the other merge gates. The `finish` job aggregates lint, AC traceability, the AC behavioral score ratchet, deterministic tests, image validation, coverage, and skipped heavy-job semantics so earlier producer starts improve wall-clock throughput without weakening merge authority.
 - 5-way parallel test sharding via `pytest-split`
+- The workflow job name `Backend Tests (Shard ${{ matrix.shard }}/5)` is stable so branch protection and CI metrics retain one consistent status family.
 - Each shard: `pytest --splits 5 --group N --splitting-algorithm=least_duration --durations-path ci/backend-test-durations.json`
 - The committed duration seed lives at `apps/backend/ci/backend-test-durations.json`; each CI shard validates that it is present and non-trivial before pytest starts.
 - Duration seed updates are reviewed repository changes, not runner-local cache writes or uploaded artifact side effects.
