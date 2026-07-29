@@ -75,6 +75,26 @@ async def test_plain_health_stays_light(client: AsyncClient, monkeypatch) -> Non
     assert "tier" not in body
 
 
+async def test_health_reports_the_sdk_environment_tier_as_a_second_opinion(client: AsyncClient, monkeypatch) -> None:
+    """infra2_sdk.runtime.environment.resolve_environment_tier runs alongside (not
+    instead of) this repo's own EnvTier resolution — present even on the light form,
+    fed settings.environment directly (not environment_from_env(), which reads
+    os.environ; pydantic-settings' env_file loads ENVIRONMENT from the vault-rendered
+    file without ever populating the real process environment)."""
+    from infra2_sdk.runtime.environment import resolve_environment_tier
+
+    from src.config import settings
+
+    _stub_probes(monkeypatch)
+
+    response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = resolve_environment_tier(settings.environment, unknown="production")
+    assert body["sdk_environment_tier"] == expected.value
+
+
 def test_smoke_script_calls_the_full_health_form() -> None:
     """The smoke script must assert dependency presence via /api/health?full=1 —
     dropping the line breaks parity (invariant 6), so it is pinned here."""
