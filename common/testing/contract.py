@@ -4154,8 +4154,9 @@ CONTRACT = PackageContract(
             statement=(
                 "One testing-owned adapter assembles package-governance observations "
                 "for an exact target SHA from package detector outputs, canonical executed-"
-                "proof TraceRecords, current issue state, and enforcement inputs; missing, "
-                "mixed-SHA, self-certified, duplicate, or contradictory inputs fail closed."
+                "proof TraceRecords that survive serialization and canonical re-validation, "
+                "current issue state, and enforcement inputs; missing, mixed-SHA, "
+                "self-certified, duplicate, or contradictory inputs fail closed."
             ),
             test=(
                 "tests/tooling/test_package_governance_observations.py"
@@ -4169,9 +4170,9 @@ CONTRACT = PackageContract(
             id="AC-testing.governance.24",
             statement=(
                 "Authenticated GitHub issue and ruleset snapshots retain observed source "
-                "coordinates and freshness, while actual nonzero finish failure branches and "
-                "live required contexts are derived from raw facts instead of supplied truth "
-                "booleans or dependency reachability alone."
+                "coordinates and freshness, while canonical unconditional nonzero finish "
+                "failure branches and live required contexts are derived from raw facts "
+                "instead of supplied truth booleans or dependency reachability alone."
             ),
             test=(
                 "tests/tooling/test_package_governance_observations.py"
@@ -4211,7 +4212,7 @@ CONTRACT = PackageContract(
                         "enforcement inputs rather than report defaults or hard-coded truth."
                     ),
                     affected_acs=["AC-testing.governance.23"],
-                    detector="package-governance-input-authenticity",
+                    detector="package-governance-control-integrity",
                     target="zero missing or authored observation inputs",
                     lock="ci.tooling_coverage",
                     proof="package-governance-observation-bundle",
@@ -4225,7 +4226,7 @@ CONTRACT = PackageContract(
                         "observations rather than supplied conclusion booleans."
                     ),
                     affected_acs=["AC-testing.governance.24"],
-                    detector="package-governance-live-enforcement-authenticity",
+                    detector="package-governance-control-integrity",
                     target="zero stale, missing, or contradictory live enforcement inputs",
                     lock="ci.tooling_coverage",
                     proof="package-governance-live-enforcement",
@@ -4238,7 +4239,7 @@ CONTRACT = PackageContract(
                         "Unproven open governance work blocks the existing finish authority."
                     ),
                     affected_acs=["AC-testing.governance.25"],
-                    detector="package-governance-finish-reachability",
+                    detector="package-governance-control-integrity",
                     target="zero false-green package governance paths",
                     lock="ci.tooling_coverage",
                     proof="package-governance-existing-finish-policy",

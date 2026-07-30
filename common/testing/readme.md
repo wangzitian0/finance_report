@@ -106,12 +106,16 @@ authenticated `gh`, and derives workflow enforcement from the live `finish`
 context. A passing JUnit testcase is not proof by itself: proof id, assertion
 version, repository, run attempt, and exact target SHA must all reconcile.
 Likewise, `finish.needs` proves only reachability; enforcement also requires a
-nonzero failure branch for the depended-on job. Missing meta/testing detector
-inputs become explicit findings rather than defaulting to zero. Detector
-artifacts are forbidden from containing proof; mixed target SHAs, stale bundles,
+canonical unconditional nonzero failure branch for the depended-on job; comments,
+nested branches, and masked exits do not count. One control-integrity detector
+derives meta/testing findings only from contract projection and raw issue,
+inventory, workflow, and ruleset facts, never from proof. Detector artifacts are
+forbidden from containing proof; each proof observation embeds its canonical
+`TraceRecord`, which is decoded and reconciled again when the serialized bundle is
+consumed. Mixed target SHAs, parameterized pass/skip results, stale bundles,
 missing canonical proof, inactive/unknown rulesets, and inventory/workflow drift
-fail closed. The existing `ac-traceability` job consumes the bundle and remains
-an input to the one required `finish` context.
+fail closed. The existing `ac-traceability` job consumes the bundle and remains an
+input to the one required `finish` context.
 The staging AI-OCR implementation now lives in
 `staging_ai_ocr_gate_contract.py`, with replay-count data in
 `data/staging-ai-ocr-replay-counters.json`; its workflow-facing tools file is a

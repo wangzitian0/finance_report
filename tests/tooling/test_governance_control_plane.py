@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from common.audit.extension import TraceRecordCodec
 from common.meta.base.governance_control import (
     DetectorObservation,
     EnforcementObservation,
@@ -20,7 +22,8 @@ from common.meta.data.governance_control import governance_control_index
 from common.meta.data.projection import contract_index
 from common.meta.extension.governance_control_report import render_governance_markdown
 from common.meta.extension.generate_ac_registry import _package_roadmap_acs
-from common.testing.ac_proof import ac_proof
+from common.testing.ac_proof import PROOF_ATTR, AcProof, ac_proof
+from common.testing.executed_proof import record_executed_proof
 from common.testing import package_governance
 
 
@@ -118,6 +121,57 @@ def _observations(
             )
         ],
     )
+
+
+def _serialized_proofs(proofs: list[ProofObservation]) -> list[dict[str, object]]:
+    def proof_test() -> None:
+        pass
+
+    setattr(
+        proof_test,
+        PROOF_ATTR,
+        AcProof(
+            proof_id="demo-proof",
+            ac_ids=("AC-demo.control.1",),
+            stage="github_ci.merge_authority",
+            task_category="critical_behavioral",
+            scope="behavioral",
+            ci_tier="pr_ci",
+            scenario_id="AC-demo.control.1",
+            oracle_kind="deterministic_contract",
+        ),
+    )
+    item = SimpleNamespace(
+        obj=proof_test,
+        nodeid="tests/demo/test_control.py::test_control",
+        user_properties=[],
+    )
+    record = record_executed_proof(
+        item,
+        SimpleNamespace(when="call", passed=True, wasxfail=None),
+        environ={
+            **os.environ,
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": "example/repo",
+            "GITHUB_SHA": TARGET_SHA,
+            "GITHUB_RUN_ID": "1",
+            "GITHUB_RUN_ATTEMPT": "1",
+        },
+        occurred_at=NOW,
+    )
+    assert record is not None
+    return [
+        item.model_dump(mode="json")
+        | {
+            "source": "junit-executed-proof",
+            "scenario_id": "AC-demo.control.1",
+            "repository": "example/repo",
+            "execution_id": "1.1",
+            "assertion_version": record.assertion.version,
+            "trace_record": TraceRecordCodec.encode(record),
+        }
+        for item in proofs
+    ]
 
 
 def _index(**overrides: object) -> dict[str, object]:
@@ -480,15 +534,11 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     observations.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "target_sha": TARGET_SHA,
                 "observed_at": NOW.isoformat(),
                 "detectors": [item.model_dump(mode="json") for item in detectors],
-                "proofs": [
-                    item.model_dump(mode="json")
-                    | {"source": "junit-executed-proof"}
-                    for item in proofs
-                ],
+                "proofs": _serialized_proofs(proofs),
                 "enforcement": [item.model_dump(mode="json") for item in enforcement],
                 "issues": [item.model_dump(mode="json") for item in issues],
             }
@@ -523,6 +573,21 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     assert "demo/control-plane" in json_out.read_text(encoding="utf-8")
     assert "# Package Governance" in markdown_out.read_text(encoding="utf-8")
 
+    forged = json.loads(observations.read_text(encoding="utf-8"))
+    forged["proofs"][0].pop("trace_record")
+    observations.write_text(json.dumps(forged), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        package_governance.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--observations",
+                str(observations),
+                "--expected-target-sha",
+                TARGET_SHA,
+            ]
+        )
+
     monkeypatch.setattr(package_governance, "_head_sha", lambda _root: TARGET_SHA)
     assert package_governance.main(["--repo-root", str(tmp_path)]) == 1
     assert "# Package Governance" in capsys.readouterr().out
@@ -554,15 +619,11 @@ def test_AC_meta_governance_control_6_cli_fails_closed_on_unproven_guarantees(
     observations.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "target_sha": TARGET_SHA,
                 "observed_at": NOW.isoformat(),
                 "detectors": [item.model_dump(mode="json") for item in detectors],
-                "proofs": [
-                    item.model_dump(mode="json")
-                    | {"source": "junit-executed-proof"}
-                    for item in proofs
-                ],
+                "proofs": _serialized_proofs(proofs),
                 "enforcement": [item.model_dump(mode="json") for item in enforcement],
                 "issues": [item.model_dump(mode="json") for item in issues],
             }
