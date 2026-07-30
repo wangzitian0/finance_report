@@ -44,7 +44,7 @@ dependencies = [
     # belongs in [project.dependencies]: the Docker image builds with
     # `uv sync --frozen --no-dev`, which would otherwise exclude it entirely
     # and crash the app on import at container startup.
-    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.5.1/infra2_sdk-0.5.1-py3-none-any.whl",
+    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v1.0.0/infra2_sdk-1.0.0-py3-none-any.whl",
 ]
 
 [dependency-groups]
