@@ -227,9 +227,9 @@ jobs:
           delay="${TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS:-10}"
           log="$(mktemp)"
           sdk_dir="$(mktemp -d)"
-          sdk_wheel="${sdk_dir}/infra2_sdk-0.5.1-py3-none-any.whl"
-          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v0.5.1/infra2_sdk-0.5.1-py3-none-any.whl"
-          sdk_sha256="7ccbcfa2017c45ca14d7b29d74f4bd1c8164d573aa4543c5420249784c5e94ba"
+          sdk_wheel="${sdk_dir}/infra2_sdk-1.0.0-py3-none-any.whl"
+          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v1.0.0/infra2_sdk-1.0.0-py3-none-any.whl"
+          sdk_sha256="d0eb395367b2ae71e13527ef08d775f8aa0ccd8f769a267940a5fc34e4cf6214"
           rc=1
           for n in $(seq 1 "$attempts"); do
             echo "::group::Install App deploy request dependencies (attempt ${n}/${attempts})"
