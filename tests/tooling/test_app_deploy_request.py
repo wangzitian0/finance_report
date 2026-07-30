@@ -59,7 +59,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     )
     sdk_dependencies = [
         dependency
-        for dependency in pyproject["dependency-groups"]["dev"]
+        for dependency in pyproject["project"]["dependencies"]
         if dependency.partition(" @ ")[0] == "infra2-sdk"
     ]
     expected_sdk_dependency = f"infra2-sdk @ {SDK_URL}"
