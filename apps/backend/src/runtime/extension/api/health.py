@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse
+from infra2_sdk.runtime.environment import resolve_environment_tier
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +50,22 @@ async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -
             for name in unprobed:
                 checks[name] = False
 
+        # infra2_sdk.runtime.environment's tier vocabulary as a second, independent
+        # opinion alongside `tier` below (src.runtime.base.tiers.EnvTier) — not a
+        # replacement. The two enums' values diverge on one name (this repo's
+        # "local_ci" vs the SDK's "local_test", kept as an *input* alias for this
+        # repo specifically — see the SDK's own resolve_environment_tier docstring)
+        # and on unknown-value handling (EnvTier defaults unknown to PRODUCTION;
+        # the SDK raises unless told unknown="production", which is passed here to
+        # match this repo's existing fail-closed-to-strictest behavior). Swapping
+        # `tier` itself to the SDK type is a separate, larger change — every
+        # `content["tier"]` consumer would see "local_ci" become "local_test".
+        sdk_tier = resolve_environment_tier(
+            settings.environment,
+            github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
+            unknown="production",
+        )
+
         all_healthy = all(checks.values())
         content = {
             "status": "healthy" if all_healthy else "unhealthy",
@@ -57,6 +74,7 @@ async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -
             "git_sha": settings.git_commit_sha,
             "checks": checks,
             "observability": get_observability_status(),
+            "sdk_environment_tier": sdk_tier.value,
         }
         if tier is not None:
             content["tier"] = tier.value
