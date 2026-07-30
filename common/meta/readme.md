@@ -688,9 +688,10 @@ success.
 
 The blocking adapter consumes an explicit target SHA. Package detector artifacts
 may contain detector results only; they cannot manufacture proof or enforcement.
-Independent proof comes from the declared AC testcase's JUnit outcome, while
-workflow reachability is derived from `finish.needs` and reconciled exactly with
-the checked-in gate inventory and the authenticated live ruleset. Open issue work
+Independent proof comes from the declared AC testcase's canonical executed-proof
+record. Workflow reachability is derived from `finish.needs`, while blocking is
+separately proven from `finish`'s nonzero failure branches; both reconcile exactly
+with the checked-in gate inventory and authenticated live ruleset. Open issue work
 must be fully enforced. Closed initiatives remain visible as historical, possibly
 unverified detail; a closed issue with an open AC is contradictory and blocks.
 Generating JSON or Markdown never counts as a passing policy result.

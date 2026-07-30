@@ -4153,9 +4153,9 @@ CONTRACT = PackageContract(
             id="AC-testing.governance.23",
             statement=(
                 "One testing-owned adapter assembles package-governance observations "
-                "for an exact target SHA from package detector outputs, executed test "
-                "evidence, current issue state, and enforcement inputs; missing, mixed-SHA, "
-                "self-certified, duplicate, or contradictory inputs fail closed."
+                "for an exact target SHA from package detector outputs, canonical executed-"
+                "proof TraceRecords, current issue state, and enforcement inputs; missing, "
+                "mixed-SHA, self-certified, duplicate, or contradictory inputs fail closed."
             ),
             test=(
                 "tests/tooling/test_package_governance_observations.py"
@@ -4169,8 +4169,9 @@ CONTRACT = PackageContract(
             id="AC-testing.governance.24",
             statement=(
                 "Authenticated GitHub issue and ruleset snapshots retain observed source "
-                "coordinates and freshness, while workflow reachability and live required "
-                "contexts are derived from raw facts instead of supplied truth booleans."
+                "coordinates and freshness, while actual nonzero finish failure branches and "
+                "live required contexts are derived from raw facts instead of supplied truth "
+                "booleans or dependency reachability alone."
             ),
             test=(
                 "tests/tooling/test_package_governance_observations.py"

@@ -17,6 +17,13 @@ import yaml
 
 from common.meta.base.package_contract import PackageContract
 from common.meta.extension.check_package_contract import discover_packages
+from common.testing.check_pr_ci_evidence import collect_executed_proofs
+from common.testing.executed_proof import (
+    ExecutedProofError,
+    executed_proof_assertion_version,
+    executed_proof_matches,
+    github_execution_id,
+)
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -64,10 +71,13 @@ def junit_proof_payload(
     target_sha: str,
     observed_at: datetime,
     evidence_url: str,
+    repository: str,
+    execution_id: str,
 ) -> dict[str, Any]:
-    """Bind open-initiative guarantee proofs to actual JUnit testcase outcomes."""
+    """Bind guarantees only to canonical executed-proof JUnit records."""
     target_sha = _exact_sha(target_sha, label="proof target SHA")
     outcomes = _junit_outcomes(junit_paths)
+    records, malformed = collect_executed_proofs(junit_paths)
     proofs: list[dict[str, Any]] = []
     for contract in contracts:
         roadmap = {ac.id: ac for ac in contract.roadmap}
@@ -80,31 +90,77 @@ def junit_proof_payload(
                         f"{contract.name}/{guarantee.id}: {guarantee.required_proof_strength} "
                         "proof requires canonical strength-specific execution evidence"
                     )
-                matched: list[str] = []
+                if len(guarantee.affected_acs) != 1:
+                    raise ObservationInputError(
+                        f"{contract.name}/{guarantee.id}: exact proof must bind one scenario AC"
+                    )
+                ac_id = guarantee.affected_acs[0]
+                assertion_version = executed_proof_assertion_version(
+                    proof_id=guarantee.proof,
+                    scenario_id=ac_id,
+                    oracle_kind="deterministic_contract",
+                    ac_ids=[ac_id],
+                    stage="github_ci.merge_authority",
+                    task_category="critical_behavioral",
+                )
+                matched_records = []
                 for ac_id in guarantee.affected_acs:
                     test_ref = roadmap[ac_id].test
                     file_name, separator, test_name = test_ref.partition("::")
                     if not separator or not test_name:
                         raise ObservationInputError(f"{ac_id}: test reference is not executable")
                     module = _module_for(file_name)
-                    hits = [
-                        outcome
-                        for (classname, name), outcome in outcomes.items()
+                    keys = [
+                        key
+                        for key in set(records) | malformed
+                        for classname, name in [key]
                         if (classname == module or classname.startswith(module + "."))
                         and name == test_name
                     ]
-                    if not hits:
-                        raise ObservationInputError(f"{ac_id}: current JUnit proof is missing")
-                    matched.extend(hits)
-                result = "failed" if any(item != "passed" for item in matched) else "passed"
+                    if not keys:
+                        raise ObservationInputError(
+                            f"{ac_id}: canonical executed proof is missing from current JUnit"
+                        )
+                    if any(key in malformed for key in keys):
+                        raise ObservationInputError(
+                            f"{ac_id}: canonical executed proof is malformed"
+                        )
+                    if any(outcomes.get(key) != "passed" for key in keys):
+                        raise ObservationInputError(
+                            f"{ac_id}: canonical executed proof testcase did not pass"
+                        )
+                    matched_records.extend(
+                        record for key in keys for record in records.get(key, ())
+                    )
+                exact = next(
+                    (
+                        record
+                        for record in matched_records
+                        if executed_proof_matches(
+                            record,
+                            proof_id=guarantee.proof,
+                            scenario_id=guarantee.affected_acs[0],
+                            repository_id=repository,
+                            commit_sha=target_sha,
+                            execution_id=execution_id,
+                            assertion_version=assertion_version,
+                        )
+                    ),
+                    None,
+                )
+                if exact is None:
+                    raise ObservationInputError(
+                        f"{contract.name}/{guarantee.id}: canonical executed proof "
+                        "does not match the declared proof and CI coordinates"
+                    )
                 proofs.append(
                     {
                         "guarantee_id": f"{contract.name}/{guarantee.id}",
                         "proof_id": guarantee.proof,
-                        "result": result,
-                        "strength": "exact",
-                        "target_sha": target_sha,
-                        "occurred_at": observed_at.isoformat(),
+                        "result": "passed",
+                        "strength": exact.authority.proof_kind,
+                        "target_sha": exact.target.version,
+                        "occurred_at": exact.occurred_at.isoformat(),
                         "evidence_url": evidence_url,
                         "gate_id": guarantee.enforcing_gate,
                     }
@@ -143,7 +199,9 @@ def collect_github_snapshot(
             {
                 "id": detail.get("id"),
                 "name": detail.get("name"),
+                "target": detail.get("target"),
                 "enforcement": detail.get("enforcement"),
+                "conditions": detail.get("conditions"),
                 "updated_at": detail.get("updated_at"),
                 "rules": detail.get("rules", []),
             }
@@ -177,7 +235,16 @@ def _exact_sha(value: object, *, label: str) -> str:
 def _required_contexts(rulesets: list[dict[str, Any]]) -> set[str]:
     contexts: set[str] = set()
     for ruleset in rulesets:
-        if ruleset.get("enforcement") != "active":
+        conditions = ruleset.get("conditions")
+        ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else None
+        includes = ref_name.get("include", []) if isinstance(ref_name, dict) else []
+        excludes = ref_name.get("exclude", []) if isinstance(ref_name, dict) else []
+        applies_to_default = (
+            ruleset.get("target") == "branch"
+            and "~DEFAULT_BRANCH" in includes
+            and "~DEFAULT_BRANCH" not in excludes
+        )
+        if ruleset.get("enforcement") != "active" or not applies_to_default:
             continue
         for rule in ruleset.get("rules", []):
             if rule.get("type") != "required_status_checks":
@@ -188,6 +255,27 @@ def _required_contexts(rulesets: list[dict[str, Any]]) -> set[str]:
                 if context:
                     contexts.add(context)
     return contexts
+
+
+_FINISH_RESULT_CHECK_RE = re.compile(
+    r"if\s+\[\[\s+[\"']?\$\{\{\s*needs\.(?P<job>[A-Za-z0-9_-]+)\.result\s*\}\}"
+    r"[\"']?\s+!=\s+[\"']success[\"'][^\n]*\]\];\s*then(?P<body>.*?)\bfi\b",
+    re.DOTALL,
+)
+_NONZERO_EXIT_RE = re.compile(r"(?:^|\s)exit\s+[1-9][0-9]*(?:\s|$)")
+
+
+def _finish_blocked_jobs(finish: dict[str, Any]) -> set[str]:
+    """Return jobs whose non-success result demonstrably exits finish nonzero."""
+    blocked: set[str] = set()
+    for step in finish.get("steps", []):
+        if not isinstance(step, dict):
+            continue
+        command = str(step.get("run") or "")
+        for match in _FINISH_RESULT_CHECK_RE.finditer(command):
+            if _NONZERO_EXIT_RE.search(match.group("body")):
+                blocked.add(match.group("job"))
+    return blocked
 
 
 def _reject_duplicate_coordinates(
@@ -262,6 +350,8 @@ def build_observation_bundle(
         raise ObservationInputError(
             "declared and live required status contexts do not reconcile"
         )
+    if len(live_contexts) != 1:
+        raise ObservationInputError("exactly one live required finish context is required")
     live_context = next(iter(sorted(live_contexts)))
     jobs = workflow.get("jobs", {})
     finish = jobs.get(live_context, {}) if isinstance(jobs, dict) else {}
@@ -269,6 +359,7 @@ def build_observation_bundle(
     if isinstance(finish_needs, str):
         finish_needs = [finish_needs]
     workflow_jobs = {str(item) for item in finish_needs}
+    blocked_jobs = _finish_blocked_jobs(finish) if isinstance(finish, dict) else set()
     gates_by_id = {
         str(gate.get("id")): gate for gate in gate_inventory.get("gates", [])
     }
@@ -289,11 +380,16 @@ def build_observation_bundle(
             raise ObservationInputError(
                 f"{gate_id}: inventory and workflow finish reachability disagree"
             )
+        blocks_finish = reaches_finish and gate_job in blocked_jobs
+        if bool(gate.get("blocks_workflow")) != blocks_finish:
+            raise ObservationInputError(
+                f"{gate_id}: finish depends on {gate_job!r} but does not block its failure"
+            )
         enforcement.append(
             {
                 "gate_id": gate_id,
                 "declared_blocking": bool(gate.get("blocks_workflow")),
-                "workflow_required": reaches_finish,
+                "workflow_required": blocks_finish,
                 "live_required": bool(live_context),
                 "required_context": live_context,
                 "observed_at": observed_at.isoformat(),
@@ -386,14 +482,44 @@ def _control_detector_payload(
     contracts: list[PackageContract],
     open_issue_urls: set[str],
     existing_payloads: list[dict[str, Any]],
+    proof_payloads: list[dict[str, Any]],
     target_sha: str,
+    gate_inventory: dict[str, Any],
+    workflow: dict[str, Any],
+    rulesets: list[dict[str, Any]],
+    issue_payloads: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Detect missing control-plane facts; never default absent facts to green."""
     observed_ids = {
         str(item.get("guarantee_id"))
         for payload in existing_payloads
         for item in payload.get("detectors", [])
     }
     detectors = []
+    proof_ids = {
+        str(item.get("guarantee_id"))
+        for payload in proof_payloads
+        for item in payload.get("proofs", [])
+        if item.get("result") == "passed"
+        and item.get("strength") == "exact"
+        and item.get("target_sha") == target_sha
+    }
+    issue_states = {
+        str(item.get("html_url")): str(item.get("state") or "").lower()
+        for item in issue_payloads
+    }
+    gates_by_id = {
+        str(item.get("id")): item for item in gate_inventory.get("gates", [])
+    }
+    live_contexts = _required_contexts(rulesets)
+    jobs = workflow.get("jobs", {}) if isinstance(workflow, dict) else {}
+    finish_context = next(iter(live_contexts), "") if len(live_contexts) == 1 else ""
+    finish = jobs.get(finish_context, {}) if isinstance(jobs, dict) else {}
+    needs = finish.get("needs", []) if isinstance(finish, dict) else []
+    if isinstance(needs, str):
+        needs = [needs]
+    finish_needs = {str(item) for item in needs}
+    blocked_jobs = _finish_blocked_jobs(finish) if isinstance(finish, dict) else set()
     for contract in contracts:
         if contract.name not in {"meta", "testing"}:
             continue
@@ -403,12 +529,25 @@ def _control_detector_payload(
             for guarantee in initiative.guarantees:
                 guarantee_id = f"{contract.name}/{guarantee.id}"
                 if guarantee_id not in observed_ids:
+                    findings = []
+                    if guarantee_id not in proof_ids:
+                        findings.append("missing-current-canonical-proof")
+                    if issue_states.get(initiative.issue) != "open":
+                        findings.append("missing-open-issue-observation")
+                    gate = gates_by_id.get(guarantee.enforcing_gate)
+                    gate_job = str((gate or {}).get("job") or "")
+                    if not finish_context:
+                        findings.append("missing-single-live-finish-context")
+                    if not gate_job or gate_job not in finish_needs:
+                        findings.append("gate-not-in-finish-needs")
+                    elif gate_job not in blocked_jobs:
+                        findings.append("gate-failure-not-blocked-by-finish")
                     detectors.append(
                         {
                             "guarantee_id": guarantee_id,
-                            "current": 0,
+                            "current": len(findings),
                             "target": 0,
-                            "findings": [],
+                            "findings": findings,
                         }
                     )
     return {
@@ -451,14 +590,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             if str(item.get("state")).lower() == "open"
         }
         detector_payloads = [_read_payload(path) for path in args.detector_payload]
-        detector_payloads.append(
-            _control_detector_payload(
-                contracts=contracts,
-                open_issue_urls=open_issue_urls,
-                existing_payloads=detector_payloads,
-                target_sha=target_sha,
-            )
-        )
         proof_payloads: list[dict[str, Any]] = []
         junit_paths = sorted(args.junit_root.rglob("*.xml"))
         if not junit_paths:
@@ -475,6 +606,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 target_sha=target_sha,
                 observed_at=observed_at,
                 evidence_url=evidence_url,
+                repository=args.repository,
+                execution_id=github_execution_id(os.environ),
             )
         )
         inventory_path = args.gate_inventory or (
@@ -488,6 +621,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if not isinstance(workflow, dict):
             raise ObservationInputError("CI workflow is not a mapping")
+        detector_payloads.append(
+            _control_detector_payload(
+                contracts=contracts,
+                open_issue_urls=open_issue_urls,
+                existing_payloads=detector_payloads,
+                proof_payloads=proof_payloads,
+                target_sha=target_sha,
+                gate_inventory=gate_inventory,
+                workflow=workflow,
+                rulesets=github["rulesets"],
+                issue_payloads=github["issues"],
+            )
+        )
         bundle = build_observation_bundle(
             contracts=contracts,
             target_sha=target_sha,
@@ -505,7 +651,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.raw_github_out.write_text(
             json.dumps(github, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    except (ObservationInputError, OSError, yaml.YAMLError) as exc:
+    except (ExecutedProofError, ObservationInputError, OSError, yaml.YAMLError) as exc:
         print(f"package governance observations: FAIL: {exc}")
         return 1
     print("package governance observations: PASS")

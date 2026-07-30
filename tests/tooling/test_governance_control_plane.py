@@ -20,6 +20,7 @@ from common.meta.data.governance_control import governance_control_index
 from common.meta.data.projection import contract_index
 from common.meta.extension.governance_control_report import render_governance_markdown
 from common.meta.extension.generate_ac_registry import _package_roadmap_acs
+from common.testing.ac_proof import ac_proof
 from common.testing import package_governance
 
 
@@ -132,6 +133,13 @@ def _index(**overrides: object) -> dict[str, object]:
     )
 
 
+@ac_proof(
+    "governance-control-lossless",
+    ac_ids=["AC-meta.governance-control.1"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.1",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_governance_control_1_contract_and_roadmap_projection_are_lossless(
     tmp_path: Path,
 ) -> None:
@@ -177,6 +185,13 @@ CONTRACT = PackageContract(
         _package_roadmap_acs(tmp_path / "docs/project")
 
 
+@ac_proof(
+    "governance-control-derived-state",
+    ac_ids=["AC-meta.governance-control.2"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.2",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_governance_control_2_completion_is_derived_from_joined_facts() -> None:
     """AC-meta.governance-control.2: completion is derived from joined facts."""
     index = _index()
@@ -191,6 +206,13 @@ def test_AC_meta_governance_control_2_completion_is_derived_from_joined_facts() 
     assert guarantee["findings"] == []
 
 
+@ac_proof(
+    "governance-control-report",
+    ac_ids=["AC-meta.governance-control.3"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.3",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_governance_control_3_report_exposes_summary_and_exact_detail() -> None:
     """AC-meta.governance-control.3: summaries drill into exact evidence detail."""
     markdown = render_governance_markdown(_index())
@@ -204,6 +226,13 @@ def test_AC_meta_governance_control_3_report_exposes_summary_and_exact_detail() 
     assert "ci.demo -> finish" in markdown
 
 
+@ac_proof(
+    "governance-control-proof-strength",
+    ac_ids=["AC-meta.governance-control.4"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.4",
+    oracle_kind="deterministic_contract",
+)
 @pytest.mark.parametrize(
     ("overrides", "finding"),
     [
@@ -222,6 +251,13 @@ def test_AC_meta_governance_control_4_weak_stale_and_non_required_proof_stays_re
     assert finding in {item["code"] for item in guarantee["findings"]}
 
 
+@ac_proof(
+    "governance-control-enforcement",
+    ac_ids=["AC-meta.governance-control.5"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.5",
+    oracle_kind="deterministic_contract",
+)
 @pytest.mark.parametrize(
     ("overrides", "finding"),
     [
@@ -492,6 +528,13 @@ def test_package_governance_cli_reads_observations_and_writes_both_artifacts(
     assert "# Package Governance" in capsys.readouterr().out
 
 
+@ac_proof(
+    "package-governance-live-observation-policy",
+    ac_ids=["AC-meta.governance-control.6"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.governance-control.6",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_governance_control_6_cli_fails_closed_on_unproven_guarantees(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

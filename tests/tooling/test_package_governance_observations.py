@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
 import yaml
@@ -14,6 +16,8 @@ from common.meta.base.governance_control import (
     GovernanceGuarantee,
     GovernanceInitiative,
 )
+from common.testing.ac_proof import PROOF_ATTR, AcProof, ac_proof
+from common.testing.executed_proof import record_executed_proof
 from common.meta.base.package_contract import ACRecord, PackageContract
 from common.testing.package_governance_observations import (
     ObservationInputError,
@@ -26,6 +30,64 @@ from common.testing.package_governance_observations import (
 TARGET_SHA = "a" * 40
 NOW = datetime(2026, 7, 27, tzinfo=UTC)
 ISSUE_URL = "https://github.com/example/repo/issues/1"
+REPOSITORY = "example/repo"
+EXECUTION_ID = "10.1"
+
+
+def _write_executed_proof_junit(
+    path: Path,
+    *,
+    proof_id: str = "demo-proof",
+    scenario_id: str = "AC-demo.governance.1",
+    target_sha: str = TARGET_SHA,
+) -> None:
+    def proof_test() -> None:
+        pass
+
+    setattr(
+        proof_test,
+        PROOF_ATTR,
+        AcProof(
+            proof_id=proof_id,
+            ac_ids=("AC-demo.governance.1",),
+            stage="github_ci.merge_authority",
+            task_category="critical_behavioral",
+            scope="behavioral",
+            ci_tier="pr_ci",
+            scenario_id=scenario_id,
+            oracle_kind="deterministic_contract",
+        ),
+    )
+    item = SimpleNamespace(
+        obj=proof_test,
+        nodeid="tests/demo/test_live.py::test_live",
+        user_properties=[],
+    )
+    report = SimpleNamespace(when="call", passed=True, wasxfail=None)
+    record_executed_proof(
+        item,
+        report,
+        environ={
+            **os.environ,
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": REPOSITORY,
+            "GITHUB_SHA": target_sha,
+            "GITHUB_RUN_ID": "10",
+            "GITHUB_RUN_ATTEMPT": "1",
+        },
+        occurred_at=NOW,
+    )
+    suite = ElementTree.Element("testsuite")
+    case = ElementTree.SubElement(
+        suite,
+        "testcase",
+        classname="tests.demo.test_live",
+        name="test_live",
+    )
+    properties = ElementTree.SubElement(case, "properties")
+    for name, value in item.user_properties:
+        ElementTree.SubElement(properties, "property", name=name, value=value)
+    ElementTree.ElementTree(suite).write(path, encoding="unicode")
 
 
 def _contract() -> PackageContract:
@@ -117,10 +179,30 @@ def _inputs() -> dict[str, object]:
                 }
             ],
         },
-        "workflow": {"jobs": {"finish": {"needs": ["demo"]}}},
+        "workflow": {
+            "jobs": {
+                "finish": {
+                    "needs": ["demo"],
+                    "steps": [
+                        {
+                            "name": "Check job status",
+                            "run": (
+                                'if [[ "${{ needs.demo.result }}" != "success" ]]; then\n'
+                                "  exit 1\n"
+                                "fi\n"
+                            ),
+                        }
+                    ],
+                }
+            }
+        },
         "rulesets": [
             {
+                "target": "branch",
                 "enforcement": "active",
+                "conditions": {
+                    "ref_name": {"exclude": [], "include": ["~DEFAULT_BRANCH"]}
+                },
                 "rules": [
                     {
                         "type": "required_status_checks",
@@ -141,6 +223,13 @@ def _inputs() -> dict[str, object]:
     }
 
 
+@ac_proof(
+    "package-governance-observation-bundle",
+    ac_ids=["AC-testing.governance.23"],
+    ci_tier="pr_ci",
+    scenario_id="AC-testing.governance.23",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_testing_governance_23_builds_only_from_real_inputs() -> None:
     """AC-testing.governance.23: current independent inputs form one bundle."""
     bundle = build_observation_bundle(**_inputs())
@@ -186,6 +275,19 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
         '<testsuite><testcase classname="tests.demo.test_live" name="test_live"/></testsuite>',
         encoding="utf-8",
     )
+    with pytest.raises(ObservationInputError, match="canonical executed proof"):
+        junit_proof_payload(
+            contracts=[_contract()],
+            open_issue_urls={ISSUE_URL},
+            junit_paths=[junit],
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="https://github.com/example/repo/actions/runs/10",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+        )
+
+    _write_executed_proof_junit(junit)
     payload = junit_proof_payload(
         contracts=[_contract()],
         open_issue_urls={ISSUE_URL},
@@ -193,6 +295,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
         target_sha=TARGET_SHA,
         observed_at=NOW,
         evidence_url="https://github.com/example/repo/actions/runs/10",
+        repository=REPOSITORY,
+        execution_id=EXECUTION_ID,
     )
     assert payload["source"] == "junit-executed-proof"
     assert payload["proofs"][0]["result"] == "passed"
@@ -201,7 +305,7 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
         '<testsuite><testcase classname="tests.demo.test_live" name="other"/></testsuite>',
         encoding="utf-8",
     )
-    with pytest.raises(ObservationInputError, match="JUnit proof is missing"):
+    with pytest.raises(ObservationInputError, match="canonical executed proof is missing"):
         junit_proof_payload(
             contracts=[_contract()],
             open_issue_urls={ISSUE_URL},
@@ -209,35 +313,22 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
         )
 
-    junit.write_text(
-        '<testsuite><testcase classname="tests.demo.test_live" name="test_live"><failure/></testcase></testsuite>',
-        encoding="utf-8",
-    )
-    failed = junit_proof_payload(
-        contracts=[_contract()],
-        open_issue_urls={ISSUE_URL},
-        junit_paths=[junit],
-        target_sha=TARGET_SHA,
-        observed_at=NOW,
-        evidence_url="evidence",
-    )
-    assert failed["proofs"][0]["result"] == "failed"
-
-    junit.write_text(
-        '<testsuite><testcase classname="tests.demo.test_live" name="test_live"><skipped/></testcase></testsuite>',
-        encoding="utf-8",
-    )
-    skipped = junit_proof_payload(
-        contracts=[_contract()],
-        open_issue_urls={ISSUE_URL},
-        junit_paths=[junit],
-        target_sha=TARGET_SHA,
-        observed_at=NOW,
-        evidence_url="evidence",
-    )
-    assert skipped["proofs"][0]["result"] == "failed"
+    _write_executed_proof_junit(junit, target_sha="b" * 40)
+    with pytest.raises(ObservationInputError, match="canonical executed proof"):
+        junit_proof_payload(
+            contracts=[_contract()],
+            open_issue_urls={ISSUE_URL},
+            junit_paths=[junit],
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+        )
 
     assert junit_proof_payload(
         contracts=[_contract()],
@@ -246,6 +337,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
         target_sha=TARGET_SHA,
         observed_at=NOW,
         evidence_url="evidence",
+        repository=REPOSITORY,
+        execution_id=EXECUTION_ID,
     )["proofs"] == []
 
     junit.write_text("not xml", encoding="utf-8")
@@ -257,6 +350,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
         )
 
     contract = _contract()
@@ -270,10 +365,7 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
             ]
         }
     )
-    junit.write_text(
-        '<testsuite><testcase classname="tests.demo.test_live" name="test_live"/></testsuite>',
-        encoding="utf-8",
-    )
+    _write_executed_proof_junit(junit)
     with pytest.raises(ObservationInputError, match="strength-specific"):
         junit_proof_payload(
             contracts=[strong_contract],
@@ -282,9 +374,18 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(tmp_path: Path
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
         )
 
 
+@ac_proof(
+    "package-governance-live-enforcement",
+    ac_ids=["AC-testing.governance.24"],
+    ci_tier="pr_ci",
+    scenario_id="AC-testing.governance.24",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts() -> None:
     """AC-testing.governance.24: live enforcement is derived, never supplied."""
     inputs = _inputs()
@@ -294,6 +395,37 @@ def test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts() -> N
     inputs["rulesets"][0]["enforcement"] = "disabled"
     with pytest.raises(ObservationInputError, match="required status contexts"):
         build_observation_bundle(**inputs)
+
+    wrong_ref = _inputs()
+    wrong_ref["rulesets"][0]["target"] = "tag"
+    with pytest.raises(ObservationInputError, match="required status contexts"):
+        build_observation_bundle(**wrong_ref)
+
+    ignored = _inputs()
+    ignored["workflow"]["jobs"]["finish"]["steps"] = [
+        {"run": 'echo "${{ needs.demo.result }}"'}
+    ]
+    with pytest.raises(ObservationInputError, match="does not block"):
+        build_observation_bundle(**ignored)
+
+
+def test_control_detector_never_synthesizes_green_for_missing_raw_facts() -> None:
+    """AC-testing.governance.23: missing control inputs remain explicit findings."""
+    contract = _contract().model_copy(update={"name": "testing"})
+    payload = observation_adapter._control_detector_payload(
+        contracts=[contract],
+        open_issue_urls={ISSUE_URL},
+        existing_payloads=[],
+        proof_payloads=[],
+        target_sha=TARGET_SHA,
+        gate_inventory=_inputs()["gate_inventory"],
+        workflow=_inputs()["workflow"],
+        rulesets=_inputs()["rulesets"],
+        issue_payloads=[],
+    )
+
+    assert payload["detectors"][0]["current"] > 0
+    assert payload["detectors"][0]["findings"]
 
 
 def test_github_collector_retains_only_current_redacted_facts(
@@ -305,8 +437,12 @@ def test_github_collector_retains_only_current_redacted_facts(
         "repos/example/repo/rulesets/7": {
             "id": 7,
             "name": "main",
+            "target": "branch",
             "enforcement": "active",
             "updated_at": NOW.isoformat(),
+            "conditions": {
+                "ref_name": {"exclude": [], "include": ["~DEFAULT_BRANCH"]}
+            },
             "rules": [],
             "bypass_actors": [{"actor_id": 1}],
         },
@@ -335,6 +471,8 @@ def test_github_collector_retains_only_current_redacted_facts(
         "id",
         "name",
         "enforcement",
+        "target",
+        "conditions",
         "updated_at",
         "rules",
     }
@@ -501,6 +639,13 @@ def test_payload_reader_rejects_invalid_or_non_object_json(tmp_path: Path) -> No
         build_observation_bundle(**inputs)
 
 
+@ac_proof(
+    "package-governance-existing-finish-policy",
+    ac_ids=["AC-testing.governance.25"],
+    ci_tier="pr_ci",
+    scenario_id="AC-testing.governance.25",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_testing_governance_25_existing_finish_path_blocks_false_green() -> None:
     """AC-testing.governance.25: the existing finish path consumes the exact bundle."""
     workflow = yaml.safe_load(
@@ -528,10 +673,7 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
     """AC-testing.governance.25: the workflow command has an executable adapter."""
     junit_root = tmp_path / "junit"
     junit_root.mkdir()
-    (junit_root / "tooling.xml").write_text(
-        '<testsuite><testcase classname="tests.demo.test_live" name="test_live"/></testsuite>',
-        encoding="utf-8",
-    )
+    _write_executed_proof_junit(junit_root / "tooling.xml")
     inventory = tmp_path / "inventory.yaml"
     inventory.write_text(
         yaml.safe_dump(_inputs()["gate_inventory"]), encoding="utf-8"
@@ -557,6 +699,8 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
         "collect_github_snapshot",
         lambda **_kwargs: github,
     )
+    monkeypatch.setenv("GITHUB_RUN_ID", "10")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
     output = tmp_path / "bundle.json"
     raw = tmp_path / "github.json"
 
