@@ -666,6 +666,17 @@ def test_AC_testing_governance_25_existing_finish_path_blocks_false_green() -> N
     required_arguments = ("--observations", "--expected-target-sha", "${{ github.sha }}")
     assert all(command.count(argument) >= 1 for argument in required_arguments)
 
+    tooling_conftest = (
+        Path(__file__).parents[2] / "tests/tooling/conftest.py"
+    ).read_text(encoding="utf-8")
+    assert 'pytest_plugins = ("common.testing.executed_proof_plugin",)' in tooling_conftest
+    tooling_command = next(
+        str(step.get("run", ""))
+        for step in jobs["tooling-coverage"]["steps"]
+        if "pytest tests/tooling/" in str(step.get("run", ""))
+    )
+    assert "-p common.testing.executed_proof_plugin" not in tooling_command
+
 
 def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
