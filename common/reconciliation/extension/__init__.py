@@ -1,0 +1,1 @@
+"""Impure reconciliation governance adapters."""

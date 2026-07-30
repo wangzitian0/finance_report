@@ -67,6 +67,14 @@ this roadmap yet. `tools/check_package_contract.py` validates the
 implementation against this contract (interface == `__all__`, every test
 reference resolves, no upward import edge).
 
+The `economic-disposition-atomicity` initiative is measured by one package-owned
+provider, `extension/governance_detector.py`. It reads the live matching,
+repository, schema, currency, transfer-pair, and typed-ledger boundaries and
+emits raw findings only. Executed proof and enforcement facts remain independent
+CI inputs; detector success cannot manufacture either one. Database constraints,
+two-session races, retry/savepoint behavior, and Decimal oracles execute in the
+CI lane declared by each guarantee.
+
 ## Scoring, thresholds, and the state machine
 
 *(Internalized from `common/reconciliation/reconciliation.md`, migration closeout wave 3,

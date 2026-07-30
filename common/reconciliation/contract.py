@@ -2354,7 +2354,7 @@ CONTRACT = PackageContract(
         GovernanceInitiative(
             id="economic-disposition-atomicity",
             title="Economic disposition atomicity and persistent transfer state",
-            issue="https://github.com/wangzitian0/finance_report/issues/1969",
+            issue="https://github.com/wangzitian0/finance_report/issues/1994",
             depends_on=["meta/governance-control-plane"],
             guarantees=[
                 GovernanceGuarantee(
@@ -2418,10 +2418,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.6"],
                     detector="non-idempotent-disposition-retries",
                     target="0 cardinality drift",
-                    lock="ci.backend",
+                    lock="ci.backend_integration",
                     proof="economic-disposition-idempotency",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
+                    enforcing_gate="ci.backend_integration",
                 ),
                 GovernanceGuarantee(
                     id="typed-ledger-boundary",
@@ -2429,10 +2429,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.7"],
                     detector="reconciliation-owned-ledger-writes",
                     target="0 alternate posting paths",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="economic-disposition-ledger-boundary",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
                 GovernanceGuarantee(
                     id="exact-governance-detail",
@@ -2440,10 +2440,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.8"],
                     detector="economic-disposition-governance-join-gaps",
                     target="0 missing detail facts",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="economic-disposition-governance-detail",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
             ],
         )
