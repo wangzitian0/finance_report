@@ -686,6 +686,20 @@ GitHub collectors serialize neutral observations into this projection; stale or
 partial snapshots must be treated as missing enforcement rather than cached
 success.
 
+The blocking adapter consumes an explicit target SHA. Package detector artifacts
+may contain detector results only; they cannot manufacture proof or enforcement.
+One package-owned control-integrity detector reads contract projection, issue,
+gate-inventory, workflow, and live-ruleset facts only; proof never certifies its
+own detector. Independent proof comes from the declared AC testcase's canonical
+executed-proof record, which is archived in the bundle and decoded again at the
+consumer boundary. Workflow reachability is derived from `finish.needs`, while
+blocking is separately proven only from a canonical unconditional nonzero exit
+branch; both reconcile exactly with the checked-in gate inventory and authenticated
+live ruleset. Open issue work must be fully enforced. Closed initiatives remain
+visible as historical, possibly unverified detail; a closed issue with an open AC
+is contradictory and blocks. Generating JSON or Markdown never counts as a passing
+policy result.
+
 ## Follow-ups (out of scope here)
 
 - Migrating the remaining EPIC-table ACs into package `roadmap`s (the ratchet

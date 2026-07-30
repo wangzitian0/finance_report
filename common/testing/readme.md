@@ -19,7 +19,10 @@ path→stage classification (whose generated view is
 (marker expression, explicit node sets, parallelism). Workflows consume
 selection at runtime via `tools/test_selection.py --stage <stage> --shell` —
 they never restate test lists (the `preview.yml` whitelist retired by #1547
-is the canonical counterexample).
+is the canonical counterexample). Every JUnit-emitting workflow pytest command,
+including the tooling evidence producer, is registered in
+`WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
+unregistered live invocation or a registration with no live command.
 
 ### Package declaration protocol
 
@@ -92,6 +95,27 @@ unrelated test name, constant callbacks, or a happy-path call.
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires
 `data/fat-tool-baseline.json` to shrink whenever historical debt is re-homed.
+
+### Package-governance observation adapter
+
+`package_governance_observations.py` is the single testing-owned execution
+adapter for the meta governance projection. On heavy CI it joins package detector
+artifacts with canonical executed-proof `TraceRecord`s emitted by the declared AC
+tests, collects a minimized current GitHub issue/ruleset snapshot through
+authenticated `gh`, and derives workflow enforcement from the live `finish`
+context. A passing JUnit testcase is not proof by itself: proof id, assertion
+version, repository, run attempt, and exact target SHA must all reconcile.
+Likewise, `finish.needs` proves only reachability; enforcement also requires a
+canonical unconditional nonzero failure branch for the depended-on job; comments,
+nested branches, and masked exits do not count. One control-integrity detector
+derives meta/testing findings only from contract projection and raw issue,
+inventory, workflow, and ruleset facts, never from proof. Detector artifacts are
+forbidden from containing proof; each proof observation embeds its canonical
+`TraceRecord`, which is decoded and reconciled again when the serialized bundle is
+consumed. Mixed target SHAs, parameterized pass/skip results, stale bundles,
+missing canonical proof, inactive/unknown rulesets, and inventory/workflow drift
+fail closed. The existing `ac-traceability` job consumes the bundle and remains an
+input to the one required `finish` context.
 The staging AI-OCR implementation now lives in
 `staging_ai_ocr_gate_contract.py`, with replay-count data in
 `data/staging-ai-ocr-replay-counters.json`; its workflow-facing tools file is a

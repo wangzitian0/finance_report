@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -300,10 +301,11 @@ def test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects(
     )
 
     assert exit_code == 1
-    payload = observations.read_text(encoding="utf-8")
-    assert '"guarantee_id": "meta/one-boundary-graph"' in payload
-    assert '"guarantee_id": "meta/enforced-compatibility"' in payload
-    assert '"strength": "exact"' in payload
+    payload = json.loads(observations.read_text(encoding="utf-8"))
+    assert payload["source"] == "package-detector"
+    assert set(payload) == {"source", "target_sha", "observed_at", "detectors"}
+    guarantee_ids = {item["guarantee_id"] for item in payload["detectors"]}
+    assert {"meta/one-boundary-graph", "meta/enforced-compatibility"} <= guarantee_ids
 
 
 def test_AC_meta_public_boundary_5_untyped_and_unknown_consumers_block() -> None:

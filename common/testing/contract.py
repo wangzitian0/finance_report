@@ -45,6 +45,8 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    GovernanceGuarantee,
+    GovernanceInitiative,
     Invariant,
     Kind,
     PackageContract,
@@ -2283,9 +2285,10 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.1",
             statement=(
                 "Full CI starts deterministic test and image jobs after change "
-                "classification while finish aggregates lint, AC traceability, tests, "
-                "image validation, coverage, and skipped-job semantics (Was EPIC-008 "
-                "AC8.13.25)."
+                "classification, joins their execution evidence in AC traceability only "
+                "after its required producers finish, and uses finish to aggregate lint, "
+                "AC traceability, tests, image validation, coverage, and skipped-job "
+                "semantics (Was EPIC-008 AC8.13.25)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
@@ -2338,8 +2341,10 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.ci-structure.5",
             statement=(
-                "CI fast feedback jobs start after change classification without "
-                "waiting for behavior-only backend gates (Was EPIC-008 AC8.13.86)."
+                "CI fast-feedback producer jobs start after change classification "
+                "without waiting for behavior-only backend gates, while the package "
+                "governance traceability consumer waits for its declared evidence "
+                "producers (Was EPIC-008 AC8.13.86)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
@@ -4144,6 +4149,105 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.governance.23",
+            statement=(
+                "One testing-owned adapter assembles package-governance observations "
+                "for an exact target SHA from package detector outputs, canonical executed-"
+                "proof TraceRecords that survive serialization and canonical re-validation, "
+                "current issue state, and enforcement inputs; missing, mixed-SHA, "
+                "self-certified, duplicate, or contradictory inputs fail closed."
+            ),
+            test=(
+                "tests/tooling/test_package_governance_observations.py"
+                "::test_AC_testing_governance_23_builds_only_from_real_inputs"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-testing.governance.24",
+            statement=(
+                "Authenticated GitHub issue and ruleset snapshots retain observed source "
+                "coordinates and freshness, while canonical unconditional nonzero finish "
+                "failure branches and live required contexts are derived from raw facts "
+                "instead of supplied truth booleans or dependency reachability alone."
+            ),
+            test=(
+                "tests/tooling/test_package_governance_observations.py"
+                "::test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-testing.governance.25",
+            statement=(
+                "The existing package-governance command consumes an explicit current-SHA "
+                "bundle, archives its JSON and Markdown projection, and fails the existing "
+                "finish path when any open initiative guarantee is not enforced."
+            ),
+            test=(
+                "tests/tooling/test_package_governance_observations.py"
+                "::test_AC_testing_governance_25_existing_finish_path_blocks_false_green"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+    ],
+    governance=[
+        GovernanceInitiative(
+            id="package-governance-observation-adapter",
+            title="Package governance execution observations",
+            issue="https://github.com/wangzitian0/finance_report/issues/1983",
+            depends_on=["meta/governance-control-plane"],
+            guarantees=[
+                GovernanceGuarantee(
+                    id="real-observation-bundle",
+                    statement=(
+                        "Governance observations come from current execution and live "
+                        "enforcement inputs rather than report defaults or hard-coded truth."
+                    ),
+                    affected_acs=["AC-testing.governance.23"],
+                    detector="package-governance-control-integrity",
+                    target="zero missing or authored observation inputs",
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-observation-bundle",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="live-github-enforcement",
+                    statement=(
+                        "Workflow and live GitHub enforcement are derived from fresh raw "
+                        "observations rather than supplied conclusion booleans."
+                    ),
+                    affected_acs=["AC-testing.governance.24"],
+                    detector="package-governance-control-integrity",
+                    target="zero stale, missing, or contradictory live enforcement inputs",
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-live-enforcement",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="blocking-existing-finish",
+                    statement=(
+                        "Unproven open governance work blocks the existing finish authority."
+                    ),
+                    affected_acs=["AC-testing.governance.25"],
+                    detector="package-governance-control-integrity",
+                    target="zero false-green package governance paths",
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-existing-finish-policy",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+            ],
+        )
     ],
     concepts=[
         ConceptRecord(

@@ -274,7 +274,7 @@ gates:
     required_by_finish: true
     blocks_workflow: true
     inputs: [tooling_tests, common_sources, tools_sources]
-    outputs: [common_lcov, tools_lcov]
+    outputs: [common_lcov, tools_lcov, tooling_junit]
     artifacts: [coverage-tooling]
     failure_semantics: Tooling/common contract tests failed or could not emit common/tools coverage inputs.
     action: keep
@@ -315,10 +315,10 @@ gates:
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
-    inputs: [epic_docs, ac_registry, e2e_epic_map, reconciliation_audit]
-    outputs: [ac_traceability_audit, e2e_epic_traceability, reconciliation_audit]
+    inputs: [epic_docs, ac_registry, e2e_epic_map, reconciliation_audit, package_detector_observations, backend_junit, backend_integration_junit, backend_tier1_e2e_junit, frontend_junit, tooling_junit, github_issue_snapshot, github_ruleset_snapshot]
+    outputs: [ac_traceability_audit, e2e_epic_traceability, reconciliation_audit, package_governance_decision]
     artifacts: [ac-test-traceability-audit]
-    failure_semantics: Registry generation, E2E EPIC ownership, traceability audit materialization, or reconciliation audit failed.
+    failure_semantics: Registry/E2E/reconciliation integrity failed, or an open package initiative lacks a complete current-SHA proof and live finish enforcement edge.
     action: keep
   - id: ci.ac_behavioral_ratchet
     stage: github_ci.merge_authority

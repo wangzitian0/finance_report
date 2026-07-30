@@ -18,6 +18,10 @@ from common.meta.base.governance_control import (
 from common.meta.data.governance_control import governance_control_index
 from common.meta.extension.check_package_contract import discover_packages
 from common.meta.extension.governance_control_report import render_governance_markdown
+from common.testing.package_governance_observations import (
+    ObservationInputError,
+    validate_observation_bundle_payload,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,10 +35,15 @@ def _head_sha(repo_root: Path) -> str:
     ).stdout.strip()
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--observations", type=Path)
+    parser.add_argument("--expected-target-sha")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--markdown-out", type=Path)
     args = parser.parse_args(argv)
@@ -44,6 +53,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.observations
         else {}
     )
+    expected_target_sha = args.expected_target_sha or _head_sha(args.repo_root)
+    payload_target_sha = str(payload.get("target_sha") or expected_target_sha)
+    if payload_target_sha != expected_target_sha:
+        parser.error("observation bundle target SHA does not match expected target SHA")
+    if args.observations:
+        try:
+            validate_observation_bundle_payload(
+                payload,
+                expected_target_sha=expected_target_sha,
+                now=_now(),
+            )
+        except ObservationInputError as exc:
+            parser.error(str(exc))
     observed_at = datetime.fromisoformat(
         str(payload.get("observed_at") or datetime.now(UTC).isoformat()).replace(
             "Z", "+00:00"
@@ -51,7 +73,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     report = governance_control_index(
         [package.contract for package in discover_packages(args.repo_root.resolve())],
-        target_sha=str(payload.get("target_sha") or _head_sha(args.repo_root)),
+        target_sha=payload_target_sha,
         detector_observations=[
             DetectorObservation.model_validate(item)
             for item in payload.get("detectors", [])
@@ -76,7 +98,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.markdown_out.write_text(rendered_markdown, encoding="utf-8")
     if not args.json_out and not args.markdown_out:
         print(rendered_markdown, end="")
-    return 0
+    initiatives = report["initiatives"].values()
+    policy_failed = any(
+        initiative["issue_state"] is None
+        or initiative["state"] == "regressed"
+        or (
+            initiative["issue_state"] == "OPEN"
+            and initiative["state"] != "enforced"
+        )
+        or "closed-issue-has-open-acceptance-criteria"
+        in {finding["code"] for finding in initiative["findings"]}
+        for initiative in initiatives
+    )
+    return 1 if policy_failed else 0
 
 
 __all__ = ["main"]

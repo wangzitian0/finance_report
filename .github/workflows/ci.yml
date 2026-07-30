@@ -1253,6 +1253,7 @@ jobs:
             --cov=apps/backend/src \
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
+            --junit-xml=coverage/tooling-junit.xml \
             -n auto -x -q
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
           COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
@@ -1280,6 +1281,7 @@ jobs:
             coverage/common.lcov
             coverage/tools.lcov
             coverage/backend-tooling.lcov
+            coverage/tooling-junit.xml
           retention-days: 14
 
   unified-coverage:
@@ -1577,8 +1579,14 @@ jobs:
 
   ac-traceability:
     name: AC Traceability Check
+    needs: [changes, lint, tooling-coverage, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: read
     steps:
       - uses: actions/checkout@v7
 
@@ -1593,6 +1601,47 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download DDD detector observations
+        if: needs.changes.outputs.pr_required == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ddd-governance-observations
+          path: governance-inputs/ddd
+
+      - name: Download backend JUnit evidence
+        if: needs.changes.outputs.pr_required == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: backend-*test-context
+          path: governance-inputs/junit/backend
+
+      - name: Download frontend JUnit evidence
+        if: needs.changes.outputs.pr_required == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-vitest-test-context
+          path: governance-inputs/junit/frontend
+
+      - name: Download tooling JUnit evidence
+        if: needs.changes.outputs.pr_required == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-tooling
+          path: governance-inputs/junit/tooling
+
+      - name: Build current package governance observations
+        if: needs.changes.outputs.pr_required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run --with pyyaml --with pydantic python tools/build_package_governance_observations.py \
+            --repository "${{ github.repository }}" \
+            --target-sha "${{ github.sha }}" \
+            --junit-root governance-inputs/junit \
+            --detector-payload governance-inputs/ddd/ddd-governance-observations.json \
+            --output "$RUNNER_TEMP/PACKAGE-GOVERNANCE-OBSERVATIONS.json" \
+            --raw-github-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE-GITHUB.json"
 
       - name: AC Traceability Check
         run: |
@@ -1610,10 +1659,16 @@ jobs:
           e2e_status=$?
           uv run --with pyyaml python tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"
           audit_status=$?
-          uv run --with pyyaml --with pydantic python tools/report_package_governance.py \
-            --json-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE.json" \
-            --markdown-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE.md"
-          governance_projection_status=$?
+          if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then
+            uv run --with pyyaml --with pydantic python tools/report_package_governance.py \
+              --observations "$RUNNER_TEMP/PACKAGE-GOVERNANCE-OBSERVATIONS.json" \
+              --expected-target-sha "${{ github.sha }}" \
+              --json-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE.json" \
+              --markdown-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE.md"
+            governance_projection_status=$?
+          else
+            governance_projection_status=0
+          fi
           mkdir -p "$RUNNER_TEMP/reconciliation-audit"
           (
             cd apps/backend
@@ -1660,6 +1715,8 @@ jobs:
             ${{ runner.temp }}/AC-TRACEABILITY-CONTEXT.md
             ${{ runner.temp }}/PACKAGE-GOVERNANCE.json
             ${{ runner.temp }}/PACKAGE-GOVERNANCE.md
+            ${{ runner.temp }}/PACKAGE-GOVERNANCE-OBSERVATIONS.json
+            ${{ runner.temp }}/PACKAGE-GOVERNANCE-GITHUB.json
             ${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json
             ${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md
           retention-days: 14

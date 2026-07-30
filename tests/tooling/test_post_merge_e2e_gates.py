@@ -3037,6 +3037,7 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
 def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
     """AC-testing.ci-structure.1: AC8.13.25: Full CI starts tests early while finish aggregates every gate."""
     workflow = read(".github/workflows/ci.yml")
+    workflow_data = yaml.safe_load(workflow)
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     backend_block = workflow.split("  backend:", 1)[1].split(
@@ -3052,9 +3053,6 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     tooling_block = workflow.split("  tooling-coverage:", 1)[1].split(
         "  unified-coverage:", 1
     )[0]
-    traceability_block = workflow.split("  ac-traceability:", 1)[1].split(
-        "  finish:", 1
-    )[0]
     finish_block = workflow.split("  finish:", 1)[1]
 
     for block in (backend_block, frontend_block, image_block, tooling_block):
@@ -3062,15 +3060,24 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
         assert "lint" not in block.split("steps:", 1)[0]
         assert "ac-traceability" not in block.split("steps:", 1)[0]
 
-    assert "needs: [lint]" not in traceability_block
-    assert "needs:" not in traceability_block.split("steps:", 1)[0]
+    traceability_needs = set(workflow_data["jobs"]["ac-traceability"]["needs"])
+    assert traceability_needs == {
+        "changes",
+        "lint",
+        "tooling-coverage",
+        "backend",
+        "backend-integration",
+        "backend-e2e-tier1",
+        "frontend-vitest",
+    }
+    assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
     assert (
         "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
         "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
         "verify-sha-image-published, lint, tooling-coverage, "
         "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
     )
-    assert "Standalone lint and AC traceability start immediately" in ci_cd
+    assert "late evidence consumer" in ci_cd
     assert (
         "Deterministic test and image jobs start after change classification" in ci_cd
     )
@@ -3080,6 +3087,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     """AC-testing.ci-structure.5: AC8.13.86: CI fast feedback jobs preserve actual workflow dependency semantics."""
     workflow = read(".github/workflows/ci.yml")
+    workflow_data = yaml.safe_load(workflow)
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     lint_block = workflow.split("  lint:", 1)[1].split("  backend:", 1)[0]
@@ -3092,10 +3100,6 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     image_block = workflow.split("  container-images:", 1)[1].split(
         "  tooling-coverage:", 1
     )[0]
-    traceability_block = workflow.split("  ac-traceability:", 1)[1].split(
-        "  finish:", 1
-    )[0]
-
     for block in (backend_block, frontend_block, image_block):
         assert "needs: [changes]" in block
         assert "backend-integration" not in block.split("steps:", 1)[0]
@@ -3104,12 +3108,22 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
         assert "ac-traceability" not in block.split("steps:", 1)[0]
 
     assert "needs:" not in lint_block.split("steps:", 1)[0]
-    assert "needs:" not in traceability_block.split("steps:", 1)[0]
-    assert "Standalone gates start immediately" in ci_cd
+    assert set(workflow_data["jobs"]["ac-traceability"]["needs"]) == {
+        "changes",
+        "lint",
+        "tooling-coverage",
+        "backend",
+        "backend-integration",
+        "backend-e2e-tier1",
+        "frontend-vitest",
+    }
+    assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
+    assert "Standalone lint starts immediately" in ci_cd
     assert (
         "Deterministic test and image jobs start after change classification" in ci_cd
     )
     assert "Behavior-only backend gates run in parallel" in ci_cd
+    assert "`ac-traceability` is intentionally a late evidence consumer" in ci_cd
 
 
 def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
