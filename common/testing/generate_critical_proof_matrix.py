@@ -33,6 +33,7 @@ from typing import Any
 import yaml
 
 from common.testing.ac_proof_execution import normalize_proof_execution
+from common.testing.ac_proof import GOVERNANCE_STRENGTHS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -61,6 +62,7 @@ _PROOF_KEY_ORDER = (
     "issue",
     "scenario_id",
     "oracle_kind",
+    "governance_strength",
     "required_observation_kind",
     "file",
     "test",
@@ -168,6 +170,12 @@ def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
             "test": node.name,
             "ac_ids": [str(ac_id) for ac_id in ac_ids],
         }
+        governance_strength = kwargs.get("governance_strength", "exact")
+        if governance_strength not in GOVERNANCE_STRENGTHS:
+            raise GeneratorError(
+                f"{where}: unknown governance strength {governance_strength!r}"
+            )
+        fields["governance_strength"] = governance_strength
         for optional in ("stage", "task_category"):
             value = kwargs.get(optional)
             if value:
@@ -210,6 +218,11 @@ def collect_proofs(repo_root: Path) -> list[CollectedProof]:
         for path in sorted(root_path.rglob("*.py")):
             proofs.extend(_collect_from_file(path, repo_root))
     return proofs
+
+
+def collect_proofs_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
+    """Collect declarations from one known test file outside the matrix scan roots."""
+    return _collect_from_file(path, repo_root)
 
 
 def _ordered_proof(fields: dict[str, Any]) -> dict[str, Any]:

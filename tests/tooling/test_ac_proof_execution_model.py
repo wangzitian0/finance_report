@@ -39,6 +39,20 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
     runtime_proof = getattr(legacy_test, "__ac_proof__")
     assert runtime_proof.stage == "github_ci.merge_authority"
     assert runtime_proof.task_category == "critical_behavioral"
+    assert runtime_proof.governance_strength == "exact"
+
+    @ac_proof(
+        "concurrency-proof",
+        ac_ids=["AC8.13.150"],
+        ci_tier="pr_ci",
+        governance_strength="concurrency",
+    )
+    def concurrency_test() -> None:
+        """AC8.13.150: semantic strength is proof-edge metadata."""
+
+    assert (
+        getattr(concurrency_test, "__ac_proof__").governance_strength == "concurrency"
+    )
 
     assert normalize_proof_execution({"ci_tier": "manual", "scope": "manual_gate"}) == (
         "manual.adjudication",
@@ -66,6 +80,7 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
                 "    stage='staging.provider_regression',",
                 "    task_category='provider_gate',",
                 "    ci_tier='post_merge_environment',",
+                "    governance_strength='consumer-compile',",
                 ")",
                 "def test_AC8_13_150_explicit_stage_metadata():",
                 '    """AC8.13.150: explicit stage metadata is static."""',
@@ -79,6 +94,7 @@ def test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible
     [collected] = matrix.collect_proofs(tmp_path)
     assert collected.fields["stage"] == "staging.provider_regression"
     assert collected.fields["task_category"] == "provider_gate"
+    assert collected.fields["governance_strength"] == "consumer-compile"
 
     [edge] = _proof_edges([collected])
     assert edge.stage == "staging.provider_regression"
@@ -103,4 +119,11 @@ def test_AC8_13_150_ac_proof_execution_model_rejects_unknown_metadata() -> None:
                 "stage": "staging.provider_regression",
                 "task_category": "provider_gat",
             }
+        )
+
+    with pytest.raises(ValueError, match="unknown governance strength"):
+        ac_proof(
+            "invalid-strength",
+            ac_ids=["AC8.13.150"],
+            governance_strength="strong-enough",
         )

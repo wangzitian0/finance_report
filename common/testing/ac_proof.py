@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TypeVar
+from typing import Literal, TypeAlias, TypeVar
 
 from common.testing.ac_proof_execution import normalize_proof_execution
 
@@ -36,6 +36,27 @@ F = TypeVar("F", bound=Callable[..., object])
 # generator does not read this (it scans statically); it exists for runtime
 # introspection and tests.
 PROOF_ATTR = "__ac_proof__"
+
+GovernanceStrength: TypeAlias = Literal[
+    "reference-only",
+    "report-only",
+    "exact",
+    "concurrency",
+    "schema",
+    "consumer-compile",
+    "value-oracle",
+]
+GOVERNANCE_STRENGTHS = frozenset(
+    {
+        "reference-only",
+        "report-only",
+        "exact",
+        "concurrency",
+        "schema",
+        "consumer-compile",
+        "value-oracle",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -59,9 +80,16 @@ class AcProof:
     issue: str = ""
     scenario_id: str = ""
     oracle_kind: str = ""
+    governance_strength: GovernanceStrength = "exact"
     required_observation_kind: str = ""
     required_markers: tuple[str, ...] = ()
     outcomes: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.governance_strength not in GOVERNANCE_STRENGTHS:
+            raise ValueError(
+                f"unknown governance strength {self.governance_strength!r}"
+            )
 
 
 def ac_proof(
@@ -78,6 +106,7 @@ def ac_proof(
     issue: str = "",
     scenario_id: str = "",
     oracle_kind: str = "",
+    governance_strength: GovernanceStrength = "exact",
     required_observation_kind: str = "",
     required_markers: list[str] | tuple[str, ...] = (),
     outcomes: list[str] | tuple[str, ...] = (),
@@ -116,6 +145,7 @@ def ac_proof(
         issue=issue,
         scenario_id=scenario_id,
         oracle_kind=oracle_kind,
+        governance_strength=governance_strength,
         required_observation_kind=required_observation_kind,
         required_markers=tuple(required_markers),
         outcomes=tuple(outcomes),

@@ -32,6 +32,7 @@ from common.testing import check_pr_ci_evidence
 from common.testing.check_pr_ci_evidence import collect_executed_proofs
 from common.testing.executed_proof import (
     ExecutedProofError,
+    executed_proof_assertion_version,
     executed_proof_matches,
     record_executed_proof,
     register_executed_proof_consumer,
@@ -126,6 +127,48 @@ def test_pass_is_bound_to_exact_ci_coordinates() -> None:
         commit_sha=COMMIT_SHA,
         execution_id=EXECUTION_ID,
     )
+
+
+def test_governance_strength_is_bound_to_trace_without_weakening_authority() -> None:
+    @ac_proof(
+        "strength-bound-proof",
+        ac_ids=["AC-testing.capability-proof.1"],
+        ci_tier="pr_ci",
+        scenario_id="strength-scenario",
+        oracle_kind="database_two_session",
+        governance_strength="concurrency",
+    )
+    def strength_proof() -> None:
+        pass
+
+    record = record_executed_proof(
+        _Item(obj=strength_proof),
+        _Report(),
+        environ=CI_ENV,
+        occurred_at=OCCURRED_AT,
+    )
+
+    assert record is not None
+    expected = executed_proof_assertion_version(
+        proof_id="strength-bound-proof",
+        scenario_id="strength-scenario",
+        oracle_kind="database_two_session",
+        ac_ids=["AC-testing.capability-proof.1"],
+        stage="github_ci.merge_authority",
+        task_category="critical_behavioral",
+        governance_strength="concurrency",
+    )
+    default_exact = executed_proof_assertion_version(
+        proof_id="strength-bound-proof",
+        scenario_id="strength-scenario",
+        oracle_kind="database_two_session",
+        ac_ids=["AC-testing.capability-proof.1"],
+        stage="github_ci.merge_authority",
+        task_category="critical_behavioral",
+    )
+    assert record.assertion.version == expected
+    assert expected != default_exact
+    assert record.authority.proof_kind == "exact"
 
 
 def test_pytest_hook_records_the_resolved_report(

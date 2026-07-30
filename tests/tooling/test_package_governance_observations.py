@@ -24,6 +24,7 @@ from common.testing.package_governance_observations import (
     ObservationInputError,
     build_observation_bundle,
     collect_github_snapshot,
+    discover_package_detector_payloads,
     junit_proof_payload,
     validate_observation_bundle_payload,
 )
@@ -40,6 +41,8 @@ def _executed_proof_record(
     proof_id: str = "demo-proof",
     scenario_id: str = "AC-demo.governance.1",
     target_sha: str = TARGET_SHA,
+    governance_strength: str = "exact",
+    oracle_kind: str = "deterministic_contract",
 ):
     def proof_test() -> None:
         pass
@@ -55,7 +58,8 @@ def _executed_proof_record(
             scope="behavioral",
             ci_tier="pr_ci",
             scenario_id=scenario_id,
-            oracle_kind="deterministic_contract",
+            oracle_kind=oracle_kind,
+            governance_strength=governance_strength,
         ),
     )
     item = SimpleNamespace(
@@ -87,11 +91,15 @@ def _write_executed_proof_junit(
     proof_id: str = "demo-proof",
     scenario_id: str = "AC-demo.governance.1",
     target_sha: str = TARGET_SHA,
+    governance_strength: str = "exact",
+    oracle_kind: str = "deterministic_contract",
 ) -> None:
     _record, user_properties = _executed_proof_record(
         proof_id=proof_id,
         scenario_id=scenario_id,
         target_sha=target_sha,
+        governance_strength=governance_strength,
+        oracle_kind=oracle_kind,
     )
     suite = ElementTree.Element("testsuite")
     case = ElementTree.SubElement(
@@ -106,7 +114,7 @@ def _write_executed_proof_junit(
     ElementTree.ElementTree(suite).write(path, encoding="unicode")
 
 
-def _contract() -> PackageContract:
+def _contract(*, required_strength: str = "exact") -> PackageContract:
     ac = ACRecord(
         id="AC-demo.governance.1",
         statement="The live observation is exact.",
@@ -138,13 +146,28 @@ def _contract() -> PackageContract:
                         target="zero findings",
                         lock="ci.demo",
                         proof="demo-proof",
-                        required_proof_strength="exact",
+                        required_proof_strength=required_strength,
                         enforcing_gate="ci.demo",
                     )
                 ],
             )
         ],
     )
+
+
+def _proof_profiles(
+    *, strength: str = "exact", oracle_kind: str = "deterministic_contract"
+) -> dict[str, dict[str, object]]:
+    return {
+        "demo/real-input": {
+            "ac_ids": ["AC-demo.governance.1"],
+            "oracle_kind": oracle_kind,
+            "scenario_id": "AC-demo.governance.1",
+            "stage": "github_ci.merge_authority",
+            "task_category": "critical_behavioral",
+            "governance_strength": strength,
+        }
+    }
 
 
 def _inputs() -> dict[str, object]:
@@ -182,6 +205,10 @@ def _inputs() -> dict[str, object]:
                         "evidence_url": "https://github.com/example/repo/actions/runs/10",
                         "gate_id": "ci.demo",
                         "scenario_id": "AC-demo.governance.1",
+                        "ac_ids": ["AC-demo.governance.1"],
+                        "oracle_kind": "deterministic_contract",
+                        "stage": "github_ci.merge_authority",
+                        "task_category": "critical_behavioral",
                         "repository": REPOSITORY,
                         "execution_id": EXECUTION_ID,
                         "assertion_version": record.assertion.version,
@@ -302,8 +329,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     with pytest.raises(ObservationInputError, match="canonical executed proof"):
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="https://github.com/example/repo/actions/runs/10",
@@ -314,8 +341,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     _write_executed_proof_junit(junit)
     payload = junit_proof_payload(
         contracts=[_contract()],
-        open_issue_urls={ISSUE_URL},
-        junit_paths=[junit],
+        issue_states={ISSUE_URL: "open"},
+        junit_lanes={"ci.demo": [junit]},
         target_sha=TARGET_SHA,
         observed_at=NOW,
         evidence_url="https://github.com/example/repo/actions/runs/10",
@@ -334,8 +361,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     ):
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
@@ -347,8 +374,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     with pytest.raises(ObservationInputError, match="canonical executed proof"):
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
@@ -359,8 +386,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     assert (
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls=set(),
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "closed"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
@@ -374,8 +401,8 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
     with pytest.raises(ObservationInputError, match="invalid JUnit"):
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
@@ -397,11 +424,11 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
         }
     )
     _write_executed_proof_junit(junit)
-    with pytest.raises(ObservationInputError, match="strength-specific"):
+    with pytest.raises(ObservationInputError, match="strength profile"):
         junit_proof_payload(
             contracts=[strong_contract],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
@@ -497,13 +524,187 @@ def test_mixed_parameterized_skip_cannot_reuse_a_passing_trace_record(
     with pytest.raises(ObservationInputError, match="testcase did not pass"):
         junit_proof_payload(
             contracts=[_contract()],
-            open_issue_urls={ISSUE_URL},
-            junit_paths=[junit],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
             target_sha=TARGET_SHA,
             observed_at=NOW,
             evidence_url="evidence",
             repository=REPOSITORY,
             execution_id=EXECUTION_ID,
+        )
+
+
+@ac_proof(
+    "package-governance-detector-discovery",
+    ac_ids=["AC-testing.governance.26"],
+    ci_tier="pr_ci",
+    scenario_id="AC-testing.governance.26",
+    oracle_kind="deterministic_contract",
+)
+def test_AC_testing_governance_26_discovers_only_package_owned_detectors(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.governance.26: package providers expose detector facts only."""
+    provider = tmp_path / "common/demo/extension/governance_detector.py"
+    provider.parent.mkdir(parents=True)
+    provider.write_text(
+        """
+def detect_governance(*, repo_root):
+    assert repo_root.name
+    return [{
+        "guarantee_id": "demo/real-input",
+        "current": 0,
+        "target": 0,
+        "findings": [],
+    }]
+""",
+        encoding="utf-8",
+    )
+
+    payloads = discover_package_detector_payloads(
+        contracts=[_contract()],
+        repo_root=tmp_path,
+        target_sha=TARGET_SHA,
+    )
+
+    assert payloads == [
+        {
+            "source": "package-detector",
+            "target_sha": TARGET_SHA,
+            "detectors": [
+                {
+                    "guarantee_id": "demo/real-input",
+                    "current": 0,
+                    "target": 0,
+                    "findings": [],
+                }
+            ],
+        }
+    ]
+
+    provider.write_text(
+        provider.read_text(encoding="utf-8").replace(
+            "demo/real-input", "reconciliation/foreign"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ObservationInputError, match="owning package"):
+        discover_package_detector_payloads(
+            contracts=[_contract()],
+            repo_root=tmp_path,
+            target_sha=TARGET_SHA,
+        )
+
+
+@ac_proof(
+    "package-governance-historical-proof-refresh",
+    ac_ids=["AC-testing.governance.27"],
+    ci_tier="pr_ci",
+    scenario_id="AC-testing.governance.27",
+    oracle_kind="deterministic_contract",
+)
+def test_AC_testing_governance_27_refreshes_closed_initiative_proof(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.governance.27: closure, strength, and lane stay independent."""
+    proof_file = tmp_path / "tests/demo/test_live.py"
+    proof_file.parent.mkdir(parents=True)
+    proof_file.write_text(
+        """
+from common.testing.ac_proof import ac_proof
+
+@ac_proof(
+    "demo-proof",
+    ac_ids=["AC-demo.governance.1"],
+    ci_tier="pr_ci",
+    scenario_id="AC-demo.governance.1",
+    oracle_kind="database_two_session",
+    governance_strength="concurrency",
+)
+def test_live():
+    pass
+""",
+        encoding="utf-8",
+    )
+    concurrency_profile = observation_adapter._governance_proof_profiles(
+        contracts=[_contract(required_strength="concurrency")],
+        repo_root=tmp_path,
+    )
+    assert concurrency_profile["demo/real-input"]["oracle_kind"] == (
+        "database_two_session"
+    )
+    proof_file.write_text(
+        proof_file.read_text(encoding="utf-8").replace(
+            'governance_strength="concurrency"', 'governance_strength="exact"'
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ObservationInputError, match="profile disagrees"):
+        observation_adapter._governance_proof_profiles(
+            contracts=[_contract(required_strength="concurrency")],
+            repo_root=tmp_path,
+        )
+
+    junit = tmp_path / "proof.xml"
+    _write_executed_proof_junit(
+        junit,
+        governance_strength="concurrency",
+        oracle_kind="database_two_session",
+    )
+    payload = junit_proof_payload(
+        contracts=[_contract(required_strength="concurrency")],
+        issue_states={ISSUE_URL: "closed"},
+        junit_lanes={"ci.demo": [junit]},
+        target_sha=TARGET_SHA,
+        observed_at=NOW,
+        evidence_url="evidence",
+        repository=REPOSITORY,
+        execution_id=EXECUTION_ID,
+        proof_profiles=concurrency_profile,
+    )
+
+    assert payload["proofs"][0]["strength"] == "concurrency"
+    assert payload["proofs"][0]["gate_id"] == "ci.demo"
+
+    assert (
+        junit_proof_payload(
+            contracts=[_contract(required_strength="concurrency")],
+            issue_states={ISSUE_URL: "closed"},
+            junit_lanes={"ci.other": [junit]},
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+            proof_profiles=concurrency_profile,
+        )["proofs"]
+        == []
+    )
+    with pytest.raises(ObservationInputError, match="declared gate lane"):
+        junit_proof_payload(
+            contracts=[_contract(required_strength="concurrency")],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.other": [junit]},
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+            proof_profiles=concurrency_profile,
+        )
+
+    _write_executed_proof_junit(junit, governance_strength="exact")
+    with pytest.raises(ObservationInputError, match="strength profile"):
+        junit_proof_payload(
+            contracts=[_contract(required_strength="concurrency")],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+            proof_profiles=concurrency_profile,
         )
 
 
@@ -667,6 +868,10 @@ def test_bundle_rejects_duplicate_observations(collection: str) -> None:
             "does not match its coordinates",
         ),
         (
+            lambda bundle: bundle["proofs"][0].update(strength="concurrency"),
+            "strength profile",
+        ),
+        (
             lambda bundle: bundle["proofs"][0].update(target_sha="b" * 40),
             "does not match expected",
         ),
@@ -783,7 +988,9 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
     """AC-testing.governance.25: the workflow command has an executable adapter."""
     junit_root = tmp_path / "junit"
     junit_root.mkdir()
-    _write_executed_proof_junit(junit_root / "tooling.xml")
+    tooling_junit = junit_root / "tooling/tooling-junit.xml"
+    tooling_junit.parent.mkdir()
+    _write_executed_proof_junit(tooling_junit)
     inventory = tmp_path / "inventory.yaml"
     inventory.write_text(yaml.safe_dump(_inputs()["gate_inventory"]), encoding="utf-8")
     workflow_path = tmp_path / ".github/workflows/ci.yml"
@@ -804,6 +1011,19 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
         observation_adapter,
         "collect_github_snapshot",
         lambda **_kwargs: github,
+    )
+
+    def demo_junit_lanes(root: Path) -> dict[str, list[Path]]:
+        paths = sorted(root.rglob("*.xml"))
+        if not paths:
+            raise ObservationInputError("no JUnit evidence was supplied")
+        return {"ci.demo": paths}
+
+    monkeypatch.setattr(observation_adapter, "_junit_lanes", demo_junit_lanes)
+    monkeypatch.setattr(
+        observation_adapter,
+        "_governance_proof_profiles",
+        lambda **_kwargs: _proof_profiles(),
     )
     monkeypatch.setenv("GITHUB_RUN_ID", "10")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
@@ -859,3 +1079,39 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
         )
         == 1
     )
+
+
+def test_AC_testing_governance_27_classifies_actual_junit_artifact_lanes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.governance.27: proof lanes come from CI artifact layout."""
+    junit_root = tmp_path / "governance-inputs/junit"
+    paths = {
+        "ci.backend": [
+            junit_root
+            / "backend/backend-shard-1-test-context/test-results/backend-shard-1.xml",
+            junit_root
+            / "backend/backend-shard-5-test-context/test-results/backend-shard-5.xml",
+        ],
+        "ci.backend_integration": [
+            junit_root
+            / "backend/backend-integration-test-context/backend-integration.xml"
+        ],
+        "ci.backend_e2e_tier1": [
+            junit_root / "backend/backend-tier1-e2e-test-context/backend-tier1-e2e.xml"
+        ],
+        "ci.frontend_vitest": [junit_root / "frontend/test-results/vitest-junit.xml"],
+        "ci.tooling_coverage": [junit_root / "tooling/tooling-junit.xml"],
+    }
+    for lane_paths in paths.values():
+        for path in lane_paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("<testsuite />", encoding="utf-8")
+
+    assert observation_adapter._junit_lanes(junit_root) == paths
+
+    unknown = junit_root / "unknown/unowned.xml"
+    unknown.parent.mkdir()
+    unknown.write_text("<testsuite />", encoding="utf-8")
+    with pytest.raises(ObservationInputError, match="JUnit.*lane"):
+        observation_adapter._junit_lanes(junit_root)
