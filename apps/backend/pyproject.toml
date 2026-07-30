@@ -38,11 +38,17 @@ dependencies = [
     # fallback in statement_pipeline.py), so installing the client there is
     # inert, not wasted: it's the same image either way.
     "prefect>=3.7.0",
+    # src/runtime/extension/api/health.py's sdk_environment_tier field —
+    # infra2_sdk.runtime.environment has no external dependencies of its own,
+    # so this needs no extras. A real runtime import (not test/dev-only), so it
+    # belongs in [project.dependencies]: the Docker image builds with
+    # `uv sync --frozen --no-dev`, which would otherwise exclude it entirely
+    # and crash the app on import at container startup.
+    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.5.1/infra2_sdk-0.5.1-py3-none-any.whl",
 ]
 
 [dependency-groups]
 dev = [
-    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v0.5.1/infra2_sdk-0.5.1-py3-none-any.whl",
     "pytest>=8.0.0",
     "moto[s3]>=5.0.0",
     "pytest-asyncio>=0.23.0",
@@ -67,6 +73,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.ruff]
 line-length = 120

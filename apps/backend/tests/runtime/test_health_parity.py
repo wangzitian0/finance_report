@@ -81,6 +81,8 @@ async def test_health_reports_the_sdk_environment_tier_as_a_second_opinion(clien
     fed settings.environment directly (not environment_from_env(), which reads
     os.environ; pydantic-settings' env_file loads ENVIRONMENT from the vault-rendered
     file without ever populating the real process environment)."""
+    import os
+
     from infra2_sdk.runtime.environment import resolve_environment_tier
 
     from src.config import settings
@@ -91,7 +93,17 @@ async def test_health_reports_the_sdk_environment_tier_as_a_second_opinion(clien
 
     assert response.status_code == 200
     body = response.json()
-    expected = resolve_environment_tier(settings.environment, unknown="production")
+    # Must mirror health.py's own github_actions detection exactly: this test's
+    # own CI run has GITHUB_ACTIONS=true, so omitting it here passed locally
+    # (both sides silently defaulted to False) but failed in CI, where health.py
+    # correctly resolves "github_ci" while this line was still computing
+    # "local_test" for the "expected" side — a false mismatch in the test's own
+    # oracle, not a health.py bug. Caught by CI, not local runs.
+    expected = resolve_environment_tier(
+        settings.environment,
+        github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
+        unknown="production",
+    )
     assert body["sdk_environment_tier"] == expected.value
 
 
