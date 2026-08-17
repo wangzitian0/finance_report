@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -65,32 +65,78 @@ export default function UploadPage() {
     null,
   );
   const [deleting, setDeleting] = useState(false);
+  const mountedRef = useRef(false);
+  const requestSequenceRef = useRef(0);
+  const activeRequestRef = useRef<{
+    controller: AbortController;
+    requestId: number;
+  } | null>(null);
 
-  const fetchStatements = useCallback(async () => {
-    try {
-      const data = await apiOperation("list_statements_statements_get");
-      setStatements(data.items.map(normalizeBankStatement));
-      setError(null);
+  const fetchStatements = useCallback(
+    async ({ supersede = false }: { supersede?: boolean } = {}) => {
+      if (!mountedRef.current) return;
 
-      const hasParsing = data.items.some((s) => s.status === "parsing");
-      setPolling(hasParsing);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load statements",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      if (activeRequestRef.current) {
+        if (!supersede) return;
+        activeRequestRef.current.controller.abort();
+      }
+
+      const controller = new AbortController();
+      const requestId = ++requestSequenceRef.current;
+      activeRequestRef.current = { controller, requestId };
+
+      const ownsResult = () =>
+        mountedRef.current &&
+        !controller.signal.aborted &&
+        activeRequestRef.current?.requestId === requestId;
+
+      try {
+        const data = await apiOperation("list_statements_statements_get", {
+          signal: controller.signal,
+        });
+        if (!ownsResult()) return;
+
+        setStatements(data.items.map(normalizeBankStatement));
+        setError(null);
+
+        const hasParsing = data.items.some((s) => s.status === "parsing");
+        setPolling(hasParsing);
+      } catch (err) {
+        if (!ownsResult()) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load statements",
+        );
+      } finally {
+        if (activeRequestRef.current?.requestId === requestId) {
+          activeRequestRef.current = null;
+          if (mountedRef.current) setLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
+  const refreshStatements = useCallback(() => {
+    void fetchStatements({ supersede: true });
+  }, [fetchStatements]);
 
   useEffect(() => {
-    fetchStatements();
+    mountedRef.current = true;
+    void fetchStatements({ supersede: true });
+    return () => {
+      mountedRef.current = false;
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.controller.abort();
+      activeRequestRef.current = null;
+    };
   }, [fetchStatements]);
 
   useEffect(() => {
     if (!polling) return;
 
-    const interval = setInterval(fetchStatements, 3000);
+    const interval = setInterval(() => {
+      void fetchStatements();
+    }, 3000);
     return () => {
       clearInterval(interval);
     };
@@ -113,7 +159,7 @@ export default function UploadPage() {
       showToast("Statement deleted successfully", "success");
       setDeleteDialogOpen(false);
       setDeletingStatementId(null);
-      fetchStatements();
+      await fetchStatements({ supersede: true });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to delete statement",
@@ -143,7 +189,7 @@ export default function UploadPage() {
       <div className="mb-6">
         <StatementUploader
           kind="statement"
-          onUploadComplete={fetchStatements}
+          onUploadComplete={refreshStatements}
           onError={setError}
         />
       </div>
@@ -160,7 +206,7 @@ export default function UploadPage() {
         <div className="card-body">
           <StatementUploader
             kind="csv"
-            onUploadComplete={fetchStatements}
+            onUploadComplete={refreshStatements}
             onError={setError}
           />
         </div>
@@ -231,7 +277,7 @@ export default function UploadPage() {
             action={
               <Button
                 variant="secondary"
-                onClick={fetchStatements}
+                onClick={refreshStatements}
                 aria-label="Retry loading statements"
               >
                 Retry

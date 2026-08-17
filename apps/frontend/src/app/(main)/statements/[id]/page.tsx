@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -44,60 +44,103 @@ export default function StatementDetailPage() {
     useState<BrokerageImportResponse | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const mountedRef = useRef(false);
+  const pollingRef = useRef(false);
+  const requestSequenceRef = useRef(0);
+  const activeRequestRef = useRef<{
+    controller: AbortController;
+    requestId: number;
+  } | null>(null);
   const approvedNow = approvedRedirect && statement?.status === "approved";
 
-  const fetchStatement = useCallback(async () => {
-    try {
-      const data = await apiOperation(
-        "get_statement_statements__statement_id__get",
-        {
-          path: { statement_id: statementId },
-        },
-      );
-      setStatement(normalizeBankStatement(data));
-      setError(null);
-      setConsecutiveErrors(0);
+  const updatePolling = useCallback((enabled: boolean) => {
+    pollingRef.current = enabled;
+    setPolling(enabled);
+  }, []);
 
-      if (data.status === "parsing") {
-        setPolling(true);
-        setParsingStartTime((prev) => prev ?? Date.now());
-      } else {
-        setPolling(false);
-        setParsingStartTime(null);
-      }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load statement";
+  const fetchStatement = useCallback(
+    async () => {
+      if (!mountedRef.current) return;
+      if (activeRequestRef.current) return;
 
-      setConsecutiveErrors((prev) => {
-        const newCount = prev + 1;
+      const controller = new AbortController();
+      const requestId = ++requestSequenceRef.current;
+      activeRequestRef.current = { controller, requestId };
 
-        if (polling && newCount >= 3) {
-          setPolling(false);
-          const reason = `Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`;
-          setPollingStoppedReason(reason);
-          showToast("Auto-refresh stopped due to repeated errors", "error");
+      const ownsResult = () =>
+        mountedRef.current &&
+        !controller.signal.aborted &&
+        activeRequestRef.current?.requestId === requestId;
+
+      try {
+        const data = await apiOperation(
+          "get_statement_statements__statement_id__get",
+          {
+            path: { statement_id: statementId },
+            signal: controller.signal,
+          },
+        );
+        if (!ownsResult()) return;
+
+        setStatement(normalizeBankStatement(data));
+        setError(null);
+        setConsecutiveErrors(0);
+
+        if (data.status === "parsing") {
+          updatePolling(true);
+          setParsingStartTime((prev) => prev ?? Date.now());
+        } else {
+          updatePolling(false);
+          setParsingStartTime(null);
         }
+      } catch (err) {
+        if (!ownsResult()) return;
 
-        return newCount;
-      });
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load statement";
 
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [statementId, polling, showToast]);
+        setConsecutiveErrors((prev) => {
+          const newCount = prev + 1;
+
+          if (pollingRef.current && newCount >= 3) {
+            updatePolling(false);
+            const reason = `Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`;
+            setPollingStoppedReason(reason);
+            showToast("Auto-refresh stopped due to repeated errors", "error");
+          }
+
+          return newCount;
+        });
+
+        setError(errorMessage);
+      } finally {
+        if (activeRequestRef.current?.requestId === requestId) {
+          activeRequestRef.current = null;
+          if (mountedRef.current) setLoading(false);
+        }
+      }
+    },
+    [showToast, statementId, updatePolling],
+  );
 
   const resumePolling = useCallback(() => {
     setPollingStoppedReason(null);
     setConsecutiveErrors(0);
     setParsingStartTime(Date.now());
-    setPolling(true);
-    fetchStatement();
-  }, [fetchStatement]);
+    updatePolling(true);
+    void fetchStatement();
+  }, [fetchStatement, updatePolling]);
 
   useEffect(() => {
-    fetchStatement();
+    mountedRef.current = true;
+    setLoading(true);
+    void fetchStatement();
+    return () => {
+      mountedRef.current = false;
+      requestSequenceRef.current += 1;
+      activeRequestRef.current?.controller.abort();
+      activeRequestRef.current = null;
+    };
   }, [fetchStatement]);
 
   // Auto-refresh while parsing (with timeout)
@@ -109,7 +152,10 @@ export default function StatementDetailPage() {
         parsingStartTime &&
         Date.now() - parsingStartTime > PARSING_TIMEOUT_MS
       ) {
-        setPolling(false);
+        activeRequestRef.current?.controller.abort();
+        activeRequestRef.current = null;
+        requestSequenceRef.current += 1;
+        updatePolling(false);
         setParsingStartTime(null);
         setPollingStoppedReason(
           "Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model.",
@@ -117,12 +163,12 @@ export default function StatementDetailPage() {
         showToast("Parsing appears stuck — stopped auto-refresh", "error");
         return;
       }
-      fetchStatement();
+      void fetchStatement();
     }, 3000);
     return () => {
       clearInterval(interval);
     };
-  }, [polling, fetchStatement, parsingStartTime, showToast]);
+  }, [polling, fetchStatement, parsingStartTime, showToast, updatePolling]);
 
   const handleRetry = async () => {
     setRetryLoading(true);

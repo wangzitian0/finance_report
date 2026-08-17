@@ -207,7 +207,12 @@ describe("StatementDetailPage - coverage additions", () => {
         expect(await screen.findByText("Auto-refresh Stopped")).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "Resume Auto-Refresh" }));
-        await waitFor(() => expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1"));
+        await waitFor(() =>
+          expect(mockedApi).toHaveBeenCalledWith(
+            "/api/statements/s1",
+            expect.objectContaining({ signal: expect.any(AbortSignal) }),
+          ),
+        );
     });
 
     it("test_AC8_13_48 shows retry parsing errors for rejected statements", async () => {

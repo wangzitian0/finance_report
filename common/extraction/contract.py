@@ -4432,6 +4432,36 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.15",
+            statement=(
+                "Statement-detail parsing polls are single-flight; page teardown or "
+                "statement-id change aborts the active read, and only the latest "
+                "page-owned response may update status, errors, or toasts"
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementDetailPage.test.tsx"
+                "::AC-extraction.fe-stage1-review.15 keeps detail polling "
+                "single-flight and aborts active work on teardown"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.16",
+            statement=(
+                "Upload-history parsing polls are single-flight; page teardown "
+                "aborts the active read, while upload/delete completion supersedes "
+                "an older read so stale rows cannot be restored"
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementsPage.test.tsx"
+                "::AC-extraction.fe-stage1-review.16 keeps upload polling "
+                "single-flight and supersedes stale work"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ACRecord(

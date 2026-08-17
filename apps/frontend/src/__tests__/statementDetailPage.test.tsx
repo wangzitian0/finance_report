@@ -1,14 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementDetailPage from "@/app/(main)/statements/[id]/page"
 import { apiFetch } from "@/lib/api"
 
 const showToastMock = vi.fn()
 const mockSearchParams = new URLSearchParams()
+let mockStatementId = "s1"
 
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "s1" }),
+  useParams: () => ({ id: mockStatementId }),
   useSearchParams: () => mockSearchParams,
 }))
 
@@ -50,6 +51,16 @@ const parsedStatement = {
   ],
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe("StatementDetailPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
@@ -58,6 +69,80 @@ describe("StatementDetailPage", () => {
     showToastMock.mockReset()
     mockSearchParams.delete("approved")
     mockSearchParams.delete("entriesCreated")
+    mockStatementId = "s1"
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it("AC-extraction.fe-stage1-review.15 keeps detail polling single-flight and aborts active work on teardown", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const parsingStatement = {
+      ...parsedStatement,
+      status: "parsing",
+      parsing_progress: 50,
+    }
+    const poll = deferred<typeof parsedStatement>()
+    mockedApiFetch
+      .mockResolvedValueOnce(parsingStatement)
+      .mockImplementation(() => poll.promise)
+
+    const view = render(<StatementDetailPage />)
+    await screen.findByText(/Parsing in progress/)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    expect(mockedApiFetch).toHaveBeenCalledTimes(2)
+    const pollSignal = mockedApiFetch.mock.calls[1]?.[1]?.signal
+    expect(pollSignal).toBeInstanceOf(AbortSignal)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(mockedApiFetch).toHaveBeenCalledTimes(2)
+
+    view.unmount()
+    expect(pollSignal?.aborted).toBe(true)
+
+    await act(async () => {
+      poll.resolve(parsedStatement)
+      await poll.promise
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(mockedApiFetch).toHaveBeenCalledTimes(2)
+    expect(showToastMock).not.toHaveBeenCalled()
+  })
+
+  it("AC-extraction.fe-stage1-review.15 ignores the prior statement response after an id change", async () => {
+    const oldRequest = deferred<typeof parsedStatement>()
+    const newStatement = {
+      ...parsedStatement,
+      id: "s2",
+      original_filename: "new-statement.pdf",
+    }
+    mockedApiFetch
+      .mockImplementationOnce(() => oldRequest.promise)
+      .mockResolvedValueOnce(newStatement)
+
+    const view = render(<StatementDetailPage />)
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(1))
+    const oldSignal = mockedApiFetch.mock.calls[0]?.[1]?.signal
+
+    mockStatementId = "s2"
+    view.rerender(<StatementDetailPage />)
+
+    await screen.findByText("new-statement.pdf")
+    expect(oldSignal?.aborted).toBe(true)
+
+    await act(async () => {
+      oldRequest.resolve(parsedStatement)
+      await oldRequest.promise
+    })
+    expect(screen.getByText("new-statement.pdf")).toBeInTheDocument()
+    expect(screen.queryByText("statement-jan.pdf")).toBeNull()
   })
 
   // AC-extraction.fe-stage1-review.4
