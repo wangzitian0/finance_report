@@ -491,18 +491,29 @@ async def reconciliation_stats(
 
 @router.get("/unmatched", response_model=UnmatchedTransactionsResponse)
 async def list_unmatched(
+    statement_id: UUID | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     *,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> UnmatchedTransactionsResponse:
-    result = await db.execute(
-        _unmatched_atomic_txn_query(user_id).order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset)
-    )
+    query = _unmatched_atomic_txn_query(user_id)
+    if statement_id is not None:
+        statement = await get_owned_or_404(
+            db,
+            StatementSummary,
+            statement_id,
+            user_id,
+            name="Statement",
+        )
+        statement_txn_ids = await _statement_atomic_txn_ids(db, statement)
+        query = query.where(AtomicTransaction.id.in_(statement_txn_ids))
+
+    result = await db.execute(query.order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset))
     items = [BankTransactionSummary.model_validate(item) for item in result.scalars().all()]
 
-    total_result = await db.execute(select(func.count()).select_from(_unmatched_atomic_txn_query(user_id).subquery()))
+    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar_one()
 
     return UnmatchedTransactionsResponse(items=items, total=total)

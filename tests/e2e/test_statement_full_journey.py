@@ -19,9 +19,14 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+import httpx
 import pytest
 from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
+from common.testing.provider_review import (
+    FixtureDisposition,
+    approve_statement_with_fixture_review,
+)
 from conftest import fail_or_skip_ai_ocr_gate
 from pdf_fixture_paths import committed_fixture_pdf
 from playwright.async_api import Page, expect
@@ -52,9 +57,50 @@ DBS_EXPECTED_OPENING_BALANCE = Decimal("12000.00")
 DBS_EXPECTED_CLOSING_BALANCE = Decimal("15242.05")
 DBS_EXPECTED_CURRENCY = "SGD"
 
+DBS_DISPOSITIONS = {
+    "FAST CREDIT PAYROLL ACME PTE LTD": FixtureDisposition(
+        "income", "INCOME", "The DBS fixture declares salary income.", "SALARY"
+    ),
+    "PAYNOW TO UEN 201912345A RENT JAN": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares rent expense.", "RENT"
+    ),
+    "GIRO SINGTEL MOBILE BILL": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares utility expense.", "UTILITIES"
+    ),
+    "POS NTUC FAIRPRICE BEDOK": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares grocery expense.", "GROCERIES"
+    ),
+    "FAST CREDIT FREELANCE PROJECT": FixtureDisposition(
+        "income", "INCOME", "The DBS fixture declares freelance income.", "FREELANCE"
+    ),
+    "PAYNOW TO JOHN TAN": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The DBS fixture declares family-support expense.",
+        "FAMILY_SUPPORT",
+    ),
+    "GIRO SP SERVICES UTILITIES": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares utility expense.", "UTILITIES"
+    ),
+}
+
 
 def _get_url(path: str) -> str:
     return f"{APP_URL.rstrip('/')}{path}"
+
+
+def _api_url(path: str) -> str:
+    return _get_url(f"/api{path}")
+
+
+async def _auth_headers(page: Page) -> dict[str, str]:
+    cookies = await page.context.cookies(APP_URL)
+    auth_cookie = next(
+        (cookie for cookie in cookies if cookie["name"] == "finance_access_token"),
+        None,
+    )
+    assert auth_cookie, "authenticated Playwright context is missing auth cookie"
+    return {"Cookie": f"finance_access_token={auth_cookie['value']}"}
 
 
 def _statement_row(page: Page, institution: str):
@@ -286,10 +332,42 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
         await expect(dialog).to_be_visible(timeout=5_000)
         confirm_button = dialog.get_by_role("button", name="Approve")
         await expect(confirm_button).to_be_visible(timeout=3_000)
-        await confirm_button.click()
-        await expect(page).to_have_url(
-            re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
-        )
+        async with page.expect_response(
+            lambda response: response.url.endswith(
+                f"/api/statements/{statement_id}/review/approve"
+            )
+        ) as approval_info:
+            await confirm_button.click()
+        approval_response = await approval_info.value
+        if approval_response.status == 409:
+            review_action = page.get_by_role(
+                "link", name="Review transaction classifications"
+            )
+            await expect(review_action).to_be_visible(timeout=15_000)
+            await expect(review_action).to_have_attribute(
+                "href",
+                f"/reconciliation/unmatched?statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}%2Freview",
+            )
+            assert last_statement is not None
+            async with httpx.AsyncClient(
+                headers=await _auth_headers(page), verify=False, timeout=120.0
+            ) as client:
+                approval = await approve_statement_with_fixture_review(
+                    client,
+                    api_url=_api_url,
+                    statement_id=str(statement_id),
+                    transactions=last_statement.get("transactions") or [],
+                    dispositions=DBS_DISPOSITIONS,
+                )
+            assert approval.get("status") == "approved"
+            await page.goto(_get_url(f"/statements/{statement_id}"))
+        else:
+            assert approval_response.status == 200, (
+                f"approve endpoint returned {approval_response.status}: {await approval_response.text()}"
+            )
+            await expect(page).to_have_url(
+                re.compile(r"/statements/[^/?]+(?:\?.*)?$"), timeout=15_000
+            )
         await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
             timeout=15_000
         )

@@ -1676,6 +1676,22 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.deploy-gates.44",
+            statement=(
+                "A repeated red staging AI/OCR run refreshes the existing open "
+                "alert with the current machine-attributed body and an explicit "
+                "run/version/corpus comment instead of leaving the standing issue "
+                "stale behind title-only deduplication."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_44_existing_alert_is_refreshed"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group product-gates: product-journey hard gates & fixture
         # contracts (was EPIC-008 AC8.13 subset), migration closeout,
         # #1663 / #1718 ──
@@ -1807,6 +1823,23 @@ CONTRACT = PackageContract(
             status="done",
             # #1826 G-value-oracle: e2e consumes the audit-grade expected outputs.
             proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-testing.product-gates.13",
+            statement=(
+                "Provider-backed bank journeys treat an intent_missing approval "
+                "conflict as the expected human-review boundary: they apply only "
+                "fixture-owned explicit economic dispositions, retry approval, and "
+                "continue to ledger/report assertions without inferring intent from "
+                "cash direction."
+            ),
+            test=(
+                "tests/tooling/test_provider_journey_review_contract.py"
+                "::test_AC_testing_product_gates_13_retries_after_reviewed_dispositions"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
         ),
         # ── group preview: PR-preview lifecycle & Dokploy semantics
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /

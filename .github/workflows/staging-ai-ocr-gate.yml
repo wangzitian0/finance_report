@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 125
     permissions:
       contents: read
-      issues: write  # #1623: open the GitHub-issue fallback alert on regression
+      issues: write # #1623: open the GitHub-issue fallback alert on regression
     outputs:
       ai_ocr_status: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}
       ai_ocr_exit_code: ${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}
@@ -229,7 +229,20 @@ jobs:
                     || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
                 fi
               else
-                echo "::notice::open staging-ai-ocr regression issue #${existing} already exists; not duplicating."
+                # AC-testing.deploy-gates.44: an existing alert is standing state,
+                # not frozen evidence. Refresh its machine attribution and add a
+                # per-run breadcrumb so repeated reds remain visible and current.
+                echo "::notice::open staging-ai-ocr regression issue #${existing} already exists; not duplicating the issue, refreshing its evidence."
+                if [ -f test-results/staging-ai-ocr-alert-body.md ]; then
+                  gh issue edit "$existing" --body-file test-results/staging-ai-ocr-alert-body.md \
+                    || echo "::warning::GitHub-issue alert refresh failed (non-fatal)."
+                else
+                  gh issue edit "$existing" --body "Post-merge staging AI/OCR gate failed (\`${ai_ocr_status}\`) on ${APP_URL} at run ${GITHUB_RUN_ID:-?} (${EXPECTED_SHA:-?}). No JUnit attribution is available for this failure mode. See the run's step summary." \
+                    || echo "::warning::GitHub-issue alert refresh failed (non-fatal)."
+                fi
+                gh issue comment "$existing" \
+                  --body "Observed again in run ${GITHUB_RUN_ID:-?} (version=${EXPECTED_SHA:-?}, corpus=${CORPUS:-canary}, class=${ai_ocr_status})." \
+                  || echo "::warning::GitHub-issue recurrence comment failed (non-fatal)."
               fi
             fi
             exit 0
@@ -369,7 +382,13 @@ jobs:
               --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
               || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
           else
-            echo "::notice::open staging-ai-ocr gate-timeout issue #${existing} already exists; not duplicating."
+            echo "::notice::open staging-ai-ocr gate-timeout issue #${existing} already exists; not duplicating the issue, refreshing its evidence."
+            gh issue edit "$existing" \
+              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
+              || echo "::warning::GitHub-issue gate-timeout refresh failed (non-fatal)."
+            gh issue comment "$existing" \
+              --body "Observed again in run ${{ github.run_id }} (version=${{ inputs.commit_ref }}, corpus=${{ inputs.corpus }}, class=gate-timeout)." \
+              || echo "::warning::GitHub-issue gate-timeout recurrence comment failed (non-fatal)."
           fi
           if [ "${{ inputs.blocking }}" = "true" ]; then
             exit 1

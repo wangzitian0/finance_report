@@ -14511,6 +14511,7 @@ export interface operations {
     list_unmatched_reconciliation_unmatched_get: {
         parameters: {
             query?: {
+                statement_id?: string | null;
                 limit?: number;
                 offset?: number;
             };

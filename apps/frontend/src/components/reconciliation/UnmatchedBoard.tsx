@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BackLink } from "@/components/ui/BackLink";
@@ -48,7 +49,7 @@ function newReviewedDispositionDraft(
 ): ReviewedDispositionDraft {
   return {
     transactionId: transaction.id,
-    intent: transaction.direction === "IN" ? "income" : "expense",
+    intent: "unknown",
     counterAccountId: "",
     category: "",
     rationale: "",
@@ -122,6 +123,16 @@ function saveFlaggedToStorage(flagged: Set<string>): void {
 }
 
 export default function UnmatchedBoard() {
+  const searchParams = useSearchParams();
+  const statementId = searchParams.get("statement_id");
+  const requestedReturnTo = searchParams.get("return_to");
+  const statementReviewHref = statementId
+    ? `/statements/${encodeURIComponent(statementId)}/review`
+    : null;
+  const safeReturnHref =
+    statementReviewHref && requestedReturnTo === statementReviewHref
+      ? requestedReturnTo
+      : statementReviewHref;
   const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] =
@@ -132,33 +143,40 @@ export default function UnmatchedBoard() {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [flagged, setFlagged] = useState<Set<string>>(() =>
     loadFlaggedFromStorage(),
   );
 
   const refresh = useCallback(async () => {
+    setLoaded(false);
     try {
       const [transactions, accountResponse] = await Promise.all([
-        apiOperation("list_unmatched_reconciliation_unmatched_get"),
+        apiOperation("list_unmatched_reconciliation_unmatched_get", {
+          query: { statement_id: statementId ?? undefined },
+        }),
         apiOperation("list_accounts_accounts_get", {
           query: { is_active: true, limit: 500 },
         }),
       ]);
       setItems(transactions.items);
       setAccounts(accountResponse.items);
+      setError(null);
+      setLoaded(true);
       setSelected((current) =>
         current && transactions.items.some((item) => item.id === current.id)
           ? current
           : (transactions.items[0] ?? null),
       );
     } catch (requestError) {
+      setLoaded(true);
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Failed to load unmatched transactions.",
       );
     }
-  }, []);
+  }, [statementId]);
 
   useEffect(() => {
     void refresh();
@@ -282,7 +300,11 @@ export default function UnmatchedBoard() {
   return (
     <div className="p-6">
       <div className="mb-4">
-        <BackLink>Back to Notifications</BackLink>
+        <BackLink href={safeReturnHref ?? "/notifications"}>
+          {safeReturnHref
+            ? "Return to statement review"
+            : "Back to Notifications"}
+        </BackLink>
       </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
@@ -306,6 +328,19 @@ export default function UnmatchedBoard() {
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}
+      {loaded && statementId && items.length === 0 && !error && (
+        <div className="mb-4 rounded-md border border-[var(--success)]/30 bg-[var(--success-muted)] p-4 text-sm">
+          <p>All transactions for this statement are classified.</p>
+          {safeReturnHref && (
+            <Link
+              href={safeReturnHref}
+              className="btn-primary mt-3 inline-flex"
+            >
+              Return to statement review
+            </Link>
+          )}
+        </div>
+      )}
       {postedEntry && (
         <div className="mb-4 p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
           Posted reviewed entry <strong>{postedEntry.id}</strong> on{" "}

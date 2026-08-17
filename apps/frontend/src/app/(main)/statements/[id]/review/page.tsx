@@ -61,6 +61,7 @@ interface StatementReview {
   source_result_digest?: string | null;
   source_missing_facts?: string[];
   source_envelope_reviewable?: boolean;
+  validation_error?: string | null;
   reviewed_envelope?: {
     id: string;
     source_result_digest: string;
@@ -130,6 +131,7 @@ export default function StatementReviewPage() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictsResolved, setConflictsResolved] = useState(false);
+  const [economicReviewRequired, setEconomicReviewRequired] = useState(false);
   const [envelopeDraft, setEnvelopeDraft] = useState<EnvelopeDraft>({
     accountId: "",
     currency: "",
@@ -206,6 +208,7 @@ export default function StatementReviewPage() {
         },
       ),
     onSuccess: (result) => {
+      setEconomicReviewRequired(false);
       const createdCount = result.journal_entries_created ?? 0;
       // EPIC-022 AC22.18.3 (#1109): instrument the Stage-1 review approval.
       // statement_id is a non-PII opaque identifier.
@@ -222,7 +225,12 @@ export default function StatementReviewPage() {
       );
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.status === 409) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.message.startsWith("Economic review required:")
+      ) {
+        setEconomicReviewRequired(true);
         setApproveDialogOpen(false);
         showToast(
           "Economic classification needs review before entries can be posted.",
@@ -509,6 +517,24 @@ export default function StatementReviewPage() {
       <div className="mb-4">
         <FlowStepBanner current="review" />
       </div>
+
+      {(economicReviewRequired ||
+        data.validation_error?.startsWith("Economic review required:")) && (
+        <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4">
+          <h2 className="font-semibold">
+            Transaction classifications need review
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            These transactions need your confirmation before they can be posted.
+          </p>
+          <Link
+            href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${encodeURIComponent(`/statements/${statementId}/review`)}`}
+            className="btn-primary mt-3 inline-flex"
+          >
+            Review transaction classifications
+          </Link>
+        </section>
+      )}
 
       <div className="page-header mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">

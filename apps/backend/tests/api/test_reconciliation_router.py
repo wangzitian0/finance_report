@@ -486,6 +486,41 @@ class TestReconciliationEndpoints:
         assert "items" in data
         assert "total" in data
 
+    async def test_AC_reconciliation_review_queue_15_filters_unmatched_by_statement(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.review-queue.15: statement scoping is tenant-safe."""
+        selected_statement = await create_test_statement(db, test_user)
+        other_statement = await create_test_statement(db, test_user)
+        selected_txn = create_test_transaction(db, selected_statement)
+        other_txn = create_test_transaction(db, other_statement)
+
+        foreign_user = User(
+            email=f"statement-scope-{uuid4()}@example.com",
+            hashed_password="hashed",
+        )
+        db.add(foreign_user)
+        await db.flush()
+        foreign_statement = await create_test_statement(db, foreign_user)
+        foreign_txn = create_test_transaction(db, foreign_statement)
+        db.add_all([selected_txn, other_txn, foreign_txn])
+        await db.commit()
+
+        scoped = await client.get(
+            "/reconciliation/unmatched",
+            params={"statement_id": str(selected_statement.id)},
+        )
+        assert scoped.status_code == status.HTTP_200_OK
+        assert scoped.json()["total"] == 1
+        assert [item["id"] for item in scoped.json()["items"]] == [str(selected_txn.id)]
+
+        foreign = await client.get(
+            "/reconciliation/unmatched",
+            params={"statement_id": str(foreign_statement.id)},
+        )
+        assert foreign.status_code == status.HTTP_404_NOT_FOUND
+        assert "Statement" in foreign.json()["detail"]
+
     async def test_submit_reviewed_disposition_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.9: a reviewed command is the only unmatched-entry write path."""
         statement = await create_test_statement(db, test_user)
