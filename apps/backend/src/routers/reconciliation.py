@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import Select, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -91,17 +91,16 @@ def _unmatched_atomic_txn_query(user_id: UUID):
     )
 
 
-async def _statement_atomic_txn_ids(db: AsyncSession, statement: StatementSummary) -> list[UUID]:
-    """Resolve the atomic transaction ids for a statement via its ODS document link."""
+def _statement_atomic_txn_ids_query(statement: StatementSummary) -> Select[tuple[UUID]]:
+    """Select atomic transaction ids for a statement via its ODS document link."""
     if statement.uploaded_document_id is None:
-        return []
+        return select(AtomicTransaction.id).where(false())
     doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
-    result = await db.execute(
+    return (
         select(AtomicTransaction.id)
         .where(AtomicTransaction.user_id == statement.user_id)
         .where(AtomicTransaction.source_documents.contains(doc_marker))
     )
-    return list(result.scalars().all())
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:
@@ -257,16 +256,9 @@ async def run_reconciliation(
 
     unmatched_query = _unmatched_atomic_txn_query(user_id)
     if statement is not None:
-        statement_txn_ids = await _statement_atomic_txn_ids(db, statement)
-        if not statement_txn_ids:
-            unmatched_count = 0
-        else:
-            unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(statement_txn_ids))
-            unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
-            unmatched_count = unmatched_result.scalar_one()
-    else:
-        unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
-        unmatched_count = unmatched_result.scalar_one()
+        unmatched_query = unmatched_query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
+    unmatched_result = await db.execute(select(func.count()).select_from(unmatched_query.subquery()))
+    unmatched_count = unmatched_result.scalar_one()
 
     logger.info(
         "reconciliation.run.completed",
@@ -507,8 +499,7 @@ async def list_unmatched(
             user_id,
             name="Statement",
         )
-        statement_txn_ids = await _statement_atomic_txn_ids(db, statement)
-        query = query.where(AtomicTransaction.id.in_(statement_txn_ids))
+        query = query.where(AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement)))
 
     result = await db.execute(query.order_by(AtomicTransaction.txn_date.desc()).limit(limit).offset(offset))
     items = [BankTransactionSummary.model_validate(item) for item in result.scalars().all()]

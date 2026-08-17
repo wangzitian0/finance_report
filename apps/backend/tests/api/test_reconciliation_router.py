@@ -27,7 +27,7 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from src.audit import STATEMENT_SOURCE_TYPES, TraceRecordType, TraceResult
 from src.audit.orm import TraceRecordRow
@@ -520,6 +520,49 @@ class TestReconciliationEndpoints:
         )
         assert foreign.status_code == status.HTTP_404_NOT_FOUND
         assert "Statement" in foreign.json()["detail"]
+
+    async def test_AC_reconciliation_review_queue_15_scopes_statement_in_sql(self, db, db_engine, test_user: User):
+        """AC-reconciliation.review-queue.15: statement scoping stays in one SQL query."""
+        statement = await create_test_statement(db, test_user)
+        db.add(create_test_transaction(db, statement))
+        await db.commit()
+
+        executed_statements: list[str] = []
+
+        def capture_sql(_conn, _cursor, statement_text, _parameters, _context, _executemany):
+            executed_statements.append(statement_text)
+
+        event.listen(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+        try:
+            response = await reconciliation_router.list_unmatched(
+                statement_id=statement.id,
+                limit=100,
+                offset=0,
+                db=db,
+                user_id=test_user.id,
+            )
+        finally:
+            event.remove(db_engine.sync_engine, "before_cursor_execute", capture_sql)
+
+        assert response.total == 1
+        assert len(executed_statements) == 3
+        assert sum("source_documents" in statement_text for statement_text in executed_statements) == 2
+
+    async def test_AC_reconciliation_review_queue_15_statement_without_document_is_empty(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """AC-reconciliation.review-queue.15: a statement without an ODS link scopes to no rows."""
+        statement = await create_test_statement(db, test_user)
+        statement.uploaded_document_id = None
+        await db.commit()
+
+        response = await client.get(
+            "/reconciliation/unmatched",
+            params={"statement_id": str(statement.id)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"items": [], "total": 0}
 
     async def test_submit_reviewed_disposition_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.9: a reviewed command is the only unmatched-entry write path."""
