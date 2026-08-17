@@ -308,6 +308,9 @@ source-anchored ledger entry through `ReviewedDispositionCommand` and
 contains the reviewer-selected economic intent, compatible active counter
 account, P&L category when applicable, and a bounded source-evidence
 rationale. It is deliberately separate from reconciliation confirmation:
+the unmatched-review UI initializes intent as `unknown` for both inflows and
+outflows, so cash direction remains context rather than a preselected economic
+decision.
 
 1. Lock the user-owned `AtomicTransaction` and validate the statement custody
    account, transaction currency, counter-account type, and double-entry roles.

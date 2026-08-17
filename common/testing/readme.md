@@ -123,6 +123,13 @@ thin compatibility shim. Local developer commands likewise share runtime and
 container selection through `tools/_lib/dev/toolchain.py`, including consistent
 `CONTAINER_RUNTIME` handling.
 
+Provider-backed statement journeys cross the economic-review boundary through
+`provider_review.py`. A journey may retry approval after `intent_missing` only
+by loading the statement-scoped unmatched queue and applying dispositions that
+its synthetic fixture declares explicitly. The adapter never derives economic
+intent from transaction direction. This keeps provider extraction evidence
+separate from the human-owned accounting judgment that production requires.
+
 ### Responsibility table
 
 | Failure class | Owner |

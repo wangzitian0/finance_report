@@ -598,6 +598,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-reconciliation.review-queue.15",
+            statement=(
+                "GET /reconciliation/unmatched accepts an optional statement_id and "
+                "then returns only unresolved transactions anchored to that "
+                "user-owned statement; an unknown or foreign statement fails closed "
+                "without exposing another user's queue."
+            ),
+            test=(
+                "apps/backend/tests/api/test_reconciliation_router.py"
+                "::test_AC_reconciliation_review_queue_15_filters_unmatched_by_statement"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-reconciliation.reviewed-disposition.1",
             statement=(
                 "A reviewed-disposition command is idempotent only for the same immutable normalized intent, "
@@ -1948,6 +1963,35 @@ CONTRACT = PackageContract(
             # was AC16.36.2
             test="apps/frontend/src/__tests__/reviewLandingPage.test.tsx::AC16.36.2 loads the global queue (no run filter) on the dedicated route",
             priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.30",
+            statement=(
+                "The unmatched board honors a statement_id scope, preserves the "
+                "statement-review return target, and shows a clear return action "
+                "when every scoped transaction has received a reviewed disposition."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.fe-stage2-review.31",
+            statement=(
+                "The unmatched board initializes every reviewed disposition as "
+                "unknown regardless of cash direction and requires the reviewer to "
+                "select economic intent explicitly before compatible accounts or "
+                "posting become available."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+                "::AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction"
+            ),
+            priority="P0",
             status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022

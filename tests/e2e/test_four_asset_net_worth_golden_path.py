@@ -23,6 +23,10 @@ import httpx
 import pytest
 from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
+from common.testing.provider_review import (
+    FixtureDisposition,
+    approve_statement_with_fixture_review,
+)
 from conftest import fail_or_skip_ai_ocr_gate
 from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
@@ -36,6 +40,21 @@ PROPERTY_VALUE = Decimal("1200000.00")
 MORTGAGE_BALANCE = Decimal("650000.00")
 ESOP_VALUE = Decimal("42000.00")
 DASHBOARD_NET_WORTH_LABEL = "Net Worth"
+
+BANK_DISPOSITIONS = {
+    "Four Asset Salary": FixtureDisposition(
+        intent="income",
+        account_type="INCOME",
+        category="SALARY",
+        rationale="The synthetic fixture declares this row as salary income.",
+    ),
+    "Four Asset Rent": FixtureDisposition(
+        intent="expense",
+        account_type="EXPENSE",
+        category="RENT",
+        rationale="The synthetic fixture declares this row as rent expense.",
+    ),
+}
 
 
 def _api_url(path: str) -> str:
@@ -69,9 +88,9 @@ def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path:
     path.write_text(
         "\n".join(
             [
-                "Date,Description,Amount",
-                f"{report_date.isoformat()},Four Asset Salary,3000.00",
-                f"{report_date.isoformat()},Four Asset Rent,-500.00",
+                "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+                f"SGD,{report_date.isoformat()},{report_date.isoformat()},0.00,2500.00,{report_date.isoformat()},Four Asset Salary,3000.00",
+                f"SGD,{report_date.isoformat()},{report_date.isoformat()},0.00,2500.00,{report_date.isoformat()},Four Asset Rent,-500.00",
                 "",
             ]
         ),
@@ -289,15 +308,18 @@ async def test_four_asset_as_of_net_worth_golden_path(
         )
         assert len(parsed_bank.get("transactions") or []) == 2
 
-        approve_response = await client.post(
-            _api_url(f"/statements/{bank_statement_id}/review/approve"),
-            json={"create_account_if_missing": True},
+        # The shared harness crosses /review/approve, resolves only explicit
+        # fixture-owned dispositions, then retries the same approval boundary.
+        approval = await approve_statement_with_fixture_review(
+            client,
+            api_url=_api_url,
+            statement_id=bank_statement_id,
+            transactions=parsed_bank["transactions"],
+            dispositions=BANK_DISPOSITIONS,
         )
-        assert approve_response.status_code == 200, (
-            f"bank stage 1 approve failed: {approve_response.status_code} {approve_response.text}"
+        assert (
+            approval["journal_entries_created"] + approval["reviewed_dispositions"] == 2
         )
-        approve_payload = approve_response.json()
-        assert approve_payload["journal_entries_created"] == 2
 
         journal_response = await client.get(_api_url("/journal-entries?limit=6"))
         assert journal_response.status_code == 200, (

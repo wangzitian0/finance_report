@@ -31,6 +31,10 @@ from pathlib import Path
 import httpx
 import pytest
 from common.testing.ac_proof import ac_proof
+from common.testing.provider_review import (
+    FixtureDisposition,
+    approve_statement_with_fixture_review,
+)
 from conftest import fail_or_skip_ai_ocr_gate
 from pdf_fixture_paths import committed_fixture_pdf, generated_pdf_path
 from playwright.async_api import Page
@@ -47,6 +51,120 @@ GXS_EXPECTED = (
     / "generated"
     / "gxs_statement_fixture_expected.json"
 )
+
+CMB_DISPOSITIONS = {
+    "工资入账": FixtureDisposition(
+        "income", "INCOME", "The CMB fixture declares salary income.", "SALARY"
+    ),
+    "转账-房租": FixtureDisposition(
+        "expense", "EXPENSE", "The CMB fixture declares rent expense.", "RENT"
+    ),
+    "微信支付-超市": FixtureDisposition(
+        "expense", "EXPENSE", "The CMB fixture declares grocery expense.", "GROCERIES"
+    ),
+    "转账-父母": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The CMB fixture declares family-support expense.",
+        "FAMILY_SUPPORT",
+    ),
+    "报销入账": FixtureDisposition(
+        "expense_refund",
+        "EXPENSE",
+        "The CMB fixture declares an expense reimbursement.",
+        "REIMBURSEMENT",
+    ),
+    "水电费代扣": FixtureDisposition(
+        "expense", "EXPENSE", "The CMB fixture declares utility expense.", "UTILITIES"
+    ),
+    "利息收入": FixtureDisposition(
+        "income", "INCOME", "The CMB fixture declares interest income.", "INTEREST"
+    ),
+}
+
+MARIBANK_DISPOSITIONS = {
+    "PayNow to KOPI SHOP PTE LTD": FixtureDisposition(
+        "expense", "EXPENSE", "The MariBank fixture declares dining expense.", "DINING"
+    ),
+    "Interest Credited": FixtureDisposition(
+        "income", "INCOME", "The MariBank fixture declares interest income.", "INTEREST"
+    ),
+    "PayNow to RIDE-HAIL SERVICES": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The MariBank fixture declares transport expense.",
+        "TRANSPORT",
+    ),
+    "Credit Card Repayment": FixtureDisposition(
+        "card_repayment",
+        "LIABILITY",
+        "The MariBank fixture declares a credit-card repayment.",
+    ),
+    "PayNow from LEE WEI": FixtureDisposition(
+        "income",
+        "INCOME",
+        "The MariBank fixture declares external miscellaneous income.",
+        "OTHER_INCOME",
+    ),
+    "PayNow to ONLINE GROCER": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The MariBank fixture declares grocery expense.",
+        "GROCERIES",
+    ),
+}
+
+PINGAN_DISPOSITIONS = {
+    "工资代发": FixtureDisposition(
+        "income", "INCOME", "The Pingan fixture declares salary income.", "SALARY"
+    ),
+    "转账汇款": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The Pingan fixture declares this generated external transfer as family-support expense.",
+        "FAMILY_SUPPORT",
+    ),
+    "快捷支付": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The Pingan fixture declares shopping expense.",
+        "SHOPPING",
+    ),
+    "信用卡还款": FixtureDisposition(
+        "card_repayment",
+        "LIABILITY",
+        "The Pingan fixture declares a credit-card repayment.",
+    ),
+    "账户结息": FixtureDisposition(
+        "income", "INCOME", "The Pingan fixture declares interest income.", "INTEREST"
+    ),
+    "基金申购": FixtureDisposition(
+        "investment_purchase",
+        "ASSET",
+        "The Pingan fixture declares an investment purchase.",
+    ),
+    "基金赎回": FixtureDisposition(
+        "investment_sale", "ASSET", "The Pingan fixture declares an investment sale."
+    ),
+}
+
+GXS_DISPOSITIONS = {
+    "Interest Earned": FixtureDisposition(
+        "income", "INCOME", "The GXS fixture declares interest income.", "INTEREST"
+    ),
+    "PayNow from ALVIN GOH": FixtureDisposition(
+        "income",
+        "INCOME",
+        "The GXS fixture declares external miscellaneous income.",
+        "OTHER_INCOME",
+    ),
+    "Payment to GrabPay Wallet": FixtureDisposition(
+        "expense", "EXPENSE", "The GXS fixture declares transport expense.", "TRANSPORT"
+    ),
+    "PayNow to MERCHANT HAWKER": FixtureDisposition(
+        "expense", "EXPENSE", "The GXS fixture declares dining expense.", "DINING"
+    ),
+}
 
 
 def _api_url(path: str) -> str:
@@ -141,6 +259,7 @@ async def _run_institution_journey(
     pdf_path: Path,
     institution: str,
     min_transactions: int,
+    dispositions: dict[str, FixtureDisposition],
 ) -> dict:
     """Upload → parse → approve → balance sheet; returns the parsed payload."""
     headers = await _auth_headers(page)
@@ -170,14 +289,14 @@ async def _run_institution_journey(
             # below for no real reason. Nothing further to do here.
             pass
         else:
-            approve = await client.post(
-                _api_url(f"/statements/{statement_id}/review/approve"),
-                json={"create_account_if_missing": True},
+            approval = await approve_statement_with_fixture_review(
+                client,
+                api_url=_api_url,
+                statement_id=statement_id,
+                transactions=transactions,
+                dispositions=dispositions,
             )
-            assert approve.status_code == 200, (
-                f"{institution} approve failed: {approve.status_code} {approve.text}"
-            )
-            assert approve.json().get("journal_entries_created", 0) >= min_transactions
+            assert approval.get("status") == "approved"
 
         report = await client.get(_api_url("/reports/balance-sheet"))
         assert report.status_code == 200, (
@@ -210,6 +329,7 @@ async def test_cmb_statement_journey(authenticated_page_unique: Page) -> None:
         pdf_path=generated_pdf_path("cmb"),
         institution="CMB E2E Institution Journey",
         min_transactions=1,
+        dispositions=CMB_DISPOSITIONS,
     )
 
 
@@ -235,6 +355,7 @@ async def test_maribank_statement_journey(authenticated_page_unique: Page) -> No
         pdf_path=generated_pdf_path("mari"),
         institution="MariBank E2E Institution Journey",
         min_transactions=1,
+        dispositions=MARIBANK_DISPOSITIONS,
     )
 
 
@@ -260,6 +381,7 @@ async def test_pingan_statement_journey(authenticated_page_unique: Page) -> None
         pdf_path=generated_pdf_path("pingan"),
         institution="Pingan E2E Institution Journey",
         min_transactions=1,
+        dispositions=PINGAN_DISPOSITIONS,
     )
 
 
@@ -296,6 +418,7 @@ async def test_gxs_statement_journey_matches_expected_balances(
         pdf_path=committed_fixture_pdf("gxs_statement_fixture.pdf"),
         institution="GXS E2E Institution Journey",
         min_transactions=expected_count,
+        dispositions=GXS_DISPOSITIONS,
     )
 
     assert Decimal(str(parsed["opening_balance"])) == Decimal(

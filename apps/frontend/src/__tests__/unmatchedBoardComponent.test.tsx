@@ -114,6 +114,7 @@ describe("UnmatchedBoard", () => {
     render(<UnmatchedBoard />);
 
     await screen.findByRole("heading", { name: "Unmatched Transactions" });
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
     await screen.findByRole("option", { name: /Expense - Dining/ });
     fireEvent.change(screen.getByLabelText("Counter account"), { target: { value: expenseAccount.id } });
     fireEvent.change(screen.getByLabelText("Report category"), { target: { value: "DINING" } });
@@ -160,7 +161,7 @@ describe("UnmatchedBoard", () => {
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
   });
 
-  it("selects a different transaction and resets its reviewed disposition", async () => {
+  it("AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction", async () => {
     const incomingItem = { ...unmatchedItem, id: "u2", description: "Salary", direction: "IN" as const };
     const incomeAccount = { ...expenseAccount, id: "income-1", name: "Income - Salary", type: "INCOME" as const };
     mockedApiFetch
@@ -171,7 +172,10 @@ describe("UnmatchedBoard", () => {
     await screen.findByText("Salary");
     fireEvent.click(screen.getByRole("button", { name: /Salary/ }));
 
-    expect(await findReadyReviewDraft()).toHaveValue("income");
+    expect(await findReadyReviewDraft()).toHaveValue("unknown");
+    fireEvent.change(screen.getByLabelText("Economic intent"), {
+      target: { value: "income" },
+    });
     expect(await screen.findByRole("option", { name: /Income - Salary/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();
   });
@@ -183,6 +187,53 @@ describe("UnmatchedBoard", () => {
 
     const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i });
     expect(backLink).toHaveAttribute("href", "/attention");
+  });
+
+  it("AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+    );
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
+      .mockResolvedValueOnce({
+        id: "je1",
+        entry_date: "2026-01-11",
+        memo: "Card payment",
+        status: "posted",
+        total_amount: "88.00",
+      })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
+
+    render(<UnmatchedBoard />);
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "/api/reconciliation/unmatched?statement_id=s1",
+      );
+    });
+    fireEvent.change(await findReadyReviewDraft(), {
+      target: { value: "expense" },
+    });
+    fireEvent.change(await screen.findByLabelText("Counter account"), {
+      target: { value: expenseAccount.id },
+    });
+    fireEvent.change(screen.getByLabelText("Report category"), {
+      target: { value: "DINING" },
+    });
+    fireEvent.change(screen.getByLabelText("Review rationale"), {
+      target: { value: "Receipt and merchant reviewed." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and Post" }));
+
+    const returnLink = await screen.findByRole("link", {
+      name: "Return to statement review",
+    });
+    expect(returnLink).toHaveAttribute("href", "/statements/s1/review");
+    expect(
+      screen.getByText(/All transactions for this statement are classified/i),
+    ).toBeInTheDocument();
   });
 
   it("AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision", async () => {
@@ -202,6 +253,7 @@ describe("UnmatchedBoard", () => {
     render(<UnmatchedBoard />);
 
     await screen.findByRole("heading", { name: "Unmatched Transactions" });
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
     await screen.findByRole("option", { name: /Expense - Dining/ });
     fireEvent.change(screen.getByLabelText("Counter account"), { target: { value: expenseAccount.id } });
     fireEvent.change(screen.getByLabelText("Report category"), { target: { value: "DINING" } });

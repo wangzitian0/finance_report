@@ -26,6 +26,10 @@ import httpx
 import pytest
 from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
+from common.testing.provider_review import (
+    FixtureDisposition,
+    approve_statement_with_fixture_review,
+)
 from conftest import fail_or_skip_ai_ocr_gate
 from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
@@ -62,6 +66,36 @@ MORTGAGE_NOTES = MORTGAGE_COMPONENT.notes
 ESOP_NOTES = ESOP_COMPONENT.notes
 RSU_NOTES = RSU_COMPONENT.notes
 STOCK_OPTIONS_NOTES = STOCK_OPTIONS_COMPONENT.notes
+
+BANK_DISPOSITIONS = {
+    "Salary": FixtureDisposition(
+        "income", "INCOME", "The synthetic fixture declares salary income.", "SALARY"
+    ),
+    "Freelance": FixtureDisposition(
+        "income",
+        "INCOME",
+        "The synthetic fixture declares freelance income.",
+        "FREELANCE",
+    ),
+    "Rent": FixtureDisposition(
+        "expense", "EXPENSE", "The synthetic fixture declares rent expense.", "RENT"
+    ),
+    "Groceries": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The synthetic fixture declares grocery expense.",
+        "GROCERIES",
+    ),
+    "Utilities": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The synthetic fixture declares utility expense.",
+        "UTILITIES",
+    ),
+    "Travel": FixtureDisposition(
+        "expense", "EXPENSE", "The synthetic fixture declares travel expense.", "TRAVEL"
+    ),
+}
 
 
 def _api_url(path: str) -> str:
@@ -393,16 +427,16 @@ async def test_personal_financial_report_package_post_merge_journey(
             # post, which would fail the exact-count assertion below for no
             # real reason. The journal-entries count check right after this
             # still verifies the right entries exist either way.
-            approve_response = await client.post(
-                _api_url(f"/statements/{bank_statement_id}/review/approve"),
-                json={"create_account_if_missing": True},
+            approval = await approve_statement_with_fixture_review(
+                client,
+                api_url=_api_url,
+                statement_id=bank_statement_id,
+                transactions=parsed_bank["transactions"],
+                dispositions=BANK_DISPOSITIONS,
             )
-            assert approve_response.status_code == 200, (
-                f"bank stage 1 approve failed: {approve_response.status_code} {approve_response.text}"
-            )
-            approve_payload = approve_response.json()
             assert (
-                approve_payload["journal_entries_created"] == expected.transaction_count
+                approval["journal_entries_created"] + approval["reviewed_dispositions"]
+                == expected.transaction_count
             )
 
         journal_response = await client.get(_api_url("/journal-entries?limit=20"))

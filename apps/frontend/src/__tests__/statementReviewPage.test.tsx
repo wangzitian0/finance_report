@@ -391,6 +391,55 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         );
     });
 
+    it("AC-extraction.fe-ia-extraction.4 routes economic-review conflicts to the exact statement queue", async () => {
+      let economicReviewRequired = false;
+      mockedApi.mockImplementation((path: string) => {
+        if (path === "/api/statements/s1/review") {
+          return Promise.resolve({
+            ...baseStatement,
+            validation_error: economicReviewRequired
+              ? "Economic review required: intent_missing"
+              : null,
+          });
+        }
+        if (path === "/api/statements/pending-review") {
+          return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+        }
+        if (path === "/api/review/conflicts/s1") {
+          return Promise.resolve(emptyConflicts);
+        }
+        if (path === "/api/statements/s1/review/approve") {
+          economicReviewRequired = true;
+          return Promise.reject(
+            new ApiError("Economic review required: intent_missing", 409),
+          );
+        }
+        return Promise.reject(new Error(`Unexpected path ${path}`));
+      });
+
+      renderReviewComponent((<StatementReviewPage />) as never);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", { name: "Approve Statement" }),
+        ).getByRole("button", { name: "Approve" }),
+      );
+
+      const action = await screen.findByRole("link", {
+        name: "Review transaction classifications",
+      });
+      expect(action).toHaveAttribute(
+        "href",
+        "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+      );
+      expect(
+        screen.getByText(
+          /These transactions need your confirmation before they can be posted/i,
+        ),
+      ).toBeInTheDocument();
+    });
+
     it("AC16.34.3 resolves Stage-1 conflicts and unblocks approval", async () => {
         const duplicate = {
             id: "t1",

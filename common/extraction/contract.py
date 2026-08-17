@@ -4458,6 +4458,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-extraction.fe-ia-extraction.4",
+            statement=(
+                "When Stage 1 approval requires economic review, the statement "
+                "review page keeps a persistent plain-language explanation and a "
+                "single action that opens the unmatched queue scoped to that exact "
+                "statement, with a return target back to its review page."
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+                "::AC-extraction.fe-ia-extraction.4 routes economic-review conflicts to the exact statement queue"
+            ),
+            priority="P0",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(

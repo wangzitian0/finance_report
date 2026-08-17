@@ -201,7 +201,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/reconciliation/runs` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
 | `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
-| `GET` | `/reconciliation/unmatched` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
+| `GET` | `/reconciliation/unmatched` | yes | `statement_id` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
 | `POST` | `/reconciliation/unmatched/{txn_id}/reviewed-disposition` | yes | `txn_id`* (path) | `ReviewedDispositionRequest` | `200` `JournalEntrySummary` | Submit Unmatched Reviewed Disposition |
 
 ### reports

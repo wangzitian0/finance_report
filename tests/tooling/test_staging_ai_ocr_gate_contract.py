@@ -635,6 +635,41 @@ def test_AC_testing_deploy_gates_40_green_run_closes_standing_alerts() -> None:
     script.index("not duplicating")
 
 
+def test_AC_testing_deploy_gates_44_existing_alert_is_refreshed() -> None:
+    """AC-testing.deploy-gates.44: repeated reds keep standing evidence current."""
+    script = (ROOT / ".github/workflows/staging-ai-ocr-gate.yml").read_text(
+        encoding="utf-8"
+    )
+    existing_branch = script[script.index('if [ -z "$existing" ]') :]
+    existing_branch = existing_branch[: existing_branch.index("fi\n            fi")]
+
+    refresh_contract = {
+        'gh issue edit "$existing" --body-file',
+        'gh issue edit "$existing" --body ',
+        'gh issue comment "$existing"',
+        "GITHUB_RUN_ID",
+        "EXPECTED_SHA",
+        "CORPUS",
+    }
+    assert {
+        token for token in refresh_contract if token in existing_branch
+    } == refresh_contract
+
+    timeout_branch = script[
+        script.index('alert_title="[staging-ai-ocr] gate produced no result') :
+    ]
+    timeout_refresh_contract = {
+        'gh issue edit "$existing"',
+        'gh issue comment "$existing"',
+        "github.run_id",
+        "inputs.commit_ref",
+        "inputs.corpus",
+    }
+    assert {
+        token for token in timeout_refresh_contract if token in timeout_branch
+    } == timeout_refresh_contract
+
+
 def test_AC_testing_deploy_gates_38_main_dispatches_classify_and_preflight(
     monkeypatch, capsys, tmp_path: Path
 ) -> None:
