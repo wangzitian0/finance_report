@@ -4437,7 +4437,8 @@ CONTRACT = PackageContract(
             statement=(
                 "Statement-detail parsing polls are single-flight; page teardown or "
                 "statement-id change aborts the active read, and only the latest "
-                "page-owned response may update status, errors, or toasts"
+                "page-owned response may update status, errors, or toasts; an explicit "
+                "retry refresh supersedes an older polling read"
             ),
             test=(
                 "apps/frontend/src/__tests__/statementDetailPage.test.tsx"

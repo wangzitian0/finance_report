@@ -370,11 +370,12 @@ precondition.
 
 Statement-list and statement-detail parsing refreshes are single-flight: a
 timer tick never starts a second read while the prior read is unresolved.
-Upload-history refreshes after upload, deletion, or a failed-load retry
-supersede and abort the older list read. Page teardown and statement-id
-changes also abort active reads, and only the currently owned request may
-update rows, status, errors, or toasts. These ownership checks remain
-necessary even when a transport ignores an abort and resolves late.
+Upload-history refreshes after upload, deletion, or a failed-load retry, and
+statement-detail refreshes after an explicit parsing retry, supersede and abort
+the older polling read. Page teardown and statement-id changes also abort
+active reads, and only the currently owned request may update rows, status,
+errors, or toasts. These ownership checks remain necessary even when a
+transport ignores an abort and resolves late.
 
 ## Supported Institutions
 

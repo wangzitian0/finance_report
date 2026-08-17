@@ -59,9 +59,13 @@ export default function StatementDetailPage() {
   }, []);
 
   const fetchStatement = useCallback(
-    async () => {
+    async ({ supersede = false }: { supersede?: boolean } = {}) => {
       if (!mountedRef.current) return;
-      if (activeRequestRef.current) return;
+      if (activeRequestRef.current) {
+        if (!supersede) return;
+        activeRequestRef.current.controller.abort();
+        activeRequestRef.current = null;
+      }
 
       const controller = new AbortController();
       const requestId = ++requestSequenceRef.current;
@@ -163,7 +167,7 @@ export default function StatementDetailPage() {
         showToast("Parsing appears stuck — stopped auto-refresh", "error");
         return;
       }
-      void fetchStatement();
+      void fetchStatement({ supersede: false });
     }, 3000);
     return () => {
       clearInterval(interval);
@@ -182,7 +186,7 @@ export default function StatementDetailPage() {
         },
       );
       showToast("Re-parsing started", "success");
-      await fetchStatement();
+      await fetchStatement({ supersede: true });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to retry parsing";

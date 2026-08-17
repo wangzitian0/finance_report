@@ -145,6 +145,48 @@ describe("StatementDetailPage", () => {
     expect(screen.queryByText("statement-jan.pdf")).toBeNull()
   })
 
+  it("AC-extraction.fe-stage1-review.15 lets explicit retry refresh supersede an active poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const parsingStatement = { ...parsedStatement, status: "parsing", parsing_progress: 50 }
+    const stalePoll = deferred<typeof parsedStatement>()
+    const reparsingStatement = { ...parsedStatement, status: "parsing", parsing_progress: 10 }
+    mockedApiFetch
+      .mockResolvedValueOnce(parsingStatement)
+      .mockRejectedValueOnce(new Error("poll 1 failed"))
+      .mockRejectedValueOnce(new Error("poll 2 failed"))
+      .mockRejectedValueOnce(new Error("poll 3 failed"))
+      .mockImplementationOnce(() => stalePoll.promise)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(reparsingStatement)
+
+    render(<StatementDetailPage />)
+    await screen.findByText(/Parsing in progress/)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000)
+    })
+    await screen.findByText("Auto-refresh Stopped")
+
+    const resumeButton = screen.getByRole("button", { name: "Resume Auto-Refresh" })
+    const retryButton = screen.getByRole("button", { name: "Retry Parse" })
+    await act(async () => {
+      resumeButton.click()
+      retryButton.click()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(7))
+    const staleSignal = mockedApiFetch.mock.calls[4]?.[1]?.signal
+    expect(staleSignal?.aborted).toBe(true)
+    expect(await screen.findByText(/Parsing in progress/)).toBeInTheDocument()
+
+    await act(async () => {
+      stalePoll.resolve(parsedStatement)
+      await stalePoll.promise
+    })
+    expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument()
+  })
+
   // AC-extraction.fe-stage1-review.4
   it("AC16.18.1 loads detail data and renders transactions", async () => {
     mockedApiFetch.mockResolvedValueOnce(parsedStatement)
