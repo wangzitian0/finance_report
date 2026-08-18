@@ -48,6 +48,13 @@ with its external needs (`llm_provider`, `market_data`, `deployed_env`,
 (audited AND no needs) — an unaudited or dependent spec defaults to the
 post-merge ladder and can never silently creep into the merge-blocking path.
 
+The root browser context records every HTTP 429 response through
+`e2e_rate_limit.py`. Its pytest report hook fails the owning journey with a
+bounded method/path diagnostic during either the call or teardown phase, while
+preserving any earlier assertion failure. Query strings are never included in
+the evidence. This makes exhausted shared-IP capacity attributable instead of
+misreporting it as an authentication, business, or locator regression.
+
 ### Fast interception
 
 The matrix is SSOT'd in this package — not in prose, not in workflow YAML —
