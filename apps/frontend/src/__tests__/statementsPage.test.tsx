@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -7,6 +7,15 @@ import { apiFetch } from "@/lib/api"
 import type { BankStatement } from "@/lib/types"
 
 const showToastMock = vi.fn()
+let latestUploadComplete: (() => void) | null = null
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -23,9 +32,10 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("@/components/statements/StatementUploader", () => ({
-  default: ({ onUploadComplete, kind = "all" }: { onUploadComplete: () => void; kind?: string }) => (
-    <button onClick={onUploadComplete}>{`UploadMock-${kind}`}</button>
-  ),
+  default: ({ onUploadComplete, kind = "all" }: { onUploadComplete: () => void; kind?: string }) => {
+    latestUploadComplete = onUploadComplete
+    return <button onClick={onUploadComplete}>{`UploadMock-${kind}`}</button>
+  },
 }))
 
 vi.mock("@/components/assets/GuidedEvidenceForm", () => ({
@@ -84,9 +94,90 @@ describe("StatementsPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
+    latestUploadComplete = null
   })
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it("AC-extraction.fe-stage1-review.16 keeps upload polling single-flight and supersedes stale work", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const parsingResponse = {
+      items: [
+        {
+          ...({} as BankStatement),
+          id: "s-poll",
+          original_filename: "parsing.pdf",
+          institution: "DBS",
+          status: "parsing",
+          transactions: [],
+        },
+      ],
+    }
+    const terminalResponse = {
+      items: [
+        {
+          ...parsingResponse.items[0],
+          status: "parsed",
+          original_filename: "ready.pdf",
+        },
+      ],
+    }
+    const poll = deferred<typeof parsingResponse>()
+    const teardownRefresh = deferred<typeof terminalResponse>()
+    let statementReads = 0
+    mockedApiFetch.mockImplementation((path) => {
+      if (String(path) !== "/api/statements") {
+        return Promise.reject(new Error(`Unexpected apiFetch call: ${String(path)}`))
+      }
+      statementReads += 1
+      if (statementReads === 1) return Promise.resolve(parsingResponse)
+      if (statementReads === 2) return poll.promise
+      if (statementReads === 3) return Promise.resolve(terminalResponse)
+      return teardownRefresh.promise
+    })
+
+    const view = render(<StatementsPage />)
+    await screen.findByText("AI Parsing in Progress")
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    expect(statementReads).toBe(2)
+    const pollSignal = mockedApiFetch.mock.calls[1]?.[1]?.signal
+    expect(pollSignal).toBeInstanceOf(AbortSignal)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(statementReads).toBe(2)
+
+    fireEvent.click(screen.getByText("UploadMock-statement"))
+    await screen.findByText("ready.pdf")
+    expect(pollSignal?.aborted).toBe(true)
+
+    await act(async () => {
+      poll.resolve(parsingResponse)
+      await poll.promise
+    })
+    expect(screen.getByText("ready.pdf")).toBeInTheDocument()
+    expect(screen.queryByText("parsing.pdf")).toBeNull()
+
+    fireEvent.click(screen.getByText("UploadMock-statement"))
+    await waitFor(() => expect(statementReads).toBe(4))
+    const teardownSignal = mockedApiFetch.mock.calls[3]?.[1]?.signal
+    view.unmount()
+    expect(teardownSignal?.aborted).toBe(true)
+    latestUploadComplete?.()
+    expect(statementReads).toBe(4)
+
+    await act(async () => {
+      teardownRefresh.resolve(terminalResponse)
+      await teardownRefresh.promise
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(statementReads).toBe(4)
   })
 
   // AC-extraction.fe-stage1-review.1
@@ -159,7 +250,10 @@ describe("StatementsPage", () => {
     expect(screen.queryByTestId("source-intake-bank_statement")).toBeNull()
     expect(screen.queryByTestId("source-intake-manual_record")).toBeNull()
     // The page does not pull package data merely to render intake entries.
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements")
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/api/statements",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
   })
 
   it("AC22.5.x surfaces a parsed statement as ready-to-review with a direct review deep-link", async () => {
