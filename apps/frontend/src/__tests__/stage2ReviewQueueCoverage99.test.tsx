@@ -360,7 +360,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       )
     })
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+    const cancelButton = within(dialog).getByRole("button", { name: "Cancel" })
+    await waitFor(() => expect(cancelButton).toBeEnabled())
+    fireEvent.click(cancelButton)
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Resolve Consistency Check" })).not.toBeInTheDocument())
   })
 
