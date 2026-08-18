@@ -16,6 +16,7 @@ import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from common.testing.e2e_rate_limit import (
+    RateLimitHit,
     fail_report_for_rate_limits,
     record_rate_limit_response,
 )
@@ -292,7 +293,7 @@ async def context(
 
     csp_violations: list[str] = []
     page_errors: list[str] = []
-    rate_limit_hits = []
+    rate_limit_hits: list[RateLimitHit] = []
     setattr(request.node, "_e2e_rate_limit_hits", rate_limit_hits)
 
     def _on_console(msg) -> None:
