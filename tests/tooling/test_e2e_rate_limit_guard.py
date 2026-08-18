@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import sys
 from dataclasses import dataclass
+from types import ModuleType
 
 import pytest
 
@@ -73,6 +76,19 @@ class _FixtureRequest:
     node: _Item
 
 
+def _load_e2e_conftest_without_optional_playwright(monkeypatch):
+    playwright_module = ModuleType("playwright")
+    async_api_module = ModuleType("playwright.async_api")
+    for name in ("Browser", "BrowserContext", "Page"):
+        setattr(async_api_module, name, type(name, (), {}))
+    setattr(async_api_module, "async_playwright", lambda: None)
+    setattr(playwright_module, "async_api", async_api_module)
+    monkeypatch.setitem(sys.modules, "playwright", playwright_module)
+    monkeypatch.setitem(sys.modules, "playwright.async_api", async_api_module)
+    sys.modules.pop("tests.e2e.conftest", None)
+    return importlib.import_module("tests.e2e.conftest")
+
+
 def test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report() -> None:
     hits: list[RateLimitHit] = []
     record_rate_limit_response(
@@ -126,8 +142,10 @@ def test_rate_limit_diagnostic_preserves_an_existing_failure_and_is_bounded() ->
     assert message.endswith("4 additional HTTP 429 response(s)")
 
 
-def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports() -> None:
-    from tests.e2e.conftest import context
+def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports(
+    monkeypatch,
+) -> None:
+    context = _load_e2e_conftest_without_optional_playwright(monkeypatch).context
 
     async def exercise_context() -> None:
         browser = _Browser()
@@ -154,8 +172,10 @@ def test_global_browser_context_wires_the_guard_into_call_and_teardown_reports()
 
 
 @pytest.mark.parametrize("when", ["call", "teardown"])
-def test_rate_limit_guard_fails_call_and_teardown_reports(when: str) -> None:
-    from tests.e2e.conftest import pytest_runtest_makereport
+def test_rate_limit_guard_fails_call_and_teardown_reports(when: str, monkeypatch) -> None:
+    pytest_runtest_makereport = _load_e2e_conftest_without_optional_playwright(
+        monkeypatch
+    ).pytest_runtest_makereport
 
     item = _Item()
     item._e2e_rate_limit_hits = [RateLimitHit(method="GET", path="/api/accounts")]

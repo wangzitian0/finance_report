@@ -635,8 +635,7 @@ class Settings(BaseSettings):
         validation_alias="API_RATE_LIMIT_REQUESTS",
         description=(
             "Global API rate-limit request count (applies to all endpoints except "
-            "/health, /ping, /docs). Default 300 is the production safety baseline; "
-            "shared-IP test environments must configure explicit additional capacity."
+            "/health, /ping, /docs). Default 300 allows E2E test suites and power users."
         ),
         json_schema_extra={"group": "Rate Limiting"},
     )
