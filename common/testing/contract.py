@@ -434,6 +434,22 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.journeys.6",
+            statement=(
+                "Every browser-based E2E journey records an HTTP 429 response as "
+                "a rate-limit capacity failure and makes the owning test report "
+                "fail with bounded method/path evidence, including failures first "
+                "observed during teardown, instead of masking the 429 as an auth, "
+                "business, or locator failure."
+            ),
+            test=(
+                "tests/tooling/test_e2e_rate_limit_guard.py"
+                "::test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group ci-integration: CI/CD integration journey gates (was
         # EPIC-008 AC8.9), migration closeout, #1663 / #1718 ──
         ACRecord(

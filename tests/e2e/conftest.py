@@ -15,6 +15,10 @@ from pathlib import Path
 import pytest
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
+from common.testing.e2e_rate_limit import (
+    fail_report_for_rate_limits,
+    record_rate_limit_response,
+)
 from tests.e2e.auth_cookie import build_auth_cookie
 from tests.e2e.critical_skip_gate import (
     CRITICAL_MARKER,
@@ -106,6 +110,16 @@ def pytest_runtest_makereport(item, call):
     ):
         report.outcome = "failed"
         report.longrepr = critical_skip_failure_message(item.nodeid)
+
+    rate_limit_hits = getattr(item, "_e2e_rate_limit_hits", [])
+    already_reported = getattr(item, "_e2e_rate_limit_reported", False)
+    if (
+        report.when in {"call", "teardown"}
+        and rate_limit_hits
+        and not already_reported
+        and fail_report_for_rate_limits(report, rate_limit_hits)
+    ):
+        setattr(item, "_e2e_rate_limit_reported", True)
 
 
 class AuthState:
@@ -278,6 +292,8 @@ async def context(
 
     csp_violations: list[str] = []
     page_errors: list[str] = []
+    rate_limit_hits = []
+    setattr(request.node, "_e2e_rate_limit_hits", rate_limit_hits)
 
     def _on_console(msg) -> None:
         if (
@@ -292,8 +308,12 @@ async def context(
         if not _is_benign(text):
             page_errors.append(text)
 
+    def _on_response(response) -> None:
+        record_rate_limit_response(response, rate_limit_hits)
+
     context.on("console", _on_console)
     context.on("weberror", _on_weberror)
+    context.on("response", _on_response)
 
     yield context
     await context.close()

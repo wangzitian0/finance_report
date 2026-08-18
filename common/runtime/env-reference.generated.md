@@ -69,7 +69,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `STORAGE_SWEEP_GRACE_PERIOD_HOURS` | `24` |  |  | Feature Flags | Grace period (hours) before an orphaned S3 object is eligible for the storage sweep. Objects younger than this are never deleted, to avoid racing with in-progress uploads (issue #356, default 24h). |
 | `STORAGE_SWEEP_INTERVAL_SECONDS` | `86400` |  |  | Feature Flags | Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily). |
 | `GIT_COMMIT_SHA` | `unknown` |  |  | Deployment metadata | Deployment commit SHA (set by CI, not manually). |
-| `API_RATE_LIMIT_REQUESTS` | `300` |  |  | Rate Limiting | Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 allows E2E test suites and power users. |
+| `API_RATE_LIMIT_REQUESTS` | `300` |  |  | Rate Limiting | Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 is the production safety baseline; shared-IP test environments must configure explicit additional capacity. |
 | `API_RATE_LIMIT_WINDOW` | `60` |  |  | Rate Limiting | Global API rate-limit window in seconds. |
 | `REGISTER_RATE_LIMIT_REQUESTS` | `10` |  |  | Rate Limiting | Per-IP registration rate-limit request count on /api/auth/register. Default 10/600s is strict; set to 10000 in test envs. |
 | `REGISTER_RATE_LIMIT_WINDOW` | `600` |  |  | Rate Limiting | Per-IP registration rate-limit window in seconds. |
