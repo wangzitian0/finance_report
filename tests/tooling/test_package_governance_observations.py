@@ -596,6 +596,70 @@ def detect_governance(*, repo_root):
         )
 
 
+@pytest.mark.parametrize(
+    ("provider_body", "message"),
+    [
+        (
+            "raise RuntimeError('detector failed')",
+            "provider failed",
+        ),
+        (
+            "return {'guarantee_id': 'demo/real-input'}",
+            "must return a list",
+        ),
+        (
+            """return [{
+                'guarantee_id': 'demo/real-input',
+                'current': 0,
+                'target': 0,
+                'findings': [],
+                'proofs': [{'result': 'passed'}],
+            }]""",
+            "observation is invalid",
+        ),
+    ],
+)
+def test_AC_testing_governance_26_provider_fails_closed_on_invalid_output(
+    tmp_path: Path,
+    provider_body: str,
+    message: str,
+) -> None:
+    """AC-testing.governance.26: providers cannot smuggle proof-bearing data."""
+    provider = tmp_path / "common/demo/extension/governance_detector.py"
+    provider.parent.mkdir(parents=True)
+    provider.write_text(
+        "def detect_governance(*, repo_root):\n    "
+        + provider_body.replace("\n", "\n    ")
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ObservationInputError, match=message):
+        discover_package_detector_payloads(
+            contracts=[_contract()],
+            repo_root=tmp_path,
+            target_sha=TARGET_SHA,
+        )
+
+
+def test_open_guarantee_requires_a_current_issue_observation(tmp_path: Path) -> None:
+    """AC-testing.governance.26: absent issue state cannot become current proof."""
+    junit = tmp_path / "proof.xml"
+    _write_executed_proof_junit(junit)
+
+    with pytest.raises(ObservationInputError, match="issue state is missing"):
+        junit_proof_payload(
+            contracts=[_contract()],
+            issue_states={},
+            junit_lanes={"ci.demo": [junit]},
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="evidence",
+            repository=REPOSITORY,
+            execution_id=EXECUTION_ID,
+        )
+
+
 @ac_proof(
     "package-governance-historical-proof-refresh",
     ac_ids=["AC-testing.governance.27"],
@@ -794,6 +858,12 @@ def test_github_collector_retains_only_current_redacted_facts(
                 guarantee_id="demo/unknown"
             ),
             "unknown guarantee",
+        ),
+        (
+            lambda data: data["detector_payloads"][0]["detectors"][0].update(
+                proofs=[{"result": "passed"}]
+            ),
+            "invalid observation",
         ),
         (
             lambda data: data["proof_payloads"][0].update(source="detector"),

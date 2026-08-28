@@ -283,7 +283,7 @@ def discover_package_detector_payloads(
         detectors: list[dict[str, Any]] = []
         for raw_item in raw_items:
             try:
-                detector = DetectorObservation.model_validate(raw_item)
+                detector = DetectorObservation.model_validate(raw_item, extra="forbid")
             except Exception as exc:
                 raise ObservationInputError(
                     f"{contract.name}: package detector observation is invalid"
@@ -582,7 +582,7 @@ def build_observation_bundle(
                     "detector payload references an unknown guarantee"
                 )
             try:
-                detector = DetectorObservation.model_validate(item)
+                detector = DetectorObservation.model_validate(item, extra="forbid")
             except Exception as exc:
                 raise ObservationInputError(
                     "detector payload contains an invalid observation"

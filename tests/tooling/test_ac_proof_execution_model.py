@@ -127,3 +127,28 @@ def test_AC8_13_150_ac_proof_execution_model_rejects_unknown_metadata() -> None:
             ac_ids=["AC8.13.150"],
             governance_strength="strong-enough",
         )
+
+
+def test_AC8_13_150_static_proof_rejects_unknown_governance_strength(
+    tmp_path: Path,
+) -> None:
+    """AC8.13.150: the generated proof matrix fails closed on strength typos."""
+    proof_file = tmp_path / "tests/test_invalid_strength.py"
+    proof_file.parent.mkdir()
+    proof_file.write_text(
+        """
+from common.testing.ac_proof import ac_proof
+
+@ac_proof(
+    "invalid-strength",
+    ac_ids=["AC8.13.150"],
+    governance_strength="strong-enough",
+)
+def test_invalid_strength():
+    pass
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(matrix.GeneratorError, match="unknown governance strength"):
+        matrix.collect_proofs_from_file(proof_file, tmp_path)
