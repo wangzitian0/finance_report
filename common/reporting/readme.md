@@ -382,6 +382,16 @@ None may retain a readiness route, service, or local derivation. A document is
 pass; otherwise it is `blocked`. Only a persisted package decision may set the
 frozen document status to `trusted`.
 
+Net-income invariants respect each section's period: the balance sheet is
+cumulative through `as_of_date`, while the income statement covers
+`start_date` through `end_date`. Each is checked against its corresponding
+ledger aggregation, including that period's FX averaging window. Prior-period
+income or expenses do not themselves block a monthly package. Subtracting two
+cumulative, independently FX-restated balance sheets is not a substitute for
+the selected-period income projection. An inconsistent section still blocks
+readiness as `statement_net_income_mismatch`; frozen reopen/export preserve
+the selected document's values without recalculation.
+
 The embedded framework-policy result is read-only and fingerprints the selected
 framework, matrix version, period, decisions, and gaps. Package assembly must
 consume that result and may not infer framework-specific authority from raw

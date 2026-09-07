@@ -52,6 +52,7 @@ from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_NOTES,
 )
 from src.reporting.base.types import PersonalReportingFrameworkId
+from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
 from src.reporting.extension.cash_flow import generate_cash_flow
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
@@ -107,6 +108,8 @@ def personal_report_package_decision_ref(document: PersonalReportPackageDocument
         raise ValueError("package decision coordinates require a frozen document")
     if document.snapshot_id is None or document.package_decision_id is None:
         raise ValueError("frozen package decision coordinates require snapshot and decision ids")
+    if document.statement_disposition_policy is None:
+        raise ValueError("package decision coordinates require a statement disposition policy")
     return TraceDecisionRef(
         decision_id=document.package_decision_id,
         target=personal_report_package_target(
@@ -344,6 +347,8 @@ def _section_invariant_blockers(
     currency: str,
     contributions: tuple[PackageSectionContribution[Any], ...],
     cash_inputs: PackageCashInputs,
+    cumulative_net_income: Decimal,
+    period_net_income: Decimal,
 ) -> list[PersonalReportPackageReadinessBlocker]:
     """Prove cross-section accounting and context before authority emission."""
     blockers: list[PersonalReportPackageReadinessBlocker] = []
@@ -354,9 +359,12 @@ def _section_invariant_blockers(
     annualized = sections.annualized_income_long_term
     if not balance_sheet.is_balanced or abs(balance_sheet.equation_delta) >= Decimal("0.01"):
         blockers.append(_section_blocker("balance_sheet_equation_failed", "The balance sheet does not balance."))
-    if balance_sheet.net_income != income_statement.net_income:
+    if balance_sheet.net_income != cumulative_net_income or income_statement.net_income != period_net_income:
         blockers.append(
-            _section_blocker("statement_net_income_mismatch", "Balance-sheet and income-statement net income differ.")
+            _section_blocker(
+                "statement_net_income_mismatch",
+                "Statement net income differs from the ledger for its cumulative or selected period.",
+            )
         )
     cash_rollforward = cash_flow.summary.ending_cash - cash_flow.summary.beginning_cash
     if cash_rollforward != cash_flow.summary.net_cash_flow:
@@ -514,6 +522,13 @@ class PackageAssembler:
             authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
             unproven_input_count=len(unproven_input_refs),
         )
+        # Position and flow sections have different periods and FX averaging
+        # windows. Compare each against its matching ledger projection rather
+        # than comparing lifetime income with the selected month's income.
+        cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
+        period_net_income = _quantize_money(
+            await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
+        )
         readiness = self._readiness(
             policy=policy,
             coverage=coverage,
@@ -525,6 +540,8 @@ class PackageAssembler:
                 currency=currency,
                 contributions=contributions,
                 cash_inputs=cash_inputs,
+                cumulative_net_income=cumulative_net_income,
+                period_net_income=period_net_income,
             ),
         )
         now = datetime.now(UTC)

@@ -1573,6 +1573,22 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="exact",
         ),
+        ACRecord(
+            id="AC-reporting.package-document.11",
+            statement=(
+                "Package readiness validates cumulative balance-sheet and selected-period income "
+                "against matching ledger periods. Prior-period activity does not block a valid "
+                "monthly package; inconsistent section values remain blocked and saved exports "
+                "retain the selected document's period-specific values."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_package_period_readiness.py"
+                "::test_AC_reporting_package_document_11_prior_period_package_lifecycle"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="exact",
+        ),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
         # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
         ACRecord(

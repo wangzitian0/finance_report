@@ -230,6 +230,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     )
     blockers = _section_invariant_blockers(
         sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
         start_date=period_start,
         end_date=period_end,
         as_of_date=period_end,
@@ -256,6 +258,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     }
     empty_input_blockers = _section_invariant_blockers(
         sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
         start_date=period_start,
         end_date=period_end,
         as_of_date=period_end,
@@ -271,6 +275,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     sections.investment_performance.as_of_date = period_start
     warning_blockers = _section_invariant_blockers(
         sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
         start_date=period_start,
         end_date=period_end,
         as_of_date=period_end,
@@ -289,6 +295,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     sections.cash_flow.proof_reasons = ["cash_event_classification_ambiguous"]
     proof_blockers = _section_invariant_blockers(
         sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
         start_date=period_start,
         end_date=period_end,
         as_of_date=period_end,
@@ -299,6 +307,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     assert "cash_event_classification_ambiguous" not in {blocker.code for blocker in proof_blockers}
     proof_blockers = _section_invariant_blockers(
         sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
         start_date=period_start,
         end_date=period_end,
         as_of_date=period_end,
@@ -654,6 +664,8 @@ def test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinate
         personal_report_package_decision_ref(changed_document(lifecycle=PersonalReportPackageDocumentLifecycle.PREVIEW))
     with pytest.raises(ValueError, match="snapshot and decision ids"):
         personal_report_package_decision_ref(changed_document(package_decision_id=None))
+    with pytest.raises(ValueError, match="statement disposition policy"):
+        personal_report_package_decision_ref(changed_document(statement_disposition_policy=None))
 
     for field in semantics:
         changed = copy.deepcopy(semantics)

@@ -690,6 +690,13 @@ async def _install_trace_anchored_package_fixture(
         frozen_at=None,
     )
     assert entry.decision_anchor_id is not None
+    # The real assembler now checks each section against its ledger period.
+    # Keep this trace/rollback fixture consistent with the posted income above.
+    fixture.sections.balance_sheet.net_income = Decimal("100.00")
+    fixture.sections.balance_sheet.total_equity = Decimal("0.00")
+    fixture.sections.income_statement.total_income = Decimal("100.00")
+    fixture.sections.income_statement.total_expenses = Decimal("0.00")
+    fixture.sections.income_statement.net_income = Decimal("100.00")
     entry_decision = await db.get(TraceRecordRow, entry.decision_anchor_id)
     assert entry_decision is not None
     fixture_line = fixture.sections.traceability_appendix.lines[0]
