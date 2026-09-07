@@ -260,11 +260,7 @@ def render_required_env_manifest(fields: list[dict]) -> str:
     """
     import json
 
-    from infra2_sdk.runtime.config_schema import environment_manifest_from_model
-
-    contract = environment_manifest_from_model(
-        _settings_model(), source=MANIFEST_SOURCE
-    )
+    contract = _environment_contract()
     vault_by_field = {field["field"]: field["vault"] for field in fields}
     entries = []
     for entry in sorted(contract.fields, key=lambda item: item.env):
@@ -287,14 +283,39 @@ def render_required_env_manifest(fields: list[dict]) -> str:
     return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
 
 
+def _environment_contract():
+    """The infra2-sdk v2 manifest: model metadata plus ``config.ENV_SOURCE_CLASSES``.
+
+    The source classes live in a side table (see config.py) so that declaring one never
+    edits a public ``Field()`` signature; they are folded into the contract here.
+    """
+    from dataclasses import replace
+
+    from infra2_sdk.runtime.config_schema import (
+        EnvironmentManifest,
+        environment_manifest_from_model,
+    )
+
+    settings_cls = _settings_model()
+    overrides: dict[str, dict[str, object]] = getattr(
+        sys.modules[settings_cls.__module__], "ENV_SOURCE_CLASSES", {}
+    )
+    base = environment_manifest_from_model(settings_cls, source=MANIFEST_SOURCE)
+    unknown = sorted(set(overrides) - {field.field for field in base.fields})
+    if unknown:
+        raise SystemExit(f"ENV_SOURCE_CLASSES names unknown settings fields: {unknown}")
+    fields = tuple(
+        replace(field, **overrides[field.field]) if field.field in overrides else field
+        for field in base.fields
+    )
+    return EnvironmentManifest(source=base.source, fields=fields)
+
+
 def manifest_gate_errors() -> list[str]:
     """Offline contract violations (infra2_sdk.ci); no infrastructure involved."""
     from infra2_sdk.ci import validate_manifest_offline
-    from infra2_sdk.runtime.config_schema import environment_manifest_from_model
 
-    return validate_manifest_offline(
-        environment_manifest_from_model(_settings_model(), source=MANIFEST_SOURCE)
-    )
+    return validate_manifest_offline(_environment_contract())
 
 
 def _diff(label: str, current: str, generated: str) -> str:
