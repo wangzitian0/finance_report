@@ -149,8 +149,8 @@ def test_manifest_carries_the_consumer_contract_fields():
         assert isinstance(entry["aliases"], list)
 
 
-def test_AC_2005_every_field_has_a_producer_and_the_offline_gate_is_green():
-    """#2005: the manifest is the infra2-sdk v2 contract. Every field names who produces
+def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green():
+    """AC-runtime.guard-proofs.13 (#2005): the manifest is the infra2-sdk v2 contract. Every field names who produces
     its value; a ``vault`` (deployment-injected) field is never a plain code default
     unless the deployment injects it; the offline gate passes without infrastructure."""
     from infra2_sdk.ci import validate_manifest_offline
