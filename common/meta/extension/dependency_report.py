@@ -144,7 +144,7 @@ def _qualified_imported_value(
 
 
 def _capture_expression(
-    node: ast.expr,
+    node: ast.AST,
     values: dict[str, _ValueBinding],
 ) -> _ExpressionValue:
     dependencies: dict[str, _ValueBinding] = {}
