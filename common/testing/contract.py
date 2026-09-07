@@ -4262,6 +4262,39 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="exact",
         ),
+        ACRecord(
+            id="AC-testing.governance.26",
+            statement=(
+                "The governance observation adapter discovers one optional detector "
+                "provider from each owning package, validates its package-detector "
+                "payload without exposing proof inputs, and rejects provider failure, "
+                "foreign guarantees, duplicate coordinates, or mixed target SHAs."
+            ),
+            test=(
+                "tests/tooling/test_package_governance_observations.py"
+                "::test_AC_testing_governance_26_discovers_only_package_owned_detectors"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-testing.governance.27",
+            statement=(
+                "Canonical executed-proof records are collected for open and closed "
+                "governance initiatives at the current SHA with their declared semantic "
+                "strength and actual JUnit gate lane: open missing or mismatched evidence "
+                "fails input construction, while closed missing evidence remains an "
+                "explicit unverified projection instead of being synthesized or suppressed."
+            ),
+            test=(
+                "tests/tooling/test_package_governance_observations.py"
+                "::test_AC_testing_governance_27_refreshes_closed_initiative_proof"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
     ],
     governance=[
         GovernanceInitiative(
@@ -4312,7 +4345,47 @@ CONTRACT = PackageContract(
                     enforcing_gate="ci.tooling_coverage",
                 ),
             ],
-        )
+        ),
+        GovernanceInitiative(
+            id="package-governance-evidence-discovery",
+            title="Package-owned governance evidence discovery",
+            issue="https://github.com/wangzitian0/finance_report/issues/1992",
+            depends_on=["testing/package-governance-observation-adapter"],
+            guarantees=[
+                GovernanceGuarantee(
+                    id="package-detector-discovery",
+                    statement=(
+                        "Only the owning package can publish its independently computed "
+                        "detector observations through the shared adapter protocol."
+                    ),
+                    affected_acs=["AC-testing.governance.26"],
+                    detector="package-governance-control-integrity",
+                    target="zero missing, foreign, duplicate, or proof-derived detector facts",
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-detector-discovery",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="historical-proof-refresh",
+                    statement=(
+                        "Issue closure never suppresses a current canonical proof or turns "
+                        "absent, wrong-strength, or wrong-lane historical evidence into a "
+                        "green observation."
+                    ),
+                    affected_acs=["AC-testing.governance.27"],
+                    detector="package-governance-control-integrity",
+                    target=(
+                        "zero suppressed, forged, stale, wrong-strength, or wrong-lane "
+                        "historical proof observations"
+                    ),
+                    lock="ci.tooling_coverage",
+                    proof="package-governance-historical-proof-refresh",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+            ],
+        ),
     ],
     concepts=[
         ConceptRecord(

@@ -78,6 +78,7 @@ def executed_proof_assertion_version(
     ac_ids: tuple[str, ...] | list[str],
     stage: str,
     task_category: str,
+    governance_strength: str = "exact",
     required_observation_kind: str = "",
 ) -> str:
     """Hash the declaration fields that define one semantic proof contract."""
@@ -88,6 +89,7 @@ def executed_proof_assertion_version(
         "scenario_id": scenario_id,
         "stage": stage,
         "task_category": task_category,
+        "governance_strength": governance_strength,
     }
     if required_observation_kind:
         declaration["required_observation_kind"] = required_observation_kind
@@ -160,6 +162,7 @@ def _build_executed_proof(
         ac_ids=proof.ac_ids,
         stage=proof.stage,
         task_category=proof.task_category,
+        governance_strength=proof.governance_strength,
         required_observation_kind=proof.required_observation_kind,
     )
     evidence_digest = _digest(

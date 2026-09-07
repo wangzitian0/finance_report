@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -17,6 +18,7 @@ import yaml
 
 from common.audit.base import TraceRecordValidationError
 from common.audit.extension import TraceRecordCodec
+from common.meta.base.governance_control import DetectorObservation, ProofObservation
 from common.meta.base.package_contract import PackageContract
 from common.meta.data.projection import contract_index
 from common.meta.extension.check_package_contract import discover_packages
@@ -26,6 +28,10 @@ from common.testing.executed_proof import (
     executed_proof_assertion_version,
     executed_proof_matches,
     github_execution_id,
+)
+from common.testing.generate_critical_proof_matrix import (
+    GeneratorError,
+    collect_proofs_from_file,
 )
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -72,42 +78,78 @@ def _junit_outcomes(paths: list[Path]) -> dict[tuple[str, str], str]:
 def junit_proof_payload(
     *,
     contracts: list[PackageContract],
-    open_issue_urls: set[str],
-    junit_paths: list[Path],
+    issue_states: dict[str, str],
+    junit_lanes: dict[str, list[Path]],
     target_sha: str,
     observed_at: datetime,
     evidence_url: str,
     repository: str,
     execution_id: str,
+    proof_profiles: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Bind guarantees only to canonical executed-proof JUnit records."""
     target_sha = _exact_sha(target_sha, label="proof target SHA")
-    outcomes = _junit_outcomes(junit_paths)
-    records, malformed = collect_executed_proofs(junit_paths)
+    lane_evidence: dict[
+        str,
+        tuple[
+            dict[tuple[str, str], str],
+            dict[tuple[str, str], tuple[Any, ...]],
+            set[tuple[str, str]],
+        ],
+    ] = {}
+    for gate_id, paths in junit_lanes.items():
+        lane_evidence[gate_id] = (
+            _junit_outcomes(paths),
+            *collect_executed_proofs(paths),
+        )
     proofs: list[dict[str, Any]] = []
     for contract in contracts:
         roadmap = {ac.id: ac for ac in contract.roadmap}
         for initiative in contract.governance:
-            if initiative.issue not in open_issue_urls:
-                continue
+            issue_state = str(issue_states.get(initiative.issue) or "").lower()
+            if issue_state not in {"open", "closed"}:
+                raise ObservationInputError(
+                    f"{initiative.id}: current issue state is missing"
+                )
             for guarantee in initiative.guarantees:
-                if guarantee.required_proof_strength != "exact":
-                    raise ObservationInputError(
-                        f"{contract.name}/{guarantee.id}: {guarantee.required_proof_strength} "
-                        "proof requires canonical strength-specific execution evidence"
-                    )
+                guarantee_id = f"{contract.name}/{guarantee.id}"
                 if len(guarantee.affected_acs) != 1:
+                    if issue_state == "closed" and guarantee_id not in (
+                        proof_profiles or {}
+                    ):
+                        continue
                     raise ObservationInputError(
-                        f"{contract.name}/{guarantee.id}: exact proof must bind one scenario AC"
+                        f"{contract.name}/{guarantee.id}: proof must bind one scenario AC"
                     )
+                lane = lane_evidence.get(guarantee.enforcing_gate)
+                if lane is None:
+                    if issue_state == "closed":
+                        continue
+                    raise ObservationInputError(
+                        f"{contract.name}/{guarantee.id}: declared gate lane "
+                        f"{guarantee.enforcing_gate!r} supplied no JUnit evidence"
+                    )
+                outcomes, records, malformed = lane
                 ac_id = guarantee.affected_acs[0]
+                profile = (proof_profiles or {}).get(
+                    guarantee_id,
+                    {
+                        "ac_ids": [ac_id],
+                        "oracle_kind": "deterministic_contract",
+                        "scenario_id": ac_id,
+                        "stage": "github_ci.merge_authority",
+                        "task_category": "critical_behavioral",
+                        "governance_strength": guarantee.required_proof_strength,
+                    },
+                )
                 assertion_version = executed_proof_assertion_version(
                     proof_id=guarantee.proof,
-                    scenario_id=ac_id,
-                    oracle_kind="deterministic_contract",
-                    ac_ids=[ac_id],
-                    stage="github_ci.merge_authority",
-                    task_category="critical_behavioral",
+                    scenario_id=str(profile["scenario_id"]),
+                    oracle_kind=str(profile["oracle_kind"]),
+                    ac_ids=[str(item) for item in profile["ac_ids"]],
+                    stage=str(profile["stage"]),
+                    task_category=str(profile["task_category"]),
+                    governance_strength=str(profile["governance_strength"]),
                 )
                 matched_records = []
                 for ac_id in guarantee.affected_acs:
@@ -126,6 +168,8 @@ def junit_proof_payload(
                         and name == test_name
                     ]
                     if not keys:
+                        if issue_state == "closed":
+                            continue
                         raise ObservationInputError(
                             f"{ac_id}: canonical executed proof is missing from current JUnit"
                         )
@@ -140,6 +184,8 @@ def junit_proof_payload(
                     matched_records.extend(
                         record for key in keys for record in records.get(key, ())
                     )
+                if not matched_records and issue_state == "closed":
+                    continue
                 exact = next(
                     (
                         record
@@ -157,21 +203,27 @@ def junit_proof_payload(
                     None,
                 )
                 if exact is None:
+                    if issue_state == "closed":
+                        continue
                     raise ObservationInputError(
                         f"{contract.name}/{guarantee.id}: canonical executed proof "
-                        "does not match the declared proof and CI coordinates"
+                        "does not match the declared strength profile and CI coordinates"
                     )
                 proofs.append(
                     {
                         "guarantee_id": f"{contract.name}/{guarantee.id}",
                         "proof_id": guarantee.proof,
                         "result": "passed",
-                        "strength": exact.authority.proof_kind,
+                        "strength": guarantee.required_proof_strength,
                         "target_sha": exact.target.version,
                         "occurred_at": exact.occurred_at.isoformat(),
                         "evidence_url": evidence_url,
                         "gate_id": guarantee.enforcing_gate,
-                        "scenario_id": ac_id,
+                        "scenario_id": str(profile["scenario_id"]),
+                        "ac_ids": [str(item) for item in profile["ac_ids"]],
+                        "oracle_kind": str(profile["oracle_kind"]),
+                        "stage": str(profile["stage"]),
+                        "task_category": str(profile["task_category"]),
                         "repository": repository,
                         "execution_id": execution_id,
                         "assertion_version": assertion_version,
@@ -183,6 +235,171 @@ def junit_proof_payload(
         "target_sha": target_sha,
         "proofs": proofs,
     }
+
+
+def discover_package_detector_payloads(
+    *,
+    contracts: list[PackageContract],
+    repo_root: Path,
+    target_sha: str,
+) -> list[dict[str, Any]]:
+    """Discover optional package-owned detector providers behind one adapter."""
+    target_sha = _exact_sha(target_sha, label="detector target SHA")
+    payloads: list[dict[str, Any]] = []
+    for contract in contracts:
+        provider_path = (
+            repo_root
+            / "common"
+            / contract.name
+            / "extension"
+            / "governance_detector.py"
+        )
+        if not provider_path.is_file():
+            continue
+        module_name = f"common.{contract.name}.extension.governance_detector"
+        spec = importlib.util.spec_from_file_location(module_name, provider_path)
+        if spec is None or spec.loader is None:
+            raise ObservationInputError(
+                f"{contract.name}: package detector provider cannot be loaded"
+            )
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+            provider = getattr(module, "detect_governance")
+            raw_items = provider(repo_root=repo_root)
+        except Exception as exc:
+            raise ObservationInputError(
+                f"{contract.name}: package detector provider failed"
+            ) from exc
+        if not isinstance(raw_items, list):
+            raise ObservationInputError(
+                f"{contract.name}: package detector provider must return a list"
+            )
+        owned_ids = {
+            f"{contract.name}/{guarantee.id}"
+            for initiative in contract.governance
+            for guarantee in initiative.guarantees
+        }
+        detectors: list[dict[str, Any]] = []
+        for raw_item in raw_items:
+            try:
+                detector = DetectorObservation.model_validate(raw_item, extra="forbid")
+            except Exception as exc:
+                raise ObservationInputError(
+                    f"{contract.name}: package detector observation is invalid"
+                ) from exc
+            if detector.guarantee_id not in owned_ids:
+                raise ObservationInputError(
+                    f"{detector.guarantee_id}: detector is outside its owning package"
+                )
+            detectors.append(detector.model_dump(mode="json"))
+        _reject_duplicate_coordinates(
+            detectors, coordinate="guarantee_id", label="package detector"
+        )
+        if detectors:
+            payloads.append(
+                {
+                    "source": "package-detector",
+                    "target_sha": target_sha,
+                    "detectors": detectors,
+                }
+            )
+    return payloads
+
+
+def _governance_proof_profiles(
+    *,
+    contracts: list[PackageContract],
+    repo_root: Path,
+    issue_states: dict[str, str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Resolve each guarantee to the decorator on its declared AC testcase."""
+    profiles: dict[str, dict[str, Any]] = {}
+    file_cache: dict[Path, list[Any]] = {}
+    for contract in contracts:
+        roadmap = {ac.id: ac for ac in contract.roadmap}
+        for initiative in contract.governance:
+            issue_state = (issue_states or {}).get(initiative.issue, "open").lower()
+            for guarantee in initiative.guarantees:
+                if len(guarantee.affected_acs) != 1:
+                    if issue_state == "closed":
+                        continue
+                    raise ObservationInputError(
+                        f"{contract.name}/{guarantee.id}: proof must bind one scenario AC"
+                    )
+                ac_id = guarantee.affected_acs[0]
+                test_ref = roadmap[ac_id].test
+                file_name, separator, test_name = test_ref.partition("::")
+                if not separator or not test_name:
+                    raise ObservationInputError(
+                        f"{ac_id}: test reference is not executable"
+                    )
+                path = repo_root / file_name
+                if not path.is_file():
+                    if issue_state == "closed":
+                        continue
+                    raise ObservationInputError(f"{ac_id}: proof test file is missing")
+                if path not in file_cache:
+                    try:
+                        file_cache[path] = collect_proofs_from_file(path, repo_root)
+                    except (GeneratorError, OSError, SyntaxError) as exc:
+                        raise ObservationInputError(
+                            f"{ac_id}: proof declaration cannot be collected"
+                        ) from exc
+                declarations = file_cache[path]
+                matches = [
+                    item
+                    for item in declarations
+                    if item.proof_id == guarantee.proof and item.test == test_name
+                ]
+                guarantee_id = f"{contract.name}/{guarantee.id}"
+                if len(matches) != 1:
+                    if issue_state == "closed" and not matches:
+                        continue
+                    raise ObservationInputError(
+                        f"{guarantee_id}: declared @ac_proof profile is missing or duplicate"
+                    )
+                fields = matches[0].fields
+                if (
+                    fields.get("ac_ids") != [ac_id]
+                    or fields.get("scenario_id") != ac_id
+                    or fields.get("governance_strength")
+                    != guarantee.required_proof_strength
+                    or fields.get("ci_tier") != "pr_ci"
+                    or fields.get("stage") != "github_ci.merge_authority"
+                    or not fields.get("oracle_kind")
+                ):
+                    raise ObservationInputError(
+                        f"{guarantee_id}: @ac_proof profile disagrees with the guarantee"
+                    )
+                profiles[guarantee_id] = dict(fields)
+    return profiles
+
+
+def _junit_lanes(root: Path) -> dict[str, list[Path]]:
+    """Classify downloaded JUnit by its producing CI artifact lane."""
+    lanes: dict[str, list[Path]] = {}
+    for path in sorted(root.rglob("*.xml")):
+        parts = path.relative_to(root).parts
+        lane: str | None = None
+        if parts and parts[0] == "backend" and len(parts) > 1:
+            artifact = parts[1]
+            if re.fullmatch(r"backend-shard-[1-5]-test-context", artifact):
+                lane = "ci.backend"
+            elif artifact == "backend-integration-test-context":
+                lane = "ci.backend_integration"
+            elif artifact == "backend-tier1-e2e-test-context":
+                lane = "ci.backend_e2e_tier1"
+        elif parts and parts[0] == "frontend":
+            lane = "ci.frontend_vitest"
+        elif parts and parts[0] == "tooling":
+            lane = "ci.tooling_coverage"
+        if lane is None:
+            raise ObservationInputError(f"JUnit evidence has no known CI lane: {path}")
+        lanes.setdefault(lane, []).append(path)
+    if not lanes:
+        raise ObservationInputError("no JUnit evidence was supplied")
+    return lanes
 
 
 def collect_github_snapshot(*, repository: str, issue_urls: set[str]) -> dict[str, Any]:
@@ -338,7 +555,7 @@ def build_observation_bundle(
     """Validate independent inputs and derive one target-SHA observation bundle."""
     target_sha = _exact_sha(target_sha, label="bundle target SHA")
     declared_guarantees = {
-        f"{contract.name}/{guarantee.id}"
+        f"{contract.name}/{guarantee.id}": guarantee
         for contract in contracts
         for initiative in contract.governance
         for guarantee in initiative.guarantees
@@ -364,7 +581,13 @@ def build_observation_bundle(
                 raise ObservationInputError(
                     "detector payload references an unknown guarantee"
                 )
-            detectors.append(dict(item))
+            try:
+                detector = DetectorObservation.model_validate(item, extra="forbid")
+            except Exception as exc:
+                raise ObservationInputError(
+                    "detector payload contains an invalid observation"
+                ) from exc
+            detectors.append(detector.model_dump(mode="json"))
     _reject_duplicate_coordinates(
         detectors, coordinate="guarantee_id", label="detector"
     )
@@ -383,9 +606,24 @@ def build_observation_bundle(
                 "proof payload target SHA does not match bundle"
             )
         for item in payload.get("proofs", []):
-            if item.get("guarantee_id") not in declared_guarantees:
+            guarantee = declared_guarantees.get(str(item.get("guarantee_id") or ""))
+            if guarantee is None:
                 raise ObservationInputError(
                     "proof payload references an unknown guarantee"
+                )
+            try:
+                proof = ProofObservation.model_validate(item)
+            except Exception as exc:
+                raise ObservationInputError(
+                    "proof payload contains an invalid observation"
+                ) from exc
+            if (
+                proof.proof_id != guarantee.proof
+                or proof.strength != guarantee.required_proof_strength
+                or proof.gate_id != guarantee.enforcing_gate
+            ):
+                raise ObservationInputError(
+                    "proof observation disagrees with its guarantee declaration"
                 )
             if (
                 _exact_sha(item.get("target_sha"), label="proof target SHA")
@@ -536,6 +774,24 @@ def validate_observation_bundle_payload(
         repository = str(proof.get("repository") or "")
         execution_id = str(proof.get("execution_id") or "")
         assertion_version = str(proof.get("assertion_version") or "")
+        try:
+            declared_assertion_version = executed_proof_assertion_version(
+                proof_id=str(proof.get("proof_id") or ""),
+                scenario_id=scenario_id,
+                oracle_kind=str(proof.get("oracle_kind") or ""),
+                ac_ids=[str(item) for item in proof.get("ac_ids", [])],
+                stage=str(proof.get("stage") or ""),
+                task_category=str(proof.get("task_category") or ""),
+                governance_strength=str(proof.get("strength") or ""),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ObservationInputError(
+                "proof observation has an invalid strength profile"
+            ) from exc
+        if assertion_version != declared_assertion_version:
+            raise ObservationInputError(
+                "proof observation strength profile does not match its assertion version"
+            )
         if not executed_proof_matches(
             record,
             proof_id=str(proof.get("proof_id") or ""),
@@ -556,11 +812,7 @@ def validate_observation_bundle_payload(
             raise ObservationInputError(
                 "proof observation has invalid occurred_at"
             ) from exc
-        if (
-            proof.get("result") != "passed"
-            or proof.get("strength") != "exact"
-            or occurred_at != record.occurred_at
-        ):
+        if proof.get("result") != "passed" or occurred_at != record.occurred_at:
             raise ObservationInputError(
                 "proof observation does not faithfully project its canonical TraceRecord"
             )
@@ -701,16 +953,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             issue_urls=issue_urls,
         )
         observed_at = datetime.now(UTC)
-        open_issue_urls = {
-            str(item.get("html_url"))
+        issue_states = {
+            str(item.get("html_url")): str(item.get("state") or "").lower()
             for item in github["issues"]
-            if str(item.get("state")).lower() == "open"
+        }
+        open_issue_urls = {
+            issue for issue, state in issue_states.items() if state == "open"
         }
         detector_payloads = [_read_payload(path) for path in args.detector_payload]
+        detector_payloads.extend(
+            discover_package_detector_payloads(
+                contracts=contracts,
+                repo_root=repo_root,
+                target_sha=target_sha,
+            )
+        )
         proof_payloads: list[dict[str, Any]] = []
-        junit_paths = sorted(args.junit_root.rglob("*.xml"))
-        if not junit_paths:
-            raise ObservationInputError("no JUnit evidence was supplied")
+        junit_lanes = _junit_lanes(args.junit_root)
         evidence_url = (
             f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
             f"{args.repository}/actions/runs/{os.environ.get('GITHUB_RUN_ID', 'unknown')}"
@@ -718,13 +977,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         proof_payloads.append(
             junit_proof_payload(
                 contracts=contracts,
-                open_issue_urls=open_issue_urls,
-                junit_paths=junit_paths,
+                issue_states=issue_states,
+                junit_lanes=junit_lanes,
                 target_sha=target_sha,
                 observed_at=observed_at,
                 evidence_url=evidence_url,
                 repository=args.repository,
                 execution_id=github_execution_id(os.environ),
+                proof_profiles=_governance_proof_profiles(
+                    contracts=contracts,
+                    repo_root=repo_root,
+                    issue_states=issue_states,
+                ),
             )
         )
         inventory_path = args.gate_inventory or (
@@ -778,6 +1042,7 @@ __all__ = [
     "ObservationInputError",
     "build_observation_bundle",
     "collect_github_snapshot",
+    "discover_package_detector_payloads",
     "junit_proof_payload",
     "main",
     "validate_observation_bundle_payload",

@@ -110,8 +110,17 @@ adapter for the meta governance projection. On heavy CI it joins package detecto
 artifacts with canonical executed-proof `TraceRecord`s emitted by the declared AC
 tests, collects a minimized current GitHub issue/ruleset snapshot through
 authenticated `gh`, and derives workflow enforcement from the live `finish`
-context. A passing JUnit testcase is not proof by itself: proof id, assertion
-version, repository, run attempt, and exact target SHA must all reconcile.
+context. An owning package may expose raw detector facts through the optional
+`common/<package>/extension/governance_detector.py::detect_governance(*,
+repo_root)` provider; the adapter owns discovery and target-SHA provenance and
+rejects foreign, duplicate, malformed, or proof-bearing output. A passing JUnit
+testcase is not proof by itself: proof id, assertion version, repository, run
+attempt, exact target SHA, declared semantic strength, and the producing gate's
+actual downloaded artifact lane must all reconcile. Semantic strength is bound
+into the assertion-version hash while Trace execution authority remains `exact`.
+Open initiatives fail closed when their lane or proof is absent; closed
+initiatives remain projected and accept fresh current proof without turning
+missing historical evidence into green.
 Likewise, `finish.needs` proves only reachability; enforcement also requires a
 canonical unconditional nonzero failure branch for the depended-on job; comments,
 nested branches, and masked exits do not count. One control-integrity detector

@@ -127,20 +127,18 @@ def _serialized_proofs(proofs: list[ProofObservation]) -> list[dict[str, object]
     def proof_test() -> None:
         pass
 
-    setattr(
-        proof_test,
-        PROOF_ATTR,
-        AcProof(
-            proof_id="demo-proof",
-            ac_ids=("AC-demo.control.1",),
-            stage="github_ci.merge_authority",
-            task_category="critical_behavioral",
-            scope="behavioral",
-            ci_tier="pr_ci",
-            scenario_id="AC-demo.control.1",
-            oracle_kind="deterministic_contract",
-        ),
+    proof = AcProof(
+        proof_id="demo-proof",
+        ac_ids=("AC-demo.control.1",),
+        stage="github_ci.merge_authority",
+        task_category="critical_behavioral",
+        scope="behavioral",
+        ci_tier="pr_ci",
+        scenario_id="AC-demo.control.1",
+        oracle_kind="deterministic_contract",
+        governance_strength=proofs[0].strength,
     )
+    setattr(proof_test, PROOF_ATTR, proof)
     item = SimpleNamespace(
         obj=proof_test,
         nodeid="tests/demo/test_control.py::test_control",
@@ -168,6 +166,10 @@ def _serialized_proofs(proofs: list[ProofObservation]) -> list[dict[str, object]
             "repository": "example/repo",
             "execution_id": "1.1",
             "assertion_version": record.assertion.version,
+            "ac_ids": list(proof.ac_ids),
+            "oracle_kind": proof.oracle_kind,
+            "stage": proof.stage,
+            "task_category": proof.task_category,
             "trace_record": TraceRecordCodec.encode(record),
         }
         for item in proofs
