@@ -634,24 +634,28 @@ async def _assert_saved_gxs_package(
             Decimal("0"),
         )
         assert (
-            money_amount(sections["income_statement"]["total_income"])
+            money_amount(
+                sections["income_statement"]["total_income"], source["currency"]
+            )
             == expected_income
         )
         assert (
-            money_amount(sections["income_statement"]["total_expenses"])
+            money_amount(
+                sections["income_statement"]["total_expenses"], source["currency"]
+            )
             == expected_expenses
         )
         assert (
-            money_amount(sections["income_statement"]["net_income"])
+            money_amount(sections["income_statement"]["net_income"], source["currency"])
             == expected_income - expected_expenses
         )
-        assert money_amount(sections["balance_sheet"]["total_assets"]) == Decimal(
-            source["closing_balance"]
-        )
+        assert money_amount(
+            sections["balance_sheet"]["total_assets"], source["currency"]
+        ) == Decimal(source["closing_balance"])
         assert sections["balance_sheet"]["is_balanced"] is True
-        assert money_amount(sections["cash_flow"]["summary"]["ending_cash"]) == Decimal(
-            source["closing_balance"]
-        )
+        assert money_amount(
+            sections["cash_flow"]["summary"]["ending_cash"], source["currency"]
+        ) == Decimal(source["closing_balance"])
         assert sections["cash_flow"]["proof_state"] == "proven"
 
         listed = await client.get(_api_url("/reports/package/snapshots"))
@@ -738,7 +742,12 @@ async def _post_later_gxs_income(
     accounts = await client.get(_api_url("/accounts?limit=100"))
     assert accounts.status_code == 200
     income_account = next(
-        item for item in accounts.json()["items"] if item["type"] == "INCOME"
+        (item for item in accounts.json()["items"] if item["type"] == "INCOME"),
+        None,
+    )
+    assert income_account is not None, (
+        "fixture economic review must create an INCOME counter-account before "
+        "the post-snapshot income check"
     )
     draft = await client.post(
         _api_url("/journal-entries"),
