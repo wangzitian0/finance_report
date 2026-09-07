@@ -36,7 +36,7 @@ export function PackageCover({
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted">Report Date</dt>
+            <dt className="text-xs text-muted">Balances as of</dt>
             <dd className="mt-1 font-mono text-xs">{asOfDate}</dd>
           </div>
           <div>

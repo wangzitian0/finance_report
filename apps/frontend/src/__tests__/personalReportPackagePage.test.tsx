@@ -739,6 +739,7 @@ describe("PersonalReportPackagePage", () => {
     const cover = within(screen.getByRole("region", { name: "Report package cover" }));
     expect(cover.getByText("2025-03-01 to 2025-03-31")).toBeInTheDocument();
     expect(cover.getByText("2025-04-01")).toBeInTheDocument();
+    expect(cover.getByText("Balances as of").nextElementSibling).toHaveTextContent("2025-04-01");
     expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("/package?"))).toBe(false);
   });
 
