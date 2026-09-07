@@ -190,6 +190,19 @@ binding is exposed as `dynamic-export` rather than silently matched to an
 unrelated same-named definition. Unreadable refs, empty discovery,
 duplicate/unknown/self edges, and cycles fail closed.
 
+Direct attribute reads on a statically resolved, zero-argument Pydantic
+`BaseSettings`/`BaseModel` instance project the accessed primitive field rather
+than the entire configuration class (AC-meta.public-boundary.6, #2012). The
+projection retains field defaults and their captured dependencies, model config,
+and bounded field/model validator bodies plus the fields those validators read.
+This prevents an unrelated model default from masquerading as an identity or
+ledger API migration. Whole-object use, unknown fields/bases, constructor
+arguments, factories, complex accessed annotations, computed attributes, custom
+hooks, and ambiguous validators keep the conservative whole-object fingerprint.
+In particular, validators accepting validation-info or dynamic access are not
+assumed independent. Actual accessed-field/dependency changes still enter the
+same breaking-consumer gate; there is no settings exemption or synthetic proof.
+
 The report is generated CI evidence, not an authored SSOT:
 `.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`
 and uploads exact governance observations for the package control-plane join,
