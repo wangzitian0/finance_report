@@ -415,6 +415,22 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
+            id="AC-llm.2.7",
+            statement="GLM-5.3 text and GLM-5.3-Flash vision calls use enabled thinking and a supported low/high reasoning effort even when existing extraction callers request disabled or medium reasoning; adaptation preserves caller decode values and remains local to these OpenAI-compatible models.",
+            test="apps/backend/tests/llm/test_client.py::test_glm53_stream_uses_supported_reasoning_parameters",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-llm.2.8",
+            statement="Default text scenes select GLM-5.3 and default image/OCR scenes select GLM-5.3-Flash with modality-correct fallbacks, while explicitly configured scene models continue to take precedence.",
+            test="apps/backend/tests/llm/test_env_config.py::test_default_glm_models_reach_scene_bindings",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
             id="AC-llm.3.1",
             statement="`DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings`",  # was AC23.3.1
             test="apps/backend/tests/llm/test_llm_db_config.py::test_AC23_3_1_db_config_reads_providers_and_bindings",

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 import src.llm.extension.client as client_mod
-from src.llm.base import DecodeParams, LLMConfigError, LLMError, ProtocolFamily, ProviderRef
+from src.llm.base import DecodeParams, LLMConfigError, LLMError, ProtocolFamily, ProviderRef, ReasoningEffort
 from src.llm.extension.client import litellm_stream, resolve_provider_and_model
 
 
@@ -109,6 +109,59 @@ async def test_AC23_2_4_reasoning_max_tokens_temperature_passthrough(captured):
 
 def _gemini_provider() -> ProviderRef:
     return ProviderRef(id="env", label="gemini", protocol=ProtocolFamily.GOOGLE_GEMINI, api_key="k")
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize("model_id", ["glm-5.3", "glm-5.3-flash", "openai/GLM-5.3-Flash"])
+@pytest.mark.parametrize(
+    ("reasoning", "expected"),
+    [
+        (None, "low"),
+        (ReasoningEffort.NONE, "low"),
+        (ReasoningEffort.LOW, "low"),
+        (ReasoningEffort.MEDIUM, "high"),
+        (ReasoningEffort.HIGH, "high"),
+    ],
+)
+async def test_glm53_stream_uses_supported_reasoning_parameters(captured, model_id, reasoning, expected):
+    """AC-llm.2.7: GLM 5.3 rejects disabled thinking and medium effort."""
+    extra_body = {"do_sample": False, "thinking": {"type": "disabled", "clear_thinking": False}}
+    decode = DecodeParams(reasoning=reasoning, extra_body=extra_body, max_tokens=8192)
+    result = [
+        chunk
+        async for chunk in litellm_stream(
+            [{"role": "user", "content": "Return JSON."}], provider=_provider(), model_id=model_id, decode=decode
+        )
+    ]
+    wire = captured["kwargs"]
+    assert wire["extra_body"]["thinking"] == {"type": "enabled", "clear_thinking": False}
+    assert wire["reasoning_effort"] == expected
+    # Exercise LiteLLM's real parameter filter: these new model ids may not be
+    # in its model registry, so drop_params would otherwise remove the effort.
+    from litellm.utils import get_optional_params
+
+    forwarded = get_optional_params(
+        model=model_id.removeprefix("openai/"),
+        custom_llm_provider="openai",
+        reasoning_effort=wire["reasoning_effort"],
+        drop_params=wire["drop_params"],
+        allowed_openai_params=wire.get("allowed_openai_params"),
+    )
+    assert forwarded["reasoning_effort"] == expected
+    assert wire["extra_body"]["do_sample"] is False
+    assert wire["max_tokens"] == 8192
+    assert "".join(result) == "Hello"
+    assert decode.extra_body["thinking"]["type"] == "disabled"
+    assert extra_body["thinking"]["type"] == "disabled"
+
+
+@pytest.mark.no_db
+async def test_glm53_without_decode_options_uses_bounded_reasoning(captured):
+    """AC-llm.2.7: default advisor calls must not inherit provider max effort."""
+    async for _ in litellm_stream([{"role": "user", "content": "Hello"}], provider=_provider(), model_id="glm-5.3"):
+        pass
+    assert captured["kwargs"]["extra_body"]["thinking"] == {"type": "enabled"}
+    assert captured["kwargs"]["reasoning_effort"] == "low"
 
 
 async def test_gemini_disables_thinking_when_no_reasoning_requested(captured):

@@ -24,19 +24,19 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
-| `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Disable provider 'thinking' mode for AI JSON completion calls. |
+| `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort. |
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
-| `FALLBACK_MODELS` |  | `glm-5-turbo,glm-5` |  | AI Provider | Comma-separated fallback AI model ids. |
+| `FALLBACK_MODELS` |  | `glm-5.2,glm-5.1` |  | AI Provider | Comma-separated fallback AI model ids. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
-| `OCR_MODEL` | `glm-4.6v` |  |  | AI Provider | OCR AI model id. |
+| `OCR_MODEL` | `glm-5.3-flash` |  |  | AI Provider | OCR AI model id. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
-| `PRIMARY_MODEL` | `glm-5.1` |  |  | AI Provider | Primary AI model id. |
-| `VISION_FALLBACK_MODELS` |  | `glm-4.5v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
-| `VISION_MODEL` | `glm-4.6v` |  |  | AI Provider | Vision AI model id. |
+| `PRIMARY_MODEL` | `glm-5.3` |  |  | AI Provider | Primary AI model id. |
+| `VISION_FALLBACK_MODELS` |  | `glm-4.6v,glm-4.5v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
+| `VISION_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Vision AI model id. |
 | `ZAI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). ZAI_API_KEY is preferred for the default Z.AI provider; GEMINI_API_KEY for AI_PROVIDER=gemini; AI_API_KEY is a provider-neutral alias. |
 | `AI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |
 | `GEMINI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |

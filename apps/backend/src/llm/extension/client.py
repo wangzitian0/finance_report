@@ -136,6 +136,23 @@ def _base_kwargs(
             body.pop("thinking", None)
         if body:
             kwargs["extra_body"] = body
+    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and model_id.removeprefix("openai/").lower() in {
+        "glm-5.3",
+        "glm-5.3-flash",
+    }:
+        # GLM 5.3 requires thinking and accepts low/high/max, not disabled or
+        # medium. Adapt only live wire kwargs so caller intent/cassette keys
+        # remain provider-independent. Avoid the provider's default max effort
+        # for extraction and other callers that requested no extended thinking.
+        body = dict(kwargs.get("extra_body", {}))
+        body["thinking"] = {**body.get("thinking", {}), "type": "enabled"}
+        kwargs["extra_body"] = body
+        kwargs["reasoning_effort"] = (
+            "high" if decode.reasoning in {ReasoningEffort.MEDIUM, ReasoningEffort.HIGH} else "low"
+        )
+        # The pinned LiteLLM registry may predate these models. Keep its
+        # OpenAI parameter filter from silently dropping our bounded effort.
+        kwargs["allowed_openai_params"] = ["reasoning_effort"]
     return kwargs
 
 

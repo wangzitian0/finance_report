@@ -318,19 +318,19 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider"},
     )
     primary_model: str = Field(
-        default="glm-5.1",
+        default="glm-5.3",
         validation_alias="PRIMARY_MODEL",
         description="Primary AI model id.",
         json_schema_extra={"group": "AI Provider"},
     )
     vision_model: str = Field(
-        default="glm-4.6v",
+        default="glm-5.3-flash",
         validation_alias="VISION_MODEL",
         description="Vision AI model id.",
         json_schema_extra={"group": "AI Provider"},
     )
     ocr_model: str = Field(
-        default="glm-4.6v",
+        default="glm-5.3-flash",
         validation_alias="OCR_MODEL",
         description="OCR AI model id.",
         json_schema_extra={"group": "AI Provider"},
@@ -339,7 +339,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FALLBACK_MODELS",
         description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5-turbo,glm-5"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.2,glm-5.1"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,
@@ -349,7 +349,7 @@ class Settings(BaseSettings):
             "must be vision-capable because the vision request carries image "
             "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
         ),
-        json_schema_extra={"group": "AI Provider", "example": "glm-4.5v"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-4.6v,glm-4.5v"},
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
@@ -380,7 +380,7 @@ class Settings(BaseSettings):
     ai_json_disable_thinking: bool = Field(
         default=True,
         validation_alias="AI_JSON_DISABLE_THINKING",
-        description="Disable provider 'thinking' mode for AI JSON completion calls.",
+        description="Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort.",
         json_schema_extra={"group": "AI Provider"},
     )
     # Deterministic decoding for OCR/extraction (#989): a fixed seed makes the
@@ -388,7 +388,7 @@ class Settings(BaseSettings):
     # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
     # providers that reject the field.
     # Off by default: Z.AI/GLM validates request params strictly and `seed` is
-    # NOT accepted by all models (e.g. glm-4.6v, the default vision/OCR model,
+    # NOT accepted by all models (e.g. glm-4.6v, a vision/OCR fallback,
     # returns HTTP 400 for it) — sending it unconditionally would break vision
     # extraction. Opt in only for seed-supporting models (e.g. GLM-5.1).
     # Determinism otherwise rests on temperature=0 / do_sample=false plus the
@@ -683,8 +683,8 @@ class Settings(BaseSettings):
         return parse_comma_list(
             self.fallback_models_str,
             [
-                "glm-5-turbo",
-                "glm-5",
+                "glm-5.2",
+                "glm-5.1",
             ],
         )
 
@@ -694,13 +694,14 @@ class Settings(BaseSettings):
 
         The vision/OCR path sends image content, so its fallbacks must be
         vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
-        reused here (#1034). The default keeps a single secondary vision model so
+        reused here (#1034). The defaults retain compatible vision models so
         a non-retryable failure of the primary vision model does not fail the
         whole upload.
         """
         return parse_comma_list(
             self.vision_fallback_models_str,
             [
+                "glm-4.6v",
                 "glm-4.5v",
             ],
         )
