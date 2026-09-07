@@ -42,6 +42,17 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
+def _settings_module():
+    """Load config.py by explicit file path (see ``_settings_model``)."""
+    import importlib.util
+
+    config_path = BACKEND_DIR / "src" / "config.py"
+    spec = importlib.util.spec_from_file_location("_env_reference_config", config_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _settings_model():
     """Load the backend ``Settings`` class from config.py by explicit file path.
 
@@ -50,13 +61,7 @@ def _settings_model():
     and keeps sys.path untouched (tool-wrapper contract AC8.13.56). config.py only
     imports pydantic, so it loads standalone given the backend env.
     """
-    import importlib.util
-
-    config_path = BACKEND_DIR / "src" / "config.py"
-    spec = importlib.util.spec_from_file_location("_env_reference_config", config_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.Settings
+    return _settings_module().Settings
 
 
 ENV_EXAMPLE_PATH = ROOT_DIR / ".env.example"
@@ -297,17 +302,22 @@ def _environment_contract():
     )
 
     settings_cls = _settings_model()
-    overrides: dict[str, dict[str, object]] = getattr(
-        sys.modules[settings_cls.__module__], "ENV_SOURCE_CLASSES", {}
+    overrides: dict[str, dict[str, object]] = dict(
+        getattr(_settings_module(), "ENV_SOURCE_CLASSES", {})
     )
     base = environment_manifest_from_model(settings_cls, source=MANIFEST_SOURCE)
     unknown = sorted(set(overrides) - {field.field for field in base.fields})
     if unknown:
         raise SystemExit(f"ENV_SOURCE_CLASSES names unknown settings fields: {unknown}")
-    fields = tuple(
-        replace(field, **overrides[field.field]) if field.field in overrides else field
-        for field in base.fields
-    )
+    fields = []
+    for field in base.fields:
+        override = dict(overrides.get(field.field, {}))
+        if override.get("source") in {"release", "decision"}:
+            override.setdefault(
+                "injected", True
+            )  # the deployment, not the store, supplies it
+        fields.append(replace(field, **override) if override else field)
+    fields = tuple(fields)
     return EnvironmentManifest(source=base.source, fields=fields)
 
 
