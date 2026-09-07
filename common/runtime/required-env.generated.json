@@ -92,7 +92,7 @@
       "has_default": true,
       "sensitive": false,
       "group": "AI Provider",
-      "description": "Disable provider 'thinking' mode for AI JSON completion calls.",
+      "description": "Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort.",
       "source": "code",
       "empty_ok": false,
       "scope": "env",
