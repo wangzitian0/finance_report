@@ -374,6 +374,19 @@ states, and export column metadata. This is a presentation boundary only —
 the frontend must not drop or recompute the policy/source-trust/readiness/
 traceability/export facts.
 
+The package page exposes independent period start and end dates for preview
+and generation. The initial default retains the prior calendar-year window
+(leap-day clamped); changing the start selects a custom window, such as
+March 1–31. Point-in-time sections use the selected end as `as_of_date`.
+Both dates are part of the preview cache identity and the exact same period
+is sent when generating a snapshot. Missing, invalid, or reversed dates
+produce a local error without preview or generation requests. The reports
+overview consumes the same period-request builder with its existing default.
+Reopening restores the saved period, and the cover displays the frozen
+document's original as-of date even when it differs from its end date.
+JSON/CSV downloads remain addressed by the selected snapshot ID; editing
+dates starts a new preview and never rewrites a saved artifact.
+
 Package readiness is a deterministic field of the document and is produced
 only by `PackageAssembler`. Workflow and advisor consume
 `current_package_document_summary`; frontend surfaces render the document.

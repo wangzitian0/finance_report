@@ -17,7 +17,7 @@ import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import { reportPeriodStart } from "@/lib/reportPackage";
+import { packagePeriodRequest } from "@/lib/reportPackage";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type {
   AnnualizedIncomeResponse,
@@ -86,11 +86,7 @@ export default function ReportsPage() {
     apiOperation("preview_personal_report_package_reports_package_get", {
       query: (() => {
         const reportDate = new Date().toISOString().slice(0, 10);
-        return {
-          start_date: reportPeriodStart(reportDate),
-          end_date: reportDate,
-          as_of_date: reportDate,
-        };
+        return packagePeriodRequest(reportDate);
       })(),
     })
       .then((document) => {

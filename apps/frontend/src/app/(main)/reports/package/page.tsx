@@ -40,7 +40,7 @@ import {
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { formatDateInput } from "@/lib/date";
 import { lineageQuery } from "@/lib/lineage";
-import { isValidReportDate } from "@/lib/reportPackage";
+import { reportPeriodError, reportPeriodStart } from "@/lib/reportPackage";
 import type {
   EvidenceLineageResponse,
   PersonalReportPackageSnapshotSummary,
@@ -54,6 +54,9 @@ export default function PersonalReportPackagePage() {
   const [reportDate, setReportDate] = useState(() =>
     formatDateInput(new Date()),
   );
+  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
+  const startDate = selectedStartDate ?? reportPeriodStart(reportDate);
+  const periodError = reportPeriodError(startDate, reportDate);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
     null,
   );
@@ -76,6 +79,7 @@ export default function PersonalReportPackagePage() {
     selectedFrameworkId,
     reportDate,
     selectedSnapshotId,
+    startDate,
   );
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
@@ -125,13 +129,14 @@ export default function PersonalReportPackagePage() {
   }
 
   async function createPackageSnapshot() {
-    if (!selectedFrameworkId || !isValidReportDate(reportDate)) return;
+    if (!selectedFrameworkId || periodError) return;
     setGeneratingSnapshot(true);
     setSnapshotError(null);
     try {
       const snapshot = await generatePackageSnapshot(
         selectedFrameworkId,
         reportDate,
+        startDate,
       );
       setSelectedSnapshotId(snapshot.id);
       // EPIC-022 AC22.18.3 (#1109): instrument report-package generation. The
@@ -156,6 +161,7 @@ export default function PersonalReportPackagePage() {
     setSelectedSnapshotId(snapshot.id);
     setSelectedFrameworkId(snapshot.framework_id);
     setReportDate(snapshot.end_date);
+    setSelectedStartDate(snapshot.start_date);
   }
 
   async function downloadPackageSnapshot(
@@ -217,6 +223,12 @@ export default function PersonalReportPackagePage() {
       selectedFrameworkId={selectedFrameworkId}
       selectedFrameworkLabel={selectedFrameworkLabel}
       reportDate={reportDate}
+      startDate={startDate}
+      periodError={periodError}
+      onStartDateChange={(nextDate) => {
+        setSelectedSnapshotId(null);
+        setSelectedStartDate(nextDate);
+      }}
       onSelectFramework={(frameworkId) => {
         if (
           frameworkId !== "personal_us_gaap_like" &&
@@ -243,6 +255,7 @@ export default function PersonalReportPackagePage() {
         <PackageCover
           contract={contract}
           reportDate={reportDate}
+          startDate={startDate}
           selectedFrameworkLabel={selectedFrameworkLabel}
         />
         {frameworkSelection}
@@ -257,7 +270,7 @@ export default function PersonalReportPackagePage() {
     true,
   );
 
-  if (isPackageLoading || !packageDocument) {
+  if (periodError || isPackageLoading || !packageDocument) {
     return (
       <div className="p-6">
         <div className="page-header">
@@ -267,11 +280,12 @@ export default function PersonalReportPackagePage() {
         <PackageCover
           contract={contract}
           reportDate={reportDate}
+          startDate={startDate}
           selectedFrameworkLabel={selectedFrameworkLabel}
         />
         {frameworkSelection}
         <PackageTableOfContents links={outputTocLinks} />
-        <PackageLoadingSkeleton />
+        {!periodError && <PackageLoadingSkeleton />}
       </div>
     );
   }
@@ -280,8 +294,11 @@ export default function PersonalReportPackagePage() {
     packageDocument.framework_policy,
   );
   const canGenerateSnapshot = Boolean(
-    selectedFrameworkId && isValidReportDate(reportDate) && !generatingSnapshot,
+    selectedFrameworkId && !periodError && !generatingSnapshot,
   );
+  const frozenContext = packageDocument.lifecycle === "frozen"
+    ? packageDocument.context
+    : null;
 
   return (
     <div className="p-6">
@@ -292,7 +309,9 @@ export default function PersonalReportPackagePage() {
 
       <PackageCover
         contract={contract}
-        reportDate={reportDate}
+        reportDate={frozenContext?.end_date ?? reportDate}
+        startDate={frozenContext?.start_date ?? startDate}
+        asOfDate={frozenContext?.as_of_date ?? reportDate}
         selectedFrameworkLabel={selectedFrameworkLabel}
       />
 

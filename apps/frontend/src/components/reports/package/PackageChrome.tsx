@@ -1,5 +1,4 @@
 import { SkeletonBlock } from "@/components/ui";
-import { reportPeriodStart } from "@/lib/reportPackage";
 import type { PersonalReportPackageContractResponse } from "@/lib/types";
 
 import { FRAMEWORK_LABELS, type PackageTocLink } from "./shared";
@@ -7,10 +6,14 @@ import { FRAMEWORK_LABELS, type PackageTocLink } from "./shared";
 export function PackageCover({
   contract,
   reportDate,
+  startDate,
+  asOfDate = reportDate,
   selectedFrameworkLabel,
 }: {
   contract: PersonalReportPackageContractResponse;
   reportDate: string;
+  startDate: string;
+  asOfDate?: string;
   selectedFrameworkLabel: string | null;
 }) {
   return (
@@ -34,12 +37,12 @@ export function PackageCover({
           </div>
           <div>
             <dt className="text-xs text-muted">Report Date</dt>
-            <dd className="mt-1 font-mono text-xs">{reportDate}</dd>
+            <dd className="mt-1 font-mono text-xs">{asOfDate}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted">Report Period</dt>
             <dd className="mt-1 font-mono text-xs">
-              {reportPeriodStart(reportDate)} to {reportDate}
+              {startDate} to {reportDate}
             </dd>
           </div>
           <div>
@@ -86,7 +89,7 @@ export function PackageSetupGuidance() {
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {[
           ["1", "Choose a framework", "Select US-like or HK-like before package output is loaded."],
-          ["2", "Confirm the date", "The report date pins period and point-in-time sections."],
+          ["2", "Choose the period", "Set the start and end dates. Account balances are shown at the period end."],
           ["3", "Review readiness", "Package blockers appear before statements and schedules."],
         ].map(([step, title, description]) => (
           <div key={step} className="rounded border border-[var(--border)] p-3">
@@ -138,6 +141,9 @@ export function PackageFrameworkSelection({
   selectedFrameworkId,
   selectedFrameworkLabel,
   reportDate,
+  startDate,
+  periodError,
+  onStartDateChange,
   onSelectFramework,
   onReportDateChange,
 }: {
@@ -145,6 +151,9 @@ export function PackageFrameworkSelection({
   selectedFrameworkId: string | null;
   selectedFrameworkLabel: string | null;
   reportDate: string;
+  startDate: string;
+  periodError: string | null;
+  onStartDateChange: (startDate: string) => void;
   onSelectFramework: (frameworkId: string) => void;
   onReportDateChange: (reportDate: string) => void;
 }) {
@@ -176,7 +185,17 @@ export function PackageFrameworkSelection({
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs text-muted uppercase">Report date</span>
+            <span className="text-xs text-muted uppercase">Period start</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => onStartDateChange(event.target.value)}
+              className="input w-auto"
+              aria-label="Package period start"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs text-muted uppercase">Period end (report date)</span>
             <input
               type="date"
               value={reportDate}
@@ -188,6 +207,13 @@ export function PackageFrameworkSelection({
           <div className="flex flex-wrap gap-2">{frameworkButtons}</div>
         </div>
       </div>
+      <p className="mt-3 text-sm text-muted">
+        Choose any period, such as March 1–31. Account balances use the period
+        end. The default covers the previous year until you change the start date.
+      </p>
+      {periodError && (
+        <p role="alert" className="mt-3 text-sm text-[var(--error)]">{periodError}</p>
+      )}
       {selectedFrameworkId ? (
         <>
           <dl className="mt-5 grid gap-3 text-sm md:grid-cols-2">
@@ -198,7 +224,7 @@ export function PackageFrameworkSelection({
             <div>
               <dt className="text-xs text-muted">Report period</dt>
               <dd className="mt-1 font-medium">
-                {reportPeriodStart(reportDate)} to {reportDate}
+                {startDate} to {reportDate}
               </dd>
             </div>
           </dl>

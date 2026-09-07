@@ -1589,6 +1589,19 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="exact",
         ),
+        ACRecord(
+            id="AC-reporting.package-document.12",
+            statement=(
+                "The package page accepts an explicit reporting start and end date. Preview and "
+                "generation submit that exact period with as_of_date equal to the selected end; "
+                "empty or reversed dates fail locally without a request. Reopening and exporting "
+                "a saved package retain the selected frozen artifact's period and identity."
+            ),
+            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx",
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
         # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
         ACRecord(

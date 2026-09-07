@@ -4,6 +4,7 @@ import {
   isValidReportDate,
   packageQuery,
   packageSnapshotRequest,
+  packagePeriodRequest,
   reportPeriodStart,
 } from "@/lib/reportPackage";
 
@@ -11,6 +12,18 @@ import {
 // hand-rolled packageReadinessQuery deleted in favor of the now-exported
 // packageQuery (#1868 S5 PR-C).
 describe("lib/reportPackage", () => {
+  it("AC-reporting.package-document.12 uses explicit periods consistently and rejects invalid requests", () => {
+    expect(packagePeriodRequest("2025-03-31", "2025-03-01")).toEqual({
+      start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-03-31",
+    });
+    expect(packageQuery("2025-03-31", undefined, "2025-03-01")).toBe(
+      "?start_date=2025-03-01&end_date=2025-03-31&as_of_date=2025-03-31",
+    );
+    expect(packagePeriodRequest("2025-03-01", "2025-03-01").start_date).toBe("2025-03-01");
+    expect(() => packagePeriodRequest("2025-03-31", "2025-04-01")).toThrow(/on or before/);
+    expect(() => packagePeriodRequest("", "2025-03-01")).toThrow(/valid/);
+    expect(() => packagePeriodRequest("2025-03-31", "2025-02-30")).toThrow(/valid/);
+  });
   it("isValidReportDate accepts real calendar dates and rejects malformed/impossible ones", () => {
     expect(isValidReportDate("2026-02-28")).toBe(true);
     expect(isValidReportDate("2024-02-29")).toBe(true); // leap year
