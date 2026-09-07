@@ -131,15 +131,45 @@ def test_manifest_carries_the_consumer_contract_fields():
 
     assert committed["source"] == "apps/backend/src/config.py::Settings"
     assert committed["fields"], "manifest has no entries"
+    assert committed["contract_version"] == 2
     for entry in committed["fields"]:
-        assert set(entry) == {
+        assert set(entry) >= {
             "field",
             "env",
             "aliases",
             "group",
             "vault",
             "has_default",
+            "source",
+            "empty_ok",
+            "scope",
         }
         assert isinstance(entry["vault"], bool)
         assert isinstance(entry["has_default"], bool)
         assert isinstance(entry["aliases"], list)
+
+
+def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green():
+    """AC-runtime.guard-proofs.13 (#2005): the manifest is the infra2-sdk v2 contract. Every field names who produces
+    its value; a ``vault`` (deployment-injected) field is never a plain code default
+    unless the deployment injects it; the offline gate passes without infrastructure."""
+    from infra2_sdk.ci import validate_manifest_offline
+    from infra2_sdk.runtime.config_schema import EnvironmentManifest
+
+    committed = _committed_manifest()
+    manifest = EnvironmentManifest.from_dict(committed)
+    assert validate_manifest_offline(manifest) == []
+    by_env = {field.env: field for field in manifest.fields}
+    assert (
+        by_env["DATABASE_URL"].provided_by
+        == "finance_report/postgres:POSTGRES_PASSWORD"
+    )
+    assert by_env["SECRET_KEY"].source == "runtime" and by_env["SECRET_KEY"].sensitive
+    assert by_env["ZAI_API_KEY"].source == "human" and by_env["ZAI_API_KEY"].empty_ok
+    assert by_env["GIT_COMMIT_SHA"].source == "release"
+    for entry in committed["fields"]:
+        assert entry["source"] in {"human", "runtime", "release", "decision", "code"}, (
+            entry["env"]
+        )
+        if entry["vault"]:
+            assert entry["source"] != "code" or entry["injected"], entry["env"]

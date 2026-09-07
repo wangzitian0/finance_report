@@ -19,10 +19,10 @@ from tools import app_deploy_request as renderer
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools/app_deploy_request.py"
 SDK_URL = (
-    "https://github.com/wangzitian0/infra2-sdk/releases/download/v1.0.0/"
-    "infra2_sdk-1.0.0-py3-none-any.whl"
+    "https://github.com/wangzitian0/infra2-sdk/releases/download/v1.3.2/"
+    "infra2_sdk-1.3.2-py3-none-any.whl"
 )
-SDK_HASH = "sha256:d0eb395367b2ae71e13527ef08d775f8aa0ccd8f769a267940a5fc34e4cf6214"
+SDK_HASH = "sha256:bf93d1d0ebed85619f41ae35f3be95854b32da539e1942804458dd9f32585667"
 
 VALID_REQUEST = {
     "contract_version": 1,
@@ -67,7 +67,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
-    assert package["version"] == "1.0.0"
+    assert package["version"] == "1.3.2"
     assert package["source"] == {"url": SDK_URL}
     assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
 
@@ -93,7 +93,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     tooling_run = tooling_step["run"]
     assert f'sdk_url="{SDK_URL}"' in tooling_run
     assert f'sdk_sha256="{sdk_hash_hex}"' in tooling_run
-    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.0.0-py3-none-any.whl"' in tooling_run
+    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.3.2-py3-none-any.whl"' in tooling_run
     assert (
         'curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"'
         in tooling_run
@@ -337,6 +337,8 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
                 "workflow_runs": [
                     {
                         "id": 101,
+                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
+                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
                         "status": "in_progress",
                         "conclusion": None,
                         "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
@@ -348,6 +350,8 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
                 "workflow_runs": [
                     {
                         "id": 101,
+                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
+                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
                         "status": "completed",
                         "conclusion": "success",
                         "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
@@ -381,8 +385,17 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
 
     ambiguous_runs = {
         "workflow_runs": [
-            {"id": 103, "status": "queued"},
-            {"id": 102, "status": "queued"},
+            # two receiver runs naming the same request_id: the ambiguity guard must refuse
+            {
+                "id": 103,
+                "status": "queued",
+                "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
+            },
+            {
+                "id": 102,
+                "status": "queued",
+                "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
+            },
             {"id": 100, "status": "completed"},
         ]
     }
@@ -405,6 +418,8 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
                 "workflow_runs": [
                     {
                         "id": 101,
+                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
+                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
                         "status": "completed",
                         "conclusion": "success",
                         "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
@@ -458,6 +473,8 @@ def test_AC_runtime_deploy_request_3_transport_fail_closed_edges() -> None:
                     "workflow_runs": [
                         {
                             "id": 101,
+                            # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
+                            "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
                             "status": "completed",
                             "conclusion": conclusion,
                             "html_url": url,

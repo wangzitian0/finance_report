@@ -42,6 +42,17 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
+def _settings_module():
+    """Load config.py by explicit file path (see ``_settings_model``)."""
+    import importlib.util
+
+    config_path = BACKEND_DIR / "src" / "config.py"
+    spec = importlib.util.spec_from_file_location("_env_reference_config", config_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _settings_model():
     """Load the backend ``Settings`` class from config.py by explicit file path.
 
@@ -50,17 +61,12 @@ def _settings_model():
     and keeps sys.path untouched (tool-wrapper contract AC8.13.56). config.py only
     imports pydantic, so it loads standalone given the backend env.
     """
-    import importlib.util
-
-    config_path = BACKEND_DIR / "src" / "config.py"
-    spec = importlib.util.spec_from_file_location("_env_reference_config", config_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.Settings
+    return _settings_module().Settings
 
 
 ENV_EXAMPLE_PATH = ROOT_DIR / ".env.example"
 ENV_REFERENCE_DOC_PATH = ROOT_DIR / "common" / "runtime" / "env-reference.generated.md"
+MANIFEST_SOURCE = "apps/backend/src/config.py::Settings"
 REQUIRED_ENV_MANIFEST_PATH = (
     ROOT_DIR / "common" / "runtime" / "required-env.generated.json"
 )
@@ -247,41 +253,79 @@ def render_reference_doc(fields: list[dict]) -> str:
 
 
 def render_required_env_manifest(fields: list[dict]) -> str:
-    """Render the machine-readable required-env manifest (#1828, #876 boundary).
+    """Render the machine-readable required-env manifest (#1828, #876 boundary; #2005 v2).
 
-    One entry per backend env field: the config field name, its canonical env
-    var (``env`` — named so no JSON line is shaped like a key/secret
-    assignment, which keeps secret scanners quiet on this generated file),
-    accepted aliases, vault tagging (does infra2's ``secrets.ctmpl`` have to
-    inject it?), and ``has_default`` — whether ``Settings`` defines a default
-    value for the field. Note ``has_default`` carries no deploy-time
-    semantics: protected runtimes may still reject specific development
-    defaults at boot (``Bootloader._check_static_config``). Deterministic
-    ordering so the artifact diffs cleanly.
+    The manifest is the infra2-sdk environment contract (``contract_version`` 2): every
+    entry carries the field's *source class* (who produces the value), ``empty_ok``,
+    ``scope``, ``provided_by`` / ``composed_from``, and the v1 keys infra2's template check
+    already reads (``env`` — named so no JSON line is shaped like a key/secret assignment,
+    ``aliases``, ``vault``, ``has_default``). ``vault`` is the legacy alias of "the
+    deployment must inject this"; it is preserved verbatim from ``config.py``.
+    Deterministic ordering (by ``env``) so the artifact diffs cleanly.
     """
     import json
 
-    entries = [
-        {
-            "field": field["field"],
-            "env": field["key"],
-            "aliases": list(field["extra_keys"]),
-            "group": field["group"],
-            "vault": field["vault"],
-            "has_default": field["has_default"],
-        }
-        for field in sorted(fields, key=lambda f: f["key"])
-    ]
+    contract = _environment_contract()
+    vault_by_field = {field["field"]: field["vault"] for field in fields}
+    entries = []
+    for entry in sorted(contract.fields, key=lambda item: item.env):
+        if entry.field not in vault_by_field:
+            continue  # not an env field (no ``group``): mirrors collect_backend_fields
+        data = entry.to_dict()
+        data["vault"] = vault_by_field[entry.field]
+        entries.append(data)
     manifest = {
+        "contract_version": contract.contract_version,
         "generated_by": "tools/generate_env_reference.py — do not edit",
-        "source": "apps/backend/src/config.py::Settings",
+        "source": MANIFEST_SOURCE,
         "consumer": (
             "infra2 CI checks secrets.ctmpl against this manifest "
-            "(wangzitian0/finance_report#1828 G-injection-drift-gate)"
+            "(wangzitian0/finance_report#1828 G-injection-drift-gate); infra2 derives the "
+            "template, policy and reconciliation from the source classes (#2005)"
         ),
         "fields": entries,
     }
     return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+
+
+def _environment_contract():
+    """The infra2-sdk v2 manifest: model metadata plus ``config.ENV_SOURCE_CLASSES``.
+
+    The source classes live in a side table (see config.py) so that declaring one never
+    edits a public ``Field()`` signature; they are folded into the contract here.
+    """
+    from dataclasses import replace
+
+    from infra2_sdk.runtime.config_schema import (
+        EnvironmentManifest,
+        environment_manifest_from_model,
+    )
+
+    settings_cls = _settings_model()
+    overrides: dict[str, dict[str, object]] = dict(
+        getattr(_settings_module(), "ENV_SOURCE_CLASSES", {})
+    )
+    base = environment_manifest_from_model(settings_cls, source=MANIFEST_SOURCE)
+    unknown = sorted(set(overrides) - {field.field for field in base.fields})
+    if unknown:
+        raise SystemExit(f"ENV_SOURCE_CLASSES names unknown settings fields: {unknown}")
+    fields = []
+    for field in base.fields:
+        override = dict(overrides.get(field.field, {}))
+        if override.get("source") in {"release", "decision"}:
+            override.setdefault(
+                "injected", True
+            )  # the deployment, not the store, supplies it
+        fields.append(replace(field, **override) if override else field)
+    fields = tuple(fields)
+    return EnvironmentManifest(source=base.source, fields=fields)
+
+
+def manifest_gate_errors() -> list[str]:
+    """Offline contract violations (infra2_sdk.ci); no infrastructure involved."""
+    from infra2_sdk.ci import validate_manifest_offline
+
+    return validate_manifest_offline(_environment_contract())
 
 
 def _diff(label: str, current: str, generated: str) -> str:
@@ -336,9 +380,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(REQUIRED_ENV_MANIFEST_PATH.name), current_manifest, new_manifest
                 )
             )
-        if drift:
+        gate_errors = manifest_gate_errors()
+        for error in gate_errors:
+            print(f"manifest gate: {error}")
+        if drift or gate_errors:
             print(
-                "ERROR: generated env files are out of date. Run: python tools/generate_env_reference.py",
+                "ERROR: generated env files are out of date or violate the manifest contract. "
+                "Run: python tools/generate_env_reference.py",
                 file=sys.stderr,
             )
             return 1

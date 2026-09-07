@@ -716,3 +716,34 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# --- environment manifest: who produces each value (#2005) -------------------------------
+# Source classes for the infra2-sdk environment contract v2, kept beside the model instead
+# of inside each Field() so that adding a class never changes a public field signature
+# (the DDD compatibility gate treats an edited Field() as a breaking change). Fields not
+# listed here are `code` defaults. `vault: True` on a Field stays the legacy alias for
+# "the deployment injects this". Consumed by tools/generate_env_reference.py.
+ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
+    "database_url": {
+        "source": "runtime",
+        "provided_by": "finance_report/postgres:POSTGRES_PASSWORD",
+        "composed_from": (
+            "postgresql+asyncpg://postgres:{POSTGRES_PASSWORD}"
+            "@finance_report-postgres{env:ENV_SUFFIX}:5432/finance_report"
+        ),
+    },
+    "redis_url": {
+        "source": "runtime",
+        "provided_by": "finance_report/redis:PASSWORD",
+        "composed_from": "redis://:{PASSWORD}@finance_report-redis{env:ENV_SUFFIX}:6379/0",
+    },
+    "s3_access_key": {"source": "runtime", "sensitive": True},
+    "s3_secret_key": {"source": "runtime", "sensitive": True},
+    "s3_public_access_key": {"source": "runtime", "sensitive": True, "empty_ok": True},
+    "s3_public_secret_key": {"source": "runtime", "sensitive": True, "empty_ok": True},
+    "secret_key": {"source": "runtime", "sensitive": True},
+    "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True},
+    "llm_encryption_keys": {"source": "runtime", "sensitive": True, "empty_ok": True},
+    "git_commit_sha": {"source": "release"},
+}
