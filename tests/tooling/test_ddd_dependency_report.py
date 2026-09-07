@@ -276,7 +276,7 @@ def test_AC_meta_public_boundary_6_unsupported_construction_is_conservative(
     assert result["status"] == "blocked"
 
 
-@pytest.mark.parametrize("changed", ["base", "class-default"])
+@pytest.mark.parametrize("changed", ["base", "class-default", "annotated-config"])
 def test_AC_meta_public_boundary_6_projection_retains_base_and_class_defaults(
     tmp_path: Path, changed: str
 ) -> None:
@@ -285,8 +285,9 @@ def test_AC_meta_public_boundary_6_projection_retains_base_and_class_defaults(
     config = repo / "apps/backend/src/config.py"
     original = """
         from pydantic import BaseModel
-        from pydantic_settings import BaseSettings
+        from pydantic_settings import BaseSettings, SettingsConfigDict
         class Settings(BaseSettings):
+            model_config: SettingsConfigDict = SettingsConfigDict(env_prefix="FIRST_")
             seed: int = 10
             limit: int = seed
             model: str = "unchanged"
@@ -303,11 +304,11 @@ def test_AC_meta_public_boundary_6_projection_retains_base_and_class_defaults(
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "publish configuration construction")
     base = _git(repo, "rev-parse", "HEAD")
-    replacement = (
-        ("Settings(BaseSettings)", "Settings(BaseModel)")
-        if changed == "base"
-        else ("seed: int = 10", "seed: int = 20")
-    )
+    replacement = {
+        "base": ("Settings(BaseSettings)", "Settings(BaseModel)"),
+        "class-default": ("seed: int = 10", "seed: int = 20"),
+        "annotated-config": ('env_prefix="FIRST_"', 'env_prefix="SECOND_"'),
+    }[changed]
     _write(config, original.replace(*replacement))
 
     result = dependency_report.evaluate_boundary_compatibility(

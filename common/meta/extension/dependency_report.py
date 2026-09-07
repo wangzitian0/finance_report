@@ -387,6 +387,8 @@ def _configuration_field_fingerprint(
     for node in klass.body:
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             fields[node.target.id] = node
+            if node.target.id == "model_config":
+                retained.append(node)
             if any(
                 isinstance(child, ast.keyword) and child.arg == "default_factory"
                 for child in ast.walk(node)
