@@ -1597,7 +1597,10 @@ CONTRACT = PackageContract(
                 "empty or reversed dates fail locally without a request. Reopening and exporting "
                 "a saved package retain the selected frozen artifact's period and identity."
             ),
-            test="apps/frontend/src/__tests__/personalReportPackagePage.test.tsx",
+            test=(
+                "apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::"
+                "AC-reporting.package-document.12 previews and generates the selected month through the page"
+            ),
             priority="P0",
             status="done",
             proof_kind="exact",
