@@ -37,7 +37,7 @@ def test_backend_block_uses_example_override_and_real_default():
     # Example override (localhost) is what .env.example shows.
     assert "DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432" in block
     # PRIMARY_MODEL has no override, so its default is shown (AC-runtime.18.2 contract).
-    assert "PRIMARY_MODEL=glm-5.1" in block
+    assert "PRIMARY_MODEL=glm-5.3" in block
 
 
 def test_render_env_example_replaces_managed_region_and_keeps_frontend():
