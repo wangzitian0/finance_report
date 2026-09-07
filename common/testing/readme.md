@@ -137,6 +137,26 @@ its synthetic fixture declares explicitly. The adapter never derives economic
 intent from transaction direction. This keeps provider extraction evidence
 separate from the human-owned accounting judgment that production requires.
 
+The generated GXS monthly journey (`AC-testing.package-lifecycle.2`, #2008)
+extends the existing live provider replay through exactly one posted effect per
+source transaction and a trusted saved package. Independent fixture values prove
+the income, expense, cash, and balance-sheet totals. Source-declared opening cash
+is confirmed through the guided opening-balance action before the report period,
+so it is a brought-forward balance rather than this month's cash activity.
+Generate/list/reopen and JSON preserve the complete frozen document; CSV preserves
+its declared traceability rows, exact amounts, and input decisions after a
+separately posted income demonstrably changes the live report. The browser
+reopens that same snapshot and downloads
+byte-identical JSON/CSV files. JUnit records the selected OCR
+model, observed deployment versions, required reviewer decisions, approval retry
+count, and elapsed replay time. Both service versions must match the explicitly
+pinned release/commit. Missing frontend version evidence fails this complete
+journey; API success does not imply the browser application was available. Review
+accounts and economic dispositions are provided through APIs, and the brought-forward
+opening date is supplied explicitly: upstream ordinary-user UI completion and
+onboarding guidance remain outside this proof. This is one supported month, not a
+claim about other formats, economic cases, or year-wide coverage.
+
 ### Responsibility table
 
 | Failure class | Owner |

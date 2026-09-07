@@ -4199,6 +4199,22 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.package-lifecycle.2",
+            statement=(
+                "A generated supported GXS monthly PDF traverses live extraction, explicit "
+                "source/economic review, one posted effect per transaction, and trusted package "
+                "generation, list, reopen, and JSON/CSV export with independent Decimal totals "
+                "and unchanged frozen input decisions after a separately posted income changes "
+                "the live report. Backend and frontend versions must match the pinned deployment."
+            ),
+            test=(
+                "tests/e2e/test_institution_statement_journeys.py::"
+                "test_gxs_statement_journey_matches_expected_balances"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.governance.23",
             statement=(
                 "One testing-owned adapter assembles package-governance observations "
