@@ -74,8 +74,18 @@ class _ExpressionValue:
     dependencies: tuple[tuple[str, _ValueBinding], ...]
 
 
+@dataclass(frozen=True)
+class _AttributeValue:
+    owner: _ExpressionValue
+    attribute: str
+
+
 type _ValueBinding = (
-    _ExpressionValue | _ImportedModule | _ImportedValue | _LocalDefinition
+    _ExpressionValue
+    | _ImportedModule
+    | _ImportedValue
+    | _LocalDefinition
+    | _AttributeValue
 )
 
 
@@ -145,6 +155,10 @@ def _capture_expression(
             if qualified is not None:
                 dependencies[ast.unparse(child)] = qualified
                 return
+            owner = _capture_expression(child.value, values)
+            if owner.dependencies:
+                dependencies[ast.unparse(child)] = _AttributeValue(owner, child.attr)
+                return
         if isinstance(child, ast.Name) and child.id in values:
             dependencies[child.id] = values[child.id]
             return
@@ -163,6 +177,11 @@ def _binding_fingerprint(
     repo_root: Path,
     seen: frozenset[_ValueKey] = frozenset(),
 ) -> str:
+    if isinstance(binding, _AttributeValue):
+        projected = _configuration_field_fingerprint(binding, repo_root, seen)
+        if projected is not None:
+            return projected
+        return _binding_fingerprint(binding.owner, repo_root, seen)
     if isinstance(binding, _ImportedModule):
         return binding.binding
     if isinstance(binding, _LocalDefinition):
@@ -204,6 +223,263 @@ def _binding_fingerprint(
     ]
     suffix = f" [{', '.join(dependencies)}]" if dependencies else ""
     return f"{binding.expression}{suffix}"
+
+
+def _dereference_value(
+    binding: _ValueBinding,
+    repo_root: Path,
+    seen: frozenset[_ValueKey],
+) -> _ValueBinding | None:
+    """Resolve captured aliases without evaluating repository code."""
+    if isinstance(binding, _ImportedValue):
+        key = (binding.source.resolve(), binding.symbol)
+        if key in seen:
+            return None
+        tree = ast.parse(binding.source.read_text(encoding="utf-8"))
+        values = _module_values(tree.body, source=binding.source, repo_root=repo_root)
+        target = values.get(binding.symbol)
+        return (
+            _dereference_value(target, repo_root, seen | {key})
+            if target is not None
+            else None
+        )
+    if isinstance(binding, _ExpressionValue):
+        target = dict(binding.dependencies).get(binding.expression)
+        if target is not None:
+            return _dereference_value(target, repo_root, seen)
+    return binding
+
+
+def _external_name(node: ast.expr, definition: _LocalDefinition) -> str | None:
+    """Recognize framework bindings, including aliases, from preceding imports."""
+    parts = _attribute_parts(node)
+    if parts is None:
+        return None
+    root, attributes = parts
+    names: dict[str, str] = {}
+    for statement in definition.body[: definition.index]:
+        if isinstance(statement, ast.ImportFrom) and statement.level == 0:
+            for alias in statement.names:
+                names[alias.asname or alias.name] = f"{statement.module}.{alias.name}"
+        elif isinstance(statement, ast.Import):
+            for alias in statement.names:
+                names[alias.asname or alias.name.split(".")[0]] = (
+                    alias.name if alias.asname else alias.name.split(".")[0]
+                )
+        else:
+            # A local definition/assignment shadows an earlier import.
+            targets = (
+                statement.targets
+                if isinstance(statement, ast.Assign)
+                else [statement.target]
+                if isinstance(statement, ast.AnnAssign)
+                else []
+            )
+            for target in targets:
+                for name in ast.walk(target):
+                    if isinstance(name, ast.Name):
+                        names.pop(name.id, None)
+            if isinstance(
+                statement, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+            ):
+                names.pop(statement.name, None)
+    return ".".join((names[root], *attributes)) if root in names else None
+
+
+def _validator_fields(
+    method: ast.FunctionDef,
+    definition: _LocalDefinition,
+) -> set[str] | None:
+    """Bound simple Pydantic validators; dynamic/model-wide data stays opaque."""
+    validators = [
+        decorator
+        for decorator in method.decorator_list
+        if isinstance(decorator, ast.Call)
+        and _external_name(decorator.func, definition)
+        in {"pydantic.field_validator", "pydantic.model_validator"}
+    ]
+    if len(validators) != 1:
+        return None
+    validator = validators[0]
+    if any(
+        decorator is not validator and ast.unparse(decorator) != "classmethod"
+        for decorator in method.decorator_list
+    ):
+        return None
+    model = _external_name(validator.func, definition) == "pydantic.model_validator"
+    mode = next((kw.value for kw in validator.keywords if kw.arg == "mode"), None)
+    if model and (not isinstance(mode, ast.Constant) or mode.value != "after"):
+        return None
+    args = method.args
+    if args.vararg or args.kwarg or args.kwonlyargs or args.posonlyargs:
+        return None
+    if len(args.args) != (1 if model else 2):
+        return None
+    receiver = args.args[0].arg
+    fields: set[str] = set()
+    if not model:
+        for argument in validator.args:
+            if not isinstance(argument, ast.Constant) or not isinstance(
+                argument.value, str
+            ):
+                return None
+            fields.add(argument.value)
+    parents = {
+        child: parent
+        for parent in ast.walk(method)
+        for child in ast.iter_child_nodes(parent)
+    }
+    for node in ast.walk(method):
+        if isinstance(node, ast.Name) and node.id == definition.symbol:
+            return None
+        if (
+            model
+            and isinstance(node, ast.Return)
+            and not (isinstance(node.value, ast.Name) and node.value.id == receiver)
+        ):
+            return None
+        if not isinstance(node, ast.Name) or node.id != receiver:
+            continue
+        parent = parents[node]
+        if isinstance(parent, ast.Attribute) and parent.value is node:
+            fields.add(parent.attr)
+        elif not (model and isinstance(parent, ast.Return) and parent.value is node):
+            return None
+    return fields
+
+
+def _configuration_field_fingerprint(
+    access: _AttributeValue,
+    repo_root: Path,
+    seen: frozenset[_ValueKey],
+) -> str | None:
+    """Project direct Pydantic fields only when construction can be bounded.
+
+    Whole objects, custom bases/hooks, factories, computed fields and dynamic
+    validators retain the existing whole-object dependency fingerprint.
+    """
+    instance = _dereference_value(access.owner, repo_root, seen)
+    if not isinstance(instance, _ExpressionValue):
+        return None
+    call = ast.parse(instance.expression, mode="eval").body
+    if not isinstance(call, ast.Call) or call.args or call.keywords:
+        return None
+    constructor = dict(instance.dependencies).get(ast.unparse(call.func))
+    if constructor is None:
+        return None
+    definition = _dereference_value(constructor, repo_root, seen)
+    if not isinstance(definition, _LocalDefinition) or not isinstance(
+        definition.node, ast.ClassDef
+    ):
+        return None
+    klass = definition.node
+    if (
+        len(klass.bases) != 1
+        or klass.decorator_list
+        or klass.keywords
+        or _external_name(klass.bases[0], definition)
+        not in {"pydantic_settings.BaseSettings", "pydantic.BaseModel"}
+    ):
+        return None
+    fields: dict[str, ast.AnnAssign] = {}
+    required = {access.attribute}
+    retained: list[ast.AST] = []
+    for node in klass.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            fields[node.target.id] = node
+            if any(
+                isinstance(child, ast.keyword) and child.arg == "default_factory"
+                for child in ast.walk(node)
+            ):
+                return None
+        elif (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "model_config"
+        ):
+            retained.append(node)
+        elif isinstance(node, ast.FunctionDef):
+            decorators = {
+                _external_name(
+                    decorator.func if isinstance(decorator, ast.Call) else decorator,
+                    definition,
+                )
+                for decorator in node.decorator_list
+            }
+            if decorators & {"pydantic.field_validator", "pydantic.model_validator"}:
+                dependencies = _validator_fields(node, definition)
+                if dependencies is None:
+                    return None
+                required.update(dependencies)
+                retained.append(node)
+            elif node.decorator_list and all(
+                ast.unparse(decorator) == "property"
+                or _external_name(decorator, definition) == "functools.cached_property"
+                for decorator in node.decorator_list
+            ):
+                continue
+            else:
+                return None
+        elif not (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            return None
+    pending = set(required)
+    while pending:
+        name = pending.pop()
+        if name not in fields:
+            return None
+        # Class-local annotated constants can feed a field default as well.
+        for node in ast.walk(fields[name]):
+            if (
+                isinstance(node, ast.Name)
+                and node.id in fields
+                and node.id not in required
+            ):
+                required.add(node.id)
+                pending.add(node.id)
+    # Complex annotations may carry user-defined validation hooks. Do not infer
+    # independence for those fields, even when their default is a literal.
+    if any(
+        any(
+            not (
+                isinstance(part, (ast.Load, ast.BitOr))
+                or isinstance(part, ast.BinOp)
+                and isinstance(part.op, ast.BitOr)
+                or isinstance(part, ast.Constant)
+                and part.value is None
+                or isinstance(part, ast.Name)
+                and part.id in {"str", "int", "bool", "float", "bytes"}
+                and part.id not in dict(definition.values)
+                and _external_name(part, definition) is None
+            )
+            for part in ast.walk(fields[name].annotation)
+        )
+        for name in required
+    ):
+        return None
+    retained.extend(fields[name] for name in sorted(required))
+    parts = [
+        _binding_fingerprint(
+            _capture_expression(
+                node,
+                _module_values(
+                    klass.body[: klass.body.index(node)],
+                    source=definition.source,
+                    repo_root=repo_root,
+                    initial=dict(definition.values),
+                ),
+            ),
+            repo_root,
+            seen,
+        )
+        for node in retained
+    ]
+    base = _external_name(klass.bases[0], definition)
+    return f"{definition.binding}({base}).{access.attribute} [field projection: {'; '.join(parts)}]"
 
 
 def _expression_fingerprint(

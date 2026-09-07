@@ -20,6 +20,303 @@ from tools.report_ddd_dependencies import main
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.parametrize("qualified", [False, True])
+@pytest.mark.parametrize("public_class", [False, True])
+@pytest.mark.parametrize("changed", ["unrelated", "accessed", "dependency"])
+def test_AC_meta_public_boundary_6_configuration_field_projection(
+    tmp_path: Path, qualified: bool, public_class: bool, changed: str
+) -> None:
+    """AC-meta.public-boundary.6: isolate field reads without hiding real breaks."""
+    repo, _ = _seed_repo(tmp_path)
+    config = repo / "apps/backend/src/config.py"
+    _write(repo / "apps/backend/src/__init__.py", "")
+    original = """
+        from pydantic import Field, field_validator, model_validator
+        from pydantic_settings import BaseSettings, SettingsConfigDict
+        DEFAULT = 10
+        class Settings(BaseSettings):
+            model_config = SettingsConfigDict(extra="ignore")
+            limit: int = Field(default=DEFAULT)
+            model: str = "old-model"
+            environment: str = "local"
+
+            @field_validator("limit", mode="before")
+            @classmethod
+            def normalize(cls, value):
+                return int(value)
+
+            @model_validator(mode="after")
+            def validate_environment(self):
+                if not self.environment:
+                    raise ValueError("missing environment")
+                return self
+
+        settings = Settings()
+    """
+    if qualified:
+        original = (
+            original.replace(
+                "from pydantic_settings import BaseSettings, SettingsConfigDict",
+                "import pydantic_settings as ps",
+            )
+            .replace("Settings(BaseSettings)", "Settings(ps.BaseSettings)")
+            .replace(
+                "model_config = SettingsConfigDict",
+                "model_config = ps.SettingsConfigDict",
+            )
+        )
+    _write(config, original)
+    imported = (
+        "import src.config" if qualified else "from src.config import settings as cfg"
+    )
+    access = "src.config.settings.limit" if qualified else "cfg.limit"
+    declaration = (
+        f"class Public:\n    value = lambda: {access}\n"
+        if public_class
+        else f"def public(value={access}):\n    return value\n"
+    )
+    _write_public_surface(
+        repo,
+        interface=["Public" if public_class else "public"],
+        source=f"{imported}\n{declaration}",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish configuration field")
+    base = _git(repo, "rev-parse", "HEAD")
+    replacement = {
+        "unrelated": ('"old-model"', '"new-model"'),
+        "accessed": ("default=DEFAULT", "default=20"),
+        "dependency": ("DEFAULT = 10", "DEFAULT = 20"),
+    }[changed]
+    _write(config, original.replace(*replacement))
+
+    report = build_impact_report(repo, base_ref=base)
+    result = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={}
+    )
+
+    assert result["status"] == ("compatible" if changed == "unrelated" else "blocked")
+    assert len(report["changed_public_symbols"]) == (0 if changed == "unrelated" else 1)
+    if changed != "unrelated":
+        assert result["unproved_consumers"] == ["consumer", "middle"]
+
+
+@pytest.mark.parametrize(
+    ("access", "extra", "changed"),
+    [
+        ("settings", "", "model"),
+        ('getattr(settings, "limit")', "", "model"),
+        ("settings.missing", "", "model"),
+        (
+            "settings.limit",
+            "def __getattribute__(self, name): return self.model",
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@model_validator(mode="after")\ndef validate(self):\n    self.limit = len(self.model)\n    return self',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@model_validator(mode="after")\ndef validate(self):\n    self.limit = len(getattr(self, "model"))\n    return self',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@classmethod\ndef validate(cls, value, info):\n    return len(info.data["model"])',
+            "model",
+        ),
+        (
+            "settings.computed",
+            "@property\ndef computed(self): return len(self.model)",
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@classmethod\ndef validate(cls, value):\n    return value + 1',
+            "validator",
+        ),
+        (
+            "settings.limit",
+            '@model_validator(mode="after")\ndef validate(self):\n    if not self.environment: raise ValueError("missing")\n    return self',
+            "environment",
+        ),
+        (
+            "settings.limit",
+            '@model_validator(mode="before")\n@classmethod\ndef validate(cls, data): return data',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@model_validator(mode="after")\ndef validate(self): return build_other()',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@custom_hook\ndef validate(cls, value): return value',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@classmethod\ndef validate(cls, value, **kwargs): return value',
+            "model",
+        ),
+        (
+            "settings.limit",
+            "@field_validator(FIELD_NAME)\n@classmethod\ndef validate(cls, value): return value",
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@classmethod\ndef validate(cls, value): return Settings.model',
+            "model",
+        ),
+        (
+            "settings.limit",
+            '@field_validator("limit")\n@field_validator("model")\n@classmethod\ndef validate(cls, value): return value',
+            "model",
+        ),
+        ("settings.limit", 'marker = "custom class construction"', "model"),
+    ],
+)
+def test_AC_meta_public_boundary_6_ambiguous_and_validation_dependencies_still_break(
+    tmp_path: Path, access: str, extra: str, changed: str
+) -> None:
+    """AC-meta.public-boundary.6: whole objects and validation dependencies stay guarded."""
+    repo, _ = _seed_repo(tmp_path)
+    config = repo / "apps/backend/src/config.py"
+    original = (
+        "from pydantic import field_validator, model_validator\n"
+        "from pydantic_settings import BaseSettings\n"
+        "class Settings(BaseSettings):\n"
+        "    limit: int = 10\n"
+        '    model: str = "old-model"\n'
+        '    environment: str = "local"\n'
+        + "".join(f"    {line}\n" for line in extra.splitlines())
+        + "settings = Settings()\n"
+    )
+    _write(config, original)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source=(
+            f"from src.config import settings\ndef public(value={access}):\n    return value\n"
+        ),
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish conservative configuration read")
+    base = _git(repo, "rev-parse", "HEAD")
+    replacement = {
+        "model": ('"old-model"', '"new-model"'),
+        "validator": ("value + 1", "value + 2"),
+        "environment": ('"local"', '"staging"'),
+    }[changed]
+    _write(config, original.replace(*replacement))
+
+    report = build_impact_report(repo, base_ref=base)
+    result = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+    assert len(report["changed_public_symbols"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("class_header", "field", "construction"),
+    [
+        ("class Settings(UnknownBase):", "limit: int = 10", "Settings()"),
+        ("class Settings(BaseSettings):", "limit: int = 10", "Settings(limit=20)"),
+        (
+            "class Settings(BaseSettings):",
+            "limit: int = Field(default_factory=compute)",
+            "Settings()",
+        ),
+        (
+            "class Settings(BaseSettings):",
+            "limit: Annotated[int, custom_hook] = 10",
+            "Settings()",
+        ),
+        (
+            "@custom_hook\nclass Settings(BaseSettings):",
+            "limit: int = 10",
+            "Settings()",
+        ),
+    ],
+)
+def test_AC_meta_public_boundary_6_unsupported_construction_is_conservative(
+    tmp_path: Path, class_header: str, field: str, construction: str
+) -> None:
+    """AC-meta.public-boundary.6: unsupported construction never assumes independence."""
+    repo, _ = _seed_repo(tmp_path)
+    config = repo / "apps/backend/src/config.py"
+    original = (
+        "from pydantic_settings import BaseSettings\n"
+        f"{class_header}\n    {field}\n    model: str = 'old'\n"
+        f"settings = {construction}\n"
+    )
+    _write(config, original)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source=(
+            "from src.config import settings\ndef public(value=settings.limit):\n    return value\n"
+        ),
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish unsupported construction")
+    base = _git(repo, "rev-parse", "HEAD")
+    _write(config, original.replace("'old'", "'new'"))
+
+    result = dependency_report.evaluate_boundary_compatibility(
+        build_impact_report(repo, base_ref=base), consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+
+
+@pytest.mark.parametrize("changed", ["base", "class-default"])
+def test_AC_meta_public_boundary_6_projection_retains_base_and_class_defaults(
+    tmp_path: Path, changed: str
+) -> None:
+    """AC-meta.public-boundary.6: construction semantics and class-local inputs remain visible."""
+    repo, _ = _seed_repo(tmp_path)
+    config = repo / "apps/backend/src/config.py"
+    original = """
+        from pydantic import BaseModel
+        from pydantic_settings import BaseSettings
+        class Settings(BaseSettings):
+            seed: int = 10
+            limit: int = seed
+            model: str = "unchanged"
+        settings = Settings()
+    """
+    _write(config, original)
+    _write_public_surface(
+        repo,
+        interface=["public"],
+        source=(
+            "from src.config import settings\ndef public(value=settings.limit):\n    return value\n"
+        ),
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish configuration construction")
+    base = _git(repo, "rev-parse", "HEAD")
+    replacement = (
+        ("Settings(BaseSettings)", "Settings(BaseModel)")
+        if changed == "base"
+        else ("seed: int = 10", "seed: int = 20")
+    )
+    _write(config, original.replace(*replacement))
+
+    result = dependency_report.evaluate_boundary_compatibility(
+        build_impact_report(repo, base_ref=base), consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+
+
 def _contract(
     name: str,
     *,

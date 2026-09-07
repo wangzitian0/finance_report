@@ -487,6 +487,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.public-boundary.6",
+            statement=(
+                "Statically resolved configuration-field reads fingerprint the accessed "
+                "field and its construction/validation dependencies, not unrelated fields; "
+                "changed dependencies remain breaking, while whole-object and ambiguous "
+                "accesses retain conservative fingerprints."
+            ),
+            test=(
+                "tests/tooling/test_ddd_dependency_report.py"
+                "::test_AC_meta_public_boundary_6_configuration_field_projection"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.context-governance.1",
             statement=(
                 "A package can publish its bounded-context purpose, explicit "
