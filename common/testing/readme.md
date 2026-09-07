@@ -144,13 +144,18 @@ the income, expense, cash, and balance-sheet totals. Source-declared opening cas
 is confirmed through the guided opening-balance action before the report period,
 so it is a brought-forward balance rather than this month's cash activity.
 Generate/list/reopen and JSON preserve the complete frozen document; CSV preserves
-its declared traceability rows, exact amounts, and input decisions after an
-unrelated account is created. The browser reopens that same snapshot and downloads
+its declared traceability rows, exact amounts, and input decisions after a
+separately posted income demonstrably changes the live report. The browser
+reopens that same snapshot and downloads
 byte-identical JSON/CSV files. JUnit records the selected OCR
-model, observed deployment version, required reviewer decisions, and elapsed
-replay time. Missing frontend version evidence fails this complete journey; API
-success does not imply the browser application was available. This is one supported month,
-not a claim about other formats, economic cases, or year-wide coverage.
+model, observed deployment versions, required reviewer decisions, approval retry
+count, and elapsed replay time. Both service versions must match the explicitly
+pinned release/commit. Missing frontend version evidence fails this complete
+journey; API success does not imply the browser application was available. Review
+accounts and economic dispositions are provided through APIs, and the brought-forward
+opening date is supplied explicitly: upstream ordinary-user UI completion and
+onboarding guidance remain outside this proof. This is one supported month, not a
+claim about other formats, economic cases, or year-wide coverage.
 
 ### Responsibility table
 

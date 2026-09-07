@@ -4204,7 +4204,8 @@ CONTRACT = PackageContract(
                 "A generated supported GXS monthly PDF traverses live extraction, explicit "
                 "source/economic review, one posted effect per transaction, and trusted package "
                 "generation, list, reopen, and JSON/CSV export with independent Decimal totals "
-                "and unchanged frozen input decisions after unrelated live changes."
+                "and unchanged frozen input decisions after a separately posted income changes "
+                "the live report. Backend and frontend versions must match the pinned deployment."
             ),
             test=(
                 "tests/e2e/test_institution_statement_journeys.py::"

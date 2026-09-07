@@ -25,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import time
 import uuid
@@ -296,10 +297,10 @@ async def _run_institution_journey(
             # statement is idempotent) but would report journal_entries_created=0
             # since nothing new is left to post, which would fail the assertion
             # below for no real reason. Nothing further to do here.
-            pass
             if record_property:
                 record_property("required_economic_review_decisions", 0)
                 record_property("required_statement_approvals", 0)
+                record_property("statement_approval_api_attempts", 0)
         else:
             approval = await approve_statement_with_fixture_review(
                 client,
@@ -315,6 +316,10 @@ async def _run_institution_journey(
                     approval.get("reviewed_dispositions", 0),
                 )
                 record_property("required_statement_approvals", 1)
+                record_property(
+                    "statement_approval_api_attempts",
+                    2 if approval.get("reviewed_dispositions", 0) else 1,
+                )
 
         report = await client.get(_api_url("/reports/balance-sheet"))
         assert report.status_code == 200, (
@@ -467,17 +472,44 @@ async def _assert_saved_gxs_package(
     """Continue the supported source through the public immutable-package API."""
     headers = await _auth_headers(page)
     source = expected["statement"]
+    expected_version = os.getenv("EXPECTED_SHA")
+    assert expected_version, (
+        "complete live happy-flow proof requires an explicit EXPECTED_SHA"
+    )
+    resolved_commit = subprocess.run(
+        [
+            "git",
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            f"{expected_version}^{{commit}}",
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    # The post-merge gate checks out a shallow commit, so the release tag need
+    # not exist locally. Exact release strings remain sufficient; mixed tag/SHA
+    # comparison is allowed only when we can resolve their commit identity.
+    expected_commit = (
+        resolved_commit.stdout.strip() if resolved_commit.returncode == 0 else None
+    )
+    record_property("expected_version", expected_version)
+    record_property("expected_commit", expected_commit)
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0
     ) as client:
         health = await client.get(_api_url("/health"))
         assert health.status_code == 200
+        _assert_pinned_deployment(health.json(), expected_version, expected_commit)
         record_property("backend_version", health.json().get("git_sha"))
         frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json")
         record_property("frontend_version_http_status", frontend.status_code)
         assert frontend.status_code == 200, (
             "frontend deployment version must be observable"
         )
+        _assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
         frontend_version = frontend.json().get("git_sha")
         assert frontend_version, "frontend deployment must identify its actual build"
         record_property("frontend_version", frontend_version)
@@ -659,15 +691,12 @@ async def _assert_saved_gxs_package(
         assert csv_amounts["income_statement.total_income"] == expected_income
         assert csv_amounts["income_statement.total_expenses"] == expected_expenses
 
-        unrelated = await client.post(
-            _api_url("/accounts"),
-            json={
-                "name": "Later unrelated account",
-                "type": "ASSET",
-                "currency": "SGD",
-            },
+        await _post_later_gxs_income(
+            client,
+            source=source,
+            cash_account_id=source_review.json()["account_id"],
+            expected_income=expected_income,
         )
-        assert unrelated.status_code in (200, 201)
         assert (await client.get(selected_path)).json()["document"] == document
         assert (
             await client.get(f"{selected_path}/export?format=json")
@@ -682,6 +711,74 @@ async def _assert_saved_gxs_package(
             csv_bytes=exported_csv.content,
         )
         record_property("saved_package_browser_interactions", 5)
+
+
+def _assert_pinned_deployment(
+    payload: dict, expected_version: str, expected_commit: str | None
+) -> None:
+    """Release tags must match exactly; an observed SHA must name their commit."""
+    observed = [payload.get("git_sha"), payload.get("version")]
+    assert all(observed), "deployed service must publish version and git_sha"
+    for version in observed:
+        assert version == expected_version or (
+            expected_commit
+            and re.fullmatch(r"[0-9a-f]{7,40}", version)
+            and expected_commit.startswith(version)
+        ), f"deployed version {version} does not match pinned target {expected_version}"
+
+
+async def _post_later_gxs_income(
+    client: httpx.AsyncClient,
+    *,
+    source: dict,
+    cash_account_id: str,
+    expected_income: Decimal,
+) -> None:
+    """Change a live financial total through normal posting before reopening."""
+    accounts = await client.get(_api_url("/accounts?limit=100"))
+    assert accounts.status_code == 200
+    income_account = next(
+        item for item in accounts.json()["items"] if item["type"] == "INCOME"
+    )
+    draft = await client.post(
+        _api_url("/journal-entries"),
+        json={
+            "entry_date": source["period_end"],
+            "memo": "Later independent fixture income",
+            "rationale": "Generated post-snapshot change verifies frozen artifact stability.",
+            "lines": [
+                {
+                    "account_id": cash_account_id,
+                    "direction": "DEBIT",
+                    "amount": "1.00",
+                    "currency": source["currency"],
+                },
+                {
+                    "account_id": income_account["id"],
+                    "direction": "CREDIT",
+                    "amount": "1.00",
+                    "currency": source["currency"],
+                },
+            ],
+        },
+    )
+    assert draft.status_code == 201
+    posted = await client.post(
+        _api_url(f"/journal-entries/{draft.json()['id']}/postings")
+    )
+    assert posted.status_code == 200
+    live = await client.get(
+        _api_url("/reports/income-statement"),
+        params={
+            "start_date": source["period_start"],
+            "end_date": source["period_end"],
+            "currency": source["currency"],
+        },
+    )
+    assert live.status_code == 200
+    assert money_amount(
+        live.json()["total_income"], source["currency"]
+    ) == expected_income + Decimal("1.00")
 
 
 async def _assert_gxs_snapshot_browser(
