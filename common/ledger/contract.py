@@ -2231,6 +2231,17 @@ CONTRACT = PackageContract(
             vision_anchor="decision-5-processing-account",
         ),
         ACRecord(
+            id="AC-ledger.first-use.1",
+            statement=(
+                "Opening balances start without an invented date; a user-selected "
+                "report period offers an explicitly applied previous-day date, "
+                "preserves manual edits and rejects dates inside that period."
+            ),
+            test="apps/frontend/src/__tests__/openingBalanceModal.test.tsx::AC-ledger.first-use.1 explicitly applies the prior-period date without posting",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-ledger.fe-accounts2.2",
             statement="The Accounts page offers a guided opening-balance flow: a non-accountant enters an as-of date and a starting balance per eligible (active, non-income/expense) account, and the UI posts the balances map to `POST /api/accounts/opening-balances` — never hand-written journal lines — validating positive two-decimal amounts and surfacing backend errors instead of silently closing",
             # was AC2.15.8

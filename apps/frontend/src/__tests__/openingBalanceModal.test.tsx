@@ -22,6 +22,59 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         vi.clearAllMocks();
     });
 
+    it("AC-ledger.first-use.1 explicitly applies the prior-period date without posting", async () => {
+        mockedApi.mockResolvedValueOnce({ id: "opening-entry" });
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
+        const date = screen.getByLabelText("As-of date *");
+        expect(date).toHaveValue("");
+        fireEvent.change(screen.getByLabelText("First report period starts"), { target: { value: "2026-03-01" } });
+        expect(date).toHaveValue("");
+        fireEvent.click(screen.getByRole("button", { name: "Use 2026-02-28" }));
+        expect(date).toHaveValue("2026-02-28");
+        expect(mockedApi).not.toHaveBeenCalled();
+        fireEvent.change(date, { target: { value: "2026-02-27" } });
+        fireEvent.change(screen.getByLabelText("First report period starts"), { target: { value: "2026-04-01" } });
+        expect(date).toHaveValue("2026-02-27");
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100.00" } });
+        fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
+        await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
+        expect(JSON.parse(mockedApi.mock.calls[0][1]?.body as string).entry_date).toBe("2026-02-27");
+    });
+
+    it.each([
+        ["2024-03-01", "2024-02-29"],
+        ["2026-01-01", "2025-12-31"],
+    ])("AC-ledger.first-use.1 suggests the previous calendar day for %s", (period, expected) => {
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
+        fireEvent.change(screen.getByLabelText("First report period starts"), { target: { value: period } });
+        fireEvent.click(screen.getByRole("button", { name: `Use ${expected}` }));
+        expect(screen.getByLabelText("As-of date *")).toHaveValue(expected);
+    });
+
+    it("AC-ledger.first-use.1 rejects an opening date inside the selected period", async () => {
+        render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
+        fireEvent.change(screen.getByLabelText("First report period starts"), { target: { value: "2026-03-01" } });
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2026-03-01" } });
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100.00" } });
+        fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
+        expect(await screen.findByText("Opening balances must be dated before the first report period starts.")).toBeInTheDocument();
+        expect(mockedApi).not.toHaveBeenCalled();
+    });
+
+    it("AC-ledger.first-use.1 starts a reopened dialog without a stale date or amount", () => {
+        const props = { onClose: vi.fn(), onSuccess: vi.fn(), accounts };
+        const { rerender } = render(<OpeningBalanceModal {...props} isOpen />);
+        fireEvent.change(screen.getByLabelText("First report period starts"), { target: { value: "2026-03-01" } });
+        fireEvent.click(screen.getByRole("button", { name: "Use 2026-02-28" }));
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100" } });
+        rerender(<OpeningBalanceModal {...props} isOpen={false} />);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        rerender(<OpeningBalanceModal {...props} isOpen />);
+        expect(screen.getByLabelText("First report period starts")).toHaveValue("");
+        expect(screen.getByLabelText("As-of date *")).toHaveValue("");
+        expect(screen.getByLabelText("Opening balance for Cash")).toHaveValue("");
+    });
+
     it("AC2.15.8 lists only eligible accounts and hides income/expense and inactive ones", () => {
         render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
 
@@ -83,6 +136,8 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
     it("AC2.15.8 blocks submission until at least one positive balance is entered", async () => {
         render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
 
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2026-01-01" } });
+
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
 
         expect(await screen.findByText("Enter a starting balance for at least one account.")).toBeInTheDocument();
@@ -105,6 +160,8 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
     it("AC2.15.8 rejects non-positive or over-precise amounts before calling the API", async () => {
         render(<OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} accounts={accounts} />);
 
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2026-01-01" } });
+
         fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "1.234" } });
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
 
@@ -118,6 +175,8 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         mockedApi.mockRejectedValueOnce(new Error("Account has activity before this date"));
         const onClose = vi.fn();
         render(<OpeningBalanceModal isOpen onClose={onClose} onSuccess={vi.fn()} accounts={accounts} />);
+
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2026-01-01" } });
 
         fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100" } });
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));

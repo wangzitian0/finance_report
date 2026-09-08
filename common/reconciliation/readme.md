@@ -61,9 +61,8 @@ cross-currency transfer pairing), `audit` (base value types), `platform`
 
 The package's ACs (`AC-reconciliation.match.*`/`.score.*`/`.stats.*`/`.txn.*`)
 live in [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly**
-from there into the AC registry (no EPIC mirror); the larger two-stage-review
-UI surface (EPIC-016) is a separate frontend concern and has not moved into
-this roadmap yet. `tools/check_package_contract.py` validates the
+from there into the AC registry (no EPIC mirror), including the migrated
+two-stage-review frontend ACs. `tools/check_package_contract.py` validates the
 implementation against this contract (interface == `__all__`, every test
 reference resolves, no upward import edge).
 
@@ -226,11 +225,10 @@ in `contract.py`).
 
 ## EPIC-016 two-stage review (frontend-owned surface)
 
-*(Internalized from `common/reconciliation/reconciliation.md` §7, wave 3, #1664. This
-surface's ACs stay in `docs/project/EPIC-016.two-stage-review-ui.md` — see
-[Governance](#governance) above — because the governance gate's AST-based
-`_resolve_test()` cannot resolve the `.tsx`/frontend test paths that prove
-most of it; this section is the operational reference, not an AC migration.)*
+*(Internalized from `common/reconciliation/reconciliation.md` §7, wave 3, #1664.
+The migrated frontend ACs now live in this package's contract roadmap and point
+directly to their frontend proofs; the EPIC is terminal residue, not a second
+owner.)*
 
 ### Stage 1 — record-level review
 
@@ -341,6 +339,14 @@ rationale. It is deliberately separate from reconciliation confirmation:
 the unmatched-review UI initializes intent as `unknown` for both inflows and
 outflows, so cash direction remains context rather than a preselected economic
 decision.
+
+When no compatible active counter-account exists, the board opens the shared
+ledger account form in place, seeded with the explicitly chosen intent's account
+type. The reviewer confirms the account's currency in that form. Creation,
+cancellation, and creation errors retain the transaction, category, and rationale.
+A created account is added to the available choices but never selected or posted
+automatically; currency/type/active filtering still applies and the user must
+select it and confirm the reviewed disposition (`AC-reconciliation.first-use.1`).
 
 1. Lock the user-owned `AtomicTransaction` and validate the statement custody
    account, transaction currency, counter-account type, and double-entry roles.

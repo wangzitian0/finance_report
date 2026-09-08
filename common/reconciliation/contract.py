@@ -2018,6 +2018,17 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-reconciliation.first-use.1",
+            statement=(
+                "Missing counter-account setup reuses the ledger account form "
+                "without losing the selected transaction or reviewed draft; "
+                "creation alone never selects a disposition or posts an entry."
+            ),
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review",
+            priority="P0",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ACRecord(
