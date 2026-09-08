@@ -267,6 +267,10 @@ describe("UnmatchedBoard", () => {
     navigationState.searchParams = new URLSearchParams(
       "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
     );
+    let completeRefresh!: (value: { items: typeof unmatchedItem[]; total: number }) => void;
+    const refreshResult = new Promise<{ items: typeof unmatchedItem[]; total: number }>((resolve) => {
+      completeRefresh = resolve;
+    });
     mockedApiFetch
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
@@ -277,7 +281,7 @@ describe("UnmatchedBoard", () => {
         status: "posted",
         total_amount: "88.00",
       })
-      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockReturnValueOnce(refreshResult)
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
 
     render(<UnmatchedBoard />);
@@ -305,8 +309,13 @@ describe("UnmatchedBoard", () => {
       name: "Return to statement review",
     });
     expect(returnLink).toHaveAttribute("href", "/statements/s1/review");
+    // Navigation already exists before the post/refresh has completed.
+    // It is not evidence that the selected statement's queue is empty.
+    expect(screen.queryByText(/All transactions for this statement are classified/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(5));
+    completeRefresh({ items: [], total: 0 });
     expect(
-      screen.getByText(/All transactions for this statement are classified/i),
+      await screen.findByText(/All transactions for this statement are classified/i),
     ).toBeInTheDocument();
   });
 
