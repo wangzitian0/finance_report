@@ -300,11 +300,15 @@ def _environment_contract():
     from infra2_sdk.runtime.config_schema import environment_manifest_from_model
 
     module = _settings_module()
-    return environment_manifest_from_model(
-        module.Settings,
-        source=MANIFEST_SOURCE,
-        overrides=getattr(module, "ENV_SOURCE_CLASSES", {}),
-    )
+    try:
+        return environment_manifest_from_model(
+            module.Settings,
+            source=MANIFEST_SOURCE,
+            overrides=getattr(module, "ENV_SOURCE_CLASSES", {}),
+        )
+    except ValueError as error:
+        # keep the tool's output actionable: the SDK names the offending field(s)
+        raise SystemExit(f"ENV_SOURCE_CLASSES: {error}") from None
 
 
 def manifest_gate_errors() -> list[str]:
