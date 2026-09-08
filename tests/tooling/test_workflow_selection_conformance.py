@@ -14,6 +14,8 @@ from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from common.audit.base import (
     TraceRecord,
     TraceResult,
@@ -141,12 +143,16 @@ def test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "governance_strength", ["exact", "schema", "concurrency", "value-oracle"]
+)
 def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
     tmp_path: Path,
     monkeypatch,
+    governance_strength: str,
 ) -> None:
     """AC-testing.conformance.4: AC8.23.4: a behavioral pr_ci proof absent from PR junit evidence fails
-    the reconciliation gate; present proofs pass; skipped-only warns."""
+    the reconciliation gate; present proofs pass; skipped-only fails."""
     from common.testing.check_pr_ci_evidence import run_check
 
     # Real reconciliation over a synthetic junit containing every scoped
@@ -154,9 +160,25 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
     from common.testing.ac_graph import build_proofs_only
     from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
 
+    matrix_payload = build_matrix_from_graph(build_proofs_only())
+    # Exercise non-exact declarations even before any business package adds
+    # one. The real gate still validates the resulting canonical TraceRecord.
+    scenario_proof = next(
+        proof
+        for proof in matrix_payload["proofs"]
+        if proof.get("scenario_id")
+        and proof.get("scope") == "behavioral"
+        and proof.get("ci_tier") == "pr_ci"
+        and matrix.classify_stage(proof.get("file", "")) in matrix.PR_EVIDENCE_STAGES
+    )
+    scenario_proof["governance_strength"] = governance_strength
+    monkeypatch.setattr(
+        "common.testing.generate_critical_proof_matrix.build_matrix_from_graph",
+        lambda _graph: matrix_payload,
+    )
     proofs = [
         p
-        for p in build_matrix_from_graph(build_proofs_only()).get("proofs", [])
+        for p in matrix_payload.get("proofs", [])
         if p.get("scope") == "behavioral"
         and p.get("ci_tier") == "pr_ci"
         and matrix.classify_stage(p.get("file", "")) in matrix.PR_EVIDENCE_STAGES
@@ -189,6 +211,7 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
                         issue=proof.get("issue", ""),
                         scenario_id=proof["scenario_id"],
                         oracle_kind=proof["oracle_kind"],
+                        governance_strength=proof.get("governance_strength", "exact"),
                         required_observation_kind=proof.get(
                             "required_observation_kind", ""
                         ),
