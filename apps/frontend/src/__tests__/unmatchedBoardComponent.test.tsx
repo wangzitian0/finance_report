@@ -119,7 +119,7 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create counter account" }));
     const form = within(screen.getByRole("dialog", { name: "New Account" }));
     fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: "Dining" } });
-    fireEvent.change(form.getAllByRole("combobox")[1], { target: { value: "USD" } });
+    fireEvent.change(form.getByLabelText("Currency *"), { target: { value: "USD" } });
     fireEvent.click(form.getByRole("button", { name: "Create Account" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();

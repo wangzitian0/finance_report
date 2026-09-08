@@ -29,9 +29,8 @@ describe("AccountFormModal", () => {
     fireEvent.change(screen.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: "Cash Box" } })
     fireEvent.change(screen.getByPlaceholderText("e.g., 1000"), { target: { value: "" } })
 
-    const comboboxes = screen.getAllByRole("combobox")
-    fireEvent.change(comboboxes[0], { target: { value: "ASSET" } })
-    fireEvent.change(comboboxes[1], { target: { value: "USD" } })
+    fireEvent.change(screen.getByLabelText("Type *"), { target: { value: "ASSET" } })
+    fireEvent.change(screen.getByLabelText("Currency *"), { target: { value: "USD" } })
 
     fireEvent.change(screen.getByPlaceholderText("Optional description..."), { target: { value: "" } })
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
@@ -49,6 +48,7 @@ describe("AccountFormModal", () => {
       }),
     )
     expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onSuccess).toHaveBeenCalledWith({ id: "a1" })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -120,6 +120,7 @@ describe("AccountFormModal", () => {
       }),
     )
     expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onSuccess).toHaveBeenCalledWith({ id: "a1" })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
