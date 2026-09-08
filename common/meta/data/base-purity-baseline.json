@@ -1,6 +1,4 @@
 [
-  "extraction/base/disposition.py::from src.extraction.orm.layer2 import TransactionDirection",
-  "extraction/base/validation.py::from src.extraction.orm.statement_enums import BankStatementStatus",
   "ledger/base/contribution.py::from src.ledger.orm.account import AccountType",
   "ledger/base/contribution.py::from src.ledger.orm.journal import Direction",
   "ledger/base/processing.py::from src.ledger.orm.account import AccountType",

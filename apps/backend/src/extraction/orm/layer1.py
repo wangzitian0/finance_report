@@ -1,32 +1,12 @@
 """Layer 1: Raw Files - Document metadata registry for 4-layer architecture."""
 
-from enum import Enum
-
 from sqlalchemy import Enum as SQLEnum, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-
-
-class DocumentType(str, Enum):
-    """Document type classification."""
-
-    BANK_STATEMENT = "bank_statement"
-    BROKERAGE_STATEMENT = "brokerage_statement"
-    ESOP_GRANT = "esop_grant"
-    PROPERTY_APPRAISAL = "property_appraisal"
-
-
-class DocumentStatus(str, Enum):
-    """Document processing status."""
-
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    RETIRED = "retired"
 
 
 class UploadedDocument(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

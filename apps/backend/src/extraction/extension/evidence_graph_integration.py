@@ -13,9 +13,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.source_vocabulary import DocumentType
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.orm.evidence import EvidenceNode
-from src.extraction.orm.layer1 import DocumentType, UploadedDocument
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalLine

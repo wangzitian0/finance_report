@@ -98,9 +98,9 @@ def test_AC_extraction_1_3_base_layer_is_pure():
             assert not mod.startswith("src.extraction.data"), (
                 f"{py.name} imports data ({mod}) from base/"
             )
-            assert not mod.startswith(("src.database", "sqlalchemy")), (
-                f"{py.name} reaches the ORM from base/"
-            )
+            assert not mod.startswith(
+                ("src.extraction.orm", "src.database", "sqlalchemy")
+            ), f"{py.name} reaches the ORM from base/"
             assert mod not in {"httpx", "litellm", "aiohttp"}, (
                 f"{py.name} reaches a network client from base/"
             )

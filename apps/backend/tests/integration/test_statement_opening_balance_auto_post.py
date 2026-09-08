@@ -20,14 +20,20 @@ from unittest.mock import AsyncMock
 from sqlalchemy import select
 
 from src.config_app import set_base_currency
-from src.extraction import DocumentSource, StatementPostingOutcome, StatementPostingStatus
+from src.extraction import (
+    BankStatementStatus,
+    ClassificationStatus,
+    DocumentSource,
+    RuleType,
+    StatementPostingOutcome,
+    StatementPostingStatus,
+)
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
     try_auto_post_statement_opening_balance,
 )
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import generate_income_statement
 from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies

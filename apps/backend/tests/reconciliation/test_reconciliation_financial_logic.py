@@ -4,7 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.reconciliation import DEFAULT_CONFIG, calculate_match_score
 

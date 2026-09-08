@@ -12,7 +12,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus, get_reconciliation_stats
 

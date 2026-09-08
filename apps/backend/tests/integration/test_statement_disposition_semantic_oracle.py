@@ -12,11 +12,11 @@ from sqlalchemy import select
 
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
-from src.extraction import DocumentSource, StatementPostingStatus
+from src.extraction import DocumentSource, RuleType, StatementPostingStatus
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
 from src.extraction.extension.statement_validation import approve_statement
-from src.extraction.orm.layer3 import ClassificationRule, RuleType, TransactionClassification
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType, JournalLine
 from src.reporting import generate_income_statement
 from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies

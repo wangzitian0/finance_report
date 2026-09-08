@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType
 from src.extraction.base.types import RetireStatementCommand
-from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 
 

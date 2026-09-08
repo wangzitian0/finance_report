@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from src.audit import SqlTraceRecordRepository, TraceDecisionRef, TraceEmitter, VersionedTraceRef
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
 from src.extraction.base.contribution import ResolvedStatementContribution
 from src.extraction.base.result import (
     ExtractedPositionFact,
@@ -31,7 +31,6 @@ from src.extraction.extension.statement_contribution import (
     list_statement_contributions,
     resolve_statement_contribution,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 

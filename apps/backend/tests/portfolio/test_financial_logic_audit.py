@@ -6,7 +6,8 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import CostBasisMethod, ManagedPosition, PositionStatus
 from src.ledger import Account, AccountType
 from src.portfolio import (

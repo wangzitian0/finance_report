@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 import src.audit as audit
 from src.audit.quantity import Quantity, Unit
 from src.database import Base
+from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 # A managed position's quantity has no stored unit column; shares/units are the
@@ -32,22 +33,6 @@ POSITION_QUANTITY_UNIT = "units"
 
 if TYPE_CHECKING:
     from src.extraction.orm.layer2 import AtomicTransaction
-
-
-class RuleType(str, Enum):
-    """Type of classification rule."""
-
-    KEYWORD_MATCH = "keyword_match"
-    REGEX_MATCH = "regex_match"
-    ML_MODEL = "ml_model"
-
-
-class ClassificationStatus(str, Enum):
-    """Status of transaction classification."""
-
-    DRAFT = "draft"
-    APPLIED = "applied"
-    SUPERSEDED = "superseded"
 
 
 class ClassificationRule(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

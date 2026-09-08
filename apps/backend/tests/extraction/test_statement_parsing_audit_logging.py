@@ -10,12 +10,11 @@ from uuid import uuid4
 import pytest
 
 from src.database import create_session_maker_from_db
-from src.extraction import ExtractionMethod, ParseJob, StatementEvidenceType
+from src.extraction import BankStatementStatus, ExtractionMethod, ParseJob, StatementEvidenceType
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionError
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background

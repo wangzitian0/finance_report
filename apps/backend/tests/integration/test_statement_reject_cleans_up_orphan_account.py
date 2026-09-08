@@ -15,9 +15,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension.service import ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import Account, AccountType
 from tests.statement_ingestion import parse_and_load_statement_projection
 

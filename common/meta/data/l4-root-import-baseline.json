@@ -1,7 +1,5 @@
 [
   "routers/accounts.py::from src.audit.money import to_money",
-  "routers/ai_feedback.py::from src.extraction.orm.layer2 import AtomicTransaction",
-  "routers/ai_feedback.py::from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification",
   "routers/assets.py::from src.audit.money import Currency, Money, to_money",
   "routers/evidence.py::from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode",
   "routers/income.py::from src.audit.money import to_money",
@@ -19,12 +17,10 @@
   "schemas/app_config.py::from src.audit.money import Currency, InvalidCurrencyError",
   "schemas/base.py::from src.audit.money.currency import normalize_currency_code",
   "schemas/extraction.py::from src.extraction.orm.layer2 import AtomicTransaction",
-  "schemas/extraction.py::from src.extraction.orm.statement_enums import BankStatementStatus",
   "schemas/extraction.py::from src.extraction.orm.statement_summary import StatementSummary",
   "schemas/portfolio.py::from src.extraction.orm.layer3 import CostBasisMethod, PositionStatus",
   "schemas/reconciliation.py::from src.extraction.base.disposition import EconomicIntent",
   "schemas/reporting.py::from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension, ReportLineId",
-  "schemas/review.py::from src.extraction.orm.statement_enums import Stage1Status",
   "schemas/review.py::from src.reconciliation.orm.consistency_check import CheckStatus, CheckType",
   "schemas/user.py::from src.identity.base.types.user import UserAiSettingsResponse, UserAiSettingsUpdate, UserBase, UserCreate, UserResponse, UserUpdate"
 ]

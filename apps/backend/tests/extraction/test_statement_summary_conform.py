@@ -6,10 +6,9 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection, UploadedDocument
 from src.extraction.extension.statement_summary import resolve_custody_account_id
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType
 from tests.factories import StatementSummaryFactory
 

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.extraction.orm.layer2 import TransactionDirection
+from src.extraction import TransactionDirection
 from src.ledger import (
     Account,
     AccountType,

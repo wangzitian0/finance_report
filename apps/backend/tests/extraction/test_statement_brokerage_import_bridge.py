@@ -10,10 +10,12 @@ from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
 from src.extraction import (
+    BankStatementStatus,
     DocumentSource,
     DocumentType,
     ExtractionMethod,
     ParseJob,
+    Stage1Status,
     StatementEvidenceType,
     UploadedDocument,
 )
@@ -27,7 +29,6 @@ from src.extraction.extension.statement_parsing import (
 )
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background

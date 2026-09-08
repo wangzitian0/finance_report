@@ -31,6 +31,7 @@ from src.extraction.base.disposition import (
     StatementTransaction,
     intent_matches_counter_account,
 )
+from src.extraction.base.source_vocabulary import BankStatementStatus, ClassificationStatus, RuleType, Stage1Status
 from src.extraction.base.types import (
     StatementIngestionConfigurationError,
     StatementPostingOutcome,
@@ -42,8 +43,7 @@ from src.extraction.extension.review_queue import FxRateProvider, create_entry_f
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,

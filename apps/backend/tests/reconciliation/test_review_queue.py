@@ -25,19 +25,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
 from src.extraction import (
+    ClassificationStatus,
     DispositionContext,
     DispositionMode,
     DispositionPolicy,
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
+    RuleType,
     StatementTransaction,
+    TransactionDirection,
     extraction_trace_policy_registry,
 )
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import AccountType, JournalEntryStatus, ValidationError
 from src.pricing import PricingError

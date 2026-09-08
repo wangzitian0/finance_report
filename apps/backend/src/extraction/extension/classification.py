@@ -6,13 +6,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import (
-    ClassificationRule,
-    ClassificationStatus,
-    RuleType,
-    TransactionClassification,
-)
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.observability import get_logger
 
 logger = get_logger(__name__)

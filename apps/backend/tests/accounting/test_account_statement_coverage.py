@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 

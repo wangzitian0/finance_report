@@ -5,7 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.reconciliation.extension.anomaly import detect_anomalies
 
 

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.extraction import (
+    BankStatementStatus,
     DocumentType,
     ExtractedPositionFact,
     ExtractionMethod,
@@ -16,6 +17,7 @@ from src.extraction import (
     StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
+    TransactionDirection,
     UploadedDocument,
 )
 from src.extraction.extension.brokerage_positions import (
@@ -29,9 +31,8 @@ from src.extraction.extension.brokerage_positions import (
     parse_brokerage_positions,
 )
 from src.extraction.extension.brokerage_statement_payload import _brokerage_payload_from_statement
-from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import ManagedPosition
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.portfolio import PositionService

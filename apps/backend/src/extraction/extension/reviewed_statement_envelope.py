@@ -31,11 +31,11 @@ from src.extraction.base.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeCommand,
     supports_reviewed_statement_envelope,
 )
+from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 
@@ -160,6 +160,7 @@ async def persist_statement_extraction_result(
         source_trace_record_id=source_trace_record_id,
         created_at=datetime.now(UTC),
     )
+    source_record: StatementExtractionResultRecord | None
     try:
         async with db.begin_nested():
             db.add(candidate)

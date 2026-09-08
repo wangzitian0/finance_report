@@ -15,7 +15,8 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
-from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
 from src.ledger import JournalLine
 from src.pricing import (
     ManualValuationComponentType,

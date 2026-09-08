@@ -17,9 +17,8 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentType, UploadedDocument
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction import BankStatementStatus, DocumentType, TransactionDirection, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus, execute_matching

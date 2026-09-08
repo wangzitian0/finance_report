@@ -21,7 +21,8 @@ from uuid import uuid4
 from fastapi import status
 from httpx import AsyncClient
 
-from src.extraction.orm.layer3 import ClassificationRule, RuleType
+from src.extraction import RuleType
+from src.extraction.orm.layer3 import ClassificationRule
 from src.identity import User
 from src.ledger import Account, AccountType
 from src.reporting import ReportSnapshot, ReportType

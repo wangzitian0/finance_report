@@ -15,7 +15,15 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.extraction import DocumentStatus, DocumentType, UploadedDocument, get_known_storage_paths
+from src.extraction import (
+    BankStatementStatus,
+    DocumentStatus,
+    DocumentType,
+    Stage1Status,
+    TransactionDirection,
+    UploadedDocument,
+    get_known_storage_paths,
+)
 from src.extraction.base.result import (
     ExtractedTransactionFact,
     ExtractionMethod,
@@ -36,12 +44,11 @@ from src.extraction.extension.statement_validation import (
     _raise_if_balance_chain_invalid,
     validate_balance_chain,
 )
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.routers import statements as statements_router

@@ -21,6 +21,7 @@ from src.composition import compose_statement_posting_dependencies
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.extraction import (
+    BankStatementStatus,
     DispositionContext,
     DispositionMode,
     DispositionPolicy,
@@ -34,6 +35,7 @@ from src.extraction import (
     StatementPostingDependencies,
     StatementSummary,
     StatementTransaction,
+    TransactionDirection,
 )
 from src.extraction.extension import statement_flow, statement_pipeline
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
@@ -42,8 +44,6 @@ from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import RetryableStatementIngestionError
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
-from src.extraction.orm.layer2 import TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.ledger import JournalEntry, JournalEntryStatus
 from tests.factories import StatementSummaryFactory
 

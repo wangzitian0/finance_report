@@ -14,7 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
-from src.extraction import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction import (
+    BankStatementStatus,
+    ClassificationStatus,
+    DocumentStatus,
+    DocumentType,
+    RuleType,
+    TransactionDirection,
+    UploadedDocument,
+)
 from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import (
@@ -22,10 +30,8 @@ from src.extraction.orm.layer2 import (
     AtomicPositionSourceDocument,
     AtomicTransaction,
     AtomicTransactionSourceDocument,
-    TransactionDirection,
 )
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine

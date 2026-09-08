@@ -1714,6 +1714,7 @@
             "$ref": "#/components/schemas/BankStatementStatus"
           },
           "transactions": {
+            "description": "Extracted atomic transactions associated with this statement",
             "items": {
               "$ref": "#/components/schemas/AtomicTransactionResponse"
             },
@@ -9437,6 +9438,7 @@
             "$ref": "#/components/schemas/BankStatementStatus"
           },
           "transactions": {
+            "description": "Extracted atomic transactions associated with this statement",
             "items": {
               "$ref": "#/components/schemas/AtomicTransactionResponse"
             },

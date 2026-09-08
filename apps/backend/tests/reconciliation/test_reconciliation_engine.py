@@ -12,9 +12,9 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.composition import compose_reviewed_disposition_dependencies
-from src.extraction import DocumentType, EconomicIntent, UploadedDocument
+from src.extraction import DocumentType, EconomicIntent, TransactionDirection, UploadedDocument
 from src.extraction.extension.review_queue import create_entry_from_txn, get_or_create_account
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import (

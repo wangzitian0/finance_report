@@ -6,9 +6,8 @@ and the failure-log fields, so an exception message quoting statement content
 (emails, account numbers) never lands raw.
 """
 
-from src.extraction import ParseJob
+from src.extraction import BankStatementStatus, ParseJob
 from src.extraction.extension.statement_parsing import handle_parse_failure
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory, UploadedDocumentFactory
 

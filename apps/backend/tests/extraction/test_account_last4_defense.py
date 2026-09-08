@@ -26,10 +26,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentSource, ExtractionMethod, ParseJob, StatementEvidenceType
+from src.extraction import BankStatementStatus, DocumentSource, ExtractionMethod, ParseJob, StatementEvidenceType
 from src.extraction.extension.result_contract import build_statement_extraction_result
 from src.extraction.extension.service import ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from tests.factories import StatementSummaryFactory

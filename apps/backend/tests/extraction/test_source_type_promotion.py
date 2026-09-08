@@ -9,8 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer2 import TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction import BankStatementStatus, Stage1Status, TransactionDirection
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry
 from src.routers import statements as statements_router

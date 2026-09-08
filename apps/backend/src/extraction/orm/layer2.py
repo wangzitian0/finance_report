@@ -25,14 +25,8 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.extraction.base.source_vocabulary import TransactionDirection
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
-
-
-class TransactionDirection(str, Enum):
-    """Transaction flow direction."""
-
-    IN = "IN"
-    OUT = "OUT"
 
 
 class AssetType(str, Enum):

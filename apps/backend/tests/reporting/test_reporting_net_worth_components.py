@@ -11,14 +11,13 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import (
     ClassificationRule,
-    ClassificationStatus,
     CostBasisMethod,
     ManagedPosition,
     PositionStatus,
-    RuleType,
     TransactionClassification,
 )
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine

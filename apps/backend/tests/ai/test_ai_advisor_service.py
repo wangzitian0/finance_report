@@ -38,7 +38,8 @@ from src.advisor import (
 from src.advisor.extension import service as ai_advisor_service
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import JournalEntrySourceType
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.llm import AIStreamError, estimate_tokens
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus

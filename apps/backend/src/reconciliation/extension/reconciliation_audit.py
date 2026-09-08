@@ -16,7 +16,8 @@ from pathlib import Path
 from uuid import UUID
 
 from src.audit import JournalEntrySourceType
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     Account,
     AccountType,

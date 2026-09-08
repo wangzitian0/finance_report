@@ -24,10 +24,12 @@ from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
 from src.extraction import (
+    BankStatementStatus,
     DocumentSource,
     DocumentType,
     ExtractionMethod,
     ParseJob,
+    Stage1Status,
     StatementEvidenceType,
     UploadedDocument,
 )
@@ -46,7 +48,6 @@ from src.extraction.extension.result_contract import build_statement_extraction_
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 from tests.statement_ingestion import execute_statement_ingestion as parse_statement_background

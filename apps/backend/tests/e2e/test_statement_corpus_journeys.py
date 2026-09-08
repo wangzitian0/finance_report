@@ -29,8 +29,9 @@ from pathlib import Path
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import AccountType
 from tests.factories import AccountFactory, seed_parsed_statement
 

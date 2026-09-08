@@ -10,8 +10,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.identity import AiFeedback, User
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from tests.factories import UserFactory

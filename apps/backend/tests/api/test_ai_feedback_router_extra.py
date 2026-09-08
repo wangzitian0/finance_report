@@ -8,8 +8,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
+from src.extraction import ClassificationStatus, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import TransactionClassification
 from src.identity import User
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
@@ -33,7 +34,8 @@ async def _create_classification(
     await db.flush()
 
     # create a minimal classification rule to satisfy not-null constraint
-    from src.extraction.orm.layer3 import ClassificationRule, RuleType
+    from src.extraction import RuleType
+    from src.extraction.orm.layer3 import ClassificationRule
 
     rule = ClassificationRule(
         user_id=user_id,

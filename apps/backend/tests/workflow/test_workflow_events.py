@@ -15,8 +15,7 @@ from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.workflow.extension.events as workflow_events
-from src.extraction import DocumentType, UploadedDocument
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.reporting import current_package_document_summary

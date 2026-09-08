@@ -33,7 +33,7 @@ extracted fact to its source document.
   brokerage import) is inverted through ``register_position_reconciler``,
   wired by ``main.py``, so portfolio can import this package's entities
   without a cycle. ``StatementSummary``/statement enums completed the move in
-  #1675 D6 (``orm/statement_summary.py`` / ``orm/statement_enums.py``), the
+  #1675 D6 (``orm/statement_summary.py`` and source lifecycle enums), the
   final models-decentralization slice: the workflow package directly consumes
   extraction's published ``StatementEventSource`` read model, while
   ``ledger``/``identity``
@@ -105,7 +105,39 @@ CONTRACT = PackageContract(
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
         Unit(name="ClassificationRule", kind=Kind.ENTITY),
-        Unit(name="RuleType", kind=Kind.VALUE_OBJECT),
+        Unit(
+            name="RuleType", kind=Kind.VALUE_OBJECT, module="base/source_vocabulary.py"
+        ),
+        Unit(
+            name="DocumentType",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
+        Unit(
+            name="DocumentStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
+        Unit(
+            name="TransactionDirection",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
+        Unit(
+            name="ClassificationStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
+        Unit(
+            name="BankStatementStatus",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
+        Unit(
+            name="Stage1Status",
+            kind=Kind.VALUE_OBJECT,
+            module="base/source_vocabulary.py",
+        ),
         Unit(name="TransactionClassification", kind=Kind.ENTITY),
         # ``ManagedPosition`` is portfolio's aggregate.  Extraction physically
         # hosts the schema-preserving current-position row as a source-derived
@@ -487,6 +519,39 @@ CONTRACT = PackageContract(
     # group instead of claiming a new numeric block, so it can never collide
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
+        ACRecord(
+            id="AC-extraction.source-vocabulary.1",
+            statement=(
+                "Source-domain enum members have one pure base-layer owner with unchanged "
+                "string values and no dependency on persistence or application configuration."
+            ),
+            test="tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_values_are_stable",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-vocabulary.2",
+            statement=(
+                "Persistence adapters and the published extraction interface use the same "
+                "domain enum objects; named SQL enum bindings retain their stored values."
+            ),
+            test="apps/backend/tests/extraction/test_source_vocabulary.py::test_source_enum_persistence_compatibility",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-vocabulary.3",
+            statement=(
+                "Retired source-enum owners and ORM vocabulary imports cannot return; "
+                "extraction base has zero reverse ORM dependencies."
+            ),
+            test="tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_has_one_owner",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-extraction.fx-port.1",
             statement=(

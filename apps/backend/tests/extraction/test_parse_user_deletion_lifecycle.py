@@ -23,9 +23,8 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.exc import PendingRollbackError
 
-from src.extraction import ParseJob, UploadedDocument
+from src.extraction import BankStatementStatus, ParseJob, UploadedDocument
 from src.extraction.extension.statement_parsing import _ensure_failed_document_lineage, handle_parse_failure
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from tests.factories import StatementSummaryFactory
