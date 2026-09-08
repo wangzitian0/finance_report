@@ -175,6 +175,10 @@ and `Stage1Status`. Validation and disposition rules import these pure values;
 SQLAlchemy mappings consume them without defining another enum. External
 consumers use the published `src.extraction` names, whose string values and SQL
 enum bindings remain unchanged. The old `orm/statement_enums.py` owner is retired.
+Purity here describes the domain module's dependencies, not isolated package
+startup: `src.extraction.__init__` still eagerly loads its published adapters.
+Removing that bootstrap coupling remains part of the ORM export debt under
+#1863; this cutover does not claim dependency-free ordinary package imports.
 
 This is source/review vocabulary, not investment accounting. `AssetType`,
 `PositionStatus`, and `CostBasisMethod` remain outside this cutover; their

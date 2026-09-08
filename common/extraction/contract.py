@@ -523,7 +523,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.source-vocabulary.1",
             statement=(
                 "Source-domain enum members have one pure base-layer owner with unchanged "
-                "string values and no dependency on persistence or application configuration."
+                "string values and no direct dependency on persistence or application configuration."
             ),
             test="tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_values_are_stable",
             priority="P0",
@@ -545,7 +545,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.source-vocabulary.3",
             statement=(
                 "Retired source-enum owners and ORM vocabulary imports cannot return; "
-                "extraction base has zero reverse ORM dependencies."
+                "extraction base has zero direct reverse ORM dependencies."
             ),
             test="tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_has_one_owner",
             priority="P0",

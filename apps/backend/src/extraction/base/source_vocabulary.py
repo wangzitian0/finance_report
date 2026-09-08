@@ -1,7 +1,8 @@
 """Source-document vocabulary shared by pure rules and persistence adapters.
 
 These enums describe source facts and their review lifecycle. Database mappings
-consume them; importing this leaf never requires SQLAlchemy or app settings.
+consume them; the definitions depend only on the standard library. The package
+entry point still eagerly imports its published persistence adapters.
 Investment-position and cost-basis vocabulary is deliberately not defined here.
 """
 
