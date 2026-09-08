@@ -34,24 +34,49 @@ export function packageSnapshotRequest(
   frameworkId: import("./api-schema").Schemas["PersonalReportingFrameworkId"],
   reportDate: string,
   currency = "SGD",
+  startDate = reportPeriodStart(reportDate),
 ) {
   return {
     framework_id: frameworkId,
-    start_date: reportPeriodStart(reportDate),
-    end_date: reportDate,
-    as_of_date: reportDate,
+    ...packagePeriodRequest(reportDate, startDate),
     currency,
     include_restricted: false,
   };
 }
 
+export function reportPeriodError(
+  startDate: string,
+  endDate: string,
+): string | null {
+  if (!isValidReportDate(startDate) || !isValidReportDate(endDate)) {
+    return "Enter a valid period start and end date.";
+  }
+  return startDate > endDate
+    ? "Period start must be on or before period end."
+    : null;
+}
+
+/** Point-in-time sections use the period end; defaults preserve the existing year window. */
+export function packagePeriodRequest(
+  endDate: string,
+  startDate = reportPeriodStart(endDate),
+) {
+  const error = reportPeriodError(startDate, endDate);
+  if (error) throw new Error(error);
+  return { start_date: startDate, end_date: endDate, as_of_date: endDate };
+}
+
 /** `?start_date=...&end_date=...&as_of_date=...[&framework_id=...]` for a package-scoped GET. */
-export function packageQuery(reportDate: string, frameworkId?: string): string {
+export function packageQuery(
+  reportDate: string,
+  frameworkId?: string,
+  startDate = reportPeriodStart(reportDate),
+): string {
   const params = new URLSearchParams(
     frameworkId ? { framework_id: frameworkId } : undefined,
   );
-  params.set("start_date", reportPeriodStart(reportDate));
-  params.set("end_date", reportDate);
-  params.set("as_of_date", reportDate);
+  Object.entries(packagePeriodRequest(reportDate, startDate)).forEach(
+    ([key, value]) => params.set(key, value),
+  );
   return `?${params.toString()}`;
 }

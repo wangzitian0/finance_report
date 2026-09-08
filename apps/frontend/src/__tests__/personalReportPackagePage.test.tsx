@@ -673,6 +673,76 @@ function expectInsideClosedAuditDetails(text: string | RegExp) {
 }
 
 describe("PersonalReportPackagePage", () => {
+  it("AC-reporting.package-document.12 previews and generates the selected month through the page", async () => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.change(await screen.findByLabelText("Package report date"), {
+      target: { value: "2025-03-31" },
+    });
+    fireEvent.change(screen.getByLabelText("Package period start"), {
+      target: { value: "2025-03-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    const preview = mockedApiFetch.mock.calls.map(([path]) => String(path)).find(
+      (path) => path.includes("framework_id=personal_us_gaap_like") && path.includes("start_date=2025-03-01"),
+    );
+    expect(preview).toBeDefined();
+    expectPackageDates(preview!, "2025-03-31", "2025-03-01");
+    fireEvent.click(screen.getByRole("button", { name: /Generate Snapshot/i }));
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/api/reports/package/generate",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({
+        framework_id: "personal_us_gaap_like", start_date: "2025-03-01",
+        end_date: "2025-03-31", as_of_date: "2025-03-31", currency: "SGD", include_restricted: false,
+      }) }),
+    ));
+  });
+
+  it.each([
+    ["Package period start", ""], ["Package period start", "2027-01-01"], ["Package report date", ""],
+  ])("AC-reporting.package-document.12 blocks invalid %s %s locally", async (label, value) => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2025-03-31" } });
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    mockedApiFetch.mockClear();
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    expect(screen.getByRole("alert")).toHaveTextContent(value ? /start.*on or before/i : /enter.*start.*end/i);
+    expect(screen.queryByRole("button", { name: /Generate Snapshot/i })).not.toBeInTheDocument();
+    expect(mockedApiFetch).not.toHaveBeenCalled();
+  });
+
+  it("AC-reporting.package-document.12 refreshes preview when only the start changes and reopens the saved monthly period", async () => {
+    const monthly = {
+      ...packageSnapshot, start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-04-01",
+      document: { ...packageSnapshot.document, context: {
+        ...packageSnapshot.document.context, start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-04-01",
+      } },
+    };
+    mockPackageApi(readiness, frameworkPolicy, traceabilityAppendix, lineageResponse, [monthly], monthly);
+    renderPackagePage();
+    fireEvent.change(await screen.findByLabelText("Package report date"), { target: { value: "2025-03-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    mockedApiFetch.mockClear();
+    fireEvent.change(screen.getByLabelText("Package period start"), { target: { value: "2025-03-02" } });
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    expectPackageDates(String(mockedApiFetch.mock.calls[0][0]), "2025-03-31", "2025-03-02");
+    mockedApiFetch.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Reopen" }));
+    await screen.findByText("Frozen snapshot snap-001");
+    expect(screen.getByLabelText("Package period start")).toHaveValue("2025-03-01");
+    expect(screen.getByLabelText("Package report date")).toHaveValue("2025-03-31");
+    const cover = within(screen.getByRole("region", { name: "Report package cover" }));
+    expect(cover.getByText("2025-03-01 to 2025-03-31")).toBeInTheDocument();
+    expect(cover.getByText("2025-04-01")).toBeInTheDocument();
+    expect(cover.getByText("Balances as of").nextElementSibling).toHaveTextContent("2025-04-01");
+    expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("/package?"))).toBe(false);
+  });
+
   afterEach(() => {
     mockedApiDownload.mockReset();
     mockedApiFetch.mockReset();

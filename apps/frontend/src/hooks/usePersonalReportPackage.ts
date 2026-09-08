@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiOperation } from "@/lib/api-client";
 import {
-  isValidReportDate,
+  packagePeriodRequest,
+  reportPeriodError,
   packageSnapshotRequest,
   reportPeriodStart,
 } from "@/lib/reportPackage";
@@ -22,11 +23,12 @@ import type {
 export async function generatePackageSnapshot(
   frameworkId: PersonalReportingFrameworkId,
   reportDate: string,
+  startDate = reportPeriodStart(reportDate),
 ): Promise<PersonalReportPackageSnapshotResponse> {
   const snapshot = await apiOperation(
     "generate_personal_report_package_snapshot_reports_package_generate_post",
     {
-      body: packageSnapshotRequest(frameworkId, reportDate),
+      body: packageSnapshotRequest(frameworkId, reportDate, "SGD", startDate),
     },
   );
   return normalizePersonalReportPackageSnapshot(snapshot);
@@ -35,6 +37,7 @@ export async function generatePackageSnapshot(
 async function fetchPersonalReportPackage(
   frameworkId: PersonalReportingFrameworkId | null,
   reportDate: string,
+  startDate: string,
   signal?: AbortSignal,
 ): Promise<PersonalReportPackageDocument> {
   const document = await apiOperation(
@@ -42,9 +45,7 @@ async function fetchPersonalReportPackage(
     {
       query: {
         framework_id: frameworkId ?? undefined,
-        start_date: reportPeriodStart(reportDate),
-        end_date: reportDate,
-        as_of_date: reportDate,
+        ...packagePeriodRequest(reportDate, startDate),
       },
       signal,
     },
@@ -56,14 +57,17 @@ export function usePersonalReportPackage(
   selectedFrameworkId: PersonalReportingFrameworkId | null,
   reportDate: string,
   selectedSnapshotId: string | null,
+  startDate = reportPeriodStart(reportDate),
 ) {
   const [lastContract, setLastContract] =
     useState<PersonalReportPackageContractResponse | null>(null);
   const packageQueryResult = useQuery({
-    queryKey: ["report-package", "framework", selectedFrameworkId, reportDate],
+    queryKey: [
+      "report-package", "framework", selectedFrameworkId, reportDate, startDate,
+    ],
     queryFn: ({ signal }) =>
-      fetchPersonalReportPackage(selectedFrameworkId, reportDate, signal),
-    enabled: Boolean(isValidReportDate(reportDate) && !selectedSnapshotId),
+      fetchPersonalReportPackage(selectedFrameworkId, reportDate, startDate, signal),
+    enabled: !reportPeriodError(startDate, reportDate) && !selectedSnapshotId,
     gcTime: 0,
     staleTime: 0,
   });
