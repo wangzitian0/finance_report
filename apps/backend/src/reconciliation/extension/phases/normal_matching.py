@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from itertools import combinations
 from uuid import UUID
 
 from sqlalchemy import select
@@ -11,16 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.reconciliation.base import ReconciliationRepository
-from src.reconciliation.extension.entry_reads import (
-    _candidate_is_better,
-    entry_bank_side_amount,
-    is_entry_balanced,
-)
+from src.reconciliation.extension.candidate_policy import _normal_entry_combinations, prune_candidates
+from src.reconciliation.extension.entry_reads import _candidate_is_better
 from src.reconciliation.extension.matching import (
     MatchingContext,
     _mark_auto_accepted_entry_reconciled,
-    _within_combination_tolerance,
-    prune_candidates,
     score_single,
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
@@ -52,66 +46,22 @@ async def run_normal_matching_phase(
         best_match = None
         history_score = await context.get_cached_pattern_score(txn)
 
-        for entry in candidates:
-            if not is_entry_balanced(entry, base_currency=context.base_currency):
-                continue
+        for entries in _normal_entry_combinations(
+            txn,
+            candidates,
+            context.config,
+            base_currency=context.base_currency,
+        ):
             candidate = await score_single(
                 db,
                 txn,
-                [entry],
+                entries,
                 context.config,
                 user_id=user_id,
                 history_score=history_score,
             )
-            if _candidate_is_better(candidate, best_match, context.entries_by_id):
-                best_match = candidate
-
-        for entry_a, entry_b in combinations(candidates, 2):
-            if not (
-                is_entry_balanced(entry_a, base_currency=context.base_currency)
-                and is_entry_balanced(entry_b, base_currency=context.base_currency)
-            ):
-                continue
-            combined = entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency) + entry_bank_side_amount(
-                entry_b, txn.direction, currency=txn.currency
-            )
-            if not _within_combination_tolerance(combined, txn, context.config):
-                continue
-            candidate = await score_single(
-                db,
-                txn,
-                [entry_a, entry_b],
-                context.config,
-                user_id=user_id,
-                history_score=history_score,
-            )
-            candidate.breakdown["multi_entry"] = 1
-            if _candidate_is_better(candidate, best_match, context.entries_by_id):
-                best_match = candidate
-
-        for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (
-                is_entry_balanced(entry_a, base_currency=context.base_currency)
-                and is_entry_balanced(entry_b, base_currency=context.base_currency)
-                and is_entry_balanced(entry_c, base_currency=context.base_currency)
-            ):
-                continue
-            combined = (
-                entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency)
-                + entry_bank_side_amount(entry_b, txn.direction, currency=txn.currency)
-                + entry_bank_side_amount(entry_c, txn.direction, currency=txn.currency)
-            )
-            if not _within_combination_tolerance(combined, txn, context.config):
-                continue
-            candidate = await score_single(
-                db,
-                txn,
-                [entry_a, entry_b, entry_c],
-                context.config,
-                user_id=user_id,
-                history_score=history_score,
-            )
-            candidate.breakdown["multi_entry"] = 2
+            if len(entries) > 1:
+                candidate.breakdown["multi_entry"] = len(entries) - 1
             if _candidate_is_better(candidate, best_match, context.entries_by_id):
                 best_match = candidate
 

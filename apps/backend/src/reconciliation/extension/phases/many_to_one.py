@@ -10,12 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntryStatus
 from src.reconciliation.base import ReconciliationRepository
+from src.reconciliation.extension.candidate_policy import build_many_to_one_groups, prune_candidates
 from src.reconciliation.extension.entry_reads import _candidate_is_better, is_entry_balanced
 from src.reconciliation.extension.matching import (
     MatchingContext,
     _mark_auto_accepted_entry_reconciled,
-    build_many_to_one_groups,
-    prune_candidates,
     score_group,
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus

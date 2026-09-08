@@ -30,7 +30,7 @@ from src.reconciliation import (
     ReconciliationError,
     score_description,
 )
-from src.reconciliation.extension import matching
+from src.reconciliation.extension import candidate_policy, matching
 from src.reconciliation.extension.consistency_checks import resolve_check
 from src.reconciliation.extension.phases import run_many_to_one_phase, run_normal_matching_phase, transfer_detection
 from src.schemas.review import ResolveCheckRequest
@@ -144,11 +144,11 @@ async def test_scoring_has_explicit_modes_and_no_hidden_environment_switch(monke
     entries = [SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="split payment") for _ in amounts]
     amount_by_id = dict(zip((entry.id for entry in entries), amounts, strict=True))
     monkeypatch.setattr(
-        matching,
+        candidate_policy,
         "entry_bank_side_amount",
         lambda entry, _direction, *, currency: amount_by_id[entry.id],
     )
-    monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
+    monkeypatch.setattr(candidate_policy, "score_business_logic", lambda _transaction, _entry: 100.0)
 
     candidate = await score_single(
         SimpleNamespace(),
@@ -174,11 +174,11 @@ async def test_group_scoring_keeps_bonus_separate_from_multi_tolerance(monkeypat
     )
     entry = SimpleNamespace(id=uuid4(), entry_date=transaction.txn_date, memo="batch")
     monkeypatch.setattr(
-        matching,
+        candidate_policy,
         "entry_bank_side_amount",
         lambda _entry, _direction, *, currency: Decimal("1009"),
     )
-    monkeypatch.setattr(matching, "score_business_logic", lambda _transaction, _entry: 100.0)
+    monkeypatch.setattr(candidate_policy, "score_business_logic", lambda _transaction, _entry: 100.0)
 
     candidate = await score_group(
         SimpleNamespace(),

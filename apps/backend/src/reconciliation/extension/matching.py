@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from itertools import combinations
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -17,35 +16,20 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
-    detect_transfer_pattern,
     find_transfer_pairs,
 )
 from src.llm import ai_semantic_score
 from src.observability import get_logger, record_reconciliation_match_outcome
 from src.reconciliation.base.config import (
-    MAX_COMBINATION_CANDIDATES,
     MatchCandidate,
     ReconciliationConfig,
 )
 from src.reconciliation.base.prompts import build_reconciliation_prompt
 from src.reconciliation.base.repository import ReconciliationRepository
+from src.reconciliation.extension.candidate_policy import _score_rule_candidate
 from src.reconciliation.extension.config import load_reconciliation_config
-from src.reconciliation.extension.entry_reads import (
-    entry_bank_side_amount,
-    entry_total_amount,
-    is_entry_balanced,
-)
 from src.reconciliation.extension.repository import SqlReconciliationRepository
-from src.reconciliation.extension.scoring import (
-    extract_merchant_tokens,
-    normalize_text,
-    score_amount,
-    score_business_logic,
-    score_date,
-    score_description,
-    score_pattern,
-    weighted_total,
-)
+from src.reconciliation.extension.scoring import extract_merchant_tokens, score_description, score_pattern
 from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
 from src.reconciliation.orm.reconciliation import (
     ReconciliationMatch,
@@ -72,57 +56,6 @@ class MatchingContext:
     get_cached_pattern_score: Callable[[AtomicTransaction], Awaitable[float]]
 
 
-def _within_combination_tolerance(
-    combined: Decimal, transaction: AtomicTransaction, config: ReconciliationConfig
-) -> bool:
-    """Whether a multi-entry ``combined`` total is within the matching amount band.
-
-    The shared multi-entry guard, historically inlined verbatim at every 2-/3-entry
-    combination site: the per-config band ``max(absolute, percent * |amount|)``
-    widened 2x for combinations.
-
-    Kept on raw ``Decimal`` magnitudes (not ``MoneyTolerance``) because callers
-    first derive ``combined`` from lines filtered by the non-null transaction
-    currency. The helper compares magnitudes only and must never receive a
-    cross-currency nominal sum.
-    """
-    tolerance = max(transaction.amount * config.amount_percent, config.amount_absolute)
-    return abs(combined - transaction.amount) <= tolerance * 2
-
-
-def prune_candidates(
-    candidates: list[JournalEntry],
-    *,
-    txn_date: date,
-    target_amount: Decimal,
-    currency: str,
-    limit: int = MAX_COMBINATION_CANDIDATES,
-) -> list[JournalEntry]:
-    """Reduce candidates before combinational matching to avoid blow-ups.
-
-    Prioritizes:
-    1. Exact amount matches (within 1%)
-    2. Then by date proximity
-    3. Then by absolute amount difference
-    """
-    if len(candidates) <= limit:
-        return candidates
-
-    tolerance = target_amount * Decimal("0.01")  # 1% tolerance for "exact" match
-
-    scored: list[tuple[int, Decimal, int, JournalEntry]] = []
-    for entry in candidates:
-        amount_diff = abs(entry_total_amount(entry, currency=currency) - target_amount)
-        date_diff = abs((txn_date - entry.entry_date).days)
-        # Exact match bonus: 0 if within tolerance, 1 otherwise
-        exact_match = 0 if amount_diff <= tolerance else 1
-        scored.append((exact_match, amount_diff, date_diff, entry))
-
-    # Sort by: exact match first, then amount diff, then date diff
-    scored.sort(key=lambda item: (item[0], item[1], item[2]))
-    return [entry for _, _, _, entry in scored[:limit]]
-
-
 async def _calculate_candidate_score(
     db: AsyncSession,
     transaction: AtomicTransaction,
@@ -135,42 +68,25 @@ async def _calculate_candidate_score(
     history_score: float | None,
 ) -> MatchCandidate:
     """Calculate the common score after the public mode selected semantics."""
-    entry_amounts = [
-        entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries
-    ]
-    total_amount = sum(entry_amounts, Decimal("0.00"))
-    entry_dates = [entry.entry_date for entry in entries]
-    entry_memo = " / ".join([entry.memo for entry in entries]).strip()
-
-    uses_multi_tolerance = is_group or len(entries) > 1
-    amount_score = score_amount(amount, total_amount, config, is_multi=uses_multi_tolerance)
-    date_score = max(score_date(transaction.txn_date, d, config) for d in entry_dates)
-    description_score = score_description(transaction.description, entry_memo)
-    business_score = min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0
-
     if history_score is None:
         history_score = await score_pattern(db, transaction, config, user_id=user_id)
-
-    scores = {
-        "amount": amount_score,
-        "date": date_score,
-        "description": description_score,
-        "business": business_score,
-        "history": history_score,
-    }
-    if is_group:
-        scores["many_to_one_bonus"] = 10.0
-        amount_score = min(100.0, amount_score + 5.0)
-        scores["amount"] = amount_score
-
-    total = weighted_total(scores, config)
+    candidate = _score_rule_candidate(
+        transaction,
+        entries,
+        config,
+        amount=amount,
+        is_group=is_group,
+        history_score=history_score,
+    )
+    total = candidate.score
+    scores = candidate.breakdown
 
     # EPIC-018 Phase 3: Hybrid scoring for ambiguous matches (60-84 range)
     if config.enable_ai_reconciliation and 60 <= total <= 84:
         primary_entry = entries[0] if entries else None
         if primary_entry:
             date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
-            amount_pct = scores.get("amount", 0.0)
+            amount_pct = float(scores.get("amount", 0.0))
             # llm's ai_semantic_score is generic (prompt in, score out); the
             # reconciliation-specific prompt is built here, package-side.
             prompt = build_reconciliation_prompt(
@@ -185,12 +101,8 @@ async def _calculate_candidate_score(
             scores["ai_semantic"] = float(semantic)
             scores["hybrid_applied"] = 1.0
 
-    breakdown: dict[str, float | str] = dict(scores)
-    return MatchCandidate(
-        journal_entry_ids=[str(entry.id) for entry in entries],
-        score=total,
-        breakdown=breakdown,
-    )
+    candidate.score = total
+    return candidate
 
 
 async def score_single(
@@ -258,23 +170,6 @@ async def calculate_match_score(
     )
 
 
-def build_many_to_one_groups(
-    transactions: Iterable[AtomicTransaction],
-) -> list[list[AtomicTransaction]]:
-    """Group transactions that look like batch payments."""
-    groups: dict[str, list[AtomicTransaction]] = {}
-    keywords = {"batch", "bulk", "settlement", "aggregate"}
-    for txn in transactions:
-        key = normalize_text(txn.description)
-        if not key:
-            continue
-        if not any(keyword in key for keyword in keywords):
-            continue
-        group_key = f"{key}:{txn.txn_date.isoformat()}:{txn.direction}:{txn.currency}"
-        groups.setdefault(group_key, []).append(txn)
-    return [group for group in groups.values() if len(group) > 1]
-
-
 async def find_candidates(
     db: AsyncSession,
     txn_date: date,
@@ -338,238 +233,6 @@ def _mark_auto_accepted_entry_reconciled(entry: JournalEntry) -> None:
     entry.status = JournalEntryStatus.RECONCILED
     if not was_immutable:
         promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
-
-
-def _find_transfer_candidates(
-    pending_txns: list[AtomicTransaction],
-    atomic_txns: list[JournalEntry],
-    pattern_scores: dict[str, float],
-    config: ReconciliationConfig,
-) -> list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]]:
-    """Identify transfer-pattern transactions and return scored candidates.
-
-    Pure scoring function: no DB access. Each result is
-    (bank_txn, candidate_with_score_100, paired_txn_or_None).
-    The paired_txn is always None here because actual pairing (find_transfer_pairs)
-    happens after all phases in execute_matching.
-    """
-    results: list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]] = []
-    for txn in pending_txns:
-        if not detect_transfer_pattern(txn.description):
-            continue
-        direction_key = "transfer_out" if txn.direction == "OUT" else "transfer_in"
-        candidate = MatchCandidate(
-            journal_entry_ids=[],  # Will be populated by orchestrator after DB write
-            score=100,
-            breakdown={direction_key: 100.0},
-        )
-        results.append((txn, candidate, None))
-    return results
-
-
-def _find_many_to_one_candidates(
-    pending_txns: list[AtomicTransaction],
-    atomic_txns: list[JournalEntry],
-    pattern_scores: dict[str, float],
-    config: ReconciliationConfig,
-    *,
-    base_currency: str,
-) -> list[tuple[AtomicTransaction, MatchCandidate]]:
-    """Find many-to-one match candidates by grouping batch transactions.
-
-    Pure scoring function: no DB access. Uses pre-computed pattern_scores
-    for historical matching. Returns (representative_txn, best_candidate)
-    for each group that scores above pending_review threshold.
-    """
-    date_start = min(e.entry_date for e in atomic_txns) if atomic_txns else None
-    date_end = max(e.entry_date for e in atomic_txns) if atomic_txns else None
-
-    def get_candidates_for_date(txn_date: date) -> list[JournalEntry]:
-        if date_start is None or date_end is None:
-            return []
-        d_start = txn_date - timedelta(days=config.date_days)
-        d_end = txn_date + timedelta(days=config.date_days)
-        return [c for c in atomic_txns if d_start <= c.entry_date <= d_end]
-
-    results: list[tuple[AtomicTransaction, MatchCandidate]] = []
-    groups = build_many_to_one_groups(pending_txns)
-    for group in groups:
-        group_total = sum((txn.amount for txn in group), Decimal("0.00"))
-        group_date = max(txn.txn_date for txn in group)
-        candidates = get_candidates_for_date(group_date)
-        if not candidates:
-            continue
-        candidates = prune_candidates(
-            candidates,
-            txn_date=group_date,
-            target_amount=group_total,
-            currency=group[0].currency,
-        )
-
-        tokens = extract_merchant_tokens(group[0].description)
-        history_score = pattern_scores.get(tokens[0], 0.0) if tokens else 0.0
-
-        best_candidate: MatchCandidate | None = None
-        for entry in candidates:
-            if not is_entry_balanced(entry, base_currency=base_currency):
-                continue
-
-            # Inline scoring using pure functions (no DB)
-            txn_amount = group_total
-            entry_amount = entry_bank_side_amount(entry, group[0].direction, currency=group[0].currency)
-            amount_score = score_amount(txn_amount, entry_amount, config, is_multi=True)
-            date_score = score_date(group[0].txn_date, entry.entry_date, config)
-            description_score = score_description(group[0].description, entry.memo)
-            business_score = score_business_logic(group[0], entry)
-
-            scores: dict[str, float] = {
-                "amount": amount_score,
-                "date": date_score,
-                "description": description_score,
-                "business": business_score,
-                "history": history_score,
-                "many_to_one_bonus": 10.0,
-            }
-            # Apply many-to-one amount bonus
-            scores["amount"] = min(100.0, scores["amount"] + 5.0)
-            total = weighted_total(scores, config)
-
-            candidate = MatchCandidate(
-                journal_entry_ids=[str(entry.id)],
-                score=total,
-                breakdown={**scores, "group_total": str(group_total)},
-            )
-            if candidate.score >= config.pending_review and (
-                best_candidate is None or candidate.score > best_candidate.score
-            ):
-                best_candidate = candidate
-
-        if best_candidate:
-            results.append((group[0], best_candidate))
-    return results
-
-
-def _find_normal_candidates(
-    pending_txns: list[AtomicTransaction],
-    atomic_txns: list[JournalEntry],
-    pattern_scores: dict[str, float],
-    config: ReconciliationConfig,
-    *,
-    base_currency: str,
-) -> list[tuple[AtomicTransaction, MatchCandidate]]:
-    """Find normal 1:1 and 1:N match candidates.
-
-    Pure scoring function: no DB access. Uses pre-computed pattern_scores.
-    Tries single entry, 2-entry, and 3-entry combinations.
-    Returns (bank_txn, best_candidate) for each transaction that scores
-    above pending_review threshold.
-    """
-    date_start = min(e.entry_date for e in atomic_txns) if atomic_txns else None
-    date_end = max(e.entry_date for e in atomic_txns) if atomic_txns else None
-
-    def get_candidates_for_date(txn_date: date) -> list[JournalEntry]:
-        if date_start is None or date_end is None:
-            return []
-        d_start = txn_date - timedelta(days=config.date_days)
-        d_end = txn_date + timedelta(days=config.date_days)
-        return [c for c in atomic_txns if d_start <= c.entry_date <= d_end]
-
-    def _score_entries(
-        txn: AtomicTransaction,
-        entries: list[JournalEntry],
-        history_score: float,
-        is_multi: bool = False,
-    ) -> MatchCandidate:
-        entry_amounts = [entry_bank_side_amount(e, txn.direction, currency=txn.currency) for e in entries]
-        total_amount = sum(entry_amounts, Decimal("0.00"))
-        entry_dates = [e.entry_date for e in entries]
-        entry_memo = " / ".join([e.memo for e in entries]).strip()
-
-        amount_s = score_amount(txn.amount, total_amount, config, is_multi=is_multi)
-        date_s = max(score_date(txn.txn_date, d, config) for d in entry_dates)
-        description_s = score_description(txn.description, entry_memo)
-        business_s = min(score_business_logic(txn, e) for e in entries) if entries else 0.0
-
-        scores: dict[str, float] = {
-            "amount": amount_s,
-            "date": date_s,
-            "description": description_s,
-            "business": business_s,
-            "history": history_score,
-        }
-        total = weighted_total(scores, config)
-        breakdown: dict[str, float | str] = dict(scores)
-        return MatchCandidate(
-            journal_entry_ids=[str(e.id) for e in entries],
-            score=total,
-            breakdown=breakdown,
-        )
-
-    results: list[tuple[AtomicTransaction, MatchCandidate]] = []
-    for txn in pending_txns:
-        candidates = get_candidates_for_date(txn.txn_date)
-        if not candidates:
-            continue
-        candidates = prune_candidates(
-            candidates,
-            txn_date=txn.txn_date,
-            target_amount=txn.amount,
-            currency=txn.currency,
-        )
-
-        tokens = extract_merchant_tokens(txn.description)
-        history_score = pattern_scores.get(tokens[0], 0.0) if tokens else 0.0
-
-        best_match: MatchCandidate | None = None
-
-        # Single entry matching
-        for entry in candidates:
-            if not is_entry_balanced(entry, base_currency=base_currency):
-                continue
-            candidate = _score_entries(txn, [entry], history_score)
-            if best_match is None or candidate.score > best_match.score:
-                best_match = candidate
-
-        # Two-entry combinations
-        for entry_a, entry_b in combinations(candidates, 2):
-            if not (
-                is_entry_balanced(entry_a, base_currency=base_currency)
-                and is_entry_balanced(entry_b, base_currency=base_currency)
-            ):
-                continue
-            combined = entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency) + entry_bank_side_amount(
-                entry_b, txn.direction, currency=txn.currency
-            )
-            if not _within_combination_tolerance(combined, txn, config):
-                continue
-            candidate = _score_entries(txn, [entry_a, entry_b], history_score, is_multi=True)
-            candidate.breakdown["multi_entry"] = 1
-            if best_match is None or candidate.score > best_match.score:
-                best_match = candidate
-
-        # Three-entry combinations
-        for entry_a, entry_b, entry_c in combinations(candidates, 3):
-            if not (
-                is_entry_balanced(entry_a, base_currency=base_currency)
-                and is_entry_balanced(entry_b, base_currency=base_currency)
-                and is_entry_balanced(entry_c, base_currency=base_currency)
-            ):
-                continue
-            combined = (
-                entry_bank_side_amount(entry_a, txn.direction, currency=txn.currency)
-                + entry_bank_side_amount(entry_b, txn.direction, currency=txn.currency)
-                + entry_bank_side_amount(entry_c, txn.direction, currency=txn.currency)
-            )
-            if not _within_combination_tolerance(combined, txn, config):
-                continue
-            candidate = _score_entries(txn, [entry_a, entry_b, entry_c], history_score, is_multi=True)
-            candidate.breakdown["multi_entry"] = 2
-            if best_match is None or candidate.score > best_match.score:
-                best_match = candidate
-
-        if best_match and best_match.score >= config.pending_review:
-            results.append((txn, best_match))
-    return results
 
 
 async def execute_matching(

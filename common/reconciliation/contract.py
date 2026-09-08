@@ -93,12 +93,12 @@ CONTRACT = PackageContract(
         Unit(
             name="prune_candidates",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="build_many_to_one_groups",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="get_reconciliation_stats",
@@ -281,6 +281,18 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-reconciliation.candidate-policy.1",
+            statement=(
+                "Live matching and the deterministic accuracy audit share candidate "
+                "enumeration, rule scoring and source-rank ordering; journal evidence "
+                "precedes transfer-keyword fallback in both paths."
+            ),
+            test="apps/backend/tests/reconciliation/test_candidate_policy.py::test_live_and_audit_choose_the_same_evidence",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-reconciliation.config-boundary.1",
             statement="Configuration values have no direct runtime or ledger dependency; retired base behaviors have exactly one extension owner.",

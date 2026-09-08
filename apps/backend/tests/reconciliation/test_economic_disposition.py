@@ -30,8 +30,10 @@ from src.ledger import (
     create_transfer_in_entry,
     create_transfer_out_entry,
 )
-from src.reconciliation import entry_bank_side_amount, entry_total_amount
-from src.reconciliation.extension.matching import execute_matching
+from src.reconciliation import DEFAULT_CONFIG, entry_bank_side_amount, entry_total_amount
+from src.reconciliation.extension.matching import MatchingContext, execute_matching
+from src.reconciliation.extension.phases.normal_matching import run_normal_matching_phase
+from src.reconciliation.extension.phases.transfer_detection import run_transfer_detection_phase
 from src.reconciliation.extension.repository import SqlReconciliationRepository
 from src.reconciliation.extension.transfer_pairs import (
     InvalidTransferPairError,
@@ -362,6 +364,26 @@ async def test_AC_reconciliation_economic_disposition_4_transfer_pair_round_trip
     }
     unpaired = await list_unpaired_transfer_dispositions(db, user_id=user_id)
     assert [item.id for item in unpaired] == [extra_match_id]
+    # A second pair cannot steal a disposition even through direct SQL writes.
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            competing_pair = ReconciliationTransferPair(
+                decision=TransferPairDecision.AUTO_PAIRED,
+                review_state=TransferPairReviewState.PAIRED,
+                confidence=96,
+                score_breakdown={},
+            )
+            db.add(competing_pair)
+            await db.flush()
+            db.add(
+                ReconciliationTransferPairLeg(
+                    pair_id=competing_pair.id,
+                    role=TransferPairLegRole.OUT,
+                    disposition_id=out_match_id,
+                )
+            )
+            await db.flush()
+    assert await db.scalar(select(func.count()).select_from(ReconciliationTransferPair)) == 1
 
 
 @ac_proof(
@@ -420,7 +442,7 @@ async def test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutat
     test_user,
 ) -> None:
     """AC-reconciliation.economic-disposition.6: rollback/retry preserves cardinality."""
-    txn = _atomic(test_user.id)
+    txn = _atomic(test_user.id, description="internal transfer")
     cash = Account(
         user_id=test_user.id,
         name="Retry cash",
@@ -524,13 +546,52 @@ async def test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutat
         await pairing.commit()
 
     for phase_order in (
-        (DispositionKind.JOURNAL_MATCH, DispositionKind.TRANSFER_LEG),
-        (DispositionKind.TRANSFER_LEG, DispositionKind.JOURNAL_MATCH),
+        (run_normal_matching_phase, run_transfer_detection_phase),
+        (run_transfer_detection_phase, run_normal_matching_phase),
     ):
         async with maker() as repeated:
+            repository = SqlReconciliationRepository(repeated)
+            entries = await repository.list_journal_candidates(
+                user_id=test_user.id,
+                start_date=txn.txn_date,
+                end_date=txn.txn_date,
+            )
+            entries = [entry for entry in entries if entry.id == out_effect.id]
+            assert len(entries) == 1
+
+            async def history_score(_transaction: AtomicTransaction) -> float:
+                return 0.0
+
+            context = MatchingContext(
+                DEFAULT_CONFIG,
+                "SGD",
+                {str(entry.id): entry for entry in entries},
+                lambda _: entries,
+                history_score,
+            )
             observed_winners = []
-            for _candidate_kind in phase_order:
-                winner = await SqlReconciliationRepository(repeated).claim_transaction(txn.id)
+            for phase in phase_order:
+                # Each phase receives a fresh in-memory set, forcing persistent
+                # winner reuse instead of relying on the preceding phase's set.
+                if phase is run_normal_matching_phase:
+                    created = await phase(
+                        repeated,
+                        transactions=[txn],
+                        matched_txn_ids=set(),
+                        context=context,
+                        repository=repository,
+                        user_id=test_user.id,
+                    )
+                else:
+                    created = await phase(
+                        repeated,
+                        transactions=[txn],
+                        matched_txn_ids=set(),
+                        repository=repository,
+                        user_id=test_user.id,
+                    )
+                assert created == []
+                winner = await repository.get_active_match(txn.id)
                 assert winner is not None
                 observed_winners.append((winner.id, winner.disposition_kind))
             assert observed_winners == [
