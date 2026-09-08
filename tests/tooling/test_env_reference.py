@@ -89,13 +89,18 @@ def test_alias_names_reads_the_alias_choices_chain():
 
 
 def test_documented_keys_accept_the_commented_canonical_form():
-    """"Documented in .env.example" means assigned **or** shipped as ``# KEY=``."""
+    """ "Documented in .env.example" means assigned **or** shipped as ``# KEY=``.
+
+    Inside a comment the ``=`` must follow the key directly, so prose (including
+    prose whose first word happens to be followed by " = ") is never a key.
+    """
     keys = gen.env_example_documented_keys(
         "# === AI Provider ===\n"
         "# AI provider API key (empty key = AI features disabled).\n"
+        "# Rotate = prepend a new key and re-encrypt.\n"
         "# ZAI_API_KEY=\n"
         "export DEBUG=true\n"
-        "DATABASE_URL=postgres://localhost/db\n"
+        "DATABASE_URL = postgres://localhost/db\n"
     )
     assert keys == {"ZAI_API_KEY", "DEBUG", "DATABASE_URL"}
 

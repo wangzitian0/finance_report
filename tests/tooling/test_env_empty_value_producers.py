@@ -146,8 +146,7 @@ def test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_va
         "in a Settings alias chain. An empty value is NOT 'unset' today "
         "(Settings has no env_ignore_empty), so it shadows every later alias in "
         "the chain. Ship a commented example in .env.example, and the "
-        "pass-through form (`KEY:` / `- KEY`) in compose:\n  "
-        + "\n  ".join(findings)
+        "pass-through form (`KEY:` / `- KEY`) in compose:\n  " + "\n  ".join(findings)
     )
 
 

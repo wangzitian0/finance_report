@@ -221,23 +221,28 @@ def render_backend_block(fields: list[dict]) -> str:
     return "\n".join(lines)
 
 
-_DOCUMENTED_KEY_RE = re.compile(
-    r"^\s*(?:#\s*)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*="
-)
+_ASSIGNED_KEY_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+# The commented form requires ``=`` immediately after the key, so ordinary prose
+# ("# Rotate = prepend a new key") can never be mistaken for a documented key.
+_COMMENTED_KEY_RE = re.compile(r"^\s*#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=")
 
 
 def env_example_documented_keys(text: str) -> set[str]:
     """Every env key ``.env.example`` documents.
 
     A key is documented either by an assignment (``KEY=value``) or by a commented
-    canonical example (``# KEY=``). The commented form is the *required* shape for
-    an alias-chain key that has no example value: assigning it empty would shadow
-    the rest of its chain (AC-runtime.env-empty-values.1), so "present in
-    .env.example" cannot mean "assigned in .env.example".
+    canonical example (``# KEY=``, no space before the ``=``). The commented form
+    is the *required* shape for an alias-chain key that has no example value:
+    assigning it empty would shadow the rest of its chain
+    (AC-runtime.env-empty-values.1), so "present in .env.example" cannot mean
+    "assigned in .env.example".
     """
     keys: set[str] = set()
     for line in text.splitlines():
-        match = _DOCUMENTED_KEY_RE.match(line)
+        pattern = (
+            _COMMENTED_KEY_RE if line.lstrip().startswith("#") else _ASSIGNED_KEY_RE
+        )
+        match = pattern.match(line)
         if match:
             keys.add(match.group(1))
     return keys

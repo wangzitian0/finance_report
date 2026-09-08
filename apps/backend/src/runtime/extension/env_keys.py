@@ -78,7 +78,8 @@ def parse_env_example(path: Path) -> set[str]:
     value, not "unset", so it would shadow every later alias in that chain
     (AC-runtime.env-empty-values.1,
     ``tests/tooling/test_env_empty_value_producers.py``). Prose comments are not
-    matched — the ``=`` must follow the key name directly.
+    matched — inside a comment the ``=`` must follow the key name directly, so
+    "# Rotate = prepend a new key" is prose, not a documented key.
     """
     if not path.exists():
         print(f"WARNING: .env.example not found: {path}")
@@ -87,20 +88,17 @@ def parse_env_example(path: Path) -> set[str]:
     content = path.read_text()
     keys = set()
 
-    # Regex to handle:
-    # 1. Optional '# ' prefix (a commented canonical example)
-    # 2. Optional 'export ' prefix
-    # 3. Key name (word characters)
-    # 4. Optional whitespace
-    # 5. = sign
-    pattern = re.compile(r"^\s*(?:#\s*)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+    # An assignment: optional 'export ' prefix, key name, optional whitespace, '='.
+    assigned = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+    # A commented canonical example: '#', the key, then '=' with nothing between.
+    commented = re.compile(r"^#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=")
 
     for line in content.splitlines():
         line = line.strip()
         if not line:
             continue
 
-        match = pattern.match(line)
+        match = (commented if line.startswith("#") else assigned).match(line)
         if match:
             keys.add(match.group(1))
 
