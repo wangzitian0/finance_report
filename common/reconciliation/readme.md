@@ -82,6 +82,10 @@ The loader/cache/environment/logging boundary is
 config directory, not the retired `src/config/` lookup. The shipped YAML equals
 the code defaults. Resolution order remains defaults, YAML, then environment,
 with an explicit `force_reload` to refresh the cached immutable value.
+The YAML AI switch accepts boolean values, integer `0`/`1`, and explicit
+case-insensitive string forms (`true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0`).
+Quoted `"false"` stays false; unsupported values use the existing invalid-YAML
+defaults fallback before environment overrides, never Python truthiness.
 YAML remains optional: the current backend image does not copy this file, so
 an image without a supplied config file uses defaults plus environment overrides.
 This code cutover does not change image packaging or deployed configuration.

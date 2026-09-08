@@ -291,7 +291,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.config-boundary.2",
-            statement="The runtime loader reads the documented backend configuration file, preserves defaults/YAML/environment precedence and cache reload semantics, and keeps the published interface.",
+            statement="The runtime loader reads the documented backend configuration file, parses YAML booleans explicitly, preserves defaults/YAML/environment precedence and cache reload semantics, and keeps the published interface.",
             test="apps/backend/tests/reconciliation/test_config_boundary.py::test_runtime_configuration_file_precedence_and_cache",
             priority="P0",
             status="done",

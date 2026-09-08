@@ -31,9 +31,7 @@ from src.reconciliation.base.config import (  # noqa: F401
 from src.reconciliation.base.prompts import build_reconciliation_prompt
 from src.reconciliation.base.repository import ReconciliationRepository
 from src.reconciliation.extension.config import load_reconciliation_config
-from src.reconciliation.extension.entry_reads import (  # noqa: F401
-    _candidate_is_better,
-    _candidate_source_rank,
+from src.reconciliation.extension.entry_reads import (
     entry_bank_side_amount,
     entry_total_amount,
     is_entry_balanced,

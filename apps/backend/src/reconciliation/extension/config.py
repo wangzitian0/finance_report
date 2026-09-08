@@ -16,6 +16,21 @@ logger = get_logger(__name__)
 _config_cache: ReconciliationConfig | None = None
 
 
+def _yaml_boolean(value: object) -> bool:
+    """Parse the AI switch explicitly; invalid YAML follows the loader fallback."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    raise ValueError("enable_ai_reconciliation must be a boolean")
+
+
 def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConfig:
     """Load reconciliation configuration from YAML if available.
 
@@ -54,7 +69,7 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                     amount_percent=Decimal(str(tolerances.get("amount_percent", config.amount_percent))),
                     amount_absolute=Decimal(str(tolerances.get("amount_absolute", config.amount_absolute))),
                     date_days=int(tolerances.get("date_days", config.date_days)),
-                    enable_ai_reconciliation=bool(
+                    enable_ai_reconciliation=_yaml_boolean(
                         scoring.get(
                             "enable_ai_reconciliation",
                             config.enable_ai_reconciliation,

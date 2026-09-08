@@ -71,6 +71,44 @@ def test_runtime_configuration_defaults_survive_missing_inputs(loader, tmp_path,
     assert loader.load_reconciliation_config(force_reload=True) == DEFAULT_CONFIG
 
 
+@pytest.mark.parametrize(
+    "literal,expected",
+    [
+        ('"false"', False),
+        ('"true"', True),
+        ("false", False),
+        ("true", True),
+        ("0", False),
+        ("1", True),
+        ('"off"', False),
+        ('" yes "', True),
+    ],
+)
+def test_yaml_boolean_values_are_explicit(loader, tmp_path, monkeypatch, literal, expected):
+    """AC-reconciliation.config-boundary.2: quoting false cannot enable AI scoring."""
+    monkeypatch.setattr(loader, "__file__", str(tmp_path / "src/reconciliation/extension/config.py"))
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/reconciliation.yaml").write_text(
+        f"scoring:\n  enable_ai_reconciliation: {literal}\n  weights:\n    amount: 0.50\n"
+    )
+    resolved = loader.load_reconciliation_config(force_reload=True)
+    assert resolved.enable_ai_reconciliation is expected
+    assert resolved.weight_amount == Decimal("0.50")
+
+
+@pytest.mark.parametrize("literal", ['"unknown"', "2", "null", "[]"])
+def test_invalid_yaml_boolean_keeps_fallback(loader, tmp_path, monkeypatch, literal):
+    """AC-reconciliation.config-boundary.2: invalid switch values never become truthy."""
+    from src.reconciliation import DEFAULT_CONFIG
+
+    monkeypatch.setattr(loader, "__file__", str(tmp_path / "src/reconciliation/extension/config.py"))
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/reconciliation.yaml").write_text(
+        f"scoring:\n  enable_ai_reconciliation: {literal}\n  weights:\n    amount: 0.50\n"
+    )
+    assert loader.load_reconciliation_config(force_reload=True) == DEFAULT_CONFIG
+
+
 @ac_proof(proof_id="reconciliation_entry_readers", ac_ids=["AC-reconciliation.config-boundary.3"], ci_tier="pr_ci")
 def test_entry_readers_preserve_money_and_candidate_semantics():
     """AC-reconciliation.config-boundary.3: real ORM values keep bank-side/caliber rules."""
