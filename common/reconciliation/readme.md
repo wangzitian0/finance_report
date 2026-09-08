@@ -99,7 +99,8 @@ an image without a supplied config file uses defaults plus environment overrides
 This code cutover does not change image packaging or deployed configuration.
 The deterministic scoring and candidate selection rules live in
 `apps/backend/src/reconciliation/extension/candidate_policy.py`;
-`extension/matching.py` owns history/provider I/O and phase orchestration.
+`apps/backend/src/reconciliation/extension/matching.py` owns history/provider
+I/O, threshold routing, and phase orchestration.
 Environment overrides are applied by `load_reconciliation_config()`:
 `RECONCILIATION_AUTO_ACCEPT_THRESHOLD`, `RECONCILIATION_REVIEW_THRESHOLD`, and
 `ENABLE_AI_RECONCILIATION`. Matching/scoring bodies never read the environment;
@@ -141,6 +142,11 @@ tenant-scoped queries, eager line loading, and transaction identity; this slice
 does not disguise mapped entities as pure DTOs or copy them into a second writer.
 The historical package-root helper signatures are also retained until their
 consumers migrate; no new compatibility module is introduced.
+
+Structural governance hints ignore whitespace-only formatting. Missing,
+unreadable, or syntactically invalid inspected inputs produce a nonzero finding
+for their guarantee without discarding unrelated observations; executed proofs
+and enforcement still come from the independent CI lanes.
 
 AC-reconciliation.config-boundary.1–3 lock ownership, real-file loading,
 cache/override behavior, currency-filtered Money arithmetic, balance validation,

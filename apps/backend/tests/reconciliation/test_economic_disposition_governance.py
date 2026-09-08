@@ -6,6 +6,7 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from common.meta.base.governance_control import DetectorObservation
 from common.meta.data.governance_control import governance_control_index
 from common.reconciliation.contract import CONTRACT
@@ -77,6 +78,35 @@ def _copy_governance_sources(destination: Path) -> None:
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / relative, target)
+
+
+@pytest.mark.parametrize("failure", ["missing", "syntax"])
+def test_detector_reports_unreadable_structure_as_a_finding(tmp_path: Path, failure: str) -> None:
+    """AC-reconciliation.economic-disposition.8: broken input is never green or lost."""
+    _copy_governance_sources(tmp_path)
+    path = tmp_path / "apps/backend/src/reconciliation/extension/entry_reads.py"
+    if failure == "missing":
+        path.unlink()
+    else:
+        path.write_text("def broken(:\n", encoding="utf-8")
+    observations = {item["guarantee_id"]: item for item in detect_governance(repo_root=tmp_path)}
+    assert len(observations) == 8
+    broken = observations["reconciliation/currency-explicit"]
+    assert broken["current"] > broken["target"]
+    assert broken["findings"]
+    assert observations["reconciliation/normal-candidate-first"]["current"] == 0
+
+
+def test_detector_ignores_format_only_changes(tmp_path: Path) -> None:
+    """AC-reconciliation.economic-disposition.8: formatting is not a schema gap."""
+    _copy_governance_sources(tmp_path)
+    path = tmp_path / "apps/backend/src/reconciliation/orm/reconciliation.py"
+    original = path.read_text(encoding="utf-8")
+    reformatted = original.replace('"atomic_txn_id",\n            unique=True', '"atomic_txn_id", unique=True')
+    reformatted = reformatted.replace("nullable=False,\n        unique=True", "nullable=False, unique=True")
+    assert reformatted != original
+    path.write_text(reformatted, encoding="utf-8")
+    assert all(item["current"] == item["target"] for item in detect_governance(repo_root=tmp_path))
 
 
 @ac_proof(

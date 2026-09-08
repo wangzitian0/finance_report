@@ -32,11 +32,11 @@ def _source(repo_root: Path, relative: str) -> str:
 
 
 def _contains(repo_root: Path, relative: str, fragments: tuple[str, ...]) -> list[str]:
-    source = _source(repo_root, relative)
+    source = " ".join(_source(repo_root, relative).split())
     return [
         f"{relative}: missing {fragment}"
         for fragment in fragments
-        if fragment not in source
+        if " ".join(fragment.split()) not in source
     ]
 
 
@@ -211,7 +211,12 @@ def detect_governance(*, repo_root: Path) -> list[dict[str, object]]:
     """Return one independently computed observation per package guarantee."""
     observations = []
     for guarantee_id, check in _CHECKS:
-        findings = check(repo_root)
+        try:
+            findings = check(repo_root)
+        except (OSError, SyntaxError, UnicodeError) as exc:
+            findings = [
+                f"{guarantee_id}: source inspection failed ({type(exc).__name__}): {exc}"
+            ]
         observations.append(
             {
                 "guarantee_id": f"reconciliation/{guarantee_id}",
