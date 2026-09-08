@@ -57,11 +57,10 @@ def test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_e
     committed = _committed_manifest()
     manifest_by_key = {entry["env"]: entry for entry in committed["fields"]}
     env_example = gen.ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-    env_example_keys = {
-        line.split("=", 1)[0]
-        for line in env_example.splitlines()
-        if "=" in line and not line.lstrip().startswith("#")
-    }
+    # "Documented" includes the commented canonical form (``# KEY=``), which is the
+    # required shape for an alias-chain key with no example value: assigning it
+    # empty would shadow the rest of its chain (AC-runtime.env-empty-values.1).
+    env_example_keys = gen.env_example_documented_keys(env_example)
 
     # Direction 1: config -> artifacts.
     vault_fields = [f for f in fields if f["vault"]]

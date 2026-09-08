@@ -121,7 +121,13 @@ services:
       S3_BUCKET: ${S3_BUCKET:-statements}
       BASE_CURRENCY: ${BASE_CURRENCY:-SGD}
       AI_PROVIDER: ${AI_PROVIDER:-zai}
-      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      # Pass-through form (no value): Compose sets this in the container only when
+      # the environment it runs with actually has it (shell/direnv, or the root
+      # `.env` it loads), and omits the key entirely otherwise. `${ZAI_API_KEY:-}`
+      # would instead materialize an EMPTY value, which `Settings` treats as a
+      # value rather than "unset" — shadowing the rest of the ai_api_key alias
+      # chain (AC-runtime.env-empty-values.1). No key supplied -> AI features off.
+      ZAI_API_KEY:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.z.ai/api/paas/v4}
       AI_CHAT_COMPLETIONS_PATH: ${AI_CHAT_COMPLETIONS_PATH:-/chat/completions}
       AI_LAYOUT_PARSING_PATH: ${AI_LAYOUT_PARSING_PATH:-/layout_parsing}

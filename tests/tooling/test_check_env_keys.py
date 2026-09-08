@@ -184,6 +184,35 @@ export API_KEY=secret
         assert "DATABASE_URL" in result
         assert "DEBUG" in result
 
+    def test_counts_a_commented_canonical_example_as_documented(self, tmp_path):
+        """AC-runtime.env-empty-values.1: an alias-chain key with no example value
+        is documented as ``# KEY=`` (assigning it empty would shadow its chain),
+        so the commented form must still count as documented."""
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("""# AI provider API key (empty key = AI features disabled).
+# ZAI_API_KEY=
+#   export LLM_ENCRYPTION_KEYS=
+DATABASE_URL=value
+""")
+
+        result = parse_env_example(env_file)
+
+        assert result == {"ZAI_API_KEY", "LLM_ENCRYPTION_KEYS", "DATABASE_URL"}
+
+    def test_prose_comments_are_not_mistaken_for_keys(self, tmp_path):
+        """Only ``# KEY=`` counts — prose that merely mentions a key, or a section
+        banner, must not register as a documented key."""
+        env_file = tmp_path / ".env.example"
+        env_file.write_text("""# === AI Provider ===
+# AI provider API key (empty key = AI features disabled).
+# Set this in your shell, not here.
+DEBUG=true
+""")
+
+        result = parse_env_example(env_file)
+
+        assert result == {"DEBUG"}
+
 
 class TestParseConfigPy:
     """Tests for parse_config_py function."""

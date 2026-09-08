@@ -57,6 +57,49 @@ def test_reference_doc_splits_default_example_and_lists_aliases():
     assert "Alias of" in doc
 
 
+def test_alias_chain_field_without_a_value_is_rendered_as_one_commented_example():
+    """AC-runtime.env-empty-values.1: an ``AliasChoices`` field whose example value
+    is empty is emitted as a single commented canonical line, and its alias keys
+    are not emitted at all — an assignment to empty is a value, not "unset", and
+    would shadow the rest of the chain."""
+    block = gen.render_backend_block(gen.collect_backend_fields())
+
+    assert "\n# ZAI_API_KEY=\n" in block
+    assert gen.ALIAS_CHAIN_EMPTY_NOTE in block
+    for shadowed in ("\nZAI_API_KEY=", "\nAI_API_KEY=", "\nGEMINI_API_KEY="):
+        assert shadowed not in block
+    # A chain whose value is NOT empty keeps its plain assignment + alias lines.
+    assert "\nENVIRONMENT=development\n" in block
+    assert "\nENV=development\n" in block
+
+
+def test_alias_names_reads_the_alias_choices_chain():
+    """``aliases`` mirrors the generated manifest's chain (canonical name dropped);
+    a field with a single string alias, or none, has no chain."""
+    by_field = {f["field"]: f for f in gen.collect_backend_fields()}
+
+    assert by_field["ai_api_key"]["aliases"] == [
+        "GLM_API_KEY",
+        "AI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GEMINI_API_KEY",
+    ]
+    assert by_field["ai_provider"]["aliases"] == []  # plain string validation_alias
+    assert by_field["debug"]["aliases"] == []  # no validation_alias at all
+
+
+def test_documented_keys_accept_the_commented_canonical_form():
+    """"Documented in .env.example" means assigned **or** shipped as ``# KEY=``."""
+    keys = gen.env_example_documented_keys(
+        "# === AI Provider ===\n"
+        "# AI provider API key (empty key = AI features disabled).\n"
+        "# ZAI_API_KEY=\n"
+        "export DEBUG=true\n"
+        "DATABASE_URL=postgres://localhost/db\n"
+    )
+    assert keys == {"ZAI_API_KEY", "DEBUG", "DATABASE_URL"}
+
+
 def test_committed_files_are_up_to_date(monkeypatch):
     """generated == committed (the drift gate)."""
     monkeypatch.setattr(sys, "argv", ["generate_env_reference.py", "--check"])
