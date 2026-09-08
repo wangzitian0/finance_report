@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import settings
+from src.config import Settings, settings
 from src.llm.base import ProtocolFamily, Scene
 from src.llm.extension.env_config import EnvConfigSource
 
@@ -64,3 +64,23 @@ async def test_AC23_2_4_scene_bindings_match_configured_models(configured):
     assert (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id == "glm-5.1"
     assert (await configured.get_binding(Scene.ADVISOR_CHAT)).model_id == "glm-5.1"
     assert (await configured.get_binding(Scene.STATEMENT_SUMMARY)).model_id == "glm-5.1"
+
+
+@pytest.mark.no_db
+async def test_default_glm_models_reach_scene_bindings(monkeypatch):
+    """AC-llm.2.8: the actual defaults route text and images to supported models."""
+    import src.llm.extension.env_config as env_config
+
+    for variable in ("PRIMARY_MODEL", "VISION_MODEL", "OCR_MODEL", "FALLBACK_MODELS", "VISION_FALLBACK_MODELS"):
+        monkeypatch.delenv(variable, raising=False)
+    defaults = Settings(_env_file=None, AI_PROVIDER="zai", AI_API_KEY="test-key")
+    monkeypatch.setattr(env_config, "settings", defaults)
+    source = EnvConfigSource()
+    for scene in (Scene.EXTRACTION_JSON, Scene.ADVISOR_CHAT, Scene.STATEMENT_SUMMARY):
+        binding = await source.get_binding(scene)
+        assert binding.model_id == "glm-5.3"
+        assert binding.fallback_model_ids == ("glm-5.2", "glm-5.1")
+    for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
+        binding = await source.get_binding(scene)
+        assert binding.model_id == "glm-5.3-flash"
+        assert binding.fallback_model_ids == ("glm-4.6v", "glm-4.5v")

@@ -54,6 +54,23 @@ Model usage is described by three axes that never collapse into one another.
 Adding a model touches only axis 2; re-pointing a feature touches only the
 binding; onboarding a vendor touches only axis 1.
 
+The GLM 5.3 transport follows the provider's
+[text migration contract](https://docs.z.ai/guides/llm/glm-5.3) and
+[multimodal contract](https://docs.z.ai/guides/vlm/glm-5.3-flash): these models
+require enabled thinking. At the OpenAI-compatible wire boundary, absent,
+disabled, or low reasoning maps to `low`; medium/high maps to `high`.
+Existing extraction callers can retain their generic disabled-thinking request.
+The adapter copies decode parameters and preserves the original request and
+cassette fingerprint; replay proves response handling, not the upgraded model's
+live accuracy. Older models and other protocol families retain their behavior.
+
+Runtime scene bindings are resolved before environment defaults. Upgrading a
+default does not migrate explicit user/deployment database bindings or deployed
+environment overrides. Verify the actual selected model and serving version
+when claiming a live upgrade; workflow context variables are not invocation
+evidence. Model defaults and fallback lists are owned by `src/config.py` and its
+generated environment reference.
+
 ### Axis 1 — Protocol family
 
 Exactly three families, because these three are the universally-compatible wire
