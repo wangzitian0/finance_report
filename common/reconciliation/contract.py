@@ -61,8 +61,8 @@ CONTRACT = PackageContract(
         Unit(name="ReconciliationStats", kind=Kind.PROJECTION, module="data/stats.py"),
         Unit(
             name="load_reconciliation_config",
-            kind=Kind.FACTORY,
-            module="base/config.py",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/config.py",
         ),
         Unit(
             name="ReconciliationRepository",
@@ -281,6 +281,30 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-reconciliation.config-boundary.1",
+            statement="Configuration values have no direct runtime or ledger dependency; retired base behaviors have exactly one extension owner.",
+            test="tests/tooling/test_reconciliation_config_boundary.py::test_configuration_ownership_is_explicit",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-reconciliation.config-boundary.2",
+            statement="The runtime loader reads the documented backend configuration file, preserves defaults/YAML/environment precedence and cache reload semantics, and keeps the published interface.",
+            test="apps/backend/tests/reconciliation/test_config_boundary.py::test_runtime_configuration_file_precedence_and_cache",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-reconciliation.config-boundary.3",
+            statement="Relocated entry readers preserve currency-filtered Money totals, ledger balance validation, and deterministic source-rank tie breaking.",
+            test="apps/backend/tests/reconciliation/test_config_boundary.py::test_entry_readers_preserve_money_and_candidate_semantics",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-reconciliation.match.1",
             statement=(

@@ -96,7 +96,7 @@ def test_load_reconciliation_config_reads_yaml_and_env(monkeypatch: pytest.Monke
 def test_load_reconciliation_config_malformed_yaml(monkeypatch):
     """Test that malformed YAML falls back to defaults."""
     import src.reconciliation as reconciliation
-    from src.reconciliation.base import config as reconciliation_config
+    from src.reconciliation.extension import config as reconciliation_config
 
     class MockPath:
         def exists(self):
@@ -110,7 +110,7 @@ def test_load_reconciliation_config_malformed_yaml(monkeypatch):
 
         @property
         def parents(self):
-            return [self, self, self]
+            return [self, self, self, self]
 
         def __truediv__(self, other):
             return self
@@ -126,7 +126,7 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
     import sys
 
     import src.reconciliation as reconciliation
-    from src.reconciliation.base import config as reconciliation_config
+    from src.reconciliation.extension import config as reconciliation_config
 
     # Mock Path to say file exists
     class MockPath:
@@ -138,7 +138,7 @@ def test_load_reconciliation_config_no_yaml_module(monkeypatch):
 
         @property
         def parents(self):
-            return [self, self, self]
+            return [self, self, self, self]
 
         def __truediv__(self, other):
             return self
