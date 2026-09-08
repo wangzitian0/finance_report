@@ -267,10 +267,10 @@ export default function AccountFormModal({
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">
+                <label htmlFor="new-account-currency" className="block text-sm font-medium mb-1.5">
                   Currency *
                 </label>
-                <select {...createForm.register("currency")} className="input">
+                <select id="new-account-currency" {...createForm.register("currency")} className="input">
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>
                       {c}
