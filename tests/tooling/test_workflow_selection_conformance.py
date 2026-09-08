@@ -164,12 +164,19 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
     # Exercise non-exact declarations even before any business package adds
     # one. The real gate still validates the resulting canonical TraceRecord.
     scenario_proof = next(
-        proof
-        for proof in matrix_payload["proofs"]
-        if proof.get("scenario_id")
-        and proof.get("scope") == "behavioral"
-        and proof.get("ci_tier") == "pr_ci"
-        and matrix.classify_stage(proof.get("file", "")) in matrix.PR_EVIDENCE_STAGES
+        (
+            proof
+            for proof in matrix_payload["proofs"]
+            if proof.get("scenario_id")
+            and proof.get("scope") == "behavioral"
+            and proof.get("ci_tier") == "pr_ci"
+            and matrix.classify_stage(proof.get("file", ""))
+            in matrix.PR_EVIDENCE_STAGES
+        ),
+        None,
+    )
+    assert scenario_proof is not None, (
+        "expected a scoped pr_ci scenario proof for semantic-strength coverage"
     )
     scenario_proof["governance_strength"] = governance_strength
     monkeypatch.setattr(
