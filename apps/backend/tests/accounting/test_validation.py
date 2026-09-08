@@ -6,6 +6,7 @@ and threshold-based routing logic for bank statements.
 
 from decimal import Decimal
 
+from src.extraction import BankStatementStatus
 from src.extraction.base.validation import (
     bank_currency_balances,
     compute_confidence_score,
@@ -14,7 +15,6 @@ from src.extraction.base.validation import (
     validate_balance_per_currency,
     validate_completeness,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus
 
 
 def test_validate_balance_mismatch():

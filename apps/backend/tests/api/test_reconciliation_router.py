@@ -31,9 +31,15 @@ from sqlalchemy import event, select
 
 from src.audit import STATEMENT_SOURCE_TYPES, TraceRecordType, TraceResult
 from src.audit.orm import TraceRecordRow
-from src.extraction import DispositionPolicy, DocumentType, TransactionClassification, UploadedDocument
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction import (
+    BankStatementStatus,
+    DispositionPolicy,
+    DocumentType,
+    TransactionClassification,
+    TransactionDirection,
+    UploadedDocument,
+)
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import (

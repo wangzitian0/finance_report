@@ -9,9 +9,10 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
+from src.extraction import RuleType, TransactionDirection
 from src.extraction.extension.classification import ClassificationService
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationRule, RuleType, TransactionClassification
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType
 from tests.factories import AtomicTransactionFactory
 

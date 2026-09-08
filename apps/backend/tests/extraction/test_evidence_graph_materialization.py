@@ -10,12 +10,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.extraction import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction import DocumentStatus, DocumentType, TransactionDirection, UploadedDocument
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.evidence_graph_materialization import EvidenceGraphMaterializationService
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from tests.factories import UserFactory

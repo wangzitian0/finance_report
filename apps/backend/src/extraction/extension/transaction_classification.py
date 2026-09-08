@@ -30,9 +30,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
+from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType
 from src.extraction.extension.classification import ClassificationService
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import AccountType
 from src.observability import get_logger
 

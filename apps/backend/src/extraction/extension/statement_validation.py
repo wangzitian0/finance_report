@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
+from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
 from src.extraction.extension.reviewed_statement_envelope import require_current_statement_envelope_trust
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 
 # Single-owned by the promotion gate (#930); kept as a local alias for readability.

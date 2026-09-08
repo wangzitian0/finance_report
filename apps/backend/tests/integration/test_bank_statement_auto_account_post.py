@@ -15,11 +15,10 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, ClassificationStatus, DocumentSource, RuleType
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from tests.statement_ingestion import (
     parse_and_load_statement_projection,

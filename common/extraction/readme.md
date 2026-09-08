@@ -167,6 +167,24 @@ flowchart TB
 
 ## Data Models
 
+### Pure source vocabulary
+
+`base/source_vocabulary.py` owns `DocumentType`, `DocumentStatus`,
+`TransactionDirection`, `RuleType`, `ClassificationStatus`, `BankStatementStatus`,
+and `Stage1Status`. Validation and disposition rules import these pure values;
+SQLAlchemy mappings consume them without defining another enum. External
+consumers use the published `src.extraction` names, whose string values and SQL
+enum bindings remain unchanged. The old `orm/statement_enums.py` owner is retired.
+Purity here describes the domain module's dependencies, not isolated package
+startup: `src.extraction.__init__` still eagerly loads its published adapters.
+Removing that bootstrap coupling remains part of the ORM export debt under
+#1863; this cutover does not claim dependency-free ordinary package imports.
+
+This is source/review vocabulary, not investment accounting. `AssetType`,
+`PositionStatus`, and `CostBasisMethod` remain outside this cutover; their
+portfolio ownership cleanup is part of the remaining package-local work under
+#1863. ORM entity exports likewise remain explicit debt, not pure domain types.
+
 ### Ingestion Writes (EPIC-011)
 
 Ingestion writes the ODS/DWD tables directly. A successful parse persists one
@@ -234,7 +252,7 @@ rather than runtime signature reflection.
   review-only evidence. Declared multi-currency balances reconcile independently
   and are never cross-summed. (#1139 AC-B3 / EPIC-017 AC17.4.13.)
 - Enums `BankStatementStatus` and `Stage1Status` live in
-  `src/extraction/orm/statement_enums.py`.
+  `src/extraction/base/source_vocabulary.py`.
 
 When a parsed statement fails balance validation, `balance_validation_result`
 must preserve the mismatch note from the Decimal balance check. The statement
@@ -674,7 +692,8 @@ Coverage checks compare monthly statement periods within each account/currency:
 
 | File | Purpose |
 |------|---------|
-| `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_enums.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
+| `src/extraction/base/source_vocabulary.py` | Pure source-document, transaction-direction, classification and review enums; SQL mappings are consumers |
+| `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |

@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import func, select
 
+from src.extraction import ClassificationStatus, RuleType
 from src.extraction.extension.transaction_classification import (
     CategoryProposal,
     ClassificationPolicy,
@@ -23,7 +24,7 @@ from src.extraction.extension.transaction_classification import (
     classify_transactions,
     policy_for,
 )
-from src.extraction.orm.layer3 import ClassificationRule, ClassificationStatus, RuleType, TransactionClassification
+from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType
 from tests.factories import AtomicTransactionFactory
 

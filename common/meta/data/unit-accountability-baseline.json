@@ -41,7 +41,6 @@
   "unbound::extraction::EvidenceLineageService",
   "unbound::extraction::EvidenceNode",
   "unbound::extraction::ManagedPositionSnapshot",
-  "unbound::extraction::RuleType",
   "unbound::extraction::StatementSummary",
   "unbound::extraction::TransactionClassification",
   "unbound::extraction::UploadedDocument",

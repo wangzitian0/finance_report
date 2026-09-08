@@ -18,22 +18,24 @@ from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.deps import PaginationParams
 from src.extraction import (
+    BankStatementStatus,
     DocumentType,
     EconomicIntent,
     ExtractedTransactionRow,
+    Stage1Status,
     StatementSourceType,
+    TransactionDirection,
     UploadedDocument,
 )
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 from src.extraction.extension.review_queue import create_entry_from_txn
-from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import (
     CostBasisMethod,
     ManagedPosition,
     PositionStatus,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import (

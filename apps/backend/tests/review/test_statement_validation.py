@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.extraction import DocumentType, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection, UploadedDocument
 from src.extraction.extension.statement_validation import (
     BALANCE_TOLERANCE,
     _has_unresolved_statement_conflicts,
@@ -18,8 +18,7 @@ from src.extraction.extension.statement_validation import (
     set_opening_balance,
     validate_balance_chain,
 )
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 

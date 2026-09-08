@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import TraceEmitter
+from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType, Stage1Status
 from src.extraction.base.types import (
     DocumentSource,
     ParseJob,
@@ -32,8 +33,7 @@ from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     try_auto_approve_high_confidence_statement,
 )
-from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.observability import get_logger, record_statement_parse_outcome, safe_error_message

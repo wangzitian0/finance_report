@@ -13,7 +13,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import TransactionDirection
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
 from src.identity.extension.account_purge import (
     DEFAULT_TEST_EMAIL_PATTERN,

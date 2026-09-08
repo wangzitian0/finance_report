@@ -19,8 +19,9 @@ The rest of the extraction fact family followed in #1675 D4+D5c: ``layer2``-``la
 ``relationship()`` (to ``Account``/``User``) replaced by bare FK id columns +
 explicit interface reads; downstream domains (reconciliation / portfolio /
 pricing) import the published entity names below. ``statement_summary`` /
-``statement_enums`` completed the move in #1675 D6, the final models-
-decentralization slice. Statement facts are consumed directly by the workflow
+the source lifecycle enums completed the move in #1675 D6. Source/review enums
+now live in ``base/source_vocabulary.py``; ORM adapters consume that definition.
+Statement facts are consumed directly by the workflow
 package through the published
 ``StatementEventSource`` read model, while ``ledger``/``identity``
 (same-rank, dependency-cycle — both are readers extraction itself
@@ -70,6 +71,15 @@ from src.extraction.base.result import (
 from src.extraction.base.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeCommand,
     supports_reviewed_statement_envelope,
+)
+from src.extraction.base.source_vocabulary import (
+    BankStatementStatus,
+    ClassificationStatus,
+    DocumentStatus,
+    DocumentType,
+    RuleType,
+    Stage1Status,
+    TransactionDirection,
 )
 from src.extraction.base.types import (
     DocumentSource,
@@ -204,27 +214,19 @@ from src.extraction.extension.uploaded_document_reads import (
 # rule/report internals stay unpublished.
 from src.extraction.orm.correction import CorrectionLog  # noqa: F401  (mapper registration)
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
-from src.extraction.orm.layer2 import (
-    AssetType,
-    AtomicPosition,
-    AtomicTransaction,
-    TransactionDirection,
-)
+from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.layer2 import AssetType, AtomicPosition, AtomicTransaction
 from src.extraction.orm.layer3 import (
     ClassificationRule,
-    ClassificationStatus,
     CostBasisMethod,
     ManagedPosition,
     PositionStatus,
-    RuleType,
     TransactionClassification,
 )
 from src.extraction.orm.reviewed_statement_envelope import (  # noqa: F401  (mapper registration)
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
 __all__ = [

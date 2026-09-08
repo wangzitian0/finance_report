@@ -55,8 +55,8 @@ def test_fx_rate_repr():
 
 
 def test_validation_route_by_threshold():
+    from src.extraction import BankStatementStatus
     from src.extraction.base.validation import route_by_threshold
-    from src.extraction.orm.statement_enums import BankStatementStatus
 
     assert route_by_threshold(85, True) == BankStatementStatus.APPROVED
     assert route_by_threshold(60, True) == BankStatementStatus.PARSED
@@ -171,7 +171,8 @@ def test_atomic_transaction_repr():
     WHEN calling repr() on it
     THEN it returns a formatted string with date, direction, amount and currency
     """
-    from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+    from src.extraction import TransactionDirection
+    from src.extraction.orm.layer2 import AtomicTransaction
 
     transaction = AtomicTransaction(
         id=uuid4(),

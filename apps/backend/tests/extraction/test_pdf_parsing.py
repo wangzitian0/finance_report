@@ -19,14 +19,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import UploadFile
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.base.validation import (
     route_by_threshold,
     validate_balance,
     validate_completeness,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:

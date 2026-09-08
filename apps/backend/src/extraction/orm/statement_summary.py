@@ -38,7 +38,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.audit.money import CurrencyBalances
 from src.database import Base
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 

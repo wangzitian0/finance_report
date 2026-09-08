@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from src.extraction import (
+    BankStatementStatus,
     DocumentSource,
     DocumentStatus,
     ExtractedTransactionRow,
@@ -19,7 +20,6 @@ from src.extraction import (
 from src.extraction.extension.deduplication import DeduplicationService, dual_write_layer2
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.factories import StatementSummaryFactory
 

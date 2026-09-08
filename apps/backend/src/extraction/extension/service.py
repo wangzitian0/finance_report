@@ -14,6 +14,7 @@ import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
+from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
     bank_currency_balances,
@@ -50,9 +51,6 @@ from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
-from src.extraction.orm.layer1 import DocumentType
-from src.extraction.orm.layer2 import TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalLine
 from src.observability import record_financial_invariant_violation

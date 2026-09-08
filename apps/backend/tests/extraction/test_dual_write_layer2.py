@@ -10,18 +10,20 @@ import pytest
 from sqlalchemy import select
 
 from src.extraction import (
+    BankStatementStatus,
     DocumentSource,
     DocumentStatus,
     DocumentType,
     ExtractedTransactionRow,
+    Stage1Status,
+    TransactionDirection,
     UploadedDocument,
     register_statement_source,
 )
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.evidence import EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.statement_ingestion import parse_and_load_statement_projection
 

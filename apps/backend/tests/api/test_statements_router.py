@@ -36,6 +36,7 @@ from src.audit import (
 )
 from src.config import settings
 from src.extraction import (
+    BankStatementStatus,
     DocumentSource,
     DocumentStatus,
     DocumentType,
@@ -45,10 +46,13 @@ from src.extraction import (
     ExtractionError,
     ExtractionMethod,
     ParseJob,
+    RuleType,
     SourceProvenance,
+    Stage1Status,
     StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
+    TransactionDirection,
     UploadedDocument,
     extraction_trace_policy_registry,
     persist_statement_extraction_result,
@@ -67,9 +71,8 @@ from src.extraction.extension.statement_posting import (
     try_auto_approve_high_confidence_statement,
 )
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
-from src.extraction.orm.layer3 import ClassificationRule, RuleType
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus

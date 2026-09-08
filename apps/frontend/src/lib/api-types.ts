@@ -3126,7 +3126,10 @@ export interface components {
             /** Period Start */
             period_start: string | null;
             status: components["schemas"]["BankStatementStatus"];
-            /** Transactions */
+            /**
+             * Transactions
+             * @description Extracted atomic transactions associated with this statement
+             */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**
              * Updated At
@@ -6666,7 +6669,10 @@ export interface components {
             /** Period Start */
             period_start: string | null;
             status: components["schemas"]["BankStatementStatus"];
-            /** Transactions */
+            /**
+             * Transactions
+             * @description Extracted atomic transactions associated with this statement
+             */
             transactions?: components["schemas"]["AtomicTransactionResponse"][];
             /**
              * Updated At

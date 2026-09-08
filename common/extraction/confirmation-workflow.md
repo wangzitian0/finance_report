@@ -18,7 +18,7 @@
 
 | Concern | Location |
 |---------|----------|
-| `Stage1Status` enum | `apps/backend/src/extraction/orm/statement_enums.py` (enum); `apps/backend/src/extraction/orm/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
+| `Stage1Status` enum | `apps/backend/src/extraction/base/source_vocabulary.py` (enum); `apps/backend/src/extraction/orm/statement_summary.py` — `StatementSummary.stage1_status` (nullable; `None` at upload, set during review workflow) |
 | `Stage2Status` on match | `apps/backend/src/reconciliation/orm/reconciliation.py` — `ReconciliationMatch.status` (see the reconciliation half) |
 | `pending_review` usage | `apps/backend/src/routers/statements.py`, `apps/backend/src/routers/reconciliation.py` |
 | Balance-chain validation | `apps/backend/src/extraction/extension/statement_validation.py` |

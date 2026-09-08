@@ -23,14 +23,13 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension._llm_led_gate import (
     LlmLedQuarantineReason,
     evaluate_llm_led_extraction_gate,
 )
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 
 

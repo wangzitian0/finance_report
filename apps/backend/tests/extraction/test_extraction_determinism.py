@@ -25,14 +25,13 @@ from unittest.mock import patch
 
 import pytest
 
-from src.extraction import DocumentSource
+from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.base.validation import (
     compute_confidence_score,
     route_by_threshold,
     validate_balance_explicit,
 )
 from src.extraction.extension.service import ExtractionService
-from src.extraction.orm.statement_enums import BankStatementStatus
 from tests.statement_ingestion import parse_and_load_statement_projection
 
 # Number of repeated runs/parses used to surface non-determinism. Small enough to
@@ -226,7 +225,7 @@ class TestRepeatedParseDeterminism:
         truth, so it lands in the `REJECTED` terminal state with a typed reason code and
         is flagged balance-invalid.
         """
-        from src.extraction.orm.statement_enums import Stage1Status
+        from src.extraction import Stage1Status
 
         statement, _ = await self._parse_once(db, test_user.id, _BANK_BALANCE_INVALID, "ac20-9-2")
 

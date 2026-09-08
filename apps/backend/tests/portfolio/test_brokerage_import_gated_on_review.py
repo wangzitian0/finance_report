@@ -28,10 +28,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import (
+    BankStatementStatus,
     DocumentType,
     ExtractedPositionFact,
     ExtractionMethod,
     SourceProvenance,
+    Stage1Status,
     StatementEvidenceType,
     StatementExtractionResult,
     StatementSourceType,
@@ -39,7 +41,6 @@ from src.extraction import (
 )
 from src.extraction.extension.statement_parsing import route_brokerage_for_review_if_present
 from src.extraction.orm.layer2 import AtomicPosition
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
 from src.extraction.orm.statement_summary import StatementSummary
 
 _ASSET = "GATED_TEST_STOCK"

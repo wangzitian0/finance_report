@@ -19,10 +19,11 @@ from sqlalchemy.orm import selectinload
 import src.config
 from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
 from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
+from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.extension.disposition_trace import authorize_financial_command
-from src.extraction.orm.layer1 import DocumentType, UploadedDocument
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,

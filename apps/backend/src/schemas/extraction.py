@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.extraction.orm.statement_enums import BankStatementStatus
+from src.extraction import BankStatementStatus
 from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
@@ -130,7 +130,9 @@ class BankStatementResponse(BaseModel):
     validation_error: str | None
     created_at: datetime
     updated_at: datetime
-    transactions: list[AtomicTransactionResponse] = Field(default_factory=list)
+    transactions: list[AtomicTransactionResponse] = Field(
+        default_factory=list, description="Extracted atomic transactions associated with this statement"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -6,8 +6,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.layer3 import ClassificationStatus, TransactionClassification
+from src.extraction import AtomicTransaction, ClassificationStatus, TransactionClassification
 from src.identity import (
     AiFeedback,
     AiFeedbackRequest,

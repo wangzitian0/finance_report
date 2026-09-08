@@ -12,6 +12,7 @@ from sqlalchemy.exc import DBAPIError
 
 from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.audit.orm.trace_record import TraceRecordParentRow
+from src.extraction import BankStatementStatus
 from src.extraction.base.result import (
     ExtractedTransactionFact,
     ExtractionMethod,
@@ -32,7 +33,6 @@ from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from tests.factories import UserFactory

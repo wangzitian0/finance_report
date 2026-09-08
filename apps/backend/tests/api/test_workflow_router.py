@@ -12,9 +12,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction import DocumentType, UploadedDocument
-from src.extraction.orm.layer3 import ClassificationRule, RuleType
-from src.extraction.orm.statement_enums import BankStatementStatus, Stage1Status
+from src.extraction import BankStatementStatus, DocumentType, RuleType, Stage1Status, UploadedDocument
+from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User, get_current_user_id
 from src.ledger import Account, AccountType

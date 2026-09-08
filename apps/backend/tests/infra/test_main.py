@@ -221,7 +221,7 @@ class TestModels:
 
     def test_statement_status_enum(self):
         """Test StatementStatus enum values."""
-        from src.extraction.orm.statement_enums import BankStatementStatus
+        from src.extraction import BankStatementStatus
 
         assert BankStatementStatus.UPLOADED.value == "uploaded"
         assert BankStatementStatus.PARSED.value == "parsed"

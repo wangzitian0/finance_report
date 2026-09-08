@@ -13,11 +13,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.database import create_session_maker_from_db
-from src.extraction import ParseJob, RetryableStatementIngestionError
+from src.extraction import BankStatementStatus, ParseJob, RetryableStatementIngestionError
 from src.extraction.extension.statement_parsing_supervisor import (
     run_parsing_supervisor,
 )
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.routers.statements import (
     delete_statement,

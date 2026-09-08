@@ -42,7 +42,7 @@ from src.audit.orm.trace_record import TraceRecordParentRow, TraceRecordRow
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.deps import PaginationParams
-from src.extraction import DocumentType, ParseJob, UploadedDocument
+from src.extraction import BankStatementStatus, DocumentType, ParseJob, RuleType, UploadedDocument
 from src.extraction.base.result import (
     ExtractedPositionFact,
     ExtractionMethod,
@@ -64,12 +64,8 @@ from src.extraction.extension.reviewed_statement_envelope import (
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
-from src.extraction.orm.layer3 import (
-    ClassificationRule,
-    RuleType,
-)
+from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
-from src.extraction.orm.statement_enums import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, Entry, ledger_trace_policy_registry, post_entry, post_opening_balance_entry
 from src.pricing import (

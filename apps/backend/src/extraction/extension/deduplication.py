@@ -8,15 +8,15 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType, TransactionDirection
 from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity
-from src.extraction.orm.layer1 import DocumentStatus, DocumentType, UploadedDocument
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import (
     AtomicPosition,
     AtomicPositionSourceDocument,
     AtomicTransaction,
     AtomicTransactionSourceDocument,
-    TransactionDirection,
 )
 from src.extraction.orm.statement_summary import StatementSummary
 from src.observability import get_logger

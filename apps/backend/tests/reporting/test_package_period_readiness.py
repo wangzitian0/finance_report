@@ -7,9 +7,10 @@ import pytest
 
 from src.audit.money import Money
 from src.config import settings
+from src.extraction import RuleType
 from src.extraction.extension import transaction_classification
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
-from src.extraction.orm.layer3 import ClassificationRule, RuleType
+from src.extraction.orm.layer3 import ClassificationRule
 from src.ledger import Account, AccountType, Entry, post_entry, post_opening_balance_entry
 from src.reporting import PackageAssembler
 from src.routers.reports import (

@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import JournalEntrySourceType
 from src.composition import compose_reviewed_disposition_dependencies
 from src.deps import PaginationParams
-from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, UploadedDocument
-from src.extraction.orm.layer2 import AtomicTransaction, TransactionDirection
+from src.extraction import CurrencyUnresolvedError, DocumentType, EconomicIntent, TransactionDirection, UploadedDocument
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
