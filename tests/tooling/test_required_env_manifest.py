@@ -167,6 +167,23 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
     assert by_env["SECRET_KEY"].source == "runtime" and by_env["SECRET_KEY"].sensitive
     assert by_env["ZAI_API_KEY"].source == "human" and by_env["ZAI_API_KEY"].empty_ok
     assert by_env["GIT_COMMIT_SHA"].source == "release"
+    # Values infra2's compose env states for finance_report/app are `decision`:
+    # deployment-injected, never store-backed (so the agent template never renders
+    # them). A field the compose does not set stays a `code` default.
+    for env_name in (
+        "ENVIRONMENT",
+        "CORS_ORIGINS",
+        "S3_ENDPOINT",
+        "PREFECT_API_URL",
+        "PRIMARY_MODEL",
+        "API_RATE_LIMIT_REQUESTS",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OPENPANEL_CLIENT_ID",
+    ):
+        assert by_env[env_name].source == "decision", env_name
+        assert by_env[env_name].injected and not by_env[env_name].store_backed, env_name
+    assert by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
+    assert by_env["OCR_MODEL"].source == "code" and by_env["VISION_MODEL"].source == "code"
     for entry in committed["fields"]:
         assert entry["source"] in {"human", "runtime", "release", "decision", "code"}, (
             entry["env"]

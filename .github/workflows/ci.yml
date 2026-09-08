@@ -1234,9 +1234,9 @@ jobs:
 
       - name: Run tooling tests with coverage
         run: |
-          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v1.3.2/infra2_sdk-1.3.2-py3-none-any.whl"
-          sdk_sha256="bf93d1d0ebed85619f41ae35f3be95854b32da539e1942804458dd9f32585667"
-          sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.3.2-py3-none-any.whl"
+          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v1.5.0/infra2_sdk-1.5.0-py3-none-any.whl"
+          sdk_sha256="d90c2a4f6ec98c1c5c94552339c3a6aca15499cc113a1e8821b50e3e97b2f6e2"
+          sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.5.0-py3-none-any.whl"
           curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"
           printf '%s  %s\n' "$sdk_sha256" "$sdk_wheel" | sha256sum --check --status
           mkdir -p coverage

@@ -58,6 +58,8 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # "" is "unset" (env and .env): falls through to the next alias / code default, so a compose `${VAR:-}` line can never blank a field.
+        env_ignore_empty=True,
     )
 
     # ================================================================
@@ -747,4 +749,29 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True},
     "llm_encryption_keys": {"source": "runtime", "sensitive": True, "empty_ok": True},
     "git_commit_sha": {"source": "release"},
+    # decision: the deployment states these in infra2's compose env for finance_report/app
+    # (finance_report/finance_report/10.app/compose.yaml, backend `environment:` block;
+    # staging overrides in AppDeployer.compose_env_overrides). They are injected by the
+    # deployment, never stored in Vault and never rendered by the agent template. A field
+    # the compose does not set stays a `code` default (e.g. OCR_MODEL, VISION_MODEL).
+    # `empty_ok` marks the ones the compose may legitimately leave empty (`${VAR:-}`).
+    "environment": {"source": "decision"},
+    "debug": {"source": "decision"},
+    "cors_origins_str": {"source": "decision"},
+    "next_public_app_url": {"source": "decision"},
+    "s3_endpoint": {"source": "decision"},
+    "s3_bucket": {"source": "decision"},
+    "s3_public_endpoint": {"source": "decision"},
+    "s3_public_bucket": {"source": "decision", "empty_ok": True},
+    "s3_presign_expiry_seconds": {"source": "decision"},
+    "prefect_api_url": {"source": "decision"},
+    "primary_model": {"source": "decision"},
+    "fallback_models_str": {"source": "decision"},
+    "api_rate_limit_requests": {"source": "decision"},
+    "otel_exporter_otlp_endpoint": {"source": "decision"},
+    "otel_service_name": {"source": "decision"},
+    "otel_resource_attributes": {"source": "decision"},
+    "openpanel_client_id": {"source": "decision", "empty_ok": True},
+    "openpanel_api_url": {"source": "decision"},
+    "openpanel_environment": {"source": "decision", "empty_ok": True},
 }

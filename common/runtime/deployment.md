@@ -26,8 +26,13 @@ dispatches canonical requests to the infra2 receiver.
 The target repository boundary is one-way: Finance Report owns application
 artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
 credentials, and every deployment side effect. The application pins
-[`infra2-sdk v1.0.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v1.0.0)
-as the wire-contract authority and `tools/app_deploy_request.py` renders only
+[`infra2-sdk v1.5.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v1.5.0)
+as the wire-contract authority — the one pin is the release wheel URL in
+`apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256
+in `apps/backend/uv.lock`; the `ci.yml` / `deploy.yml` / `release.yml` steps
+that install the wheel repeat the same URL + sha256 and
+`tests/tooling/test_app_deploy_request.py` locks all of them together — and
+`tools/app_deploy_request.py` renders only
 canonical staging or Production requests for `finance_report/app`. The renderer
 performs no network or subprocess operations. Production requires exact source,
 staging, and merged-review evidence. `tools/app_deploy_transport.py` validates
@@ -81,7 +86,7 @@ One contract ties the three repos together; each owns only its part:
 |------|------|--------------------|
 | **finance_report** (app) | `apps/backend/src/config.py` declares every variable and its default; `apps/backend/src/boot.py` enforces which secrets must be real at boot. | Nothing at build time; reads `os.environ` regardless of source. |
 | **dev_env** (local tooling) | Injects local secrets from 1Password (no plaintext at rest); source-agnostic. | Nothing about app schemas. |
-| **infra2** | Vault `secrets.ctmpl` supplies deployed values. | The versioned `common/runtime/required-env.generated.json` artifact. |
+| **infra2** | Renders the vault-agent template and policy from the manifest's source classes; at deploy time its secret supply (running in the iac-runner under its own bounded `VAULT_TOKEN`) copies `human` values from 1Password into Vault and generates `runtime` ones, while `release` / `decision` values are set in the compose env. | The versioned `common/runtime/required-env.generated.json` artifact (`config.ENV_SOURCE_CLASSES` names each field's producer; unlisted fields are `code` defaults). |
 
 Consistency is **not** enforced by cross-repo CI gates. It is enforced where it
 matters: the app **fails loudly at boot** in a *protected* runtime.
@@ -360,24 +365,27 @@ so there is no 7-day token to renew or repair — the agent re-authenticates its
 | Staleness threshold | 1 hour (bootloader warning) |
 
 The AppRole creds are owned by infra2 and injected into the Dokploy compose env.
-Finance Report deploys must not receive `VAULT_ROOT_TOKEN`. `VAULT_ADDR` is a
+Finance Report never holds a Vault token of any kind: nobody on the app side
+uses `VAULT_ROOT_TOKEN` (it is infra2's bootstrap-only credential), and the
+deploy-time credential is the iac-runner's own short-TTL, AppRole-minted
+`VAULT_TOKEN`, which infra2's secret supply uses to copy human-entered values
+from 1Password (`Infra2` vault, item `finance_report/{env}/app`) into Vault and
+to generate the `runtime` ones — see the source classes in
+[Secret Contract](#secret-contract-cross-repo-seam). `VAULT_ADDR` is a
 non-secret address but **must be present** — a missing `VAULT_ADDR` makes the
 vault-agent hang (the deploy preflight fails closed on it).
 
 **(Re)inject app AppRole creds** (e.g. after a rotation, or if a deploy preflight
-reports missing `VAULT_ROLE_ID`/`VAULT_SECRET_ID`):
-
-```bash
-# From local machine with infra2 repo
-cd /path/to/infra2
-export VAULT_ROOT_TOKEN="$(op read 'op://Infra2/dexluuvzg5paff3cltmtnlnosm/Token')"
-DEPLOY_ENV=staging invoke vault.setup-approle --project=finance_report --service=app --deploy
-```
-
+reports missing `VAULT_ROLE_ID`/`VAULT_SECRET_ID`): this is an infra2 operation,
+run from the infra2 repo, never from this one —
+`invoke vault.setup-approle --project=finance_report --service=app --deploy`
+for the target `DEPLOY_ENV` (exact prerequisites in infra2's
+[Vault integration SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/db.vault-integration.md)).
 The infra2 task writes the policy + approle role, fetches a fresh role_id/secret_id,
 updates the matching Dokploy compose env, and triggers a redeploy (waiting for the
 runtime deployment record). For database sidecars use `--service=postgres` or
-`--service=redis`.
+`--service=redis`. Nothing in this repository — no workflow, no tool — needs or
+receives a Vault token to make that happen.
 
 **Monitoring**: Bootloader `_check_vault_secrets()` runs in FULL mode and reports:
 1. Missing secrets file → Warning with regeneration instructions

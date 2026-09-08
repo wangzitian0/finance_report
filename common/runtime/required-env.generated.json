@@ -21,6 +21,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -43,6 +44,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -62,6 +64,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -81,6 +84,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -100,6 +104,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -119,6 +124,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -138,6 +144,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -157,6 +164,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -176,6 +184,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -195,6 +204,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -202,18 +212,19 @@
       "env": "API_RATE_LIMIT_REQUESTS",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "Rate Limiting",
       "description": "Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 allows E2E test suites and power users.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -233,6 +244,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -252,6 +264,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -264,13 +277,14 @@
       "sensitive": false,
       "group": "Security",
       "description": "Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -290,6 +304,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -309,6 +324,7 @@
       "composed_from": "postgresql+asyncpg://postgres:{POSTGRES_PASSWORD}@finance_report-postgres{env:ENV_SUFFIX}:5432/finance_report",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -328,6 +344,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -347,6 +364,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -354,18 +372,19 @@
       "env": "DEBUG",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "App Settings",
       "description": "Enable debug mode.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -385,6 +404,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -404,6 +424,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -423,6 +444,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -437,13 +459,14 @@
       "sensitive": false,
       "group": "App Settings",
       "description": "Logical environment name (used to differentiate environments).",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -451,18 +474,19 @@
       "env": "FALLBACK_MODELS",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "AI Provider",
       "description": "Comma-separated fallback AI model ids.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -482,6 +506,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -501,6 +526,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -522,6 +548,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -541,6 +568,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -560,6 +588,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -579,6 +608,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -591,13 +621,14 @@
       "sensitive": false,
       "group": "App Settings",
       "description": "Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -617,6 +648,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -624,18 +656,19 @@
       "env": "OPENPANEL_API_URL",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "Observability",
       "description": "OpenPanel API base URL (e.g. https://openpanel.zitian.party/api).",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -643,18 +676,19 @@
       "env": "OPENPANEL_CLIENT_ID",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "Observability",
       "description": "Per-env OpenPanel project client-id for server-side events (empty = analytics off).",
-      "source": "code",
-      "empty_ok": false,
+      "source": "decision",
+      "empty_ok": true,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -662,18 +696,19 @@
       "env": "OPENPANEL_ENVIRONMENT",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "Observability",
       "description": "Canonical OpenPanel environment label (falls back to `environment`).",
-      "source": "code",
-      "empty_ok": false,
+      "source": "decision",
+      "empty_ok": true,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -686,13 +721,14 @@
       "sensitive": false,
       "group": "Observability",
       "description": "OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned).",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -705,13 +741,14 @@
       "sensitive": false,
       "group": "Observability",
       "description": "OpenTelemetry resource attributes (comma-separated key=value pairs).",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -724,13 +761,14 @@
       "sensitive": false,
       "group": "Observability",
       "description": "OpenTelemetry service name.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -738,18 +776,19 @@
       "env": "PREFECT_API_URL",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "AI Provider",
       "description": "EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -757,18 +796,19 @@
       "env": "PRIMARY_MODEL",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "AI Provider",
       "description": "Primary AI model id.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -788,6 +828,7 @@
       "composed_from": "redis://:{PASSWORD}@finance_report-redis{env:ENV_SUFFIX}:6379/0",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -807,6 +848,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -826,6 +868,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -845,6 +888,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -857,13 +901,14 @@
       "sensitive": false,
       "group": "S3 / MinIO Storage",
       "description": "S3 / MinIO bucket name for uploaded statements.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -876,13 +921,14 @@
       "sensitive": false,
       "group": "S3 / MinIO Storage",
       "description": "S3 / MinIO endpoint used for storing uploaded statement files.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -890,18 +936,19 @@
       "env": "S3_PRESIGN_EXPIRY_SECONDS",
       "aliases": [],
       "required": false,
-      "injected": false,
+      "injected": true,
       "has_default": true,
       "sensitive": false,
       "group": "S3 / MinIO Storage",
       "description": "Presigned URL TTL (seconds) for general S3 access.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -921,6 +968,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -933,13 +981,14 @@
       "sensitive": false,
       "group": "S3 / MinIO Storage",
       "description": "Public S3 bucket (falls back to internal S3 settings when unset).",
-      "source": "code",
-      "empty_ok": false,
+      "source": "decision",
+      "empty_ok": true,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -952,13 +1001,14 @@
       "sensitive": false,
       "group": "S3 / MinIO Storage",
       "description": "Publicly reachable S3 endpoint for AI services. REQUIRED in production if S3_ENDPOINT is internal (e.g. http://minio:9000). Some AI providers need publicly accessible URLs to download statement PDFs for parsing. If not set, the system sends file_content (Base64) when available and only falls back to the S3 file_url when no content is provided.",
-      "source": "code",
+      "source": "decision",
       "empty_ok": false,
       "scope": "env",
       "provided_by": "",
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -978,6 +1028,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -997,6 +1048,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1016,6 +1068,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -1035,6 +1088,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     },
     {
@@ -1054,6 +1108,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1073,6 +1128,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1092,6 +1148,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1111,6 +1168,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1130,6 +1188,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1149,6 +1208,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": false
     },
     {
@@ -1173,6 +1233,7 @@
       "composed_from": "",
       "mirror_to_1password": false,
       "ci": "forbidden",
+      "store_key": "",
       "vault": true
     }
   ]

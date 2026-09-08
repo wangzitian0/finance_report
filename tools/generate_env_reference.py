@@ -292,33 +292,19 @@ def _environment_contract():
     """The infra2-sdk v2 manifest: model metadata plus ``config.ENV_SOURCE_CLASSES``.
 
     The source classes live in a side table (see config.py) so that declaring one never
-    edits a public ``Field()`` signature; they are folded into the contract here.
+    edits a public ``Field()`` signature. infra2-sdk >= 1.5.0 folds that table itself
+    (``overrides=``, keyed by field name): an unknown name raises ``ValueError`` and a
+    ``release`` / ``decision`` override implies ``injected`` — the deployment, not the
+    store, supplies it.
     """
-    from dataclasses import replace
+    from infra2_sdk.runtime.config_schema import environment_manifest_from_model
 
-    from infra2_sdk.runtime.config_schema import (
-        EnvironmentManifest,
-        environment_manifest_from_model,
+    module = _settings_module()
+    return environment_manifest_from_model(
+        module.Settings,
+        source=MANIFEST_SOURCE,
+        overrides=getattr(module, "ENV_SOURCE_CLASSES", {}),
     )
-
-    settings_cls = _settings_model()
-    overrides: dict[str, dict[str, object]] = dict(
-        getattr(_settings_module(), "ENV_SOURCE_CLASSES", {})
-    )
-    base = environment_manifest_from_model(settings_cls, source=MANIFEST_SOURCE)
-    unknown = sorted(set(overrides) - {field.field for field in base.fields})
-    if unknown:
-        raise SystemExit(f"ENV_SOURCE_CLASSES names unknown settings fields: {unknown}")
-    fields = []
-    for field in base.fields:
-        override = dict(overrides.get(field.field, {}))
-        if override.get("source") in {"release", "decision"}:
-            override.setdefault(
-                "injected", True
-            )  # the deployment, not the store, supplies it
-        fields.append(replace(field, **override) if override else field)
-    fields = tuple(fields)
-    return EnvironmentManifest(source=base.source, fields=fields)
 
 
 def manifest_gate_errors() -> list[str]:
