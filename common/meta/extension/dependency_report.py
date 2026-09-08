@@ -2125,12 +2125,48 @@ def _strip_resolved_annotations(signature: str) -> str:
     return "".join(output)
 
 
+_QUOTED_FINGERPRINT_VALUE = r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\""
+_LITERAL_ENUM_BINDING = re.compile(
+    # Consume quoted values first: text inside a literal is never a binding.
+    rf"(?P<quoted>{_QUOTED_FINGERPRINT_VALUE})|"
+    r"(?:(?P<imported>src\.[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+) -> )?"
+    r"apps/backend/src/(?P<owner>[A-Za-z_]\w*)/(?:[A-Za-z_]\w*/)*"
+    r"[A-Za-z_]\w*\.py::(?P<symbol>[A-Za-z_]\w*) -> "
+    r"(?P<enum>class\(str, Enum\)\{"
+    rf"[A-Za-z_]\w*=(?:{_QUOTED_FINGERPRINT_VALUE})"
+    rf"(?:; [A-Za-z_]\w*=(?:{_QUOTED_FINGERPRINT_VALUE}))*\}})"
+)
+
+
+def _normalize_literal_enum_bindings(signature: str) -> str:
+    """Compare literal enum semantics while retaining owner/type identity.
+
+    Only fully expanded string enums without methods, decorators, factories or
+    unresolved members qualify. The raw report retains every original path.
+    Other classes and arbitrary strings are never normalized.
+    """
+
+    def normalize(match: re.Match[str]) -> str:
+        if match.group("quoted") is not None:
+            return match.group()
+        owner, symbol = match.group("owner", "symbol")
+        imported = match.group("imported")
+        if imported and (
+            not imported.startswith(f"src.{owner}.")
+            or imported.rsplit(".", 1)[-1] != symbol
+        ):
+            return match.group()
+        return f"enum-owner:{owner}::{symbol} -> {match.group('enum')}"
+
+    return _LITERAL_ENUM_BINDING.sub(normalize, signature)
+
+
 def _declared_public_surface(record: dict[str, object], key: str) -> str:
     signature = str(record.get(key, ""))
     marker = f"::{record.get('symbol')} => "
     start = signature.find(marker)
     primary = signature[start + len(marker) :] if start >= 0 else signature
-    return _strip_resolved_annotations(primary)
+    return _normalize_literal_enum_bindings(_strip_resolved_annotations(primary))
 
 
 def _top_level_class_members(surface: str) -> list[str] | None:

@@ -502,6 +502,20 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.public-boundary.7",
+            statement=(
+                "Relocating a fully resolved literal string enum within its owning package "
+                "preserves compatibility of unchanged defaults; changed enum values, names, "
+                "owners, defaults, and non-enum implementations remain breaking."
+            ),
+            test=(
+                "tests/tooling/test_ddd_dependency_report.py"
+                "::test_AC_meta_public_boundary_7_same_owner_enum_relocation"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.context-governance.1",
             statement=(
                 "A package can publish its bounded-context purpose, explicit "

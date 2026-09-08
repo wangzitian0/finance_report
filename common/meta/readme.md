@@ -203,6 +203,13 @@ In particular, validators accepting validation-info or dynamic access are not
 assumed independent. Actual accessed-field/dependency changes still enter the
 same breaking-consumer gate; there is no settings exemption or synthetic proof.
 
+Literal string enums referenced by defaults may move within the same owning
+package without a breaking-change verdict (AC-meta.public-boundary.7). Only
+fully expanded `str, Enum` declarations with literal members qualify; owner,
+class name, member values and the selected default remain part of comparison.
+Methods, unresolved definitions, other classes and quoted text keep conservative
+fingerprints. The raw report still records the original and new binding paths.
+
 The report is generated CI evidence, not an authored SSOT:
 `.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`
 and uploads exact governance observations for the package control-plane join,

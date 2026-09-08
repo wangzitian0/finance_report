@@ -20,6 +20,73 @@ from tools.report_ddd_dependencies import main
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.parametrize(
+    "prefix", ["src.other.base.values.Status", "src.provider.base.values.Alias"]
+)
+def test_enum_relocation_keeps_ambiguous_bindings(prefix: str) -> None:
+    """AC-meta.public-boundary.7: mismatched owner/type bindings stay exact."""
+    signature = f"{prefix} -> apps/backend/src/provider/base/values.py::Status -> class(str, Enum){{OPEN='open'}}"
+    assert dependency_report._normalize_literal_enum_bindings(signature) == signature
+
+
+def test_enum_relocation_does_not_rewrite_quoted_text() -> None:
+    """AC-meta.public-boundary.7: source-looking string defaults are data."""
+    literal = "apps/backend/src/provider/base/values.py::Status -> class(str, Enum){OPEN='open'}"
+    signature = f"class(Public){{description={literal!r}}}"
+    assert dependency_report._normalize_literal_enum_bindings(signature) == signature
+
+
+@pytest.mark.parametrize("local", [True, False])
+@pytest.mark.parametrize(
+    "change", ["move", "value", "default", "name", "owner", "behavior"]
+)
+def test_AC_meta_public_boundary_7_same_owner_enum_relocation(
+    tmp_path: Path,
+    local: bool,
+    change: str,
+) -> None:
+    """AC-meta.public-boundary.7: real source moves do not hide semantic breaks."""
+    repo, _ = _seed_repo(tmp_path)
+    enum_source = "from enum import Enum\nclass Status(str, Enum):\n    OPEN = 'open'\n    CLOSED = 'closed'\n"
+    old_module = repo / "apps/backend/src/provider/orm/status.py"
+    _write(old_module, enum_source)
+    before_import = (
+        enum_source if local else "from src.provider.orm.status import Status\n"
+    )
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source=before_import + "class Public:\n    status: Status = Status.OPEN\n",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "publish enum default")
+    base = _git(repo, "rev-parse", "HEAD")
+    owner = "middle" if change == "owner" else "provider"
+    name = "OtherStatus" if change == "name" else "Status"
+    after_enum = enum_source.replace("class Status", f"class {name}")
+    if change == "value":
+        after_enum = after_enum.replace("'open'", "'changed'")
+    if change == "behavior":
+        after_enum += "    def __str__(self):\n        return 'changed'\n"
+    _write(repo / f"apps/backend/src/{owner}/base/vocabulary.py", after_enum)
+    imported = name + (" as Status" if name != "Status" else "")
+    member = "CLOSED" if change == "default" else "OPEN"
+    _write_public_surface(
+        repo,
+        interface=["Public"],
+        source=f"from src.{owner}.base.vocabulary import {imported}\nclass Public:\n    status: Status = Status.{member}\n",
+    )
+    old_module.unlink()
+    report = build_impact_report(repo, base_ref=base)
+    result = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={}
+    )
+    assert result["status"] == ("compatible" if change == "move" else "blocked")
+    assert len(report["changed_public_symbols"]) == 1
+    if change != "move":
+        assert result["unproved_consumers"] == ["consumer", "middle"]
+
+
 @pytest.mark.parametrize("qualified", [False, True])
 @pytest.mark.parametrize("public_class", [False, True])
 @pytest.mark.parametrize("changed", ["unrelated", "accessed", "dependency"])
