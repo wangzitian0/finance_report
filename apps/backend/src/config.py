@@ -58,8 +58,6 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
-        # "" is "unset" (env and .env): falls through to the next alias / code default, so a compose `${VAR:-}` line can never blank a field.
-        env_ignore_empty=True,
     )
 
     # ================================================================

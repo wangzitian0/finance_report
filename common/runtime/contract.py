@@ -249,25 +249,6 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
-            id="AC-runtime.18.7",
-            statement=(
-                "Settings treats an empty environment value as unset "
-                "(env_ignore_empty=True, for os.environ and .env alike): an empty "
-                "ZAI_API_KEY falls through to the next alias (GEMINI_API_KEY) instead "
-                "of disabling AI with \"\", an empty CORS_ORIGINS yields the default "
-                "origin list instead of an empty one, and an empty "
-                "API_RATE_LIMIT_REQUESTS does not raise at import — a compose "
-                "`${VAR:-}` line or a blank .env entry can never blank a setting "
-                "(#2005 review P0)."
-            ),
-            test=(
-                "apps/backend/tests/infra/test_config.py"
-                "::test_AC_runtime_18_7_empty_env_values_fall_through_to_defaults"
-            ),
-            priority="P0",
-            status="done",
-        ),
-        ACRecord(
             id="AC-runtime.20.1",
             statement=(
                 "DB_POOL_SIZE config field exists with the expected default. Was EPIC-012 AC12.20.1."
