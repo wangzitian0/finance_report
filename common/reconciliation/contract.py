@@ -93,12 +93,12 @@ CONTRACT = PackageContract(
         Unit(
             name="prune_candidates",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="build_many_to_one_groups",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="get_reconciliation_stats",
@@ -282,6 +282,7 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
+<<<<<<< HEAD
             id="AC-reconciliation.rejection-recovery.4",
             statement="Historical retired or superseded source facts cannot reenter unmatched queues, automatic candidates, or direct reviewed posting.",
             test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_historical_source_transactions_are_not_actionable",
@@ -308,6 +309,18 @@ CONTRACT = PackageContract(
             test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_concurrent_review_after_rejection",
             priority="P0",
             status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.candidate-policy.1",
+            statement=(
+                "Live matching and the deterministic accuracy audit share candidate "
+                "enumeration, rule scoring and source-rank ordering; journal evidence "
+                "precedes transfer-keyword fallback in both paths."
+            ),
+            test="apps/backend/tests/reconciliation/test_candidate_policy.py::test_live_and_audit_choose_the_same_evidence",
+            priority="P0",
+            status="done",
+            proof_kind="property",
         ),
         ACRecord(
             id="AC-reconciliation.config-boundary.1",

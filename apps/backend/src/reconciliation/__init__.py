@@ -21,6 +21,14 @@ from src.reconciliation.base import (
 )
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
 from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.candidate_policy import (
+    _find_many_to_one_candidates,
+    _find_normal_candidates,
+    _find_transfer_candidates,
+    _within_combination_tolerance,
+    build_many_to_one_groups,
+    prune_candidates,
+)
 from src.reconciliation.extension.config import load_reconciliation_config
 from src.reconciliation.extension.consistency_checks import (
     has_unresolved_checks,
@@ -45,19 +53,13 @@ from src.reconciliation.extension.fx_transfer import (
 from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 from src.reconciliation.extension.matching import (
     MatchingContext,
-    _find_many_to_one_candidates,
-    _find_normal_candidates,
-    _find_transfer_candidates,
     _get_existing_active_match,
     _get_pending_layer2_transactions,
-    _within_combination_tolerance,
     accepted_transfer_txn_ids,
     auto_accept,
-    build_many_to_one_groups,
     calculate_match_score,
     execute_matching,
     find_candidates,
-    prune_candidates,
     score_group,
     score_single,
     sync_reconciliation_match_journal_entry_links,

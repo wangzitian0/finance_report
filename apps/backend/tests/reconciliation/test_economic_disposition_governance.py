@@ -47,7 +47,7 @@ COUNTERFACTUALS = (
     ),
     (
         "currency-explicit",
-        "apps/backend/src/reconciliation/base/config.py",
+        "apps/backend/src/reconciliation/extension/entry_reads.py",
         "def entry_total_amount(entry: JournalEntry, *, currency: str)",
         'def entry_total_amount(entry: JournalEntry, *, currency: str = "SGD")',
     ),

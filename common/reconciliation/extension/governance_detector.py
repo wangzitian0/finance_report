@@ -12,7 +12,7 @@ _TRANSFER_DETECTION = (
     "apps/backend/src/reconciliation/extension/phases/transfer_detection.py"
 )
 _TRANSFER_PAIRS = "apps/backend/src/reconciliation/extension/transfer_pairs.py"
-_CONFIG = "apps/backend/src/reconciliation/base/config.py"
+_ENTRY_READS = "apps/backend/src/reconciliation/extension/entry_reads.py"
 _ORM = "apps/backend/src/reconciliation/orm/reconciliation.py"
 _CONTRACT = "common/reconciliation/contract.py"
 
@@ -21,7 +21,7 @@ GOVERNANCE_SOURCE_PATHS = (
     _REPOSITORY,
     _TRANSFER_DETECTION,
     _TRANSFER_PAIRS,
-    _CONFIG,
+    _ENTRY_READS,
     _ORM,
     _CONTRACT,
 )
@@ -103,7 +103,7 @@ def _persistent_transfer_pair(repo_root: Path) -> list[str]:
 
 
 def _currency_explicit(repo_root: Path) -> list[str]:
-    path = repo_root / _CONFIG
+    path = repo_root / _ENTRY_READS
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     functions = {
         node.name: node
@@ -114,7 +114,7 @@ def _currency_explicit(repo_root: Path) -> list[str]:
     for name in ("entry_total_amount", "entry_bank_side_amount"):
         function = functions.get(name)
         if function is None:
-            findings.append(f"{_CONFIG}: missing {name}")
+            findings.append(f"{_ENTRY_READS}: missing {name}")
             continue
         defaults = dict(
             zip(
@@ -124,11 +124,13 @@ def _currency_explicit(repo_root: Path) -> list[str]:
             )
         )
         if "currency" not in defaults or defaults["currency"] is not None:
-            findings.append(f"{_CONFIG}: {name} must require keyword-only currency")
+            findings.append(
+                f"{_ENTRY_READS}: {name} must require keyword-only currency"
+            )
     findings.extend(
         _contains(
             repo_root,
-            _CONFIG,
+            _ENTRY_READS,
             ("line.money.currency == target", "Money.sum(debits, currency=target)"),
         )
     )
