@@ -18,6 +18,8 @@ Bidirectional lock:
 
 import json
 import sys
+
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -182,11 +184,35 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
     ):
         assert by_env[env_name].source == "decision", env_name
         assert by_env[env_name].injected and not by_env[env_name].store_backed, env_name
-    assert by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
-    assert by_env["OCR_MODEL"].source == "code" and by_env["VISION_MODEL"].source == "code"
+    assert (
+        by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
+    )
+    assert (
+        by_env["OCR_MODEL"].source == "code" and by_env["VISION_MODEL"].source == "code"
+    )
     for entry in committed["fields"]:
         assert entry["source"] in {"human", "runtime", "release", "decision", "code"}, (
             entry["env"]
         )
         if entry["vault"]:
             assert entry["source"] != "code" or entry["injected"], entry["env"]
+
+
+def test_AC_runtime_guard_proofs_13_unknown_source_class_name_exits_with_the_field_name(
+    monkeypatch,
+):
+    """AC-runtime.guard-proofs.13 (#2005): the side table names settings fields; a typo
+    must stop the generator with the offending name, not a stack trace (review on #2028).
+    infra2-sdk raises ValueError for it; the tool turns that into a short SystemExit."""
+    import types
+
+    real = gen._settings_module()
+    fake = types.SimpleNamespace(
+        Settings=real.Settings,
+        ENV_SOURCE_CLASSES={"not_a_setting": {"source": "human"}},
+    )
+    monkeypatch.setattr(gen, "_settings_module", lambda: fake)
+    with pytest.raises(SystemExit) as stop:
+        gen._environment_contract()
+    assert "not_a_setting" in str(stop.value)
+    assert str(stop.value).startswith("ENV_SOURCE_CLASSES:")
