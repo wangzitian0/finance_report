@@ -29,6 +29,9 @@ def _load_reconciliation_module():
 
 
 reconciliation_module = _load_reconciliation_module()
+candidate_policy_module = importlib.import_module(
+    "src.reconciliation.extension.candidate_policy"
+)
 normal_phase_module = importlib.import_module(
     "src.reconciliation.extension.phases.normal_matching"
 )
@@ -147,7 +150,7 @@ async def test_execute_matching_score_thresholds(
             "run_many_to_one_phase",
             new=AsyncMock(return_value=[]),
         ),
-        patch.object(normal_phase_module, "is_entry_balanced", return_value=True),
+        patch.object(candidate_policy_module, "is_entry_balanced", return_value=True),
         patch.object(
             reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
         ),
@@ -224,7 +227,7 @@ async def test_execute_matching_rerun_is_idempotent_for_same_match() -> None:
             "run_many_to_one_phase",
             new=AsyncMock(return_value=[]),
         ),
-        patch.object(normal_phase_module, "is_entry_balanced", return_value=True),
+        patch.object(candidate_policy_module, "is_entry_balanced", return_value=True),
         patch.object(
             reconciliation_module, "score_pattern", new=AsyncMock(return_value=0.0)
         ),
