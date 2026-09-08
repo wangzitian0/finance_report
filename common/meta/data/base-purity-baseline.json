@@ -10,7 +10,6 @@
   "ledger/base/validators.py::import src.config",
   "llm/base/secrets.py::import src.config",
   "llm/base/usage.py::from src.observability import get_logger",
-  "reconciliation/base/config.py::from src.observability import get_logger",
   "reconciliation/base/repository.py::from src.extraction.orm.layer2 import AtomicTransaction",
   "reconciliation/base/repository.py::from src.reconciliation.orm.reconciliation import ReconciliationMatch"
 ]

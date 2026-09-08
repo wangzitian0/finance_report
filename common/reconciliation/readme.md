@@ -77,6 +77,18 @@ reference resolves, no upward import edge).
 Runtime threshold values are code/config-owned. The defaults live in
 `apps/backend/src/reconciliation/base/config.py` (`DEFAULT_CONFIG`) and
 are loaded from `apps/backend/config/reconciliation.yaml` when present.
+The loader/cache/environment/logging boundary is
+`apps/backend/src/reconciliation/extension/config.py`; it resolves the backend
+config directory, not the retired `src/config/` lookup. The shipped YAML equals
+the code defaults. Resolution order remains defaults, YAML, then environment,
+with an explicit `force_reload` to refresh the cached immutable value.
+The YAML AI switch accepts boolean values, integer `0`/`1`, and explicit
+case-insensitive string forms (`true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0`).
+Quoted `"false"` stays false; unsupported values use the existing invalid-YAML
+defaults fallback before environment overrides, never Python truthiness.
+YAML remains optional: the current backend image does not copy this file, so
+an image without a supplied config file uses defaults plus environment overrides.
+This code cutover does not change image packaging or deployed configuration.
 The scoring and routing application of those values lives in
 `apps/backend/src/reconciliation/extension/matching.py`.
 Environment overrides are applied by `load_reconciliation_config()`:
@@ -85,6 +97,24 @@ Environment overrides are applied by `load_reconciliation_config()`:
 they receive the fully resolved `ReconciliationConfig` value.
 Update the config/code and tests first when changing values — this doc
 describes the default routing semantics, it doesn't own them.
+
+### Configuration and ledger-read ownership
+
+`base/config.py` owns only `ReconciliationConfig`, `MatchCandidate`, and their
+defaults/limits. The five ledger-dependent entry/candidate helpers live once in
+`extension/entry_reads.py`; matching phases and review adapters use that owner.
+Published `src.reconciliation` names/signatures remain stable. The old base
+function definitions and base re-exports are removed rather than retained as
+compatibility shims. `load_reconciliation_config` is an I/O-bearing service,
+not a pure factory in the unit taxonomy.
+
+AC-reconciliation.config-boundary.1–3 lock ownership, real-file loading,
+cache/override behavior, currency-filtered Money arithmetic, balance validation,
+and source-rank tie breaking. Rejected: teaching the pure configuration values
+about files/ORM, or replacing typed journal values with `Any` to hide coupling.
+The repository's ORM-typed port and eager package bootstrap remain explicit
+#1863 debt; this slice establishes direct module purity, not a dependency-free
+ordinary import of the whole package. No posting rules or persistence change.
 
 | Score Range | Action | Status Transition |
 |-------------|--------|-------------------|
@@ -243,7 +273,7 @@ Transactions are grouped by their own `currency`. The legacy scalar check
 (`opening + Σ(IN) − Σ(OUT) ≈ closing`) is the degenerate one-currency case of
 this rule; a mismatch in one currency flags only that currency
 (`AC-reconciliation.per-currency-balance.*`). Implemented by
-`validate_balance_per_currency` (`services/validation.py`); schema
+`validate_balance_per_currency` (`extraction/base/validation.py`); schema
 `CurrencyBalance` (`schemas/extraction.py`).
 
 ### <a id="fx-cross-currency-transfer-pairing"></a>FX / cross-currency transfer pairing
@@ -271,7 +301,7 @@ Implemented by `pair_fx_legs`/`build_fx_conversion`
 
 **Ledger-based auto-discovery** — a transfer recorded only as RAW journal
 lines (no pre-seeded `fx_conversions` row) is still recognised.
-`services/fx_transfer_discovery.discover_fx_conversions` scans the user's
+`reconciliation/extension/fx_transfer_discovery.py::discover_fx_conversions` scans the user's
 `ASSET`-account journal lines in the window, reinterprets each as a
 directional `TransferLeg` (asset `DEBIT` = money `IN`, asset `CREDIT` = money
 `OUT`), and pairs OUT/IN candidates through the same `pair_fx_legs` rule

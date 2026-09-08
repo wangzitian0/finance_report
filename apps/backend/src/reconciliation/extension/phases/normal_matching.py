@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus
-from src.reconciliation.base import (
-    ReconciliationRepository,
+from src.reconciliation.base import ReconciliationRepository
+from src.reconciliation.extension.entry_reads import (
     _candidate_is_better,
     entry_bank_side_amount,
     is_entry_balanced,

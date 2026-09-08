@@ -11,8 +11,8 @@ from sqlalchemy.orm import selectinload
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine, current_anchored_journal_entries
 from src.observability import get_logger
-from src.reconciliation.base.config import entry_total_amount
 from src.reconciliation.base.errors import AmountMismatchError, EntryCreationError, MatchNotFoundError
+from src.reconciliation.extension.entry_reads import entry_total_amount
 from src.reconciliation.extension.matching import sync_reconciliation_match_journal_entry_links
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 

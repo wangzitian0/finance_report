@@ -17,20 +17,22 @@ from src.reconciliation.base import (
     ReconciliationError,
     ReviewedDispositionCommand,
     ReviewedDispositionError,
-    _candidate_is_better,
     build_reconciliation_prompt,
-    entry_bank_side_amount,
-    entry_total_amount,
-    is_entry_balanced,
-    load_reconciliation_config,
 )
 from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
 from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.config import load_reconciliation_config
 from src.reconciliation.extension.consistency_checks import (
     has_unresolved_checks,
     list_checks,
     resolve_check,
     run_all_consistency_checks,
+)
+from src.reconciliation.extension.entry_reads import (
+    _candidate_is_better,
+    entry_bank_side_amount,
+    entry_total_amount,
+    is_entry_balanced,
 )
 from src.reconciliation.extension.fx_transfer import (
     DEFAULT_RATE_TOLERANCE,
