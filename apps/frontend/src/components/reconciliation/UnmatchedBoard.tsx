@@ -5,15 +5,14 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BackLink } from "@/components/ui/BackLink";
+import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { components } from "@/lib/api-types";
 import type {
   Account,
-  AccountListResponse,
   BankStatementTransactionSummary,
   JournalEntrySummary,
-  UnmatchedTransactionsResponse,
 } from "@/lib/types";
 
 type EconomicIntent = components["schemas"]["EconomicIntent"];
@@ -135,6 +134,7 @@ export default function UnmatchedBoard() {
       : statementReviewHref;
   const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountCreationType, setAccountCreationType] = useState<Account["type"] | null>(null);
   const [selected, setSelected] =
     useState<BankStatementTransactionSummary | null>(null);
   const [draft, setDraft] = useState<ReviewedDispositionDraft | null>(null);
@@ -214,7 +214,7 @@ export default function UnmatchedBoard() {
     const types = activeDraft ? compatibleAccountTypes(activeDraft.intent) : [];
     return accounts.filter(
       (account) =>
-        account.currency === currency && types.includes(account.type),
+        account.is_active && account.currency === currency && types.includes(account.type),
     );
   }, [accounts, activeDraft, selected]);
 
@@ -463,11 +463,21 @@ export default function UnmatchedBoard() {
                     </select>
                   </label>
                   {candidateAccounts.length === 0 && (
-                    <p className="text-xs text-muted">
-                      Create an active{" "}
-                      {compatibleAccountTypes(activeDraft.intent).join("/")}{" "}
-                      account in {selected.currency || "SGD"} before posting.
-                    </p>
+                    <div>
+                      <p className="text-xs text-muted">
+                        Create an active{" "}
+                        {compatibleAccountTypes(activeDraft.intent).join("/")}{" "}
+                        account in {selected.currency || "SGD"}, then select it here.
+                        Your review draft will be kept.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn-secondary mt-2"
+                        onClick={() => setAccountCreationType(compatibleAccountTypes(activeDraft.intent)[0])}
+                      >
+                        Create counter account
+                      </button>
+                    </div>
                   )}
                   {needsCategory(activeDraft.intent) && (
                     <label className="block text-sm font-medium">
@@ -532,6 +542,12 @@ export default function UnmatchedBoard() {
           )}
         </div>
       </div>
+      <AccountFormModal
+        isOpen={accountCreationType !== null}
+        initialType={accountCreationType ?? undefined}
+        onClose={() => setAccountCreationType(null)}
+        onSuccess={(account) => setAccounts((current) => [...current.filter((item) => item.id !== account.id), account])}
+      />
     </div>
   );
 }

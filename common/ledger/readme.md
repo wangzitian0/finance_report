@@ -66,6 +66,21 @@ Assets = Liabilities + Equity + (Income - Expenses)
 | Income | | ✓ | Credit |
 | Expense | ✓ | | Debit |
 
+### First-use setup
+
+Account creation and editing share `AccountFormModal`, whose success callback
+returns the saved account. Review consumers can update their available accounts
+without resetting a transaction draft or duplicating the ledger writer.
+
+Guided opening balances start with a blank as-of date. The user can supply the
+first report-period start and explicitly apply its previous calendar day, or
+enter an as-of date directly. For March 2026, the brought-forward date is
+February 28, even if the first transaction is March 2. Editing the period never
+silently rewrites the entered date; an entered period rejects opening dates on
+or after its start. The final confirmation posts decimal-string balances through
+the existing opening-balance endpoint. This is ledger setup, not statement
+source approval or an automatic classification decision (`AC-ledger.first-use.1`).
+
 ### Entry Structure
 
 ```mermaid

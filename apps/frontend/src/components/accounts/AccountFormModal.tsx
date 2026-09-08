@@ -12,7 +12,8 @@ import { Account } from "@/lib/types";
 interface AccountFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (account: Account) => void;
+  initialType?: Account["type"];
   editAccount?: Account | null;
 }
 
@@ -52,6 +53,7 @@ function AccountFormContent({
   onClose,
   onSuccess,
   editAccount,
+  initialType = "ASSET",
 }: AccountFormModalProps) {
   const [error, setError] = useState<string | null>(null);
   const isEditing = !!editAccount;
@@ -64,7 +66,7 @@ function AccountFormContent({
     defaultValues: {
       name: "",
       code: "",
-      type: "ASSET",
+      type: initialType,
       currency: "SGD",
       description: "",
     },
@@ -79,10 +81,11 @@ function AccountFormContent({
     },
   });
 
+
   const handleCreateSubmit = async (data: CreateAccountForm) => {
     setError(null);
     try {
-      await apiOperation("create_account_accounts_post", {
+      const account = await apiOperation("create_account_accounts_post", {
         body: {
           name: data.name,
           code: data.code || null,
@@ -91,7 +94,7 @@ function AccountFormContent({
           description: data.description || null,
         },
       });
-      onSuccess();
+      onSuccess(account);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
@@ -102,7 +105,7 @@ function AccountFormContent({
     if (!editAccount) return;
     setError(null);
     try {
-      await apiOperation("update_account_accounts__account_id__put", {
+      const account = await apiOperation("update_account_accounts__account_id__put", {
         path: { account_id: editAccount.id },
         body: {
           name: data.name,
@@ -110,7 +113,7 @@ function AccountFormContent({
           is_active: data.is_active,
         },
       });
-      onSuccess();
+      onSuccess(account);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update account");
@@ -122,6 +125,9 @@ function AccountFormContent({
       <div className="fixed inset-0 bg-black/60" onClick={onClose} />
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEditing ? "Edit Account" : "New Account"}
         className="relative z-10 w-full max-w-md card animate-slide-up"
       >
         <div className="card-header">
@@ -238,10 +244,10 @@ function AccountFormContent({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">
+                <label htmlFor="new-account-type" className="block text-sm font-medium mb-1.5">
                   Type *
                 </label>
-                <select {...createForm.register("type")} className="input">
+                <select id="new-account-type" {...createForm.register("type")} className="input">
                   {ACCOUNT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
