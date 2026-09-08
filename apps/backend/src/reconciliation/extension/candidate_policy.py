@@ -61,8 +61,8 @@ def prune_candidates(
 
     Prioritizes:
     1. Exact amount matches (within 1%)
-    2. Then by date proximity
-    3. Then by absolute amount difference
+    2. Then by absolute amount difference
+    3. Then by date proximity
     """
     if len(candidates) <= limit:
         return candidates
