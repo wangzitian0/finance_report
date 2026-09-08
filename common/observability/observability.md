@@ -287,13 +287,12 @@ API keys are stored in Vault at `secret/platform/{env}/signoz`:
 | `api_key_id` | UUID for key management |
 | `url` | the observability backend base URL |
 
-Read API key from Vault:
+Read the API key (an infra2 operator action — Finance Report never reads Vault,
+and nobody uses the Vault root token for this: it is infra2's bootstrap-only
+credential; day-to-day reads go through a bounded, short-lived token):
 ```bash
-# WARNING: Vault root token is highly privileged. Do not log or persist in shell history.
-# Prefer using `op run` to avoid exposing the token in environment variables.
-op run --env-file=<(echo 'VAULT_ROOT_TOKEN="op://Infra2/dexluuvzg5paff3cltmtnlnosm/Root Token"') -- \
-  curl -s "https://vault.zitian.party/v1/secret/data/platform/production/signoz" \
-  -H 'X-Vault-Token: $VAULT_ROOT_TOKEN' | jq '.data.data.api_key'
+# From the infra2 repo (see its docs/ssot/bootstrap.vars_and_secrets.md §5).
+invoke env.get api_key --project=platform --env=production --service=signoz
 ```
 
 ### 9.3 API Key Usage

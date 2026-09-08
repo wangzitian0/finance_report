@@ -512,12 +512,11 @@ ZAI_API_KEY=<YOUR_ZAI_API_KEY>
 AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 AI_CHAT_COMPLETIONS_PATH=/chat/completions
 AI_LAYOUT_PARSING_PATH=/layout_parsing
-AI_MODEL_CATALOG_SOURCE=configured
-PRIMARY_MODEL=glm-5.1
-OCR_MODEL=glm-4.6v
-VISION_MODEL=glm-4.6v
-FALLBACK_MODELS=glm-5-turbo,glm-5
-VISION_FALLBACK_MODELS=glm-4.5v
+PRIMARY_MODEL=glm-5.3
+OCR_MODEL=glm-5.3-flash
+VISION_MODEL=glm-5.3-flash
+FALLBACK_MODELS=glm-5.2,glm-5.1
+VISION_FALLBACK_MODELS=glm-4.6v,glm-4.5v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
@@ -525,7 +524,6 @@ STATEMENT_DISPOSITION_MODE=enforce
 # Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
 # glm-4.6v rejects `seed` with HTTP 400.
 AI_JSON_SEED=
-AI_DAILY_LIMIT_USD=2
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
 S3_SECRET_KEY=<YOUR_S3_SECRET_KEY>

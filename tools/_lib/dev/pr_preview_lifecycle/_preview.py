@@ -197,7 +197,6 @@ def build_preview_env(
         "AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
         "AI_CHAT_COMPLETIONS_PATH": "/chat/completions",
         "AI_LAYOUT_PARSING_PATH": "/layout_parsing",
-        "AI_MODEL_CATALOG_SOURCE": "configured",
         "PRIMARY_MODEL": "glm-5.1",
         "OCR_MODEL": "glm-4.6v",
         "VISION_MODEL": "glm-4.6v",
