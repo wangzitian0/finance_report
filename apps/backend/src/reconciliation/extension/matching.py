@@ -22,8 +22,7 @@ from src.ledger import (
 )
 from src.llm import ai_semantic_score
 from src.observability import get_logger, record_reconciliation_match_outcome
-from src.reconciliation.base.config import (  # noqa: F401
-    DEFAULT_CONFIG,
+from src.reconciliation.base.config import (
     MAX_COMBINATION_CANDIDATES,
     MatchCandidate,
     ReconciliationConfig,
@@ -37,9 +36,8 @@ from src.reconciliation.extension.entry_reads import (
     is_entry_balanced,
 )
 from src.reconciliation.extension.repository import SqlReconciliationRepository
-from src.reconciliation.extension.scoring import (  # noqa: F401
+from src.reconciliation.extension.scoring import (
     extract_merchant_tokens,
-    is_cross_period,
     normalize_text,
     score_amount,
     score_business_logic,

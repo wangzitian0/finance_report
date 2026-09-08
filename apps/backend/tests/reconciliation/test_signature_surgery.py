@@ -22,6 +22,7 @@ from src.ledger import (
 )
 from src.ledger.base.processing import _calculate_pair_confidence
 from src.reconciliation import (
+    DEFAULT_CONFIG,
     AmountMismatchError,
     CheckResolutionAction,
     EntryCreationError,
@@ -126,7 +127,7 @@ async def test_scoring_has_explicit_modes_and_no_hidden_environment_switch(monke
         assert "os.getenv" not in inspect.getsource(module)
 
     config = replace(
-        matching.DEFAULT_CONFIG,
+        DEFAULT_CONFIG,
         weight_amount=Decimal("1"),
         weight_date=Decimal("0"),
         weight_description=Decimal("0"),
@@ -183,7 +184,7 @@ async def test_group_scoring_keeps_bonus_separate_from_multi_tolerance(monkeypat
         SimpleNamespace(),
         transaction,
         [entry],
-        matching.DEFAULT_CONFIG,
+        DEFAULT_CONFIG,
         uuid4(),
         group_amount=Decimal("1000"),
         history_score=100.0,
