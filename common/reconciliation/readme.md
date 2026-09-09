@@ -67,6 +67,14 @@ this roadmap yet. `tools/check_package_contract.py` validates the
 implementation against this contract (interface == `__all__`, every test
 reference resolves, no upward import edge).
 
+The `economic-disposition-atomicity` initiative is measured by one package-owned
+provider, `extension/governance_detector.py`. It reads the live matching,
+repository, schema, currency, transfer-pair, and typed-ledger boundaries and
+emits raw findings only. Executed proof and enforcement facts remain independent
+CI inputs; detector success cannot manufacture either one. Database constraints,
+two-session races, retry/savepoint behavior, and Decimal oracles execute in the
+CI lane declared by each guarantee.
+
 ## Scoring, thresholds, and the state machine
 
 *(Internalized from `common/reconciliation/reconciliation.md`, migration closeout wave 3,
@@ -89,8 +97,10 @@ defaults fallback before environment overrides, never Python truthiness.
 YAML remains optional: the current backend image does not copy this file, so
 an image without a supplied config file uses defaults plus environment overrides.
 This code cutover does not change image packaging or deployed configuration.
-The scoring and routing application of those values lives in
-`apps/backend/src/reconciliation/extension/matching.py`.
+The deterministic scoring and candidate selection rules live in
+`apps/backend/src/reconciliation/extension/candidate_policy.py`;
+`apps/backend/src/reconciliation/extension/matching.py` owns history/provider
+I/O, threshold routing, and phase orchestration.
 Environment overrides are applied by `load_reconciliation_config()`:
 `RECONCILIATION_AUTO_ACCEPT_THRESHOLD`, `RECONCILIATION_REVIEW_THRESHOLD`, and
 `ENABLE_AI_RECONCILIATION`. Matching/scoring bodies never read the environment;
@@ -107,6 +117,36 @@ Published `src.reconciliation` names/signatures remain stable. The old base
 function definitions and base re-exports are removed rather than retained as
 compatibility shims. `load_reconciliation_config` is an I/O-bearing service,
 not a pure factory in the unit taxonomy.
+
+### Candidate policy ownership
+
+`extension/candidate_policy.py` is the single implementation of candidate
+pruning, batch grouping, balanced single/pair/triple enumeration, and rule
+scoring. Both live matching phases and the deterministic audit consume it;
+equal scores use `entry_reads.py`'s source-rank ordering. Batch membership uses
+normalized description, date, direction, and currency in both paths. Journal
+evidence precedes transfer-keyword fallback; a keyword never masks an existing
+eligible journal candidate in the audit.
+
+The duplicate audit score bodies and live pair/triple loops are removed.
+Published package-root helper names remain direct imports from their owner,
+not forwarding implementations in `matching.py`. History lookup, optional AI
+rescoring, transaction claims, supersession, and writes remain in the execution
+adapters. The deterministic audit proves rules with supplied history scores;
+it does not claim live-provider, persistence, or end-to-end product proof.
+
+This does not complete the whole DDD migration: the ORM-bearing repository port
+and published ORM reads remain tracked under the #1863 closeout, pending typed
+ledger/extraction read contracts. They are retained explicitly to preserve
+tenant-scoped queries, eager line loading, and transaction identity; this slice
+does not disguise mapped entities as pure DTOs or copy them into a second writer.
+The historical package-root helper signatures are also retained until their
+consumers migrate; no new compatibility module is introduced.
+
+Structural governance hints ignore whitespace-only formatting. Missing,
+unreadable, or syntactically invalid inspected inputs produce a nonzero finding
+for their guarantee without discarding unrelated observations; executed proofs
+and enforcement still come from the independent CI lanes.
 
 AC-reconciliation.config-boundary.1–3 lock ownership, real-file loading,
 cache/override behavior, currency-filtered Money arithmetic, balance validation,
@@ -210,8 +250,8 @@ but it is not a substitute for these reconciliation-owned write invariants.
 
 ### Accuracy audit harness
 
-EPIC-004's production-quality claim is proven by an audit-grade
-expected-vs-actual run, not only individual scoring examples. The harness in
+EPIC-004's deterministic matching-quality claim is checked by an
+expected-vs-actual rule-policy run, not only individual scoring examples. The harness in
 `apps/backend/src/reconciliation/extension/reconciliation_audit.py` builds
 deterministic golden scenarios (exact matches, similar matches, unrelated
 transactions, review-band routing, transfer-shaped transactions, many-to-one

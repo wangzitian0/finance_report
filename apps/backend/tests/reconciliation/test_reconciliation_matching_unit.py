@@ -769,7 +769,7 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
     )
 
     with patch(
-        "src.reconciliation.extension.phases.normal_matching.is_entry_balanced",
+        "src.reconciliation.extension.candidate_policy.is_entry_balanced",
         return_value=False,
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -2039,12 +2039,12 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, te
 
     # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is marked unbalanced
     with patch(
-        "src.reconciliation.extension.matching.is_entry_balanced", side_effect=lambda entry: entry.id != entry_b.id
+        "src.reconciliation.extension.candidate_policy.is_entry_balanced",
+        side_effect=lambda entry, *, base_currency: entry.id != entry_b.id,
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
     # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
-    # Result depends on scoring but the key is the code path is exercised
-    assert isinstance(matches, list)
+    assert all(str(entry_b.id) not in match.journal_entry_ids for match in matches)
 
 
 async def test_calculate_match_score_no_history_override(db: AsyncSession):

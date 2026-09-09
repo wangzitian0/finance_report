@@ -966,7 +966,7 @@ async def test_execute_matching_many_to_one_skips_unbalanced_entry(db: AsyncSess
     with (
         patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
         patch("src.reconciliation.extension.phases.many_to_one.is_entry_balanced", return_value=False),
-        patch("src.reconciliation.extension.phases.normal_matching.is_entry_balanced", return_value=False),
+        patch("src.reconciliation.extension.candidate_policy.is_entry_balanced", return_value=False),
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
@@ -1014,7 +1014,7 @@ async def test_execute_matching_many_to_one_keeps_same_existing_match(db: AsyncS
         ),
         patch("src.reconciliation.extension.phases.transfer_detection.detect_transfer_pattern", return_value=False),
         patch("src.reconciliation.extension.matching.find_transfer_pairs", new_callable=AsyncMock, return_value=[]),
-        patch("src.reconciliation.extension.matching.entry_total_amount", return_value=Decimal("100.00")),
+        patch("src.reconciliation.extension.candidate_policy.entry_total_amount", return_value=Decimal("100.00")),
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
@@ -1116,7 +1116,7 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
             return_value=[entry_a, entry_b, entry_c],
         ),
         patch(
-            "src.reconciliation.extension.phases.normal_matching.is_entry_balanced",
+            "src.reconciliation.extension.candidate_policy.is_entry_balanced",
             side_effect=lambda e, *, base_currency: e.id != entry_c.id,
         ),
         patch(
@@ -1124,7 +1124,7 @@ async def test_execute_matching_three_entry_combination_skips_unbalanced_member(
             new_callable=AsyncMock,
             return_value=low_score,
         ),
-        patch("src.reconciliation.extension.matching.entry_total_amount", return_value=Decimal("1.00")),
+        patch("src.reconciliation.extension.candidate_policy.entry_total_amount", return_value=Decimal("1.00")),
         patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")

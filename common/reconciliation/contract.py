@@ -93,12 +93,12 @@ CONTRACT = PackageContract(
         Unit(
             name="prune_candidates",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="build_many_to_one_groups",
             kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
+            module="extension/candidate_policy.py",
         ),
         Unit(
             name="get_reconciliation_stats",
@@ -281,6 +281,18 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-reconciliation.candidate-policy.1",
+            statement=(
+                "Live matching and the deterministic accuracy audit share candidate "
+                "enumeration, rule scoring and source-rank ordering; journal evidence "
+                "precedes transfer-keyword fallback in both paths."
+            ),
+            test="apps/backend/tests/reconciliation/test_candidate_policy.py::test_live_and_audit_choose_the_same_evidence",
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-reconciliation.config-boundary.1",
             statement="Configuration values have no direct runtime or ledger dependency; retired base behaviors have exactly one extension owner.",
@@ -2354,7 +2366,7 @@ CONTRACT = PackageContract(
         GovernanceInitiative(
             id="economic-disposition-atomicity",
             title="Economic disposition atomicity and persistent transfer state",
-            issue="https://github.com/wangzitian0/finance_report/issues/1969",
+            issue="https://github.com/wangzitian0/finance_report/issues/1994",
             depends_on=["meta/governance-control-plane"],
             guarantees=[
                 GovernanceGuarantee(
@@ -2418,10 +2430,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.6"],
                     detector="non-idempotent-disposition-retries",
                     target="0 cardinality drift",
-                    lock="ci.backend",
+                    lock="ci.backend_integration",
                     proof="economic-disposition-idempotency",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.backend",
+                    enforcing_gate="ci.backend_integration",
                 ),
                 GovernanceGuarantee(
                     id="typed-ledger-boundary",
@@ -2429,10 +2441,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.7"],
                     detector="reconciliation-owned-ledger-writes",
                     target="0 alternate posting paths",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="economic-disposition-ledger-boundary",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
                 GovernanceGuarantee(
                     id="exact-governance-detail",
@@ -2440,10 +2452,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-reconciliation.economic-disposition.8"],
                     detector="economic-disposition-governance-join-gaps",
                     target="0 missing detail facts",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="economic-disposition-governance-detail",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
             ],
         )
