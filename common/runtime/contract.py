@@ -1315,6 +1315,25 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
         ),
+        # ── Empty environment values (an empty value is a value, not "unset") ──
+        ACRecord(
+            id="AC-runtime.env-empty-values.1",
+            statement=(
+                "No shipped environment artifact (`.env.example`, the root "
+                "`docker-compose*.yml` files) materializes an empty value for an "
+                "env name that participates in a `Settings` alias chain: an empty "
+                "value is a value today, so shipping one shadows every later alias "
+                "in its chain. The alias names are derived from the generated "
+                "required-env manifest, so a chain added later is covered without "
+                "editing the guard."
+            ),
+            test=(
+                "tests/tooling/test_env_empty_value_producers.py"
+                "::test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_value"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

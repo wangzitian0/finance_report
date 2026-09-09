@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -106,6 +107,22 @@ def _canonical_key(name: str, field) -> str:
     return name.upper()
 
 
+def _alias_names(field) -> list[str]:
+    """The non-canonical names of the field's ``AliasChoices`` chain, if any.
+
+    Mirrors the ``aliases`` column of the generated required-env manifest. A
+    non-empty list means the field is resolved by "first name **present** wins",
+    which is why an empty assignment to any of them is never shippable
+    (AC-runtime.env-empty-values.1).
+    """
+    from pydantic import AliasChoices
+
+    alias = field.validation_alias
+    if isinstance(alias, AliasChoices):
+        return [str(choice) for choice in alias.choices[1:]]
+    return []
+
+
 def _render_value(value: object) -> str:
     """Render a value as it should appear after ``KEY=``."""
     if value is None:
@@ -150,6 +167,7 @@ def collect_backend_fields() -> list[dict]:
                 "group": str(extra["group"]),
                 "vault": bool(extra.get("vault", False)),
                 "extra_keys": list(extra.get("extra_keys", [])),
+                "aliases": _alias_names(field),
             }
         )
     return fields
@@ -159,6 +177,20 @@ def _group_sort_key(group: str) -> tuple[int, str]:
     if group in GROUP_ORDER:
         return (GROUP_ORDER.index(group), "")
     return (len(GROUP_ORDER), group)
+
+
+# Why a field can be documented as a comment instead of an assignment
+# (AC-runtime.env-empty-values.1): ``Settings`` has no ``env_ignore_empty``, so an
+# empty value is a *value*, and for an ``AliasChoices`` field the first name
+# **present** wins. Shipping ``ZAI_API_KEY=`` in an example a developer copies to
+# ``.env`` therefore shadows the ``GEMINI_API_KEY`` they did fill in. An
+# alias-chain field with no example value is emitted as one commented canonical
+# line, and its alias keys are not emitted at all.
+ALIAS_CHAIN_EMPTY_NOTE = (
+    'Commented on purpose: an empty assignment is a value, not "unset" — it would '
+    "shadow the rest of this key's alias chain. Uncomment and fill in exactly one "
+    "name from the chain."
+)
 
 
 def render_backend_block(fields: list[dict]) -> str:
@@ -175,6 +207,10 @@ def render_backend_block(fields: list[dict]) -> str:
             if field["vault"]:
                 comment = f"{comment} [VAULT]"
             lines.append(f"# {comment}")
+            if field["aliases"] and not field["value"]:
+                lines.append(f"# {ALIAS_CHAIN_EMPTY_NOTE}")
+                lines.append(f"# {field['key']}=")
+                continue
             lines.append(f"{field['key']}={field['value']}")
             for extra_key in field["extra_keys"]:
                 lines.append(f"{extra_key}={field['value']}")
@@ -183,6 +219,33 @@ def render_backend_block(fields: list[dict]) -> str:
     while lines and lines[-1] == "":
         lines.pop()
     return "\n".join(lines)
+
+
+_ASSIGNED_KEY_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+# The commented form requires ``=`` immediately after the key, so ordinary prose
+# ("# Rotate = prepend a new key") can never be mistaken for a documented key.
+_COMMENTED_KEY_RE = re.compile(r"^\s*#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=")
+
+
+def env_example_documented_keys(text: str) -> set[str]:
+    """Every env key ``.env.example`` documents.
+
+    A key is documented either by an assignment (``KEY=value``) or by a commented
+    canonical example (``# KEY=``, no space before the ``=``). The commented form
+    is the *required* shape for an alias-chain key that has no example value:
+    assigning it empty would shadow the rest of its chain
+    (AC-runtime.env-empty-values.1), so "present in .env.example" cannot mean
+    "assigned in .env.example".
+    """
+    keys: set[str] = set()
+    for line in text.splitlines():
+        pattern = (
+            _COMMENTED_KEY_RE if line.lstrip().startswith("#") else _ASSIGNED_KEY_RE
+        )
+        match = pattern.match(line)
+        if match:
+            keys.add(match.group(1))
+    return keys
 
 
 def render_env_example(existing: str | None, fields: list[dict]) -> str:

@@ -100,12 +100,18 @@ services:
       S3_BUCKET: ${S3_BUCKET:-statements}
       BASE_CURRENCY: ${BASE_CURRENCY:-SGD}
       AI_PROVIDER: ${AI_PROVIDER:-zai}
-      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      # Pass-through form (no value): Compose sets this in the container only when
+      # the environment it runs with actually has it, and omits the key entirely
+      # otherwise. `${ZAI_API_KEY:-}` would instead materialize an EMPTY value,
+      # which `Settings` treats as a value rather than "unset" — shadowing the rest
+      # of the ai_api_key alias chain (AC-runtime.env-empty-values.1). The preview
+      # never supplies a real key, so AI features stay off here either way.
+      ZAI_API_KEY:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.z.ai/api/paas/v4}
       AI_CHAT_COMPLETIONS_PATH: ${AI_CHAT_COMPLETIONS_PATH:-/chat/completions}
       AI_LAYOUT_PARSING_PATH: ${AI_LAYOUT_PARSING_PATH:-/layout_parsing}
       # AI model ids (PRIMARY/OCR/VISION/FALLBACK_MODELS) are deliberately not pinned
-      # here: the config.py code defaults apply (the preview runs with an empty
+      # here: the config.py code defaults apply (the preview gets no real
       # ZAI_API_KEY, so AI is off regardless). A duplicate pin here drifted from the
       # code for months (#2005); the retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD
       # knobs (dropped per common/llm/contract.py AC-llm.2.6 / AC-llm.4.6) are gone too.

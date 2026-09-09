@@ -69,7 +69,18 @@ def parse_secrets_ctmpl(path: Path) -> set[str]:
 
 
 def parse_env_example(path: Path) -> set[str]:
-    """Extract KEY list from .env.example."""
+    """Extract the KEY list .env.example documents.
+
+    A key counts as documented when it is assigned (``KEY=value``) **or** shipped
+    as a commented canonical example (``# KEY=``). The commented form is the
+    required shape for a key whose ``Settings`` field is resolved through an
+    ``AliasChoices`` chain and has no example value: an empty assignment is a
+    value, not "unset", so it would shadow every later alias in that chain
+    (AC-runtime.env-empty-values.1,
+    ``tests/tooling/test_env_empty_value_producers.py``). Prose comments are not
+    matched — inside a comment the ``=`` must follow the key name directly, so
+    "# Rotate = prepend a new key" is prose, not a documented key.
+    """
     if not path.exists():
         print(f"WARNING: .env.example not found: {path}")
         return set()
@@ -77,20 +88,17 @@ def parse_env_example(path: Path) -> set[str]:
     content = path.read_text()
     keys = set()
 
-    # Regex to handle:
-    # 1. Optional 'export ' prefix
-    # 2. Key name (word characters)
-    # 3. Optional whitespace
-    # 4. = sign
-    # 5. Ignore comments starting with #
-    pattern = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+    # An assignment: optional 'export ' prefix, key name, optional whitespace, '='.
+    assigned = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+    # A commented canonical example: '#', the key, then '=' with nothing between.
+    commented = re.compile(r"^#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=")
 
     for line in content.splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line:
             continue
 
-        match = pattern.match(line)
+        match = (commented if line.startswith("#") else assigned).match(line)
         if match:
             keys.add(match.group(1))
 

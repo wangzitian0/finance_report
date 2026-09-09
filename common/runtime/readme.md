@@ -134,6 +134,29 @@ availability* ("can a user reach the app?"). Deployed-service incident routing
 (502/503, stale version, secrets, flapping) lives in
 [`common/runtime/runtime-incident-response.md`](../../common/runtime/runtime-incident-response.md).
 
+## Empty environment values are not "unset"
+
+`Settings` (`apps/backend/src/config.py`) does not set `env_ignore_empty`, so an
+empty environment value is a **value**, never an absent one. Where a field is
+resolved through an `AliasChoices` chain the first name *present* wins, so a
+shipped `ZAI_API_KEY=` shadows the `GEMINI_API_KEY` a developer did fill in; the
+same mechanism turns `CORS_ORIGINS=` into an empty origin list instead of the
+default, and `API_RATE_LIMIT_REQUESTS=` into a `ValidationError` at import
+(`settings = Settings()` runs at module scope). **No artifact this repo ships may
+therefore assign an empty value** to an env name in an alias chain:
+`.env.example` documents such a key as a single commented canonical example
+(`# ZAI_API_KEY=`, emitted by `tools/generate_env_reference.py`), and the compose
+files use the pass-through form (`ZAI_API_KEY:` with no value), which sets the
+variable in the container only when the environment Compose runs with actually
+has it. `tests/tooling/test_env_empty_value_producers.py` enforces this across
+`.env.example` and the root `docker-compose*.yml` files, deriving the watched
+names from `required-env.generated.json` so a chain added later is covered
+without editing the guard (AC-runtime.env-empty-values.1). Making an empty value
+*mean* "unset" at the model level (`env_ignore_empty=True`) is the durable fix
+and is tracked separately in #2032 — it changes the resolution semantics of every
+settings field, so the DDD boundary gate requires an exact consumer proof per
+affected package before it can land.
+
 ## Boundaries with neighbouring packages
 
 - **`config`** — owns the env-var *mechanism*: the three-layer SSOT
