@@ -10,9 +10,9 @@
       "file_count": 327
     },
     "frontend": {
-      "total_lines": 4373,
-      "covered_lines": 4340,
-      "coverage_percent": 99.25,
+      "total_lines": 4455,
+      "covered_lines": 4422,
+      "coverage_percent": 99.26,
       "file_count": 189
     },
     "common": {
@@ -22,10 +22,10 @@
       "file_count": 186
     },
     "tools": {
-      "total_lines": 3318,
-      "covered_lines": 3065,
-      "coverage_percent": 92.37,
-      "file_count": 115
+      "total_lines": 3373,
+      "covered_lines": 3117,
+      "coverage_percent": 92.41,
+      "file_count": 116
     }
   }
 }
