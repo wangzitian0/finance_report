@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tokenize
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -2102,27 +2103,41 @@ def financial_signature_findings(
 
 
 def _strip_resolved_annotations(signature: str) -> str:
-    """Retain the declared surface while removing resolved annotation details."""
-
-    marker = " [annotations:"
-    output: list[str] = []
-    index = 0
-    while index < len(signature):
-        start = signature.find(marker, index)
-        if start == -1:
-            output.append(signature[index:])
-            break
-        output.append(signature[index:start])
-        depth = 1
-        cursor = start + len(marker)
-        while cursor < len(signature) and depth:
-            if signature[cursor] == "[":
-                depth += 1
-            elif signature[cursor] == "]":
-                depth -= 1
+    """Remove resolved annotation metadata while retaining quoted default values."""
+    tokens = _surface_tokens(signature)
+    if tokens is None:
+        return signature
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    while cursor + 2 < len(tokens):
+        value, start, _end, depth = tokens[cursor]
+        if (
+            value != "["
+            or tokens[cursor + 1][0] != "annotations"
+            or tokens[cursor + 2][0] != ":"
+        ):
             cursor += 1
-        index = cursor
-    return "".join(output)
+            continue
+        closing = next(
+            (
+                index
+                for index in range(cursor + 3, len(tokens))
+                if tokens[index][0] == "]" and tokens[index][3] == depth
+            ),
+            None,
+        )
+        if closing is None:
+            return signature
+        spans.append(
+            (
+                start - 1 if start and signature[start - 1] == " " else start,
+                tokens[closing][2],
+            )
+        )
+        cursor = closing + 1
+    for start, end in reversed(spans):
+        signature = signature[:start] + signature[end:]
+    return signature
 
 
 _QUOTED_FINGERPRINT_VALUE = r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\""
@@ -2169,27 +2184,233 @@ def _declared_public_surface(record: dict[str, object], key: str) -> str:
     return _normalize_literal_enum_bindings(_strip_resolved_annotations(primary))
 
 
-def _top_level_class_members(surface: str) -> list[str] | None:
-    start = surface.find("{")
-    if not surface.startswith("class(") or start < 0 or not surface.endswith("}"):
+def _surface_tokens(surface: str) -> list[tuple[str, int, int, int]] | None:
+    """Tokenize fingerprints without treating delimiters inside strings as syntax."""
+    offsets = [0]
+    for line in surface.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    stack: list[str] = []
+    result: list[tuple[str, int, int, int]] = []
+    closing = {")": "(", "]": "[", "}": "{"}
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(surface).readline):
+            if token.type in {
+                tokenize.ENCODING,
+                tokenize.ENDMARKER,
+                tokenize.NEWLINE,
+                tokenize.NL,
+            }:
+                continue
+            if token.type in {tokenize.ERRORTOKEN, tokenize.INDENT, tokenize.DEDENT}:
+                return None
+            value = token.string
+            if token.type == tokenize.OP and value in closing:
+                if not stack or stack.pop() != closing[value]:
+                    return None
+            start = offsets[token.start[0] - 1] + token.start[1]
+            end = offsets[token.end[0] - 1] + token.end[1]
+            result.append((value, start, end, len(stack)))
+            if token.type == tokenize.OP and value in {"(", "[", "{"}:
+                stack.append(value)
+    except (tokenize.TokenError, IndentationError, SyntaxError):
         return None
-    members: list[str] = []
-    item_start = start + 1
-    depths = {"[": 0, "(": 0, "{": 0}
-    pairs = {"]": "[", ")": "(", "}": "{"}
-    for index in range(item_start, len(surface) - 1):
-        character = surface[index]
-        if character in depths:
-            depths[character] += 1
-        elif character in pairs:
-            depths[pairs[character]] -= 1
-        elif character == ";" and not any(depths.values()):
-            members.append(surface[item_start:index].strip())
-            item_start = index + 1
-    final = surface[item_start:-1].strip()
-    if final:
-        members.append(final)
-    return members
+    return result if not stack else None
+
+
+def _class_surface(surface: str) -> tuple[str, list[str]] | None:
+    tokens = _surface_tokens(surface)
+    if tokens is None:
+        return None
+    starts = [
+        start for value, start, _end, depth in tokens if value == "{" and depth == 0
+    ]
+    classes = [
+        start for value, start, _end, depth in tokens if value == "class" and depth == 0
+    ]
+    if len(starts) != 1 or len(classes) != 1 or not surface.endswith("}"):
+        return None
+    start = starts[0]
+    header = surface[:start]
+    if classes[0] >= start or not header.endswith(")"):
+        return None
+    body = surface[start + 1 : -1]
+    body_tokens = _surface_tokens(body)
+    if body_tokens is None:
+        return None
+    boundaries = [
+        0,
+        *(
+            end
+            for value, _start, end, depth in body_tokens
+            if value == ";" and depth == 0
+        ),
+    ]
+    members = [
+        body[left:right].rstrip(";").strip()
+        for left, right in zip(boundaries, [*boundaries[1:], len(body)], strict=True)
+    ]
+    return header, [member for member in members if member]
+
+
+def _top_level_class_members(surface: str) -> list[str] | None:
+    parsed = _class_surface(surface)
+    return parsed[1] if parsed is not None else None
+
+
+def _callable_surface(surface: str) -> tuple[str, ast.arguments, str, str] | None:
+    tokens = _surface_tokens(surface)
+    if tokens is None:
+        return None
+    arrows = [
+        index
+        for index, (value, _start, _end, depth) in enumerate(tokens)
+        if value == "->" and depth == 0
+    ]
+    if len(arrows) != 1:
+        return None
+    arrow = arrows[0]
+    if arrow == 0 or tokens[arrow - 1][0] != ")":
+        return None
+    close = tokens[arrow - 1][1]
+    opens = [
+        start
+        for value, start, _end, depth in tokens[:arrow]
+        if value == "(" and depth == 0
+    ]
+    if not opens:
+        return None
+    opening = opens[-1]
+    prefix = surface[:opening]
+    if not re.search(r"(?:\bdef|\b[A-Za-z_]\w*)(?:\[[^\]]+\])?$", prefix):
+        return None
+    suffix_start = len(surface)
+    for index, (value, start, _end, depth) in enumerate(tokens[arrow + 1 :], arrow + 1):
+        if (
+            value == "["
+            and depth == 0
+            and index + 2 < len(tokens)
+            and tokens[index + 1][0] in {"defaults", "decorators"}
+            and tokens[index + 2][0] == ":"
+        ):
+            suffix_start = start
+            break
+    returns = surface[tokens[arrow][2] : suffix_start].strip()
+    metadata = surface[suffix_start:]
+    try:
+        function = ast.parse(
+            f"def _boundary({surface[opening + 1 : close]}) -> {returns}: pass"
+        ).body[0]
+    except SyntaxError:
+        return None
+    if not isinstance(function, ast.FunctionDef):
+        return None
+    return prefix, function.args, ast.dump(function.returns), metadata
+
+
+def _optional_keyword_addition(before: str, after: str) -> bool:
+    old, new = _callable_surface(before), _callable_surface(after)
+    if (
+        old is None
+        or new is None
+        or (old[0], old[2], old[3]) != (new[0], new[2], new[3])
+    ):
+        return False
+    old_args, new_args = old[1], new[1]
+    for attribute in ("posonlyargs", "args", "defaults", "vararg", "kwarg"):
+        old_value, new_value = (
+            getattr(old_args, attribute),
+            getattr(new_args, attribute),
+        )
+
+        def dump(value: ast.AST | list[ast.AST] | None) -> object:
+            return (
+                tuple(ast.dump(item) for item in value)
+                if isinstance(value, list)
+                else ast.dump(value)
+                if value is not None
+                else None
+            )
+
+        if dump(old_value) != dump(new_value):
+            return False
+    existing = {argument.arg for argument in old_args.kwonlyargs}
+    cursor = 0
+    added = False
+    for argument, default in zip(
+        new_args.kwonlyargs, new_args.kw_defaults, strict=True
+    ):
+        if argument.arg in existing:
+            if cursor >= len(old_args.kwonlyargs) or ast.dump(argument) != ast.dump(
+                old_args.kwonlyargs[cursor]
+            ):
+                return False
+            previous_default = old_args.kw_defaults[cursor]
+            if (ast.dump(default) if default is not None else None) != (
+                ast.dump(previous_default) if previous_default is not None else None
+            ):
+                return False
+            cursor += 1
+        elif default is None or old_args.kwarg is not None:
+            # Existing **kwargs previously received this keyword: consuming it
+            # as a new named parameter changes an existing call's binding.
+            return False
+        else:
+            added = True
+    return added and cursor == len(old_args.kwonlyargs)
+
+
+def _member_name(member: str) -> str | None:
+    function = _callable_surface(member)
+    if function is not None:
+        match = re.search(r"([A-Za-z_]\w*)(?:\[[^\]]+\])?$", function[0])
+        return match.group(1) if match is not None else None
+    match = re.match(r"([A-Za-z_]\w*)\s*[:=]", member)
+    return match.group(1) if match is not None else None
+
+
+def _defaulted_field(member: str) -> bool:
+    if _callable_surface(member) is not None or _member_name(member) is None:
+        return False
+    tokens = _surface_tokens(member)
+    if tokens is None:
+        return False
+    assignments = [
+        end for value, _start, end, depth in tokens if value == "=" and depth == 0
+    ]
+    if len(assignments) != 1:
+        return False
+    try:
+        value = ast.parse(member[assignments[0] :].strip(), mode="eval").body
+    except SyntaxError:
+        return False
+
+    def missing(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Constant)
+            and node.value is Ellipsis
+            or isinstance(node, (ast.Name, ast.Attribute))
+            and (node.id if isinstance(node, ast.Name) else node.attr)
+            in {"MISSING", "PydanticUndefined"}
+        )
+
+    if missing(value):
+        return False
+    if (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, (ast.Name, ast.Attribute))
+        and (value.func.id if isinstance(value.func, ast.Name) else value.func.attr)
+        in {"field", "Field"}
+    ):
+        keywords = {keyword.arg: keyword.value for keyword in value.keywords}
+        if "default" in keywords:
+            return not missing(keywords["default"])
+        if "default_factory" in keywords:
+            factory = keywords["default_factory"]
+            return not missing(factory) and not (
+                isinstance(factory, ast.Constant) and factory.value is None
+            )
+        return bool(value.args) and not missing(value.args[0])
+    return True
 
 
 _ENUM_FINGERPRINT = re.compile(r"class\(([^{}]*\bEnum\b[^{}]*)\)\{([^{}]*)\}")
@@ -2212,8 +2433,18 @@ def _members_are_additive(before: str, after: str) -> bool:
 def _is_additive_nested_enum_expansion(before: str, after: str) -> bool:
     """Ignore additive enum detail propagated into an unchanged declaration."""
 
-    before_enums = list(_ENUM_FINGERPRINT.finditer(before))
-    after_enums = list(_ENUM_FINGERPRINT.finditer(after))
+    def unquoted_enums(surface: str) -> list[re.Match[str]]:
+        quoted = [
+            match.span() for match in re.finditer(_QUOTED_FINGERPRINT_VALUE, surface)
+        ]
+        return [
+            match
+            for match in _ENUM_FINGERPRINT.finditer(surface)
+            if not any(start <= match.start() < end for start, end in quoted)
+        ]
+
+    before_enums = unquoted_enums(before)
+    after_enums = unquoted_enums(after)
     if (
         not before_enums
         or len(before_enums) != len(after_enums)
@@ -2238,21 +2469,54 @@ def _is_additive_nested_enum_expansion(before: str, after: str) -> bool:
 
 
 def _is_compatible_public_change(record: dict[str, object]) -> bool:
-    """Accept unchanged declarations and additive defaulted class fields."""
-
+    """Prove structural additions without granting blanket consumer exemptions."""
     before = _declared_public_surface(record, "before")
     after = _declared_public_surface(record, "after")
     if before == after or _is_additive_nested_enum_expansion(before, after):
         return True
-    before_members = _top_level_class_members(before)
-    after_members = _top_level_class_members(after)
-    if before_members is None or after_members is None:
+    if _optional_keyword_addition(before, after):
+        return True
+    old, new = _class_surface(before), _class_surface(after)
+    if old is None or new is None or old[0] != new[0]:
         return False
+    header, before_members = old
+    after_members = new[1]
+    dataclass = re.match(r"@(?:dataclasses\.)?dataclass(?:\(|\s)", header) is not None
+    has_bases = not header.endswith("class()")
+    if header.startswith("@") and not dataclass:
+        return False
+    existing_names = {_member_name(member) for member in before_members}
+    seen_names: set[str] = set()
     cursor = 0
     for member in after_members:
-        if cursor < len(before_members) and member == before_members[cursor]:
+        name = _member_name(member)
+        if name is not None:
+            if name in seen_names:
+                return False
+            seen_names.add(name)
+        if cursor < len(before_members) and (
+            member == before_members[cursor]
+            or _optional_keyword_addition(before_members[cursor], member)
+        ):
             cursor += 1
-        elif "=" not in member:
+            continue
+        if name is None or name in existing_names:
+            return False
+        if _callable_surface(member) is not None:
+            if (
+                name.startswith("_")
+                or has_bases
+                or any(item.startswith("inherits[") for item in before_members)
+            ):
+                return False
+        elif not _defaulted_field(member) or (
+            dataclass
+            and (
+                cursor != len(before_members)
+                or has_bases
+                or any(item.startswith("inherits[") for item in before_members)
+            )
+        ):
             return False
     return cursor == len(before_members)
 

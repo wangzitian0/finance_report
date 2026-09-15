@@ -516,6 +516,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.public-boundary.8",
+            statement=(
+                "Structural compatibility accepts appended defaulted dataclass fields, "
+                "optional keyword-only callable parameters and genuinely new public methods "
+                "while preserving existing bindings, defaults, types, returns, decorators "
+                "and member order; ambiguous variadic capture and required additions remain breaking."
+            ),
+            test=(
+                "tests/tooling/test_public_boundary_control.py"
+                "::test_AC_meta_public_boundary_8_real_additive_surfaces"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.context-governance.1",
             statement=(
                 "A package can publish its bounded-context purpose, explicit "
