@@ -421,3 +421,19 @@ pending --> flagged: Needs manual review
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
+
+## Recovery after rejecting a suggestion
+
+A rejected suggestion remains historical evidence. It does not own the active
+manual workflow: the transaction reappears in the unmatched queue and an explicit
+reviewed disposition may post it. Pending and accepted current matches continue
+to block bypasses. The source-transaction database lock makes concurrent repeated
+manual decisions idempotent. Rejection does not delete linked journal facts.
+
+Background matching deliberately continues to skip rejected suggestions so a
+rerun cannot overturn the user's rejection. Recovery is an explicit manual action;
+automatic reconsideration of rejected candidate evidence is outside this policy.
+The active-match database index excludes rejected and superseded history while
+retaining uniqueness for current non-rejected matches.
+
+Queues, automatic candidates, and direct reviewed dispositions use extraction-owned current source membership; preserved historical facts from retired or replaced results remain evidence, not actionable transactions.

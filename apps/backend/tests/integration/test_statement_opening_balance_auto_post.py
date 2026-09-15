@@ -150,7 +150,7 @@ async def _parse_and_auto_post(db, test_user, payload: dict, file_hash: str):
     _result, statement, transactions = await parse_and_load_statement_projection(
         service,
         db=db,
-        source=DocumentSource.resolve(path=Path(f"{file_hash}.pdf"), content=b"%PDF-1.7"),
+        source=DocumentSource.resolve(path=Path(f"{file_hash}.pdf"), content=f"%PDF-1.7\n%{file_hash}".encode()),
         institution=payload["institution"],
         user_id=test_user.id,
     )

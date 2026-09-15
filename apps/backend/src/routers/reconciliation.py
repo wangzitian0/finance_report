@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import Select, false, func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -13,7 +13,7 @@ from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import compose_reviewed_disposition_dependencies
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.extraction import BankStatementStatus
+from src.extraction import BankStatementStatus, effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
@@ -72,6 +72,8 @@ def _unmatched_atomic_txn_query(user_id: UUID):
         select(ReconciliationMatch.atomic_txn_id)
         .join(matched_transaction, matched_transaction.id == ReconciliationMatch.atomic_txn_id)
         .where(matched_transaction.user_id == user_id)
+        .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
         .where(ReconciliationMatch.atomic_txn_id.is_not(None))
     )
     posted_source_subquery = (
@@ -85,22 +87,15 @@ def _unmatched_atomic_txn_query(user_id: UUID):
         .where(JournalEntry.status != JournalEntryStatus.VOID)
     )
     return select(AtomicTransaction).where(
-        AtomicTransaction.user_id == user_id,
+        effective_statement_transaction_filter(user_id),
         AtomicTransaction.id.notin_(matched_subquery),
         AtomicTransaction.id.notin_(posted_source_subquery),
     )
 
 
 def _statement_atomic_txn_ids_query(statement: StatementSummary) -> Select[tuple[UUID]]:
-    """Select atomic transaction ids for a statement via its ODS document link."""
-    if statement.uploaded_document_id is None:
-        return select(AtomicTransaction.id).where(false())
-    doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
-    return (
-        select(AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == statement.user_id)
-        .where(AtomicTransaction.source_documents.contains(doc_marker))
-    )
+    """Select only current immutable source-result transaction membership."""
+    return select(AtomicTransaction.id).where(effective_statement_transaction_filter(statement.user_id, statement.id))
 
 
 def _entry_total_amount(entry: JournalEntry) -> Decimal:

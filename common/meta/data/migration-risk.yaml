@@ -162,3 +162,12 @@ migrations:
     staging_validation: Deploy the pinned PR commit, retire one non-production statement through DELETE, verify it disappears from list/get while its statement summary, uploaded document, immutable extraction result, reviewed envelope, atomic facts, lineage, and object remain stored, then repeat DELETE and confirm no cardinality change.
     production_preflight: Confirm no deployed consumer exhaustively rejects unknown statement_summary_status_enum or document_status_enum values, take a database backup, and verify the application commit that excludes retired rows from product views is deployed with this additive enum migration.
     rollback_strategy: Roll back the application while leaving the additive enum values in place; PostgreSQL enum value removal requires a destructive type rebuild and is intentionally not attempted. Any already-retired rows remain preserved and can be restored to a prior visible state only through an explicit governed correction.
+
+  0060_opening_positions:
+    file: 0060_opening_positions.py
+    risk: high
+    issue: "#2040"
+    proof: AC-ledger.opening-position.2/.5 exercise independent-session initialization races and direct PostgreSQL immutability rejection; AC-reconciliation.rejection-recovery.1-.3 preserve rejected evidence and serialize manual recovery. The additive schema is checked with Alembic upgrade and schema parity.
+    staging_validation: Deploy the pinned release, approve generated base and foreign-currency statements, verify one starting position per account and repeat approval without a second opening entry; reject a suggestion and complete explicit manual recovery.
+    production_preflight: Take a database backup and confirm no long-running reconciliation transaction holds the active-match index before rebuilding its history-compatible predicate. No historical source or journal values are updated.
+    rollback_strategy: Upgrade is transactional. Roll back application code while retaining the additive immutable table and broader history-compatible index; downgrade deliberately preserves recorded initialization and rejected history rather than deleting evidence.

@@ -8,10 +8,12 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
 from src.audit.money import to_money
+from src.composition import compose_financial_trace_emitter
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
+    Account,
     AccountNotFoundError,
     AccountType,
     JournalLine,
@@ -30,6 +32,7 @@ from src.ledger import (
 )
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_not_found
+from src.pricing import PricingError, get_exchange_rate
 from src.reconciliation import score_description
 from src.schemas import (
     AccountCoverageListResponse,
@@ -62,18 +65,37 @@ async def post_opening_balances(
     """
     try:
         base_currency = await get_effective_base_currency(db)
+        currencies = (
+            (
+                await db.execute(
+                    select(Account.currency).where(Account.id.in_(payload.balances), Account.user_id == user_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if payload.currency and any(currency != payload.currency for currency in currencies):
+            raise ValidationError("Opening balance currency does not match the currency of account")
+        fx_rates = {}
+        for currency in set(currencies):
+            if currency != base_currency:
+                fx_rates[currency] = await get_exchange_rate(
+                    db, currency, base_currency, payload.entry_date, lazy_load=True
+                )
         entry = await post_opening_balance_entry(
             db,
             user_id,
             entry_date=payload.entry_date,
             balances=payload.balances,
-            currency=(payload.currency or base_currency),
+            currency=payload.currency,
+            fx_rates=fx_rates,
+            trace_emitter=compose_financial_trace_emitter(db),
             base_currency=base_currency,
             memo=payload.memo,
         )
         await db.commit()
         await db.refresh(entry, ["lines"])
-    except ValidationError as exc:
+    except (ValidationError, PricingError) as exc:
         await db.rollback()
         raise_bad_request(str(exc), cause=exc)
     return JournalEntryResponse.model_validate(entry)

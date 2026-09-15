@@ -100,8 +100,11 @@ from src.ledger.orm.journal import (
     derive_confidence_tier,
     worst_confidence_tier,
 )
+from src.ledger.orm.opening_position import OpeningPositionRecord as _OpeningPositionRecord  # noqa: F401
 
 __all__ = [
+    "OpeningPosition",
+    "list_opening_positions",
     "Account",
     "AccountNotFoundError",
     "AccountType",
@@ -173,6 +176,7 @@ __all__ = [
 
 # Which submodule owns each published name (lazy import map).
 _BASE_NAMES = {
+    "OpeningPosition",
     "AccountingError",
     "DecisionAnchor",
     "DecisionAnchorError",
@@ -195,6 +199,7 @@ _BASE_NAMES = {
     "validate_journal_posting_invariants",
 }
 _EXTENSION_NAMES = {
+    "list_opening_positions",
     "AccountNotFoundError",
     "AnchoredJournalCommand",
     "AnchoredJournalCommandV2",

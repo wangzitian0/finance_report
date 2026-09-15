@@ -726,3 +726,5 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
+
+Manual and automatic source posting initialize the same ledger-owned starting stock in their posting unit of work. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings. Missing opening facts or rates block posting atomically. Follow-up periods reuse authoritative per-account stock, and source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.

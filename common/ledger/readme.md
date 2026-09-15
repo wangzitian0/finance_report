@@ -801,3 +801,36 @@ Entry 2 (Fee):
 - [schema.md](../../common/meta/schema.md)
 - [reconciliation.md](../../common/reconciliation/reconciliation.md)
 - [confirmation-workflow.md](../extraction/confirmation-workflow.md)
+
+## Account starting stock
+
+A starting position is stock effective at the beginning of its recorded date,
+not cash earned or spent on that date. `list_opening_positions` publishes immutable
+`OpeningPosition` values with account, effective date, signed normal-side amount,
+original currency, historical FX rate, optional journal id, and current trace
+decision. Reporting consumes this evidence; memo text and arbitrary event tags
+never prove an opening. Existing anchored `opening-balance` system commands can
+be projected without rewriting their history.
+
+Manual and automatic statement approval initialize the first trusted account
+position in the same transaction as source posting. A tenant-scoped database
+lock serializes concurrent initialization. Identical account/date/amount/currency
+retries reuse the existing position; conflicting initializations require the
+correction lifecycle. Later statements reuse the established account beginning.
+A zero starting position records evidence without creating a zero-value journal.
+Negative source balances reverse the account's normal posting side.
+
+Foreign currency remains on the account line with an explicit positive historical
+FX rate; the balancing equity amount is in the effective base currency. Missing
+FX or stale source authority prevents initialization, rather than silently
+dropping the source starting balance. `opening_position_records` retains immutable
+source-decision and journal coordinates; updates/deletes cannot rewrite stock.
+Readiness checks each user-managed asset/liability account independently, including
+archived accounts with historical activity. FX revaluation likewise reads archived
+posted balances; archiving an account does not erase historical money.
+
+The current account form still accepts positive inputs only. Explicit zero and
+negative initialization support at the service/source boundary does not imply
+that the corresponding manual UI workflow exists.
+
+Source-backed opening decisions include the exact authoritative source decision as a causal parent. Their public `source_decision` reference is digest-pinned, including explicit zero stock with no journal. The application supplies a composed extraction/ledger trace emitter so neither owner imports the other to replay authority.

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation.base.repository import ReconciliationRepository
@@ -26,13 +27,15 @@ class SqlReconciliationRepository(ReconciliationRepository):
         user_id: UUID,
         limit: int | None = None,
     ) -> list[AtomicTransaction]:
+        # Rejected suggestions are deliberately not retried automatically: the
+        # manual unmatched queue owns recovery without overturning human review.
         subquery = select(ReconciliationMatch.atomic_txn_id).where(
             ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
             ReconciliationMatch.superseded_by_id.is_(None),
         )
         query = (
             select(AtomicTransaction)
-            .where(AtomicTransaction.user_id == user_id)
+            .where(effective_statement_transaction_filter(user_id))
             .where(AtomicTransaction.id.notin_(subquery))
             .order_by(AtomicTransaction.txn_date)
         )

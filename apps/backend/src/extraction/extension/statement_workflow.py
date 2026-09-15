@@ -12,10 +12,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.extraction.base.types import StatementPostingOutcome
+from src.extraction.base.types import StatementPostingOutcome, StatementPostingStatus
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_create_posted_entries_for_statement,
+    try_auto_post_statement_opening_balance,
 )
 from src.extraction.extension.statement_validation import approve_statement, reject_statement
 from src.extraction.orm.statement_summary import StatementSummary
@@ -40,6 +41,8 @@ async def approve_statement_workflow(
     """
     statement = await approve_statement(db, statement_id, user_id)
     outcome = await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=dependencies)
+    if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
+        await try_auto_post_statement_opening_balance(db, statement, user_id, dependencies=dependencies)
     await db.commit()
     return outcome
 

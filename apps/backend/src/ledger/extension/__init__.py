@@ -30,6 +30,7 @@ from src.ledger.extension.fx_revaluation import (
     calculate_unrealized_fx_gains,
     register_fx_revaluation_provider,
 )
+from src.ledger.extension.opening_positions import list_opening_positions
 from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
     create_transfer_in_entry,
@@ -47,6 +48,7 @@ from src.ledger.extension.repository import (
 )
 
 __all__ = [
+    "list_opening_positions",
     "AccountNotFoundError",
     "AnchoredJournalCommand",
     "AnchoredJournalCommandV2",

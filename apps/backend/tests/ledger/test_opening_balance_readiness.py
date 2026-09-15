@@ -43,8 +43,8 @@ async def test_AC2_16_1_activity_without_opening_entry_needs_opening_balance(db:
     assert readiness["earliest_activity_date"] == date(2026, 3, 1)
 
 
-async def test_AC2_16_1_opening_entry_before_activity_clears_the_nudge(db: AsyncSession, test_user) -> None:
-    """AC-ledger.16.1: an opening-balance entry on/before the earliest activity clears it."""
+async def test_AC2_16_1_other_account_opening_does_not_clear_the_nudge(db: AsyncSession, test_user) -> None:
+    """AC-ledger.16.1: an opening on another account cannot cover existing activity."""
     asset = await _asset(db, test_user.id)
     await create_valid_posted_entry(db, test_user.id, entry_date=date(2026, 3, 1))
     await post_opening_balance_entry(
@@ -58,7 +58,7 @@ async def test_AC2_16_1_opening_entry_before_activity_clears_the_nudge(db: Async
     await db.commit()
 
     readiness = await get_opening_balance_readiness(db, test_user.id)
-    assert readiness["needs_opening_balance"] is False
+    assert readiness["needs_opening_balance"] is True
     assert readiness["has_opening_entry"] is True
 
 

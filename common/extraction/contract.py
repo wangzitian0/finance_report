@@ -4710,10 +4710,10 @@ CONTRACT = PackageContract(
                 "balance is posted as a guided opening-balance entry against "
                 "the system Opening Balance Equity account, so the asset "
                 "account's ledger balance equals the statement's closing "
-                "balance — never the period net flow. A zero/absent opening "
-                "balance posts no opening entry; non-base currencies and "
-                "other post_opening_balance_entry rejections skip fail-soft "
-                "without disturbing the posted transactions."
+                "balance, including signed balances. Explicit zero creates immutable "
+                "starting-stock evidence without a monetary journal. Foreign "
+                "currency uses historical FX; missing opening facts or FX block "
+                "the posting unit of work atomically. Manual approval uses the same path."
             ),
             test=(
                 "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
@@ -4728,9 +4728,9 @@ CONTRACT = PackageContract(
             statement=(
                 "A follow-up period import for the same account posts its "
                 "transactions but never a second opening-balance entry: "
-                "prior posted activity before the new period start makes "
-                "the guided opening post reject, and that rejection is "
-                "absorbed fail-soft."
+                "existing authoritative per-account starting-stock evidence is "
+                "reused without creating a second opening journal. Invalid "
+                "or missing starting stock remains an actionable posting blocker."
             ),
             test=(
                 "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
@@ -4749,7 +4749,7 @@ CONTRACT = PackageContract(
                 "matches, or already posted by a prior call) still gets its "
                 "opening balance posted. Idempotency against re-posting is "
                 "enforced per-account (does this account already have an "
-                "opening-balance-equity line), not by created_count or by "
+                "authoritative opening-position evidence), not by created_count or by "
                 "date-ordering alone — covering two statements that share the "
                 "same period_start, where date-ordering alone would not catch "
                 "a re-attempt."

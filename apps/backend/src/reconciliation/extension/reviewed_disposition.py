@@ -23,6 +23,7 @@ from src.extraction import (
     StatementTransaction,
     build_disposition_trace_records,
     create_entry_from_txn,
+    effective_statement_transaction_filter,
     emit_disposition_trace_records,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -34,7 +35,7 @@ from src.ledger import (
     current_anchored_journal_entries,
 )
 from src.reconciliation.base import ReviewedDispositionCommand, ReviewedDispositionError
-from src.reconciliation.orm.reconciliation import ReconciliationMatch
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,17 +129,24 @@ async def submit_reviewed_disposition(
     transaction_result = await db.execute(
         select(AtomicTransaction)
         .where(AtomicTransaction.id == transaction_id)
-        .where(AtomicTransaction.user_id == user_id)
+        .where(effective_statement_transaction_filter(user_id))
         .with_for_update()
     )
     txn = transaction_result.scalar_one_or_none()
     if txn is None:
         raise LookupError("Transaction not found")
 
-    # The route is deliberately scoped to transactions with no reconciliation
-    # decision. A direct API call must not bypass an existing match review.
+    # Rejected history remains evidence, but cannot block an explicit new human
+    # decision. Only a current non-rejected match owns the active review workflow.
     matched_result = await db.execute(
-        select(ReconciliationMatch.id).where(ReconciliationMatch.atomic_txn_id == txn.id).limit(1).with_for_update()
+        select(ReconciliationMatch.id)
+        .where(
+            ReconciliationMatch.atomic_txn_id == txn.id,
+            ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)),
+            ReconciliationMatch.superseded_by_id.is_(None),
+        )
+        .limit(1)
+        .with_for_update()
     )
     if matched_result.scalar_one_or_none() is not None:
         raise ReviewedDispositionError("Transaction already has a reconciliation match")

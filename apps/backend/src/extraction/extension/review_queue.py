@@ -328,6 +328,10 @@ async def _create_entry_from_txn(
             "event_type": "bank_txn",
         },
     ]
+    if disposition.category:
+        for line in lines_data:
+            if line["account_id"] == counter_account.id:
+                line["tags"] = {"economic_category": disposition.category}
     try:
         if source_decision is None or trace_emitter is None:
             raise ValueError("Statement posting requires a source-owned authoritative decision")
