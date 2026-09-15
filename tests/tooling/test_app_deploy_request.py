@@ -14,15 +14,12 @@ from pathlib import Path
 
 import pytest
 import yaml
+
+from common.runtime.sdk_pin import read_sdk_pin
 from tools import app_deploy_request as renderer
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools/app_deploy_request.py"
-SDK_URL = (
-    "https://github.com/wangzitian0/infra2-sdk/releases/download/v1.5.0/"
-    "infra2_sdk-1.5.0-py3-none-any.whl"
-)
-SDK_HASH = "sha256:d90c2a4f6ec98c1c5c94552339c3a6aca15499cc113a1e8821b50e3e97b2f6e2"
 
 VALID_REQUEST = {
     "contract_version": 1,
@@ -54,6 +51,7 @@ VALID_PRODUCTION_REQUEST = {
 
 def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() -> None:
     """AC-runtime.deploy-request.1: the SDK release and canonical v1 wire shape are immutable."""
+    sdk_url, sdk_hash_hex, _ = read_sdk_pin(ROOT)
     pyproject = tomllib.loads(
         (ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8")
     )
@@ -62,23 +60,25 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         for dependency in pyproject["project"]["dependencies"]
         if dependency.partition(" @ ")[0] == "infra2-sdk"
     ]
-    expected_sdk_dependency = f"infra2-sdk @ {SDK_URL}"
+    expected_sdk_dependency = f"infra2-sdk @ {sdk_url}"
     assert sdk_dependencies == [expected_sdk_dependency]
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
-    assert package["version"] == "1.5.0"
-    assert package["source"] == {"url": SDK_URL}
-    assert package["wheels"] == [{"url": SDK_URL, "hash": SDK_HASH}]
+    assert tuple(map(int, package["version"].split("."))) >= (1, 2, 0)
+    assert package["source"] == {"url": sdk_url}
+    assert package["wheels"] == [{"url": sdk_url, "hash": f"sha256:{sdk_hash_hex}"}]
 
-    sdk_hash_hex = SDK_HASH.removeprefix("sha256:")
     for workflow_path in (
         ROOT / ".github/workflows/deploy.yml",
         ROOT / ".github/workflows/release.yml",
     ):
         workflow_source = workflow_path.read_text(encoding="utf-8")
-        assert f'sdk_url="{SDK_URL}"' in workflow_source
-        assert f'sdk_sha256="{sdk_hash_hex}"' in workflow_source
+        assert 'sdk_pin="$(python tools/sdk_pin.py)" || exit $?' in workflow_source
+        assert (
+            'read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"' in workflow_source
+        )
+        assert "releases/download/" not in workflow_source
         assert "sha256sum --check --status" in workflow_source
         assert 'python -m pip install "$sdk_wheel"' in workflow_source
 
@@ -91,9 +91,10 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         if step.get("name") == "Run tooling tests with coverage"
     )
     tooling_run = tooling_step["run"]
-    assert f'sdk_url="{SDK_URL}"' in tooling_run
-    assert f'sdk_sha256="{sdk_hash_hex}"' in tooling_run
-    assert 'sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.5.0-py3-none-any.whl"' in tooling_run
+    assert 'sdk_pin="$(python tools/sdk_pin.py)" || exit $?' in tooling_run
+    assert 'read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"' in tooling_run
+    assert 'sdk_wheel="$RUNNER_TEMP/$sdk_filename"' in tooling_run
+    assert "releases/download/" not in tooling_run
     assert (
         'curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"'
         in tooling_run

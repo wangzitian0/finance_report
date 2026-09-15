@@ -14,19 +14,19 @@ reconciliation, reports, AI-assisted review, and portfolio tracking.
 Engineering truth is organized as:
 
 ```text
-README -> EPIC -> AC -> test
+README -> owning package contract -> roadmap AC -> test
 ```
 
 - **README** is the project fact entry point: stable EPIC navigation, tracker
   entry points, and links to generated reports.
-- **EPIC documents** in `docs/project/EPIC-*.md` describe scope and acceptance
-  criteria.
+- **EPIC documents** in `docs/project/EPIC-*.md` retain existing horizontal and
+  frontend-exception scope as terminal, shrink-only residue.
 - **AC homes**: a **migrated package** owns its ACs as `AC-<pkg>.<group>.<seq>`
   in that package's `contract.py` `roadmap` (aggregated by `meta`'s data layer,
   never mirrored back into an EPIC table — see
   [`common/meta/migration-standard.md`](common/meta/migration-standard.md)).
-  Legacy, not-yet-migrated modules still materialize ACs from EPIC documents
-  into the generated registries: `docs/ac_registry.yaml`,
+  Existing residue-marked EPIC ACs materialize into the generated registries:
+  `docs/ac_registry.yaml`,
   `docs/infra_registry.yaml`, plus explicit overrides in
   `docs/ac_registry_overrides.yaml`.
 - **Tests** are the proof. A referenced AC is not enough; behavior must be
@@ -47,7 +47,8 @@ from project intent to executable proof without reading archive fragments.
 | Project entry | `README.md` | EPIC map, tracker entry points, and proof commands | `tools/check_ac_index.py` |
 | Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
-| EPIC scope | `docs/project/EPIC-*.md` | Scope, ACs, owned docs, known gaps | AC registries |
+| Package scope | `common/<pkg>/contract.py` | New acceptance criteria in each package roadmap | Package contract and AC proof gates |
+| EPIC residue | `docs/project/EPIC-*.md` | Existing non-package-owned scope and known gaps; shrink-only | AC registries and residue ratchet |
 | AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
 | Concept ownership registry | `common/meta/data/MANIFEST.yaml` | Technical truth ownership map (which package owns which concept) | `tools/check_manifest.py`, `tools/check_ssot_ownership.py` |
 | Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_index.py`, `tools/check_coverage_policy.py` |

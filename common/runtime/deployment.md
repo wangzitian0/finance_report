@@ -30,8 +30,11 @@ credentials, and every deployment side effect. The application pins
 as the wire-contract authority — the one pin is the release wheel URL in
 `apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256
 in `apps/backend/uv.lock`; the `ci.yml` / `deploy.yml` / `release.yml` steps
-that install the wheel repeat the same URL + sha256 and
-`tests/tooling/test_app_deploy_request.py` locks all of them together — and
+that install the wheel read it through `tools/sdk_pin.py`. Its standard-library
+implementation in `common/runtime/sdk_pin.py` rejects declaration/lock disagreement
+before acquisition; workflows verify the downloaded SHA256 before installation.
+`tests/tooling/test_sdk_pin.py` and `test_app_deploy_request.py` prove the shared
+bootstrap path without hard-coding another release pin — and
 `tools/app_deploy_request.py` renders only
 canonical staging or Production requests for `finance_report/app`. The renderer
 performs no network or subprocess operations. Production requires exact source,

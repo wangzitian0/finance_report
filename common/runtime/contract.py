@@ -706,6 +706,17 @@ CONTRACT = PackageContract(
         ),
         # ── deploy-request: versioned App -> Infra boundary (#876) ──
         ACRecord(
+            id="AC-runtime.sdk-pin.1",
+            statement=(
+                "SDK acquisition reads the exact wheel URL and SHA256 from the backend lock, "
+                "rejects disagreement with the dependency declaration before downloading, "
+                "and all three workflow consumers share that source (#2004)."
+            ),
+            test="tests/tooling/test_sdk_pin.py::test_AC_runtime_sdk_pin_1_lock_and_declaration_must_agree",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-runtime.deploy-request.1",
             statement=(
                 "Finance Report pins an immutable infra2-sdk release and renders a canonical "
