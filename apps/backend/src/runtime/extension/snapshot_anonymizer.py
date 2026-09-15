@@ -89,6 +89,7 @@ MONEY_COLUMNS: frozenset[str] = frozenset(
         "investment_transactions.realized_pnl",
         "investment_transactions.unit_price",
         "journal_lines.amount",
+        "opening_position_records.amount",
         "managed_positions.cost_basis",
         "managed_positions.realized_pnl",
         "managed_positions.unrealized_pnl",
@@ -115,6 +116,7 @@ NUMERIC_KEEP_COLUMNS: frozenset[str] = frozenset(
         "investment_lots.remaining_quantity",
         "investment_transactions.quantity",
         "journal_lines.fx_rate",
+        "opening_position_records.fx_rate",
         "managed_positions.quantity",
         # Assurance scores are unitless ratios. TraceRecord identity and digests
         # remain verifiable only when the snapshot preserves this exact value.
@@ -137,6 +139,9 @@ JSON_KEEP_COLUMNS: frozenset[str] = frozenset(
 STRING_KEEP_COLUMNS: frozenset[str] = frozenset(
     {
         "accounts.currency",
+        "atomic_transaction_identities.currency",
+        "atomic_transaction_identities.identity_version",
+        "opening_position_records.currency",
         "accounts.type",
         "ai_feedback.action",
         "app_config.key",
@@ -262,6 +267,10 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
     "atomic_positions.broker": "generic",
     "atomic_positions.dedup_hash": "hash",
     "atomic_transactions.dedup_hash": "hash",
+    "atomic_transaction_identities.identity_hash": "hash",
+    "atomic_transaction_identities.legacy_hash": "hash",
+    "atomic_transaction_identities.custody_scope": "generic",
+    "opening_position_records.content_digest": "hash",
     "atomic_transactions.description": "generic",
     "atomic_transactions.reference": "generic",
     "chat_messages.content": "generic",

@@ -20,7 +20,7 @@ def upgrade() -> None:
         sa.Column("atomic_txn_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("currency", sa.String(3), nullable=False),
         sa.Column("custody_scope", sa.String(80), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["atomic_txn_id"], ["atomic_transactions.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("user_id", "identity_version", "identity_hash"),
     )

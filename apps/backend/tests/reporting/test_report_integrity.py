@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from src.audit import Money
-from src.ledger import Account, AccountType, Entry, post_entry, post_opening_balance_entry
+from src.ledger import Account, AccountType, Entry, initialize_opening_positions, post_entry
 from src.ledger.extension.account_service import update_account
 from src.ledger.extension.processing import get_or_create_processing_account
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
@@ -49,7 +49,7 @@ async def test_processing_survives_framework_reporting(db, test_user, framework)
     """AC-reporting.report-integrity.1: in-transit money survives every transfer state."""
     bank = await _account(db, test_user.id, "Generated custody", AccountType.ASSET)
     destination = await _account(db, test_user.id, "Generated destination", AccountType.ASSET)
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db, test_user.id, entry_date=date(2025, 12, 31), balances={bank.id: Decimal("100")}, currency="SGD"
     )
     processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
@@ -140,7 +140,7 @@ async def test_archiving_preserves_historical_reports(db, test_user):
     liability = await _account(db, test_user.id, "Generated liability", AccountType.LIABILITY)
     income = await _account(db, test_user.id, "Generated income", AccountType.INCOME)
     expense = await _account(db, test_user.id, "Generated expense", AccountType.EXPENSE)
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2025, 12, 31),
@@ -216,7 +216,7 @@ async def test_persisted_package_integrity(db, test_user, monkeypatch):
             default_account_id=securities.id,
         )
     )
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2025, 12, 31),
@@ -337,7 +337,7 @@ async def test_opening_stock_is_beginning_cash(db, test_user, opening, currency)
     if currency == "USD":
         db.add(FxRate(base_currency="USD", quote_currency="SGD", rate_date=START, rate=rate, source="generated"))
         await db.flush()
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=START,
@@ -362,7 +362,7 @@ async def test_midperiod_opening_is_explicit_incomplete_coverage(db, test_user):
     """AC-reporting.report-integrity.3: an observed opening cannot establish earlier coverage."""
     bank = await _account(db, test_user.id, "Generated custody", AccountType.ASSET)
     income = await _account(db, test_user.id, "Generated salary", AccountType.INCOME)
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db, test_user.id, entry_date=date(2026, 1, 5), balances={bank.id: Decimal("100")}, currency="SGD"
     )
     await _post(db, test_user.id, bank, income, "20", category="SALARY")
@@ -412,7 +412,7 @@ async def test_opening_fx_movement_stays_separate(db, test_user):
     for on, rate in ((START, "1.25"), (END, "1.30")):
         db.add(FxRate(base_currency="USD", quote_currency="SGD", rate_date=on, rate=Decimal(rate), source="generated"))
     await db.flush()
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=START,
@@ -440,7 +440,7 @@ async def test_zero_opening_decision_reaches_package_manifest(db, test_user):
     from src.reporting.extension.package_document import PackageAssembler
 
     bank = await _account(db, test_user.id, "Generated empty custody", AccountType.ASSET)
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db, test_user.id, entry_date=START, balances={bank.id: Decimal("0")}, currency="SGD"
     )
     assert entry is None
@@ -470,7 +470,7 @@ async def test_stale_opening_blocks_cash_flow_proof(db, test_user):
     from src.ledger.extension.anchored_posting import SystemJournalCommandPolicy
 
     bank = await _account(db, test_user.id, "Generated custody", AccountType.ASSET)
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -528,7 +528,7 @@ async def test_cash_flow_csv_discloses_opening_adjustment(db, test_user, monkeyp
     monkeypatch.setattr("src.routers.reports._ensure_report_market_data_fresh", no_market_refresh)
     bank = await _account(db, test_user.id, "Generated bank", AccountType.ASSET)
     income = await _account(db, test_user.id, "Generated salary", AccountType.INCOME)
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db, test_user.id, entry_date=date(2026, 1, 5), balances={bank.id: Decimal("100")}, currency="SGD"
     )
     await _post(db, test_user.id, bank, income, "20", category="SALARY")

@@ -159,6 +159,27 @@ class DeduplicationService:
         row: ExtractedTransactionRow | None = None,
         source_doc_id: UUID,
         source_doc_type: DocumentType,
+        **legacy_fields: object,
+    ) -> AtomicTransaction:
+        """Keep legacy keyword binding; explicit custody uses the scoped command."""
+        if "custody_account_id" in legacy_fields:
+            raise TypeError("Unexpected atomic transaction fields: custody_account_id")
+        return await self.upsert_scoped_atomic_transaction(
+            db=db,
+            row=row,
+            source_doc_id=source_doc_id,
+            source_doc_type=source_doc_type,
+            custody_account_id=None,
+            **legacy_fields,
+        )
+
+    async def upsert_scoped_atomic_transaction(
+        self,
+        *,
+        db: AsyncSession,
+        row: ExtractedTransactionRow | None = None,
+        source_doc_id: UUID,
+        source_doc_type: DocumentType,
         custody_account_id: UUID | None = None,
         **legacy_fields: object,
     ) -> AtomicTransaction:
@@ -646,7 +667,7 @@ async def dual_write_layer2(
 
         layer2_count = 0
         for txn in transactions:
-            upserted_txn = await dedup_service.upsert_atomic_transaction(
+            upserted_txn = await dedup_service.upsert_scoped_atomic_transaction(
                 db=db,
                 row=txn,
                 source_doc_id=uploaded_doc.id,

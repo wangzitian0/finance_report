@@ -3,7 +3,7 @@
 from typing import Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
@@ -162,7 +162,7 @@ async def get_evidence_lineage(
     )
     if opening_blockers:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail=EvidenceLineageError(
                 message="Opening lineage no longer has current source authority.",
                 blockers=[EvidenceLineageBlocker(code=item.code, message=item.message) for item in opening_blockers],

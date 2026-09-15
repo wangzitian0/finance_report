@@ -834,3 +834,15 @@ negative initialization support at the service/source boundary does not imply
 that the corresponding manual UI workflow exists.
 
 Source-backed opening decisions include the exact authoritative source decision as a causal parent. Their public `source_decision` reference is digest-pinned, including explicit zero stock with no journal. The application supplies a composed extraction/ledger trace emitter so neither owner imports the other to replay authority.
+
+The additive `initialize_opening_positions` command initializes signed, zero,
+and explicitly converted foreign-currency stock. The legacy
+`post_opening_balance_entry` interface retains its required currency argument,
+positive base-currency amounts, and `JournalEntry` return contract; it rejects
+nonpositive inputs before creating stock. Both use the same immutable opening
+position owner and authorization path (`AC-ledger.opening-position.9`).
+
+Opening-position evidence has a non-cascading tenant foreign key and rejects
+all updates and deletes. Deleting an identity cannot silently erase financial
+initialization evidence; retention cleanup requires the ledger owner. This adds
+no cross-package cascade debt (`AC-audit.deletion-ownership.1`).

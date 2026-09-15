@@ -460,12 +460,13 @@ drop rows.
 sheet assertion (AC-llm.11.2), the income statement assertion (AC-llm.11.4),
 and the cash-flow conservation assertion (AC-llm.11.5) together are the
 corpus's report-correctness proof — not just "the journey completed" but
-"the numbers are right". The income statement identity holds universally
-(every institution class, not a name-dependent heuristic) because
-`auto_create_posted_entries_for_statement` always posts a transaction's
-contra side to an Income or Expense account (a classified category or the
-Income/Expense "Uncategorized" default), so `total_income − total_expenses`
-equals the posting account's net movement by double-entry construction.
+"the numbers are right". Balance-sheet assets include the source opening stock
+plus each case's net movement. The seeded statement period matches its source
+transaction dates, so starting stock is dated before or at the first activity.
+The income statement excludes starting stock: each row receives an explicit
+reviewer-confirmed Income/Expense classification, and total income minus total
+expenses equals the posting account's net movement. No unclassified fallback
+supplies economic authority.
 
 Cash flow is asserted differently: `generate_cash_flow` classifies "cash"
 accounts by a name-keyword heuristic (`cash`/`bank`/`checking`/`savings`/…)

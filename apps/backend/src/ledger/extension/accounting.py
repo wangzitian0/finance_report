@@ -17,10 +17,46 @@ from src.ledger.extension.opening_positions import list_opening_positions, recor
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
-__all__ = ["get_opening_balance_readiness", "post_opening_balance_entry"]
+__all__ = ["get_opening_balance_readiness", "initialize_opening_positions", "post_opening_balance_entry"]
 
 
 async def post_opening_balance_entry(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    entry_date: date,
+    balances: dict[UUID, Decimal],
+    currency: str,
+    base_currency: str | None = None,
+    memo: str = "Opening balances",
+) -> JournalEntry:
+    """Preserve the positive, base-currency opening journal API.
+
+    Signed, zero and foreign-currency stock uses ``initialize_opening_positions``.
+    Legacy callers always receive a monetary journal or a validation error.
+    """
+    if not balances:
+        raise ValidationError("At least one opening balance is required")
+    if any(not isinstance(amount, Decimal) or to_money(amount) <= 0 for amount in balances.values()):
+        raise ValidationError("Opening balance amounts must be positive Decimal values")
+    normalized_base = normalize_currency_code(base_currency or src.config.settings.base_currency)
+    if normalize_currency_code(currency) != normalized_base:
+        raise ValidationError(f"Opening balances are supported only in the base currency ({normalized_base})")
+    entry = await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=entry_date,
+        balances=balances,
+        currency=currency,
+        base_currency=base_currency,
+        memo=memo,
+    )
+    if entry is None:
+        raise ValidationError("Positive opening stock has no current journal entry")
+    return entry
+
+
+async def initialize_opening_positions(
     db: AsyncSession,
     user_id: UUID,
     *,

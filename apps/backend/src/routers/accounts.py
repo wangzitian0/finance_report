@@ -27,8 +27,8 @@ from src.ledger import (
     get_or_create_processing_account,
     get_processing_balance,
     get_unpaired_transfers,
+    initialize_opening_positions,
     list_processing_transfer_legs,
-    post_opening_balance_entry,
 )
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_not_found
@@ -82,7 +82,7 @@ async def post_opening_balances(
                 fx_rates[currency] = await get_exchange_rate(
                     db, currency, base_currency, payload.entry_date, lazy_load=True
                 )
-        entry = await post_opening_balance_entry(
+        entry = await initialize_opening_positions(
             db,
             user_id,
             entry_date=payload.entry_date,

@@ -18,8 +18,8 @@ from src.ledger import (
     JournalLine,
     ValidationError,
     get_opening_balance_readiness,
+    initialize_opening_positions,
     list_opening_positions,
-    post_opening_balance_entry,
 )
 from src.routers import statements
 from src.schemas.review import Stage1ApprovalRequest
@@ -75,7 +75,7 @@ async def test_concurrent_opening_initialization(db_engine):
 
     async def initialize():
         async with sessions() as session:
-            entry = await post_opening_balance_entry(
+            entry = await initialize_opening_positions(
                 session,
                 uid,
                 entry_date=date(2026, 1, 1),
@@ -98,7 +98,7 @@ async def test_zero_and_per_account_readiness(db, test_user):
     """AC-ledger.opening-position.3: one initialized account cannot mask another."""
     first = await account(db, test_user.id, "Initialized")
     second = await account(db, test_user.id, "Explicit zero")
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -117,7 +117,7 @@ async def test_foreign_opening_and_missing_rate(db, test_user):
     """AC-ledger.opening-position.4: original currency survives with a real FX basis."""
     bank = await account(db, test_user.id, currency="USD")
     with pytest.raises(ValidationError, match="FX rate"):
-        await post_opening_balance_entry(
+        await initialize_opening_positions(
             db,
             test_user.id,
             entry_date=date(2026, 1, 1),
@@ -125,7 +125,7 @@ async def test_foreign_opening_and_missing_rate(db, test_user):
             currency="USD",
             base_currency="SGD",
         )
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -141,7 +141,7 @@ async def test_foreign_opening_and_missing_rate(db, test_user):
 async def test_opening_projection_and_immutability(db, test_user):
     """AC-ledger.opening-position.5: initialization facts reject in-place edits."""
     bank = await account(db, test_user.id)
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -160,7 +160,7 @@ async def test_opening_projection_and_immutability(db, test_user):
 async def test_opening_projection_preserves_date(db, test_user):
     """AC-ledger.opening-position.6: same-day stock is an explicit published fact."""
     bank = await account(db, test_user.id)
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -214,7 +214,7 @@ async def test_stale_journal_authority_invalidates_opening(db, test_user):
     from src.ledger.extension.anchored_posting import SystemJournalCommandPolicy
 
     bank = await account(db, test_user.id)
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -260,7 +260,7 @@ async def test_void_opening_does_not_return_stock(db, test_user):
     from src.ledger import void_journal_entry
 
     bank = await account(db, test_user.id)
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -277,7 +277,7 @@ async def test_foreign_cent_boundaries_round_total_once(db, test_user):
     """AC-ledger.opening-position.4: two half-cent base legs remain a full cent."""
     first = await account(db, test_user.id, "First fractional FX", "USD")
     second = await account(db, test_user.id, "Second fractional FX", "USD")
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),
@@ -302,7 +302,7 @@ async def test_void_latest_opening_does_not_resurrect_earlier_version(db, test_u
     from src.ledger.extension.opening_positions import record_opening_position
 
     bank = await account(db, test_user.id)
-    old = await post_opening_balance_entry(
+    old = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),

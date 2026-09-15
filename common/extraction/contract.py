@@ -581,6 +581,13 @@ CONTRACT = PackageContract(
             proof_kind="property",
         ),
         ACRecord(
+            id="AC-extraction.transaction-identity.5",
+            statement="Legacy atomic upsert retains its keyword-capture contract and rejects unsupported custody keywords; the additive scoped upsert accepts an explicit validated custody account without changing existing callers' argument binding.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_upsert_preserves_keyword_capture",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-extraction.transaction-identity.1",
             statement="Distinct custody accounts and currencies retain independent atomic transactions while exact imports of the same custody fact remain idempotent.",
             test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_identity_distinguishes_custody_and_currency",

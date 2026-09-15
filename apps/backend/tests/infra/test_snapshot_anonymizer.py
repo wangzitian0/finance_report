@@ -49,6 +49,14 @@ def test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified() -> N
     assert plan["users.email"] is Action.PSEUDONYM
     assert plan["users.hashed_password"] is Action.REDACT_SECRET
     assert plan["atomic_transactions.source_documents"] is Action.REDACT_JSON
+    assert plan["opening_position_records.amount"] is Action.SCALE
+    assert plan["opening_position_records.fx_rate"] is Action.KEEP
+    assert plan["opening_position_records.currency"] is Action.KEEP
+    assert plan["opening_position_records.content_digest"] is Action.PSEUDONYM
+    assert plan["atomic_transaction_identities.currency"] is Action.KEEP
+    assert plan["atomic_transaction_identities.custody_scope"] is Action.PSEUDONYM
+    assert plan["atomic_transaction_identities.identity_hash"] is Action.PSEUDONYM
+    assert plan["atomic_transaction_identities.legacy_hash"] is Action.PSEUDONYM
     # Every column of every table is present in the plan.
     total_columns = sum(len(t.columns) for t in Base.metadata.sorted_tables)
     assert len(plan) == total_columns

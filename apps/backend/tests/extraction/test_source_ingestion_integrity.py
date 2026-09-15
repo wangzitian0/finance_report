@@ -146,6 +146,31 @@ async def _upsert(db, user_id, document, *, currency="SGD"):
     )
 
 
+async def test_legacy_upsert_preserves_keyword_capture(db, test_user):
+    """AC-extraction.transaction-identity.5: a new keyword cannot consume legacy kwargs."""
+    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    document, _ = await _source(db, test_user.id, account=account)
+    with pytest.raises(TypeError, match="custody_account_id"):
+        await DeduplicationService().upsert_atomic_transaction(
+            db=db,
+            user_id=test_user.id,
+            txn_date=date(2025, 1, 2),
+            amount=Decimal("10"),
+            direction=TransactionDirection.IN,
+            description="Synthetic deposit",
+            currency="SGD",
+            source_doc_id=document.id,
+            source_doc_type=DocumentType.BANK_STATEMENT,
+            custody_account_id=account.id,
+        )
+    assert (
+        await db.scalar(
+            select(func.count()).select_from(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)
+        )
+        == 0
+    )
+
+
 @pytest.mark.parametrize("dimension", ["currency", "account"])
 async def test_identity_distinguishes_custody_and_currency(db, test_user, dimension):
     """AC-extraction.transaction-identity.1: custody-distinct events never collapse."""

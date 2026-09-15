@@ -480,7 +480,7 @@ async def try_auto_post_statement_opening_balance(
     from datetime import date
 
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
-    from src.ledger import list_opening_positions, post_opening_balance_entry
+    from src.ledger import initialize_opening_positions, list_opening_positions
 
     if statement.opening_balance is None or statement.period_start is None or statement.account_id is None:
         raise ValueError("Statement opening balance, date, and account are required before posting")
@@ -517,7 +517,7 @@ async def try_auto_post_statement_opening_balance(
         except dependencies.fx_rate_error as exc:
             raise ValueError("FX rate required for statement opening balance") from exc
     try:
-        await post_opening_balance_entry(
+        await initialize_opening_positions(
             db,
             user_id,
             entry_date=statement.period_start,

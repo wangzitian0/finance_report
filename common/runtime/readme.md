@@ -198,3 +198,10 @@ The package publishes (`contract.interface`) the `base` value language + manifes
 `ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
 `boot.Bootloader` delegates its checks to the adapters. New enforcement work
 must start in a GitHub issue and the package roadmap rather than a parallel list.
+
+Snapshot anonymization classifies opening-position amounts as money, preserving
+FX ratios and currency codes while pseudonymizing content digests. Versioned
+atomic identity hashes and custody scopes are pseudonymized; currency and the
+identity version are technical vocabulary. These classifications retain the
+fail-closed live-column census and common money scaling proof
+(`AC-runtime.snapshot-anonymizer.1`–`.3`).

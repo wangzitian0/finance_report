@@ -728,3 +728,9 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
 
 Manual and automatic source posting initialize the same ledger-owned starting stock in their posting unit of work. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings. Missing opening facts or rates block posting atomically. Follow-up periods reuse authoritative per-account stock, and source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
+
+The legacy `DeduplicationService.upsert_atomic_transaction` keeps its original
+keyword-capture contract. New source ingestion calls the additive
+`upsert_scoped_atomic_transaction` command with explicit custody; both resolve
+versioned identities through the same owner. Unsupported legacy keywords still
+raise before writes (`AC-extraction.transaction-identity.5`).

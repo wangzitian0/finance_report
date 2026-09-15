@@ -128,9 +128,7 @@ class AtomicTransactionIdentity(Base):
     __tablename__ = "atomic_transaction_identities"
     __table_args__ = (Index("idx_atomic_identity_legacy", "user_id", "legacy_hash"),)
 
-    user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
     identity_version: Mapped[str] = mapped_column(String(8), primary_key=True, default="v2")
     identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     legacy_hash: Mapped[str] = mapped_column(String(64), nullable=False)

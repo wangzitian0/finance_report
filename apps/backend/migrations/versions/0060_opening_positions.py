@@ -14,9 +14,7 @@ def upgrade() -> None:
     op.create_table(
         "opening_position_records",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("account_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("accounts.id"), nullable=False),
@@ -34,7 +32,6 @@ def upgrade() -> None:
     op.create_index("ix_opening_position_records_user_id", "opening_position_records", ["user_id"])
     op.execute("""CREATE OR REPLACE FUNCTION guard_opening_position_immutable() RETURNS trigger AS $$
 BEGIN
-  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN RETURN OLD; END IF;
   RAISE EXCEPTION 'Opening position facts are immutable';
 END; $$ LANGUAGE plpgsql""")
     op.execute("""CREATE TRIGGER opening_position_immutable BEFORE UPDATE OR DELETE ON opening_position_records

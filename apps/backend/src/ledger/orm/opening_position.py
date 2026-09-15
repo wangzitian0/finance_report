@@ -15,6 +15,7 @@ from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 class OpeningPositionRecord(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     __tablename__ = "opening_position_records"
     __table_args__ = (UniqueConstraint("account_id", "version", name="uq_opening_position_account_version"),)
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     account_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     effective_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -30,7 +31,6 @@ class OpeningPositionRecord(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 OPENING_IMMUTABILITY_SQL = """
 CREATE OR REPLACE FUNCTION guard_opening_position_immutable() RETURNS trigger AS $$
 BEGIN
-  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN RETURN OLD; END IF;
   RAISE EXCEPTION 'Opening position facts are immutable';
 END; $$ LANGUAGE plpgsql;
 CREATE TRIGGER opening_position_immutable BEFORE UPDATE OR DELETE ON opening_position_records

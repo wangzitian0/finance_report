@@ -13,7 +13,7 @@ from src.config_app import set_base_currency
 from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension.statement_posting import try_auto_post_statement_opening_balance
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
-from src.ledger import JournalEntry, JournalLine, post_opening_balance_entry
+from src.ledger import JournalEntry, JournalLine, initialize_opening_positions
 from src.routers.evidence import get_evidence_lineage
 from tests.extraction.test_source_ingestion_integrity import _parse, _payload, _source, _store_result
 from tests.factories import AccountFactory, UserFactory
@@ -153,7 +153,7 @@ async def test_manual_opening_has_no_fabricated_pdf(db, test_user):
     account = AccountFactory.build(user_id=test_user.id, currency="SGD")
     db.add(account)
     await db.flush()
-    entry = await post_opening_balance_entry(
+    entry = await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),

@@ -11,7 +11,7 @@ from alembic.operations import Operations
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from src.ledger import Account, AccountType, post_opening_balance_entry
+from src.ledger import Account, AccountType, initialize_opening_positions
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from tests.factories import seed_parsed_statement
 
@@ -52,7 +52,7 @@ async def test_opening_migration_preserves_history_and_enforces_immutability(db,
         await db.scalar(select(ReconciliationMatch.status).where(ReconciliationMatch.id == match_id))
         == ReconciliationStatus.REJECTED
     )
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2026, 1, 1),

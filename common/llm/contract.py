@@ -790,7 +790,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-llm.11.2",
-            statement="Every corpus cassette's frozen extraction output seeds a parsed statement whose rows receive explicit, non-reusable reviewer-confirmed semantic anchors before approval. The provider-free downstream journey then returns the exact cassette row count with Decimal amounts, reports a validated balance chain, resolves duplicate/transfer-pair candidates through the reviewer path, creates one posted journal entry per transaction, reaches unmatched=0 in a statement-scoped reconciliation run, and reflects the posting account's net movement with the accounting equation balanced. This proves confirmed-semantics propagation, not model classification quality.",
+            statement="Every corpus cassette's frozen extraction output seeds a parsed statement whose rows receive explicit, non-reusable reviewer-confirmed semantic anchors before approval. The provider-free downstream journey then returns the exact cassette row count with Decimal amounts, reports a validated balance chain, resolves duplicate/transfer-pair candidates through the reviewer path, creates one posted journal entry per transaction, reaches unmatched=0 in a statement-scoped reconciliation run, and reflects the posting account's opening stock plus net movement with the accounting equation balanced. This proves confirmed-semantics propagation, not model classification quality.",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
             priority="P0",
             status="done",
@@ -823,7 +823,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-llm.11.5",
-            statement="Every non-empty corpus statement's cash-flow report accounts for the posting account's net movement exactly once — either as the ending_cash delta when generate_cash_flow classifies the account as cash, or as a single Investing/Operating/Financing line (sign-flipped per cash_flow_amount's ASSET convention) when it does not — proving conservation (nothing silently dropped) without asserting a name-heuristic result that would be wrong for brokerage-class accounts under standard cash-flow-statement accounting",
+            statement="Every non-empty corpus statement's cash-flow report accounts for the posting account's net movement exactly once — either as ending_cash minus beginning_cash when generate_cash_flow classifies the account as cash, with source opening stock excluded from activity, or as a single Investing/Operating/Financing line (sign-flipped per cash_flow_amount's ASSET convention) when it does not — proving conservation (nothing silently dropped) without asserting a name-heuristic result that would be wrong for brokerage-class accounts under standard cash-flow-statement accounting",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_statement_full_journey",
             priority="P1",
             status="done",
@@ -840,7 +840,7 @@ CONTRACT = PackageContract(
         # ledger.
         ACRecord(
             id="AC-llm.11.6",
-            statement="Three real corpus statements (distinct accounts, Jan-Jun 2025) seeded and approved for the SAME user produce a combined-period balance sheet and income statement that tie exactly to the sum of all three cases' net movements — the upload->report derivation holds across multiple statements accumulating in one ledger, not just within a single statement's own journey",
+            statement="Three real corpus statements (distinct accounts, Jan-Jun 2025) seeded and approved for the SAME user produce combined-period balance sheet assets equal to opening stocks plus net movements and income equal to net movements — the upload->report derivation holds across multiple statements accumulating in one ledger, not just within a single statement's own journey",
             test="apps/backend/tests/e2e/test_statement_corpus_journeys.py::test_corpus_multi_statement_acceptance_same_user",
             priority="P0",
             status="done",

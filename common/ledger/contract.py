@@ -356,6 +356,13 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
+            id="AC-ledger.opening-position.9",
+            statement="The legacy opening-entry API retains its positive base-currency JournalEntry contract; additive opening-position initialization supports signed and zero stock without weakening the legacy return guarantee.",
+            test="apps/backend/tests/ledger/test_opening_entry_compatibility.py::test_legacy_opening_entry_rejects_nonpositive_without_writes",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-ledger.opening-position.8",
             statement="Source-backed starting stock, including zero without a journal, retains the original source decision as a causal ancestor and public typed evidence reference.",
             test="apps/backend/tests/ledger/test_opening_position.py::test_source_opening_retains_pdf_ancestor",
