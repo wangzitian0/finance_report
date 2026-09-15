@@ -231,7 +231,9 @@ def measure(
     )
 
     log = _git(
-        ["log", "--reverse", "--format=%cI%x1f%s", f"{deployed_ref}..origin/main"],
+        # The resolved commit, not the reported ref: the range must mean exactly
+        # the commit the environment serves, never git's reading of a ref string.
+        ["log", "--reverse", "--format=%cI%x1f%s", f"{deployed_commit}..origin/main"],
         repo,
         run,
     )
@@ -252,7 +254,16 @@ def measure(
             "",
         )
     oldest_iso, _, subject = lines[0].partition("\x1f")
-    oldest = datetime.fromisoformat(oldest_iso)
+    try:
+        oldest = datetime.fromisoformat(oldest_iso)
+    except ValueError as exc:
+        # A traceback here would skip the verdict/summary outputs the workflow's
+        # escalation reads; an unparseable date is an unmeasurable environment.
+        raise FreshnessError(
+            REASON_GIT,
+            f"git log returned an unparseable commit date {oldest_iso!r} for "
+            f"{environment}; the age of its undeployed work cannot be measured",
+        ) from exc
     reference = now or datetime.now(UTC)
     return Staleness(
         environment,

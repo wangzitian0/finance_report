@@ -22,6 +22,7 @@ from common.runtime.deploy_freshness import (
     LANE_IDLE,
     LANE_UNPROMOTED,
     LANE_UNTAGGED,
+    REASON_GIT,
     REASON_HTTP,
     REASON_NO_IDENTITY,
     REASON_NOT_JSON,
@@ -322,6 +323,31 @@ def test_check_freshness_exit_code_channel_and_outputs_follow_the_verdict(
         "",
         f"freshness check failed: {expected.summary}",
     )
+
+
+def test_measure_ranges_the_log_from_the_resolved_commit_not_the_ref() -> None:
+    """The reported ref proves the commit exists; the range is anchored on the commit."""
+    ranges: list[str] = []
+    inner = _git([], newest_release="v0.1.50")
+
+    def run(argv, capture_output=True, text=True, check=False):  # noqa: ARG001
+        if "log" in argv:
+            ranges.append(argv[-1])
+        return inner(argv, capture_output, text, check)
+
+    measure("production", "v0.1.50", now=NOW, run=run)
+    assert ranges == ["cafe123..origin/main"]
+
+
+def test_an_unparseable_commit_date_is_unmeasurable_not_a_traceback() -> None:
+    verdict = evaluate(
+        URL,
+        environment="production",
+        http_get=_health("v0.1.50"),
+        now=NOW,
+        run=_git(["not-a-date\x1fa merge"], newest_release="v0.1.50"),
+    )
+    assert (verdict.kind, verdict.reason) == (UNMEASURABLE, REASON_GIT)
 
 
 def test_measure_reads_newest_tag_and_undeployed_log_from_git() -> None:

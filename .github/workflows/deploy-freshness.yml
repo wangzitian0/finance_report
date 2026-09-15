@@ -25,7 +25,9 @@ on:
       # Read below as `github.event.inputs.*`, not `inputs.*`: the `inputs`
       # context belongs to workflow_dispatch/workflow_call, and this workflow's
       # PRIMARY trigger is the schedule. A guard whose own expression can fail
-      # on its main trigger is the failure mode it exists to prevent.
+      # on its main trigger is the failure mode it exists to prevent, so the
+      # lookup is gated on the event name and the schedule path only ever
+      # reads the matrix bound.
       staging_max_age_days:
         description: "staging: fail when the oldest undeployed main commit is older than this many days"
         required: false
@@ -98,7 +100,7 @@ jobs:
           python tools/deploy_freshness.py \
             "${{ matrix.url }}" \
             --environment "${{ matrix.environment }}" \
-            --max-age-days "${{ github.event.inputs[matrix.bound_input] || matrix.max_age_days }}"
+            --max-age-days "${{ github.event_name == 'workflow_dispatch' && github.event.inputs[matrix.bound_input] || matrix.max_age_days }}"
 
       # Reports, never rescues: the leg is already red when this fires. Keyed on
       # the CHECK step's outcome, not `failure()`, so a broken SDK download
