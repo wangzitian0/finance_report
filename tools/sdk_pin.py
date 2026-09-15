@@ -3,10 +3,15 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
 
-if __name__ == "__main__":
-    sys.path.insert(0, str(ROOT))
+
+def main() -> None:
     from common.runtime.sdk_pin import read_sdk_pin
 
-    print(*read_sdk_pin(ROOT))
+    print(*read_sdk_pin(ROOT_DIR))
+
+
+if __name__ == "__main__":
+    main()
