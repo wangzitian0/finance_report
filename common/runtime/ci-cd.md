@@ -184,6 +184,17 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   `tools/ghcr_retention.py` to delete stale SHA package versions older than 28
   days. It never owns PR preview `pr-<number>-<sha>` cleanup and never deletes a
   package version carrying a `vX.Y.Z` release tag.
+- The scheduled `deploy-freshness` workflow (`.github/workflows/deploy-freshness.yml`,
+  07:00 UTC daily plus `workflow_dispatch`) is the standing criterion for how
+  old what a user sees may be. Per environment it reads the release from
+  `/api/health`, resolves it in a full-history checkout, and fails when the
+  oldest `main` commit not deployed there is older than the bound — staging 3
+  days, production 7 days (production is promoted deliberately through
+  `release.yml`, so its bound is looser; both are explicit `workflow_dispatch`
+  inputs). It never deploys: a stale or unmeasurable environment files or
+  updates one tracking issue per environment and breakage via `GITHUB_TOKEN`
+  (`deploy-freshness: <env> is stale` / `could not be measured`). Owner:
+  `tools/deploy_freshness.py` → `common/runtime/deploy_freshness.py`.
 - The retired `tools/cleanup_pr_preview_resources.py` compatibility entry point is removed. Closed-PR Dokploy reclaim is infra2-owned (event-driven `preview-teardown` + the hourly `preview-leak-check`); generic VPS host hygiene is also infra2-owned (infra2's `tools/host_hygiene_schedule.py` + the ops-checks re-ensure job).
 - PR preview containers created from `docker-compose.yml` use the `json-file` logging driver with bounded `max-size` and `max-file` options so Docker container logs cannot grow without limit.
 - Generic VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to infra2; see infra2 `docs/ssot/ops.pipeline.md §11`). It runs as a Dokploy `dokploy-server` Schedule Job — provisioned by infra2's `tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks` host-hygiene job — pruning old stopped non-preview containers, build cache, unused images, all unused Docker networks, oversized Docker json logs, and the systemd journal. The app no longer ships a host-hygiene tool or provisions the schedule. PR preview environments are reaped by infra2's preview teardown/leak-check, never by host hygiene; the `PR_PREVIEW_CONTAINER_PATTERN` (now in infra2) only *excludes* preview containers from generic pruning.

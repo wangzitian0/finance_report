@@ -1,0 +1,147 @@
+name: deploy-freshness
+
+# Fail when an environment is serving work that finished days ago.
+#
+# Production v0.1.50 reached users on 2026-09-10 through a door no workflow
+# measured; the last successful release.yml production run before it was
+# v0.1.44 on 2026-07-19. Nothing here was red in between, because no check in
+# this repository was ever about how old what a user sees is. This is that
+# check, modelled on truealpha's deploy-freshness.yml (truealpha#560).
+#
+# The bound is AGE, not commit count, deliberately: a count measures how busy
+# the repository has been, age measures how long finished work has been
+# invisible. Ten commits merged this morning are not a problem; one commit
+# merged last week is. The bound is per environment: staging should follow
+# main within days; production is promoted deliberately by the owner through
+# release.yml, so its bound is looser -- a bound, not an exemption.
+
+on:
+  schedule:
+    # 07:00 UTC daily -- before a working day starts, so a stale environment is
+    # the first thing anyone sees.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      # Read below as `github.event.inputs.*`, not `inputs.*`: the `inputs`
+      # context belongs to workflow_dispatch/workflow_call, and this workflow's
+      # PRIMARY trigger is the schedule. A guard whose own expression can fail
+      # on its main trigger is the failure mode it exists to prevent.
+      staging_max_age_days:
+        description: "staging: fail when the oldest undeployed main commit is older than this many days"
+        required: false
+        default: "3"
+      production_max_age_days:
+        description: "production: fail when the oldest undeployed main commit is older than this many days (promotion is deliberate, so looser)"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+  # A scheduled failure files/updates a tracking issue instead of dying quietly
+  # in the Actions tab.
+  issues: write
+
+env:
+  PYTHON_VERSION: "3.12.12"
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `max_age_days` is the scheduled bound; `bound_input` names the
+          # workflow_dispatch input that overrides it for one manual run. Both
+          # environments carry an explicit bound so neither inherits the other's.
+          - environment: production
+            url: https://report.zitian.party/api/health
+            max_age_days: "7"
+            bound_input: production_max_age_days
+          - environment: staging
+            url: https://report-staging.zitian.party/api/health
+            max_age_days: "3"
+            bound_input: staging_max_age_days
+    steps:
+      # Full history AND tags: the environments report release tags, and the
+      # check resolves that tag to a commit to measure the gap to origin/main. A
+      # shallow clone makes every environment look unresolvable.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: git fetch --tags --force origin
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # The check reads /api/health through infra2_sdk.deploy_health (the same
+      # transport tools/health_check.py uses). Acquire the pinned SDK wheel the
+      # way deploy.yml does -- from the backend lock via tools/sdk_pin.py -- so
+      # this job never carries its own second pin.
+      - name: Install the pinned infra2-sdk
+        run: |
+          set -euo pipefail
+          sdk_dir="$(mktemp -d)"
+          read -r sdk_url sdk_sha256 sdk_filename <<< "$(python tools/sdk_pin.py)"
+          sdk_wheel="${sdk_dir}/${sdk_filename}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 5 \
+            "$sdk_url" --output "$sdk_wheel"
+          echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status
+          python -m pip install --quiet "$sdk_wheel" "httpx>=0.27.0"
+
+      - name: Check ${{ matrix.environment }} freshness
+        id: check
+        run: |
+          set -euo pipefail
+          python tools/deploy_freshness.py \
+            "${{ matrix.url }}" \
+            --environment "${{ matrix.environment }}" \
+            --max-age-days "${{ github.event.inputs[matrix.bound_input] || matrix.max_age_days }}"
+
+      # Reports, never rescues: the leg is already red when this fires. Keyed on
+      # the CHECK step's outcome, not `failure()`, so a broken SDK download
+      # cannot file an issue that claims an environment is stale. The check
+      # writes `verdict` so the title says what actually happened: a stale
+      # environment and an unmeasurable one need different hands.
+      # One open issue per environment and breakage, found by exact title: the
+      # two matrix legs run in parallel, and an env-agnostic search would let
+      # the staging leg comment on production's issue. A failed LIST must not
+      # fall through to create -- a rate limit would turn one breakage into
+      # duplicates.
+      - name: Escalate a scheduled failure to an issue
+        if: steps.check.outcome == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: ${{ matrix.environment }}
+          VERDICT: ${{ steps.check.outputs.verdict }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$VERDICT" = "stale" ]; then
+            TITLE="deploy-freshness: ${ENVIRONMENT} is stale"
+          else
+            TITLE="deploy-freshness: ${ENVIRONMENT} could not be measured"
+          fi
+          {
+            echo "Scheduled/dispatched run failed for ${ENVIRONMENT}: $RUN_URL"
+            echo
+            echo '```'
+            echo "${SUMMARY:-the check produced no summary; read the run log}"
+            echo '```'
+            echo
+            echo "Filed automatically by deploy-freshness.yml. One open issue per environment and breakage: reruns comment here instead of filing again."
+          } > body.md
+          if ! EXISTING=$(gh issue list -R "${{ github.repository }}" --state open --limit 50 \
+              --search "in:title \"$TITLE\"" --json number,title \
+              --jq "[.[] | select(.title == \"$TITLE\")][0].number"); then
+            echo "::warning::issue listing failed; skipping escalation -- the run is already red"
+            exit 0
+          fi
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            gh issue comment -R "${{ github.repository }}" "$EXISTING" --body-file body.md
+          else
+            gh issue create -R "${{ github.repository }}" --title "$TITLE" --body-file body.md
+          fi
