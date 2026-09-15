@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -57,6 +58,16 @@ def check_tool_files(repo_root: Path, toolchain: dict, errors: list[str]) -> Non
 
     npmrc = read_text(repo_root, ".npmrc")
     expect_contains(errors, ".npmrc", npmrc, "engine-strict=true")
+
+
+def expect_image(errors: list[str], path: str, content: str, image: str) -> None:
+    """Match a complete literal Compose image, allowing quotes/comments/spacing."""
+    pattern = (
+        rf"(?m)^\s*image:\s*(?P<quote>['\"]?){re.escape(image)}"
+        r"(?P=quote)[ \t]*(?:#.*)?$"
+    )
+    if not re.search(pattern, content):
+        errors.append(f"{path}: missing governed image {image!r}")
 
 
 def check_frontend_package(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
@@ -121,6 +132,34 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         for needle in needles:
             expect_contains(errors, path, content, needle)
 
+    # This gate runs before dependency installation, so keep it stdlib-only.
+    # Check each acquisition step separately: a correct integration job must
+    # never conceal a stale image in the Tier-1 job (or vice versa).
+    ci_path = ".github/workflows/ci.yml"
+    minio_steps = [
+        block
+        for block in re.split(
+            r"(?m)^\s*- (?=(?:name|id|run|uses):)", read_text(repo_root, ci_path)
+        )
+        if "docker run" in block
+        and ("MINIO_ROOT_USER" in block or "mc alias set" in block)
+    ]
+    if not minio_steps:
+        errors.append(f"{ci_path}: no governed MinIO acquisition steps found")
+    for index, block in enumerate(minio_steps, start=1):
+        tokens = {
+            token
+            for line in block.splitlines()
+            if not line.lstrip().startswith("#")
+            for token in line.split()
+        }
+        for key in ("minio", "minio_client"):
+            image = toolchain["images"][key]
+            if image not in tokens:
+                errors.append(
+                    f"{ci_path}: MinIO acquisition step {index} must use {key}={image!r}"
+                )
+
 
 def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     images = toolchain["images"]
@@ -150,7 +189,12 @@ def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -
         images["minio"],
         images["minio_client"],
     ):
-        expect_contains(errors, "docker-compose.yml", compose, f"image: {image}")
+        expect_image(errors, "docker-compose.yml", compose, image)
+
+    preview_path = "docker-compose.pr-preview.yml"
+    preview = read_text(repo_root, preview_path)
+    for key in ("minio", "minio_client"):
+        expect_image(errors, preview_path, preview, images[key])
 
     for key, image in (
         ("PYTHON_IMAGE", images["backend_python"]),

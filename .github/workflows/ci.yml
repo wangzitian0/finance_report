@@ -618,7 +618,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minio \
             -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
             server /data --console-address ":9001"
 
           for _ in {1..30}; do
@@ -629,7 +629,7 @@ jobs:
           done
 
           curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z \
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
             -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
 
       - name: Run Integration Tests
@@ -725,7 +725,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minio \
             -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            minio/minio:RELEASE.2025-09-07T16-13-09Z \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
             server /data --console-address ":9001"
 
           for _ in {1..30}; do
@@ -736,7 +736,7 @@ jobs:
           done
 
           curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-08-13T08-35-41Z \
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
             -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
 
       - name: Run Tier-1 API E2E Tests
@@ -1234,9 +1234,9 @@ jobs:
 
       - name: Run tooling tests with coverage
         run: |
-          sdk_url="https://github.com/wangzitian0/infra2-sdk/releases/download/v1.5.0/infra2_sdk-1.5.0-py3-none-any.whl"
-          sdk_sha256="d90c2a4f6ec98c1c5c94552339c3a6aca15499cc113a1e8821b50e3e97b2f6e2"
-          sdk_wheel="$RUNNER_TEMP/infra2_sdk-1.5.0-py3-none-any.whl"
+          sdk_pin="$(python tools/sdk_pin.py)" || exit $?
+          read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
+          sdk_wheel="$RUNNER_TEMP/$sdk_filename"
           curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"
           printf '%s  %s\n' "$sdk_sha256" "$sdk_wheel" | sha256sum --check --status
           mkdir -p coverage

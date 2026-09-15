@@ -10,12 +10,9 @@
 
 The application depends on external backends — object storage (S3), the LLM
 provider, cache (Redis), telemetry (OTel), analytics (OpenPanel), the database.
-Today that boundary is **homeless**: `ServiceStatus` + `_check_*` float in
-`apps/backend/src/boot.py`, env keys live in `config`, the smoke test is a shell
-script, and the six-environment tiering lives in `environments.md`. Nobody owns
-the *contract* across them — which is exactly why dependencies **degrade
-silently** (`_check_ai_provider` returns `"skipped"` when unconfigured; S3 is
-treated as "optional" and only `warning`s when down).
+Before this package, the boundary had no owner: boot checks, config keys, smoke
+scripts and tier definitions evolved separately and could degrade silently.
+The package now owns their contract and fail-closed dependency checks.
 
 `runtime` is the bounded context that owns that boundary: **what we depend on,
 how each environment provides or substitutes it, and the guarantee that a
@@ -38,6 +35,18 @@ execution. Staging, Production, and rollback all use the receiver transport and
 prove the correlated infra2 workflow run before App health gates begin.
 
 ## Ubiquitous language
+
+`toolchain.toml` owns local, preview, and CI dependency image pins.
+`check_toolchain_contract.py` checks both Compose files and each CI MinIO
+acquisition step independently, including its bucket-initialization client
+(AC-testing.toolchain.1, #2037). A green job cannot mask another job's stale pin.
+
+SDK bootstrap coordinates come from the backend dependency declaration and generated
+lock through `sdk_pin.py` (AC-runtime.sdk-pin.1, #2004). `tools/sdk_pin.py` is the
+workflow entry point; CI, staging and production acquisition share the same validated
+URL and digest while preserving their own download/retry policies.
+Malformed dependency/lock structures fail with the owning file and field named;
+the staging retry check also asserts that the verified wheel reaches pip install.
 
 - **Dependency** — an external backend the app talks to across a process edge.
 - **Kind** — how a dependency must be tested:

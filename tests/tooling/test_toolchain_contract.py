@@ -33,6 +33,7 @@ def _copy_contract_inputs(target_root: Path) -> None:
         "apps/backend/Dockerfile",
         "apps/frontend/Dockerfile",
         "docker-compose.yml",
+        "docker-compose.pr-preview.yml",
     ):
         source = ROOT / relative_path
         target = target_root / relative_path
@@ -108,6 +109,34 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
         contract.load_toolchain(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("path", "image_key", "occurrence"),
+    [
+        (".github/workflows/ci.yml", image, occurrence)
+        for image in ("minio", "minio_client")
+        for occurrence in (0, 1)
+    ]
+    + [
+        ("docker-compose.pr-preview.yml", image, 0)
+        for image in ("minio", "minio_client")
+    ],
+)
+def test_minio_image_drift_fails_in_each_environment(
+    tmp_path: Path, path: str, image_key: str, occurrence: int
+) -> None:
+    """AC-testing.toolchain.1: Every CI job and preview use the governed image."""
+    _copy_contract_inputs(tmp_path)
+    image = contract.load_toolchain(tmp_path)["images"][image_key]
+    target = tmp_path / path
+    content = target.read_text(encoding="utf-8")
+    parts = content.split(image)
+    assert len(parts) > occurrence + 1
+    before = image.join(parts[: occurrence + 1])
+    after = image.join(parts[occurrence + 1 :])
+    target.write_text(before + "invalid.example/minio:drift" + after, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
 def test_AC8_13_39_cli_accepts_explicit_repo_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -123,6 +152,34 @@ def test_AC8_13_39_cli_accepts_explicit_repo_root(
     )
 
     assert contract.main() == 0
+
+
+def test_renamed_minio_step_cannot_hide_image_drift(tmp_path: Path) -> None:
+    """AC-testing.toolchain.1: Display names do not determine acquisition coverage."""
+    _copy_contract_inputs(tmp_path)
+    target = tmp_path / ".github/workflows/ci.yml"
+    image = contract.load_toolchain(tmp_path)["images"]["minio"]
+    content = target.read_text(encoding="utf-8").replace(
+        "name: Start MinIO", "name: Start object storage", 1
+    )
+    target.write_text(content.replace(image, "invalid.example/minio:drift", 1))
+    assert contract.run_contract(tmp_path) == 1
+
+
+@pytest.mark.parametrize("quote", ["", "'", '"'])
+def test_compose_image_formatting_is_not_drift(tmp_path: Path, quote: str) -> None:
+    """AC-testing.toolchain.1: Compare the image value, not incidental YAML style."""
+    _copy_contract_inputs(tmp_path)
+    image = contract.load_toolchain(tmp_path)["images"]["minio"]
+    for path in ("docker-compose.yml", "docker-compose.pr-preview.yml"):
+        target = tmp_path / path
+        target.write_text(
+            target.read_text().replace(
+                f"image: {image}",
+                f"image:  {quote}{image}{quote}  # same immutable image",
+            )
+        )
+    assert contract.run_contract(tmp_path) == 0
 
 
 def test_AC8_13_39_module_entrypoint_exits_with_status(
