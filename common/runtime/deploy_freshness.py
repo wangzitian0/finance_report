@@ -17,8 +17,9 @@ Two facts are measured against ``origin/main`` for the release the environment
 reports on ``/api/health``: how many commits on ``main`` are not deployed there
 and how old the oldest of them is, and whether the newest ``vX.Y.Z`` tag cut
 from ``main`` is the deployed one (release lane idle) or is cut but not promoted
-(promotion pending). Both are named in the verdict so the operator knows which
-door to open without opening a shell.
+(promotion pending). The outcome is a structured :class:`Verdict`; its one-line
+``summary`` is rendered from those fields so the operator knows which door to
+open without opening a shell.
 
 Usage:
   python tools/deploy_freshness.py <health_url> --environment {production,staging}
@@ -29,7 +30,7 @@ Exit codes:
   1 - stale, or unmeasurable (unreachable, no release identity, unknown ref)
 
 When ``GITHUB_OUTPUT`` is set, ``verdict`` (``fresh`` / ``stale`` / ``unmeasurable``)
-and a one-line ``summary`` are written so the workflow's escalation step can
+and the one-line ``summary`` are written so the workflow's escalation step can
 title the tracking issue by what actually happened.
 """
 
@@ -65,9 +66,32 @@ _NEWEST_RELEASE_MATCH = "v[0-9]*.[0-9]*.[0-9]*"
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
+#: Verdict kinds. The workflow titles its tracking issue by this.
+FRESH = "fresh"
+STALE = "stale"
+UNMEASURABLE = "unmeasurable"
+
+#: Why a measurement was impossible (``Verdict.reason`` when ``UNMEASURABLE``).
+REASON_HTTP = "http"
+REASON_NOT_JSON = "not_json"
+REASON_NOT_OBJECT = "not_object"
+REASON_NO_IDENTITY = "no_identity"
+REASON_UNSAFE_REF = "unsafe_ref"
+REASON_UNKNOWN_REF = "unknown_ref"
+REASON_GIT = "git"
+
+#: Which door the undeployed work is waiting behind (``Verdict.lane``).
+LANE_IDLE = "idle"  # the newest tag IS deployed: nothing has been cut since
+LANE_UNPROMOTED = "unpromoted"  # a newer tag exists; this environment lacks it
+LANE_UNTAGGED = "untagged"  # no vX.Y.Z tag is reachable from main at all
+
 
 class FreshnessError(RuntimeError):
     """Freshness could not be measured; no verdict about staleness is possible."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -87,8 +111,23 @@ class Staleness:
 
 @dataclass(frozen=True)
 class Verdict:
-    kind: str  # "fresh" | "stale" | "unmeasurable"
-    summary: str
+    """The check's structured outcome; ``summary`` is rendered from it, never hand-built."""
+
+    kind: str
+    environment: str
+    deployed_ref: str = ""
+    newest_release: str = ""
+    lane: str = ""
+    undeployed_commits: int = 0
+    oldest_undeployed_age: timedelta | None = None
+    oldest_undeployed_subject: str = ""
+    max_age: timedelta | None = None
+    reason: str = ""
+    detail: str = ""
+
+    @property
+    def summary(self) -> str:
+        return render(self)
 
 
 def max_age_for(environment: str, max_age_days: int | None = None) -> timedelta:
@@ -106,10 +145,13 @@ def identity_from_body(body: str, *, url: str = "") -> str:
     try:
         payload = json.loads(body)
     except (TypeError, ValueError) as exc:
-        raise FreshnessError(f"{where} did not answer JSON: {body[:120]!r}") from exc
+        raise FreshnessError(
+            REASON_NOT_JSON, f"{where} did not answer JSON: {body[:120]!r}"
+        ) from exc
     if not isinstance(payload, dict):
         raise FreshnessError(
-            f"{where} answered JSON that is not an object: {body[:120]!r}"
+            REASON_NOT_OBJECT,
+            f"{where} answered JSON that is not an object: {body[:120]!r}",
         )
     for key in VERSION_KEYS:
         value = payload.get(key)
@@ -117,14 +159,16 @@ def identity_from_body(body: str, *, url: str = "") -> str:
             break
     else:
         raise FreshnessError(
+            REASON_NO_IDENTITY,
             f"{where} does not report a release identity (body {body[:120]!r}); "
-            "nothing about the deployed release can be judged"
+            "nothing about the deployed release can be judged",
         )
     if not _SAFE_REF.match(value):
         raise FreshnessError(
+            REASON_UNSAFE_REF,
             f"{where} reports {value!r}, which is not a usable release identifier "
             "-- a leading '-' would be read by git as an option and whitespace makes "
-            "the failure non-deterministic. This value is not used"
+            "the failure non-deterministic. This value is not used",
         )
     return value
 
@@ -134,7 +178,7 @@ def read_deployed_release(url: str, http_get: HttpGet) -> str:
     status_code, body = http_get(url)
     if status_code != 200:
         raise FreshnessError(
-            f"{url} answered HTTP {status_code}; its release is unknown"
+            REASON_HTTP, f"{url} answered HTTP {status_code}; its release is unknown"
         )
     return identity_from_body(body, url=url)
 
@@ -162,8 +206,9 @@ def measure(
     deployed_commit = _resolve_commit(deployed_ref, repo, run)
     if not deployed_commit:
         raise FreshnessError(
+            REASON_UNKNOWN_REF,
             f"{environment} reports {deployed_ref!r}, which is not a commit here -- "
-            "fetch tags, or check that the environment reports a ref this repository knows"
+            "fetch tags, or check that the environment reports a ref this repository knows",
         )
 
     described = _git(
@@ -192,7 +237,8 @@ def measure(
     )
     if log.returncode != 0:
         raise FreshnessError(
-            f"git log {deployed_ref}..origin/main failed: {log.stderr.strip()}"
+            REASON_GIT,
+            f"git log {deployed_ref}..origin/main failed: {log.stderr.strip()}",
         )
     lines = [line for line in log.stdout.splitlines() if line]
     if not lines:
@@ -219,46 +265,92 @@ def measure(
     )
 
 
-def _release_lane(staleness: Staleness) -> str:
-    """Which door the undeployed work is waiting behind."""
+def judge(staleness: Staleness, max_age: timedelta) -> Verdict:
+    """The pure comparison: age of the oldest undeployed commit against the bound."""
     if not staleness.newest_release:
+        lane = LANE_UNTAGGED
+    elif staleness.newest_release_deployed:
+        lane = LANE_IDLE
+    else:
+        lane = LANE_UNPROMOTED
+    age = staleness.oldest_undeployed_age
+    stale = staleness.undeployed_commits > 0 and age is not None and age > max_age
+    return Verdict(
+        kind=STALE if stale else FRESH,
+        environment=staleness.environment,
+        deployed_ref=staleness.deployed_ref,
+        newest_release=staleness.newest_release,
+        lane=lane,
+        undeployed_commits=staleness.undeployed_commits,
+        oldest_undeployed_age=age,
+        oldest_undeployed_subject=staleness.oldest_undeployed_subject,
+        max_age=max_age,
+    )
+
+
+def _lane_sentence(verdict: Verdict) -> str:
+    if verdict.lane == LANE_UNTAGGED:
         return "No vX.Y.Z release tag is reachable from main."
-    if staleness.newest_release_deployed:
+    if verdict.lane == LANE_IDLE:
         return (
-            f"{staleness.newest_release} is the newest release cut from main, so the "
+            f"{verdict.newest_release} is the newest release cut from main, so the "
             "undeployed commits have no release yet (the release lane is idle)."
         )
     return (
-        f"{staleness.newest_release} is cut from main but not promoted to "
-        f"{staleness.environment}."
+        f"{verdict.newest_release} is cut from main but not promoted to "
+        f"{verdict.environment}."
     )
 
 
-def judge(staleness: Staleness, max_age: timedelta) -> Verdict:
-    """The pure comparison: age of the oldest undeployed commit against the bound."""
-    env, ref = staleness.environment, staleness.deployed_ref
-    if staleness.undeployed_commits == 0:
-        return Verdict(
-            "fresh", f"{env} is current: serving {ref}, nothing newer on main"
-        )
-    age = staleness.oldest_undeployed_age
-    assert age is not None
-    count = staleness.undeployed_commits
-    lane = _release_lane(staleness)
-    if age > max_age:
-        return Verdict(
-            "stale",
+def render(verdict: Verdict) -> str:
+    """One line an operator can act on without opening a shell."""
+    env, ref = verdict.environment, verdict.deployed_ref
+    if verdict.kind == UNMEASURABLE:
+        return f"{env} freshness is unmeasurable ({verdict.reason}): {verdict.detail}"
+    if verdict.undeployed_commits == 0:
+        return f"{env} is current: serving {ref}, nothing newer on main"
+    age, limit = verdict.oldest_undeployed_age, verdict.max_age
+    assert age is not None and limit is not None
+    count, lane = verdict.undeployed_commits, _lane_sentence(verdict)
+    if verdict.kind == STALE:
+        return (
             f"{env} is stale: it serves {ref} while {count} commit(s) on main are not "
             f"deployed there, the oldest merged {age.days}d{age.seconds // 3600}h ago "
-            f"(limit {max_age.days}d) -- {staleness.oldest_undeployed_subject[:80]!r}. "
+            f"(limit {limit.days}d) -- {verdict.oldest_undeployed_subject[:80]!r}. "
             f"{lane} Finished work is invisible to every user of {env} until a "
-            "release carries it.",
+            "release carries it."
         )
-    return Verdict(
-        "fresh",
+    return (
         f"{env} is fresh enough: serving {ref}, {count} commit(s) not yet deployed, "
-        f"oldest {age.days}d (limit {max_age.days}d). {lane}",
+        f"oldest {age.days}d (limit {limit.days}d). {lane}"
     )
+
+
+def evaluate(
+    url: str,
+    *,
+    environment: str,
+    max_age_days: int | None = None,
+    repo: str = ".",
+    http_get: HttpGet | None = None,
+    now: datetime | None = None,
+    run: Runner = subprocess.run,
+) -> Verdict:
+    """Read the environment, measure it, judge it; never raises for a measurable reason."""
+    http_get = http_get or default_http_get()
+    max_age = max_age_for(environment, max_age_days)
+    try:
+        deployed_ref = read_deployed_release(url, http_get)
+        staleness = measure(environment, deployed_ref, repo=repo, now=now, run=run)
+    except FreshnessError as exc:
+        return Verdict(
+            kind=UNMEASURABLE,
+            environment=environment,
+            max_age=max_age,
+            reason=exc.reason,
+            detail=str(exc),
+        )
+    return judge(staleness, max_age)
 
 
 def check_freshness(
@@ -272,21 +364,18 @@ def check_freshness(
     run: Runner = subprocess.run,
     github_output: Callable[[dict[str, str]], None] = write_github_output,
 ) -> int:
-    """Measure, judge, report; the shell exit code is the verdict."""
-    http_get = http_get or default_http_get()
-    max_age = max_age_for(environment, max_age_days)
-    try:
-        deployed_ref = read_deployed_release(url, http_get)
-        staleness = measure(environment, deployed_ref, repo=repo, now=now, run=run)
-    except FreshnessError as exc:
-        verdict = Verdict(
-            "unmeasurable", f"{environment} freshness is unmeasurable: {exc}"
-        )
-    else:
-        verdict = judge(staleness, max_age)
-
+    """Evaluate and report; the shell exit code is the verdict."""
+    verdict = evaluate(
+        url,
+        environment=environment,
+        max_age_days=max_age_days,
+        repo=repo,
+        http_get=http_get,
+        now=now,
+        run=run,
+    )
     github_output({"verdict": verdict.kind, "summary": verdict.summary})
-    if verdict.kind == "fresh":
+    if verdict.kind == FRESH:
         print(verdict.summary)
         return 0
     print(f"freshness check failed: {verdict.summary}", file=sys.stderr)
