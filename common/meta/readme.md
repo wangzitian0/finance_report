@@ -210,6 +210,17 @@ class name, member values and the selected default remain part of comparison.
 Methods, unresolved definitions, other classes and quoted text keep conservative
 fingerprints. The raw report still records the original and new binding paths.
 
+Structural additions preserve existing call bindings (AC-meta.public-boundary.8).
+An unchanged dataclass may append defaulted fields; an existing function or method
+may add optional keyword-only parameters while preserving every existing
+parameter, default, annotation, return type and decorator. A class may add new
+public methods without replacing members. Positional additions, required fields,
+constructor changes and inherited-member ambiguity remain conservative. In
+particular, a new named keyword beside existing `**kwargs` changes capture and
+requires consumer proof. Delimiters or annotation-like text inside quoted
+defaults never count as structural additions or removable metadata. This is a
+bounded signature comparison, not a claim about arbitrary implementation changes.
+
 The report is generated CI evidence, not an authored SSOT:
 `.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`
 and uploads exact governance observations for the package control-plane join,
