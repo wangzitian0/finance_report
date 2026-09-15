@@ -4215,6 +4215,49 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.pdf-checkpoint.1",
+            statement=(
+                "Generated PDF bytes traverse upload, real storage operations and extraction normalization "
+                "into one tenant-owned document, canonical statement, immutable result and distinct atomic "
+                "facts with matching content digests and retrievable storage keys. Deterministic provider "
+                "responses prove application composition, not live OCR accuracy."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_persists_source_and_fact_identity"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.pdf-checkpoint.2",
+            statement=(
+                "Report drill-down for the generated PDF reaches its actual source document through "
+                "every posted effect, including starting stock, with authoritative decision anchors "
+                "and tenant isolation."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_report_lineage_reaches_source"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.pdf-checkpoint.3",
+            statement=(
+                "The same-period generated PDF checkpoint produces correct independent Decimal opening, "
+                "gross income, gross expense and closing totals across all three basic statements, then "
+                "a trusted saved package whose JSON and CSV exports retain its frozen source decisions."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_three_statements_and_saved_package"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.governance.23",
             statement=(
                 "One testing-owned adapter assembles package-governance observations "

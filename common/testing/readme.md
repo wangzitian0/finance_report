@@ -166,6 +166,17 @@ opening date is supplied explicitly: upstream ordinary-user UI completion and
 onboarding guidance remain outside this proof. This is one supported month, not a
 claim about other formats, economic cases, or year-wide coverage.
 
+The PDF checkpoint (`AC-testing.pdf-checkpoint.1`–`.3`) adds a deterministic
+composition test through the public upload endpoint. It renders a generated PDF,
+controls only provider proposals and the object-storage server, and exercises
+normalization, persistence, authorization, posting, source lineage, and the
+three report APIs against PostgreSQL. Its independent oracle is opening cash
+1,000, income 500, expenses 100, and closing cash 1,400 in SGD, with the opening
+dated exactly at the report-period start. The test checks stored bytes and
+content hashes, source/transaction/journal identities, duplicate upload rejection,
+tenant isolation, and trusted package reopen/export. This lane proves composition;
+it does not substitute for live OCR accuracy or browser first-use evidence.
+
 ### Responsibility table
 
 | Failure class | Owner |
