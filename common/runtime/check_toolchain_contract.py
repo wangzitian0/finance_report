@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -121,6 +122,31 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         for needle in needles:
             expect_contains(errors, path, content, needle)
 
+    # This gate runs before dependency installation, so keep it stdlib-only.
+    # Check each acquisition step separately: a correct integration job must
+    # never conceal a stale image in the Tier-1 job (or vice versa).
+    ci_path = ".github/workflows/ci.yml"
+    minio_steps = [
+        block
+        for block in re.split(r"(?m)^      - ", read_text(repo_root, ci_path))
+        if block.startswith("name: Start MinIO\n")
+    ]
+    if not minio_steps:
+        errors.append(f"{ci_path}: no governed Start MinIO acquisition steps found")
+    for index, block in enumerate(minio_steps, start=1):
+        tokens = {
+            token
+            for line in block.splitlines()
+            if not line.lstrip().startswith("#")
+            for token in line.split()
+        }
+        for key in ("minio", "minio_client"):
+            image = toolchain["images"][key]
+            if image not in tokens:
+                errors.append(
+                    f"{ci_path}: Start MinIO step {index} must use {key}={image!r}"
+                )
+
 
 def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     images = toolchain["images"]
@@ -151,6 +177,11 @@ def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -
         images["minio_client"],
     ):
         expect_contains(errors, "docker-compose.yml", compose, f"image: {image}")
+
+    preview_path = "docker-compose.pr-preview.yml"
+    preview = read_text(repo_root, preview_path)
+    for key in ("minio", "minio_client"):
+        expect_contains(errors, preview_path, preview, f"image: {images[key]}\n")
 
     for key, image in (
         ("PYTHON_IMAGE", images["backend_python"]),

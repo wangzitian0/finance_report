@@ -36,6 +36,11 @@ prove the correlated infra2 workflow run before App health gates begin.
 
 ## Ubiquitous language
 
+`toolchain.toml` owns local, preview, and CI dependency image pins.
+`check_toolchain_contract.py` checks both Compose files and each CI MinIO
+acquisition step independently, including its bucket-initialization client
+(AC-testing.toolchain.1, #2037). A green job cannot mask another job's stale pin.
+
 SDK bootstrap coordinates come from the backend dependency declaration and generated
 lock through `sdk_pin.py` (AC-runtime.sdk-pin.1, #2004). `tools/sdk_pin.py` is the
 workflow entry point; CI, staging and production acquisition share the same validated

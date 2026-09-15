@@ -33,6 +33,7 @@ def _copy_contract_inputs(target_root: Path) -> None:
         "apps/backend/Dockerfile",
         "apps/frontend/Dockerfile",
         "docker-compose.yml",
+        "docker-compose.pr-preview.yml",
     ):
         source = ROOT / relative_path
         target = target_root / relative_path
@@ -106,6 +107,34 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
     """AC8.13.39: Missing runtime SSOT fails instead of silently passing."""
     with pytest.raises(FileNotFoundError):
         contract.load_toolchain(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("path", "image_key", "occurrence"),
+    [
+        (".github/workflows/ci.yml", image, occurrence)
+        for image in ("minio", "minio_client")
+        for occurrence in (0, 1)
+    ]
+    + [
+        ("docker-compose.pr-preview.yml", image, 0)
+        for image in ("minio", "minio_client")
+    ],
+)
+def test_minio_image_drift_fails_in_each_environment(
+    tmp_path: Path, path: str, image_key: str, occurrence: int
+) -> None:
+    """AC-testing.toolchain.1: Every CI job and preview use the governed image."""
+    _copy_contract_inputs(tmp_path)
+    image = contract.load_toolchain(tmp_path)["images"][image_key]
+    target = tmp_path / path
+    content = target.read_text(encoding="utf-8")
+    parts = content.split(image)
+    assert len(parts) > occurrence + 1
+    before = image.join(parts[: occurrence + 1])
+    after = image.join(parts[occurrence + 1 :])
+    target.write_text(before + "invalid.example/minio:drift" + after, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
 
 
 def test_AC8_13_39_cli_accepts_explicit_repo_root(
