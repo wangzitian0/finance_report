@@ -130,6 +130,7 @@ def test_AC7_16_2_staging_receiver_dependency_install_retries() -> None:
 
     assert "pip install" in shell
     assert "httpx" in shell and "python tools/sdk_pin.py" in shell
+    assert 'python -m pip install "$sdk_wheel"' in shell
     assert _has_bounded_backoff_retry(shell), (
         "App deploy request dependencies must use the bounded backoff retry idiom"
     )

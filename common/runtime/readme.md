@@ -45,6 +45,8 @@ SDK bootstrap coordinates come from the backend dependency declaration and gener
 lock through `sdk_pin.py` (AC-runtime.sdk-pin.1, #2004). `tools/sdk_pin.py` is the
 workflow entry point; CI, staging and production acquisition share the same validated
 URL and digest while preserving their own download/retry policies.
+Malformed dependency/lock structures fail with the owning file and field named;
+the staging retry check also asserts that the verified wheel reaches pip install.
 
 - **Dependency** — an external backend the app talks to across a process edge.
 - **Kind** — how a dependency must be tested:
