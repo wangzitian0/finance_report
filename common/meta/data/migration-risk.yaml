@@ -171,3 +171,12 @@ migrations:
     staging_validation: Deploy the pinned release, approve generated base and foreign-currency statements, verify one starting position per account and repeat approval without a second opening entry; reject a suggestion and complete explicit manual recovery.
     production_preflight: Take a database backup and confirm no long-running reconciliation transaction holds the active-match index before rebuilding its history-compatible predicate. No historical source or journal values are updated.
     rollback_strategy: Upgrade is transactional. Roll back application code while retaining the additive immutable table and broader history-compatible index; downgrade deliberately preserves recorded initialization and rejected history rather than deleting evidence.
+
+  0062_bank_custody:
+    file: 0062_bank_custody.py
+    risk: medium
+    issue: "#2039"
+    proof: AC-extraction.custody-binding.2/.7 execute independent-session concurrent imports and real migration DDL with a rejected duplicate database key; .4-.6 preserve history, validate ownership, and prove rollback and rejected-allocation cleanup.
+    staging_validation: On the pinned commit, import two generated same-custody statements, rename the account between them, and verify one binding and account; concurrently import two fresh sources and confirm the same identity survives.
+    production_preflight: Back up the database and inspect historical source-to-account ambiguity before enabling adoption. Existing accounts and statements are not rewritten by this additive migration.
+    rollback_strategy: Roll back application code while retaining the additive identity table; downgrade refuses to discard durable bindings. Restore a verified pre-upgrade backup only for an explicit full database rollback.

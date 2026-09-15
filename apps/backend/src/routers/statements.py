@@ -19,12 +19,15 @@ from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BankStatementStatus,
     BrokeragePositionImportService,
+    DocumentType,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
+    StatementEvidenceType,
     StatementPostingOutcome,
     StatementPostingStatus,
+    StatementSourceType,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -38,6 +41,7 @@ from src.extraction import (
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
+    resolve_bank_custody_account,
     resolve_statement_posting_account,
     resolve_statement_transactions,
     retire_statement,
@@ -205,6 +209,26 @@ async def _create_statement_account_from_confirmation(
     user_id: UUID,
 ) -> Account:
     """Create and bind a statement account after explicit Stage 1 user confirmation."""
+    source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    document = await _resolve_uploaded_document(db, statement, user_id)
+    bank_source = (
+        source.source_type is StatementSourceType.BANK
+        and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+        if source is not None
+        else document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
+    )
+    if bank_source and statement.institution and statement.account_last4 and statement.currency:
+        resolved_account = await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=statement.currency,
+            account_id=statement.account_id,
+        )
+        statement.account_id = resolved_account.id
+        await db.flush()
+        return resolved_account
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)

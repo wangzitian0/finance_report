@@ -446,6 +446,7 @@ CONTRACT = PackageContract(
         "resolve_custody_account_id",
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
+        "resolve_bank_custody_account",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
         "effective_statement_transaction_filter",
@@ -528,6 +529,55 @@ CONTRACT = PackageContract(
     # group instead of claiming a new numeric block, so it can never collide
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
+        ACRecord(
+            id="AC-extraction.custody-binding.7",
+            statement="The additive custody migration installs the unique identity key without rewriting retained sources or journal history.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_real_custody_migration_installs_unique_key",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.1",
+            statement="Custody identity survives account display-name edits and sequential imports.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_rename_preserves_source_custody",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.2",
+            statement="Concurrent first imports allocate one account and database uniqueness rejects a second binding.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_concurrent_first_imports_share_one_binding",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.3",
+            statement="Exact institution, tenant, suffix, and currency remain separate custody dimensions; brokerage sources never allocate bank bindings.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_custody_key_dimensions_remain_separate",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.4",
+            statement="Only unambiguous owned current source evidence may adopt an existing account; conflicting or corrupt history blocks.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_historical_custody_adoption",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.5",
+            statement="Explicit account selection cannot bypass owner, currency, active asset type, or existing custody identity.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_explicit_account_cannot_bypass_custody",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.6",
+            statement="Rejected or rolled-back new imports leave no orphan custody binding or account.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_rejected_parse_does_not_leave_orphan_custody",
+            priority="P0",
+            status="done",
+        ),
         ACRecord(
             id="AC-extraction.opening-lineage.4",
             statement="A changed reparse of a source that established current opening stock requires correction review even with zero transactions or zero stock and preserves the prior source result and opening authority.",

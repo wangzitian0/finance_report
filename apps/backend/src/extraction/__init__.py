@@ -348,6 +348,7 @@ __all__ = [
     "register_statement_source",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
+    "resolve_bank_custody_account",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "effective_statement_transaction_filter",
@@ -361,3 +362,6 @@ __all__ = [
     "validate_balance_chain",
     "validation",
 ]
+
+from src.extraction.extension.custody_binding import resolve_bank_custody_account
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding as _BankCustodyBinding  # noqa: F401

@@ -31,17 +31,27 @@ from src.extraction.base.disposition import (
     StatementTransaction,
     intent_matches_counter_account,
 )
-from src.extraction.base.source_vocabulary import BankStatementStatus, ClassificationStatus, RuleType, Stage1Status
+from src.extraction.base.result import StatementEvidenceType, StatementSourceType
+from src.extraction.base.source_vocabulary import (
+    BankStatementStatus,
+    ClassificationStatus,
+    DocumentType,
+    RuleType,
+    Stage1Status,
+)
 from src.extraction.base.types import (
     StatementIngestionConfigurationError,
     StatementPostingOutcome,
     StatementPostingStatus,
 )
+from src.extraction.extension.custody_binding import resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
+from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
@@ -373,6 +383,30 @@ async def resolve_statement_posting_account(
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
+    source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    document = (
+        await db.get(UploadedDocument, statement.uploaded_document_id) if statement.uploaded_document_id else None
+    )
+    bank_source = (
+        source.source_type is StatementSourceType.BANK
+        and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+        if source is not None
+        else document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
+    )
+    if bank_source and statement.institution and statement.account_last4:
+        resolved_account = await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=currency,
+            account_id=statement.account_id,
+            create_if_missing=False,
+        )
+        statement.account_id = resolved_account.id
+        await db.flush()
+        return resolved_account
+
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
@@ -400,36 +434,7 @@ async def resolve_statement_posting_account(
             "account_last4, or currency metadata is missing."
         )
 
-    account_result = await db.execute(
-        select(Account)
-        .join(StatementSummary, StatementSummary.account_id == Account.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type == AccountType.ASSET)
-        .where(Account.currency == currency)
-        .where(Account.is_active.is_(True))
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.id != statement.id)
-        .where(StatementSummary.status == BankStatementStatus.APPROVED)
-        .where(StatementSummary.account_id.is_not(None))
-        .where(func.lower(StatementSummary.institution) == institution.lower())
-        .where(StatementSummary.account_last4 == account_last4)
-        .where(func.upper(StatementSummary.currency) == currency)
-    )
-    accounts_by_id = {account.id: account for account in account_result.scalars().all()}
-    if len(accounts_by_id) == 1:
-        account = next(iter(accounts_by_id.values()))
-        statement.account_id = account.id
-        await db.flush()
-        return account
-    if len(accounts_by_id) > 1:
-        raise ValueError(
-            "Ambiguous account mapping. Multiple accounts match this statement's institution, account_last4, "
-            "and currency; confirm the target account before posting."
-        )
-    raise ValueError(
-        "Account mapping required before posting. No confirmed account matches this statement's institution, "
-        "account_last4, and currency."
-    )
+    raise ValueError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
 async def validate_statement_period_unique(
