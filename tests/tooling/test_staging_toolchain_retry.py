@@ -128,7 +128,6 @@ def test_AC7_16_2_staging_receiver_dependency_install_retries() -> None:
     steps = workflow["jobs"]["build-and-deploy"]["steps"]
     shell = _step_run_by_id(steps, "install_deploy_v2")
 
-    assert "pip install" in shell
     assert "httpx" in shell and "python tools/sdk_pin.py" in shell
     assert 'python -m pip install "$sdk_wheel"' in shell
     assert _has_bounded_backoff_retry(shell), (
