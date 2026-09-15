@@ -62,6 +62,38 @@ def test_AC_runtime_sdk_pin_1_bootstrap_needs_only_standard_library():
     assert result.stdout.strip().split() == list(read_sdk_pin(ROOT))
 
 
+def test_AC_runtime_sdk_pin_1_cli_emits_only_validated_coordinates(
+    tmp_path, monkeypatch, capsys
+):
+    """AC-runtime.sdk-pin.1: the workflow boundary emits one complete pin or none."""
+    from common.runtime.sdk_pin import read_sdk_pin
+    from tools import sdk_pin
+
+    backend = tmp_path / "apps/backend"
+    backend.mkdir(parents=True)
+    for filename in ("pyproject.toml", "uv.lock"):
+        (backend / filename).write_bytes(
+            (ROOT / "apps/backend" / filename).read_bytes()
+        )
+    monkeypatch.setattr(sdk_pin, "ROOT_DIR", tmp_path)
+    expected = read_sdk_pin(tmp_path)
+
+    assert sdk_pin.main([]) == 0
+    output = capsys.readouterr()
+    assert output.out == " ".join(expected) + "\n"
+    assert output.err == ""
+
+    with pytest.raises(SystemExit) as error:
+        sdk_pin.main(["--unexpected"])
+    assert error.value.code == 2
+    assert capsys.readouterr().out == ""
+
+    (backend / "uv.lock").write_text("")
+    with pytest.raises(ValueError, match="uv.lock.*package"):
+        sdk_pin.main([])
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.parametrize(
     ("filename", "content", "field"),
     [

@@ -47,6 +47,10 @@ workflow entry point; CI, staging and production acquisition share the same vali
 URL and digest while preserving their own download/retry policies.
 Malformed dependency/lock structures fail with the owning file and field named;
 the staging retry check also asserts that the verified wheel reaches pip install.
+The CLI boundary is exercised both in-process (one complete coordinate line on
+success, no partial stdout on invalid arguments or lock data) and in a Python
+subprocess without site packages. This retains standard-library bootstrap proof
+while including the workflow entrypoint in the tooling coverage measurement.
 
 - **Dependency** — an external backend the app talks to across a process edge.
 - **Kind** — how a dependency must be tested:
