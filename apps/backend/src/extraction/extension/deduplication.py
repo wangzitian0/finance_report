@@ -5,12 +5,20 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType, TransactionDirection
 from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity
+from src.extraction.extension.transaction_identity import (
+    TransactionIdentityReviewRequired,
+    bind_transaction_identity,
+    resolve_transaction_identity,
+    source_custody_scope,
+    versioned_transaction_hash,
+)
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import (
     AtomicPosition,
@@ -19,6 +27,7 @@ from src.extraction.orm.layer2 import (
     AtomicTransactionSourceDocument,
 )
 from src.extraction.orm.statement_summary import StatementSummary
+from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -61,6 +70,9 @@ class DeduplicationService:
         reference: str | None = None,
         balance_after: Decimal | None = None,
         occurrence_index: int = 0,
+        *,
+        currency: str | None = None,
+        custody_scope: str | None = None,
     ) -> str:
         """Calculate deduplication hash for atomic transaction.
 
@@ -114,7 +126,10 @@ class DeduplicationService:
             disambiguator,
         ]
         hash_input = "|".join(components).encode("utf-8")
-        return hashlib.sha256(hash_input).hexdigest()
+        legacy_hash = hashlib.sha256(hash_input).hexdigest()
+        if currency is not None and custody_scope is not None:
+            return versioned_transaction_hash(legacy_hash, currency, custody_scope)
+        return legacy_hash
 
     @staticmethod
     def calculate_position_hash(
@@ -143,6 +158,7 @@ class DeduplicationService:
         row: ExtractedTransactionRow | None = None,
         source_doc_id: UUID,
         source_doc_type: DocumentType,
+        custody_account_id: UUID | None = None,
         **legacy_fields: object,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
@@ -210,15 +226,22 @@ class DeduplicationService:
             balance_after,
             row.occurrence_index,
         )
-        if dedup_hash != row.dedup_hash:
-            raise ValueError("Extracted transaction dedup hash does not match its typed fields")
-
-        stmt = select(AtomicTransaction).where(
-            AtomicTransaction.user_id == user_id,
-            AtomicTransaction.dedup_hash == dedup_hash,
+        custody_scope = await source_custody_scope(
+            db, user_id=user_id, document_id=source_doc_id, account_id=custody_account_id
         )
-        result = await db.execute(stmt)
-        existing = result.scalar_one_or_none()
+        if row.custody_scope is not None and row.custody_scope != custody_scope:
+            raise TransactionIdentityReviewRequired("Transaction identity requires review: source custody changed")
+        expected_hash = (
+            versioned_transaction_hash(dedup_hash, currency, custody_scope)
+            if row.custody_scope is not None
+            else dedup_hash
+        )
+        if expected_hash != row.dedup_hash:
+            raise ValueError("Extracted transaction dedup hash does not match its typed fields")
+        legacy_hash = dedup_hash
+        dedup_hash, existing = await resolve_transaction_identity(
+            db, user_id=user_id, legacy_hash=dedup_hash, currency=currency, custody_scope=custody_scope
+        )
 
         source_doc = {
             "doc_id": str(source_doc_id),
@@ -226,14 +249,11 @@ class DeduplicationService:
         }
 
         if existing:
-            # Opportunistically backfill balance_after for legacy rows persisted before the
-            # column existed. The dedup hash already matched, so the disambiguator (and thus the
-            # running balance fed into it) is identical -- this only fills a NULL, never rewrites a
-            # value. Without this, pre-migration rows stay NULL forever and the Stage-1 guard keeps
-            # treating them as ambiguous, so already-stuck statements would not benefit from the fix.
-            if existing.balance_after is None and balance_after is not None:
-                existing.balance_after = balance_after
-
+            await bind_transaction_identity(
+                db, transaction=existing, identity_hash=dedup_hash, legacy_hash=legacy_hash, custody_scope=custody_scope
+            )
+            # A compatible alias preserves every historical fact, including a
+            # legacy missing balance; the new source result retains new evidence.
             source_docs = _source_document_list(existing.source_documents)
 
             if source_doc not in source_docs:
@@ -274,6 +294,9 @@ class DeduplicationService:
         )
         db.add(new_txn)
         await db.flush()
+        await bind_transaction_identity(
+            db, transaction=new_txn, identity_hash=dedup_hash, legacy_hash=legacy_hash, custody_scope=custody_scope
+        )
         await self._upsert_transaction_source_link(
             db,
             user_id=user_id,
@@ -479,43 +502,6 @@ class DeduplicationService:
         return doc
 
 
-async def _detach_document_from_atomic_transactions(db: AsyncSession, user_id: UUID, doc_id: UUID) -> None:
-    """Remove a document's contribution to Layer 2 before a reparse re-ingests it.
-
-    Atomic transactions sourced *solely* from this document are deleted (the reparse
-    will recreate the current set); transactions also sourced from other documents
-    keep the row but drop this document from ``source_documents``.
-    """
-    doc_id_str = str(doc_id)
-    rows = (
-        (
-            await db.execute(
-                select(AtomicTransaction)
-                .where(AtomicTransaction.user_id == user_id)
-                .where(AtomicTransaction.source_documents.contains([{"doc_id": doc_id_str}]))
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for txn in rows:
-        sources = _source_document_list(txn.source_documents)
-        remaining = [s for s in sources if s.get("doc_id") != doc_id_str]
-        if remaining:
-            txn.source_documents = remaining
-            db.add(txn)
-        else:
-            await db.delete(txn)
-        await db.execute(
-            delete(AtomicTransactionSourceDocument).where(
-                AtomicTransactionSourceDocument.atomic_txn_id == txn.id,
-                AtomicTransactionSourceDocument.uploaded_document_id == doc_id,
-            )
-        )
-    if rows:
-        await db.flush()
-
-
 async def dual_write_layer2(
     db: AsyncSession,
     user_id: UUID,
@@ -573,6 +559,33 @@ async def dual_write_layer2(
         statement.extraction_metadata = effective_metadata
 
     try:
+        # Changing an already-posted source needs the explicit correction/void
+        # lifecycle. Preserving old atomic facts must never double-post R1 + R2.
+        prior = await db.scalar(
+            select(StatementSummary).where(StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash)
+        )
+        if prior is not None and prior.uploaded_document_id is not None:
+            old_payload = (prior.extraction_metadata or {}).get("statement_extraction_result")
+            new_payload = (effective_metadata or {}).get("statement_extraction_result")
+            if old_payload != new_payload:
+                prior_ids = select(AtomicTransaction.id).where(
+                    AtomicTransaction.user_id == user_id,
+                    AtomicTransaction.source_documents.contains([{"doc_id": str(prior.uploaded_document_id)}]),
+                )
+                posted = await db.scalar(
+                    select(JournalEntry.id)
+                    .where(
+                        JournalEntry.user_id == user_id,
+                        JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+                        JournalEntry.source_id.in_(prior_ids),
+                        JournalEntry.status == JournalEntryStatus.POSTED,
+                    )
+                    .limit(1)
+                )
+                if posted is not None:
+                    raise TransactionIdentityReviewRequired(
+                        "Changed posted source requires correction review before reparse; existing journal entries were preserved"
+                    )
         # Get-or-create the ODS document. Reparse re-runs ingestion for the same
         # (user_id, file_hash), so the document already exists; reuse it instead of
         # raising on the unique key (which previously aborted the whole dual-write and
@@ -601,8 +614,8 @@ async def dual_write_layer2(
             # quarantined/rejected re-parse, #1452): it must NOT detach the
             # document's previously-ingested Layer-2 facts, or a re-parse that
             # ends in quarantine would delete a prior good parse's transactions.
-            if not envelope_only:
-                await _detach_document_from_atomic_transactions(db, user_id, uploaded_doc.id)
+            # Atomic history and source links are append-only. Current-result
+            # membership, rather than deletion, governs statement transaction reads.
         # Lazily import to avoid an import cycle (evidence_graph_integration imports
         # models that transitively reach back here).
         from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
@@ -616,6 +629,7 @@ async def dual_write_layer2(
                 row=txn,
                 source_doc_id=uploaded_doc.id,
                 source_doc_type=doc_type,
+                custody_account_id=statement.account_id,
             )
             layer2_count += 1
 
@@ -706,10 +720,12 @@ async def dual_write_layer2(
         logger.info(
             "Dual write to Layer 2 completed",
             uploaded_doc_id=str(uploaded_doc.id),
-            statement_summary_id=str(statement.id),
+            statement_summary_id=str(canonical_statement.id),
             layer2_transactions=layer2_count,
         )
 
+    except TransactionIdentityReviewRequired:
+        raise
     except Exception as e:
         # All other errors are CRITICAL - must be visible to user
         logger.error(

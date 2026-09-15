@@ -9,12 +9,45 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 
 from src.extraction import DocumentType, TransactionDirection
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.orm.layer2 import AtomicTransaction
 from tests.factories import UserFactory
+
+
+async def _known_custody_sources(db, user_id):
+    from src.extraction.orm.layer1 import UploadedDocument
+    from tests.factories import AccountFactory, StatementSummaryFactory
+
+    account = AccountFactory.build(user_id=user_id, currency="USD")
+    db.add(account)
+    await db.flush()
+    docs = []
+    for kind in (DocumentType.BANK_STATEMENT, DocumentType.BROKERAGE_STATEMENT):
+        doc = UploadedDocument(
+            user_id=user_id,
+            file_path=f"synthetic/{uuid4()}.pdf",
+            file_hash=uuid4().hex * 2,
+            original_filename="synthetic.pdf",
+            document_type=kind,
+        )
+        db.add(doc)
+        await db.flush()
+        db.add(
+            StatementSummaryFactory.build(
+                user_id=user_id,
+                uploaded_document_id=doc.id,
+                file_hash=doc.file_hash,
+                account_id=account.id,
+                currency="USD",
+            )
+        )
+        docs.append(doc.id)
+    await db.flush()
+    return docs
 
 
 class TestDeduplicationService:
@@ -282,13 +315,14 @@ class TestDeduplicationService:
         reloaded = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.id == txn.id))).scalar_one()
         assert reloaded.balance_after == Decimal("3966.50")
 
-    async def test_upsert_backfills_balance_after_on_legacy_null_row(self, db, test_user):
+    async def test_upsert_preserves_balance_after_on_legacy_null_row(self, db, test_user):
         """AC-extraction.406.8: a legacy row whose dedup hash already encoded the running balance but left
         balance_after NULL (pre-migration) gets it backfilled when the same transaction is
         re-parsed, so previously-stuck statements benefit from the guard fix."""
         service = DeduplicationService()
         user_id = test_user.id
         balance = Decimal("3966.50")
+        doc1_id, doc2_id = await _known_custody_sources(db, user_id)
         fields = dict(
             txn_date=date(2025, 6, 25),
             amount=Decimal("1033.50"),
@@ -303,7 +337,7 @@ class TestDeduplicationService:
             currency="USD",
             dedup_hash=dedup_hash,
             balance_after=None,
-            source_documents=[{"doc_id": str(uuid4()), "doc_type": "brokerage_statement"}],
+            source_documents=[{"doc_id": str(doc1_id), "doc_type": "brokerage_statement"}],
             **fields,
         )
         db.add(legacy)
@@ -313,22 +347,21 @@ class TestDeduplicationService:
             db=db,
             user_id=user_id,
             currency="USD",
-            source_doc_id=uuid4(),
+            source_doc_id=doc2_id,
             source_doc_type=DocumentType.BROKERAGE_STATEMENT,
             balance_after=balance,
             **fields,
         )
 
         assert result.id == legacy.id  # hit the existing branch, not a new insert
-        assert result.balance_after == balance  # NULL was backfilled
+        assert result.balance_after is None  # Historical fact remains unchanged.
 
     async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash
         WHEN: Upserting duplicate transaction with different source
         THEN: Source document is appended to existing record (covers lines 98, 100-105)"""
         service = DeduplicationService()
-        doc1_id = uuid4()
-        doc2_id = uuid4()
+        doc1_id, doc2_id = await _known_custody_sources(db, test_user.id)
 
         # Create first transaction
         txn1 = await service.upsert_atomic_transaction(
@@ -600,7 +633,7 @@ class TestDeduplicationService:
         assert txn1.id != txn2.id
         assert txn1.dedup_hash != txn2.dedup_hash
 
-    async def test_concurrent_upsert_same_hash_no_duplicates(self, db_engine, test_user):
+    async def test_concurrent_upsert_same_hash_no_duplicates(self, db_engine, db, test_user):
         """GIVEN: Two concurrent upserts with identical transaction data in separate sessions
         WHEN: Both execute simultaneously
         THEN: Database constraint prevents duplicate records (race condition protection)
@@ -619,8 +652,8 @@ class TestDeduplicationService:
         from sqlalchemy.ext.asyncio import AsyncSession
 
         service = DeduplicationService()
-        doc1_id = uuid4()
-        doc2_id = uuid4()
+        doc1_id, doc2_id = await _known_custody_sources(db, test_user.id)
+        await db.commit()
 
         # Create two separate sessions to simulate concurrent requests
         async def upsert_in_session(doc_id):
@@ -682,7 +715,7 @@ class TestDeduplicationService:
                 assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"
 
     async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
-        """AC-extraction.111.2: Dedup upsert sanitizes malformed source_documents payloads (transaction)."""
+        """AC-extraction.111.2: Malformed transaction lineage requires review rather than inventing source custody."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()
@@ -701,19 +734,20 @@ class TestDeduplicationService:
         txn.source_documents = {"bad": "shape"}
         await db.flush()
 
-        txn2 = await service.upsert_atomic_transaction(
-            db=db,
-            user_id=test_user.id,
-            txn_date=date(2024, 2, 1),
-            amount=Decimal("12.00"),
-            direction=TransactionDirection.OUT,
-            description="Bad source docs",
-            currency="SGD",
-            source_doc_id=doc2,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-        )
-        assert isinstance(txn2.source_documents, list)
-        assert len(txn2.source_documents) == 1
+        from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
+
+        with pytest.raises(TransactionIdentityReviewRequired, match="review"):
+            await service.upsert_atomic_transaction(
+                db=db,
+                user_id=test_user.id,
+                txn_date=date(2024, 2, 1),
+                amount=Decimal("12.00"),
+                direction=TransactionDirection.OUT,
+                description="Bad source docs",
+                currency="SGD",
+                source_doc_id=doc2,
+                source_doc_type=DocumentType.BROKERAGE_STATEMENT,
+            )
 
     async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
         """AC-extraction.111.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""

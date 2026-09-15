@@ -216,14 +216,22 @@ rather than runtime signature reflection.
 - Status tracking: `uploaded` → `processing` → `completed`
 
 **DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- Deduplicated via SHA256 hash of core fields
-  (`SHA256(user_id|date|amount|direction|description|reference|disambiguator)`).
-  The disambiguator is the persisted statement running balance (`balance_after`)
-  when the model supplies it, else a per-occurrence `#occurrence_index` fallback
-  (`DeduplicationService.calculate_transaction_hash`). Either way two real but
-  otherwise-identical transactions stay distinct, while a genuine duplicate
-  extraction of the same row collapses onto the existing record. `balance_after`
-  is persisted on the row so the hash is reproducible on re-import.
+- New transaction identities are versioned hashes of currency, custody scope,
+  and the legacy transaction fingerprint (user/date/amount/direction/description/
+  reference/running-balance/occurrence). A confirmed user-owned custody account
+  supplies the scope; without it, the source digest isolates the provisional
+  fact until review. Distinct currencies or accounts never share identity merely
+  because their transaction text and numeric amounts match.
+- `AtomicTransactionIdentity` is an additive compatibility mapping. It binds a
+  tenant/version/hash to an atomic UUID only after source custody and currency
+  agree. Legacy hashes, UUIDs, financial facts, and posted references remain
+  unchanged; ambiguous legacy lineage requires review. A transaction-scoped
+  database identity lock makes concurrent retries converge on one atomic fact.
+- Reparse retains historical atomic facts and source links. Statement reads use
+  the current immutable result's fact identities (with validated aliases), so
+  superseded rows remain auditable but do not enter current validation/posting.
+  A changed source with posted entries requires the correction/void lifecycle;
+  it cannot silently post a successor alongside the original.
 - Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
   `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
   rows are source-pure: they carry no per-transaction status, confidence, or
@@ -533,6 +541,25 @@ S3_PUBLIC_ENDPOINT=https://s3.zitian.party
 S3_PUBLIC_BUCKET=statements
 S3_PRESIGN_EXPIRY_SECONDS=300
 ```
+
+## Source conservation and retry identity
+
+Every transaction-ledger row must become a structured fact or an explicit source
+failure. An unparseable date or amount is never silently skipped: offsetting
+omissions can preserve net balances while corrupting gross income and expenses.
+The source artifact and its storage key remain reachable for review/retry.
+
+Paged vision extraction merges balance facts by normalized currency, preserving
+later-page currency domains. Repeated identical facts are idempotent; conflicting
+balance facts or different account identifiers require source review rather than
+being overwritten. Consolidated same-currency multiple-account source splitting
+remains unsupported in this single-custody envelope.
+
+Persisted source type and evidence type govern bank/brokerage routing. An empty
+`positions` array in a typed bank result is not brokerage evidence; explicitly
+identified zero-position brokerage snapshots remain reviewable. Retry never
+promotes the provisional `Pending Detection` label into an institution override.
+Persistence checkpoints use the actual canonical statement/source identities.
 
 ## Parsing Resilience
 

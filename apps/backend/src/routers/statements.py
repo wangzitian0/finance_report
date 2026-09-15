@@ -175,7 +175,7 @@ async def _queue_statement_reparse(
         job=ParseJob(
             statement_id=statement.id,
             filename=filename,
-            institution=statement.institution,
+            institution=None if statement.institution == "Pending Detection" else statement.institution,
             user_id=user_id,
             account_id=statement.account_id,
             file_hash=statement.file_hash,

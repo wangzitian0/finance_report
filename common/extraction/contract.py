@@ -103,6 +103,14 @@ CONTRACT = PackageContract(
         Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
         Unit(name="UploadedDocument", kind=Kind.ENTITY),
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
+        Unit(
+            name="AtomicTransactionIdentity", kind=Kind.ENTITY, module="orm/layer2.py"
+        ),
+        Unit(
+            name="effective_statement_transaction_filter",
+            kind=Kind.PROJECTION,
+            module="extension/transaction_membership.py",
+        ),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
         Unit(name="ClassificationRule", kind=Kind.ENTITY),
         Unit(
@@ -440,6 +448,7 @@ CONTRACT = PackageContract(
         "resolve_statement_conflicts",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
+        "effective_statement_transaction_filter",
         "resolve_transaction_currency",
         "run_parsing_supervisor",
         "set_opening_balance",
@@ -519,6 +528,94 @@ CONTRACT = PackageContract(
     # group instead of claiming a new numeric block, so it can never collide
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
+        ACRecord(
+            id="AC-extraction.persistence-proof.2",
+            statement="Only effective current-source transactions may enter downstream queues or actions; superseded facts stay queryable, and unattached legacy records remain explicitly eligible.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_effective_membership_excludes_superseded_sources",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-conservation.1",
+            statement="An unparseable transaction row cannot silently disappear behind a successful net-balance proof; the source remains reachable with an explicit failure.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bad_dates_cannot_hide_offsetting_transactions",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-conservation.2",
+            statement="Paged extraction preserves every currency balance and rejects conflicting account or balance declarations without inventing source facts.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_paged_currency_and_account_conservation",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.1",
+            statement="Distinct custody accounts and currencies retain independent atomic transactions while exact imports of the same custody fact remain idempotent.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_identity_distinguishes_custody_and_currency",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.2",
+            statement="A versioned identity may reuse a legacy atomic UUID and hash only after source custody and currency agree, without changing historical facts.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_identity_reuse_preserves_history",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.3",
+            statement="An ambiguous historical identity is explicitly reviewable while a novel transaction without custody remains source-isolated.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_ambiguous_legacy_identity_is_reviewable",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.4",
+            statement="Concurrent equal identities resolve to one atomic fact and source lineage remains complete.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_concurrent_identity_upsert",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.retry-identity.1",
+            statement="Retry after failed institution detection uses the recovered source institution rather than the provisional upload placeholder.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_retry_discards_provisional_institution",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-routing.1",
+            statement="A typed bank extraction with an empty positions array remains a bank transaction ledger through metadata recovery.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bank_result_never_routes_as_brokerage",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-routing.2",
+            statement="An explicitly typed brokerage snapshot with zero positions still routes to brokerage review.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_empty_brokerage_snapshot_remains_reviewable",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.persistence-proof.1",
+            statement="Reparse retains historical atomic identities and lineage, exposes only the current source result, and checkpoints identify the persisted statement and storage source.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_reparse_preserves_history_and_current_membership",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-extraction.source-vocabulary.1",
             statement=(
@@ -1601,8 +1698,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.119.3",
-            statement="One unparseable row date is non-fatal — the row is skipped, the rest parse",  # was AC13.19.3
-            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_3_one_bad_row_date_is_non_fatal",
+            statement="Unparseable transaction dates are explicitly quarantined; a partial transaction set cannot become trusted source truth",  # was AC13.19.3
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_3_one_bad_row_date_is_quarantined",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -1779,7 +1876,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.111.2",
-            statement="Dedup upsert sanitizes malformed source_documents payloads (transaction).",  # was AC13.11.2
+            statement="Malformed transaction source lineage requires review rather than unproven identity adoption.",  # was AC13.11.2
             test="apps/backend/tests/extraction/test_deduplication.py::test_upsert_atomic_transaction_handles_non_list_source_documents",
             priority="P1",
             status="done",

@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 
 from src.database import create_session_maker_from_db
@@ -22,7 +23,7 @@ from src.extraction import (
 from src.extraction.extension import statement_parsing
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload, parse_brokerage_positions
 from src.extraction.extension.result_contract import build_statement_extraction_result
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import (
     _count_brokerage_positions,
     route_brokerage_for_review_if_present,
@@ -116,7 +117,7 @@ def _brokerage_result(*, source: DocumentSource, summary: StatementSummary, payl
 
 def test_looks_like_brokerage_payload_detection_paths():
     """AC-extraction.304.7: Brokerage detection handles structured, nested, and non-broker payloads."""
-    assert looks_like_brokerage_payload({"positions": []}, filename="unknown.pdf")
+    assert not looks_like_brokerage_payload({"positions": []}, filename="unknown.pdf")
     assert looks_like_brokerage_payload(
         {"statement": {"holdings": []}},
         filename="statement.pdf",
@@ -186,19 +187,13 @@ async def test_parse_document_skips_non_bank_rows_in_brokerage_payload(test_user
     }
     service.extract_financial_data = AsyncMock(return_value=payload)
 
-    result = await service.parse_document(
-        DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
-        institution="Moomoo",
-        user_id=test_user.id,
-    )
-
-    assert result.transactions == ()
-    assert result.positions == ()
-    assert result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
-    assert result.missing_required_facts == ("statement_currency", "period", "balances")
-    assert result.review_reasons == (
-        "Source is missing required facts: statement currency, statement period, opening and closing balances",
-    )
+    # A brokerage cash ledger must not silently discard malformed transactions.
+    with pytest.raises(ExtractionError, match="Transaction missing"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("moomoo-statement.pdf"), content=b"%PDF-1.7"),
+            institution="Moomoo",
+            user_id=test_user.id,
+        )
 
 
 async def test_parse_document_normalizes_signed_outflows_before_brokerage_routing():

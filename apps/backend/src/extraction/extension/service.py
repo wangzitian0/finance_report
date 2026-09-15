@@ -474,9 +474,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # (#1254: two same-amount deposits printed against one carried-forward /
             # brought-forward running balance across a page boundary).
             occurrence_counts: dict[tuple, int] = {}
+            custody_scope = f"account:{account_id}" if account_id is not None else f"source:{source.content_hash}"
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
-                    if is_brokerage_payload:
+                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
                         logger.info(
                             "Skipping non-bank transaction row in brokerage payload",
                             filename=original_filename or (file_path.name if file_path else "unknown"),
@@ -489,40 +490,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 if not isinstance(txn_date_val, str):
                     txn_date_val = str(txn_date_val)
 
-                # Skip if date is still invalid
-                if txn_date_val in ("None", "", "null"):
-                    logger.warning(
-                        "Transaction skipped due to invalid date",
-                        raw_date=txn["date"],
-                        description=txn.get("description", "N/A"),
-                        amount=txn.get("amount"),
-                        statement_file=original_filename or "unknown",
-                    )
-                    continue
-
-                # Primary date normalization is the model's job (see the parsing
-                # prompt's ISO rule). `_tolerant_parse_date` is only a defensive net
-                # for the few rows the model still emits in a non-ISO/empty form.
+                # Every declared transaction must become a fact or an explicit
+                # source failure; aggregate balance equality cannot prove recall.
                 parsed_date = _tolerant_parse_date(txn_date_val)
                 if parsed_date is None:
-                    # #1086: one unparseable row date is non-fatal — skip and flag the
-                    # row instead of rejecting the whole (often multi-month) statement.
-                    # Carry description/amount so the skipped row is identifiable from
-                    # logs without reproducing locally.
-                    logger.warning(
-                        "Skipping transaction row with unparseable date",
-                        raw_date=txn_date_val,
-                        description=txn.get("description", "N/A"),
-                        amount=txn.get("amount"),
-                        is_brokerage=is_brokerage_payload,
-                        statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                    raise ExtractionError(
+                        "Transaction date could not be parsed. No partial transaction set was imported; "
+                        "retry extraction or review the original source."
                     )
-                    continue
 
                 try:
                     amount = Decimal(str(txn["amount"]))
                 except (ValueError, TypeError, InvalidOperation) as exc:
-                    if is_brokerage_payload:
+                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
                         logger.info(
                             "Skipping brokerage transaction row with non-bank amount",
                             filename=original_filename or (file_path.name if file_path else "unknown"),
@@ -563,6 +543,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     txn_direction.value,
                     txn_description.strip().lower(),
                     txn_reference or "",
+                    txn_currency,
                     _decimal_key(txn_balance_after) if txn_balance_after is not None else "",
                 )
                 occurrence_index = occurrence_counts.get(occ_key, 0)
@@ -577,6 +558,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     reference=txn_reference,
                     balance_after=txn_balance_after,
                     occurrence_index=occurrence_index,
+                    currency=txn_currency,
+                    custody_scope=custody_scope,
                 )
 
                 transaction = ExtractedTransactionRow(
@@ -591,6 +574,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     balance_after=txn_balance_after,
                     occurrence_index=occurrence_index,
                     dedup_hash=dedup_hash,
+                    custody_scope=custody_scope,
                 )
                 transactions.append(transaction)
 
@@ -969,6 +953,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 return extracted
 
             result = validate_balance(extracted)
+            if bank_currency_balances(extracted) is not None:
+                currency_result = validate_balance_per_currency(extracted)
+                result = {
+                    **result,
+                    "balance_valid": currency_result["balance_valid"],
+                    "balance_computable": currency_result["balance_computable"],
+                }
             if result.get("balance_valid"):
                 if attempt > 0:
                     logger.info(
