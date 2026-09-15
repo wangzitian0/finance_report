@@ -60,6 +60,16 @@ def check_tool_files(repo_root: Path, toolchain: dict, errors: list[str]) -> Non
     expect_contains(errors, ".npmrc", npmrc, "engine-strict=true")
 
 
+def expect_image(errors: list[str], path: str, content: str, image: str) -> None:
+    """Match a complete literal Compose image, allowing quotes/comments/spacing."""
+    pattern = (
+        rf"(?m)^\s*image:\s*(?P<quote>['\"]?){re.escape(image)}"
+        r"(?P=quote)[ \t]*(?:#.*)?$"
+    )
+    if not re.search(pattern, content):
+        errors.append(f"{path}: missing governed image {image!r}")
+
+
 def check_frontend_package(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     package = json.loads(read_text(repo_root, "apps/frontend/package.json"))
     expected_node = toolchain["runtime"]["node"]
@@ -179,12 +189,12 @@ def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -
         images["minio"],
         images["minio_client"],
     ):
-        expect_contains(errors, "docker-compose.yml", compose, f"image: {image}")
+        expect_image(errors, "docker-compose.yml", compose, image)
 
     preview_path = "docker-compose.pr-preview.yml"
     preview = read_text(repo_root, preview_path)
     for key in ("minio", "minio_client"):
-        expect_contains(errors, preview_path, preview, f"image: {images[key]}\n")
+        expect_image(errors, preview_path, preview, images[key])
 
     for key, image in (
         ("PYTHON_IMAGE", images["backend_python"]),

@@ -166,6 +166,22 @@ def test_renamed_minio_step_cannot_hide_image_drift(tmp_path: Path) -> None:
     assert contract.run_contract(tmp_path) == 1
 
 
+@pytest.mark.parametrize("quote", ["", "'", '"'])
+def test_compose_image_formatting_is_not_drift(tmp_path: Path, quote: str) -> None:
+    """AC-testing.toolchain.1: Compare the image value, not incidental YAML style."""
+    _copy_contract_inputs(tmp_path)
+    image = contract.load_toolchain(tmp_path)["images"]["minio"]
+    for path in ("docker-compose.yml", "docker-compose.pr-preview.yml"):
+        target = tmp_path / path
+        target.write_text(
+            target.read_text().replace(
+                f"image: {image}",
+                f"image:  {quote}{image}{quote}  # same immutable image",
+            )
+        )
+    assert contract.run_contract(tmp_path) == 0
+
+
 def test_AC8_13_39_module_entrypoint_exits_with_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
