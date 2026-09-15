@@ -20,6 +20,7 @@ from src.schemas.evidence import (
     EvidenceLineageError,
     EvidenceLineageNode,
     EvidenceLineageResponse,
+    EvidenceNodeProperties,
     build_edge_properties,
     build_node_properties,
 )
@@ -31,12 +32,14 @@ _LAZY_MATERIALIZATION_ENTITY_TYPES = {
     "journal_entry",
     "uploaded_document",
     "atomic_transaction",
+    "opening_position",
 }
 _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
     "journal_line": {"ledger_line"},
     "journal_entry": {"ledger_entry"},
     "uploaded_document": {"source_document"},
     "atomic_transaction": {"atomic_fact"},
+    "opening_position": {"atomic_fact"},
 }
 
 # Blocker codes that mean materialization genuinely failed (as opposed to the
@@ -48,6 +51,7 @@ _GENUINE_FAILURE_BLOCKER_CODES = {
     "materialization_write_cap_reached": 503,
     "cross_user_lineage_blocked": 409,
     "unsupported_provenance": 422,
+    "opening_authority_unproven": 409,
 }
 
 
@@ -94,7 +98,9 @@ async def get_evidence_lineage(
             node_kind=node_kind,
         )
         materialization_blockers = [
-            EvidenceLineageBlocker(code=blocker.code, message=blocker.message) for blocker in materialization.blockers
+            EvidenceLineageBlocker(code=blocker.code, message=blocker.message)
+            for blocker in materialization.blockers
+            if anchor is None or blocker.code != "entity_missing"
         ]
         if materialization.has_writes:
             await db.commit()
@@ -151,6 +157,17 @@ async def get_evidence_lineage(
         )
 
     nodes = _unique_nodes([anchor, *(step.node for step in upstream_steps), *(step.node for step in downstream_steps)])
+    opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(
+        db, user_id=user_id, nodes=nodes
+    )
+    if opening_blockers:
+        raise HTTPException(
+            status_code=409,
+            detail=EvidenceLineageError(
+                message="Opening lineage no longer has current source authority.",
+                blockers=[EvidenceLineageBlocker(code=item.code, message=item.message) for item in opening_blockers],
+            ).model_dump(),
+        )
     edges = [
         *(_edge_dto(step, direction="upstream") for step in upstream_steps),
         *(_edge_dto(step, direction="downstream") for step in downstream_steps),
@@ -170,7 +187,7 @@ def _should_attempt_lazy_materialization(
     node_kind: str | None,
     anchor: EvidenceNode | None,
 ) -> bool:
-    if anchor is not None:
+    if anchor is not None and entity_type not in {"opening_position", "journal_entry", "journal_line"}:
         return False
     expected_node_kinds = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
     if expected_node_kinds is None:
@@ -192,7 +209,7 @@ def _node_dto(node: EvidenceNode) -> EvidenceLineageNode:
         node_kind=node.node_kind,
         entity_type=node.entity_type,
         entity_id=node.entity_id,
-        properties=build_node_properties(node.node_kind, node.properties),
+        properties=cast(EvidenceNodeProperties, build_node_properties(node.node_kind, node.properties)),
     )
 
 

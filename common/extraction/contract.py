@@ -529,6 +529,34 @@ CONTRACT = PackageContract(
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
         ACRecord(
+            id="AC-extraction.opening-lineage.4",
+            statement="A changed reparse of a source that established current opening stock requires correction review even with zero transactions or zero stock and preserves the prior source result and opening authority.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_dormant_posted_source_reparse_requires_correction",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.1",
+            statement="Current authoritative source-backed opening positions, including zero without a journal, expose bounded idempotent PDF lineage through their account identity and opening journal lines.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_sourced_opening_reaches_pdf",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.2",
+            statement="Opening lineage refuses retired, revoked, void, or mismatched source authority even when graph edges were previously materialized, and foreign accounts reveal no owned anchor.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_cached_opening_lineage_rejects_retired_source",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.3",
+            statement="Standalone manual opening balances retain honest journal lineage without inventing an uploaded PDF source.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_manual_opening_has_no_fabricated_pdf",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-extraction.persistence-proof.2",
             statement="Only effective current-source transactions may enter downstream queues or actions; superseded facts stay queryable, and unattached legacy records remain explicitly eligible.",
             test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_effective_membership_excludes_superseded_sources",

@@ -26,8 +26,9 @@ from src.extraction.orm.layer2 import (
     AtomicTransaction,
     AtomicTransactionSourceDocument,
 )
+from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import JournalEntry, JournalEntryStatus
+from src.ledger import JournalEntry, JournalEntryStatus, list_opening_positions
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -568,6 +569,28 @@ async def dual_write_layer2(
             old_payload = (prior.extraction_metadata or {}).get("statement_extraction_result")
             new_payload = (effective_metadata or {}).get("statement_extraction_result")
             if old_payload != new_payload:
+                source_record = (
+                    await db.get(StatementExtractionResultRecord, prior.current_extraction_result_id)
+                    if prior.current_extraction_result_id
+                    else None
+                )
+                if (
+                    source_record is not None
+                    and source_record.user_id == user_id
+                    and source_record.statement_id == prior.id
+                ):
+                    for position in await list_opening_positions(db, user_id=user_id, as_of=date.max):
+                        source_decision = position.source_decision
+                        if (
+                            position.account_id == prior.account_id
+                            and source_decision is not None
+                            and source_decision.target.kind
+                            in {"statement_extraction_result", "reviewed_statement_envelope"}
+                            and source_decision.target.id == source_record.payload.get("result_id")
+                        ):
+                            raise TransactionIdentityReviewRequired(
+                                "Changed source-backed opening requires correction review before reparse; existing source and stock were preserved"
+                            )
                 prior_ids = select(AtomicTransaction.id).where(
                     AtomicTransaction.user_id == user_id,
                     AtomicTransaction.source_documents.contains([{"doc_id": str(prior.uploaded_document_id)}]),
@@ -588,9 +611,8 @@ async def dual_write_layer2(
                     )
         # Get-or-create the ODS document. Reparse re-runs ingestion for the same
         # (user_id, file_hash), so the document already exists; reuse it instead of
-        # raising on the unique key (which previously aborted the whole dual-write and
-        # made reparse a silent no-op). On reparse, drop this document's prior parse
-        # output first so the fresh extraction replaces it rather than accumulating.
+        # raising on the unique key. Current-result membership selects effective
+        # facts while prior parse output remains available as historical evidence.
         uploaded_doc, document_created = await resolve_source_identity(
             db,
             SourceIdentityCommand(
