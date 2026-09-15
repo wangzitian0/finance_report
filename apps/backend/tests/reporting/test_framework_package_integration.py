@@ -211,8 +211,8 @@ def test_AC20_5_1_ledger_account_types_map_to_policy_domains() -> None:
     fixtures = [
         (AccountType.ASSET, (PolicyFactDomain.CASH, "bank_account")),
         (AccountType.LIABILITY, (PolicyFactDomain.LIABILITY, "loan")),
-        (AccountType.INCOME, (PolicyFactDomain.DIVIDEND_INTEREST, "interest")),
-        (AccountType.EXPENSE, (PolicyFactDomain.BROKERAGE_FEE, "brokerage_fee")),
+        (AccountType.INCOME, (PolicyFactDomain.PERSONAL_INCOME, "unclassified_income")),
+        (AccountType.EXPENSE, (PolicyFactDomain.PERSONAL_EXPENSE, "unclassified_expense")),
         (AccountType.EQUITY, None),
     ]
 
@@ -317,7 +317,7 @@ async def test_AC20_5_1_framework_facts_include_ledger_manual_position_and_divid
     fact_by_id = {fact.fact_id: fact for fact in facts}
     assert f"account:{account.id}" in fact_ids
     assert f"account:{expense_account.id}" in fact_ids
-    assert fact_by_id[f"account:{expense_account.id}"].domain == PolicyFactDomain.BROKERAGE_FEE
+    assert fact_by_id[f"account:{expense_account.id}"].domain == PolicyFactDomain.PERSONAL_EXPENSE
     assert f"atomic_position:{latest_position.id}" in fact_ids
     assert f"atomic_position:{older_position.id}" not in fact_ids
     assert f"manual_valuation_snapshot:{latest_manual.id}" in fact_ids

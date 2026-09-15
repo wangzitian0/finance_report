@@ -65,6 +65,8 @@ export default function CashFlowPage() {
   );
   const report = reportQuery.data ?? null;
 
+  const incompleteOpeningCoverage = report?.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
+  const unverified = report?.proof_state === "unproven";
   const summary = useMemo(() => report?.summary, [report]);
   const aiPrompt = useMemo(
     () =>
@@ -191,7 +193,7 @@ export default function CashFlowPage() {
             </p>
           </div>
           <div className="card p-5">
-            <p className="text-xs text-muted uppercase">Beginning Cash</p>
+            <p className="text-xs text-muted uppercase">{incompleteOpeningCoverage ? "Known Beginning Cash" : "Beginning Cash"}</p>
             <p className="text-2xl font-semibold mt-1">
               {formatCurrencyLocale(
                 summary.beginning_cash,
@@ -220,7 +222,8 @@ export default function CashFlowPage() {
           const beginning = toDecimal(summary.beginning_cash);
           const net = toDecimal(summary.net_cash_flow);
           const ending = toDecimal(summary.ending_cash);
-          const expectedEnding = beginning.plus(net);
+          const openingStock = toDecimal(report?.cash_bridge?.opening_stock_adjustment ?? "0");
+          const expectedEnding = beginning.plus(net).plus(openingStock);
           const drift = expectedEnding.minus(ending);
           const reconciles = drift.abs().lessThanOrEqualTo("0.01");
           return (
@@ -230,7 +233,7 @@ export default function CashFlowPage() {
               </p>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span>
-                  Beginning cash{" "}
+                  {incompleteOpeningCoverage ? "Known beginning cash" : "Beginning cash"}{" "}
                   <strong>{formatCurrencyLocale(beginning, cur)}</strong>
                 </span>
                 <span className="text-muted">+</span>
@@ -246,6 +249,12 @@ export default function CashFlowPage() {
                     {formatCurrencyLocale(net, cur)}
                   </strong>
                 </span>
+                {!openingStock.isZero() && (
+                  <>
+                    <span className="text-muted">+</span>
+                    <span>Opening balance adjustment <strong>{formatCurrencyLocale(openingStock, cur)}</strong></span>
+                  </>
+                )}
                 <span className="text-muted">=</span>
                 <span>
                   Ending cash{" "}
@@ -253,14 +262,26 @@ export default function CashFlowPage() {
                 </span>
                 <span
                   className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    reconciles
+                    reconciles && !unverified
                       ? "bg-[var(--success-muted)] text-[var(--success)]"
                       : "bg-[var(--warning-muted)] text-[var(--warning)]"
                   }`}
                 >
-                  {reconciles ? "✓ Reconciles" : "⚠ Does not tie"}
+                  {!reconciles ? "⚠ Does not tie" : incompleteOpeningCoverage ? "⚠ Coverage incomplete" : unverified ? "⚠ Not yet verified" : "✓ Reconciles"}
                 </span>
               </div>
+              {incompleteOpeningCoverage && (
+                <p className="mt-2 text-xs text-[var(--warning)]">
+                  Records start after the selected period begins. Beginning cash is only the known amount; full-period cash flow is not yet verified.
+                </p>
+              )}
+              {unverified && !incompleteOpeningCoverage && (
+                <p className="mt-2 text-xs text-[var(--warning)]">
+                  {report?.proof_reasons?.includes("opening_position_unproven")
+                    ? "Opening balance evidence needs review before cash flow can be verified."
+                    : "Cash flow evidence needs review before this report can be verified."}
+                </p>
+              )}
               {!reconciles && (
                 <p className="mt-2 text-xs text-[var(--warning)]">
                   Expected ending {formatCurrencyLocale(expectedEnding, cur)}{" "}

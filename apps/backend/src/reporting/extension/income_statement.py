@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -10,8 +11,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Account, AccountType, JournalEntry, JournalLine
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
 from src.observability import ErrorIds, get_logger
+from src.reporting.base.l1_registry import economic_category_line
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _REPORT_STATUSES,
@@ -41,6 +43,27 @@ from src.schemas.provenance import DataProvenance
 logger = get_logger(__name__)
 
 
+def _category_lines(lines: list[dict[str, Any]], balances: dict[tuple[UUID, str], Decimal]) -> list[dict[str, Any]]:
+    """Split account totals while allocating FX rounding deterministically within each account."""
+    by_account: dict[UUID, list[tuple[str, Decimal]]] = defaultdict(list)
+    for (account_id, line_id), amount in balances.items():
+        by_account[account_id].append((line_id, amount))
+    result: list[dict[str, Any]] = []
+    for line in lines:
+        parts = sorted(by_account.get(line["account_id"], []), key=lambda part: (-abs(part[1]), part[0]))
+        if not parts:
+            parts = [(economic_category_line(None, line["type"].value).value, Decimal("0"))]
+        rounded = [_quantize_money(amount) for _, amount in parts]
+        # Preserve the existing account-level total; assign sub-cent residual to
+        # the largest component, with a stable line-id tie-break, never to FX P&L.
+        rounded[0] += line["amount"] - sum(rounded, Decimal("0"))
+        result.extend(
+            {**line, "amount": amount, "economic_report_line_id": line_id}
+            for (line_id, _), amount in zip(parts, rounded, strict=True)
+        )
+    return result
+
+
 async def generate_income_statement(
     db: AsyncSession,
     user_id: UUID,
@@ -50,6 +73,7 @@ async def generate_income_statement(
     currency: str | None = None,
     tags: list[str] | None = None,
     account_type: AccountType | None = None,
+    include_economic_categories: bool = False,
 ) -> dict[str, object]:
     """Generate income statement report for a date range."""
     if start_date > end_date:
@@ -68,6 +92,7 @@ async def generate_income_statement(
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
 
     period_totals: dict[date, dict[str, Decimal]] = {}
+    category_balances: dict[tuple[UUID, str], Decimal] = defaultdict(lambda: Decimal("0"))
 
     stmt = (
         select(JournalLine, Account, JournalEntry)
@@ -191,6 +216,17 @@ async def generate_income_statement(
 
             signed_total = _signed_amount(account.type, line.direction, converted_total)
             balances[account.id] += signed_total
+            if include_economic_categories:
+                category = (
+                    (line.tags or {}).get("economic_category")
+                    if entry.decision_authority_state == JournalEntryAuthorityState.ANCHORED
+                    and entry.decision_anchor_id is not None
+                    else None
+                )
+                report_line = economic_category_line(
+                    category if isinstance(category, str) else None, account.type.value
+                )
+                category_balances[(account.id, report_line.value)] += signed_total
 
             # For monthly trend buckets, use pre-fetched monthly average rate
             period_key = _month_start(entry.entry_date)
@@ -232,6 +268,10 @@ async def generate_income_statement(
         provenance_by_account=provenance_by_account,
     )
 
+    if include_economic_categories:
+        income_lines = _category_lines(income_lines, category_balances)
+        expense_lines = _category_lines(expense_lines, category_balances)
+
     # The matched internal-transfer fee is the only expense that survives netting
     # (#1123 AC3). Materialise it as a real expense LINE attributed to the account
     # it was paid from, rather than bumping total_expenses out of band, so that
@@ -251,6 +291,11 @@ async def generate_income_statement(
                 "allocation_asset_class": None,
                 "allocation_liquidity_class": None,
                 "allocation_source_type": "internal_transfer_fee",
+                **(
+                    {"economic_report_line_id": economic_category_line("FEES", "EXPENSE").value}
+                    if include_economic_categories
+                    else {}
+                ),
             }
         )
 

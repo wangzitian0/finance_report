@@ -63,7 +63,6 @@ async def _portfolio_market_basis_by_account(
             )
         )
         .where(Account.user_id == user_id)
-        .where(Account.is_active.is_(True))
     )
 
     basis_by_account: dict[UUID, dict[str, Any]] = {}

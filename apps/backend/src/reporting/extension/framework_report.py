@@ -50,6 +50,12 @@ def _map_l2_line(
     source_type = line.get("allocation_source_type")
     account_id = line.get("account_id")
 
+    economic_line = line.get("economic_report_line_id")
+    if statement == "income_statement" and economic_line:
+        if not is_valid_line_for_framework(economic_line, framework_id):
+            raise ReportError(f"Unknown economic report line {economic_line}")
+        return economic_line
+
     # 1. Portfolio L2 lines have deterministic framework presentation. They may
     # carry the broker account_id, so this must run before account-anchor mapping.
     if source_type in _PORTFOLIO_L1_SOURCE_TYPES:
@@ -293,6 +299,7 @@ async def assemble_framework_income_statement(
             start_date=start_date,
             end_date=end_date,
             currency=currency,
+            include_economic_categories=True,
         ),
     )
 

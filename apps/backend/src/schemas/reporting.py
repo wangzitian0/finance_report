@@ -31,6 +31,11 @@ def _validate_internal_action_href(value: str) -> str:
 class ReportLine(BaseModel):
     """Generic report line for account totals."""
 
+    line_id: ReportLineId | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Canonical framework line identity when this is a consolidated report line.",
+    )
     account_id: UUID
     name: str
     type: AccountType
@@ -302,6 +307,8 @@ class PolicyFactDomain(str, Enum):
     CASH = "cash"
     LISTED_SECURITY = "listed_security"
     FUND = "fund"
+    PERSONAL_INCOME = "personal_income"
+    PERSONAL_EXPENSE = "personal_expense"
     DIVIDEND_INTEREST = "dividend_interest"
     BROKERAGE_FEE = "brokerage_fee"
     FX = "fx"

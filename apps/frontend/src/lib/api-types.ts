@@ -3352,6 +3352,12 @@ export interface components {
             classified_activity: string;
             /** Fx Effect */
             fx_effect: string;
+            /**
+             * Opening Stock Adjustment
+             * @description Initial stock first evidenced inside an incompletely covered period; never economic cash flow.
+             * @default 0
+             */
+            opening_stock_adjustment: string;
             /** Reconciles */
             reconciles: boolean;
             /** Unclassified Cash */
@@ -5893,7 +5899,7 @@ export interface components {
          * @description Personal finance domains covered by the v1 policy matrix.
          * @enum {string}
          */
-        PolicyFactDomain: "cash" | "listed_security" | "fund" | "dividend_interest" | "brokerage_fee" | "fx" | "restricted_compensation" | "property_mortgage_private" | "liability" | "transfer" | "tax_note" | "unsupported";
+        PolicyFactDomain: "cash" | "listed_security" | "fund" | "personal_income" | "personal_expense" | "dividend_interest" | "brokerage_fee" | "fx" | "restricted_compensation" | "property_mortgage_private" | "liability" | "transfer" | "tax_note" | "unsupported";
         /**
          * PolicyProvenance
          * @description How a framework policy decision became trusted.
@@ -6287,6 +6293,8 @@ export interface components {
             account_id: string;
             /** Amount */
             amount: string;
+            /** @description Canonical framework line identity when this is a consolidated report line. */
+            line_id?: components["schemas"]["ReportLineId"] | null;
             /** Name */
             name: string;
             /** Parent Id */
@@ -6295,6 +6303,12 @@ export interface components {
             provenance?: ("imported" | "manual" | "derived") | null;
             type: components["schemas"]["AccountType"];
         };
+        /**
+         * ReportLineId
+         * @description Enumerated canonical L1 reporting lines for personal report packages.
+         * @enum {string}
+         */
+        ReportLineId: "assets.cash_and_cash_equivalents" | "assets.cash_in_transit" | "income.salary" | "income.investment_income" | "income.refunds" | "income.other" | "expenses.dining" | "expenses.groceries" | "expenses.transport" | "expenses.housing" | "expenses.utilities" | "expenses.shopping" | "expenses.healthcare" | "expenses.entertainment" | "expenses.travel" | "expenses.education" | "expenses.insurance" | "expenses.fees" | "expenses.other" | "assets.marketable_securities" | "assets.financial_assets_at_fair_value" | "assets.investments.funds" | "assets.restricted_compensation" | "assets.investment_property" | "assets.biological_assets" | "assets.manual_private_assets" | "liabilities.financial_liabilities" | "equity.fx_translation" | "income.dividends_and_interest" | "income.unrealized_investment_gain_loss" | "income.fair_value_change_in_financial_assets" | "income.fx_gain_loss" | "expenses.investment_fees" | "cash.ending_cash" | "investing.fees" | "cash.internal_transfers" | "notes.fund_liquidity" | "notes.tax_hooks" | "notes.restricted_asset_treatment" | "notes.manual_valuation_basis" | "notes.liability_coverage" | "notes.transfer_matching" | "notes.tax_relevant_items" | "notes.us_like_market_price_basis" | "notes.hk_like_fair_value_basis";
         /**
          * ReportSnapshotSummary
          * @description Typed metadata for a Layer-4 ``ReportSnapshot`` (#1008, AC18.4.2).

@@ -113,12 +113,7 @@ def _single_source_currency(source_currencies: set[str], target_currency: str) -
 
 
 async def _load_accounts(db: AsyncSession, user_id: UUID, account_types: tuple[AccountType, ...]) -> list[Account]:
-    result = await db.execute(
-        select(Account)
-        .where(Account.user_id == user_id)
-        .where(Account.type.in_(account_types))
-        .where(Account.is_active.is_(True))
-    )
+    result = await db.execute(select(Account).where(Account.user_id == user_id).where(Account.type.in_(account_types)))
     return list(result.scalars().all())
 
 
