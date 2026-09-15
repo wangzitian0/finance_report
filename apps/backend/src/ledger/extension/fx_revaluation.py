@@ -129,7 +129,6 @@ async def get_foreign_currency_accounts(
         .where(Account.user_id == user_id)
         .where(Account.type.in_(REVALUATION_ACCOUNT_TYPES))
         .where(Account.currency != base_currency)
-        .where(Account.is_active == True)  # noqa: E712
     )
 
     result = await db.execute(stmt)

@@ -186,11 +186,7 @@ async def generate_cash_flow(
         raise ReportError("start_date must be before end_date")
     target_currency = _normalize_currency(currency)
 
-    accounts = list(
-        (await db.execute(select(Account).where(Account.user_id == user_id).where(Account.is_active.is_(True))))
-        .scalars()
-        .all()
-    )
+    accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
     account_by_id = {account.id: account for account in accounts}
     explicit_cash_identity = cash_account_ids is not None
     exact_selected_ids: set[UUID] = set()
@@ -217,6 +213,18 @@ async def generate_cash_flow(
     )
     effective_cash_ids = frozenset(selected_ids)
     events = await _load_cash_events(db, user_id, end_date=end_date, cash_account_ids=effective_cash_ids)
+    from src.ledger import list_opening_positions
+
+    opening_positions = tuple(
+        position
+        for position in await list_opening_positions(db, user_id=user_id, as_of=end_date)
+        if position.account_id in effective_cash_ids
+    )
+    proven_openings = {
+        (position.journal_entry_id, position.account_id): position
+        for position in opening_positions
+        if position.state == "authoritative" and position.decision is not None
+    }
 
     fx_needs: set[tuple[str, str, date, date | None, date | None]] = set()
     for event in events:
@@ -254,11 +262,18 @@ async def generate_cash_flow(
     financing_items: list[dict[str, object]] = []
     event_lineage: list[dict[str, object]] = []
     unclassified_cash = Decimal("0")
+    opening_stock_adjustment = Decimal("0")
     proof_reasons: set[str] = set()
     if not explicit_cash_identity:
         proof_reasons.add("cash_identity_compatibility_fallback")
     elif not exact_selected_ids:
         proof_reasons.add("cash_identity_missing")
+
+    for position in opening_positions:
+        if position.state != "authoritative" or position.decision is None:
+            proof_reasons.add("opening_position_unproven")
+        if position.effective_date > start_date:
+            proof_reasons.add("opening_coverage_starts_after_period")
 
     for event in events:
         beginning_movement = Decimal("0")
@@ -276,8 +291,31 @@ async def generate_cash_flow(
         if not (start_date <= event.entry.entry_date <= end_date):
             continue
 
+        opening_lines = tuple(
+            (line, account)
+            for line, account in event.cash_lines
+            if (position := proven_openings.get((event.entry.id, account.id))) is not None
+            and position.effective_date == event.entry.entry_date
+            and position.currency == line.currency
+            and position.amount == _cash_delta(line)
+        )
+        opening_amount = sum(
+            (converted_delta(line, event.entry.entry_date) for line, _account in opening_lines), Decimal("0")
+        )
+        if opening_lines:
+            if event.entry.entry_date == start_date:
+                beginning_cash += opening_amount
+            else:
+                opening_stock_adjustment += opening_amount
+            event_lineage.append(_event_lineage(event, activity=None, reason_code="opening_stock"))
+        opening_line_ids = {line.id for line, _account in opening_lines}
         movement = sum(
-            (converted_delta(line, event.entry.entry_date) for line, _account in event.cash_lines), Decimal("0")
+            (
+                converted_delta(line, event.entry.entry_date)
+                for line, _account in event.cash_lines
+                if line.id not in opening_line_ids
+            ),
+            Decimal("0"),
         )
         if movement == Decimal("0"):
             continue
@@ -317,9 +355,10 @@ async def generate_cash_flow(
     investing_total = _line_total(investing_items)
     financing_total = _line_total(financing_items)
     classified_activity = operating_total + investing_total + financing_total
-    net_cash_flow = _quantize_money(ending_cash - beginning_cash)
+    cash_delta = _quantize_money(ending_cash - beginning_cash)
+    net_cash_flow = _quantize_money(cash_delta - opening_stock_adjustment)
     fx_effect = _quantize_money(net_cash_flow - classified_activity - unclassified_cash)
-    bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect)
+    bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
 
     return {
         "start_date": start_date,
@@ -340,8 +379,9 @@ async def generate_cash_flow(
             "classified_activity": _quantize_money(classified_activity),
             "unclassified_cash": _quantize_money(unclassified_cash),
             "fx_effect": fx_effect,
-            "cash_delta": net_cash_flow,
-            "reconciles": bridge_total == net_cash_flow,
+            "opening_stock_adjustment": _quantize_money(opening_stock_adjustment),
+            "cash_delta": cash_delta,
+            "reconciles": bridge_total == cash_delta,
         },
         "event_lineage": event_lineage,
         "proof_state": "proven" if not proof_reasons else "unproven",

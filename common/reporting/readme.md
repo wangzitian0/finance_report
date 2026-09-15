@@ -607,3 +607,50 @@ generate converted totals for foreign-currency data without a real FX rate
 or explicit partial warning; never double-count a broker account by adding
 both its ledger cost and full market value; never let posted
 `FX_REVALUATION` entries change native foreign-currency balances.
+
+### Report integrity across account and source lifecycles
+
+Framework policy matrix version `2.0` presents the exact ledger Processing
+identity separately as **Cash in transit**, including zero and unsettled
+balances. It remains a cash equivalent for transfer neutrality; ordinary
+accounts do not acquire this meaning from their name or an arbitrary system
+flag.
+
+Period income presentation uses the accepted `economic_category` frozen into
+the posted journal command. The same account may contribute salary, interest,
+or other categories independently. The L1 registry owns the category-to-line
+mapping for both frameworks. Unspecified, unsupported, or unanchored categories
+remain **Other income** or **Other expenses**; account names and broad
+INCOME/EXPENSE types never assert investment income or brokerage fees. Ordinary
+`FEES` remain general fees and charges. Framework splitting preserves each
+account's rounded total: any sub-cent FX rounding residual is assigned to its
+largest category, with report-line ID as a stable tie-break. Frozen packages
+retain their original policy version and report lines when reopened/exported.
+
+Account archival controls current operational selection, not the validity of
+posted historical facts. Balance sheets, income statements, cash projections,
+framework mappings, portfolio cost/market-value contributions, and FX
+revaluation retain archived accounts for the same historical date and period.
+
+Opening cash consumes ledger's `list_opening_positions` projection, including
+its exact current decision and effective date. An authoritative opening dated
+on the report start establishes beginning cash and is excluded from economic
+cash flow. The same-day journal/source anchors remain visible. Explicit zero
+initializations need no journal, but their opening-position decision still
+belongs to the package input manifest. Unproven positions cannot authorize a
+package.
+
+A first opening evidenced strictly inside the requested period does not prove
+cash at the earlier report start. The report remains unproven with
+`opening_coverage_starts_after_period`, discloses its
+`cash_bridge.opening_stock_adjustment`, and excludes this stock from
+`net_cash_flow`. The bridge is classified activity + unclassified cash + FX
++ opening stock adjustment = ending cash - beginning cash. Selecting a period
+whose start is covered resolves that coverage limitation without inventing
+historical wealth or current-period receipts. Missing field values on old
+snapshots remain absent during serialization so frozen exports stay compatible.
+
+The cash-flow page, package summary and standalone CSV disclose any opening
+balance adjustment during the period. A coverage gap labels beginning cash as
+the known amount; unproven authority never receives a verified arithmetic badge.
+The CSV carries the same proof state and reasons as the report.

@@ -233,6 +233,19 @@ def _journal_section_contribution(
     )
 
 
+def _opening_section_contribution(position: Any) -> PackageSectionContribution[Any]:
+    """Keep even a zero, journal-free initialization in the package authority manifest."""
+    return PackageSectionContribution(
+        contribution_type="opening_position",
+        section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
+        payload=position,
+        state=position.state,
+        decision=position.decision,
+        input_refs=(f"opening_position:{position.account_id}",),
+        reason_code=position.reason_code,
+    )
+
+
 def _valuation_section_contribution(contribution: Any) -> PackageSectionContribution[Any]:
     input_refs = contribution.input_refs
     if not input_refs:
@@ -367,10 +380,12 @@ def _section_invariant_blockers(
             )
         )
     cash_rollforward = cash_flow.summary.ending_cash - cash_flow.summary.beginning_cash
-    if cash_rollforward != cash_flow.summary.net_cash_flow:
+    opening_adjustment = cash_flow.cash_bridge.opening_stock_adjustment if cash_flow.cash_bridge else Decimal("0")
+    if cash_rollforward != cash_flow.summary.net_cash_flow + opening_adjustment:
         blockers.append(
             _section_blocker(
-                "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
+                "cash_flow_rollforward_failed",
+                "Beginning cash plus net cash flow and opening balance adjustment does not equal ending cash.",
             )
         )
     # An empty package asserts no financial facts. Enforce cash-event proof
@@ -778,6 +793,9 @@ class PackageAssembler:
         as_of_date: date,
     ) -> tuple[PackageSectionContribution[Any], ...]:
         """Adapt package-owned DTOs; never reconstruct their authority locally."""
+        from src.ledger import list_opening_positions
+
+        opening_results = await list_opening_positions(db, user_id=user_id, as_of=as_of_date)
         statement_results = await list_statement_contributions(db, user_id=user_id, as_of=as_of_date)
         journal_results = await list_journal_contributions(
             db,
@@ -801,6 +819,7 @@ class PackageAssembler:
                 for item in journal_results
             ),
             *(_valuation_section_contribution(item) for item in valuation_results),
+            *(_opening_section_contribution(item) for item in opening_results),
         )
 
     async def _selected_market_contributions(

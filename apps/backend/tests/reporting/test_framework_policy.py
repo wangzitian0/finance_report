@@ -363,8 +363,8 @@ def test_AC20_7_1_same_settlement_fixture_drives_us_hk_report_policy_outputs() -
     us_decisions = {decision.domain: decision for decision in us_result.decisions}
     hk_decisions = {decision.domain: decision for decision in hk_result.decisions}
 
-    assert us_result.matrix_version == "1.0"
-    assert hk_result.matrix_version == "1.0"
+    assert us_result.matrix_version == "2.0"
+    assert hk_result.matrix_version == "2.0"
     assert us_result.required_statements == [
         "balance_sheet",
         "income_statement",

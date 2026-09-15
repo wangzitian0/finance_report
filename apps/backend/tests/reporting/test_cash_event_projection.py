@@ -184,6 +184,7 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
     assert report["cash_bridge"] == {
         "classified_activity": Decimal("0.00"),
         "unclassified_cash": Decimal("0.00"),
+        "opening_stock_adjustment": Decimal("0.00"),
         "fx_effect": Decimal("0.00"),
         "cash_delta": Decimal("0.00"),
         "reconciles": True,
@@ -232,6 +233,7 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
     assert fx_report["cash_bridge"] == {
         "classified_activity": Decimal("135.00"),
         "unclassified_cash": Decimal("0.00"),
+        "opening_stock_adjustment": Decimal("0.00"),
         "fx_effect": Decimal("5.00"),
         "cash_delta": Decimal("140.00"),
         "reconciles": True,

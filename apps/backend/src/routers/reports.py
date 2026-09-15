@@ -6,6 +6,7 @@ import asyncio
 import csv
 import json
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from enum import Enum
 from io import StringIO
 from typing import Any, cast
@@ -713,8 +714,26 @@ async def export_report(
                 ["Financing Activities", "", summary["financing_activities"], cash_flow_report["currency"], ""]
             )
             writer.writerow(["Net Cash Flow", "", summary["net_cash_flow"], cash_flow_report["currency"], ""])
-            writer.writerow(["Beginning Cash", "", summary["beginning_cash"], cash_flow_report["currency"], ""])
+            proof_reasons = cash_flow_report.get("proof_reasons", [])
+            incomplete_coverage = "opening_coverage_starts_after_period" in proof_reasons
+            beginning_label = "Known Beginning Cash" if incomplete_coverage else "Beginning Cash"
+            writer.writerow([beginning_label, "", summary["beginning_cash"], cash_flow_report["currency"], ""])
+            opening_adjustment = (cash_flow_report.get("cash_bridge") or {}).get(
+                "opening_stock_adjustment", Decimal("0")
+            )
+            if opening_adjustment:
+                writer.writerow(
+                    [
+                        "Opening balance adjustment",
+                        "",
+                        opening_adjustment,
+                        cash_flow_report["currency"],
+                        "Opening balance recorded after the selected period begins",
+                    ]
+                )
             writer.writerow(["Ending Cash", "", summary["ending_cash"], cash_flow_report["currency"], ""])
+            if cash_flow_report.get("proof_state") == "unproven":
+                writer.writerow(["Verification", "", "", "", "unproven: " + ", ".join(proof_reasons)])
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
