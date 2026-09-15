@@ -128,11 +128,14 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
     ci_path = ".github/workflows/ci.yml"
     minio_steps = [
         block
-        for block in re.split(r"(?m)^      - ", read_text(repo_root, ci_path))
-        if block.startswith("name: Start MinIO\n")
+        for block in re.split(
+            r"(?m)^\s*- (?=(?:name|id|run|uses):)", read_text(repo_root, ci_path)
+        )
+        if "docker run" in block
+        and ("MINIO_ROOT_USER" in block or "mc alias set" in block)
     ]
     if not minio_steps:
-        errors.append(f"{ci_path}: no governed Start MinIO acquisition steps found")
+        errors.append(f"{ci_path}: no governed MinIO acquisition steps found")
     for index, block in enumerate(minio_steps, start=1):
         tokens = {
             token
@@ -144,7 +147,7 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
             image = toolchain["images"][key]
             if image not in tokens:
                 errors.append(
-                    f"{ci_path}: Start MinIO step {index} must use {key}={image!r}"
+                    f"{ci_path}: MinIO acquisition step {index} must use {key}={image!r}"
                 )
 
 

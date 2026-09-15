@@ -154,6 +154,18 @@ def test_AC8_13_39_cli_accepts_explicit_repo_root(
     assert contract.main() == 0
 
 
+def test_renamed_minio_step_cannot_hide_image_drift(tmp_path: Path) -> None:
+    """AC-testing.toolchain.1: Display names do not determine acquisition coverage."""
+    _copy_contract_inputs(tmp_path)
+    target = tmp_path / ".github/workflows/ci.yml"
+    image = contract.load_toolchain(tmp_path)["images"]["minio"]
+    content = target.read_text(encoding="utf-8").replace(
+        "name: Start MinIO", "name: Start object storage", 1
+    )
+    target.write_text(content.replace(image, "invalid.example/minio:drift", 1))
+    assert contract.run_contract(tmp_path) == 1
+
+
 def test_AC8_13_39_module_entrypoint_exits_with_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
