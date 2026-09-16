@@ -162,6 +162,7 @@ async def _queue_statement_reparse(
     user_id: UUID,
     *,
     model: str | None = None,
+    reset_for_retry: bool = False,
 ) -> None:
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
@@ -171,6 +172,13 @@ async def _queue_statement_reparse(
 
     storage = StorageService()
     content = await run_in_threadpool(storage.get_object, storage_key)
+    if reset_for_retry:
+        # A failed source fetch must leave the previous review state intact.
+        # Commit before dispatch so the worker sees the accepted retry state.
+        statement.status = BankStatementStatus.PARSING
+        statement.validation_error = None
+        await db.commit()
+        await db.refresh(statement)
     request_id = ensure_request_id()
     model_to_use = None if model == settings.ocr_model else model
     task = await submit_parse_pipeline(
@@ -502,14 +510,8 @@ async def retry_statement_parsing(
         if not spec.accepts(Modality.IMAGE):
             raise_bad_request("Selected model does not support image/PDF inputs.")
 
-    # Reset status to PARSING before starting background task
-    statement.status = BankStatementStatus.PARSING
-    statement.validation_error = None
-    await db.commit()
-    await db.refresh(statement)
-
     try:
-        await _queue_statement_reparse(db, statement, user_id, model=selected_model)
+        await _queue_statement_reparse(db, statement, user_id, model=selected_model, reset_for_retry=True)
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 

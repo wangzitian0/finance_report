@@ -1128,20 +1128,29 @@ async def test_retry_rejects_text_only_model(db, monkeypatch, test_user):
     assert "does not support image/PDF inputs" in exc.value.detail
 
 
-async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
-    """AC-extraction.5.16: Retry returns 503 if storage fetch fails."""
+@pytest.mark.parametrize(
+    "prior_status", [BankStatementStatus.REJECTED, BankStatementStatus.PARSED, BankStatementStatus.PARSING]
+)
+@pytest.mark.parametrize("source_available", [True, False])
+async def test_retry_statement_storage_failure(db, monkeypatch, test_user, prior_status, source_available):
+    """AC-extraction.5.16: failed retrieval preserves state and dispatches no work."""
     from src.schemas import RetryParsingRequest
 
     statement = build_statement(test_user.id, "hash", 80)
-    statement.status = BankStatementStatus.REJECTED
+    statement.status = prior_status
+    statement.validation_error = "Original review failure"
     db.add(statement)
     await db.flush()
-    await seed_uploaded_document(db, statement, file_path="path/to/file.pdf")
+    if source_available:
+        await seed_uploaded_document(db, statement, file_path="path/to/file.pdf")
     await db.commit()
 
     mock_storage = MagicMock()
     mock_storage.get_object.side_effect = statements_router.StorageError("S3 Down")
     monkeypatch.setattr(statements_router, "StorageService", MagicMock(return_value=mock_storage))
+
+    submit = AsyncMock()
+    monkeypatch.setattr(statements_router, "submit_parse_pipeline", submit)
 
     with pytest.raises(HTTPException) as exc:
         await statements_router.retry_statement_parsing(
@@ -1153,6 +1162,11 @@ async def test_retry_statement_storage_failure(db, monkeypatch, test_user):
 
     assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert "Failed to fetch file from storage" in exc.value.detail
+
+    await db.refresh(statement)
+    assert statement.status == prior_status
+    assert statement.validation_error == "Original review failure"
+    submit.assert_not_awaited()
 
 
 async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, model_catalog_stub, test_user):

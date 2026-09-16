@@ -494,6 +494,9 @@ The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_r
 - **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
   `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
   non-retriable, which is now safe because balance-mismatch statements no longer rest there.
+  A retry retrieves the original source before clearing the validation error or
+  committing `parsing`. Missing source records and storage failures return 503
+  with the prior persisted status and error intact and no parsing task dispatched.
 - **Reporting authority**: a balance-invalid statement stays visible in extraction review, but
   cannot contribute to a trusted `PackageDocument` until a current authoritative decision
   establishes the exact input. Visibility is not authority.

@@ -1032,7 +1032,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.5.16",
-            statement="Retry returns 503 if storage fetch fails.",  # was AC3.5.16
+            statement="Retry returns 503 if source retrieval fails, preserving the persisted prior status and validation error without dispatching parse work.",  # was AC3.5.16
             test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_storage_failure",
             priority="P1",
             status="done",
