@@ -67,7 +67,14 @@ from src.extraction.extension.transaction_classification import CategoryProposal
 from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, Entry, ledger_trace_policy_registry, post_entry, post_opening_balance_entry
+from src.ledger import (
+    Account,
+    AccountType,
+    Entry,
+    initialize_opening_positions,
+    ledger_trace_policy_registry,
+    post_entry,
+)
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -432,11 +439,11 @@ async def test_AC_testing_trusted_year_2_deterministic_executor_proves_package_l
             default_account_id=securities.id,
         )
     )
-    await post_opening_balance_entry(
+    await initialize_opening_positions(
         db,
         test_user.id,
         entry_date=date(2025, 12, 31),
-        balances={bank.id: scenario.opening_cash},
+        balances={bank.id: scenario.opening_cash, securities.id: Decimal("0")},
         currency="SGD",
         memo="TrustedYearScenario v0 opening cash",
     )

@@ -180,6 +180,7 @@ TRUSTED_YEAR_SCENARIO = TrustedYearScenario(
         "account",
         "journal_entry",
         "journal_line",
+        "opening_position",
         "pricing_observation",
         "source_document",
         "statement_result",

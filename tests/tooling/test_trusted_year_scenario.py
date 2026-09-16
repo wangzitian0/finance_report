@@ -21,7 +21,7 @@ def test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed() -> None:
 
     assert scenario.scenario_id == "trusted-year-v0"
     assert len(scenario.movements) == 3
-    assert len(scenario.expected_manifest) == 6
+    assert len(scenario.expected_manifest) == 7
     assert all(isinstance(movement.amount, Decimal) for movement in scenario.movements)
     assert scenario.expected.ending_cash == Decimal("13000.00")
 
