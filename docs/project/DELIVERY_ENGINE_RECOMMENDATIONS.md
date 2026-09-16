@@ -9,6 +9,32 @@ branch-protection behavior.
 
 ## Current baseline
 
+Observed on September 16, 2026 (runs 35058901396/34940605397/34938808207): the
+main-push heavy path had regressed to backend shards at 3m 01s-4m 26s (the
+5-way split from the June 21 entry below), plus `tooling-coverage` at ~8m 00s
+and `backend-e2e-tier1` at ~2m 05s serial on the critical path
+(`max(tooling-coverage, backend-e2e-tier1) -> ac-traceability -> finish`). Root
+cause for the shard spread specifically: the committed duration seed
+(`ci/backend-test-durations.json`) had drifted 347 tests stale against the
+current ~3300-test suite (11.7% priced by pytest-split's default instead of a
+real measurement) -- this is the regression the June 21 entry's "do not add
+more shards until new timing evidence shows backend tail regression" guidance
+anticipated, and this is that evidence. Refreshed the seed and raised the
+shard matrix from 5-way to 8-way (`AC-testing.ci-structure.8`) so the slowest
+shard's wall-clock time comes down instead of eight (or five) shards just
+being evenly wrong. `tooling-coverage` was moved off an ad hoc
+`uv run --with <17 packages>` resolve-per-run onto the same cached
+lockfile-backed venv the backend jobs already warm, and `backend-e2e-tier1`
+was parallelized with `-n auto --dist worksteal` (the per-worker DB/S3/cassette
+isolation this suite already has for the `backend` shards applies here too).
+Real GH-runner numbers for all three changes are the PR's own `finish` run --
+see that PR for what could and could not be verified locally (this sandbox has
+no docker, so backend-e2e-tier1 and the container-backed jobs could not be
+run at all; the shared local Postgres used to regenerate the duration seed had
+other live traffic on it, so its absolute per-test seconds are noisier than a
+dedicated runner's, though the relative ordering pytest-split's
+`least_duration` algorithm depends on should still hold).
+
 Observed on June 21, 2026 after the #1252 ROI sequence landed through PR
 #1288 at merge commit `ab2630e1`:
 

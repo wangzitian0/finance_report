@@ -426,7 +426,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         stage="backend_ci",
         workflow=".github/workflows/ci.yml",
         marker=BACKEND_CI_MARKER,
-        anchor="--splits 5",
+        anchor="--splits 8",
     ),
     WorkflowPytestContract(
         stage="backend_integration",

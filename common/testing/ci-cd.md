@@ -530,9 +530,9 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 - Staging deploy is manual (`workflow_dispatch`) only; a manual dispatch always deploys staging, runs release-critical smoke/non-LLM E2E, and records the provider-backed AI/OCR regression against the dispatched release `version_ref`. The diff-based change classifier no longer scopes the staging deploy by changed paths — it remains the scoping mechanism for CI/PR gates. Normal staging deploys still run staging smoke and non-LLM E2E against the exact dispatched `version_ref`.
 - Markdown outside the documented lightweight trees is treated as heavy; this prevents runtime-adjacent README or tooling documentation changes from being hidden by a global `*.md` skip.
 - Standalone lint starts immediately. Deterministic test and image jobs start after change classification, then backend shards, frontend build/typecheck, frontend Vitest coverage, frontend Playwright, frontend telemetry E2E, image build validation, tooling coverage, integration, and Tier-1 API E2E run in parallel. Behavior-only backend gates run in parallel with the other producers rather than serializing fast feedback. The `ac-traceability` job is intentionally a late evidence consumer that waits for lint plus its detector/JUnit producers; `if: always()` preserves its static checks when heavy producers skip. The `ac-behavioral-ratchet` job starts after the JUnit-emitting backend/frontend Vitest stages and feeds the same `finish` aggregate as the other merge gates. The `finish` job aggregates lint, AC traceability, the AC behavioral score ratchet, deterministic tests, image validation, coverage, and skipped heavy-job semantics so earlier producer starts improve wall-clock throughput without weakening merge authority.
-- 5-way parallel test sharding via `pytest-split`
-- The workflow job name `Backend Tests (Shard ${{ matrix.shard }}/5)` is stable so branch protection and CI metrics retain one consistent status family.
-- Each shard: `pytest --splits 5 --group N --splitting-algorithm=least_duration --durations-path ci/backend-test-durations.json`
+- 8-way parallel test sharding via `pytest-split` (raised from 5-way: the committed duration seed had drifted 347 tests stale, and 8-way keeps the slowest shard's wall-clock lower even once the seed is fresh — see AC-testing.ci-structure.8's updated statement)
+- The workflow job name `Backend Tests (Shard ${{ matrix.shard }}/8)` is stable so branch protection and CI metrics retain one consistent status family.
+- Each shard: `pytest --splits 8 --group N --splitting-algorithm=least_duration --durations-path ci/backend-test-durations.json`
 - The committed duration seed lives at `apps/backend/ci/backend-test-durations.json`; each CI shard validates that it is present and non-trivial before pytest starts.
 - Duration seed updates are reviewed repository changes, not runner-local cache writes or uploaded artifact side effects.
 - Tooling/common coverage runs in parallel as `tooling-coverage`; `unified-coverage` downloads `coverage-tooling` and merges backend, frontend Vitest, common, and tools LCOV inputs post-run.
@@ -587,7 +587,7 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../../docs/project/DELIVERY_ENG
 >
 > | Environment | Parallelism | Test Scope | Resource Usage |
 > |-------------|-------------|------------|----------------|
-> | **GitHub CI** | `-n auto` + `--splits 5` | ~20% tests per shard | Medium (ephemeral runners) |
+> | **GitHub CI** | `-n auto` + `--splits 8` | ~12.5% tests per shard | Medium (ephemeral runners) |
 > | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
 >
 > This is intentional design, not inconsistency.

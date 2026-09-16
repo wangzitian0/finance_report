@@ -447,7 +447,7 @@ jobs:
             apps/backend/ci-context/schema-migration-context.txt
           retention-days: 14
   backend:
-    name: Backend Tests (Shard ${{ matrix.shard }}/5)
+    name: Backend Tests (Shard ${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
@@ -455,7 +455,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
 
     services:
       postgres:
@@ -501,7 +501,7 @@ jobs:
 
 
 
-      - name: Run Tests (Shard ${{ matrix.shard }}/5)
+      - name: Run Tests (Shard ${{ matrix.shard }}/8)
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
           S3_ACCESS_KEY: minio
@@ -528,7 +528,7 @@ jobs:
           PY
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
-            --splits 5 \
+            --splits 8 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/backend-test-durations.json \
@@ -1928,7 +1928,7 @@ jobs:
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (5-way shard) | contributes to unified line coverage baseline | yes |
+          | backend (8-way shard) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
           | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |

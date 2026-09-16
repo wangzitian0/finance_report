@@ -2436,14 +2436,17 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.8",
             statement=(
                 "Backend fast-test CI shards rebalance the current critical path with "
-                "a 5-way pytest-split matrix, a committed duration seed, "
-                "least-duration assignment, and a seed-size guard so CI cannot "
-                "silently fall back to unseeded even splitting (Was EPIC-008 "
-                "AC8.13.148)."
+                "an 8-way pytest-split matrix (raised from 5-way once the committed "
+                "duration seed was refreshed against the current ~3300-test suite -- "
+                "347 tests had drifted in unseeded, which is what a stale seed "
+                "produces: a mispriced least_duration assignment, not a missing "
+                "file), a committed duration seed, least-duration assignment, and a "
+                "seed-size guard so CI cannot silently fall back to unseeded even "
+                "splitting (Was EPIC-008 AC8.13.148)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_148_backend_shards_use_seeded_5_way_split"
+                "::test_AC8_13_148_backend_shards_use_seeded_8_way_split"
             ),
             priority="P1",
             status="done",
@@ -4852,7 +4855,7 @@ CONTRACT = PackageContract(
         ConceptRecord(
             key="test_optimization",
             owner="common/testing/ci-cd.md#test-optimization",
-            description="Smart/fast/full test modes and 5-way seeded backend sharding strategy.",
+            description="Smart/fast/full test modes and 8-way seeded backend sharding strategy.",
             cross_refs=["common/meta/development.md", "common/testing/coverage.md"],
             proofs=[
                 "apps/backend/tests/unit/infra/test_test_lifecycle.py",
