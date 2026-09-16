@@ -2481,6 +2481,28 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.ci-structure.11",
+            statement=(
+                "frontend-build and frontend-playwright are right-moved off PRs "
+                "that touch no apps/frontend/ path, the same pattern as "
+                "frontend-telemetry-e2e (AC-testing.ci-structure.10) minus the "
+                "always-run-on-push override that production-observability canary "
+                "needs and these two non-coverage proof jobs don't (they gate on "
+                "pr_required uniformly like backend/frontend-vitest, "
+                "AC-testing.deploy-gates.25): a skip is a pass (not a gap) in "
+                "finish's aggregation, so a docs/tooling/backend-only PR stops "
+                "paying the Next.js build and Playwright browser-install "
+                "wall-clock cost."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group coverage: coverage/LCOV gates (was EPIC-008 AC8.13
         # subset), migration closeout, #1663 / #1718 ──
         ACRecord(

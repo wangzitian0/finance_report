@@ -798,7 +798,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    # AC-testing.ci-structure.11: right-moved off PRs that touch no
+    # apps/frontend/** path, mirroring frontend-telemetry-e2e's
+    # frontend_changed gate (#1689) -- this job's proof (typecheck + prod
+    # build) is not coverage-scoped, so narrowing it costs nothing unified-
+    # coverage depends on.
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -890,7 +895,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    # AC-testing.ci-structure.11: right-moved off PRs that touch no
+    # apps/frontend/** path, mirroring frontend-telemetry-e2e's
+    # frontend_changed gate (#1689) -- this job's proof (provider-free
+    # browser E2E) is not coverage-scoped, so narrowing it costs nothing
+    # unified-coverage depends on. Unlike frontend-telemetry-e2e it is not a
+    # production observability canary, so (like backend/frontend-build) it
+    # gates on pr_required uniformly with no always-run-on-push override
+    # (AC-testing.deploy-gates.25).
+    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -1996,7 +2009,11 @@ jobs:
               echo "::error::Backend Tier-1 API E2E tests failed"
               exit 1
             fi
-            if [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
+            # AC-testing.ci-structure.11: frontend-build is right-moved off PRs
+            # that touch no apps/frontend/** path (frontend_changed=false),
+            # which is a pass, not a gap — mirrors frontend-telemetry-e2e's
+            # skip-is-a-pass clause below.
+            if [[ "${{ needs.frontend-build.result }}" != "success" && "${{ needs.frontend-build.result }}" != "skipped" ]]; then
               echo "::error::Frontend build/typecheck failed"
               exit 1
             fi
@@ -2004,7 +2021,9 @@ jobs:
               echo "::error::Frontend Vitest coverage failed"
               exit 1
             fi
-            if [[ "${{ needs.frontend-playwright.result }}" != "success" ]]; then
+            # AC-testing.ci-structure.11: frontend-playwright is right-moved
+            # the same way as frontend-build above.
+            if [[ "${{ needs.frontend-playwright.result }}" != "success" && "${{ needs.frontend-playwright.result }}" != "skipped" ]]; then
               echo "::error::Frontend Playwright failed"
               exit 1
             fi

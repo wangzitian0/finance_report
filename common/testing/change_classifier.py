@@ -148,11 +148,27 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
     "common": ("common/",),
 }
 
+# A change to the CI pipeline's own definition (or the classifier that scopes
+# it) must never let component_changed narrow a job away: none of these paths
+# fall under any COMPONENT_PREFIXES prefix, so without this guard a diff that
+# touched ONLY e.g. .github/workflows/ci.yml would report every component
+# unchanged — silently skipping the very component-scoped job(s) (e.g.
+# backend-e2e-tier1, frontend-build/-playwright, AC-testing.ci-structure.11)
+# that PR just edited. Mirrors the "fail closed on unknown diff" convention
+# below for a diff that IS known but is about the gate itself.
+CI_DEFINITION_PATHS = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        "common/testing/change_classifier.py",
+        "tools/ci_change_classifier.py",
+    }
+)
+
 
 def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
     # Fail closed when the diff is unknown (no files detected), matching
     # heavy_required/image_build_required's convention elsewhere in this module.
-    if not files:
+    if not files or any(path in CI_DEFINITION_PATHS for path in files):
         return dict.fromkeys(COMPONENT_PREFIXES, True)
     return {
         name: any(path.startswith(prefixes) for path in files)

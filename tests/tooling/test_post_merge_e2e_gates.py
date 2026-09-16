@@ -1952,13 +1952,25 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert "frontend" not in jobs
     for job_id in split_jobs:
         assert jobs[job_id]["needs"] == ["changes"]
-    for job_id in ("frontend-build", "frontend-vitest", "frontend-playwright"):
-        assert jobs[job_id]["if"] == "needs.changes.outputs.pr_required == 'true'"
+    # frontend-vitest feeds unified-coverage's line-coverage baseline (its LCOV
+    # is not component-scoped away, unlike backend-e2e-tier1's/frontend-build's/
+    # frontend-playwright's non-coverage proof), so it stays gated on
+    # pr_required alone — see AC-testing.ci-structure.11 for the other two.
+    assert (
+        jobs["frontend-vitest"]["if"] == "needs.changes.outputs.pr_required == 'true'"
+    )
     # frontend-telemetry-e2e is right-moved (#1689): still required proof on
     # every PR that touches apps/frontend/**, but no longer runs unconditionally
     # on every PR — see test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass.
     frontend_changed_output = "needs.changes.outputs.frontend_changed"
     assert frontend_changed_output in jobs["frontend-telemetry-e2e"]["if"]
+    # AC-testing.ci-structure.11: frontend-build/frontend-playwright are
+    # right-moved the same way, off PRs that touch no apps/frontend/** path —
+    # see test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass.
+    pr_required_output = "needs.changes.outputs.pr_required == 'true'"
+    for job_id in ("frontend-build", "frontend-playwright"):
+        assert pr_required_output in jobs[job_id]["if"]
+        assert frontend_changed_output in jobs[job_id]["if"]
 
     assert jobs["unified-coverage"]["needs"] == [
         "changes",
@@ -2048,6 +2060,37 @@ def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -
         '&& "${{ needs.frontend-telemetry-e2e.result }}" != "skipped"'
     )
     assert skip_is_a_pass_clause in finish_commands
+
+
+def test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass() -> (
+    None
+):
+    """AC-testing.ci-structure.11: frontend-build and frontend-playwright are right-moved off PRs
+    that touch no apps/frontend/ path (same pattern as frontend-telemetry-e2e's
+    AC-testing.ci-structure.10, minus the always-run-on-push override those two
+    non-canary jobs don't need — see AC-testing.deploy-gates.25), and finish's
+    aggregation treats a skip as a pass, not a gap."""
+    workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+    jobs = workflow["jobs"]
+
+    pr_required_clause = "needs.changes.outputs.pr_required == 'true'"
+    frontend_changed_clause = "needs.changes.outputs.frontend_changed == 'true'"
+    for job_id in ("frontend-build", "frontend-playwright"):
+        job_if = jobs[job_id]["if"]
+        assert pr_required_clause in job_if
+        assert frontend_changed_clause in job_if
+
+    finish_commands = "\n".join(
+        str(step.get("run", ""))
+        for step in jobs["finish"].get("steps", [])
+        if isinstance(step, dict)
+    )
+    for job_id in ("frontend-build", "frontend-playwright"):
+        skip_is_a_pass_clause = (
+            f'"${{{{ needs.{job_id}.result }}}}" != "success" '
+            f'&& "${{{{ needs.{job_id}.result }}}}" != "skipped"'
+        )
+        assert skip_is_a_pass_clause in finish_commands
 
 
 def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
