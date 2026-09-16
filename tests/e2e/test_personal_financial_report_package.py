@@ -739,7 +739,8 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert package_response.status_code == 200, (
             f"package preview failed: {package_response.status_code} {package_response.text}"
         )
-        package_sections = package_response.json()["sections"]
+        package_document = package_response.json()
+        package_sections = package_document["sections"]
         annualized = package_sections["annualized_income_long_term"]
         assert annualized["section_id"] == "annualized_income_long_term"
         assert annualized["as_of_date"] == fixture_period_end.isoformat()
@@ -796,7 +797,18 @@ async def test_personal_financial_report_package_post_merge_journey(
             assert line["source_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
-            assert line["confidence_tier"] == "TRUSTED"
+            assert line["blocker_codes"] == []
+            manifest_decisions = {
+                item["decision_id"] for item in package_document["input_manifest"]
+            }
+            for anchor_name in ("source_anchor", "ledger_anchor"):
+                details = line[anchor_name]["details"]
+                assert details, (line_id, anchor_name)
+                assert all(
+                    detail["review_state"] == "current_authoritative_decision"
+                    and detail["decision_id"] in manifest_decisions
+                    for detail in details
+                ), (line_id, anchor_name, details)
         assert (
             traceability_lines[
                 "annualized_income_long_term.restricted_fair_value_total"

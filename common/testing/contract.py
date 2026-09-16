@@ -4217,6 +4217,22 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-testing.package-lifecycle.3",
+            statement=(
+                "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts, "
+                "reviews and approves through browser controls, then generates, reopens and exports "
+                "one frozen report package with independent Decimal totals. Only authentication "
+                "setup may use mutation APIs; backend/frontend versions match the pinned target, "
+                "and model evidence distinguishes requested configuration from actual provider execution."
+            ),
+            test=(
+                "tests/e2e/test_gxs_browser_journey.py::"
+                "test_gxs_browser_upload_to_saved_package"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-testing.pdf-checkpoint.1",
             statement=(
                 "Generated PDF bytes traverse upload, real storage operations and extraction normalization "

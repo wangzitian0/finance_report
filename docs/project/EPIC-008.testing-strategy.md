@@ -713,6 +713,7 @@ Product E2E ownership index:
 |---|---|
 | `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
+| `tests/e2e/test_gxs_browser_journey.py` | Fresh-user live-provider browser proof; AC-testing.package-lifecycle.3 is owned by `common/testing/contract.py`. |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
 | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |

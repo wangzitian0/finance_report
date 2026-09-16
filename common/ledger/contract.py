@@ -1892,7 +1892,8 @@ CONTRACT = PackageContract(
             id="AC-ledger.34.5",
             statement=(
                 "Every computed/transfer posting path gates balance through "
-                "Entry: opening-balance, fx-revaluation, and processing-account "
+                "Entry or the anchored repository validator: opening stock uses "
+                "the system-command boundary; fx-revaluation and processing-account "
                 "transfers construct an Entry before persisting (fx-revaluation "
                 "and processing-account previously wrote raw JournalLines with no "
                 "balance validation at all). The remaining raw site review_queue "

@@ -177,6 +177,21 @@ opening date is supplied explicitly: upstream ordinary-user UI completion and
 onboarding guidance remain outside this proof. This is one supported month, not a
 claim about other formats, economic cases, or year-wide coverage.
 
+The separate fresh-user browser journey (`AC-testing.package-lifecycle.3`) allows
+API setup only for authentication. Account creation, upload, source/economic
+review, approval and saved-package operations use actual product controls.
+Independent generated-fixture Decimal expectations and downloaded frozen artifacts
+remain the oracle; service versions must match the explicit target. Requested
+model configuration is recorded separately from actual provider execution evidence,
+so a selector value alone cannot certify the serving model. This live-provider proof
+runs in audit replay, never the provider-free PR preview or minimal blocking canary.
+Its extra parse wait is included in the replay counts and timeout budget.
+
+The representative multi-source package fixture takes its report period from the
+independently declared CSV statement-period columns, not the first and last
+transaction dates. A quiet tail of a statement month cannot silently turn this
+full-month proof into a midperiod report that excludes its source contribution.
+
 The PDF checkpoint (`AC-testing.pdf-checkpoint.1`–`.3`) adds a deterministic
 composition test through the public upload endpoint. It renders a generated PDF,
 controls only provider proposals and the object-storage server, and exercises

@@ -52,6 +52,9 @@ def test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs
 
     expected = fixture.expected_outputs
     assert expected.transaction_count > 0
+    # The statement covers the whole month even though activity stops earlier.
+    assert expected.period_start.isoformat() == "2026-05-01"
+    assert expected.period_end.isoformat() == "2026-05-31"
     assert expected.bank_cash == expected.income - expected.expenses
     assert expected.restricted_fair_value_total == Decimal("156000.00")
     assert expected.manual_liability_total == Decimal("360000.00")

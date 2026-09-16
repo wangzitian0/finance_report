@@ -1,0 +1,250 @@
+"""Live GXS source-to-saved-report proof using the product's business UI.
+
+Authentication setup may use the API. Account creation, PDF upload, economic
+review, approval, snapshot generation, reopen and downloads use browser controls.
+The committed generated fixture, never provider output, owns expected numbers.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import csv
+import json
+import os
+import re
+import time
+import uuid
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+from common.testing.ac_proof import ac_proof
+from playwright.async_api import Page, expect
+
+from pdf_fixture_paths import committed_fixture_pdf
+
+APP_URL = os.getenv("APP_URL", "http://localhost:3000").rstrip("/")
+EXPECTED_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "common/testing/fixtures/pdf/generated/gxs_statement_fixture_expected.json"
+)
+# These are independent fixture meanings, not classifications copied from OCR.
+DISPOSITIONS = {
+    "Interest Earned": ("income", "INTEREST"),
+    "PayNow from ALVIN GOH": ("income", "OTHER_INCOME"),
+    "Payment to GrabPay Wallet": ("expense", "TRANSPORT"),
+    "PayNow to MERCHANT HAWKER": ("expense", "DINING"),
+}
+
+
+@ac_proof(
+    "gxs-browser-saved-package",
+    ac_ids=["AC-testing.package-lifecycle.3"],
+    scope="behavioral",
+    ci_tier="post_merge_environment",
+    trust_mode="llm_ocr_post_merge",
+    source_classes=["bank_statement"],
+    mirror_proof_id="extraction-corpus-journeys-pr",
+    issue="#2008",
+    required_markers=["e2e", "tier3", "critical", "llm"],
+)
+@pytest.mark.e2e
+@pytest.mark.tier3
+@pytest.mark.critical
+@pytest.mark.llm
+async def test_gxs_browser_upload_to_saved_package(
+    authenticated_page_unique: Page, tmp_path: Path, record_property
+) -> None:
+    """EPIC-003 EPIC-008: AC-testing.package-lifecycle.3, no API business seeding."""
+    started = time.monotonic()
+    page = authenticated_page_unique
+    expected = json.loads(EXPECTED_PATH.read_text())
+    expected_version = os.getenv("EXPECTED_SHA")
+    assert expected_version, "live browser proof requires an explicit EXPECTED_SHA"
+    for path in ("/api/health", "/frontend-version.json"):
+        response = await page.request.get(f"{APP_URL}{path}")
+        assert response.status == 200
+        version = (await response.json())["git_sha"]
+        assert version == expected_version, f"{path} is not the pinned deployment"
+        record_property(path, version)
+
+    await page.goto(f"{APP_URL}/upload")
+    await page.locator('[data-testid="uploader-institution-statement"]').fill(
+        "GXS Generated Browser Proof"
+    )
+    model = page.locator('[data-testid="uploader-model-statement"]')
+    await expect(model).not_to_have_value("")
+    record_property("requested_ocr_model", await model.input_value())
+    pdf = tmp_path / "gxs-browser-proof.pdf"
+    pdf.write_bytes(
+        committed_fixture_pdf("gxs_statement_fixture.pdf").read_bytes()
+        + f"\n% generated browser proof {uuid.uuid4()}\n".encode()
+    )
+    await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf))
+    async with page.expect_response(
+        lambda response: "/api/statements/upload" in response.url
+    ) as pending:
+        await page.get_by_role("button", name="Upload & Parse Statement").click()
+    uploaded = await pending.value
+    assert uploaded.status in (200, 201, 202)
+    statement_id = (await uploaded.json())["id"]
+    record_property("source_statement_id", statement_id)
+    deadline = time.monotonic() + int(os.getenv("PARSING_TIMEOUT_MS", "480000")) / 1000
+    while time.monotonic() < deadline:
+        response = await page.request.get(f"{APP_URL}/api/statements/{statement_id}")
+        assert response.status == 200
+        source = await response.json()
+        if source["status"] in ("parsed", "approved", "rejected"):
+            break
+        await asyncio.sleep(2)
+    else:
+        pytest.fail("Generated GXS source did not reach a terminal parse state")
+    assert source["status"] in ("parsed", "approved"), source.get("validation_error")
+    actual_rows = sorted(
+        (row["txn_date"], Decimal(row["amount"]), row["direction"], row["currency"])
+        for row in source["transactions"]
+    )
+    assert actual_rows == sorted(
+        (row["date"], Decimal(row["amount"]), row["direction"], row["currency"])
+        for row in expected["events"]
+    )
+
+    for account_type in ("INCOME", "EXPENSE"):
+        await page.goto(f"{APP_URL}/accounts")
+        await page.get_by_role("button", name="Add Account", exact=True).click()
+        await page.get_by_placeholder("e.g., Cash on Hand").fill(
+            f"Generated {account_type}"
+        )
+        await page.locator('select[name="type"]').select_option(account_type)
+        await page.locator('select[name="currency"]').select_option("SGD")
+        async with page.expect_response(
+            lambda response: "/api/accounts" in response.url
+            and response.request.method == "POST"
+        ) as pending:
+            await page.get_by_role("button", name="Create Account", exact=True).click()
+        assert (await pending.value).status == 201
+        await expect(
+            page.get_by_role("heading", name="New Account", exact=True)
+        ).not_to_be_visible()
+
+    await page.goto(f"{APP_URL}/statements/{statement_id}/review")
+    await page.get_by_role("link", name="Review transaction classifications").click()
+    for row in expected["events"]:
+        transaction = page.get_by_role(
+            "button",
+            name=re.compile(
+                re.escape(row["description"]) + r".*" + re.escape(row["date"]), re.S
+            ),
+        )
+        await transaction.click()
+        detail = page.get_by_text("Reviewed Disposition", exact=True).locator("..")
+        await expect(detail).to_contain_text(row["date"])
+        intent, category = DISPOSITIONS[row["description"]]
+        await page.get_by_label("Economic intent").select_option(intent)
+        await page.get_by_label("Counter account").select_option(
+            label=f"Generated {intent.upper()} · {intent.upper()}"
+        )
+        await page.get_by_label("Report category").fill(category)
+        await page.get_by_label("Review rationale").fill(
+            "The independent generated GXS fixture declares this economic meaning."
+        )
+        async with page.expect_response(
+            lambda response: "/reviewed-disposition" in response.url
+            and response.request.method == "POST"
+        ) as pending:
+            await page.get_by_role(
+                "button", name="Confirm and Post", exact=True
+            ).click()
+        posted = await pending.value
+        assert posted.status == 200, await posted.text()
+        await expect(transaction).not_to_be_visible()
+    record_property("browser_created_counter_accounts", 2)
+    record_property("browser_economic_review_decisions", len(expected["events"]))
+    await page.get_by_role("link", name="Return to statement review").first.click()
+    await page.get_by_role("button", name="Approve", exact=True).click()
+    async with page.expect_response(
+        lambda response: "/review/approve" in response.url
+    ) as pending:
+        await (
+            page.get_by_role("dialog")
+            .get_by_role("button", name="Approve", exact=True)
+            .click()
+        )
+    assert (await pending.value).status == 200
+
+    await page.goto(f"{APP_URL}/reports/package")
+    statement = expected["statement"]
+    await page.get_by_label("Package period start").fill(statement["period_start"])
+    await page.get_by_label("Package report date").fill(statement["period_end"])
+    await page.get_by_role("button", name="US-like", exact=True).click()
+    async with page.expect_response(
+        lambda response: "/reports/package/generate" in response.url
+    ) as pending:
+        await page.get_by_role("button", name="Generate Snapshot", exact=True).click()
+    generated = await pending.value
+    assert generated.status == 200
+    snapshot = await generated.json()
+    assert snapshot["status"] == "trusted"
+    await page.reload()
+    await page.get_by_role("button", name="US-like", exact=True).click()
+    await page.get_by_role("button", name="Reopen", exact=True).click()
+    await expect(
+        page.get_by_text(f"Frozen snapshot {snapshot['id']}", exact=True)
+    ).to_be_visible()
+    for export_format in ("JSON", "CSV"):
+        async with page.expect_download() as pending:
+            await (
+                page.locator("button")
+                .filter(has_text=re.compile(f"^{export_format}$"))
+                .click()
+            )
+        await (await pending.value).save_as(
+            str(tmp_path / f"package.{export_format.lower()}")
+        )
+    artifact = json.loads((tmp_path / "package.json").read_text())
+    assert artifact["document"] == snapshot["document"]
+    assert artifact["start_date"] == statement["period_start"]
+    assert artifact["end_date"] == statement["period_end"]
+    sections = artifact["document"]["sections"]
+    income = sum(
+        (
+            Decimal(row["amount"])
+            for row in expected["events"]
+            if row["direction"] == "IN"
+        ),
+        Decimal("0"),
+    )
+    expense = sum(
+        (
+            Decimal(row["amount"])
+            for row in expected["events"]
+            if row["direction"] == "OUT"
+        ),
+        Decimal("0"),
+    )
+    assert Decimal(sections["balance_sheet"]["total_assets"]) == Decimal(
+        statement["closing_balance"]
+    )
+    summary = sections["cash_flow"]["summary"]
+    assert Decimal(summary["beginning_cash"]) == Decimal(statement["opening_balance"])
+    assert Decimal(summary["ending_cash"]) == Decimal(statement["closing_balance"])
+    assert Decimal(sections["income_statement"]["total_income"]) == income
+    assert Decimal(sections["income_statement"]["total_expenses"]) == expense
+    assert Decimal(sections["income_statement"]["net_income"]) == income - expense
+    assert sections["cash_flow"]["proof_state"] == "proven"
+    with (tmp_path / "package.csv").open() as exported:
+        rows = list(csv.DictReader(exported))
+    assert {row["line_id"] for row in rows} == {
+        line["line_id"] for line in sections["traceability_appendix"]["lines"]
+    }
+    csv_amounts = {
+        row["line_id"]: Decimal(row["amount"]) for row in rows if row["amount"]
+    }
+    assert csv_amounts["balance_sheet.total_assets"] == Decimal(
+        statement["closing_balance"]
+    )
+    assert csv_amounts["income_statement.total_income"] == income
+    assert csv_amounts["income_statement.total_expenses"] == expense
+    record_property("browser_saved_package_oracle", "passed")
+    record_property("browser_journey_seconds", round(time.monotonic() - started, 2))
+    await page.screenshot(path=str(tmp_path / "saved-package.png"), full_page=True)

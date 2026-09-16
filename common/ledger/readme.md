@@ -852,3 +852,8 @@ account service before historical FX lookup. The application composition root
 supplies pricing rates and the trace emitter; HTTP delivery only translates the
 request and commits or rolls back the transaction. Currency mismatch remains a
 ledger validation error before any provider call.
+
+Opening-stock commands delegate through the system-command and anchored-posting
+boundary to the repository's unconditional balance validator before any journal
+write. The structural call-chain guard and an executed imbalanced-command
+regression jointly cover this path (`AC-ledger.34.5`).

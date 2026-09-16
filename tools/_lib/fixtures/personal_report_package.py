@@ -100,7 +100,16 @@ def _expected_outputs(
     amounts = [money_amount(row["Amount"]) for row in rows]
     income = sum((amount for amount in amounts if amount > 0), Decimal("0.00"))
     expenses = sum((-amount for amount in amounts if amount < 0), Decimal("0.00"))
-    period_dates = sorted(date.fromisoformat(row["Date"]) for row in rows)
+    statement_periods = {
+        (row["Statement Period Start"], row["Statement Period End"]) for row in rows
+    }
+    if len(statement_periods) != 1:
+        raise ValueError(
+            "Representative package fixture has conflicting statement periods"
+        )
+    period_start, period_end = (
+        date.fromisoformat(value) for value in statement_periods.pop()
+    )
     manual_asset_total = sum(
         (
             component.value
@@ -127,8 +136,8 @@ def _expected_outputs(
     )
     return ExpectedPackageOutputs(
         transaction_count=len(rows),
-        period_start=period_dates[0],
-        period_end=period_dates[-1],
+        period_start=period_start,
+        period_end=period_end,
         income=money_amount(income),
         expenses=money_amount(expenses),
         net_income=money_amount(income - expenses),
