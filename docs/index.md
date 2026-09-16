@@ -37,7 +37,7 @@ This documentation is organized into four main sections to help you find what yo
 
     Architecture, design decisions, and implementation details
 
-    [:octicons-arrow-right-24: SSOT Docs](ssot/README.md)
+    [:octicons-arrow-right-24: Package Contracts & SSOT](../common/meta/data/MANIFEST.yaml)
 
 -   :material-hammer-wrench:{ .lg .middle } __Development Guide__
 
@@ -128,12 +128,12 @@ Generated implementation inventories:
 ### Technical Documentation (SSOT)
 Rationale docs with links to code owners, generated contracts, and proof tests:
 
-- [Architecture Overview](ssot/README.md) — System architecture and design principles
-- [Ledger (double-entry) model](https://github.com/wangzitian0/finance_report/blob/main/common/ledger/readme.md) — Double-entry bookkeeping rules
-- [Reconciliation Engine](../common/reconciliation/reconciliation.md) — Matching algorithms
-- [Statement Extraction](https://github.com/wangzitian0/finance_report/blob/main/common/extraction/readme.md) — AI parsing pipeline
-- [Reporting](../common/reporting/reporting.md) — Report generation logic
-- [AI Advisor](../common/llm/ai.md) — AI advisor implementation
+- [Concept Ownership Registry](../common/meta/data/MANIFEST.yaml) — Canonical registry of bounded contexts and owners
+- [Ledger (double-entry) model](../common/ledger/readme.md) — Double-entry bookkeeping rules
+- [Reconciliation Engine](../common/reconciliation/readme.md) — Matching algorithms
+- [Statement Extraction](../common/extraction/readme.md) — AI parsing pipeline
+- [Reporting](../common/reporting/readme.md) — Report generation logic
+- [AI Advisor](../common/llm/readme.md) — AI advisor implementation
 - [Database Schema](../common/meta/schema.md) — Data-layer rules and migration guardrails
 - [Development Guide](../common/meta/development.md) — Development environment setup
 
@@ -168,7 +168,7 @@ graph TB
     SVC --> Provider
 ```
 
-For detailed architecture documentation, see [Architecture Overview](ssot/README.md).
+For detailed architecture documentation, see the concept registry in [MANIFEST.yaml](../common/meta/data/MANIFEST.yaml) and bounded context documentation in [common/](../common/meta/readme.md).
 
 ## 🔗 Quick Links
 

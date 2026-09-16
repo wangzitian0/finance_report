@@ -143,8 +143,7 @@ sync with ACs and tests.
 | [Frontend README](https://github.com/wangzitian0/finance_report/blob/main/apps/frontend/README.md) | EPIC-001 | Frontend module entry point |
 | [Backend tests README](https://github.com/wangzitian0/finance_report/blob/main/apps/backend/tests/README.md) | EPIC-008 / EPIC-014 | Test-suite navigation and domain mapping |
 | [../agents/orchestration.md](../agents/orchestration.md), [../agents/red-lines.md](../agents/red-lines.md), and [../contributing/branch-policy.md](../contributing/branch-policy.md) | EPIC-014 | Agent and contributor workflow governance |
-| [Copilot instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/copilot-instructions.md), [frontend instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/frontend.instructions.md), [Python instructions](https://github.com/wangzitian0/finance_report/blob/main/.github/instructions/python.instructions.md), and [PR template](https://github.com/wangzitian0/finance_report/blob/main/.github/pull_request_template.md) | EPIC-014 | GitHub contributor and assistant workflow surfaces |
-| [../ssot/README.md](../ssot/README.md) and [../ssot/*.md](../ssot/README.md) | SSOT manifest + related EPICs | Rationale, code-owner links, and proof references |
+| [../../common/meta/data/MANIFEST.yaml](../../common/meta/data/MANIFEST.yaml) and [common/*/readme.md](../../common/meta/readme.md) | Package SSOT manifest + contracts | Rationale, code-owner links, and proof references |
 | [../user-guide/accounts.md](../user-guide/accounts.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Account user/API surface |
 | [../user-guide/journal-entries.md](../user-guide/journal-entries.md) and [../reference/api.md](../reference/api.md) | EPIC-002 | Journal user/API surface |
 | [../user-guide/reconciliation.md](../user-guide/reconciliation.md) | EPIC-003 / EPIC-004 | Upload, parsing, matching, and review user flow |
@@ -164,5 +163,5 @@ Use the root README documentation-debt list for active issue links and
 ## Related
 
 - [Project vision](../target.md)
-- [SSOT index](../ssot/README.md)
+- [Package SSOT manifest](../../common/meta/data/MANIFEST.yaml)
 - [Agent orchestration](../agents/orchestration.md)

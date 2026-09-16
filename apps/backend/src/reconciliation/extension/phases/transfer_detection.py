@@ -85,7 +85,7 @@ async def run_transfer_detection_phase(
                 created_matches.append(match)
                 if transfer_entry.status != JournalEntryStatus.VOID:
                     transfer_entry.status = JournalEntryStatus.RECONCILED
-                logger.info(
+                logger.debug(
                     "Transfer OUT detected and Processing entry created",
                     txn_id=str(txn.id),
                     entry_id=str(transfer_entry.id),
@@ -114,7 +114,7 @@ async def run_transfer_detection_phase(
                 created_matches.append(match)
                 if transfer_entry.status != JournalEntryStatus.VOID:
                     transfer_entry.status = JournalEntryStatus.RECONCILED
-                logger.info(
+                logger.debug(
                     "Transfer IN detected and Processing entry created",
                     txn_id=str(txn.id),
                     entry_id=str(transfer_entry.id),
@@ -140,4 +140,10 @@ async def run_transfer_detection_phase(
                 error=str(exc),
             )
             raise
+    if created_matches:
+        logger.info(
+            "Transfer detection phase finished",
+            created_matches_count=len(created_matches),
+            user_id=str(user_id),
+        )
     return created_matches
