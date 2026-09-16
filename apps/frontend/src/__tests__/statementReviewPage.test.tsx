@@ -843,4 +843,29 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(screen.getByText("Opening Δ: 5.00")).toBeInTheDocument();
         expect(screen.getByText("Closing Δ: 0.00")).toBeInTheDocument();
     });
+
+    // AC-extraction.fe-stage1-review.7
+    it("opens LowConfidenceReviewModal when clicking Review on a transaction row", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(baseStatement);
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        expect(await screen.findByRole("button", { name: "Ask AI Assistant" })).toBeInTheDocument();
+        const reviewBtns = screen.getAllByRole("button", { name: "Review" });
+        expect(reviewBtns.length).toBeGreaterThan(0);
+
+        fireEvent.click(reviewBtns[0]);
+        expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
+    });
 });

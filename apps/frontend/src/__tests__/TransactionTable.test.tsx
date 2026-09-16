@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import type { BankStatementTransaction } from "@/lib/types";
@@ -157,5 +157,25 @@ describe("TransactionTable (read-only)", () => {
         expect(calls.some((v) => v === "50" || v === 50)).toBe(true);
 
         spy.mockRestore();
+    });
+
+    it("renders review action buttons on desktop and mobile when onSelectTransaction is provided", () => {
+        const onSelect = vi.fn();
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onSelectTransaction={onSelect}
+            />
+        );
+
+        expect(screen.getByText("Action")).toBeInTheDocument();
+        const desktopReviewBtn = screen.getByRole("button", { name: "Review" });
+        fireEvent.click(desktopReviewBtn);
+        expect(onSelect).toHaveBeenCalledWith(sample[0]);
+
+        const mobileReviewBtn = screen.getByRole("button", { name: "Review / Fix" });
+        fireEvent.click(mobileReviewBtn);
+        expect(onSelect).toHaveBeenCalledTimes(2);
     });
 });

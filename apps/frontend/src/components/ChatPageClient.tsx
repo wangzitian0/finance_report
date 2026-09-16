@@ -9,9 +9,24 @@ import ChatPanel from "@/components/ChatPanel";
 
 const CONSENT_KEY = "ai_advisor_disclaimer_v1";
 
+export const PENDING_CHAT_PROMPT_KEY = "ai_chat_pending_prompt";
+
 export default function ChatPageClient() {
   const searchParams = useSearchParams();
-  const initialPrompt = searchParams.get("prompt");
+  const [sessionPrompt] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = sessionStorage.getItem(PENDING_CHAT_PROMPT_KEY);
+      if (stored) {
+        sessionStorage.removeItem(PENDING_CHAT_PROMPT_KEY);
+        return stored;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return null;
+  });
+  const initialPrompt = sessionPrompt || searchParams.get("prompt");
   const [consentGiven, setConsentGiven] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(CONSENT_KEY) === "accepted";

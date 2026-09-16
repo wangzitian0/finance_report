@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MessageSquareText, AlertTriangle, Check, X } from "lucide-react";
 
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { useToast } from "@/components/ui/Toast";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { PENDING_CHAT_PROMPT_KEY } from "@/components/ChatPageClient";
 import type { BankStatementTransaction } from "@/lib/types";
 
 export interface LowConfidenceReviewModalProps {
@@ -37,12 +40,16 @@ export function LowConfidenceReviewModal({
   currency = "SGD",
   onSuccess,
 }: LowConfidenceReviewModalProps) {
+  const router = useRouter();
   const { showToast } = useToast();
   const [category, setCategory] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const categoryInputRef = useRef<HTMLInputElement>(null);
+
+  useFocusTrap(dialogRef, isOpen);
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (isOpen && transaction) {
@@ -104,7 +111,15 @@ export function LowConfidenceReviewModal({
   const isPositive = transaction.direction === "IN";
   const displayCurrency = transaction.currency || currency;
   const chatPrompt = `Please analyze this transaction: '${transaction.description}', amount: ${transaction.amount} ${displayCurrency} (${isPositive ? "Income" : "Expense"}) on ${transaction.txn_date}. What is the recommended accounting category and should it be considered a personal or business expense?`;
-  const chatHref = `/chat?prompt=${encodeURIComponent(chatPrompt)}`;
+
+  const handleAskAi = () => {
+    try {
+      sessionStorage.setItem(PENDING_CHAT_PROMPT_KEY, chatPrompt);
+    } catch {
+      // ignore storage failure
+    }
+    router.push("/chat");
+  };
 
   return (
     <div
@@ -186,6 +201,7 @@ export function LowConfidenceReviewModal({
               id="corrected-category-input"
               ref={categoryInputRef}
               type="text"
+              maxLength={100}
               className="input w-full text-sm"
               placeholder="e.g. Dining, Utilities, Software..."
               value={category}
@@ -231,16 +247,15 @@ export function LowConfidenceReviewModal({
 
           {/* Action Row */}
           <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center sm:justify-between border-t border-[var(--border)]">
-            <Link
-              href={chatHref}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={handleAskAi}
               className="btn-ghost text-xs flex items-center justify-center gap-1.5 text-[var(--accent)] hover:bg-[var(--accent)]/10"
               title="Open AI Chat Assistant with this transaction context"
             >
               <MessageSquareText className="h-3.5 w-3.5" />
               <span>Ask AI Assistant</span>
-            </Link>
+            </button>
 
             <div className="flex items-center justify-end gap-2">
               <button

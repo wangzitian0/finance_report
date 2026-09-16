@@ -81,8 +81,12 @@ export function StatementAiAssistantButton({
       onNavigate(prompt);
       return;
     }
-    const chatUrl = `/chat?prompt=${encodeURIComponent(prompt)}`;
-    router.push(chatUrl);
+    try {
+      sessionStorage.setItem("ai_chat_pending_prompt", prompt);
+    } catch {
+      // ignore storage error
+    }
+    router.push("/chat");
   };
 
   const variantClass =

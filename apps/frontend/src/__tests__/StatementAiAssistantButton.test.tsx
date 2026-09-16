@@ -5,6 +5,7 @@ import {
   buildStatementChatPrompt,
   buildTransactionChatPrompt,
 } from "@/components/statements/StatementAiAssistantButton";
+import { PENDING_CHAT_PROMPT_KEY } from "@/components/ChatPageClient";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -15,6 +16,7 @@ vi.mock("next/navigation", () => ({
 describe("StatementAiAssistantButton & Prompt Helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
   });
 
   describe("Prompt Helpers", () => {
@@ -37,7 +39,7 @@ describe("StatementAiAssistantButton & Prompt Helpers", () => {
       );
     });
 
-    it("builds correct prompt for statement", () => {
+    it("builds correct prompt for statement with both dates", () => {
       const prompt = buildStatementChatPrompt({
         filename: "DBS_March_2024.pdf",
         institution: "DBS",
@@ -49,10 +51,27 @@ describe("StatementAiAssistantButton & Prompt Helpers", () => {
         "Please review this statement: 'DBS_March_2024.pdf' (DBS, 2024-03-01 to 2024-03-31) with 42 transactions. Highlight major expense categories and any potential anomalies."
       );
     });
+
+    it("builds statement prompt with only start or only end or neither", () => {
+      const promptStart = buildStatementChatPrompt({
+        filename: "Statement.pdf",
+        periodStart: "2024-01-01",
+      });
+      expect(promptStart).toContain("2024-01-01");
+
+      const promptEnd = buildStatementChatPrompt({
+        periodEnd: "2024-01-31",
+      });
+      expect(promptEnd).toContain("2024-01-31");
+
+      const promptEmpty = buildStatementChatPrompt({});
+      expect(promptEmpty).toContain("unspecified period");
+      expect(promptEmpty).toContain("an unknown number of transactions");
+    });
   });
 
   describe("StatementAiAssistantButton Component", () => {
-    it("renders transaction button and routes to /chat on click", () => {
+    it("renders transaction button and routes to /chat on click saving to sessionStorage", () => {
       render(
         <StatementAiAssistantButton
           transaction={{
@@ -61,19 +80,17 @@ describe("StatementAiAssistantButton & Prompt Helpers", () => {
             currency: "USD",
             date: "2024-04-01",
           }}
+          variant="primary"
         />
       );
 
       const button = screen.getByRole("button", { name: "Ask AI about transaction" });
       expect(button).toBeInTheDocument();
+      expect(button).toHaveClass("btn-primary");
 
       fireEvent.click(button);
-      expect(mockPush).toHaveBeenCalledWith(
-        expect.stringContaining("/chat?prompt=")
-      );
-      expect(mockPush).toHaveBeenCalledWith(
-        expect.stringContaining("Flight%20to%20Tokyo")
-      );
+      expect(sessionStorage.getItem(PENDING_CHAT_PROMPT_KEY)).toContain("Flight to Tokyo");
+      expect(mockPush).toHaveBeenCalledWith("/chat");
     });
 
     it("renders statement button with custom label and calls onNavigate callback", () => {
@@ -86,12 +103,15 @@ describe("StatementAiAssistantButton & Prompt Helpers", () => {
             transactionCount: 15,
           }}
           label="Ask Advisor"
+          variant="ghost"
+          icon="message"
           onNavigate={onNavigate}
         />
       );
 
       const button = screen.getByRole("button", { name: "Ask Advisor" });
       expect(button).toBeInTheDocument();
+      expect(button).toHaveClass("btn-ghost");
 
       fireEvent.click(button);
       expect(onNavigate).toHaveBeenCalledWith(
@@ -104,6 +124,8 @@ describe("StatementAiAssistantButton & Prompt Helpers", () => {
       render(<StatementAiAssistantButton />);
       const button = screen.getByTestId("statement-ai-assistant-button");
       expect(button).toBeDisabled();
+      fireEvent.click(button);
+      expect(mockPush).not.toHaveBeenCalled();
     });
   });
 });
