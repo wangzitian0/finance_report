@@ -2226,7 +2226,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-ledger.fe-accounts-journal.12",
-            statement="Account form modal create mode submits normalized payload and closes on success",
+            statement="Account form modal initializes before becoming interactive, preserves the first input on repeated opens, submits normalized payload, and closes on success",
             # was AC16.21.1
             test="apps/frontend/src/__tests__/accountFormModalComponent.test.tsx::AC16.21.1 create mode submits normalized payload and closes on success",
             priority="P2",

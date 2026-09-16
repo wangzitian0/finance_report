@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -49,6 +50,36 @@ describe("AccountFormModal", () => {
     )
     expect(onSuccess).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // AC-ledger.fe-accounts-journal.12: enter at the first committed DOM,
+  // before passive effects run, matching fast interaction after reopening.
+  it("preserves first input while a reopened account form becomes interactive", async () => {
+    mockedApiFetch.mockResolvedValue({ id: "generated-account" })
+
+    function FirstInteraction({ open, name, type }: { open: boolean; name: string; type: string }) {
+      useLayoutEffect(() => {
+        if (!open) return
+        fireEvent.change(screen.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: name } })
+        fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: type } })
+      }, [open, name, type])
+      return <AccountFormModal isOpen={open} onClose={onClose} onSuccess={onSuccess} />
+    }
+
+    const { rerender } = render(<FirstInteraction open={false} name="" type="ASSET" />)
+    for (const type of ["ASSET", "INCOME", "EXPENSE"]) {
+      const name = `Generated ${type}`
+      rerender(<FirstInteraction open name={name} type={type} />)
+      expect(screen.getByPlaceholderText("e.g., Cash on Hand")).toHaveValue(name)
+      expect(screen.getAllByRole("combobox")[0]).toHaveValue(type)
+      fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
+      await waitFor(() => expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/accounts", {
+        method: "POST",
+        body: JSON.stringify({ name, code: null, type, currency: "SGD", description: null }),
+      }))
+      rerender(<FirstInteraction open={false} name={name} type={type} />)
+    }
+    expect(mockedApiFetch).toHaveBeenCalledTimes(3)
   })
 
   // AC-ledger.fe-accounts-journal.13

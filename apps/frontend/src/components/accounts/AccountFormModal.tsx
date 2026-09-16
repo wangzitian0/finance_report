@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -42,8 +42,13 @@ const editAccountSchema = z.object({
 type CreateAccountForm = z.infer<typeof createAccountSchema>;
 type EditAccountForm = z.infer<typeof editAccountSchema>;
 
-export default function AccountFormModal({
-  isOpen,
+export default function AccountFormModal(props: AccountFormModalProps) {
+  if (!props.isOpen) return null;
+  // Each opening owns a fresh form, initialized before inputs become visible.
+  return <AccountFormContent key={props.editAccount?.id ?? "create"} {...props} />;
+}
+
+function AccountFormContent({
   onClose,
   onSuccess,
   editAccount,
@@ -52,7 +57,7 @@ export default function AccountFormModal({
   const isEditing = !!editAccount;
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  useFocusTrap(dialogRef, isOpen);
+  useFocusTrap(dialogRef, true);
 
   const createForm = useForm<CreateAccountForm>({
     resolver: zodResolver(createAccountSchema),
@@ -67,21 +72,12 @@ export default function AccountFormModal({
 
   const editForm = useForm<EditAccountForm>({
     resolver: zodResolver(editAccountSchema),
-    defaultValues: { name: "", code: "", is_active: true },
+    defaultValues: {
+      name: editAccount?.name ?? "",
+      code: editAccount?.code ?? "",
+      is_active: editAccount?.is_active ?? true,
+    },
   });
-
-  useEffect(() => {
-    if (editAccount) {
-      editForm.reset({
-        name: editAccount.name,
-        code: editAccount.code || "",
-        is_active: editAccount.is_active,
-      });
-    } else {
-      createForm.reset();
-    }
-    setError(null);
-  }, [editAccount, isOpen, createForm, editForm]);
 
   const handleCreateSubmit = async (data: CreateAccountForm) => {
     setError(null);
@@ -120,8 +116,6 @@ export default function AccountFormModal({
       setError(err instanceof Error ? err.message : "Failed to update account");
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

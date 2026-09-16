@@ -857,3 +857,8 @@ Opening-stock commands delegate through the system-command and anchored-posting
 boundary to the repository's unconditional balance validator before any journal
 write. The structural call-chain guard and an executed imbalanced-command
 regression jointly cover this path (`AC-ledger.34.5`).
+
+The account modal initializes create/edit values before its opened form becomes
+interactive. Reopening it must preserve the first entered name and selected
+account type; a deferred reset cannot overwrite user input
+(`AC-ledger.fe-accounts-journal.12`–`.13`).
