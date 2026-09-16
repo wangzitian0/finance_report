@@ -1,0 +1,47 @@
+name: 'Setup uv (retry)'
+description: >-
+  Install uv via astral-sh/setup-uv with one retry on a transient network
+  failure ("fetch failed"), mirroring truealpha#890's buildx retry idiom
+  (run #35091080269 red-flagged Backend Integration Tests on exactly this).
+  One local composite action so the retry shape is not copy-pasted at every
+  call site; a second consecutive failure still fails the job.
+inputs:
+  version:
+    description: uv version to install (astral-sh/setup-uv's `version` input)
+    required: true
+  enable-cache:
+    description: Passed through to astral-sh/setup-uv's `enable-cache`
+    required: false
+    default: 'true'
+  save-cache:
+    description: Passed through to astral-sh/setup-uv's `save-cache`
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Install uv (attempt 1)
+      id: setup_uv_attempt_1
+      continue-on-error: true
+      uses: astral-sh/setup-uv@v8.2.0
+      with:
+        version: ${{ inputs.version }}
+        enable-cache: ${{ inputs.enable-cache }}
+        save-cache: ${{ inputs.save-cache }}
+
+    - name: Wait before uv setup retry
+      if: steps.setup_uv_attempt_1.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning::astral-sh/setup-uv attempt 1 failed (transient network fetch failures are the observed cause); retrying once in 10s"
+        sleep 10
+
+    # No continue-on-error here: a second failure is a real failure and must
+    # fail the job, exactly like the buildx idiom this mirrors.
+    - name: Install uv (retry)
+      if: steps.setup_uv_attempt_1.outcome == 'failure'
+      uses: astral-sh/setup-uv@v8.2.0
+      with:
+        version: ${{ inputs.version }}
+        enable-cache: ${{ inputs.enable-cache }}
+        save-cache: ${{ inputs.save-cache }}

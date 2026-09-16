@@ -2508,6 +2508,27 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.ci-structure.12",
+            statement=(
+                "Every `Install uv` step in ci.yml retries once, through one local "
+                "composite action (.github/actions/setup-uv-retry), instead of "
+                "failing the job outright on a transient astral-sh/setup-uv "
+                "network fetch failure -- attempt 1 tolerates failure "
+                "(continue-on-error), a short wait, then a retry attempt that "
+                "does not tolerate failure (a second failure still fails the "
+                "job), mirroring truealpha#890's buildx retry idiom (run "
+                "35091080269 red-flagged Backend Integration Tests on exactly "
+                "this)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group coverage: coverage/LCOV gates (was EPIC-008 AC8.13
         # subset), migration closeout, #1663 / #1718 ──
         ACRecord(

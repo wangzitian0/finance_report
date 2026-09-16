@@ -2095,6 +2095,50 @@ def test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_move
         assert skip_is_a_pass_clause in finish_commands
 
 
+def test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action() -> (
+    None
+):
+    """AC-testing.ci-structure.12: every `Install uv` step in ci.yml retries once through a single
+    local composite action instead of failing the job outright on a transient
+    astral-sh/setup-uv network fetch failure (run 35091080269 red-flagged
+    Backend Integration Tests on exactly this; mirrors truealpha#890's buildx
+    retry idiom)."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    jobs = workflow["jobs"]
+    action_path = Path(".github/actions/setup-uv-retry/action.yml")
+    action_text = read(str(action_path))
+    action = yaml.safe_load(action_text)
+
+    # ci.yml never calls the raw action directly -- only through the retry
+    # wrapper -- and every "Install uv" step resolves to that one wrapper.
+    raw_action_reference = "astral-sh/setup-uv"
+    assert raw_action_reference not in workflow_text
+    install_uv_steps = [
+        step
+        for job in jobs.values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict) and step.get("name") == "Install uv"
+    ]
+    assert len(install_uv_steps) >= 7
+    for step in install_uv_steps:
+        assert step.get("uses") == "./.github/actions/setup-uv-retry"
+
+    # The wrapper itself: attempt 1 tolerates failure, a wait, then a retry
+    # attempt that does NOT tolerate failure (a second failure must still
+    # fail the job) -- both attempts call the same pinned upstream action.
+    action_steps = action["runs"]["steps"]
+    assert len(action_steps) == 3
+    attempt_1, wait_step, retry = action_steps
+    assert attempt_1["uses"] == "astral-sh/setup-uv@v8.2.0"
+    assert attempt_1.get("continue-on-error") is True
+    attempt_1_id = attempt_1["id"]
+    assert wait_step["if"] == f"steps.{attempt_1_id}.outcome == 'failure'"
+    assert retry["uses"] == "astral-sh/setup-uv@v8.2.0"
+    assert retry["if"] == f"steps.{attempt_1_id}.outcome == 'failure'"
+    assert "continue-on-error" not in retry
+
+
 def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
     """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 8-way least-duration split
     (raised from 5-way alongside a refreshed duration seed, so a shard's slowest wall-clock
