@@ -22,6 +22,8 @@ import {
   TransactionTable,
   Transaction,
 } from "@/components/review/TransactionTable";
+import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
+import { StatementAiAssistantButton } from "@/components/statements/StatementAiAssistantButton";
 import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
 import {
   ATTENTION_RETURN_HREF,
@@ -132,6 +134,7 @@ export default function StatementReviewPage() {
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictsResolved, setConflictsResolved] = useState(false);
   const [economicReviewRequired, setEconomicReviewRequired] = useState(false);
+  const [reviewingTxn, setReviewingTxn] = useState<Transaction | null>(null);
   const [envelopeDraft, setEnvelopeDraft] = useState<EnvelopeDraft>({
     accountId: "",
     currency: "",
@@ -542,20 +545,33 @@ export default function StatementReviewPage() {
             {data.period_start || "?"} to {data.period_end || "?"}
           </p>
         </div>
-        <ReviewActionBar
-          onApprove={() => setApproveDialogOpen(true)}
-          onReject={() => setRejectDialogOpen(true)}
-          actionLoading={approveMutation.isPending || rejectMutation.isPending}
-          balanceValid={balanceValid}
-          approvalBlockedReason={approvalBlockedReason}
-          onResolveConflicts={
-            hasUnresolvedConflicts
-              ? () => setConflictDialogOpen(true)
-              : undefined
-          }
-          onReparse={() => reparseMutation.mutate()}
-          reparsePending={reparseMutation.isPending}
-        />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+          <StatementAiAssistantButton
+            statement={{
+              id: data.id,
+              filename: data.original_filename,
+              institution: data.institution,
+              currency: data.currency || "SGD",
+              periodStart: data.period_start,
+              periodEnd: data.period_end,
+              transactionCount: data.transactions?.length,
+            }}
+          />
+          <ReviewActionBar
+            onApprove={() => setApproveDialogOpen(true)}
+            onReject={() => setRejectDialogOpen(true)}
+            actionLoading={approveMutation.isPending || rejectMutation.isPending}
+            balanceValid={balanceValid}
+            approvalBlockedReason={approvalBlockedReason}
+            onResolveConflicts={
+              hasUnresolvedConflicts
+                ? () => setConflictDialogOpen(true)
+                : undefined
+            }
+            onReparse={() => reparseMutation.mutate()}
+            reparsePending={reparseMutation.isPending}
+          />
+        </div>
       </div>
 
       <BalanceIndicator
@@ -755,8 +771,19 @@ export default function StatementReviewPage() {
         <TransactionTable
           transactions={data.transactions ?? []}
           currency={data.currency || "SGD"}
+          onSelectTransaction={(txn) => setReviewingTxn(txn)}
         />
       </div>
+
+      <LowConfidenceReviewModal
+        isOpen={reviewingTxn !== null}
+        onClose={() => setReviewingTxn(null)}
+        transaction={reviewingTxn}
+        currency={data.currency || "SGD"}
+        onSuccess={() => {
+          void refetch();
+        }}
+      />
 
       <ConflictResolutionDialog
         isOpen={conflictDialogOpen}

@@ -9,11 +9,13 @@ export type Transaction = BankStatementTransaction;
 interface TransactionTableProps {
   transactions: Transaction[];
   currency: string;
+  onSelectTransaction?: (txn: Transaction) => void;
 }
 
 export function TransactionTable({
   transactions,
   currency,
+  onSelectTransaction,
 }: TransactionTableProps) {
   const transactionRows = transactions ?? [];
 
@@ -90,6 +92,18 @@ export function TransactionTable({
                 {formatCurrencyLocale(txn.amount, txn.currency || currency)}
               </p>
             </div>
+
+            {onSelectTransaction && (
+              <div className="pt-2 border-t border-[var(--border)]/50">
+                <button
+                  type="button"
+                  onClick={() => onSelectTransaction(txn)}
+                  className="btn-secondary btn-sm w-full text-xs"
+                >
+                  Review / Fix
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </div>
@@ -110,6 +124,11 @@ export function TransactionTable({
               <th className="text-center px-4 py-2 font-medium w-24">
                 Confidence
               </th>
+              {onSelectTransaction && (
+                <th className="text-right px-4 py-2 font-medium w-20">
+                  Action
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
@@ -151,6 +170,17 @@ export function TransactionTable({
                     </span>
                   )}
                 </td>
+                {onSelectTransaction && (
+                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onSelectTransaction(txn)}
+                      className="btn-ghost btn-xs text-xs text-[var(--accent)] hover:underline"
+                    >
+                      Review
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
