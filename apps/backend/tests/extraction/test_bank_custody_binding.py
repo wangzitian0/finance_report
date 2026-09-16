@@ -388,3 +388,24 @@ async def test_brokerage_sources_do_not_allocate_bank_binding(db, test_user, sea
     resolver = _create_statement_account_from_confirmation if seam == "create" else resolve_statement_posting_account
     assert (await resolver(db, statement, test_user.id)).id == account.id
     assert await db.scalar(select(func.count()).select_from(BankCustodyBinding)) == 0
+
+
+@pytest.mark.parametrize("typed", [None, "bank", "brokerage"])
+@pytest.mark.parametrize("document_kind", [None, DocumentType.BANK_STATEMENT, DocumentType.BROKERAGE_STATEMENT])
+def test_bank_source_classification_is_shared(typed, document_kind):
+    """AC-extraction.custody-binding.3: typed evidence takes precedence over legacy ODS classification."""
+    from types import SimpleNamespace
+
+    from src.extraction import StatementEvidenceType, StatementSourceType, is_bank_custody_source
+
+    source = (
+        None
+        if typed is None
+        else SimpleNamespace(
+            source_type=StatementSourceType.BANK if typed == "bank" else StatementSourceType.BROKERAGE,
+            evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        )
+    )
+    document = None if document_kind is None else SimpleNamespace(document_type=document_kind)
+    expected = typed == "bank" if typed is not None else document_kind is not DocumentType.BROKERAGE_STATEMENT
+    assert is_bank_custody_source(source, document) is expected

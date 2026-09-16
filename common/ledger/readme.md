@@ -846,3 +846,9 @@ Opening-position evidence has a non-cascading tenant foreign key and rejects
 all updates and deletes. Deleting an identity cannot silently erase financial
 initialization evidence; retention cleanup requires the ledger owner. This adds
 no cross-package cascade debt (`AC-audit.deletion-ownership.1`).
+
+Guided opening requests obtain tenant-scoped target currencies from the ledger
+account service before historical FX lookup. The application composition root
+supplies pricing rates and the trace emitter; HTTP delivery only translates the
+request and commits or rolls back the transaction. Currency mismatch remains a
+ledger validation error before any provider call.

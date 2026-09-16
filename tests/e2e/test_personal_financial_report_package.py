@@ -28,6 +28,7 @@ from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from common.testing.provider_review import (
     FixtureDisposition,
+    FixtureEnvelope,
     approve_statement_with_fixture_review,
 )
 from conftest import fail_or_skip_ai_ocr_gate
@@ -433,6 +434,14 @@ async def test_personal_financial_report_package_post_merge_journey(
                 statement_id=bank_statement_id,
                 transactions=parsed_bank["transactions"],
                 dispositions=BANK_DISPOSITIONS,
+                envelope=FixtureEnvelope(
+                    currency="SGD",
+                    period_start=date(2026, 5, 1),
+                    period_end=date(2026, 5, 31),
+                    opening_balance=Decimal("0.00"),
+                    closing_balance=Decimal("0.00"),
+                    rationale="Confirmed against the generated CSV header and its six transactions.",
+                ),
             )
             assert (
                 approval["journal_entries_created"] + approval["reviewed_dispositions"]
@@ -719,15 +728,19 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert schedules_by_ticker[RSU_SOURCE] == RSU_NOTES
         assert schedules_by_ticker[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
 
-        annualized_response = await client.get(
+        package_response = await client.get(
             _api_url(
-                f"/reports/package/annualized-income-schedule?as_of_date={fixture_period_end.isoformat()}"
+                f"/reports/package?start_date={fixture_period_start.isoformat()}"
+                f"&end_date={fixture_period_end.isoformat()}"
+                f"&as_of_date={fixture_period_end.isoformat()}"
+                "&currency=SGD&include_restricted=true"
             )
         )
-        assert annualized_response.status_code == 200, (
-            f"annualized income schedule failed: {annualized_response.status_code} {annualized_response.text}"
+        assert package_response.status_code == 200, (
+            f"package preview failed: {package_response.status_code} {package_response.text}"
         )
-        annualized = annualized_response.json()
+        package_sections = package_response.json()["sections"]
+        annualized = package_sections["annualized_income_long_term"]
         assert annualized["section_id"] == "annualized_income_long_term"
         assert annualized["as_of_date"] == fixture_period_end.isoformat()
         assert annualized["trailing_period_days"] == 365
@@ -761,11 +774,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             "stock_options",
         }
 
-        notes_response = await client.get(_api_url("/reports/package/notes"))
-        assert notes_response.status_code == 200, (
-            f"package notes failed: {notes_response.status_code} {notes_response.text}"
-        )
-        package_notes = notes_response.json()
+        package_notes = package_sections["notes"]
         assert package_notes["section_id"] == "notes"
         package_note_ids = {note["note_id"] for note in package_notes["notes"]}
         assert PACKAGE_FIXTURE.required_note_ids <= package_note_ids
@@ -775,18 +784,7 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert "US GAAP compliant" not in package_notes["non_compliance_statement"]
         assert "HKEX filing" not in package_notes["non_compliance_statement"]
 
-        traceability_response = await client.get(
-            _api_url(
-                "/reports/package/traceability"
-                f"?start_date={fixture_period_start.isoformat()}"
-                f"&end_date={fixture_period_end.isoformat()}"
-                f"&as_of_date={fixture_period_end.isoformat()}"
-            )
-        )
-        assert traceability_response.status_code == 200, (
-            f"package traceability failed: {traceability_response.status_code} {traceability_response.text}"
-        )
-        traceability = traceability_response.json()
+        traceability = package_sections["traceability_appendix"]
         assert traceability["section_id"] == "traceability_appendix"
         assert traceability["status"] == "ready"
         assert _has_dynamic_traceability_identifiers(traceability)

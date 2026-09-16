@@ -19,15 +19,12 @@ from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BankStatementStatus,
     BrokeragePositionImportService,
-    DocumentType,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
-    StatementEvidenceType,
     StatementPostingOutcome,
     StatementPostingStatus,
-    StatementSourceType,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -38,6 +35,7 @@ from src.extraction import (
     current_reviewed_statement_envelope,
     edit_and_approve,
     get_current_statement_extraction_result,
+    is_bank_custody_source,
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
@@ -211,12 +209,7 @@ async def _create_statement_account_from_confirmation(
     """Create and bind a statement account after explicit Stage 1 user confirmation."""
     source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
     document = await _resolve_uploaded_document(db, statement, user_id)
-    bank_source = (
-        source.source_type is StatementSourceType.BANK
-        and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
-        if source is not None
-        else document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
-    )
+    bank_source = is_bank_custody_source(source, document)
     if bank_source and statement.institution and statement.account_last4 and statement.currency:
         resolved_account = await resolve_bank_custody_account(
             db,

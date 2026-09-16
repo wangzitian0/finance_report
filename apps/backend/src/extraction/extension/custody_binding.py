@@ -26,6 +26,16 @@ class BankCustodyAllocation:
     binding_created: bool
 
 
+def is_bank_custody_source(source: StatementExtractionResult | None, document: UploadedDocument | None) -> bool:
+    """Prefer typed source evidence; retain legacy bank routing without absorbing brokerage."""
+    if source is not None:
+        return (
+            source.source_type is StatementSourceType.BANK
+            and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
+        )
+    return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
+
+
 async def validate_custody_account(
     db: AsyncSession, *, user_id: UUID, account_id: UUID, currency: str | None
 ) -> Account:

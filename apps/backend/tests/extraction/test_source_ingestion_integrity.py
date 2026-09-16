@@ -536,6 +536,7 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
         ],
     }
     service = ExtractionService()
+    service.api_key = "synthetic-provider-key"
     service._extract_json_with_models = AsyncMock(side_effect=[first, second])
     source = DocumentSource.resolve(path=Path("synthetic/multicurrency.pdf"), content=output.getvalue())
     result = await service.parse_document(

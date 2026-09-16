@@ -1728,7 +1728,8 @@ CONTRACT = PackageContract(
             id="AC-testing.product-gates.2",
             statement=(
                 "A deterministic CSV upload runs as a critical fresh-user staging E2E: "
-                "source facts parse, but a missing authoritative economic disposition "
+                "source facts parse and are explicitly confirmed through the browser, "
+                "but a missing authoritative economic disposition "
                 "returns the statement to pending review with zero journal entries "
                 "instead of a false successful approval."
             ),
@@ -1843,7 +1844,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.product-gates.13",
             statement=(
-                "Provider-backed bank journeys treat an intent_missing approval "
+                "Provider-backed bank journeys confirm missing source envelopes only from "
+                "independent fixture facts and an exact current source digest, then treat an intent_missing approval "
                 "conflict as the expected human-review boundary: they apply only "
                 "fixture-owned explicit economic dispositions, retry approval, and "
                 "continue to ledger/report assertions without inferring intent from "

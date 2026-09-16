@@ -31,11 +31,9 @@ from src.extraction.base.disposition import (
     StatementTransaction,
     intent_matches_counter_account,
 )
-from src.extraction.base.result import StatementEvidenceType, StatementSourceType
 from src.extraction.base.source_vocabulary import (
     BankStatementStatus,
     ClassificationStatus,
-    DocumentType,
     RuleType,
     Stage1Status,
 )
@@ -45,7 +43,7 @@ from src.extraction.base.types import (
     StatementPostingStatus,
 )
 from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
-from src.extraction.extension.custody_binding import resolve_bank_custody_account
+from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
@@ -387,12 +385,7 @@ async def resolve_statement_posting_account(
     document = (
         await db.get(UploadedDocument, statement.uploaded_document_id) if statement.uploaded_document_id else None
     )
-    bank_source = (
-        source.source_type is StatementSourceType.BANK
-        and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
-        if source is not None
-        else document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
-    )
+    bank_source = is_bank_custody_source(source, document)
     if bank_source and statement.institution and statement.account_last4:
         resolved_account = await resolve_bank_custody_account(
             db,

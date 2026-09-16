@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
 from src.extraction import TransactionDirection
+from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.layer2 import AtomicPosition, AtomicTransaction
 from src.ledger import JournalLine
 from src.pricing import (
@@ -29,6 +30,7 @@ from src.runtime.extension.snapshot_anonymizer import (
     classify_columns,
     scan_for_residuals,
 )
+from tests.factories import AccountFactory
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 pytestmark = pytest.mark.asyncio
@@ -57,6 +59,9 @@ def test_AC_runtime_snapshot_anonymizer_1_every_live_column_is_classified() -> N
     assert plan["atomic_transaction_identities.custody_scope"] is Action.PSEUDONYM
     assert plan["atomic_transaction_identities.identity_hash"] is Action.PSEUDONYM
     assert plan["atomic_transaction_identities.legacy_hash"] is Action.PSEUDONYM
+    assert plan["bank_custody_bindings.currency"] is Action.KEEP
+    assert plan["bank_custody_bindings.institution"] is Action.PSEUDONYM
+    assert plan["bank_custody_bindings.account_last4"] is Action.PSEUDONYM
     # Every column of every table is present in the plan.
     total_columns = sum(len(t.columns) for t in Base.metadata.sorted_tables)
     assert len(plan) == total_columns
@@ -75,6 +80,14 @@ def test_AC_runtime_snapshot_anonymizer_1_unknown_column_fails_closed() -> None:
 
 async def _seed(db: AsyncSession, test_user) -> dict:
     entry = await create_valid_posted_entry(db, test_user.id, memo="Salary from Acme Corp", amount=Decimal("2500.00"))
+    custody_account = await AccountFactory.create_async(db, user_id=test_user.id)
+    binding = BankCustodyBinding(
+        user_id=test_user.id,
+        institution="Generated Private Bank",
+        account_last4="9876",
+        currency="SGD",
+        account_id=custody_account.id,
+    )
     txn = AtomicTransaction(
         user_id=test_user.id,
         txn_date=date(2026, 5, 2),
@@ -106,9 +119,9 @@ async def _seed(db: AsyncSession, test_user) -> dict:
         source="Sunny Vale Condo",
         notes="Bought from John Tan in 2020",
     )
-    db.add_all([txn, position, valuation])
+    db.add_all([txn, position, valuation, binding])
     await db.flush()
-    return {"entry": entry, "txn": txn, "position": position, "valuation": valuation}
+    return {"entry": entry, "txn": txn, "position": position, "valuation": valuation, "binding": binding}
 
 
 async def test_AC_runtime_snapshot_anonymizer_2_money_scales_and_books_still_balance(
@@ -148,6 +161,8 @@ async def test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_res
     seeded = await _seed(db, test_user)
     txn_id = seeded["txn"].id
     valuation_id = seeded["valuation"].id
+    binding_id = seeded["binding"].id
+    custody_account_id = seeded["binding"].account_id
     user_id = test_user.id
 
     connection = await db.connection()
@@ -156,6 +171,12 @@ async def test_AC_runtime_snapshot_anonymizer_3_pseudonyms_consistent_and_no_res
 
     txn = await db.get(AtomicTransaction, txn_id)
     valuation = await db.get(ManualValuationSnapshot, valuation_id)
+    binding = await db.get(BankCustodyBinding, binding_id)
+    assert binding.institution != "Generated Private Bank"
+    assert binding.account_last4 != "9876"
+    assert len(binding.account_last4) == 4 and binding.account_last4.isdigit()
+    assert binding.currency == "SGD"
+    assert binding.account_id == custody_account_id
     assert txn.description != "ACME CORP PAYROLL MAY"
     assert txn.source_documents == {"anonymized": True}
     assert valuation.source != "Sunny Vale Condo"
@@ -215,3 +236,63 @@ async def test_entry_balance_invariant_property(db: AsyncSession, test_user) -> 
     ).all()
     totals = {direction: total for direction, total in rows}
     assert totals.get("DEBIT") == totals.get("CREDIT") is not None
+
+
+async def test_custody_suffix_pseudonyms_preserve_unique_identity(db, test_user) -> None:
+    """AC-runtime.snapshot-anonymizer.3: valid custody keys cannot collide after scrubbing."""
+    from src.extraction.orm.statement_summary import StatementSummary
+
+    bindings = []
+    summaries = []
+    # These generated values collide under the old truncated-HMAC modulo mapping.
+    for suffix in ("0022", "0050"):
+        account = await AccountFactory.create_async(db, user_id=test_user.id)
+        binding = BankCustodyBinding(
+            user_id=test_user.id,
+            institution="Generated Collision Bank",
+            account_last4=suffix,
+            currency="SGD",
+            account_id=account.id,
+        )
+        summary = StatementSummary(
+            user_id=test_user.id,
+            file_hash=f"generated-collision-{suffix}",
+            institution=binding.institution,
+            account_last4=suffix,
+            currency="SGD",
+            account_id=account.id,
+        )
+        db.add_all([binding, summary])
+        bindings.append(binding)
+        summaries.append(summary)
+    await db.flush()
+    binding_ids = [row.id for row in bindings]
+    summary_ids = [row.id for row in summaries]
+    connection = await db.connection()
+    await connection.run_sync(
+        lambda conn: anonymize(conn, Base.metadata, secret="synthetic-review-seed", scale_factor=FACTOR)
+    )
+    db.expire_all()
+    suffixes = []
+    for binding_id, summary_id in zip(binding_ids, summary_ids, strict=True):
+        binding = await db.get(BankCustodyBinding, binding_id)
+        summary = await db.get(StatementSummary, summary_id)
+        assert binding.account_last4 == summary.account_last4
+        assert binding.institution == summary.institution
+        assert binding.account_id == summary.account_id
+        suffixes.append(binding.account_last4)
+    assert len(set(suffixes)) == 2
+    assert not set(suffixes) & {"0022", "0050"}
+
+
+async def test_digit_suffix_mapping_is_bijective_and_fails_closed() -> None:
+    """AC-runtime.snapshot-anonymizer.3: every supported suffix has a unique nonidentity pseudonym."""
+    from src.runtime.extension.snapshot_anonymizer import _pseudonym
+
+    originals = {f"{number:04d}" for number in range(10000)}
+    mapped = {_pseudonym(SECRET, value, "digits4") for value in originals}
+    assert mapped == originals
+    assert all(_pseudonym(SECRET, value, "digits4") != value for value in originals)
+    for invalid in ("123", "12345", "12X4", "１２３４"):
+        with pytest.raises(ValueError, match="four ASCII digits"):
+            _pseudonym(SECRET, invalid, "digits4")

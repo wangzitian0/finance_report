@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import src.routers.statements as statements_router
+from src.extraction.base.types import StatementPostingStatus
 from src.extraction.extension import statement_workflow
 
 
@@ -46,8 +47,15 @@ async def test_statement_workflow_service(monkeypatch):
         assert statement is approved_statement
         assert dependencies is posting_dependencies
         approve_calls.append(("auto_post",))
-        return SimpleNamespace(created_count=3)
+        return SimpleNamespace(created_count=3, status=StatementPostingStatus.POSTED)
 
+    async def fake_opening(db, statement, uid, *, dependencies):
+        assert statement is approved_statement
+        assert uid == user_id
+        assert dependencies is posting_dependencies
+        approve_calls.append(("opening_stock",))
+
+    monkeypatch.setattr(statement_workflow, "try_auto_post_statement_opening_balance", fake_opening)
     monkeypatch.setattr(statement_workflow, "approve_statement", fake_approve)
     monkeypatch.setattr(statement_workflow, "auto_create_posted_entries_for_statement", fake_post)
 
@@ -59,7 +67,7 @@ async def test_statement_workflow_service(monkeypatch):
         dependencies=posting_dependencies,
     )
     assert outcome.created_count == 3
-    assert approve_calls == [("approve_statement",), ("auto_post",), ("commit",)]
+    assert approve_calls == [("approve_statement",), ("auto_post",), ("opening_stock",), ("commit",)]
 
     # --- reject: transition -> commit -> refresh, returns refreshed statement ---
     reject_calls: list = []

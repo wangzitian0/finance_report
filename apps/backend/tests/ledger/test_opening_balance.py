@@ -196,3 +196,52 @@ async def test_existing_opening_equity_currency_mismatch_fails_closed(client: As
 
     assert resp.status_code == 400
     assert "Opening Balance Equity account currency is SGD" in resp.text
+
+
+async def test_opening_currency_preparation_is_tenant_scoped(db, test_user) -> None:
+    """AC-ledger.15.3, AC-ledger.15.6: owner validates currencies before FX lookup."""
+    import pytest
+
+    from src.ledger import Account, AccountType, ValidationError, account_service
+
+    account = Account(user_id=test_user.id, name="Opening USD", type=AccountType.ASSET, currency="USD")
+    db.add(account)
+    await db.flush()
+    assert await account_service.opening_balance_currencies(db, test_user.id, [account.id], "USD") == {"USD"}
+    with pytest.raises(ValidationError, match="currency does not match"):
+        await account_service.opening_balance_currencies(db, test_user.id, [account.id], "SGD")
+    with pytest.raises(ValidationError, match="Unknown or non-owned"):
+        await account_service.opening_balance_currencies(db, uuid4(), [account.id], "USD")
+
+
+async def test_guided_opening_composes_historical_fx(client: AsyncClient, monkeypatch) -> None:
+    """AC-ledger.15.5: HTTP opening preserves the priced currency and balanced base value."""
+    from unittest.mock import AsyncMock
+
+    import src.composition
+
+    provider = AsyncMock(return_value=Decimal("1.350000"))
+    monkeypatch.setattr(src.composition, "get_exchange_rate", provider)
+    bank = await _account(client, "Foreign opening", "ASSET", currency="USD")
+    mismatch = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "100.00"}, "currency": "SGD"},
+    )
+    assert mismatch.status_code == 400
+    provider.assert_not_awaited()
+    response = await client.post(
+        "/accounts/opening-balances",
+        json={"entry_date": "2026-01-01", "balances": {bank: "100.00"}, "currency": "USD"},
+    )
+    assert response.status_code == 201, response.text
+    lines = response.json()["lines"]
+    asset = next(line for line in lines if line["account_id"] == bank)
+    assert asset["currency"] == "USD"
+    assert Decimal(asset["amount"]) == Decimal("100.00")
+    assert Decimal(asset["fx_rate"]) == Decimal("1.350000")
+    equity = next(line for line in lines if line["account_id"] != bank)
+    assert equity["currency"] == "SGD"
+    assert Decimal(equity["amount"]) == Decimal("135.00")
+    provider.assert_awaited_once()
+    assert provider.await_args.args[1:3] == ("USD", "SGD")
+    assert str(provider.await_args.args[3]) == "2026-01-01"

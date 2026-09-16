@@ -576,6 +576,9 @@ def test_AC_reporting_package_document_6_producer_and_consumer_closure() -> None
         source = (REPOSITORY_ROOT / relative_path).read_text()
         for retired_route in retired_package_routes:
             assert retired_route not in source, (relative_path, retired_route)
+    runtime_journey = (REPOSITORY_ROOT / "tests/e2e/test_personal_financial_report_package.py").read_text()
+    for retired_route in retired_package_routes:
+        assert retired_route.removeprefix("/api") not in runtime_journey, retired_route
     anonymizer = (REPOSITORY_ROOT / "apps/backend/src/runtime/extension/snapshot_anonymizer.py").read_text()
     assert "confidence_metric_snapshots" not in anonymizer
 

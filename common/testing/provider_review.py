@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from typing import Any, Protocol
 
 
@@ -37,6 +39,61 @@ class FixtureDisposition:
     category: str | None = None
 
 
+@dataclass(frozen=True)
+class FixtureEnvelope:
+    """Independently authored source facts, never copied from extraction output."""
+
+    currency: str
+    period_start: date
+    period_end: date
+    opening_balance: Decimal
+    closing_balance: Decimal
+    rationale: str
+
+
+async def _confirm_fixture_envelope(
+    client: _Client,
+    api_url: Callable[[str], str],
+    statement_id: str,
+    envelope: FixtureEnvelope,
+) -> None:
+    review = _require_success(
+        await client.get(api_url(f"/statements/{statement_id}/review")),
+        action="source review lookup",
+    )
+    digest = review.get("source_result_digest")
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise AssertionError("source review has no exact current extraction digest")
+    account_id = review.get("account_id")
+    if not account_id:
+        account = _require_success(
+            await client.post(
+                api_url("/accounts"),
+                json={
+                    "name": f"E2E reviewed source {envelope.currency}",
+                    "type": "ASSET",
+                    "currency": envelope.currency,
+                },
+            ),
+            action="source custody creation",
+        )
+        account_id = account["id"]
+    response = await client.post(
+        api_url(f"/statements/{statement_id}/review/envelope"),
+        json={
+            "source_result_digest": digest,
+            "account_id": account_id,
+            "currency": envelope.currency,
+            "period_start": envelope.period_start.isoformat(),
+            "period_end": envelope.period_end.isoformat(),
+            "opening_balance": str(envelope.opening_balance),
+            "closing_balance": str(envelope.closing_balance),
+            "rationale": envelope.rationale,
+        },
+    )
+    _require_success(response, action="fixture source envelope confirmation")
+
+
 def _description_key(value: str) -> str:
     return " ".join(value.split()).casefold()
 
@@ -56,6 +113,7 @@ async def approve_statement_with_fixture_review(
     statement_id: str,
     transactions: Sequence[Mapping[str, Any]],
     dispositions: Mapping[str, FixtureDisposition],
+    envelope: FixtureEnvelope | None = None,
 ) -> dict[str, Any]:
     """Approve, resolve ``intent_missing`` from fixture facts, then retry."""
 
@@ -67,6 +125,22 @@ async def approve_statement_with_fixture_review(
         return {**approval.json(), "reviewed_dispositions": 0}
 
     detail = str(approval.json().get("detail", ""))
+    if (
+        approval.status_code == 400
+        and detail
+        == "Current source requires explicit human confirmation before posting"
+    ):
+        if envelope is None:
+            raise AssertionError(
+                "source confirmation requires an independently authored fixture envelope"
+            )
+        await _confirm_fixture_envelope(client, api_url, statement_id, envelope)
+        approval = await client.post(
+            approval_path, json={"create_account_if_missing": True}
+        )
+        if 200 <= approval.status_code < 300:
+            return {**approval.json(), "reviewed_dispositions": 0}
+        detail = str(approval.json().get("detail", ""))
     if approval.status_code != 409 or not detail.startswith(
         "Economic review required:"
     ):

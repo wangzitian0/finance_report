@@ -8,12 +8,11 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
 from src.audit.money import to_money
-from src.composition import compose_financial_trace_emitter
+from src.composition import post_guided_opening_balances
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
 from src.ledger import (
     DEFAULT_STALE_AFTER_DAYS,
-    Account,
     AccountNotFoundError,
     AccountType,
     JournalLine,
@@ -27,12 +26,11 @@ from src.ledger import (
     get_or_create_processing_account,
     get_processing_balance,
     get_unpaired_transfers,
-    initialize_opening_positions,
     list_processing_transfer_legs,
 )
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_not_found
-from src.pricing import PricingError, get_exchange_rate
+from src.pricing import PricingError
 from src.reconciliation import score_description
 from src.schemas import (
     AccountCoverageListResponse,
@@ -64,33 +62,12 @@ async def post_opening_balances(
     account, so a cross-year balance sheet is complete from the start.
     """
     try:
-        base_currency = await get_effective_base_currency(db)
-        currencies = (
-            (
-                await db.execute(
-                    select(Account.currency).where(Account.id.in_(payload.balances), Account.user_id == user_id)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if payload.currency and any(currency != payload.currency for currency in currencies):
-            raise ValidationError("Opening balance currency does not match the currency of account")
-        fx_rates = {}
-        for currency in set(currencies):
-            if currency != base_currency:
-                fx_rates[currency] = await get_exchange_rate(
-                    db, currency, base_currency, payload.entry_date, lazy_load=True
-                )
-        entry = await initialize_opening_positions(
+        entry = await post_guided_opening_balances(
             db,
             user_id,
             entry_date=payload.entry_date,
             balances=payload.balances,
             currency=payload.currency,
-            fx_rates=fx_rates,
-            trace_emitter=compose_financial_trace_emitter(db),
-            base_currency=base_currency,
             memo=payload.memo,
         )
         await db.commit()

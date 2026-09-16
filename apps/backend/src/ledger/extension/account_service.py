@@ -19,6 +19,23 @@ class AccountNotFoundError(AccountServiceError):
     """Account not found error."""
 
 
+async def opening_balance_currencies(
+    db: AsyncSession, user_id: UUID, account_ids: list[UUID], currency: str | None
+) -> set[str]:
+    """Validate the owned opening targets before requesting historical FX inputs."""
+    rows = (
+        (await db.execute(select(Account.currency).where(Account.id.in_(account_ids), Account.user_id == user_id)))
+        .scalars()
+        .all()
+    )
+    if len(rows) != len(account_ids):
+        raise ValidationError("Unknown or non-owned account(s)")
+    currencies = {Currency.of(code).code for code in rows}
+    if currency and currencies - {Currency.of(currency).code}:
+        raise ValidationError("Opening balance currency does not match the currency of account")
+    return currencies
+
+
 async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountCreate) -> Account:
     account = Account(
         user_id=user_id,

@@ -139,12 +139,23 @@ thin compatibility shim. Local developer commands likewise share runtime and
 container selection through `tools/_lib/dev/toolchain.py`, including consistent
 `CONTAINER_RUNTIME` handling.
 
+Provider-backed journeys may confirm a missing source envelope only from independently
+authored fixture currency, period and balances, bound to the current review API digest.
+They reuse or create custody through public APIs and submit the normal human-confirmation
+command; extraction output never supplies the asserted source truth.
+
 Provider-backed statement journeys cross the economic-review boundary through
 `provider_review.py`. A journey may retry approval after `intent_missing` only
 by loading the statement-scoped unmatched queue and applying dispositions that
 its synthetic fixture declares explicitly. The adapter never derives economic
 intent from transaction direction. This keeps provider extraction evidence
 separate from the human-owned accounting judgment that production requires.
+
+The deterministic CSV browser gate confirms the source envelope through the
+visible review form before attempting approval. Custody setup does not grant
+economic intent: approval must still return the missing-intent conflict and
+leave the journal empty. A disabled approval button before source confirmation
+is an enforced boundary, not a successful economic-review proof.
 
 The generated GXS monthly journey (`AC-testing.package-lifecycle.2`, #2008)
 extends the existing live provider replay through exactly one posted effect per

@@ -30,3 +30,9 @@ folded in per #1677) now live inside the package. Its published language —
 `contract.interface` — equals `apps/backend/src/observability/__init__.__all__`,
 validated by `tools/check_package_contract.py` (which also resolves the OpenPanel
 api-key invariant to its test).
+
+Parse recovery emits the same bounded, redacted `statement.parse.failed` event
+for a rejected source and an identity ambiguity retained for human review. The
+behavioral proof executes both recovery paths and verifies the persisted-state
+request, safe log fields, and failure metric; a source-code string is not proof
+of the runtime outcome (`AC-observability.12.3`).

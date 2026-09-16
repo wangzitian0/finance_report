@@ -349,7 +349,10 @@ are `manual`.
 
 The stable delivery surface is one versioned `PersonalReportPackageDocument`,
 not a directory of section endpoints. `GET /api/reports/package` builds the
-current preview. `POST /api/reports/package/generate` persists the same shape;
+current preview. Runtime package journeys read annualized income, notes and
+traceability from that same document, with their independent numeric assertions
+intact; the consumer-closure proof includes these E2E callers.
+`POST /api/reports/package/generate` persists the same shape;
 the snapshot list, selected reopen, and selected JSON/CSV export routes read
 only that frozen document. Required document sections are:
 

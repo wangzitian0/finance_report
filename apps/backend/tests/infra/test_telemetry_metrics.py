@@ -6,6 +6,8 @@ import builtins
 import sys
 import types
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -382,17 +384,48 @@ def test_AC10_12_2_async_parse_tracking_receives_statement_context() -> None:
     assert "request_id=parse_job.request_id" in flow
 
 
-def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved() -> None:
-    """AC-observability.12.3: parse failures still reject statements and emit structured logs."""
-    source = (REPO_ROOT / "apps" / "backend" / "src" / "extraction" / "extension" / "statement_parsing.py").read_text(
-        encoding="utf-8"
+@pytest.mark.parametrize(
+    ("error_type", "status", "stage1"),
+    [("ExtractionError", "rejected", "rejected"), ("TransactionIdentityReviewRequired", "parsed", "pending_review")],
+)
+async def test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved(
+    monkeypatch, error_type, status, stage1
+) -> None:
+    """AC-observability.12.3: execute recovery and inspect its state and safe log."""
+    from src.extraction.extension import statement_parsing
+    from src.extraction.orm.statement_summary import StatementSummary
+
+    statement = StatementSummary(id=uuid4(), confidence_score=90, balance_validated=True)
+    db = AsyncMock()
+    db.get.return_value = statement
+    warning = MagicMock()
+    metric = MagicMock()
+    monkeypatch.setattr(statement_parsing.logger, "warning", warning)
+    monkeypatch.setattr(statement_parsing, "record_statement_parse_outcome", metric)
+    message = "Generated failure for synthetic@example.com " + "x" * 400
+
+    await statement_parsing.handle_parse_failure(
+        statement, db, message=message, phase="extraction_started", error_type=error_type
     )
 
-    assert "refreshed.status = BankStatementStatus.REJECTED" in source
-    assert '"statement.parse.failed"' in source
-    # #1864 S1: the failure log's safe_error_message field routes through the
-    # PII-redacting sanitizer (None-preserving wrapper around safe_error_message).
-    assert "safe_error_message=_redacted(message, limit=300)" in source
+    assert statement.status.value == status
+    assert statement.stage1_status.value == stage1
+    assert statement.confidence_score == 0
+    assert statement.balance_validated is False
+    db.rollback.assert_awaited_once()
+    db.get.assert_awaited_once_with(StatementSummary, statement.id)
+    db.commit.assert_awaited_once()
+    warning.assert_called_once()
+    assert warning.call_args.args == ("statement.parse.failed",)
+    logged = warning.call_args.kwargs
+    assert logged["audit_event"] == "statement.parse.failed"
+    assert logged["statement_id"] == str(statement.id)
+    assert logged["phase"] == "extraction_started"
+    assert logged["error_type"] == error_type
+    assert len(logged["safe_error_message"]) <= 300
+    assert "synthetic@example.com" not in logged["safe_error_message"]
+    assert "synthetic@example.com" not in statement.validation_error
+    metric.assert_called_once_with(outcome="failure")
 
 
 def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:

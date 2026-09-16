@@ -103,12 +103,16 @@ CONTRACT = PackageContract(
         Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
         Unit(name="UploadedDocument", kind=Kind.ENTITY),
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
+        # The alias row is persistence owned by the identity resolver, not a
+        # separate pure domain entity. Bind the behavior to its actual owner.
         Unit(
-            name="AtomicTransactionIdentity", kind=Kind.ENTITY, module="orm/layer2.py"
+            name="resolve_transaction_identity",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/transaction_identity.py",
         ),
         Unit(
             name="effective_statement_transaction_filter",
-            kind=Kind.PROJECTION,
+            kind=Kind.DOMAIN_SERVICE,
             module="extension/transaction_membership.py",
         ),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
@@ -447,6 +451,7 @@ CONTRACT = PackageContract(
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
         "resolve_bank_custody_account",
+        "is_bank_custody_source",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
         "effective_statement_transaction_filter",

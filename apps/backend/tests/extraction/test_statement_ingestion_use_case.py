@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.audit.orm.trace_record import TraceRecordRow
-from src.composition import compose_statement_posting_dependencies
+from src.composition import compose_financial_trace_emitter, compose_statement_posting_dependencies
 from src.config import settings
 from src.database import create_session_maker_from_db
 from src.extraction import (
@@ -78,7 +78,7 @@ def _posting_dependencies() -> StatementPostingDependencies:
         transfer_exclusions=_no_transfers,
         fx_rate_provider=_fx_rate,
         fx_rate_error=RuntimeError,
-        trace_emitter_factory=lambda db: TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
+        trace_emitter_factory=compose_financial_trace_emitter,
         disposition_mode=DispositionMode.ENFORCE,
     )
 

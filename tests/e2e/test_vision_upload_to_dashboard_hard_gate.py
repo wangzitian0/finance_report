@@ -111,6 +111,32 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     )
 
     approve_button = page.get_by_role("button", name="Approve", exact=True)
+    await expect(approve_button).to_be_disabled()
+    # Source confirmation and economic intent are independent trust boundaries.
+    # Provision only custody; do not seed a classification or bypass review.
+    account_response = await page.request.post(
+        _get_url("/api/accounts"),
+        data={"name": "Generated CSV custody", "type": "ASSET", "currency": "SGD"},
+    )
+    account_body = await account_response.json()
+    assert account_response.status == 201, account_body
+    await page.reload(wait_until="domcontentloaded")
+    await page.get_by_label("Custody account").select_option(account_body["id"])
+    await page.get_by_label("Statement currency").fill("SGD")
+    await page.get_by_label("Period start", exact=True).fill("2026-05-01")
+    await page.get_by_label("Period end", exact=True).fill("2026-05-31")
+    await page.get_by_label("Opening balance", exact=True).fill("0.00")
+    await page.get_by_label("Closing balance", exact=True).fill("0.00")
+    await page.get_by_label("Why are these facts confirmed?").fill(
+        "Confirmed against the generated CSV header and its six transactions."
+    )
+    async with page.expect_response(
+        lambda response: f"/api/statements/{statement_id}/review/envelope"
+        in response.url
+    ) as envelope_info:
+        await page.get_by_role("button", name="Confirm source envelope").click()
+    envelope_response = await envelope_info.value
+    assert envelope_response.status == 200, await envelope_response.text()
     await expect(approve_button).to_be_enabled(timeout=20_000)
     async with page.expect_response(
         lambda response: f"/api/statements/{statement_id}/review/approve"

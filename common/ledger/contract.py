@@ -248,6 +248,7 @@ CONTRACT = PackageContract(
         "get_or_create_processing_account",
         "get_processing_balance",
         "get_unpaired_transfers",
+        "initialize_opening_positions",
         "journal_command_target",
         "ledger_trace_policy_registry",
         "list_journal_contributions",

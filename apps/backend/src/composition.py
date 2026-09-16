@@ -16,6 +16,8 @@ provider-port registrations in ``main.py`` (#1762/#1768 precedents).
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
@@ -23,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter, normalize_currency_code
 from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
     DispositionMode,
@@ -33,7 +36,13 @@ from src.extraction import (
     extraction_trace_policy_registry,
     snapshot_currencies,
 )
-from src.ledger import ledger_trace_policy_registry, used_currencies
+from src.ledger import (
+    JournalEntry,
+    account_service,
+    initialize_opening_positions,
+    ledger_trace_policy_registry,
+    used_currencies,
+)
 from src.portfolio import active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
 from src.reconciliation import ReviewedDispositionDependencies, accepted_transfer_txn_ids
@@ -55,6 +64,35 @@ def compose_financial_trace_emitter(db: AsyncSession) -> TraceEmitter:
         )
     )
     return TraceEmitter(SqlTraceRecordRepository(db, policies))
+
+
+async def post_guided_opening_balances(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    entry_date: date,
+    balances: dict[UUID, Decimal],
+    currency: str | None,
+    memo: str,
+) -> JournalEntry | None:
+    """Compose ledger-owned opening targets with pricing-owned historical rates."""
+    base_currency = await get_effective_base_currency(db)
+    currencies = await account_service.opening_balance_currencies(db, user_id, list(balances), currency)
+    fx_rates = {
+        code: await get_exchange_rate(db, code, base_currency, entry_date, lazy_load=True)
+        for code in sorted(currencies - {base_currency})
+    }
+    return await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=entry_date,
+        balances=balances,
+        currency=currency,
+        fx_rates=fx_rates,
+        trace_emitter=compose_financial_trace_emitter(db),
+        base_currency=base_currency,
+        memo=memo,
+    )
 
 
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:

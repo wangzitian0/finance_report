@@ -56,10 +56,13 @@ from src.reconciliation.extension.reviewed_disposition import _find_existing_ent
 
 def test_AC_ledger_80_2_publishes_decision_policy_registry() -> None:
     """AC-ledger.80.2: package consumers restore decisions through a public port."""
+    from src.ledger.extension.opening_positions import OpeningPositionPolicy
+
     assertions = {policy.assertion for policy in ledger_trace_policy_registry().policies}
     assert assertions == {
         ManualJournalAttestationPolicy().assertion,
         SystemJournalCommandPolicy().assertion,
+        OpeningPositionPolicy().assertion,
     }
 
 

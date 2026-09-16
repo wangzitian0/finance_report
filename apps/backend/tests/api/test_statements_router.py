@@ -245,6 +245,27 @@ async def seed_uploaded_document(
     return document
 
 
+async def seed_historical_source_evidence(db, statement: StatementSummary) -> None:
+    """Retained custody is backed by an immutable source, not a mutable summary."""
+    from pathlib import Path
+
+    from tests.extraction.test_source_ingestion_integrity import _parse, _payload, _store_result
+
+    document = await seed_uploaded_document(db, statement)
+    source = DocumentSource.resolve(path=Path("synthetic-history.pdf"), content=statement.file_hash.encode())
+    document.file_hash = statement.file_hash = source.content_hash
+    result = await _parse(
+        _payload(
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=statement.currency,
+        ),
+        user_id=statement.user_id,
+        source=source,
+    )
+    await _store_result(db, statement, result)
+
+
 async def persist_mock_result(
     db,
     *,
@@ -897,6 +918,24 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
     # in #1099 (AC-platform.29.5); drive the same state transition via the service layer.
     statement_id = created_ids[0]
 
+    source_result = await statements_router.get_current_statement_extraction_result(
+        db, user_id=test_user.id, statement_id=statement_id
+    )
+    await statements_router.confirm_statement_review_envelope(
+        statement_id=statement_id,
+        request=ReviewedStatementEnvelopeRequest(
+            source_result_digest=source_result.content_digest,
+            account_id=account.id,
+            currency="SGD",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("100.00"),
+            rationale="Reviewed the dormant original source and confirmed its balances.",
+        ),
+        db=db,
+        user_id=test_user.id,
+    )
     approved = await statement_validation_mod.approve_statement(db, statement_id, test_user.id)
     await db.commit()
     assert approved.status == BankStatementStatus.APPROVED
@@ -2033,6 +2072,7 @@ async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope
         amount=Decimal("10.00"),
         direction="IN",
     )
+    transaction.dedup_hash = "row-1"
     account = await create_statement_account(db, user_id, "Reviewed CSV Custody")
     await db.commit()
 
@@ -2100,6 +2140,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     prior.account_id = bank_account.id
     db.add(prior)
     await db.flush()
+    await seed_historical_source_evidence(db, prior)
 
     statement = build_statement(test_user.id, "hash_s1_auto_map", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2302,7 +2343,7 @@ async def test_auto_approve_high_confidence_statement_falls_back_to_pending_revi
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.PARSED
     assert statement.stage1_status == Stage1Status.PENDING_REVIEW
-    assert "active asset account" in (statement.validation_error or "")
+    assert statement.validation_error == "Custody account must be a non-system asset account"
 
 
 async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, test_user):
@@ -2344,7 +2385,7 @@ async def test_auto_approve_guard_failure_preserves_uncommitted_parse_data(db, t
     assert persisted_statement is not None
     assert persisted_statement.status == BankStatementStatus.PARSED
     assert persisted_statement.stage1_status == Stage1Status.PENDING_REVIEW
-    assert "active asset account" in (persisted_statement.validation_error or "")
+    assert persisted_statement.validation_error == "Custody account must be a non-system asset account"
 
     persisted_txns = await statement_validation_mod.resolve_statement_transactions(db, persisted_statement)
     assert len(persisted_txns) == 1
@@ -2433,7 +2474,7 @@ async def test_approve_statement_stage1_blocks_prior_unconfirmed_account_mapping
         await statements_router.approve_statement_stage1(statement_id=statement.id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "No confirmed account matches" in str(exc.value.detail)
+    assert "Historical custody source needs review" in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_blocks_overlapping_statement_period_before_posting(db, test_user):
@@ -2448,6 +2489,7 @@ async def test_approve_statement_stage1_blocks_overlapping_statement_period_befo
     prior.period_end = date(2025, 1, 31)
     db.add(prior)
     await db.flush()
+    await seed_historical_source_evidence(db, prior)
 
     statement = build_statement(user_id, "hash_s1_period_overlap", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2683,15 +2725,15 @@ async def test_approve_statement_stage1_blocks_invalid_explicit_account_mapping(
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Statement account mapping is invalid" in str(exc.value.detail)
+    assert "Custody account must be owned" in str(exc.value.detail)
 
 
 @pytest.mark.parametrize(
     ("account_type", "account_currency", "is_active", "expected_detail"),
     [
-        (AccountType.LIABILITY, "SGD", True, "active asset account"),
-        (AccountType.ASSET, "USD", True, "statement currency"),
-        (AccountType.ASSET, "SGD", False, "active asset account"),
+        (AccountType.LIABILITY, "SGD", True, "Custody account must be a non-system asset account"),
+        (AccountType.ASSET, "USD", True, "Custody account currency does not match the source"),
+        (AccountType.ASSET, "SGD", False, "Custody account is archived; an active account is required"),
     ],
 )
 async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
@@ -2737,7 +2779,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert expected_detail in str(exc.value.detail)
+    assert expected_detail == str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_creates_account_with_explicit_confirmation(db, test_user):
@@ -2785,7 +2827,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
 
     account = await db.get(Account, statement.account_id)
     assert account is not None
-    assert account.name == "DBS *9876"
+    assert account.name == "DBS ••9876"
     assert account.type == AccountType.ASSET
     assert account.currency == "SGD"
     assert account.code == "AUTO-BANK"
@@ -2832,6 +2874,8 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
     second_prior.account_id = second_account.id
     db.add_all([first_prior, second_prior])
     await db.flush()
+    await seed_historical_source_evidence(db, first_prior)
+    await seed_historical_source_evidence(db, second_prior)
 
     statement = build_statement(user_id, "hash_s1_ambiguous", 90)
     statement.status = BankStatementStatus.PARSED
@@ -2855,7 +2899,7 @@ async def test_approve_statement_stage1_blocks_ambiguous_account_mapping(db, tes
         await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=user_id)
 
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Ambiguous account mapping" in str(exc.value.detail)
+    assert "Ambiguous historical custody accounts" in str(exc.value.detail)
 
 
 async def test_approve_statement_stage1_keeps_transfer_detection_priority(db, test_user):
