@@ -93,7 +93,9 @@ def test_AC8_13_26_current_source_roots_are_fully_governed_by_metrics_contract()
 def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics():
     """AC-testing.ci-structure.2: AC8.13.26 AC8.13.35: CI enforces one metrics contract and documents its limits."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text(encoding="utf-8") + (ROOT / "common/runtime/ci-cd.md").read_text(encoding="utf-8"))
+    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text(encoding="utf-8") + (
+        ROOT / "common/runtime/ci-cd.md"
+    ).read_text(encoding="utf-8")
     traceability = (ROOT / "common/testing/build_ac_traceability.py").read_text(
         encoding="utf-8"
     )
@@ -121,9 +123,9 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert workflow.index("tools/check_ci_metrics_contract.py") < workflow.index(
         "tools/check_coverage_policy.py"
     )
-    assert "Backend Tests (Shard ${{ matrix.shard }}/5)" in workflow
-    assert "shard: [1, 2, 3, 4, 5]" in workflow
-    assert "--splits 5" in workflow
+    assert "Backend Tests (Shard ${{ matrix.shard }}/8)" in workflow
+    assert "shard: [1, 2, 3, 4, 5, 6, 7, 8]" in workflow
+    assert "--splits 8" in workflow
     assert "--splitting-algorithm=least_duration" in workflow
     assert "--durations-path ci/backend-test-durations.json" in workflow
     assert "Loaded pytest-split duration seed" in workflow
@@ -301,9 +303,9 @@ def test_AC8_13_68_repo_contract_requires_e2e_before_audit_artifact(tmp_path):
                 "tools/calculate_unified_coverage.py",
                 "tools/ci_change_classifier.py",
                 "tools/github_workflow_timing_summary.py",
-                "Backend Tests (Shard ${{ matrix.shard }}/5)",
-                "shard: [1, 2, 3, 4, 5]",
-                "--splits 5",
+                "Backend Tests (Shard ${{ matrix.shard }}/8)",
+                "shard: [1, 2, 3, 4, 5, 6, 7, 8]",
+                "--splits 8",
                 "--splitting-algorithm=least_duration",
                 "--durations-path ci/backend-test-durations.json",
                 "Loaded pytest-split duration seed",

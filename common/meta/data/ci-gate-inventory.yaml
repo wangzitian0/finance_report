@@ -146,7 +146,7 @@ gates:
     inputs: [backend_unit_tests, ephemeral_postgres, minio_service]
     outputs: [backend_lcov, backend_junit]
     artifacts: [coverage-backend-*, backend-shard-*-test-context]
-    matrix_legs: 5
+    matrix_legs: 8
     failure_semantics: Deterministic backend unit shard failed or did not produce expected coverage/JUnit evidence.
     action: observe
   - id: ci.backend_integration
@@ -264,19 +264,34 @@ gates:
       container-images reported success on main push but the :<sha> image
       does not actually exist in the registry (#1759).
     action: keep
-  - id: ci.tooling_coverage
+  - id: ci.tooling_coverage_shard
     stage: github_ci.merge_authority
     task_category: tooling_contract
     workflow: .github/workflows/ci.yml
     job: tooling-coverage
     owner: tests/tooling
     triggers: [push, pull_request, workflow_dispatch]
-    required_by_finish: true
-    blocks_workflow: true
+    required_by_finish: false
+    blocks_workflow: false
     inputs: [tooling_tests, common_sources, tools_sources]
     outputs: [common_lcov, tools_lcov, tooling_junit]
+    artifacts: [coverage-tooling-*]
+    matrix_legs: 8
+    failure_semantics: A tooling/common contract test shard failed or could not emit its slice of common/tools coverage inputs; not directly required by finish -- ci.tooling_coverage (tooling-coverage-merge) is, and it needs this job.
+    action: keep
+  - id: ci.tooling_coverage
+    stage: github_ci.merge_authority
+    task_category: tooling_contract
+    workflow: .github/workflows/ci.yml
+    job: tooling-coverage-merge
+    owner: tests/tooling
+    triggers: [push, pull_request, workflow_dispatch]
+    required_by_finish: true
+    blocks_workflow: true
+    inputs: [tooling_coverage_shards]
+    outputs: [common_lcov, tools_lcov, tooling_junit]
     artifacts: [coverage-tooling]
-    failure_semantics: Tooling/common contract tests failed or could not emit common/tools coverage inputs.
+    failure_semantics: Merging the 8 tooling-coverage shards' LCOV/JUnit into the combined coverage-tooling artifact failed, or a shard did not succeed.
     action: keep
   - id: ci.unified_coverage
     stage: github_ci.merge_authority

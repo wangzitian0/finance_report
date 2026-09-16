@@ -100,23 +100,46 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         in tooling_run
     )
     assert "sha256sum --check --status" in tooling_run
-    command_line = next(
+    # The verified wheel installs into the lockfile-backed venv the
+    # backend/backend-integration/backend-e2e-tier1 jobs already cache
+    # (actions/cache@v5 keyed on apps/backend/uv.lock) rather than an ad hoc
+    # `uv run --with <n packages>` resolve+download on every run (#1767
+    # measured that ad hoc install as ~7:47-7:59 of this job's ~8:00).
+    install_line = next(
         line.strip().removesuffix("\\").strip()
         for line in tooling_run.splitlines()
-        if line.strip().startswith("uv run ")
+        if line.strip().startswith("uv pip install ")
     )
-    command_tokens = shlex.split(command_line)
-    with_dependencies = [
-        command_tokens[index + 1]
-        for index, token in enumerate(command_tokens[:-1])
-        if token == "--with"
+    install_tokens = shlex.split(install_line)
+    # Exact-shape equality (not a literal-in-list mirror assert, #1435/#1558):
+    # the wheel installs by file path into the synced venv's interpreter, and
+    # never re-declares the pinned dependency string alongside it. --no-deps
+    # keeps this a pure install-the-pinned-wheel proof: infra2-sdk's runtime
+    # dependency is already satisfied by `uv sync` (apps/backend/uv.lock), so
+    # nothing here may resolve/download from the network (PR #2047 review).
+    assert install_tokens == [
+        "uv",
+        "pip",
+        "install",
+        "--no-deps",
+        "--python",
+        "apps/backend/.venv/bin/python",
+        "$sdk_wheel",
     ]
-    assert with_dependencies.count("$sdk_wheel") == 1
-    assert expected_sdk_dependency not in with_dependencies
-    pytest_index = max(
-        index for index, token in enumerate(command_tokens) if token == "pytest"
+    assert expected_sdk_dependency not in install_tokens
+
+    pytest_line = next(
+        line.strip().removesuffix("\\").strip()
+        for line in tooling_run.splitlines()
+        if line.strip().startswith("apps/backend/.venv/bin/python -m pytest ")
     )
-    assert command_tokens[pytest_index + 1] == "tests/tooling/"
+    pytest_tokens = shlex.split(pytest_line)
+    assert pytest_tokens[:4] == [
+        "apps/backend/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/tooling/",
+    ]
 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST

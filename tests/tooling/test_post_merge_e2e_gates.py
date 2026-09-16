@@ -1740,7 +1740,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage-merge, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1954,19 +1954,31 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert "frontend" not in jobs
     for job_id in split_jobs:
         assert jobs[job_id]["needs"] == ["changes"]
-    for job_id in ("frontend-build", "frontend-vitest", "frontend-playwright"):
-        assert jobs[job_id]["if"] == "needs.changes.outputs.pr_required == 'true'"
+    # frontend-vitest feeds unified-coverage's line-coverage baseline (its LCOV
+    # is not component-scoped away, unlike backend-e2e-tier1's/frontend-build's/
+    # frontend-playwright's non-coverage proof), so it stays gated on
+    # pr_required alone — see AC-testing.ci-structure.11 for the other two.
+    assert (
+        jobs["frontend-vitest"]["if"] == "needs.changes.outputs.pr_required == 'true'"
+    )
     # frontend-telemetry-e2e is right-moved (#1689): still required proof on
     # every PR that touches apps/frontend/**, but no longer runs unconditionally
     # on every PR — see test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass.
     frontend_changed_output = "needs.changes.outputs.frontend_changed"
     assert frontend_changed_output in jobs["frontend-telemetry-e2e"]["if"]
+    # AC-testing.ci-structure.11: frontend-build/frontend-playwright are
+    # right-moved the same way, off PRs that touch no apps/frontend/** path —
+    # see test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass.
+    pr_required_output = "needs.changes.outputs.pr_required == 'true'"
+    for job_id in ("frontend-build", "frontend-playwright"):
+        assert pr_required_output in jobs[job_id]["if"]
+        assert frontend_changed_output in jobs[job_id]["if"]
 
     assert jobs["unified-coverage"]["needs"] == [
         "changes",
         "backend",
         "frontend-vitest",
-        "tooling-coverage",
+        "tooling-coverage-merge",
     ]
     assert jobs["ac-behavioral-ratchet"]["needs"] == [
         "changes",
@@ -1988,7 +2000,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "container-images",
         "verify-sha-image-published",
         "lint",
-        "tooling-coverage",
+        "tooling-coverage-merge",
         "unified-coverage",
         "ac-traceability",
         "ac-behavioral-ratchet",
@@ -2052,8 +2064,41 @@ def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -
     assert skip_is_a_pass_clause in finish_commands
 
 
-def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
-    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 5-way least-duration split."""
+def test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass() -> (
+    None
+):
+    """AC-testing.ci-structure.11: frontend-build and frontend-playwright are right-moved off PRs
+    that touch no apps/frontend/ path (same pattern as frontend-telemetry-e2e's
+    AC-testing.ci-structure.10, minus the always-run-on-push override those two
+    non-canary jobs don't need — see AC-testing.deploy-gates.25), and finish's
+    aggregation treats a skip as a pass, not a gap."""
+    workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+    jobs = workflow["jobs"]
+
+    pr_required_clause = "needs.changes.outputs.pr_required == 'true'"
+    frontend_changed_clause = "needs.changes.outputs.frontend_changed == 'true'"
+    for job_id in ("frontend-build", "frontend-playwright"):
+        job_if = jobs[job_id]["if"]
+        assert pr_required_clause in job_if
+        assert frontend_changed_clause in job_if
+
+    finish_commands = "\n".join(
+        str(step.get("run", ""))
+        for step in jobs["finish"].get("steps", [])
+        if isinstance(step, dict)
+    )
+    for job_id in ("frontend-build", "frontend-playwright"):
+        skip_is_a_pass_clause = (
+            f'"${{{{ needs.{job_id}.result }}}}" != "success" '
+            f'&& "${{{{ needs.{job_id}.result }}}}" != "skipped"'
+        )
+        assert skip_is_a_pass_clause in finish_commands
+
+
+def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
+    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 8-way least-duration split
+    (raised from 5-way alongside a refreshed duration seed, so a shard's slowest wall-clock
+    time comes down instead of just being evenly wrong)."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
@@ -2061,8 +2106,8 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
-    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/5)"
-    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5]
+    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/8)"
+    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5, 6, 7, 8]
     assert len(durations) >= 2_000
     assert all(isinstance(value, (int, float)) for value in durations.values())
 
@@ -2074,7 +2119,7 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
     assert "Loaded pytest-split duration seed" in backend_commands
     assert "pytest-split duration seed is missing" in backend_commands
     assert "len(durations) < 500" in backend_commands
-    assert "--splits 5" in backend_commands
+    assert "--splits 8" in backend_commands
     assert "--group ${{ matrix.shard }}" in backend_commands
     assert "--splitting-algorithm=least_duration" in backend_commands
     assert "--durations-path ci/backend-test-durations.json" in backend_commands
@@ -2090,11 +2135,11 @@ def test_AC8_13_148_backend_shards_use_seeded_5_way_split() -> None:
         in upload_context
     )
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
-    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/5)`" in ci_cd
-    assert "5-way parallel test sharding via `pytest-split`" in ci_cd
+    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/8)`" in ci_cd
+    assert "8-way parallel test sharding via `pytest-split`" in ci_cd
     assert "apps/backend/ci/backend-test-durations.json" in ci_cd
     assert "not runner-local cache writes" in ci_cd
-    assert "matrix_legs: 5" in inventory
+    assert "matrix_legs: 8" in inventory
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
@@ -2114,7 +2159,7 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
         "changes",
         "backend",
         "frontend-vitest",
-        "tooling-coverage",
+        "tooling-coverage-merge",
     ]
     assert "Install uv" not in unified_block
     assert "uv run python tools/merge_lcov.py" not in unified_block
@@ -3066,7 +3111,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert traceability_needs == {
         "changes",
         "lint",
-        "tooling-coverage",
+        "tooling-coverage-merge",
         "backend",
         "backend-integration",
         "backend-e2e-tier1",
@@ -3076,7 +3121,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert (
         "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
         "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
-        "verify-sha-image-published, lint, tooling-coverage, "
+        "verify-sha-image-published, lint, tooling-coverage-merge, "
         "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
     )
     assert "late evidence consumer" in ci_cd
@@ -3113,7 +3158,7 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     assert set(workflow_data["jobs"]["ac-traceability"]["needs"]) == {
         "changes",
         "lint",
-        "tooling-coverage",
+        "tooling-coverage-merge",
         "backend",
         "backend-integration",
         "backend-e2e-tier1",

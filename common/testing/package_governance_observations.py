@@ -384,7 +384,7 @@ def _junit_lanes(root: Path) -> dict[str, list[Path]]:
         lane: str | None = None
         if parts and parts[0] == "backend" and len(parts) > 1:
             artifact = parts[1]
-            if re.fullmatch(r"backend-shard-[1-5]-test-context", artifact):
+            if re.fullmatch(r"backend-shard-\d+-test-context", artifact):
                 lane = "ci.backend"
             elif artifact == "backend-integration-test-context":
                 lane = "ci.backend_integration"

@@ -2438,14 +2438,17 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.8",
             statement=(
                 "Backend fast-test CI shards rebalance the current critical path with "
-                "a 5-way pytest-split matrix, a committed duration seed, "
-                "least-duration assignment, and a seed-size guard so CI cannot "
-                "silently fall back to unseeded even splitting (Was EPIC-008 "
-                "AC8.13.148)."
+                "an 8-way pytest-split matrix (raised from 5-way once the committed "
+                "duration seed was refreshed against the current ~3300-test suite -- "
+                "347 tests had drifted in unseeded, which is what a stale seed "
+                "produces: a mispriced least_duration assignment, not a missing "
+                "file), a committed duration seed, least-duration assignment, and a "
+                "seed-size guard so CI cannot silently fall back to unseeded even "
+                "splitting (Was EPIC-008 AC8.13.148)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_148_backend_shards_use_seeded_5_way_split"
+                "::test_AC8_13_148_backend_shards_use_seeded_8_way_split"
             ),
             priority="P1",
             status="done",
@@ -2478,6 +2481,28 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
                 "::test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.11",
+            statement=(
+                "frontend-build and frontend-playwright are right-moved off PRs "
+                "that touch no apps/frontend/ path, the same pattern as "
+                "frontend-telemetry-e2e (AC-testing.ci-structure.10) minus the "
+                "always-run-on-push override that production-observability canary "
+                "needs and these two non-coverage proof jobs don't (they gate on "
+                "pr_required uniformly like backend/frontend-vitest, "
+                "AC-testing.deploy-gates.25): a skip is a pass (not a gap) in "
+                "finish's aggregation, so a docs/tooling/backend-only PR stops "
+                "paying the Next.js build and Playwright browser-install "
+                "wall-clock cost."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass"
             ),
             priority="P1",
             status="done",
@@ -4892,7 +4917,7 @@ CONTRACT = PackageContract(
         ConceptRecord(
             key="test_optimization",
             owner="common/testing/ci-cd.md#test-optimization",
-            description="Smart/fast/full test modes and 5-way seeded backend sharding strategy.",
+            description="Smart/fast/full test modes and 8-way seeded backend sharding strategy.",
             cross_refs=["common/meta/development.md", "common/testing/coverage.md"],
             proofs=[
                 "apps/backend/tests/unit/infra/test_test_lifecycle.py",

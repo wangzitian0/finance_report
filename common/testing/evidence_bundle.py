@@ -54,7 +54,7 @@ GATE_MAP: tuple[dict[str, Any], ...] = (
     {"lane": "frontend", "job": "frontend-vitest", "blocking": True},
     {"lane": "frontend", "job": "frontend-playwright", "blocking": True},
     {"lane": "frontend", "job": "frontend-telemetry-e2e", "blocking": "conditional"},
-    {"lane": "tooling", "job": "tooling-coverage", "blocking": True},
+    {"lane": "tooling", "job": "tooling-coverage-merge", "blocking": True},
     {"lane": "coverage", "job": "unified-coverage", "blocking": True},
     {"lane": "ac-ratchet", "job": "ac-behavioral-ratchet", "blocking": True},
     {"lane": "images", "job": "container-images", "blocking": "conditional"},

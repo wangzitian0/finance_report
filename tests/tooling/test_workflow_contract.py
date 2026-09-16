@@ -100,11 +100,12 @@ def test_AC7_15_3_stale_ci_classifier_job_name_fails(tmp_path) -> None:
 
 
 def test_AC7_15_3_stale_backend_shard_count_prose_fails(tmp_path) -> None:
-    """AC7.15.3: Stale 8-shard backend prose fails."""
+    """AC7.15.3: Stale 5-shard backend prose fails (the matrix is 8-way,
+    AC-testing.ci-structure.8)."""
     _copy_inputs(tmp_path)
     target = tmp_path / "common/testing/ci-cd.md"
     target.write_text(
-        target.read_text(encoding="utf-8").replace("Shards 1-5", "Shards 1-8"),
+        target.read_text(encoding="utf-8").replace("Shards 1-8", "Shards 1-5"),
         encoding="utf-8",
     )
     assert contract.run_contract(tmp_path) == 1
