@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+// AC-advisor.fe-chat.1
 describe("StatementAiAssistantButton & Prompt Helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks();

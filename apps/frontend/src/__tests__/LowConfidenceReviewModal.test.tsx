@@ -33,6 +33,7 @@ const mockTransaction: BankStatementTransaction = {
   status: "pending",
 };
 
+// AC-extraction.fe-stage1-review.7
 describe("LowConfidenceReviewModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
