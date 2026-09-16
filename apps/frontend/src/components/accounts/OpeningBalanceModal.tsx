@@ -18,11 +18,12 @@ interface OpeningBalanceModalProps {
 /** At most two decimal places — a format check; positivity is checked decimal-safe. */
 const AMOUNT_RE = /^\d+(\.\d{1,2})?$/;
 
-function defaultEntryDate(): string {
-  // Opening balances are normally recorded at the start of the first year the
-  // user has data for; default to Jan 1 of the current year as a safe nudge.
-  const now = new Date();
-  return `${now.getFullYear()}-01-01`;
+function previousCalendarDay(periodStart: string): string {
+  if (!periodStart) return "";
+  const date = new Date(`${periodStart}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
 }
 
 /**
@@ -43,7 +44,8 @@ export default function OpeningBalanceModal({
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
 
-  const [entryDate, setEntryDate] = useState(defaultEntryDate);
+  const [entryDate, setEntryDate] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
   const [memo, setMemo] = useState("Opening balances");
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,8 @@ export default function OpeningBalanceModal({
 
   useEffect(() => {
     if (isOpen) {
-      setEntryDate(defaultEntryDate());
+      setEntryDate("");
+      setPeriodStart("");
       setMemo("Opening balances");
       setAmounts({});
       setError(null);
@@ -69,6 +72,8 @@ export default function OpeningBalanceModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const suggestedDate = previousCalendarDay(periodStart);
 
   const filledEntries = Object.entries(amounts).filter(
     ([, value]) => value.trim() !== "",
@@ -80,6 +85,10 @@ export default function OpeningBalanceModal({
 
     if (!entryDate.trim()) {
       setError("Enter the as-of date for these opening balances.");
+      return;
+    }
+    if (periodStart && entryDate >= periodStart) {
+      setError("Opening balances must be dated before the first report period starts.");
       return;
     }
     if (filledEntries.length === 0) {
@@ -145,10 +154,32 @@ export default function OpeningBalanceModal({
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
             <p className="text-sm text-muted">
-              Tell us what each account was worth on your start date. We&apos;ll
-              record the bookkeeping entry for you, so your reports are complete
-              from day one — no journal entries required.
+              Enter the balances brought forward into your first report period.
+              We&apos;ll record the bookkeeping entry for you after you confirm
+              the date and amounts — no journal entries required.
             </p>
+
+            <div>
+              <label htmlFor="opening-period-start" className="mb-1.5 block text-sm font-medium">
+                First report period starts
+              </label>
+              <input
+                id="opening-period-start"
+                type="date"
+                value={periodStart}
+                onChange={(event) => setPeriodStart(event.target.value)}
+                className="input"
+              />
+              <p className="mt-1 text-xs text-muted">
+                Use the start of the report period, not the first transaction date.
+                For a March report, bring forward the closing balance from February.
+              </p>
+              {suggestedDate && (
+                <button type="button" className="btn-secondary mt-2" onClick={() => setEntryDate(suggestedDate)}>
+                  Use {suggestedDate}
+                </button>
+              )}
+            </div>
 
             <div>
               <label
@@ -165,8 +196,8 @@ export default function OpeningBalanceModal({
                 className="input"
               />
               <p className="mt-1 text-xs text-muted">
-                The day before your first imported transactions (usually the
-                start of the year).
+                Confirm the date these balances were held, before your first
+                report period starts. Applying a suggestion does not record an entry.
               </p>
             </div>
 
