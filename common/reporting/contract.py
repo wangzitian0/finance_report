@@ -3048,6 +3048,14 @@ CONTRACT = PackageContract(
             proof_kind="exact",
         ),
         ACRecord(
+            id="AC-reporting.report-integrity.8",
+            statement="A midperiod package retains current decision-backed statement lineage for included movements without admitting future closing stock or transactions; empty source anchors are explicitly unavailable.",
+            test="apps/backend/tests/reporting/test_midperiod_source_lineage.py::test_midperiod_source_lineage_preserves_cutoff",
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
             id="AC-reporting.cash-events.1",
             statement="Only journal entries touching an exact cash identity can produce cash-flow activity; non-cash accruals and financed asset acquisitions produce none.",
             test="apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_1_2_only_cash_touch_events_are_classified",

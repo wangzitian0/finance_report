@@ -443,6 +443,15 @@ not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
 carry the contribution input reference, amount/currency when present,
 current decision id, review state, and reason code.
 
+For a cutoff inside a statement period, reporting retains its exact current
+source decision for immutable transactions dated within the selected period
+and cutoff. Such movement evidence supports flow sections and traceability,
+not the statement's future closing balance or positions. The immutable result
+and reviewed envelope are never rewritten. Closing-stock selection continues
+to require the effective statement end on or before the report cutoff.
+A source anchor with no selected details is `unavailable` with reason
+`no_selected_source_contribution`; static template metadata is not evidence.
+
 Every authoritative contribution carries one audit `TraceDecisionRef` with its
 decision id, expected target, and expected assertion. `PackageAssembler` accepts
 it only when the tenant-scoped current projection matches all coordinates;

@@ -210,4 +210,9 @@ async def build_personal_report_package_traceability_payload(
         ],
     )
     notes_line["anchor_count"] = len(notes_line["source_anchor"]["identifiers"])
+    for line in payload["lines"]:
+        source_anchor = line["source_anchor"]
+        if source_anchor["state"] == "available" and not source_anchor.get("details"):
+            source_anchor["state"] = "unavailable"
+            source_anchor["unavailable_reason"] = "no_selected_source_contribution"
     return payload

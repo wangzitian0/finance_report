@@ -181,14 +181,18 @@ def _statement_section_contribution(
     *,
     start_date: date,
     end_date: date,
+    as_of_date: date | None = None,
 ) -> PackageSectionContribution[Any]:
     """Map immutable source facts to only the package sections they can support."""
     sections: list[PackageSectionId] = ["traceability_appendix"]
     result = contribution.source_result
     if result is not None:
-        if result.balances or result.transactions:
+        stock_is_current = contribution.effective_period_end is not None and contribution.effective_period_end <= (
+            as_of_date or end_date
+        )
+        if stock_is_current and (result.balances or result.transactions):
             sections.append("balance_sheet")
-        if result.positions:
+        if stock_is_current and result.positions:
             sections.extend(("balance_sheet", "investment_performance"))
         overlaps_period = (
             contribution.effective_period_start is not None
@@ -196,7 +200,10 @@ def _statement_section_contribution(
             and contribution.effective_period_start <= end_date
             and contribution.effective_period_end >= start_date
         )
-        if result.transactions and overlaps_period:
+        has_period_movement = any(
+            start_date <= fact.transaction_date <= min(end_date, as_of_date or end_date) for fact in result.transactions
+        )
+        if has_period_movement and overlaps_period:
             sections.extend(("cash_flow", "income_statement", "annualized_income_long_term"))
     input_refs = contribution.input_refs or (f"statement:{contribution.statement_id}",)
     return PackageSectionContribution(
@@ -796,7 +803,13 @@ class PackageAssembler:
         from src.ledger import list_opening_positions
 
         opening_results = await list_opening_positions(db, user_id=user_id, as_of=as_of_date)
-        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=as_of_date)
+        # Extraction's as_of filter selects closing stock. Movement evidence can
+        # belong to a statement that closes later, so select its sections here.
+        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
+        statement_contributions = tuple(
+            _statement_section_contribution(item, start_date=start_date, end_date=end_date, as_of_date=as_of_date)
+            for item in statement_results
+        )
         journal_results = await list_journal_contributions(
             db,
             user_id=user_id,
@@ -811,8 +824,10 @@ class PackageAssembler:
         )
         return (
             *(
-                _statement_section_contribution(item, start_date=start_date, end_date=end_date)
-                for item in statement_results
+                item
+                for item in statement_contributions
+                if (item.payload.effective_period_end is not None and item.payload.effective_period_end <= as_of_date)
+                or "income_statement" in item.section_ids
             ),
             *(
                 _journal_section_contribution(item, start_date=start_date, end_date=end_date)
