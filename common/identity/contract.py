@@ -379,6 +379,27 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-identity.2.6",
+            statement=(
+                "Browser logout expires the HttpOnly authentication cookie at its original "
+                "scope, is idempotent, and leaves subsequent cookie-only requests unauthorized "
+                "until login. Independently issued bearer tokens are not globally revoked."
+            ),
+            test="apps/backend/tests/identity/test_auth_router.py::test_browser_logout_expires_cookie",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.fe-auth.15",
+            statement=(
+                "Desktop and mobile logout wait for server cookie expiration before clearing "
+                "local identity and navigating to login; failures preserve identity and allow retry."
+            ),
+            test="apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::waits for cookie logout before clearing desktop identity",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-identity.1.3",
             statement=(
                 "The /users management endpoints expose authenticated current-user "
@@ -434,6 +455,17 @@ CONTRACT = PackageContract(
             ),
             test="tests/e2e/test_auth_flows.py::test_full_registration_flow",
             priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-identity.journeys.6",
+            statement=(
+                "On an explicitly pinned deployment a new browser user registers, survives "
+                "reload, logs out through desktop or mobile controls, receives 401 on "
+                "cookie-only protected requests after reload, and can log in again."
+            ),
+            test="tests/e2e/test_auth_flows.py::test_browser_cookie_logout_lifecycle",
+            priority="P0",
             status="done",
         ),
         # ── purge: test/QA account-purge maintenance (was EPIC-008 AC8.17,

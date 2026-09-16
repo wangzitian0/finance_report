@@ -103,6 +103,7 @@ export const API_OPERATIONS = {
   "list_valuation_snapshots_assets_valuation_snapshots_get": { method: "GET", path: "/api/assets/valuation-snapshots" },
   "list_workflow_events_endpoint_workflow_events_get": { method: "GET", path: "/api/workflow/events" },
   "login_auth_login_post": { method: "POST", path: "/api/auth/login" },
+  "logout_auth_logout_post": { method: "POST", path: "/api/auth/logout" },
   "market_data_status_endpoint_market_data_status_get": { method: "GET", path: "/api/market-data/status" },
   "net_worth_allocation_reports_net_worth_allocation_get": { method: "GET", path: "/api/reports/net-worth/allocation" },
   "net_worth_timeseries_reports_net_worth_timeseries_get": { method: "GET", path: "/api/reports/net-worth/timeseries" },

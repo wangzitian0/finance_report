@@ -67,6 +67,18 @@ data is prohibited, including in MVP/test. The legacy `/users` routes are **not*
 public registration surface; public registration is owned by `/auth/register`, and
 `/users` exposes only authenticated current-user compatibility operations.
 
+### Browser logout
+
+`POST /auth/logout` is an idempotent, unauthenticated 204 operation. It expires
+`finance_access_token` with the same host-only scope, `/` path, HttpOnly,
+SameSite=Lax, and environment-dependent Secure attribute used when logging in.
+Desktop and mobile logout wait for that response before clearing non-secret local
+identity and navigating to login; a failed request leaves identity visible and
+shows a retryable error. A cookie-only protected request then returns 401, while
+fresh login establishes a new session. This clears browser authentication; it
+does not implement global revocation of independently issued bearer JWTs.
+
+
 ## Registration & login API
 
 ### `POST /api/auth/register`

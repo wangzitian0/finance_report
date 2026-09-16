@@ -5,9 +5,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { LogIn, LogOut } from "lucide-react";
 
+import { useLogout } from "@/hooks/useLogout";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { clearUser, getUserEmail, isAuthenticated } from "@/lib/auth";
+import { getUserEmail, isAuthenticated } from "@/lib/auth";
 import { ADD_ACTION, bottomTabItems, isActive, type NavItem } from "@/components/navigation";
 import AddSheet from "@/components/shell/AddSheet";
 
@@ -27,10 +28,7 @@ export function Sidebar() {
         setIsAuth(isAuthenticated());
     }, [pathname]);
 
-    const handleLogout = () => {
-        clearUser();
-        router.push("/login");
-    };
+    const { handleLogout, isLoggingOut, logoutError } = useLogout();
 
     const [home, chat, audit, more] = bottomTabItems;
     const AddIcon = ADD_ACTION.icon;
@@ -137,6 +135,7 @@ export function Sidebar() {
                 {isAuth && (
                     <button
                         onClick={handleLogout}
+                        disabled={isLoggingOut}
                         className={`
                 w-full flex items-center gap-2.5 px-2.5 py-3 rounded-md min-h-[44px]
                 text-[var(--error)] hover:bg-[var(--error-muted)]
@@ -150,6 +149,8 @@ export function Sidebar() {
                         {!isCollapsed && <span className="font-medium">Logout</span>}
                     </button>
                 )}
+
+                {logoutError && <p role="alert" className="text-sm text-[var(--error)]">{logoutError}</p>}
 
                 {!isAuth && (
                     <Link

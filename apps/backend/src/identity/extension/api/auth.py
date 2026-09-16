@@ -1,6 +1,6 @@
 """Authentication API router (the identity transport edge).
 
-The ``/auth`` router and its domain operations ``register``/``login``/``get_me``.
+The ``/auth`` router and its domain operations ``register``/``login``/``logout``/``get_me``.
 This is the identity package's HTTP boundary (``extension/api/``); the route
 handlers ARE the domain services (registration/login), composing the value
 objects, the security domain services, the auth rate limiters, and the
@@ -87,6 +87,19 @@ def _set_auth_cookie(response: Response, access_token: str) -> None:
         secure=environment not in COOKIE_SAFE_DEVELOPMENT_ENVS,
         samesite="lax",
         path="/",
+    )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    """End this browser's session without revoking independently held JWTs."""
+    environment = str(src.config.settings.environment).strip().lower()
+    response.delete_cookie(
+        key=AUTH_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=environment not in COOKIE_SAFE_DEVELOPMENT_ENVS,
+        samesite="lax",
     )
 
 

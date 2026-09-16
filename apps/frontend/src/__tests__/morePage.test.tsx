@@ -20,6 +20,7 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
     beforeEach(() => {
         pushMock.mockReset();
         mockedApiFetch.mockReset();
+        vi.mocked(clearUser).mockReset();
     });
 
     it("lists Settings, Advanced/Accounts, and Logout, and logs out", async () => {
@@ -30,8 +31,22 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
         expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts");
 
         fireEvent.click(screen.getByRole("button", { name: /Logout/i }));
-        expect(clearUser).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(clearUser).toHaveBeenCalledTimes(1));
         expect(pushMock).toHaveBeenCalledWith("/login");
+    });
+
+    // AC-identity.fe-auth.15
+    it("keeps mobile identity when logout fails", async () => {
+        mockedApiFetch.mockImplementation(async (path) => {
+            if (path === "/api/auth/logout") throw new Error("Offline");
+            return { items: [] };
+        });
+        render(<MorePage />);
+        fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("Could not log out. Please try again.");
+        expect(clearUser).not.toHaveBeenCalled();
+        expect(pushMock).not.toHaveBeenCalled();
+        expect(screen.getByRole("button", { name: "Logout" })).toBeEnabled();
     });
 
     it("hides Portfolio when the user holds no securities", async () => {

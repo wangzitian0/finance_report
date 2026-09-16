@@ -180,3 +180,68 @@ async def test_full_registration_flow(page: Page):
             pytest.skip(f"Registration failed with: {error_text}")
         else:
             raise
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("viewport", ["desktop", "mobile"])
+async def test_browser_cookie_logout_lifecycle(page: Page, viewport, record_property):
+    """AC-identity.journeys.6: Real UI auth never substitutes local metadata for cookie logout."""
+    expected = os.environ.get("EXPECTED_SHA")
+    assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA"
+    for path in ("/api/health", "/frontend-version.json"):
+        response = await page.request.get(get_url(path))
+        assert response.status == 200
+        version = (await response.json())["git_sha"]
+        assert version == expected
+        record_property(path, version)
+    await page.set_viewport_size(
+        {"width": 390, "height": 844}
+        if viewport == "mobile"
+        else {"width": 1280, "height": 900}
+    )
+    email = f"e2e_logout_{uuid.uuid4().hex[:10]}@test.example.com"
+    password = "SyntheticBrowserLogout123!"
+    await page.goto(get_url("/login"))
+    await page.get_by_test_id("auth-mode-toggle-register").click()
+    await page.get_by_label("Email").fill(email)
+    await page.get_by_label("Password", exact=True).fill(password)
+    async with page.expect_response(
+        lambda response: response.url.endswith("/api/auth/register")
+        and response.request.method == "POST"
+    ) as registered:
+        await page.get_by_role("button", name="Create Account", exact=True).click()
+    assert (await registered.value).status == 201
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN)
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    await page.reload()
+    await expect(page.get_by_role("link", name="Finance Report home")).to_be_attached()
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    if viewport == "mobile":
+        await page.get_by_role("link", name="More", exact=True).click()
+    async with page.expect_response(
+        lambda response: response.url.endswith("/api/auth/logout")
+        and response.request.method == "POST"
+    ) as logged_out:
+        await page.get_by_role("button", name="Logout", exact=True).click()
+    assert (await logged_out.value).status == 204
+    await expect(page).to_have_url(re.compile(r"/login$"))
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 401
+    assert all(
+        cookie["name"] != "finance_access_token"
+        for cookie in await page.context.cookies()
+    )
+    assert await page.evaluate("localStorage.getItem('finance_user_id')") is None
+    await page.reload()
+    await expect(page).to_have_url(re.compile(r"/login$"))
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 401
+    await page.get_by_label("Email").fill(email)
+    await page.get_by_label("Password", exact=True).fill(password)
+    async with page.expect_response(
+        lambda response: response.url.endswith("/api/auth/login")
+        and response.request.method == "POST"
+    ) as logged_in:
+        await page.get_by_role("button", name="Sign In", exact=True).click()
+    assert (await logged_in.value).status == 200
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN)
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    record_property("browser_logout_viewport", viewport)

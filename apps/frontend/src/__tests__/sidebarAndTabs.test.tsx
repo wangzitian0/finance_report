@@ -108,8 +108,35 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Logout" }))
-    expect(clearUserMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(clearUserMock).toHaveBeenCalledTimes(1))
     expect(pushMock).toHaveBeenCalledWith("/login")
+  })
+
+  // AC-identity.fe-auth.15
+  it("waits for cookie logout before clearing desktop identity", async () => {
+    let complete!: () => void
+    mockedApiFetch.mockReturnValue(new Promise<void>((resolve) => { complete = resolve }))
+    render(<Sidebar />)
+    fireEvent.click(await screen.findByRole("button", { name: "Logout" }))
+    expect(mockedApiFetch).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }))
+    expect(clearUserMock).not.toHaveBeenCalled()
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Logout" })).toBeDisabled()
+    complete()
+    await waitFor(() => expect(clearUserMock).toHaveBeenCalledTimes(1))
+    expect(pushMock).toHaveBeenCalledWith("/login")
+  })
+
+  it("preserves desktop identity when cookie logout fails and allows retry", async () => {
+    mockedApiFetch.mockRejectedValueOnce(new Error("Offline"))
+    render(<Sidebar />)
+    fireEvent.click(await screen.findByRole("button", { name: "Logout" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not log out. Please try again.")
+    expect(clearUserMock).not.toHaveBeenCalled()
+    expect(pushMock).not.toHaveBeenCalled()
+    mockedApiFetch.mockResolvedValue(undefined)
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"))
   })
 
   // AC-meta.fe-ia-nav.2

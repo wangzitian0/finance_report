@@ -5,7 +5,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `131`
+- Endpoint count: `132`
 - Schema count: `257`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -19,7 +19,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `app-config` | 2 |
 | `assets` | 11 |
 | `audit` | 1 |
-| `auth` | 3 |
+| `auth` | 4 |
 | `chat` | 4 |
 | `classifications` | 1 |
 | `corrections` | 2 |
@@ -97,6 +97,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `POST` | `/auth/login` | no | - | `LoginRequest` | `200` `AuthResponse` | Login |
+| `POST` | `/auth/logout` | no | - | - | `204` - | Logout |
 | `GET` | `/auth/me` | yes | - | - | `200` `AuthResponse` | Get Me |
 | `POST` | `/auth/register` | no | - | `RegisterRequest` | `201` `AuthResponse` | Register |
 
