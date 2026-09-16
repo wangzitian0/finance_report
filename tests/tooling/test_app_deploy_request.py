@@ -111,22 +111,31 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         if line.strip().startswith("uv pip install ")
     )
     install_tokens = shlex.split(install_line)
-    assert install_tokens[-1] == "$sdk_wheel"
+    # Exact-shape equality (not a literal-in-list mirror assert, #1435/#1558):
+    # the wheel installs by file path into the synced venv's interpreter, and
+    # never re-declares the pinned dependency string alongside it.
+    assert install_tokens == [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        "apps/backend/.venv/bin/python",
+        "$sdk_wheel",
+    ]
     assert expected_sdk_dependency not in install_tokens
-    assert "--python" in install_tokens
-    assert "apps/backend/.venv/bin/python" in install_tokens
 
     pytest_line = next(
         line.strip().removesuffix("\\").strip()
         for line in tooling_run.splitlines()
-        if "-m pytest tests/tooling/" in line
+        if line.strip().startswith("apps/backend/.venv/bin/python -m pytest ")
     )
     pytest_tokens = shlex.split(pytest_line)
-    assert pytest_tokens[0] == "apps/backend/.venv/bin/python"
-    pytest_index = max(
-        index for index, token in enumerate(pytest_tokens) if token == "pytest"
-    )
-    assert pytest_tokens[pytest_index + 1] == "tests/tooling/"
+    assert pytest_tokens[:4] == [
+        "apps/backend/.venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/tooling/",
+    ]
 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST

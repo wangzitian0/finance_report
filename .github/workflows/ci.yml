@@ -754,6 +754,14 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             pytest_extra_args+=(--maxfail=1)
           fi
+          # -n auto/--dist worksteal (as the `backend` shards already use against
+          # these same services): the 59 tests here have no shared-state hazard --
+          # tests/conftest.py's worker_id/get_test_db_url fixtures already give
+          # each xdist worker its own Postgres database (truncated per test), S3
+          # object keys are namespaced by statement UUID (build_statement_storage_key),
+          # and the LLM-cassette-served log is written per-PID
+          # (test-results/served-cassettes-<pid>.txt), so this was serial only
+          # because it predated -n auto here, not because it needs to be serial.
           uv run pytest -v \
             --override-ini addopts="" \
             tests/e2e/test_core_journeys.py \
@@ -761,6 +769,7 @@ jobs:
             tests/e2e/test_statement_corpus_journeys.py \
             tests/e2e/test_epic025_dry_ssot_e2e.py \
             -m "e2e and not slow and not integration and not perf" \
+            -n auto --dist worksteal \
             "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml
 
