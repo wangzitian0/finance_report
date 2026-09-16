@@ -1283,8 +1283,11 @@ jobs:
           printf '%s  %s\n' "$sdk_sha256" "$sdk_wheel" | sha256sum --check --status
           # Prove the pinned wheel actually installs (the SDK pin CLI boundary
           # restored by #2004/#2036/#2038) -- now into the synced venv rather
-          # than a throwaway `uv run --with` environment.
-          uv pip install --python apps/backend/.venv/bin/python "$sdk_wheel"
+          # than a throwaway `uv run --with` environment. --no-deps: infra2-sdk's
+          # runtime dependency is already satisfied by `uv sync` (apps/backend/uv.lock),
+          # so this stays a pure install-the-pinned-wheel proof, never a network
+          # resolve that could reintroduce variable install time.
+          uv pip install --no-deps --python apps/backend/.venv/bin/python "$sdk_wheel"
           mkdir -p coverage
           printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
           # #1767: -n auto (pytest-xdist) parallelizes across the runner's cores;

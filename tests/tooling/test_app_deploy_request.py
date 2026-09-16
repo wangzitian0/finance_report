@@ -113,11 +113,15 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     install_tokens = shlex.split(install_line)
     # Exact-shape equality (not a literal-in-list mirror assert, #1435/#1558):
     # the wheel installs by file path into the synced venv's interpreter, and
-    # never re-declares the pinned dependency string alongside it.
+    # never re-declares the pinned dependency string alongside it. --no-deps
+    # keeps this a pure install-the-pinned-wheel proof: infra2-sdk's runtime
+    # dependency is already satisfied by `uv sync` (apps/backend/uv.lock), so
+    # nothing here may resolve/download from the network (PR #2047 review).
     assert install_tokens == [
         "uv",
         "pip",
         "install",
+        "--no-deps",
         "--python",
         "apps/backend/.venv/bin/python",
         "$sdk_wheel",
