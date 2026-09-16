@@ -1234,11 +1234,15 @@ jobs:
             --version-ref "${{ steps.get_sha.outputs.short_sha }}"
 
   tooling-coverage:
-    name: Tooling/Common Coverage
+    name: Tooling/Common Coverage (Shard ${{ matrix.shard }}/8)
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
 
@@ -1271,11 +1275,12 @@ jobs:
           # (pytest/pytest-cov/pytest-xdist/pytest-asyncio, pydantic, sqlalchemy,
           # asyncpg, fastapi, httpx, pdfplumber, reportlab, boto3, pyyaml,
           # structlog, email-validator, anyio transitively, infra2-sdk) -- so
-          # this job now installs from the SAME lockfile-backed venv/cache the
+          # this job installs from the SAME lockfile-backed venv/cache the
           # backend/backend-integration/backend-e2e-tier1 jobs already warm
           # (actions/cache@v5 on apps/backend/uv.lock), instead of an ad hoc
           # `uv run --with <17 packages>` resolve+download every run (#1767
-          # measured that ad hoc install at ~7:47-7:59 of this job's ~8:00).
+          # measured that ad hoc install at ~7:47-7:59 of the former single-job's
+          # ~8:00 total).
           sdk_pin="$(python tools/sdk_pin.py)" || exit $?
           read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
           sdk_wheel="$RUNNER_TEMP/$sdk_filename"
@@ -1290,22 +1295,39 @@ jobs:
           uv pip install --no-deps --python apps/backend/.venv/bin/python "$sdk_wheel"
           mkdir -p coverage
           printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
-          # #1767: -n auto (pytest-xdist) parallelizes across the runner's cores;
-          # pytest-cov auto-combines each worker's coverage data at session end
-          # (no [tool.coverage.run] parallel=true needed -- verified locally: -n
-          # auto produced identical common.lcov/tools.lcov content to a serial
-          # run, just ~3.5x faster: 2022 tests in ~58s vs ~205s). This was the
-          # critical-path job (~451s of the ~510s main-push pipeline).
+          # PR pipeline speedup (#2047): the ~490-510s single-job test run
+          # (already parallelized -n auto -- #1767) is itself the bottleneck once
+          # its ad hoc install tax is gone. Sharded 8-way with the same seeded
+          # pytest-split least_duration algorithm the `backend` shards use, so
+          # each shard collects+runs only its slice instead of the full suite.
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          seed = Path("ci/tooling-test-durations.json")
+          if not seed.exists():
+              raise SystemExit(f"pytest-split duration seed is missing: {seed}")
+          durations = json.loads(seed.read_text(encoding="utf-8"))
+          if len(durations) < 500:
+              raise SystemExit(
+                  f"pytest-split duration seed is too small: {len(durations)} entries"
+              )
+          print(f"Loaded pytest-split duration seed with {len(durations)} entries")
+          PY
           apps/backend/.venv/bin/python -m pytest tests/tooling/ \
+            --splits 8 \
+            --group ${{ matrix.shard }} \
+            --splitting-algorithm=least_duration \
+            --durations-path ci/tooling-test-durations.json \
             --cov=common \
             --cov=tools \
             --cov=apps/backend/src \
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
-            --junit-xml=coverage/tooling-junit.xml \
+            --junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml \
             -n auto -x -q
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/common.lcov --include='common/*'
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/tools.lcov --include='tools/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/common-${{ matrix.shard }}.lcov --include='common/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/tools-${{ matrix.shard }}.lcov --include='tools/*'
           # #1669 moved env_keys.py/schema_validation.py from common/config into
           # apps/backend/src/runtime/extension/, so they now belong to the
           # "backend" coverage bucket. Their only test suite is tests/tooling/
@@ -1318,8 +1340,73 @@ jobs:
           # merge_lcov.py treats them as distinct files and double-counts lines.
           (cd apps/backend && COVERAGE_RCFILE=/tmp/tooling-coveragerc .venv/bin/python -m coverage lcov \
             --data-file="$GITHUB_WORKSPACE/.coverage" \
-            -o "$GITHUB_WORKSPACE/coverage/backend-tooling.lcov" \
+            -o "$GITHUB_WORKSPACE/coverage/backend-tooling-${{ matrix.shard }}.lcov" \
             --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py')
+
+      - name: Upload tooling coverage shard context
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-tooling-${{ matrix.shard }}
+          path: |
+            coverage/common-${{ matrix.shard }}.lcov
+            coverage/tools-${{ matrix.shard }}.lcov
+            coverage/backend-tooling-${{ matrix.shard }}.lcov
+            coverage/tooling-junit-${{ matrix.shard }}.xml
+          retention-days: 14
+
+  tooling-coverage-merge:
+    name: Tooling/Common Coverage
+    needs: [changes, tooling-coverage]
+    if: needs.changes.outputs.pr_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download tooling coverage shards
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-tooling-*
+          merge-multiple: true
+          path: coverage-tooling-shards
+
+      - name: Merge tooling coverage
+        run: |
+          mkdir -p coverage
+          python tools/merge_lcov.py coverage/common.lcov coverage-tooling-shards/common-*.lcov
+          python tools/merge_lcov.py coverage/tools.lcov coverage-tooling-shards/tools-*.lcov
+          python tools/merge_lcov.py coverage/backend-tooling.lcov coverage-tooling-shards/backend-tooling-*.lcov
+          # JUnit has no numeric union to compute (unlike LCOV): concatenate
+          # every shard's <testsuite> under one <testsuites> root so the
+          # combined coverage-tooling artifact still carries exactly one
+          # tooling-junit.xml, byte-equivalent in content (all 8 shards' cases)
+          # to what the single un-sharded job used to emit.
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          shard_dir = Path("coverage-tooling-shards")
+          xml_paths = sorted(shard_dir.glob("tooling-junit-*.xml"))
+          if not xml_paths:
+              raise SystemExit("no per-shard tooling-junit-*.xml files found to merge")
+
+          merged_root = ElementTree.Element("testsuites")
+          for path in xml_paths:
+              root = ElementTree.parse(path).getroot()
+              merged_root.extend([root] if root.tag == "testsuite" else list(root))
+
+          Path("coverage").mkdir(exist_ok=True)
+          ElementTree.ElementTree(merged_root).write(
+              "coverage/tooling-junit.xml", encoding="utf-8", xml_declaration=True
+          )
+          print(f"Merged {len(xml_paths)} shard junit files into coverage/tooling-junit.xml")
+          PY
 
       - name: Upload tooling coverage context
         if: ${{ always() }}
@@ -1335,7 +1422,7 @@ jobs:
 
   unified-coverage:
     name: Calculate Unified Coverage
-    needs: [changes, backend, frontend-vitest, tooling-coverage]
+    needs: [changes, backend, frontend-vitest, tooling-coverage-merge]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1628,7 +1715,7 @@ jobs:
 
   ac-traceability:
     name: AC Traceability Check
-    needs: [changes, lint, tooling-coverage, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
+    needs: [changes, lint, tooling-coverage-merge, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1867,7 +1954,7 @@ jobs:
           retention-days: 90
 
   finish:
-    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
+    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage-merge, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1978,7 +2065,7 @@ jobs:
           echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
           echo "Verify Commit Image Published: ${{ needs.verify-sha-image-published.result }}"
-          echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
+          echo "Tooling/Common Coverage: ${{ needs.tooling-coverage-merge.result }}"
           echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
           echo "Lint: ${{ needs.lint.result }}"
           echo "AC Traceability: ${{ needs.ac-traceability.result }}"
@@ -2037,7 +2124,7 @@ jobs:
               echo "::error::Frontend telemetry E2E failed"
               exit 1
             fi
-            if [[ "${{ needs.tooling-coverage.result }}" != "success" ]]; then
+            if [[ "${{ needs.tooling-coverage-merge.result }}" != "success" ]]; then
               echo "::error::Tooling/common coverage failed"
               exit 1
             fi

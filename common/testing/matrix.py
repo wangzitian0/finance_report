@@ -426,7 +426,10 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         stage="backend_ci",
         workflow=".github/workflows/ci.yml",
         marker=BACKEND_CI_MARKER,
-        anchor="--splits 8",
+        # "--splits 8" alone is no longer unique: tooling-coverage's shard
+        # matrix (#2047) also uses an 8-way least_duration split, so anchor on
+        # backend's own duration-seed path instead.
+        anchor="--durations-path ci/backend-test-durations.json",
     ),
     WorkflowPytestContract(
         stage="backend_integration",
@@ -458,7 +461,10 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         workflow=".github/workflows/ci.yml",
         marker=None,
         paths=("tests/tooling/",),
-        anchor="--junit-xml=coverage/tooling-junit.xml",
+        # 8-way shard matrix (mirrors backend's `${{ matrix.shard }}` templating):
+        # this literal source text (unexpanded by GitHub Actions) appears exactly
+        # once in the one shard job block regardless of how many shards run.
+        anchor="--junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml",
     ),
     WorkflowPytestContract(
         stage=PR_PREVIEW_E2E_STAGE,
