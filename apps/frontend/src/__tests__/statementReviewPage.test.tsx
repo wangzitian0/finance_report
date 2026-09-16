@@ -100,7 +100,8 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         renderReviewComponent(<StatementReviewPage /> as never);
         expect(await screen.findByText("Confirm source facts")).toBeInTheDocument();
         expect(screen.getByText(/needs your confirmation before it can be used/i)).toBeInTheDocument();
-        expect(screen.getByLabelText("Custody account")).toHaveValue("a1");
+        // Account options arrive through a separate query from the source facts.
+        await waitFor(() => expect(screen.getByLabelText("Custody account")).toHaveValue("a1"));
         expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     });
 
