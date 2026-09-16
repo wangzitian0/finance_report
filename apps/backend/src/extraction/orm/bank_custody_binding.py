@@ -7,10 +7,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
-class BankCustodyBinding(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
+class BankCustodyBinding(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "bank_custody_bindings"
     __table_args__ = (
         UniqueConstraint("user_id", "institution", "account_last4", "currency", name="uq_bank_custody_identity"),

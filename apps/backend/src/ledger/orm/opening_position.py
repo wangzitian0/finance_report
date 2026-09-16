@@ -9,10 +9,10 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
-from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
+from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
-class OpeningPositionRecord(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
+class OpeningPositionRecord(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "opening_position_records"
     __table_args__ = (UniqueConstraint("account_id", "version", name="uq_opening_position_account_version"),)
     user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
