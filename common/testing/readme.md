@@ -179,7 +179,10 @@ claim about other formats, economic cases, or year-wide coverage.
 
 The separate fresh-user browser journey (`AC-testing.package-lifecycle.3`) allows
 API setup only for authentication. Account creation, upload, source/economic
-review, approval and saved-package operations use actual product controls.
+review, approval and saved-package operations use actual product controls. Missing
+compatible accounts are created directly from classification review; the selected
+transaction, category and rationale survive, and account creation never selects
+or posts the reviewed disposition automatically.
 Independent generated-fixture Decimal expectations and downloaded frozen artifacts
 remain the oracle; service versions must match the explicit target. Requested
 model configuration is recorded separately from actual provider execution evidence,

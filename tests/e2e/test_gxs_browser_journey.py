@@ -109,26 +109,9 @@ async def test_gxs_browser_upload_to_saved_package(
         for row in expected["events"]
     )
 
-    for account_type in ("INCOME", "EXPENSE"):
-        await page.goto(f"{APP_URL}/accounts")
-        await page.get_by_role("button", name="Add Account", exact=True).click()
-        await page.get_by_placeholder("e.g., Cash on Hand").fill(
-            f"Generated {account_type}"
-        )
-        await page.locator('select[name="type"]').select_option(account_type)
-        await page.locator('select[name="currency"]').select_option("SGD")
-        async with page.expect_response(
-            lambda response: "/api/accounts" in response.url
-            and response.request.method == "POST"
-        ) as pending:
-            await page.get_by_role("button", name="Create Account", exact=True).click()
-        assert (await pending.value).status == 201
-        await expect(
-            page.get_by_role("heading", name="New Account", exact=True)
-        ).not_to_be_visible()
-
     await page.goto(f"{APP_URL}/statements/{statement_id}/review")
     await page.get_by_role("link", name="Review transaction classifications").click()
+    created_account_types: set[str] = set()
     for row in expected["events"]:
         transaction = page.get_by_role(
             "button",
@@ -141,12 +124,43 @@ async def test_gxs_browser_upload_to_saved_package(
         await expect(detail).to_contain_text(row["date"])
         intent, category = DISPOSITIONS[row["description"]]
         await page.get_by_label("Economic intent").select_option(intent)
-        await page.get_by_label("Counter account").select_option(
-            label=f"Generated {intent.upper()} · {intent.upper()}"
-        )
         await page.get_by_label("Report category").fill(category)
         await page.get_by_label("Review rationale").fill(
             "The independent generated GXS fixture declares this economic meaning."
+        )
+        if intent not in created_account_types:
+            await page.get_by_role(
+                "button", name="Create counter account", exact=True
+            ).click()
+            account_dialog = page.get_by_role("dialog", name="New Account", exact=True)
+            await expect(
+                account_dialog.get_by_label("Type *", exact=True)
+            ).to_have_value(intent.upper())
+            await account_dialog.get_by_placeholder("e.g., Cash on Hand").fill(
+                f"Generated {intent.upper()}"
+            )
+            async with page.expect_response(
+                lambda response: "/api/accounts" in response.url
+                and response.request.method == "POST"
+            ) as pending:
+                await account_dialog.get_by_role(
+                    "button", name="Create Account", exact=True
+                ).click()
+            assert (await pending.value).status == 201
+            await expect(account_dialog).not_to_be_visible()
+            await expect(detail).to_contain_text(row["date"])
+            await expect(page.get_by_label("Economic intent")).to_have_value(intent)
+            await expect(page.get_by_label("Report category")).to_have_value(category)
+            await expect(page.get_by_label("Review rationale")).to_have_value(
+                "The independent generated GXS fixture declares this economic meaning."
+            )
+            await expect(page.get_by_label("Counter account")).to_have_value("")
+            await expect(
+                page.get_by_role("button", name="Confirm and Post", exact=True)
+            ).to_be_disabled()
+            created_account_types.add(intent)
+        await page.get_by_label("Counter account").select_option(
+            label=f"Generated {intent.upper()} · {intent.upper()}"
         )
         async with page.expect_response(
             lambda response: "/reviewed-disposition" in response.url
@@ -158,7 +172,8 @@ async def test_gxs_browser_upload_to_saved_package(
         posted = await pending.value
         assert posted.status == 200, await posted.text()
         await expect(transaction).not_to_be_visible()
-    record_property("browser_created_counter_accounts", 2)
+    record_property("browser_created_counter_accounts", len(created_account_types))
+    record_property("browser_counter_account_entry", "inline classification review")
     record_property("browser_economic_review_decisions", len(expected["events"]))
     await page.get_by_role("link", name="Return to statement review").first.click()
     await page.get_by_role("button", name="Approve", exact=True).click()

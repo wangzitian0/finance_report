@@ -4219,7 +4219,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.package-lifecycle.3",
             statement=(
-                "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts, "
+                "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts "
+                "directly from classification review without losing the explicit draft, "
                 "reviews and approves through browser controls, then generates, reopens and exports "
                 "one frozen report package with independent Decimal totals. Only authentication "
                 "setup may use mutation APIs; backend/frontend versions match the pinned target, "
