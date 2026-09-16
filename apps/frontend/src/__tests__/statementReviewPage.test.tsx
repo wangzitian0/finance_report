@@ -82,6 +82,28 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         navigationState.searchParams = new URLSearchParams();
     });
 
+    it("complete dormant source offers explicit human confirmation", async () => {
+        // AC-extraction.human-source-review.4
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({ ...baseStatement, account_id: "a1", confidence_score: 75,
+                    closing_balance: 100, transactions: [], source_result_digest: "a".repeat(64),
+                    source_missing_facts: [], source_envelope_reviewable: true, reviewed_envelope: null });
+            }
+            if (path === "/api/accounts?account_type=ASSET&is_active=true") {
+                return Promise.resolve({ items: [{ id: "a1", name: "Dormant Bank", type: "ASSET", currency: "SGD", is_active: true }], total: 1 });
+            }
+            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+        renderReviewComponent(<StatementReviewPage /> as never);
+        expect(await screen.findByText("Confirm source facts")).toBeInTheDocument();
+        expect(screen.getByText(/needs your confirmation before it can be used/i)).toBeInTheDocument();
+        expect(screen.getByLabelText("Custody account")).toHaveValue("a1");
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    });
+
     // AC-extraction.fe-stage1-review.7
     it("AC16.18.4 shows loading feedback while review data is pending", () => {
         mockedApi.mockImplementation((path: string) => {

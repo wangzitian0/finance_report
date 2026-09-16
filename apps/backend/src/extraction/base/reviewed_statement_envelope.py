@@ -10,7 +10,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult
+from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult, StatementSourceType
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MONEY_QUANTUM = Decimal("0.01")
@@ -23,11 +24,16 @@ def _digest(value: object) -> str:
 
 
 def supports_reviewed_statement_envelope(result: StatementExtractionResult) -> bool:
-    """Whether this source's missing facts can be proven by a cash envelope."""
+    """Whether typed human confirmation can resolve this source's review state."""
+    if result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER:
+        return False
+    if result.missing_required_facts:
+        return set(result.missing_required_facts) <= _ENVELOPE_REVIEWABLE_FACTS
     return (
-        result.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
-        and bool(result.missing_required_facts)
-        and set(result.missing_required_facts) <= _ENVELOPE_REVIEWABLE_FACTS
+        result.source_type is StatementSourceType.BANK
+        and result.balance_validated is True
+        and len(result.balances) == 1
+        and result.confidence * 100 < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
     )
 
 

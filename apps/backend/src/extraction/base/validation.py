@@ -10,6 +10,7 @@ from typing import Any
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus
 
+HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
 OUT_DIRECTION_ALIASES = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
@@ -530,7 +531,7 @@ def route_by_threshold(score: int, balance_valid: bool) -> BankStatementStatus:
     """
     if not balance_valid:
         return BankStatementStatus.PARSED
-    if score >= 85:
+    if score >= HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD:
         return BankStatementStatus.APPROVED
     if score >= 60:
         return BankStatementStatus.PARSED

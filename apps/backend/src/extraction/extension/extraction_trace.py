@@ -22,6 +22,7 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.extraction.base.result import ExtractionMethod, StatementExtractionResult
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.disposition_trace import (
     DispositionDecisionTracePolicy,
     DispositionInvariantTracePolicy,
@@ -100,7 +101,7 @@ class ExtractionPromotionTracePolicy:
             and guard
             and observation.reason_code == "extraction_balance_validated"
             and observation.score is not None
-            and observation.score.value >= Decimal("0.85")
+            and observation.score.value * 100 >= HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
             and guard.result is TraceResult.AUTHORITATIVE
         )
         return TraceDecisionOutcome(

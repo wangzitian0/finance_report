@@ -44,6 +44,7 @@ from src.extraction.base.types import (
     StatementPostingOutcome,
     StatementPostingStatus,
 )
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.custody_binding import resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
@@ -68,7 +69,6 @@ from src.observability import get_logger
 
 logger = get_logger(__name__)
 
-HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
 # "Which of these atomic txns are already covered by an accepted transfer
 # match" is reconciliation-owned knowledge. extraction must not import

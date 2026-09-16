@@ -279,7 +279,8 @@ of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope`
 accepts one complete, typed command pinned to the current result digest: a
 user-owned asset account, ISO currency, ordered period, Decimal opening/closing
 balances, and a rationale. The service verifies the exact result version,
-account currency, and the source transaction balance chain before it materializes
+account currency, every already-declared currency/period/balance fact, and the
+source transaction balance chain before it materializes
 the effective `StatementSummary` projection. It appends a review trace whose
 parent is the exact source-result observation.
 
@@ -290,10 +291,17 @@ range, JSON sidecar, or in-place source edit can stand in for this decision.
 PostgreSQL triggers reject direct updates and deletes of both fact tables; their
 statement references are restrictive, so deletion requires an explicit owning
 domain purge rather than an implicit cross-domain cascade.
-Only a transaction-ledger result missing solely currency, period, or balances
-is envelope-reviewable. Position or transaction-currency gaps remain blocked
-for the source-specific review path; the API exposes this capability so clients
-never present a cash-envelope form for facts it cannot prove.
+A transaction-ledger result missing solely currency, period, or balances is
+envelope-reviewable. A complete, balanced, single-currency bank cash source below
+the shared auto-promotion confidence threshold is also eligible for explicit
+human confirmation. This includes an ordinary month with no transactions:
+confidence remains 75, missing facts remain empty, and the immutable source is
+unchanged. The command fills absent facts only; it cannot replace a declared
+1000 opening/closing balance with an equally balanced 9000 pair. Position or
+transaction-currency gaps remain blocked for their source-specific review path.
+The API exposes this capability, and the UI offers confirmation even when the
+missing-facts list is empty. Healthy high-confidence sources keep their existing
+approval flow.
 Stage-1 approval rechecks that the mutable projection still equals the current
 complete source result or its current reviewed envelope, so no route or worker
 can promote a diverged projection.
@@ -322,8 +330,10 @@ containers remain brokerage evidence and are not flattened into a binary cash
 or non-cash account role.
 
 The contribution is `authoritative` only when its exact source version has its
-current target-matching decision. A missing, non-authoritative, stale,
-cross-tenant, or target-mismatched decision returns `unproven`. Source type,
+current target-matching decision. An exact current human envelope takes precedence
+when present; a revoked human decision cannot fall back to machine promotion.
+A missing, non-authoritative, stale, cross-tenant, or target-mismatched decision
+returns `unproven`. Source type,
 parser confidence, import time, and provenance remain display/diagnostic facts,
 not an authority shortcut. Report assembly freezes the contribution's ids and
 digest; it never resolves a replacement after reopen or export.
