@@ -11,6 +11,7 @@ from src.ledger.extension import account_service
 from src.ledger.extension.account_service import AccountNotFoundError
 from src.ledger.extension.accounting import (
     get_opening_balance_readiness,
+    initialize_opening_positions,
     post_opening_balance_entry,
 )
 from src.ledger.extension.anchored_posting import (
@@ -30,6 +31,7 @@ from src.ledger.extension.fx_revaluation import (
     calculate_unrealized_fx_gains,
     register_fx_revaluation_provider,
 )
+from src.ledger.extension.opening_positions import list_opening_positions
 from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
     create_transfer_in_entry,
@@ -47,6 +49,7 @@ from src.ledger.extension.repository import (
 )
 
 __all__ = [
+    "list_opening_positions",
     "AccountNotFoundError",
     "AnchoredJournalCommand",
     "AnchoredJournalCommandV2",
@@ -71,6 +74,7 @@ __all__ = [
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "post_opening_balance_entry",
+    "initialize_opening_positions",
     "register_fx_revaluation_provider",
     "used_currencies",
     "validate_line_account_ownership",

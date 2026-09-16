@@ -139,12 +139,23 @@ thin compatibility shim. Local developer commands likewise share runtime and
 container selection through `tools/_lib/dev/toolchain.py`, including consistent
 `CONTAINER_RUNTIME` handling.
 
+Provider-backed journeys may confirm a missing source envelope only from independently
+authored fixture currency, period and balances, bound to the current review API digest.
+They reuse or create custody through public APIs and submit the normal human-confirmation
+command; extraction output never supplies the asserted source truth.
+
 Provider-backed statement journeys cross the economic-review boundary through
 `provider_review.py`. A journey may retry approval after `intent_missing` only
 by loading the statement-scoped unmatched queue and applying dispositions that
 its synthetic fixture declares explicitly. The adapter never derives economic
 intent from transaction direction. This keeps provider extraction evidence
 separate from the human-owned accounting judgment that production requires.
+
+The deterministic CSV browser gate confirms the source envelope through the
+visible review form before attempting approval. Custody setup does not grant
+economic intent: approval must still return the missing-intent conflict and
+leave the journal empty. A disabled approval button before source confirmation
+is an enforced boundary, not a successful economic-review proof.
 
 The generated GXS monthly journey (`AC-testing.package-lifecycle.2`, #2008)
 extends the existing live provider replay through exactly one posted effect per
@@ -165,6 +176,35 @@ accounts and economic dispositions are provided through APIs, and the brought-fo
 opening date is supplied explicitly: upstream ordinary-user UI completion and
 onboarding guidance remain outside this proof. This is one supported month, not a
 claim about other formats, economic cases, or year-wide coverage.
+
+The separate fresh-user browser journey (`AC-testing.package-lifecycle.3`) allows
+API setup only for authentication. Account creation, upload, source/economic
+review, approval and saved-package operations use actual product controls. Missing
+compatible accounts are created directly from classification review; the selected
+transaction, category and rationale survive, and account creation never selects
+or posts the reviewed disposition automatically.
+Independent generated-fixture Decimal expectations and downloaded frozen artifacts
+remain the oracle; service versions must match the explicit target. Requested
+model configuration is recorded separately from actual provider execution evidence,
+so a selector value alone cannot certify the serving model. This live-provider proof
+runs in audit replay, never the provider-free PR preview or minimal blocking canary.
+Its extra parse wait is included in the replay counts and timeout budget.
+
+The representative multi-source package fixture takes its report period from the
+independently declared CSV statement-period columns, not the first and last
+transaction dates. A quiet tail of a statement month cannot silently turn this
+full-month proof into a midperiod report that excludes its source contribution.
+
+The PDF checkpoint (`AC-testing.pdf-checkpoint.1`–`.3`) adds a deterministic
+composition test through the public upload endpoint. It renders a generated PDF,
+controls only provider proposals and the object-storage server, and exercises
+normalization, persistence, authorization, posting, source lineage, and the
+three report APIs against PostgreSQL. Its independent oracle is opening cash
+1,000, income 500, expenses 100, and closing cash 1,400 in SGD, with the opening
+dated exactly at the report-period start. The test checks stored bytes and
+content hashes, source/transaction/journal identities, duplicate upload rejection,
+tenant isolation, and trusted package reopen/export. This lane proves composition;
+it does not substitute for live OCR accuracy or browser first-use evidence.
 
 ### Responsibility table
 

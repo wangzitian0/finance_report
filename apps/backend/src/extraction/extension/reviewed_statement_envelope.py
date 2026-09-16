@@ -1,4 +1,4 @@
-"""Version-bound human confirmation for incomplete statement source envelopes."""
+"""Version-bound human confirmation for reviewable statement source envelopes."""
 
 from __future__ import annotations
 
@@ -26,12 +26,13 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult
+from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult, StatementSourceType
 from src.extraction.base.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeCommand,
     supports_reviewed_statement_envelope,
 )
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
+from src.extraction.extension.custody_binding import resolve_bank_custody_account
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
@@ -256,8 +257,9 @@ async def require_current_statement_envelope_trust(
 
     Pre-migration statements have no typed raw-result pointer and retain their
     existing Stage-1 migration path. Every newly parsed statement has a pointer:
-    complete sources must still agree with their raw envelope, while incomplete
-    transaction-ledger sources require the exact current reviewed envelope.
+    a current human envelope must remain authoritative and match the projection.
+    Otherwise complete high-confidence sources must match their raw envelope;
+    incomplete and eligible low-confidence cash sources need explicit review.
     """
     if statement.current_extraction_result_id is None:
         return
@@ -271,8 +273,11 @@ async def require_current_statement_envelope_trust(
         raise ValueError("Statement current source result is unavailable")
     source_result = StatementExtractionResult.from_payload(source_record.payload)
 
-    if not source_result.requires_review:
+    envelope = await current_reviewed_statement_envelope(db, user_id=statement.user_id, statement_id=statement.id)
+    if not source_result.requires_review and envelope is None:
         _require_projection_matches_source(statement, source_result)
+        if supports_reviewed_statement_envelope(source_result):
+            raise ValueError("Current source requires explicit human confirmation before posting")
         return
 
     if not supports_reviewed_statement_envelope(source_result):
@@ -281,11 +286,6 @@ async def require_current_statement_envelope_trust(
             + ", ".join(source_result.missing_required_facts)
         )
 
-    envelope = await current_reviewed_statement_envelope(
-        db,
-        user_id=statement.user_id,
-        statement_id=statement.id,
-    )
     if envelope is None:
         raise ValueError(
             "Current source facts require an explicit reviewed envelope before posting: "
@@ -311,6 +311,11 @@ async def require_current_statement_envelope_trust(
     )
     if projection != reviewed:
         raise ValueError("Statement projection diverges from its current reviewed envelope")
+    from src.extraction.extension.statement_contribution import resolve_statement_contribution
+
+    contribution = await resolve_statement_contribution(db, user_id=statement.user_id, statement_id=statement.id)
+    if contribution.state != "authoritative" or contribution.decision is None:
+        raise ValueError("Current human source confirmation is no longer authoritative")
 
 
 def _require_projection_matches_source(
@@ -362,6 +367,8 @@ async def confirm_reviewed_statement_envelope(
     ).scalar_one_or_none()
     if statement is None:
         raise ValueError("Statement not found or access denied")
+    if statement.status is BankStatementStatus.RETIRED:
+        raise ValueError("Retired statement cannot receive a new source confirmation")
     if statement.current_extraction_result_id is None:
         raise ValueError("Statement has no current source result; reparse before confirming its envelope")
 
@@ -384,6 +391,19 @@ async def confirm_reviewed_statement_envelope(
         raise ValueError("A user-owned active asset custody account is required")
     if account.currency.strip().upper() != command.currency:
         raise ValueError("Custody account currency must match the confirmed statement currency")
+    if (
+        source_result.source_type is StatementSourceType.BANK
+        and source_result.institution
+        and source_result.account_last4
+    ):
+        await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=source_result.institution,
+            account_last4=source_result.account_last4,
+            currency=command.currency,
+            account_id=account.id,
+        )
 
     existing = (
         await db.execute(
@@ -468,6 +488,21 @@ def _validate_command_against_source(
 ) -> None:
     if source_result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER:
         raise ValueError("Only transaction-ledger sources accept a cash statement envelope confirmation")
+    declared: dict[str, object] = {
+        "currency": source_result.statement_currency,
+        "period_start": source_result.period_start,
+        "period_end": source_result.period_end,
+    }
+    if len(source_result.balances) == 1:
+        balance = source_result.balances[0]
+        declared.update(
+            currency=source_result.statement_currency or balance.currency,
+            opening_balance=balance.opening,
+            closing_balance=balance.closing,
+        )
+    for name, value in declared.items():
+        if value is not None and getattr(command, name) != value:
+            raise ValueError(f"Confirmed {name} must match the declared source fact")
     currencies = {txn.currency for txn in source_result.transactions}
     if None in currencies or any(currency != command.currency for currency in currencies):
         raise ValueError("Every transaction currency must match the confirmed statement currency")

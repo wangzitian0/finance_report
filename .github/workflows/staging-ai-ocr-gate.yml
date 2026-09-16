@@ -58,10 +58,10 @@ jobs:
   run:
     name: Staging AI/OCR Gate
     runs-on: ubuntu-latest
-    # #1767/AC8.13.167: sized for corpus=all worst case (13 sequential parse waits
+    # #1767/AC8.13.167: sized for corpus=all worst-case sequential parse waits
     # -- tools/staging_ai_ocr_gate_contract.py totals()['uploads'] -- x the 8-min
-    # PARSING_TIMEOUT_MS ceiling each) plus checkout/setup/summary overhead.
-    timeout-minutes: 125
+    # PARSING_TIMEOUT_MS ceiling each, plus checkout/setup/summary overhead.
+    timeout-minutes: 135
     permissions:
       contents: read
       issues: write # #1623: open the GitHub-issue fallback alert on regression
@@ -82,11 +82,11 @@ jobs:
         # #1767/AC8.13.167: budget sized per corpus so the WHOLE corpus can finish
         # even if every sequential parse wait hits the 8-min PARSING_TIMEOUT_MS
         # ceiling, not just the happy path. The multiplier is the corpus's total
-        # sequential parse-wait count (contract.py totals()['uploads']: canary=2,
-        # audit_replay=11, all=13 -- pytest runs single-worker, no -n xdist, so
-        # every wait across every file is fully serial) plus checkout/setup
+        # sequential parse-wait count (contract.py totals()['uploads']).
+        # Pytest runs single-worker, no -n xdist, so
+        # every wait across every file is fully serial, plus checkout/setup
         # overhead, not a per-file or per-journey guess.
-        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 115 || 100) }}
+        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 125 || 110) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           BLOCKING: ${{ inputs.blocking }}

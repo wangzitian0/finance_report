@@ -127,27 +127,70 @@ def test_AC12_34_4_investment_postings_use_ledger_post():
     ci_tier="pr_ci",
 )
 def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
-    """AC-ledger.34.5: the raw-ORM posting paths gate balance through Entry.
+    """AC-ledger.34.5: direct Entry and delegated anchored paths retain balance guards.
 
-    opening-balance, fx-revaluation, and processing-account transfers each
-    construct an Entry before persisting (fx-revaluation previously had no balance
-    validation at all; processing-account had none either). The remaining raw site
-    `review_queue` validates via `validate_journal_balance`/`_posting_invariants`,
-    and `reconciliation_audit` is a deterministic audit fixture. So every computed
-    or transfer posting path is balance-guaranteed as a type.
-
-    The processing-account transfer postings were folded INTO the ledger package
-    (#1420 slice 3b): they now live in ``ledger/extension/processing.py`` and import
-    ``Entry`` package-internally (``from src.ledger.base.types.entry import Entry``),
-    not via the published root — the same form ``ledger/extension/post.py`` uses.
+    The opening path delegates to the system command boundary. Follow that
+    call chain to the unconditional repository validator before its first write;
+    the backend opening suite also injects an imbalanced command through this
+    real path and proves it cannot leave a journal behind.
     """
+
+    def function(path, name):
+        tree = ast.parse(_read(f"apps/backend/src/ledger/extension/{path}.py"))
+        return next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == name
+        )
+
+    def delegates(node, name):
+        return any(
+            isinstance(call, ast.Await)
+            and isinstance(call.value, ast.Call)
+            and isinstance(call.value.func, ast.Name)
+            and call.value.func.id == name
+            for call in ast.walk(node)
+        )
+
+    opening = function("accounting", "initialize_opening_positions")
+    assert delegates(opening, "submit_system_journal_entry")
+    assert not any(
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id in {"JournalEntry", "JournalLine"}
+        for call in ast.walk(opening)
+    ), "opening stock must not bypass the validated anchored repository"
+    for caller, callee in (
+        ("submit_system_journal_entry", "submit_anchored_journal_entry"),
+        ("submit_anchored_journal_entry", "_submit_anchored_journal_entry"),
+        ("_submit_anchored_journal_entry", "_create_anchored_journal_entry"),
+    ):
+        assert delegates(function("anchored_posting", caller), callee)
+    repository = function("repository", "_create_anchored_journal_entry")
+    guard = next(
+        node
+        for node in repository.body
+        if isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "validate_journal_balance"
+    )
+    writes = [
+        call.lineno
+        for call in ast.walk(repository)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and isinstance(call.func.value, ast.Name)
+        and call.func.value.id == "db"
+        and call.func.attr in {"add", "add_all", "flush"}
+    ]
+    assert writes and guard.lineno < min(writes), (
+        "balance validation must precede journal persistence"
+    )
+
     # External callers import the published ledger Entry; in-package edges import
     # the base type directly. Both forms still prove "an Entry guards balance".
     for path, entry_import in (
-        (
-            "apps/backend/src/ledger/extension/accounting.py",
-            "from src.ledger import Entry",
-        ),
         (
             "apps/backend/src/ledger/extension/fx_revaluation.py",
             "from src.ledger import Entry",
@@ -192,5 +235,14 @@ def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
     assert "async def _create_anchored_journal_entry(" not in acct
     assert "async def post_journal_entry(" not in acct
     assert "async def void_journal_entry(" not in acct
-    # Callers now reach the guarded pipeline through the published ledger interface.
-    assert "from src.ledger import" in acct
+    # Package-internal callers reach the anchored command owner; they must not
+    # bypass it by importing the repository's raw creation helper.
+    imports = [
+        node for node in ast.walk(ast.parse(acct)) if isinstance(node, ast.ImportFrom)
+    ]
+    assert any(
+        node.module == "src.ledger.extension.anchored_posting"
+        and any(alias.name == "submit_system_journal_entry" for alias in node.names)
+        for node in imports
+    )
+    assert not any(node.module == "src.ledger.extension.repository" for node in imports)

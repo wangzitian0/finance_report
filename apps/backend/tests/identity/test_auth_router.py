@@ -187,3 +187,27 @@ async def test_register_integrity_error_race_condition(monkeypatch):
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Email already registered"
+
+
+async def test_browser_logout_expires_cookie(public_client):
+    """AC-identity.2.6: Browser logout removes cookie authority and supports login again."""
+    public_client.base_url = public_client.base_url.copy_with(scheme="https")
+    payload = {"email": "logout@example.com", "password": "SyntheticLogout123!"}
+    registered = await public_client.post("/auth/register", json=payload)
+    assert registered.status_code == 201
+    token = registered.json()["access_token"]
+    assert (await public_client.get("/auth/me")).status_code == 200
+
+    logged_out = await public_client.post("/auth/logout")
+    assert logged_out.status_code == 204
+    assert logged_out.content == b""
+    cookie = logged_out.headers["set-cookie"].lower()
+    assert "max-age=0" in cookie and "path=/" in cookie
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert public_client.cookies.get("finance_access_token") is None
+    assert (await public_client.get("/auth/me")).status_code == 401
+    assert (await public_client.post("/auth/logout")).status_code == 204
+    # Cookie logout deliberately does not revoke independent bearer clients.
+    assert (await public_client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})).status_code == 200
+    assert (await public_client.post("/auth/login", json=payload)).status_code == 200
+    assert (await public_client.get("/auth/me")).status_code == 200

@@ -148,6 +148,22 @@ def _details_for_line(
         return "source_anchor", _statement_details(contribution)
     if contribution.contribution_type == "valuation":
         return "source_anchor", _valuation_details(contribution)
+    if contribution.contribution_type == "opening_position":
+        position = contribution.payload
+        return "ledger_anchor", [
+            {
+                "identifier": contribution.input_refs[0],
+                "source_kind": "opening_position",
+                "source_id": str(position.account_id),
+                "source_type": "ledger_opening_position",
+                "amount": position.amount,
+                "currency": position.currency,
+                "review_state": _review_state(contribution),
+                "decision_id": str(contribution.decision_id) if contribution.decision_id else None,
+                "contribution_basis": "initial_stock",
+                "reason_code": contribution.reason_code,
+            }
+        ]
     return "ledger_anchor", _journal_details(contribution, line_id=line_id)
 
 
@@ -194,4 +210,9 @@ async def build_personal_report_package_traceability_payload(
         ],
     )
     notes_line["anchor_count"] = len(notes_line["source_anchor"]["identifiers"])
+    for line in payload["lines"]:
+        source_anchor = line["source_anchor"]
+        if source_anchor["state"] == "available" and not source_anchor.get("details"):
+            source_anchor["state"] = "unavailable"
+            source_anchor["unavailable_reason"] = "no_selected_source_contribution"
     return payload

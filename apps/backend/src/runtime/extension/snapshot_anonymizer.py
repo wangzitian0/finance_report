@@ -37,6 +37,7 @@ from __future__ import annotations
 import hmac
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from hashlib import sha256
 
 import sqlalchemy as sa
@@ -89,6 +90,7 @@ MONEY_COLUMNS: frozenset[str] = frozenset(
         "investment_transactions.realized_pnl",
         "investment_transactions.unit_price",
         "journal_lines.amount",
+        "opening_position_records.amount",
         "managed_positions.cost_basis",
         "managed_positions.realized_pnl",
         "managed_positions.unrealized_pnl",
@@ -115,6 +117,7 @@ NUMERIC_KEEP_COLUMNS: frozenset[str] = frozenset(
         "investment_lots.remaining_quantity",
         "investment_transactions.quantity",
         "journal_lines.fx_rate",
+        "opening_position_records.fx_rate",
         "managed_positions.quantity",
         # Assurance scores are unitless ratios. TraceRecord identity and digests
         # remain verifiable only when the snapshot preserves this exact value.
@@ -137,6 +140,10 @@ JSON_KEEP_COLUMNS: frozenset[str] = frozenset(
 STRING_KEEP_COLUMNS: frozenset[str] = frozenset(
     {
         "accounts.currency",
+        "atomic_transaction_identities.currency",
+        "atomic_transaction_identities.identity_version",
+        "bank_custody_bindings.currency",
+        "opening_position_records.currency",
         "accounts.type",
         "ai_feedback.action",
         "app_config.key",
@@ -262,6 +269,12 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
     "atomic_positions.broker": "generic",
     "atomic_positions.dedup_hash": "hash",
     "atomic_transactions.dedup_hash": "hash",
+    "atomic_transaction_identities.identity_hash": "hash",
+    "atomic_transaction_identities.legacy_hash": "hash",
+    "atomic_transaction_identities.custody_scope": "generic",
+    "bank_custody_bindings.account_last4": "digits4",
+    "bank_custody_bindings.institution": "generic",
+    "opening_position_records.content_digest": "hash",
     "atomic_transactions.description": "generic",
     "atomic_transactions.reference": "generic",
     "chat_messages.content": "generic",
@@ -373,16 +386,29 @@ def classify_columns(metadata: sa.MetaData) -> dict[str, Action]:
     return plan
 
 
+@lru_cache(maxsize=1)
+def _digit_suffix_permutation(secret: str) -> dict[str, str]:
+    """One keyed cycle preserves the entire four-digit domain without fixed points."""
+    key = secret.encode()
+    ordered = sorted(
+        (f"{number:04d}" for number in range(10000)),
+        key=lambda value: hmac.new(key, f"account-suffix-v1:{value}".encode(), sha256).digest(),
+    )
+    return dict(zip(ordered, ordered[1:] + ordered[:1], strict=True))
+
+
 def _pseudonym(secret: str, value: str, shape: str) -> str:
     # 24 hex chars = 96 bits: collision probability stays negligible far past
     # any realistic snapshot size, so HMAC-derived pseudonyms keep unique
-    # constraints unique. "digits4" is deliberately lossy — account_last4 is
-    # display-only and carries no uniqueness contract.
+    # constraints unique. Four-digit suffixes additionally need an exact
+    # permutation because they participate in bank-custody uniqueness.
     digest = hmac.new(secret.encode(), value.encode(), sha256).hexdigest()
     if shape == "email":
         return f"user-{digest[:24]}@anonymized.invalid"
     if shape == "digits4":
-        return f"{int(digest[:8], 16) % 10000:04d}"
+        if len(value) != 4 or not value.isascii() or not value.isdigit():
+            raise ValueError("Account suffix pseudonymization requires exactly four ASCII digits")
+        return _digit_suffix_permutation(secret)[value]
     if shape == "asset":
         return f"AST{digest[:24].upper()}"
     if shape == "filename":

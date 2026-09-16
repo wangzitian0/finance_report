@@ -8,7 +8,7 @@ from uuid import UUID
 
 from src.audit import TraceDecisionRef
 
-PackageContributionType = Literal["statement_source", "ledger_command", "valuation"]
+PackageContributionType = Literal["statement_source", "ledger_command", "valuation", "opening_position"]
 PackageSectionId = Literal[
     "balance_sheet",
     "income_statement",

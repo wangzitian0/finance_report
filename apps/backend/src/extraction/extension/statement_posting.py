@@ -31,17 +31,26 @@ from src.extraction.base.disposition import (
     StatementTransaction,
     intent_matches_counter_account,
 )
-from src.extraction.base.source_vocabulary import BankStatementStatus, ClassificationStatus, RuleType, Stage1Status
+from src.extraction.base.source_vocabulary import (
+    BankStatementStatus,
+    ClassificationStatus,
+    RuleType,
+    Stage1Status,
+)
 from src.extraction.base.types import (
     StatementIngestionConfigurationError,
     StatementPostingOutcome,
     StatementPostingStatus,
 )
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
+from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
+from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
@@ -51,7 +60,6 @@ from src.ledger import (
     JournalEntry,
     JournalEntryAuthorityState,
     JournalEntryStatus,
-    JournalLine,
     ValidationError,
     current_anchored_journal_entries,
 )
@@ -59,7 +67,6 @@ from src.observability import get_logger
 
 logger = get_logger(__name__)
 
-HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 
 # "Which of these atomic txns are already covered by an accepted transfer
 # match" is reconciliation-owned knowledge. extraction must not import
@@ -374,6 +381,25 @@ async def resolve_statement_posting_account(
     if not currency:
         raise ValueError("Statement currency required before posting. Confirm the source currency before posting.")
 
+    source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    document = (
+        await db.get(UploadedDocument, statement.uploaded_document_id) if statement.uploaded_document_id else None
+    )
+    bank_source = is_bank_custody_source(source, document)
+    if bank_source and statement.institution and statement.account_last4:
+        resolved_account = await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=currency,
+            account_id=statement.account_id,
+            create_if_missing=False,
+        )
+        statement.account_id = resolved_account.id
+        await db.flush()
+        return resolved_account
+
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
@@ -401,36 +427,7 @@ async def resolve_statement_posting_account(
             "account_last4, or currency metadata is missing."
         )
 
-    account_result = await db.execute(
-        select(Account)
-        .join(StatementSummary, StatementSummary.account_id == Account.id)
-        .where(Account.user_id == user_id)
-        .where(Account.type == AccountType.ASSET)
-        .where(Account.currency == currency)
-        .where(Account.is_active.is_(True))
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.id != statement.id)
-        .where(StatementSummary.status == BankStatementStatus.APPROVED)
-        .where(StatementSummary.account_id.is_not(None))
-        .where(func.lower(StatementSummary.institution) == institution.lower())
-        .where(StatementSummary.account_last4 == account_last4)
-        .where(func.upper(StatementSummary.currency) == currency)
-    )
-    accounts_by_id = {account.id: account for account in account_result.scalars().all()}
-    if len(accounts_by_id) == 1:
-        account = next(iter(accounts_by_id.values()))
-        statement.account_id = account.id
-        await db.flush()
-        return account
-    if len(accounts_by_id) > 1:
-        raise ValueError(
-            "Ambiguous account mapping. Multiple accounts match this statement's institution, account_last4, "
-            "and currency; confirm the target account before posting."
-        )
-    raise ValueError(
-        "Account mapping required before posting. No confirmed account matches this statement's institution, "
-        "account_last4, and currency."
-    )
+    raise ValueError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
 async def validate_statement_period_unique(
@@ -470,91 +467,69 @@ async def validate_statement_period_unique(
         )
 
 
-async def _account_has_opening_balance_entry(
-    db: AsyncSession,
-    user_id: UUID,
-    account_id: UUID,
-) -> bool:
-    """Whether ``account_id`` already has a guided opening-balance entry.
-
-    An opening balance establishes a one-time starting position for an account,
-    not a per-period fact — so the right idempotency check is "has this account
-    ever received one", not a date-ordering heuristic. (``post_opening_balance_entry``
-    itself only rejects when prior *posted activity* exists strictly before the
-    new entry_date, which does not cover two statements sharing the same
-    period_start; this check is a stronger, statement-auto-post-specific guard on
-    top of it.)
-    """
-    equity_entry_ids = (
-        select(JournalLine.journal_entry_id)
-        .join(Account, Account.id == JournalLine.account_id)
-        .where(Account.user_id == user_id, Account.is_system.is_(True), Account.code == "3199")
-    )
-    result = await db.execute(
-        select(JournalLine.id)
-        .where(JournalLine.account_id == account_id)
-        .where(JournalLine.journal_entry_id.in_(equity_entry_ids))
-        .limit(1)
-    )
-    return result.first() is not None
-
-
 async def try_auto_post_statement_opening_balance(
     db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
+    *,
+    dependencies: StatementPostingDependencies | None = None,
 ) -> bool:
-    """Post the statement's chain-validated opening balance as a guided opening entry (#1833).
+    """Establish source starting stock once; missing evidence is an actionable error."""
+    from datetime import date
 
-    Auto-approval already trusted the extracted opening balance to the same standard
-    it trusted the transactions (the running-balance chain reconciled), so the
-    starting position is posted against the system Opening Balance Equity account —
-    otherwise the account's ledger balance is the period net flow, not the closing
-    balance, and the balance sheet headline is wrong until a manual fix.
+    from src.extraction.extension.statement_contribution import resolve_statement_contribution
+    from src.ledger import initialize_opening_positions, list_opening_positions
 
-    Called unconditionally after a successful auto-approve — NOT gated on whether
-    any transactions were posted this call: a statement can be high-confidence and
-    balance-validated with zero transactions in its period (e.g. a dormant-account
-    month), and that statement's opening balance still needs posting or the account
-    balance is silently wrong (review comment on PR #1842). Idempotency is instead
-    enforced by ``_account_has_opening_balance_entry`` plus ``post_opening_balance_entry``'s
-    own guards (fail-soft: non-base currencies, non-positive amounts, and prior
-    activity all skip without disturbing already-posted transactions).
-    """
-    from src.ledger import post_opening_balance_entry
-
-    opening_balance = statement.opening_balance
-    if (
-        opening_balance is None
-        or opening_balance <= 0
-        or statement.period_start is None
-        or statement.account_id is None
-    ):
+    if statement.opening_balance is None or statement.period_start is None or statement.account_id is None:
+        raise ValueError("Statement opening balance, date, and account are required before posting")
+    existing = next(
+        (
+            position
+            for position in await list_opening_positions(db, user_id=user_id, as_of=date.max)
+            if position.account_id == statement.account_id
+        ),
+        None,
+    )
+    if existing is not None:
+        if existing.state != "authoritative":
+            raise ValueError("Opening balance authority needs review")
+        if existing.effective_date > statement.period_start:
+            raise ValueError("Earlier statement requires opening-balance correction before posting")
         return False
-
-    if await _account_has_opening_balance_entry(db, user_id, statement.account_id):
-        return False
-
-    try:
-        base_currency = await get_effective_base_currency(db)
-        async with db.begin_nested():
-            await post_opening_balance_entry(
-                db,
-                user_id,
-                entry_date=statement.period_start,
-                balances={statement.account_id: opening_balance},
-                currency=normalize_currency_code(statement.currency or ""),
-                base_currency=base_currency,
-                memo="Opening balance (statement import)",
+    source_decision_id = None
+    if statement.current_extraction_result_id is not None:
+        contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id)
+        if contribution.state != "authoritative" or contribution.decision is None:
+            raise ValueError("Statement opening balance requires current source authority")
+        source_decision_id = contribution.decision.decision_id
+    base_currency = await get_effective_base_currency(db)
+    currency = normalize_currency_code(statement.currency or "")
+    fx_rates = {}
+    if currency != base_currency and statement.opening_balance != 0:
+        if dependencies is None:
+            raise ValueError("FX rate provider required for statement opening balance")
+        try:
+            fx_rates[currency] = await dependencies.fx_rate_provider(
+                db, currency, base_currency, statement.period_start, lazy_load=True
             )
-        return True
-    except (ValidationError, ValueError) as exc:
-        logger.info(
-            "statement.opening_balance.auto_post_skipped",
-            statement_id=str(statement.id),
-            reason=str(exc)[:200],
+        except dependencies.fx_rate_error as exc:
+            raise ValueError("FX rate required for statement opening balance") from exc
+    try:
+        await initialize_opening_positions(
+            db,
+            user_id,
+            entry_date=statement.period_start,
+            balances={statement.account_id: statement.opening_balance},
+            currency=currency,
+            base_currency=base_currency,
+            fx_rates=fx_rates,
+            source_decision_id=source_decision_id,
+            trace_emitter=dependencies.trace_emitter_factory(db) if dependencies is not None else None,
+            memo="Opening balance (statement import)",
         )
-        return False
+    except ValidationError as exc:
+        raise ValueError(str(exc)) from exc
+    return True
 
 
 async def try_auto_approve_high_confidence_statement(
@@ -580,6 +555,8 @@ async def try_auto_approve_high_confidence_statement(
         async with db.begin_nested():
             approved = await approve_statement(db, statement_id, user_id)
             outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=dependencies)
+            if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
+                await try_auto_post_statement_opening_balance(db, approved, user_id, dependencies=dependencies)
             await db.flush()
     except ValueError as exc:
         refreshed = await db.get(StatementSummary, statement_id)
@@ -594,9 +571,7 @@ async def try_auto_approve_high_confidence_statement(
     # balance-validated with zero transactions in its period (e.g. a dormant
     # account), and its opening balance still needs posting (#1833, PR #1842
     # review). Idempotency lives in try_auto_post_statement_opening_balance
-    # itself (_account_has_opening_balance_entry + post_opening_balance_entry's
-    # own guards), not here.
+    # in the per-account initialization evidence and its database lock.
     if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
         return 0
-    await try_auto_post_statement_opening_balance(db, statement, user_id)
     return outcome.created_count

@@ -25,6 +25,168 @@ _NOT_APPLICABLE_ORDER: int = 999
 
 
 L1_REGISTRY: dict[ReportLineId, RegisteredReportLine] = {
+    ReportLineId.CASH_IN_TRANSIT: RegisteredReportLine(
+        line_id=ReportLineId.CASH_IN_TRANSIT,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="balance_sheet",
+        section="assets",
+        order_us=15,
+        order_hk=15,
+        label="Cash in transit",
+    ),
+    ReportLineId.SALARY: RegisteredReportLine(
+        line_id=ReportLineId.SALARY,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="income",
+        order_us=50,
+        order_hk=50,
+        label="Salary and employment income",
+    ),
+    ReportLineId.INVESTMENT_INCOME: RegisteredReportLine(
+        line_id=ReportLineId.INVESTMENT_INCOME,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="income",
+        order_us=52,
+        order_hk=52,
+        label="Investment income",
+    ),
+    ReportLineId.REFUNDS: RegisteredReportLine(
+        line_id=ReportLineId.REFUNDS,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="income",
+        order_us=53,
+        order_hk=53,
+        label="Refund income",
+    ),
+    ReportLineId.OTHER_INCOME: RegisteredReportLine(
+        line_id=ReportLineId.OTHER_INCOME,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="income",
+        order_us=54,
+        order_hk=54,
+        label="Other income",
+    ),
+    ReportLineId.DINING_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.DINING_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=50,
+        order_hk=50,
+        label="Dining",
+    ),
+    ReportLineId.GROCERIES_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.GROCERIES_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=51,
+        order_hk=51,
+        label="Groceries",
+    ),
+    ReportLineId.TRANSPORT_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.TRANSPORT_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=52,
+        order_hk=52,
+        label="Transport",
+    ),
+    ReportLineId.HOUSING_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.HOUSING_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=53,
+        order_hk=53,
+        label="Housing",
+    ),
+    ReportLineId.UTILITIES_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.UTILITIES_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=54,
+        order_hk=54,
+        label="Utilities",
+    ),
+    ReportLineId.SHOPPING_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.SHOPPING_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=55,
+        order_hk=55,
+        label="Shopping",
+    ),
+    ReportLineId.HEALTHCARE_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.HEALTHCARE_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=56,
+        order_hk=56,
+        label="Healthcare",
+    ),
+    ReportLineId.ENTERTAINMENT_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.ENTERTAINMENT_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=57,
+        order_hk=57,
+        label="Entertainment",
+    ),
+    ReportLineId.TRAVEL_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.TRAVEL_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=58,
+        order_hk=58,
+        label="Travel",
+    ),
+    ReportLineId.EDUCATION_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.EDUCATION_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=59,
+        order_hk=59,
+        label="Education",
+    ),
+    ReportLineId.INSURANCE_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.INSURANCE_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=60,
+        order_hk=60,
+        label="Insurance",
+    ),
+    ReportLineId.FEES_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.FEES_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=61,
+        order_hk=61,
+        label="Fees and charges",
+    ),
+    ReportLineId.OTHER_EXPENSES: RegisteredReportLine(
+        line_id=ReportLineId.OTHER_EXPENSES,
+        frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
+        statement="income_statement",
+        section="expenses",
+        order_us=62,
+        order_hk=62,
+        label="Other expenses",
+    ),
     ReportLineId.CASH_AND_CASH_EQUIVALENTS: RegisteredReportLine(
         line_id=ReportLineId.CASH_AND_CASH_EQUIVALENTS,
         frameworks={PersonalReportingFrameworkId.US_GAAP_LIKE, PersonalReportingFrameworkId.HKFRS_LIKE},
@@ -310,3 +472,37 @@ def get_framework_ordered_lines(
         lines.sort(key=lambda line: (line.order_hk, line.line_id.value))
 
     return lines
+
+
+# Presentation of source-owned economic categories, never account-name inference.
+INCOME_CATEGORY_LINES: dict[str, ReportLineId] = {
+    "SALARY": ReportLineId.SALARY,
+    "INTEREST": ReportLineId.DIVIDENDS_AND_INTEREST,
+    "INVESTMENT_INCOME": ReportLineId.INVESTMENT_INCOME,
+    "REFUND": ReportLineId.REFUNDS,
+    "OTHER_INCOME": ReportLineId.OTHER_INCOME,
+}
+EXPENSE_CATEGORY_LINES: dict[str, ReportLineId] = {
+    "DINING": ReportLineId.DINING_EXPENSES,
+    "GROCERIES": ReportLineId.GROCERIES_EXPENSES,
+    "TRANSPORT": ReportLineId.TRANSPORT_EXPENSES,
+    "HOUSING": ReportLineId.HOUSING_EXPENSES,
+    "UTILITIES": ReportLineId.UTILITIES_EXPENSES,
+    "SHOPPING": ReportLineId.SHOPPING_EXPENSES,
+    "HEALTHCARE": ReportLineId.HEALTHCARE_EXPENSES,
+    "ENTERTAINMENT": ReportLineId.ENTERTAINMENT_EXPENSES,
+    "TRAVEL": ReportLineId.TRAVEL_EXPENSES,
+    "EDUCATION": ReportLineId.EDUCATION_EXPENSES,
+    "INSURANCE": ReportLineId.INSURANCE_EXPENSES,
+    "FEES": ReportLineId.FEES_EXPENSES,
+    "OTHER_EXPENSE": ReportLineId.OTHER_EXPENSES,
+}
+
+
+def economic_category_line(category: str | None, account_type: str) -> ReportLineId:
+    """Map exact accepted category values; incomplete history stays honestly generic."""
+    if account_type == "INCOME":
+        return INCOME_CATEGORY_LINES.get(category or "", ReportLineId.OTHER_INCOME)
+    if account_type == "EXPENSE":
+        return EXPENSE_CATEGORY_LINES.get(category or "", ReportLineId.OTHER_EXPENSES)
+    raise ValueError("Economic category mapping requires an income or expense account")

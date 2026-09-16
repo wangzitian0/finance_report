@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,7 +12,8 @@ import { Account } from "@/lib/types";
 interface AccountFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (account: Account) => void;
+  initialType?: Account["type"];
   editAccount?: Account | null;
 }
 
@@ -42,24 +43,30 @@ const editAccountSchema = z.object({
 type CreateAccountForm = z.infer<typeof createAccountSchema>;
 type EditAccountForm = z.infer<typeof editAccountSchema>;
 
-export default function AccountFormModal({
-  isOpen,
+export default function AccountFormModal(props: AccountFormModalProps) {
+  if (!props.isOpen) return null;
+  // Each opening owns a fresh form, initialized before inputs become visible.
+  return <AccountFormContent key={props.editAccount?.id ?? "create"} {...props} />;
+}
+
+function AccountFormContent({
   onClose,
   onSuccess,
   editAccount,
+  initialType = "ASSET",
 }: AccountFormModalProps) {
   const [error, setError] = useState<string | null>(null);
   const isEditing = !!editAccount;
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  useFocusTrap(dialogRef, isOpen);
+  useFocusTrap(dialogRef, true);
 
   const createForm = useForm<CreateAccountForm>({
     resolver: zodResolver(createAccountSchema),
     defaultValues: {
       name: "",
       code: "",
-      type: "ASSET",
+      type: initialType,
       currency: "SGD",
       description: "",
     },
@@ -67,26 +74,18 @@ export default function AccountFormModal({
 
   const editForm = useForm<EditAccountForm>({
     resolver: zodResolver(editAccountSchema),
-    defaultValues: { name: "", code: "", is_active: true },
+    defaultValues: {
+      name: editAccount?.name ?? "",
+      code: editAccount?.code ?? "",
+      is_active: editAccount?.is_active ?? true,
+    },
   });
 
-  useEffect(() => {
-    if (editAccount) {
-      editForm.reset({
-        name: editAccount.name,
-        code: editAccount.code || "",
-        is_active: editAccount.is_active,
-      });
-    } else {
-      createForm.reset();
-    }
-    setError(null);
-  }, [editAccount, isOpen, createForm, editForm]);
 
   const handleCreateSubmit = async (data: CreateAccountForm) => {
     setError(null);
     try {
-      await apiOperation("create_account_accounts_post", {
+      const account = await apiOperation("create_account_accounts_post", {
         body: {
           name: data.name,
           code: data.code || null,
@@ -95,7 +94,7 @@ export default function AccountFormModal({
           description: data.description || null,
         },
       });
-      onSuccess();
+      onSuccess(account);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
@@ -106,7 +105,7 @@ export default function AccountFormModal({
     if (!editAccount) return;
     setError(null);
     try {
-      await apiOperation("update_account_accounts__account_id__put", {
+      const account = await apiOperation("update_account_accounts__account_id__put", {
         path: { account_id: editAccount.id },
         body: {
           name: data.name,
@@ -114,20 +113,21 @@ export default function AccountFormModal({
           is_active: data.is_active,
         },
       });
-      onSuccess();
+      onSuccess(account);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update account");
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60" onClick={onClose} />
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEditing ? "Edit Account" : "New Account"}
         className="relative z-10 w-full max-w-md card animate-slide-up"
       >
         <div className="card-header">
@@ -244,10 +244,10 @@ export default function AccountFormModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5">
+                <label htmlFor="new-account-type" className="block text-sm font-medium mb-1.5">
                   Type *
                 </label>
-                <select {...createForm.register("type")} className="input">
+                <select id="new-account-type" {...createForm.register("type")} className="input">
                   {ACCOUNT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -261,10 +261,10 @@ export default function AccountFormModal({
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">
+                <label htmlFor="new-account-currency" className="block text-sm font-medium mb-1.5">
                   Currency *
                 </label>
-                <select {...createForm.register("currency")} className="input">
+                <select id="new-account-currency" {...createForm.register("currency")} className="input">
                   {CURRENCIES.map((c) => (
                     <option key={c} value={c}>
                       {c}

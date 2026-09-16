@@ -96,6 +96,14 @@
     "issue": "#1848"
   },
   {
+    "site": "extraction/orm/layer2.py::AtomicTransactionIdentity.atomic_txn_id->atomic_transactions.id",
+    "source_owner": "extraction",
+    "target_owner": "extraction",
+    "classification": "aggregate_internal",
+    "rationale": "Versioned identity aliases are lifecycle children of their extraction-owned immutable atomic fact.",
+    "issue": null
+  },
+  {
     "site": "extraction/orm/layer2.py::AtomicTransactionSourceDocument.atomic_txn_id->atomic_transactions.id",
     "source_owner": "extraction",
     "target_owner": "extraction",

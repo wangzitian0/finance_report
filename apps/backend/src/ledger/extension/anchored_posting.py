@@ -252,7 +252,11 @@ class SystemJournalCommandPolicy:
 
 def ledger_trace_policy_registry() -> TraceDecisionPolicyRegistry:
     """Return the complete decoder for ledger-owned authority decisions."""
-    return TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(), SystemJournalCommandPolicy()))
+    from src.ledger.extension.opening_positions import OpeningPositionPolicy
+
+    return TraceDecisionPolicyRegistry(
+        (ManualJournalAttestationPolicy(), SystemJournalCommandPolicy(), OpeningPositionPolicy())
+    )
 
 
 def _normalized_lines_data(lines_data: list[dict], *, base_currency: str) -> list[dict]:

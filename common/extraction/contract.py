@@ -103,6 +103,18 @@ CONTRACT = PackageContract(
         Unit(name="StatementSummary", kind=Kind.AGGREGATE_ROOT),
         Unit(name="UploadedDocument", kind=Kind.ENTITY),
         Unit(name="AtomicTransaction", kind=Kind.ENTITY),
+        # The alias row is persistence owned by the identity resolver, not a
+        # separate pure domain entity. Bind the behavior to its actual owner.
+        Unit(
+            name="resolve_transaction_identity",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/transaction_identity.py",
+        ),
+        Unit(
+            name="effective_statement_transaction_filter",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/transaction_membership.py",
+        ),
         Unit(name="AtomicPosition", kind=Kind.ENTITY),
         Unit(name="ClassificationRule", kind=Kind.ENTITY),
         Unit(
@@ -438,8 +450,11 @@ CONTRACT = PackageContract(
         "resolve_custody_account_id",
         "resolve_ingest_currency",
         "resolve_statement_conflicts",
+        "resolve_bank_custody_account",
+        "is_bank_custody_source",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
+        "effective_statement_transaction_filter",
         "resolve_transaction_currency",
         "run_parsing_supervisor",
         "set_opening_balance",
@@ -519,6 +534,206 @@ CONTRACT = PackageContract(
     # group instead of claiming a new numeric block, so it can never collide
     # with EPIC-003's/EPIC-013's reserved ranges.
     roadmap=[
+        ACRecord(
+            id="AC-extraction.custody-binding.7",
+            statement="The additive custody migration installs the unique identity key without rewriting retained sources or journal history.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_real_custody_migration_installs_unique_key",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.1",
+            statement="Custody identity survives account display-name edits and sequential imports.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_rename_preserves_source_custody",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.2",
+            statement="Concurrent first imports allocate one account and database uniqueness rejects a second binding.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_concurrent_first_imports_share_one_binding",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.3",
+            statement="Exact institution, tenant, suffix, and currency remain separate custody dimensions; brokerage sources never allocate bank bindings.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_custody_key_dimensions_remain_separate",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.4",
+            statement="Only unambiguous owned current source evidence may adopt an existing account; conflicting or corrupt history blocks.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_historical_custody_adoption",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.5",
+            statement="Explicit account selection cannot bypass owner, currency, active asset type, or existing custody identity.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_explicit_account_cannot_bypass_custody",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.custody-binding.6",
+            statement="Rejected or rolled-back new imports leave no orphan custody binding or account.",
+            test="apps/backend/tests/extraction/test_bank_custody_binding.py::test_rejected_parse_does_not_leave_orphan_custody",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.human-source-review.1",
+            statement="A complete balanced single-currency bank cash source below the shared auto-promotion threshold exposes explicit human envelope confirmation without changing confidence, completeness, or raw facts.",
+            test="apps/backend/tests/extraction/test_human_source_review.py::test_complete_dormant_source_human_confirmation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.human-source-review.2",
+            statement="Human envelope commands fill only absent facts and cannot contradict declared source dates, currency, or balances; stale digests and foreign custody are denied.",
+            test="apps/backend/tests/extraction/test_human_source_review.py::test_human_confirmation_cannot_rewrite_known_source",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.human-source-review.3",
+            statement="An exact current human envelope takes precedence over machine promotion; stale or revoked review cannot authorize posting or fall back to machine authority.",
+            test="apps/backend/tests/extraction/test_human_source_review.py::test_revoked_human_review_cannot_authorize_source",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.human-source-review.4",
+            statement="The statement review UI offers the server-authorized confirmation form even when missing source facts are empty and blocks approval until confirmation.",
+            test="apps/frontend/src/__tests__/statementReviewPage.test.tsx::complete dormant source offers explicit human confirmation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.4",
+            statement="A changed reparse of a source that established current opening stock requires correction review even with zero transactions or zero stock and preserves the prior source result and opening authority.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_dormant_posted_source_reparse_requires_correction",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.1",
+            statement="Current authoritative source-backed opening positions, including zero without a journal, expose bounded idempotent PDF lineage through their account identity and opening journal lines.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_sourced_opening_reaches_pdf",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.2",
+            statement="Opening lineage refuses retired, revoked, void, or mismatched source authority even when graph edges were previously materialized, and foreign accounts reveal no owned anchor.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_cached_opening_lineage_rejects_retired_source",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.opening-lineage.3",
+            statement="Standalone manual opening balances retain honest journal lineage without inventing an uploaded PDF source.",
+            test="apps/backend/tests/extraction/test_opening_evidence_lineage.py::test_manual_opening_has_no_fabricated_pdf",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.persistence-proof.2",
+            statement="Only effective current-source transactions may enter downstream queues or actions; superseded facts stay queryable, and unattached legacy records remain explicitly eligible.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_effective_membership_excludes_superseded_sources",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-conservation.1",
+            statement="An unparseable transaction row cannot silently disappear behind a successful net-balance proof; the source remains reachable with an explicit failure.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bad_dates_cannot_hide_offsetting_transactions",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-conservation.2",
+            statement="Paged extraction preserves every currency balance and rejects conflicting account or balance declarations without inventing source facts.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_paged_currency_and_account_conservation",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.5",
+            statement="Legacy atomic upsert retains its keyword-capture contract and rejects unsupported custody keywords; the additive scoped upsert accepts an explicit validated custody account without changing existing callers' argument binding.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_upsert_preserves_keyword_capture",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.1",
+            statement="Distinct custody accounts and currencies retain independent atomic transactions while exact imports of the same custody fact remain idempotent.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_identity_distinguishes_custody_and_currency",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.2",
+            statement="A versioned identity may reuse a legacy atomic UUID and hash only after source custody and currency agree, without changing historical facts.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_identity_reuse_preserves_history",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.3",
+            statement="An ambiguous historical identity is explicitly reviewable while a novel transaction without custody remains source-isolated.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_ambiguous_legacy_identity_is_reviewable",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.transaction-identity.4",
+            statement="Concurrent equal identities resolve to one atomic fact and source lineage remains complete.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_concurrent_identity_upsert",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.retry-identity.1",
+            statement="Retry after failed institution detection uses the recovered source institution rather than the provisional upload placeholder.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_retry_discards_provisional_institution",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-routing.1",
+            statement="A typed bank extraction with an empty positions array remains a bank transaction ledger through metadata recovery.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bank_result_never_routes_as_brokerage",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.source-routing.2",
+            statement="An explicitly typed brokerage snapshot with zero positions still routes to brokerage review.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_empty_brokerage_snapshot_remains_reviewable",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-extraction.persistence-proof.1",
+            statement="Reparse retains historical atomic identities and lineage, exposes only the current source result, and checkpoints identify the persisted statement and storage source.",
+            test="apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_reparse_preserves_history_and_current_membership",
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         ACRecord(
             id="AC-extraction.source-vocabulary.1",
             statement=(
@@ -817,7 +1032,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.5.16",
-            statement="Retry returns 503 if storage fetch fails.",  # was AC3.5.16
+            statement="Retry returns 503 if source retrieval fails, preserving the persisted prior status and validation error without dispatching parse work.",  # was AC3.5.16
             test="apps/backend/tests/api/test_statements_router.py::test_retry_statement_storage_failure",
             priority="P1",
             status="done",
@@ -1601,8 +1816,8 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.119.3",
-            statement="One unparseable row date is non-fatal — the row is skipped, the rest parse",  # was AC13.19.3
-            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_3_one_bad_row_date_is_non_fatal",
+            statement="Unparseable transaction dates are explicitly quarantined; a partial transaction set cannot become trusted source truth",  # was AC13.19.3
+            test="apps/backend/tests/extraction/test_tolerant_date_parsing.py::test_AC13_19_3_one_bad_row_date_is_quarantined",
             priority="P1",
             status="done",
             proof_kind="property",
@@ -1779,7 +1994,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-extraction.111.2",
-            statement="Dedup upsert sanitizes malformed source_documents payloads (transaction).",  # was AC13.11.2
+            statement="Malformed transaction source lineage requires review rather than unproven identity adoption.",  # was AC13.11.2
             test="apps/backend/tests/extraction/test_deduplication.py::test_upsert_atomic_transaction_handles_non_list_source_documents",
             priority="P1",
             status="done",
@@ -4613,10 +4828,10 @@ CONTRACT = PackageContract(
                 "balance is posted as a guided opening-balance entry against "
                 "the system Opening Balance Equity account, so the asset "
                 "account's ledger balance equals the statement's closing "
-                "balance — never the period net flow. A zero/absent opening "
-                "balance posts no opening entry; non-base currencies and "
-                "other post_opening_balance_entry rejections skip fail-soft "
-                "without disturbing the posted transactions."
+                "balance, including signed balances. Explicit zero creates immutable "
+                "starting-stock evidence without a monetary journal. Foreign "
+                "currency uses historical FX; missing opening facts or FX block "
+                "the posting unit of work atomically. Manual approval uses the same path."
             ),
             test=(
                 "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
@@ -4631,9 +4846,9 @@ CONTRACT = PackageContract(
             statement=(
                 "A follow-up period import for the same account posts its "
                 "transactions but never a second opening-balance entry: "
-                "prior posted activity before the new period start makes "
-                "the guided opening post reject, and that rejection is "
-                "absorbed fail-soft."
+                "existing authoritative per-account starting-stock evidence is "
+                "reused without creating a second opening journal. Invalid "
+                "or missing starting stock remains an actionable posting blocker."
             ),
             test=(
                 "apps/backend/tests/integration/test_statement_opening_balance_auto_post.py"
@@ -4652,7 +4867,7 @@ CONTRACT = PackageContract(
                 "matches, or already posted by a prior call) still gets its "
                 "opening balance posted. Idempotency against re-posting is "
                 "enforced per-account (does this account already have an "
-                "opening-balance-equity line), not by created_count or by "
+                "authoritative opening-position evidence), not by created_count or by "
                 "date-ordering alone — covering two statements that share the "
                 "same period_start, where date-ordering alone would not catch "
                 "a re-attempt."

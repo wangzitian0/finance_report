@@ -51,7 +51,8 @@ describe("CashFlowPage", () => {
     expect(container.querySelector(".animate-spin")).toBeNull()
 
     await waitFor(() => expect(screen.getByText("cashflow failed")).toBeInTheDocument())
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
   })
 
   // AC-reporting.fe-report-surfaces.17
@@ -132,6 +133,48 @@ describe("CashFlowPage", () => {
     // a confusing negative (reported 6500 > expected 5900).
     expect(reconciliation).toHaveTextContent("the reported ending is higher than expected")
     expect(reconciliation).not.toHaveTextContent("-")
+  })
+
+  // AC-reporting.report-integrity.3
+  it("discloses midperiod starting stock without claiming complete coverage", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01", end_date: "2026-01-31", currency: "SGD",
+      operating: [], investing: [], financing: [],
+      summary: {
+        operating_activities: "20", investing_activities: "0", financing_activities: "0",
+        net_cash_flow: "20", beginning_cash: "0", ending_cash: "120",
+      },
+      cash_bridge: { opening_stock_adjustment: "100", reconciles: true },
+      proof_state: "unproven", proof_reasons: ["opening_coverage_starts_after_period"],
+    })
+    render(<CashFlowPage />)
+    const reconciliation = await screen.findByLabelText("Cash reconciliation")
+    expect(screen.getByText("Known Beginning Cash")).toBeInTheDocument()
+    expect(reconciliation).toHaveTextContent("Opening balance adjustment")
+    expect(reconciliation).toHaveTextContent("100.00")
+    expect(reconciliation).toHaveTextContent("Coverage incomplete")
+    expect(reconciliation).not.toHaveTextContent("✓ Reconciles")
+    expect(reconciliation).not.toHaveTextContent("Does not tie")
+    expect(screen.getByText(/records start after the selected period begins/i)).toBeInTheDocument()
+  })
+
+  // AC-reporting.report-integrity.3
+  it("does not call an arithmetically tied report verified after opening authority is lost", async () => {
+    mockedApiFetch.mockResolvedValue({
+      start_date: "2026-01-01", end_date: "2026-01-31", currency: "SGD",
+      operating: [], investing: [], financing: [],
+      summary: {
+        operating_activities: "20", investing_activities: "0", financing_activities: "0",
+        net_cash_flow: "20", beginning_cash: "100", ending_cash: "120",
+      },
+      cash_bridge: { reconciles: true },
+      proof_state: "unproven", proof_reasons: ["opening_position_unproven"],
+    })
+    render(<CashFlowPage />)
+    const reconciliation = await screen.findByLabelText("Cash reconciliation")
+    expect(reconciliation).toHaveTextContent("Not yet verified")
+    expect(reconciliation).not.toHaveTextContent("✓ Reconciles")
+    expect(screen.getByText(/opening balance evidence needs review/i)).toBeInTheDocument()
   })
 
   // AC-reporting.fe-ia-reports.10

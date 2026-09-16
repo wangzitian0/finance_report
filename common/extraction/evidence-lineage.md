@@ -185,6 +185,40 @@ may be preserved for historical context, but unresolved or cross-user values
 must surface as blocker states such as `entity_missing`,
 `unknown_source_anchor`, or `cross_user_lineage_blocked`.
 
+## Source-backed opening positions
+
+The public `opening_position` entity is keyed by the custody account UUID. Its
+`atomic_fact` node connects an authoritative starting stock to its source and,
+when the amount is nonzero, to its opening journal:
+
+```text
+source_document(uploaded_document)
+  -supports-> atomic_fact(opening_position)
+  -posted_as-> ledger_entry(journal_entry)
+  -contains-> ledger_line(journal_line)
+```
+
+An explicit zero has an opening-position node and PDF source without inventing a
+journal entry. The adapter consumes ledger's public current opening-position
+projection, then verifies its exact typed extraction-result or reviewed-envelope
+decision against the extraction owner, account, source digest, and document
+ownership. A standalone manual opening remains valid without an invented PDF.
+Entity navigation has no accounting-date filter, so future-dated positions are
+resolved with the same current-authority checks.
+
+Opening nodes retain the stock decision ID, source decision ID, document ID,
+optional journal ID, effective date, account, currency, and Decimal amount.
+Cached paths are revalidated on every navigation. Retired sources, revoked
+source/stock authority, void journals, or changed pinned identities return an
+explicit `opening_authority_unproven` blocker (HTTP 409), preserving historical
+graph rows. Missing or foreign opening accounts expose no owned anchor.
+
+A changed source that established opening stock requires correction review
+before reparse, including dormant statements and explicit zero stock without a
+journal. The previous immutable result, source decision, and stock remain intact.
+Independent manual openings do not acquire a source relationship through this
+guard.
+
 ## Navigation API and UI
 
 Product navigation proof is owned by AC18.9. The generic lineage API resolves

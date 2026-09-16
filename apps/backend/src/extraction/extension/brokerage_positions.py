@@ -233,7 +233,11 @@ def looks_like_brokerage_payload(
     if not isinstance(payload, dict):
         return False
 
-    if any(key in payload for key in ("positions", "holdings", "securities")):
+    # Typed persisted source kind is authoritative; every result serializes
+    # positions, including ordinary bank ledgers with an empty array.
+    if payload.get("source_type") in {"bank_statement", "brokerage_statement"}:
+        return payload["source_type"] == "brokerage_statement"
+    if any(payload.get(key) for key in ("positions", "holdings", "securities")):
         return True
 
     statement = _statement_dict(payload)

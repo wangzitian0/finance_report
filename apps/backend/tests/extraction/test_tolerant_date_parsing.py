@@ -1,18 +1,15 @@
-"""Tolerant statement date parsing — non-ISO formats + non-fatal bad rows (#1086).
-
-Before this, a single empty/non-ISO date aborted the entire document parse, making
-Chinese-format statements (e.g. ``2025年01月15日``) unparseable and discarding an
-otherwise-good multi-month statement on one bad row.
-"""
+"""Tolerant date formats with explicit source review for unparseable transaction rows."""
 
 from datetime import date
 from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import pytest
+
 from src.extraction import DocumentSource
 from src.extraction.extension.prompts.statement import get_parsing_prompt
-from src.extraction.extension.service import ExtractionService, _tolerant_parse_date
+from src.extraction.extension.service import ExtractionError, ExtractionService, _tolerant_parse_date
 
 
 def test_AC13_19_4_parsing_prompt_instructs_iso_date_normalization():
@@ -38,7 +35,7 @@ def test_AC13_19_1_tolerant_parse_date_accepts_non_iso_formats():
     assert _tolerant_parse_date("15/01/2025") == date(2025, 1, 15)
     assert _tolerant_parse_date("15 Jan 2025") == date(2025, 1, 15)
     assert _tolerant_parse_date("2025-01-15T00:00:00") == date(2025, 1, 15)
-    # Non-fatal sentinels and junk yield None so callers can skip/flag.
+    # Sentinels and junk yield None so transaction callers can require source review.
     for bad in (None, "", "   ", "None", "null", "n/a", "-", "not-a-date"):
         assert _tolerant_parse_date(bad) is None
 
@@ -72,9 +69,8 @@ async def test_AC13_19_2_chinese_format_statement_parses_instead_of_aborting():
     assert result.transactions[0].transaction_date == date(2025, 1, 15)
 
 
-async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
-    """AC-extraction.119.3: one unparseable row date is skipped; the good rows still parse and
-    the document is not rejected as a whole."""
+async def test_AC13_19_3_one_bad_row_date_is_quarantined():
+    """AC-extraction.119.3: an unparseable transaction date requires source review."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -90,13 +86,9 @@ async def test_AC13_19_3_one_bad_row_date_is_non_fatal():
         }
     )
 
-    result = await service.parse_document(
-        DocumentSource.resolve(path=Path("mixed.pdf"), content=b"content"),
-        institution="DBS",
-        user_id=uuid4(),
-    )
-
-    assert result is not None
-    assert len(result.transactions) == 1
-    assert result.transactions[0].description == "Good"
-    assert result.transactions[0].transaction_date == date(2025, 1, 20)
+    with pytest.raises(ExtractionError, match="Transaction date"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("mixed.pdf"), content=b"content"),
+            institution="DBS",
+            user_id=uuid4(),
+        )

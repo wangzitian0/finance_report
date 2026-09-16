@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PackageSectionCards } from "@/components/reports/package/PackageScheduleSections";
+import type { PersonalReportPackageSections } from "@/lib/types";
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
 import { renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
 import { apiDownload, apiFetch } from "@/lib/api";
@@ -1897,4 +1899,28 @@ describe("PersonalReportPackagePage", () => {
       unmount();
     }
   });
+});
+
+// AC-reporting.report-integrity.3
+it("discloses incomplete opening coverage in package sections", () => {
+  const sections = packageDocument().sections;
+  render(<PackageSectionCards sections={{ ...sections, cash_flow: {
+    ...sections.cash_flow,
+    cash_bridge: { opening_stock_adjustment: "100", reconciles: true },
+    proof_state: "unproven", proof_reasons: ["opening_coverage_starts_after_period"],
+  }} as unknown as PersonalReportPackageSections} />);
+  expect(screen.getByText("Known Beginning Cash")).toBeInTheDocument();
+  expect(screen.getByText("Opening balance adjustment")).toBeInTheDocument();
+  expect(screen.getByText(/records start after the selected period begins/i)).toBeInTheDocument();
+});
+
+// AC-reporting.report-integrity.3
+it("keeps revoked opening evidence visible in package sections", () => {
+  const sections = packageDocument().sections;
+  render(<PackageSectionCards sections={{ ...sections,
+    investment_performance: { ...sections.investment_performance, holdings: [] },
+    cash_flow: { ...sections.cash_flow, proof_state: "unproven", proof_reasons: ["opening_position_unproven"] },
+  } as unknown as PersonalReportPackageSections} />);
+  expect(screen.getByText(/opening balance evidence needs review/i)).toBeInTheDocument();
+  expect(screen.queryByText("Opening balance adjustment")).not.toBeInTheDocument();
 });

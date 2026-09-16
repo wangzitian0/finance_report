@@ -16,8 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
-from src.extraction.extension.reviewed_statement_envelope import require_current_statement_envelope_trust
-from src.extraction.orm.layer2 import AtomicTransaction
+from src.extraction.extension.reviewed_statement_envelope import (
+    get_current_statement_extraction_result,
+    require_current_statement_envelope_trust,
+)
+from src.extraction.extension.transaction_identity import (
+    resolve_transaction_identity,
+    source_custody_scope,
+    versioned_transaction_hash,
+)
+from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.statement_summary import StatementSummary
 
 # Single-owned by the promotion gate (#930); kept as a local alias for readability.
@@ -46,13 +54,74 @@ async def resolve_statement_transactions(
         return []
 
     doc_marker = [{"doc_id": str(statement.uploaded_document_id)}]
-    result = await db.execute(
-        select(AtomicTransaction)
-        .where(AtomicTransaction.user_id == statement.user_id)
-        .where(AtomicTransaction.source_documents.contains(doc_marker))
-        .order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at)
+    query = select(AtomicTransaction).where(
+        AtomicTransaction.user_id == statement.user_id,
+        AtomicTransaction.source_documents.contains(doc_marker),
     )
-    return list(result.scalars().all())
+    metadata = statement.extraction_metadata
+    payload = metadata.get("statement_extraction_result") if isinstance(metadata, dict) else None
+    if statement.current_extraction_result_id is not None:
+        current_result = await get_current_statement_extraction_result(
+            db, user_id=statement.user_id, statement_id=statement.id
+        )
+        if current_result is None:
+            raise ValueError("Current source result is unavailable for transaction resolution")
+        payload = current_result.to_payload()
+    facts = payload.get("transactions") if isinstance(payload, dict) else None
+    if isinstance(facts, list):
+        if not facts:
+            return []
+        current_ids = {fact["fact_id"] for fact in facts}
+        # Version-1 result snapshots remain readable through a validated v2
+        # alias, without rewriting their immutable fact IDs.
+        scope = await source_custody_scope(db, user_id=statement.user_id, document_id=statement.uploaded_document_id)
+        current_ids.update(
+            versioned_transaction_hash(fact["fact_id"], fact["currency"], scope)
+            for fact in facts
+            if fact.get("currency")
+        )
+        alias_ids = select(AtomicTransactionIdentity.atomic_txn_id).where(
+            AtomicTransactionIdentity.user_id == statement.user_id,
+            AtomicTransactionIdentity.identity_version == "v2",
+            AtomicTransactionIdentity.identity_hash.in_(current_ids),
+        )
+        query = query.where(or_(AtomicTransaction.dedup_hash.in_(current_ids), AtomicTransaction.id.in_(alias_ids)))
+    result = await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))
+    rows = list(result.scalars().all())
+    if isinstance(facts, list):
+        if len(rows) != len(facts):
+            raise ValueError("Current source transaction identity requires review: incomplete persisted facts")
+        aliased_rows = set(
+            (
+                await db.scalars(
+                    select(AtomicTransactionIdentity.atomic_txn_id).where(
+                        AtomicTransactionIdentity.user_id == statement.user_id,
+                        AtomicTransactionIdentity.identity_hash.in_(current_ids),
+                    )
+                )
+            ).all()
+        )
+        for row in rows:
+            if not any(
+                Decimal(str(fact["amount"])) == row.amount
+                and fact["transaction_date"] == row.txn_date.isoformat()
+                and fact["direction"] == row.direction.value
+                and (fact.get("currency") is None or fact["currency"] == row.currency)
+                for fact in facts
+            ):
+                raise ValueError("Current source transaction identity requires review: source fact or currency differs")
+            if row.id not in aliased_rows:
+                # A matching historical raw hash does not prove currency/custody.
+                _, resolved = await resolve_transaction_identity(
+                    db,
+                    user_id=statement.user_id,
+                    legacy_hash=row.dedup_hash,
+                    currency=row.currency,
+                    custody_scope=scope,
+                )
+                if resolved is None or resolved.id != row.id:
+                    raise ValueError("Current source transaction identity requires review: legacy custody differs")
+    return rows
 
 
 def _direction_is_in(direction: object) -> bool:

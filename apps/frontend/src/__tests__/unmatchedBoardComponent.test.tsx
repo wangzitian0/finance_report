@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import UnmatchedBoard, {
@@ -51,6 +51,80 @@ describe("UnmatchedBoard", () => {
       setItem: (key: string, value: string) => storage.set(key, value),
       removeItem: (key: string) => storage.delete(key),
     });
+  });
+
+  it("AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review", async () => {
+    navigationState.searchParams = new URLSearchParams("statement_id=s1");
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockResolvedValueOnce({ items: [{ ...expenseAccount, id: "other-currency", currency: "USD" }], total: 1 })
+      .mockResolvedValueOnce(expenseAccount)
+      .mockResolvedValueOnce({ id: "je1" })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
+    render(<UnmatchedBoard />);
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
+    fireEvent.change(screen.getByLabelText("Report category"), { target: { value: "DINING" } });
+    fireEvent.change(screen.getByLabelText("Review rationale"), { target: { value: "Receipt reviewed." } });
+    fireEvent.click(screen.getByRole("button", { name: "Create counter account" }));
+    const form = within(screen.getByRole("dialog", { name: "New Account" }));
+    expect(form.getByLabelText("Type *")).toHaveValue("EXPENSE");
+    fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: expenseAccount.name } });
+    fireEvent.click(form.getByRole("button", { name: "Create Account" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+    expect(screen.getByLabelText("Economic intent")).toHaveValue("expense");
+    expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
+    expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
+    expect(screen.getByLabelText("Counter account")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Counter account"), { target: { value: expenseAccount.id } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and Post" }));
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/api/reconciliation/unmatched/u1/reviewed-disposition",
+      expect.objectContaining({ body: JSON.stringify({ intent: "expense", counter_account_id: expenseAccount.id, rationale: "Receipt reviewed.", category: "DINING" }) }),
+    ));
+  });
+
+  it("AC-reconciliation.first-use.1 preserves review after failed or cancelled account creation", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockRejectedValueOnce(new Error("Account name already exists"));
+    render(<UnmatchedBoard />);
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
+    fireEvent.change(screen.getByLabelText("Report category"), { target: { value: "DINING" } });
+    fireEvent.change(screen.getByLabelText("Review rationale"), { target: { value: "Receipt reviewed." } });
+    fireEvent.click(screen.getByRole("button", { name: "Create counter account" }));
+    const form = within(screen.getByRole("dialog", { name: "New Account" }));
+    fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: "Dining" } });
+    fireEvent.click(form.getByRole("button", { name: "Create Account" }));
+    expect(await form.findByText("Account name already exists")).toBeInTheDocument();
+    fireEvent.click(form.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Economic intent")).toHaveValue("expense");
+    expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
+    expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
+    expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
+    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("AC-reconciliation.first-use.1 does not select a newly created incompatible account", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ ...expenseAccount, currency: "USD" });
+    render(<UnmatchedBoard />);
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create counter account" }));
+    const form = within(screen.getByRole("dialog", { name: "New Account" }));
+    fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: "Dining" } });
+    fireEvent.change(form.getByLabelText("Currency *"), { target: { value: "USD" } });
+    fireEvent.click(form.getByRole("button", { name: "Create Account" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create counter account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
   });
 
   it("keeps intent-to-account compatibility explicit for income and liability dispositions", () => {
@@ -193,6 +267,10 @@ describe("UnmatchedBoard", () => {
     navigationState.searchParams = new URLSearchParams(
       "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
     );
+    let completeRefresh!: (value: { items: typeof unmatchedItem[]; total: number }) => void;
+    const refreshResult = new Promise<{ items: typeof unmatchedItem[]; total: number }>((resolve) => {
+      completeRefresh = resolve;
+    });
     mockedApiFetch
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
@@ -203,7 +281,7 @@ describe("UnmatchedBoard", () => {
         status: "posted",
         total_amount: "88.00",
       })
-      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockReturnValueOnce(refreshResult)
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
 
     render(<UnmatchedBoard />);
@@ -231,8 +309,13 @@ describe("UnmatchedBoard", () => {
       name: "Return to statement review",
     });
     expect(returnLink).toHaveAttribute("href", "/statements/s1/review");
+    // Navigation already exists before the post/refresh has completed.
+    // It is not evidence that the selected statement's queue is empty.
+    expect(screen.queryByText(/All transactions for this statement are classified/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(5));
+    completeRefresh({ items: [], total: 0 });
     expect(
-      screen.getByText(/All transactions for this statement are classified/i),
+      await screen.findByText(/All transactions for this statement are classified/i),
     ).toBeInTheDocument();
   });
 

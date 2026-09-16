@@ -33,6 +33,7 @@ from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     try_auto_approve_high_confidence_statement,
 )
+from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
@@ -429,7 +430,9 @@ async def handle_parse_failure(
                 reason=_redacted(message),
             )
             return
-        refreshed.status = BankStatementStatus.REJECTED
+        review_required = error_type == TransactionIdentityReviewRequired.__name__
+        refreshed.status = BankStatementStatus.PARSED if review_required else BankStatementStatus.REJECTED
+        refreshed.stage1_status = Stage1Status.PENDING_REVIEW if review_required else Stage1Status.REJECTED
         refreshed.validation_error = _redacted(message)
         refreshed.confidence_score = 0
         refreshed.balance_validated = False

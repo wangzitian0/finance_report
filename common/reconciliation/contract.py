@@ -282,6 +282,34 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
+            id="AC-reconciliation.rejection-recovery.4",
+            statement="Historical retired or superseded source facts cannot reenter unmatched queues, automatic candidates, or direct reviewed posting.",
+            test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_historical_source_transactions_are_not_actionable",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.rejection-recovery.1",
+            statement="Rejected suggestions remain historical evidence while the source transaction becomes manually actionable.",
+            test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_rejected_match_can_be_reviewed",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.rejection-recovery.2",
+            statement="Active matches cannot be bypassed and background reruns honor rejected suggestions.",
+            test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_active_match_blocks_and_rerun_honors_rejection",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.rejection-recovery.3",
+            statement="Concurrent manual recovery creates at most one source journal command.",
+            test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_concurrent_review_after_rejection",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
             id="AC-reconciliation.config-boundary.1",
             statement="Configuration values have no direct runtime or ledger dependency; retired base behaviors have exactly one extension owner.",
             test="tests/tooling/test_reconciliation_config_boundary.py::test_configuration_ownership_is_explicit",
@@ -668,7 +696,7 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.reviewed-disposition.3",
             statement=(
                 "A reviewed-disposition command rejects an unmatched transfer or a transaction that already "
-                "has a reconciliation match, and neither rejection writes a source journal entry."
+                "has a current non-rejected reconciliation match, and neither rejection writes a source journal entry."
             ),
             test=(
                 "apps/backend/tests/api/test_reconciliation_router.py"
@@ -2015,6 +2043,17 @@ CONTRACT = PackageContract(
                 "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
                 "::AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction"
             ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-reconciliation.first-use.1",
+            statement=(
+                "Missing counter-account setup reuses the ledger account form "
+                "without losing the selected transaction or reviewed draft; "
+                "creation alone never selects a disposition or posts an entry."
+            ),
+            test="apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx::AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review",
             priority="P0",
             status="done",
         ),

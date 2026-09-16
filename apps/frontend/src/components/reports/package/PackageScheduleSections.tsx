@@ -16,6 +16,7 @@ export function PackageSectionCards({
   const balanceSheet = sections.balance_sheet;
   const incomeStatement = sections.income_statement;
   const cashFlow = sections.cash_flow;
+  const incompleteOpeningCoverage = cashFlow.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   const investment = sections.investment_performance;
   return (
     <div className="grid lg:grid-cols-2 gap-4 mb-6">
@@ -43,9 +44,20 @@ export function PackageSectionCards({
           <PackageMetric label="Investing" value={cashFlow.summary.investing_activities} currency={cashFlow.currency} />
           <PackageMetric label="Financing" value={cashFlow.summary.financing_activities} currency={cashFlow.currency} />
           <PackageMetric label="Net Cash Flow" value={cashFlow.summary.net_cash_flow} currency={cashFlow.currency} />
-          <PackageMetric label="Beginning Cash" value={cashFlow.summary.beginning_cash} currency={cashFlow.currency} />
+          <PackageMetric label={incompleteOpeningCoverage ? "Known Beginning Cash" : "Beginning Cash"} value={cashFlow.summary.beginning_cash} currency={cashFlow.currency} />
           <PackageMetric label="Ending Cash" value={cashFlow.summary.ending_cash} currency={cashFlow.currency} />
+          {cashFlow.cash_bridge?.opening_stock_adjustment && (
+            <PackageMetric label="Opening balance adjustment" value={cashFlow.cash_bridge.opening_stock_adjustment} currency={cashFlow.currency} />
+          )}
         </dl>
+        {cashFlow.proof_reasons?.includes("opening_position_unproven") && (
+          <p className="mt-3 text-sm text-[var(--warning)]">Opening balance evidence needs review. Cash flow is not yet verified.</p>
+        )}
+        {incompleteOpeningCoverage && (
+          <p className="mt-3 text-sm text-[var(--warning)]">
+            Records start after the selected period begins. Beginning cash is only the known amount; full-period cash flow is not yet verified.
+          </p>
+        )}
       </section>
       <section id={sectionAnchorId("investment_performance")} className="card p-5">
         <h2 className="font-semibold">Investment Performance</h2>

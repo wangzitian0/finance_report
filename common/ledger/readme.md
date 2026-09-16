@@ -66,6 +66,21 @@ Assets = Liabilities + Equity + (Income - Expenses)
 | Income | | ✓ | Credit |
 | Expense | ✓ | | Debit |
 
+### First-use setup
+
+Account creation and editing share `AccountFormModal`, whose success callback
+returns the saved account. Review consumers can update their available accounts
+without resetting a transaction draft or duplicating the ledger writer.
+
+Guided opening balances start with a blank as-of date. The user can supply the
+first report-period start and explicitly apply its previous calendar day, or
+enter an as-of date directly. For March 2026, the brought-forward date is
+February 28, even if the first transaction is March 2. Editing the period never
+silently rewrites the entered date; an entered period rejects opening dates on
+or after its start. The final confirmation posts decimal-string balances through
+the existing opening-balance endpoint. This is ledger setup, not statement
+source approval or an automatic classification decision (`AC-ledger.first-use.1`).
+
 ### Entry Structure
 
 ```mermaid
@@ -801,3 +816,64 @@ Entry 2 (Fee):
 - [schema.md](../../common/meta/schema.md)
 - [reconciliation.md](../../common/reconciliation/reconciliation.md)
 - [confirmation-workflow.md](../extraction/confirmation-workflow.md)
+
+## Account starting stock
+
+A starting position is stock effective at the beginning of its recorded date,
+not cash earned or spent on that date. `list_opening_positions` publishes immutable
+`OpeningPosition` values with account, effective date, signed normal-side amount,
+original currency, historical FX rate, optional journal id, and current trace
+decision. Reporting consumes this evidence; memo text and arbitrary event tags
+never prove an opening. Existing anchored `opening-balance` system commands can
+be projected without rewriting their history.
+
+Manual and automatic statement approval initialize the first trusted account
+position in the same transaction as source posting. A tenant-scoped database
+lock serializes concurrent initialization. Identical account/date/amount/currency
+retries reuse the existing position; conflicting initializations require the
+correction lifecycle. Later statements reuse the established account beginning.
+A zero starting position records evidence without creating a zero-value journal.
+Negative source balances reverse the account's normal posting side.
+
+Foreign currency remains on the account line with an explicit positive historical
+FX rate; the balancing equity amount is in the effective base currency. Missing
+FX or stale source authority prevents initialization, rather than silently
+dropping the source starting balance. `opening_position_records` retains immutable
+source-decision and journal coordinates; updates/deletes cannot rewrite stock.
+Readiness checks each user-managed asset/liability account independently, including
+archived accounts with historical activity. FX revaluation likewise reads archived
+posted balances; archiving an account does not erase historical money.
+
+The current account form still accepts positive inputs only. Explicit zero and
+negative initialization support at the service/source boundary does not imply
+that the corresponding manual UI workflow exists.
+
+Source-backed opening decisions include the exact authoritative source decision as a causal parent. Their public `source_decision` reference is digest-pinned, including explicit zero stock with no journal. The application supplies a composed extraction/ledger trace emitter so neither owner imports the other to replay authority.
+
+The additive `initialize_opening_positions` command initializes signed, zero,
+and explicitly converted foreign-currency stock. The legacy
+`post_opening_balance_entry` interface retains its required currency argument,
+positive base-currency amounts, and `JournalEntry` return contract; it rejects
+nonpositive inputs before creating stock. Both use the same immutable opening
+position owner and authorization path (`AC-ledger.opening-position.9`).
+
+Opening-position evidence has a non-cascading tenant foreign key and rejects
+all updates and deletes. Deleting an identity cannot silently erase financial
+initialization evidence; retention cleanup requires the ledger owner. This adds
+no cross-package cascade debt (`AC-audit.deletion-ownership.1`).
+
+Guided opening requests obtain tenant-scoped target currencies from the ledger
+account service before historical FX lookup. The application composition root
+supplies pricing rates and the trace emitter; HTTP delivery only translates the
+request and commits or rolls back the transaction. Currency mismatch remains a
+ledger validation error before any provider call.
+
+Opening-stock commands delegate through the system-command and anchored-posting
+boundary to the repository's unconditional balance validator before any journal
+write. The structural call-chain guard and an executed imbalanced-command
+regression jointly cover this path (`AC-ledger.34.5`).
+
+The account modal initializes create/edit values before its opened form becomes
+interactive. Reopening it must preserve the first entered name and selected
+account type; a deferred reset cannot overwrite user input
+(`AC-ledger.fe-accounts-journal.12`–`.13`).

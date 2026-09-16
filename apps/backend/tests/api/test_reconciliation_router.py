@@ -74,6 +74,7 @@ async def create_test_statement(db, user: User, **kwargs) -> StatementSummary:
         "uploaded_document_id": document.id,
         "file_hash": document.file_hash,
         "institution": "Test Bank",
+        "currency": "SGD",
         "status": BankStatementStatus.PARSED,
     }
     defaults.update(kwargs)

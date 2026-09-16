@@ -815,7 +815,9 @@ CONTRACT = PackageContract(
             statement=(
                 "Identity/content-bearing strings are replaced with "
                 "deterministic HMAC pseudonyms (same original, same "
-                "pseudonym — cross-table join keys stay aligned), free-form "
+                "pseudonym — cross-table join keys stay aligned); four-digit "
+                "custody suffixes use a collision-free keyed permutation and "
+                "unsupported suffix formats fail closed. Free-form "
                 "JSON is redacted, and the residual scan proves no original "
                 "sensitive value survives; a planted residual fails the "
                 "scan, which rolls the snapshot back."

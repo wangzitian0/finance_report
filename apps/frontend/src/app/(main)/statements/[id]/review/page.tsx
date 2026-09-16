@@ -180,9 +180,7 @@ export default function StatementReviewPage() {
   const sourceMissingFacts = data?.source_missing_facts || [];
   const sourceEnvelopeReviewable = Boolean(data?.source_envelope_reviewable);
   const requiresEnvelopeConfirmation =
-    sourceEnvelopeReviewable &&
-    sourceMissingFacts.length > 0 &&
-    !data?.reviewed_envelope;
+    sourceEnvelopeReviewable && !data?.reviewed_envelope;
   const requiresOtherSourceReview =
     !sourceEnvelopeReviewable &&
     sourceMissingFacts.length > 0 &&
@@ -453,7 +451,7 @@ export default function StatementReviewPage() {
     transaction_currency: "transaction currency",
   };
   const approvalBlockedReason = requiresEnvelopeConfirmation
-    ? "Confirm the missing source facts before approving this statement."
+    ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview
       ? "This source has facts that a cash statement envelope cannot confirm."
       : hasUnresolvedConflicts
@@ -574,15 +572,14 @@ export default function StatementReviewPage() {
         >
           <div className="mb-3">
             <h2 id="source-envelope-heading" className="font-semibold">
-              Confirm missing source facts
+              {sourceMissingFacts.length ? "Confirm missing source facts" : "Confirm source facts"}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              This source did not declare{" "}
-              {sourceMissingFacts
-                .map((fact) => missingFactLabels[fact] || fact)
-                .join(", ")}
-              . Confirm only facts you can support from the original document or
-              export.
+              {sourceMissingFacts.length ? (
+                <>This source did not declare {sourceMissingFacts.map((fact) => missingFactLabels[fact] || fact).join(", ")}. Confirm only facts you can support from the original document or export.</>
+              ) : (
+                <>This statement needs your confirmation before it can be used. Check the transaction list, account, dates, and balances against the original document. Known source facts must remain unchanged.</>
+              )}
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">

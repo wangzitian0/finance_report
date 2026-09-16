@@ -9,11 +9,11 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
-from src.ledger import Account, AccountType
+from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine, ProcessingAccount
 from src.portfolio import DividendIncome
 from src.pricing import (
     ManualValuationComponentType,
@@ -22,7 +22,9 @@ from src.pricing import (
     list_current_manual_valuation_facts,
 )
 from src.pricing.orm.market_data import StockPrice
+from src.reporting.base.l1_registry import EXPENSE_CATEGORY_LINES, INCOME_CATEGORY_LINES, L1_REGISTRY
 from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension
+from src.reporting.extension._core import _REPORT_STATUSES
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
@@ -105,8 +107,41 @@ def _rule(
     )
 
 
+def _personal_activity_rules(framework_label: str) -> list[FrameworkPolicyMatrixRule]:
+    rules = []
+    for domain, categories, fallback, instrument in (
+        (PolicyFactDomain.PERSONAL_INCOME, INCOME_CATEGORY_LINES, "OTHER_INCOME", "unclassified_income"),
+        (PolicyFactDomain.PERSONAL_EXPENSE, EXPENSE_CATEGORY_LINES, "OTHER_EXPENSE", "unclassified_expense"),
+    ):
+        for category, line_id in categories.items():
+            rules.append(
+                _rule(
+                    domain=domain,
+                    supported_instrument_types=[category, instrument] if category == fallback else [category],
+                    recognition="Recognize the exact accepted economic category frozen into the posted command.",
+                    measurement="Use posted amounts and the selected period-average currency conversion.",
+                    classification=L1_REGISTRY[line_id].label,
+                    presentation=f"{framework_label} {L1_REGISTRY[line_id].label}.",
+                    disclosure="Missing or unsupported historical categories remain other income or expenses.",
+                    line_mappings={"income_statement": line_id.value},
+                )
+            )
+    return rules
+
+
 def _common_rules(framework_label: str) -> list[FrameworkPolicyMatrixRule]:
     return [
+        *_personal_activity_rules(framework_label),
+        _rule(
+            domain=PolicyFactDomain.CASH,
+            supported_instrument_types=["cash_in_transit"],
+            recognition="Recognize the ledger-owned Processing identity as funds in transit.",
+            measurement="Include the exact posted balance with the same period-end currency translation as other cash.",
+            classification="Cash equivalent held in transit between custody accounts.",
+            presentation=f"{framework_label} balance sheet separately presents cash in transit.",
+            disclosure="Unsettled funds remain visible until both transfer legs are posted.",
+            line_mappings={"balance_sheet": "assets.cash_in_transit", "cash_flow": "cash.internal_transfers"},
+        ),
         _rule(
             domain=PolicyFactDomain.CASH,
             supported_instrument_types=["bank_account", "cash", "deposit", "fixture"],
@@ -250,7 +285,7 @@ def get_framework_policy_matrix(framework_id: PersonalReportingFrameworkId) -> F
         listed_security,
         *_common_rules("US-like" if framework_id == PersonalReportingFrameworkId.US_GAAP_LIKE else "HK-like"),
     ]
-    return FrameworkPolicyMatrix(framework_id=framework_id, version="1.0", rules=rules)
+    return FrameworkPolicyMatrix(framework_id=framework_id, version="2.0", rules=rules)
 
 
 def _find_rule(matrix: FrameworkPolicyMatrix, fact: FrameworkPolicyFact) -> FrameworkPolicyMatrixRule | None:
@@ -384,13 +419,15 @@ def _manual_domain_and_instrument(snapshot: ManualValuationFact) -> tuple[Policy
 
 def _account_domain_and_instrument(account: Account) -> tuple[PolicyFactDomain, str] | None:
     if account.type == AccountType.ASSET:
+        if getattr(account, "is_system", False) and getattr(account, "code", None) == ProcessingAccount().code:
+            return PolicyFactDomain.CASH, "cash_in_transit"
         return PolicyFactDomain.CASH, "bank_account"
     if account.type == AccountType.LIABILITY:
         return PolicyFactDomain.LIABILITY, "loan"
     if account.type == AccountType.INCOME:
-        return PolicyFactDomain.DIVIDEND_INTEREST, "interest"
+        return PolicyFactDomain.PERSONAL_INCOME, "unclassified_income"
     if account.type == AccountType.EXPENSE:
-        return PolicyFactDomain.BROKERAGE_FEE, "brokerage_fee"
+        return PolicyFactDomain.PERSONAL_EXPENSE, "unclassified_expense"
     return None
 
 
@@ -476,8 +513,14 @@ async def framework_policy_facts_for_user(
     account_result = await db.execute(
         select(Account).where(
             Account.user_id == user_id,
-            Account.is_active == True,  # noqa: E712
-            Account.is_system == False,  # noqa: E712
+            or_(
+                Account.is_system.is_(False),
+                and_(
+                    Account.is_system.is_(True),
+                    Account.code == ProcessingAccount().code,
+                    Account.type == AccountType.ASSET,
+                ),
+            ),
         )
     )
     for account in account_result.scalars().all():
@@ -498,6 +541,43 @@ async def framework_policy_facts_for_user(
                         source_system="canonical_ledger",
                         source_id=account.id,
                         description=account.name,
+                    )
+                ],
+            )
+        )
+
+    category_rows = await db.execute(
+        select(JournalLine, Account)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(
+            JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
+            JournalEntry.decision_anchor_id.is_not(None),
+        )
+        .where(JournalEntry.entry_date >= report_period_start, JournalEntry.entry_date <= report_period_end)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+    )
+    for line, account in category_rows.all():
+        category = (line.tags or {}).get("economic_category")
+        categories = INCOME_CATEGORY_LINES if account.type == AccountType.INCOME else EXPENSE_CATEGORY_LINES
+        if not isinstance(category, str) or category not in categories:
+            continue
+        facts.append(
+            FrameworkPolicyFact(
+                fact_id=f"journal_line:{line.id}",
+                domain=PolicyFactDomain.PERSONAL_INCOME
+                if account.type == AccountType.INCOME
+                else PolicyFactDomain.PERSONAL_EXPENSE,
+                instrument_type=category,
+                currency=line.currency,
+                anchors=[
+                    _anchor(
+                        anchor_type="journal_line",
+                        source_system="canonical_ledger",
+                        source_id=line.id,
+                        description="Accepted posted economic category",
                     )
                 ],
             )

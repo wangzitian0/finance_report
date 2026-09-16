@@ -61,9 +61,8 @@ cross-currency transfer pairing), `audit` (base value types), `platform`
 
 The package's ACs (`AC-reconciliation.match.*`/`.score.*`/`.stats.*`/`.txn.*`)
 live in [`contract.py`](./contract.py)'s `roadmap` and are sourced **directly**
-from there into the AC registry (no EPIC mirror); the larger two-stage-review
-UI surface (EPIC-016) is a separate frontend concern and has not moved into
-this roadmap yet. `tools/check_package_contract.py` validates the
+from there into the AC registry (no EPIC mirror), including the migrated
+two-stage-review frontend ACs. `tools/check_package_contract.py` validates the
 implementation against this contract (interface == `__all__`, every test
 reference resolves, no upward import edge).
 
@@ -226,11 +225,10 @@ in `contract.py`).
 
 ## EPIC-016 two-stage review (frontend-owned surface)
 
-*(Internalized from `common/reconciliation/reconciliation.md` §7, wave 3, #1664. This
-surface's ACs stay in `docs/project/EPIC-016.two-stage-review-ui.md` — see
-[Governance](#governance) above — because the governance gate's AST-based
-`_resolve_test()` cannot resolve the `.tsx`/frontend test paths that prove
-most of it; this section is the operational reference, not an AC migration.)*
+*(Internalized from `common/reconciliation/reconciliation.md` §7, wave 3, #1664.
+The migrated frontend ACs now live in this package's contract roadmap and point
+directly to their frontend proofs; the EPIC is terminal residue, not a second
+owner.)*
 
 ### Stage 1 — record-level review
 
@@ -342,6 +340,14 @@ the unmatched-review UI initializes intent as `unknown` for both inflows and
 outflows, so cash direction remains context rather than a preselected economic
 decision.
 
+When no compatible active counter-account exists, the board opens the shared
+ledger account form in place, seeded with the explicitly chosen intent's account
+type. The reviewer confirms the account's currency in that form. Creation,
+cancellation, and creation errors retain the transaction, category, and rationale.
+A created account is added to the available choices but never selected or posted
+automatically; currency/type/active filtering still applies and the user must
+select it and confirm the reviewed disposition (`AC-reconciliation.first-use.1`).
+
 1. Lock the user-owned `AtomicTransaction` and validate the statement custody
    account, transaction currency, counter-account type, and double-entry roles.
 2. Append one manual-adjudication `OBSERVATION` and its CODE-ONLY
@@ -421,3 +427,19 @@ pending --> flagged: Needs manual review
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
+
+## Recovery after rejecting a suggestion
+
+A rejected suggestion remains historical evidence. It does not own the active
+manual workflow: the transaction reappears in the unmatched queue and an explicit
+reviewed disposition may post it. Pending and accepted current matches continue
+to block bypasses. The source-transaction database lock makes concurrent repeated
+manual decisions idempotent. Rejection does not delete linked journal facts.
+
+Background matching deliberately continues to skip rejected suggestions so a
+rerun cannot overturn the user's rejection. Recovery is an explicit manual action;
+automatic reconsideration of rejected candidate evidence is outside this policy.
+The active-match database index excludes rejected and superseded history while
+retaining uniqueness for current non-rejected matches.
+
+Queues, automatic candidates, and direct reviewed dispositions use extraction-owned current source membership; preserved historical facts from retired or replaced results remain evidence, not actionable transactions.

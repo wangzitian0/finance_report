@@ -204,3 +204,4 @@ class ExtractedTransactionRow:
     balance_after: Decimal | None
     occurrence_index: int
     dedup_hash: str
+    custody_scope: str | None = None

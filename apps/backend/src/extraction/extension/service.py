@@ -7,7 +7,6 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
@@ -48,11 +47,15 @@ from src.extraction.extension.brokerage_positions import (
 )
 from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
+from src.extraction.extension.custody_binding import (
+    release_rejected_custody,
+    resolve_bank_custody,
+    validate_custody_account,
+)
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType, JournalLine
 from src.observability import record_financial_invariant_violation
 
 # Bound from the bare published root (config publishes no named symbols).
@@ -100,82 +103,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         # deterministic chain-break detector still runs and logs, but no live model
         # is called. A real LLM-backed backend is wired separately.
         self.region_reextractor: RegionReExtractor | None = None
-
-    async def _get_or_create_bank_account(
-        self,
-        db: Any,
-        *,
-        user_id: UUID,
-        institution: str,
-        account_last4: str,
-        currency: str,
-    ) -> tuple[Account, bool]:
-        """Get-or-create the physical asset account for a bank statement (#1444).
-
-        Keyed on (user_id, institution, account_last4, currency) via a stable
-        display name so re-uploaded statements for the same account reuse one
-        account. The account is a fact (the money lives here); category
-        classification of each transaction is a separate, user-adjustable layer.
-
-        Returns ``(account, created)`` — ``created`` lets the caller clean up an
-        account it just created for a statement that goes on to fail the
-        LLM-LED invariant gate (#1832 QA finding: a rejected parse left a
-        balance-0.00, provenance-less zombie account on the balance sheet).
-        """
-        currency = normalize_currency_code(currency) or settings.base_currency
-        name = f"{institution} ••{account_last4}"
-        existing = (
-            await db.execute(
-                select(Account)
-                .where(Account.user_id == user_id)
-                .where(Account.name == name)
-                .where(Account.type == AccountType.ASSET)
-                .where(Account.currency == currency)
-            )
-        ).scalar_one_or_none()
-        if existing is not None:
-            return existing, False
-        account = Account(
-            user_id=user_id,
-            name=name,
-            type=AccountType.ASSET,
-            currency=currency,
-            code="AUTO-BANK",
-        )
-        db.add(account)
-        await db.flush()
-        return account, True
-
-    async def _delete_orphan_bank_account_if_unused(self, db: Any, account: Account, user_id: UUID) -> None:
-        """Delete a just-created bank account left behind by a rejected parse (#1832).
-
-        Only ever called for an account this same call created (never a reused
-        one), but double-checks it has no OTHER non-rejected statement or
-        journal line referencing it before deleting: a concurrent statement
-        could in principle have attached to it between creation and this
-        rejection. Other REJECTED statements sharing this account_id (this one
-        included) do not count as a reference: a rejected statement carries no
-        journal lines and no trusted data, so it is not a real use of the
-        account — the JournalLine check is what actually detects real economic
-        activity tied to the account.
-        """
-        other_statement = (
-            await db.execute(
-                select(StatementSummary.id)
-                .where(StatementSummary.account_id == account.id)
-                .where(StatementSummary.status != BankStatementStatus.REJECTED)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if other_statement is not None:
-            return
-        journal_line = (
-            await db.execute(select(JournalLine.id).where(JournalLine.account_id == account.id).limit(1))
-        ).scalar_one_or_none()
-        if journal_line is not None:
-            return
-        await db.delete(account)
-        await db.flush()
 
     async def _extract_csv_source(
         self,
@@ -322,23 +249,25 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # classification stays a separate, user-adjustable layer. Skipped for
             # brokerage payloads (they own a broker account at import) and when no
             # db, real institution, or last4 is available to key a stable account.
-            bank_account_created = False
+            bank_allocation = None
+            if db is not None and account_id is not None and not is_brokerage_payload:
+                await validate_custody_account(db, user_id=user_id, account_id=account_id, currency=statement_currency)
             if (
-                account_id is None
-                and db is not None
+                db is not None
                 and not is_brokerage_payload
                 and final_institution
                 and sanitized_account_last4
                 and statement_currency
             ):
-                bank_account, bank_account_created = await self._get_or_create_bank_account(
+                bank_allocation = await resolve_bank_custody(
                     db,
                     user_id=user_id,
                     institution=final_institution,
                     account_last4=sanitized_account_last4,
                     currency=statement_currency,
+                    account_id=account_id,
                 )
-                account_id = bank_account.id
+                account_id = bank_allocation.account.id
 
             statement = StatementSummary(
                 user_id=user_id,
@@ -474,9 +403,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # (#1254: two same-amount deposits printed against one carried-forward /
             # brought-forward running balance across a page boundary).
             occurrence_counts: dict[tuple, int] = {}
+            custody_scope = f"account:{account_id}" if account_id is not None else f"source:{source.content_hash}"
             for txn in extracted.get("transactions", []):
                 if not txn.get("date") or txn.get("amount") is None:
-                    if is_brokerage_payload:
+                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
                         logger.info(
                             "Skipping non-bank transaction row in brokerage payload",
                             filename=original_filename or (file_path.name if file_path else "unknown"),
@@ -489,40 +419,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 if not isinstance(txn_date_val, str):
                     txn_date_val = str(txn_date_val)
 
-                # Skip if date is still invalid
-                if txn_date_val in ("None", "", "null"):
-                    logger.warning(
-                        "Transaction skipped due to invalid date",
-                        raw_date=txn["date"],
-                        description=txn.get("description", "N/A"),
-                        amount=txn.get("amount"),
-                        statement_file=original_filename or "unknown",
-                    )
-                    continue
-
-                # Primary date normalization is the model's job (see the parsing
-                # prompt's ISO rule). `_tolerant_parse_date` is only a defensive net
-                # for the few rows the model still emits in a non-ISO/empty form.
+                # Every declared transaction must become a fact or an explicit
+                # source failure; aggregate balance equality cannot prove recall.
                 parsed_date = _tolerant_parse_date(txn_date_val)
                 if parsed_date is None:
-                    # #1086: one unparseable row date is non-fatal — skip and flag the
-                    # row instead of rejecting the whole (often multi-month) statement.
-                    # Carry description/amount so the skipped row is identifiable from
-                    # logs without reproducing locally.
-                    logger.warning(
-                        "Skipping transaction row with unparseable date",
-                        raw_date=txn_date_val,
-                        description=txn.get("description", "N/A"),
-                        amount=txn.get("amount"),
-                        is_brokerage=is_brokerage_payload,
-                        statement_file=original_filename or (file_path.name if file_path else "unknown"),
+                    raise ExtractionError(
+                        "Transaction date could not be parsed. No partial transaction set was imported; "
+                        "retry extraction or review the original source."
                     )
-                    continue
 
                 try:
                     amount = Decimal(str(txn["amount"]))
                 except (ValueError, TypeError, InvalidOperation) as exc:
-                    if is_brokerage_payload:
+                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
                         logger.info(
                             "Skipping brokerage transaction row with non-bank amount",
                             filename=original_filename or (file_path.name if file_path else "unknown"),
@@ -563,6 +472,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     txn_direction.value,
                     txn_description.strip().lower(),
                     txn_reference or "",
+                    txn_currency,
                     _decimal_key(txn_balance_after) if txn_balance_after is not None else "",
                 )
                 occurrence_index = occurrence_counts.get(occ_key, 0)
@@ -577,6 +487,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     reference=txn_reference,
                     balance_after=txn_balance_after,
                     occurrence_index=occurrence_index,
+                    currency=txn_currency,
+                    custody_scope=custody_scope,
                 )
 
                 transaction = ExtractedTransactionRow(
@@ -591,6 +503,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     balance_after=txn_balance_after,
                     occurrence_index=occurrence_index,
                     dedup_hash=dedup_hash,
+                    custody_scope=custody_scope,
                 )
                 transactions.append(transaction)
 
@@ -827,12 +740,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     # the quarantine with the upload without leaking PII.
                     file_hash=resolved_file_hash,
                 )
-                if bank_account_created:
-                    # This exact parse created the account moments ago; a
-                    # rejected extraction must not leave a balance-0.00,
-                    # provenance-less account cluttering the balance sheet (#1832).
-                    await self._delete_orphan_bank_account_if_unused(db, bank_account, user_id)
-                    statement.account_id = None
+                if bank_allocation is not None and db is not None:
+                    # Remove only this parse's unused allocation. Existing
+                    # account identities survive a later rejected statement.
+                    await release_rejected_custody(db, bank_allocation)
+                    if bank_allocation.account_created:
+                        statement.account_id = None
 
             # A statement that lands in review must carry an explicit pending_review marker so the
             # queue does not rely on a NULL fallback. The auto-approve path owns the approved/None
@@ -969,6 +882,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 return extracted
 
             result = validate_balance(extracted)
+            if bank_currency_balances(extracted) is not None:
+                currency_result = validate_balance_per_currency(extracted)
+                result = {
+                    **result,
+                    "balance_valid": currency_result["balance_valid"],
+                    "balance_computable": currency_result["balance_computable"],
+                }
             if result.get("balance_valid"):
                 if attempt > 0:
                     logger.info(

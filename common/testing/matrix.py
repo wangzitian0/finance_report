@@ -258,6 +258,12 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Real AI/OCR provider (llm marker); supplemental staging corpus.",
     ),
     E2ERow(
+        "tests/e2e/test_gxs_browser_journey.py",
+        needs=(NEEDS_LLM_PROVIDER,),
+        audited=True,
+        reason="Real provider fresh-user browser upload/review/saved-package proof; audit replay only.",
+    ),
+    E2ERow(
         "tests/e2e/test_institution_statement_journeys.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,

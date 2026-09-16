@@ -198,3 +198,19 @@ The package publishes (`contract.interface`) the `base` value language + manifes
 `ProbeResult`), and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
 `boot.Bootloader` delegates its checks to the adapters. New enforcement work
 must start in a GitHub issue and the package roadmap rather than a parallel list.
+
+Snapshot anonymization classifies opening-position amounts as money, preserving
+FX ratios and currency codes while pseudonymizing content digests. Versioned
+atomic identity hashes and custody scopes are pseudonymized; currency and the
+identity version are technical vocabulary. These classifications retain the
+fail-closed live-column census and common money scaling proof
+(`AC-runtime.snapshot-anonymizer.1`–`.3`).
+Immutable bank-custody bindings retain currency codes while pseudonymizing the
+institution and account suffix, so the new identity table cannot leak original
+bank details through a snapshot.
+
+Four-digit account suffixes use an HMAC-keyed cycle over the 10,000 ASCII digit
+strings, preserving custody uniqueness and cross-table equality without fixed
+points. The permutation is cached for one secret; unsupported suffix formats
+fail closed rather than silently collapsing distinct identities. The existing
+residual scan remains mandatory before committing a scrubbed snapshot.

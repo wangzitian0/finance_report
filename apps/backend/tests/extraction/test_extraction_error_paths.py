@@ -642,14 +642,11 @@ async def test_parse_document_with_invalid_date_formats():
         }
     )
 
-    # #1086: an unparseable transaction-row date is non-fatal — the row is skipped
-    # and the rest of the document still parses, instead of rejecting the whole
-    # (often multi-month) statement.
-    result = await service.parse_document(
-        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
-    )
-    assert result is not None
-    assert len(result.transactions) == 0
+    # Invalid dates require source review instead of silently losing transactions.
+    with pytest.raises(ExtractionError, match="Transaction date"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
+        )
 
 
 async def test_parse_document_unexpected_exception():
@@ -940,17 +937,15 @@ async def test_parse_document_non_string_date():
             ],
         }
     )
-    # str(True) -> 'True' is not a parseable date. #1086: the row is skipped
-    # (non-fatal) rather than aborting the document.
-    result = await service.parse_document(
-        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
-    )
-    assert result is not None
-    assert len(result.transactions) == 0
+    # str(True) is not a parseable date and requires source review.
+    with pytest.raises(ExtractionError, match="Transaction date"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
+        )
 
 
-async def test_parse_document_skips_none_date_string():
-    """Date value 'None' and 'null' should be skipped, not raise (lines 265-273)."""
+async def test_parse_document_rejects_none_date_string():
+    """Missing date sentinels require explicit source review."""
     service = ExtractionService()
     service.extract_financial_data = AsyncMock(
         return_value={
@@ -980,12 +975,11 @@ async def test_parse_document_skips_none_date_string():
             ],
         }
     )
-    # 'None' and 'null' dates should be skipped, only valid one remains
-    result = await service.parse_document(
-        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
-    )
-    assert len(result.transactions) == 1
-    assert result.transactions[0].description == "Valid"
+    # Missing date sentinels cannot silently remove source transactions.
+    with pytest.raises(ExtractionError, match="Transaction date"):
+        await service.parse_document(
+            DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="DBS", user_id=uuid4()
+        )
 
 
 async def test_parse_document_invalid_amount():

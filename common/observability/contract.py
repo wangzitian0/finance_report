@@ -526,7 +526,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-observability.12.3",
             statement=(
-                "Parse failure handling still marks statements rejected and emits "
+                "Parse failure handling rejects invalid sources, retains identity "
+                "ambiguity for human review, and emits "
                 "the existing safe statement.parse.failed contract. Was EPIC-010 "
                 "AC10.12.3."
             ),

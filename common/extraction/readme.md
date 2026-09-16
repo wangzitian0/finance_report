@@ -216,14 +216,22 @@ rather than runtime signature reflection.
 - Status tracking: `uploaded` → `processing` → `completed`
 
 **DWD: Atomic Data (`AtomicTransaction`, `AtomicPosition`)**
-- Deduplicated via SHA256 hash of core fields
-  (`SHA256(user_id|date|amount|direction|description|reference|disambiguator)`).
-  The disambiguator is the persisted statement running balance (`balance_after`)
-  when the model supplies it, else a per-occurrence `#occurrence_index` fallback
-  (`DeduplicationService.calculate_transaction_hash`). Either way two real but
-  otherwise-identical transactions stay distinct, while a genuine duplicate
-  extraction of the same row collapses onto the existing record. `balance_after`
-  is persisted on the row so the hash is reproducible on re-import.
+- New transaction identities are versioned hashes of currency, custody scope,
+  and the legacy transaction fingerprint (user/date/amount/direction/description/
+  reference/running-balance/occurrence). A confirmed user-owned custody account
+  supplies the scope; without it, the source digest isolates the provisional
+  fact until review. Distinct currencies or accounts never share identity merely
+  because their transaction text and numeric amounts match.
+- `AtomicTransactionIdentity` is an additive compatibility mapping. It binds a
+  tenant/version/hash to an atomic UUID only after source custody and currency
+  agree. Legacy hashes, UUIDs, financial facts, and posted references remain
+  unchanged; ambiguous legacy lineage requires review. A transaction-scoped
+  database identity lock makes concurrent retries converge on one atomic fact.
+- Reparse retains historical atomic facts and source links. Statement reads use
+  the current immutable result's fact identities (with validated aliases), so
+  superseded rows remain auditable but do not enter current validation/posting.
+  A changed source with posted entries requires the correction/void lifecycle;
+  it cannot silently post a successor alongside the original.
 - Per-transaction fields (`txn_date`, `amount`, `direction`, `description`,
   `reference`, `currency`, `balance_after`) live on `AtomicTransaction`. Atomic
   rows are source-pure: they carry no per-transaction status, confidence, or
@@ -271,7 +279,8 @@ of `StatementExtractionResult`. `POST /api/statements/{id}/review/envelope`
 accepts one complete, typed command pinned to the current result digest: a
 user-owned asset account, ISO currency, ordered period, Decimal opening/closing
 balances, and a rationale. The service verifies the exact result version,
-account currency, and the source transaction balance chain before it materializes
+account currency, every already-declared currency/period/balance fact, and the
+source transaction balance chain before it materializes
 the effective `StatementSummary` projection. It appends a review trace whose
 parent is the exact source-result observation.
 
@@ -282,10 +291,17 @@ range, JSON sidecar, or in-place source edit can stand in for this decision.
 PostgreSQL triggers reject direct updates and deletes of both fact tables; their
 statement references are restrictive, so deletion requires an explicit owning
 domain purge rather than an implicit cross-domain cascade.
-Only a transaction-ledger result missing solely currency, period, or balances
-is envelope-reviewable. Position or transaction-currency gaps remain blocked
-for the source-specific review path; the API exposes this capability so clients
-never present a cash-envelope form for facts it cannot prove.
+A transaction-ledger result missing solely currency, period, or balances is
+envelope-reviewable. A complete, balanced, single-currency bank cash source below
+the shared auto-promotion confidence threshold is also eligible for explicit
+human confirmation. This includes an ordinary month with no transactions:
+confidence remains 75, missing facts remain empty, and the immutable source is
+unchanged. The command fills absent facts only; it cannot replace a declared
+1000 opening/closing balance with an equally balanced 9000 pair. Position or
+transaction-currency gaps remain blocked for their source-specific review path.
+The API exposes this capability, and the UI offers confirmation even when the
+missing-facts list is empty. Healthy high-confidence sources keep their existing
+approval flow.
 Stage-1 approval rechecks that the mutable projection still equals the current
 complete source result or its current reviewed envelope, so no route or worker
 can promote a diverged projection.
@@ -314,8 +330,10 @@ containers remain brokerage evidence and are not flattened into a binary cash
 or non-cash account role.
 
 The contribution is `authoritative` only when its exact source version has its
-current target-matching decision. A missing, non-authoritative, stale,
-cross-tenant, or target-mismatched decision returns `unproven`. Source type,
+current target-matching decision. An exact current human envelope takes precedence
+when present; a revoked human decision cannot fall back to machine promotion.
+A missing, non-authoritative, stale, cross-tenant, or target-mismatched decision
+returns `unproven`. Source type,
 parser confidence, import time, and provenance remain display/diagnostic facts,
 not an authority shortcut. Report assembly freezes the contribution's ids and
 digest; it never resolves a replacement after reopen or export.
@@ -476,6 +494,9 @@ The single balance-mismatch terminal state (`parsed`, `stage1_status = pending_r
 - **Retry**: the retry endpoint (`POST /statements/{id}/retry`) accepts `parsed` (alongside
   `rejected`/`parsing`), so a balance-mismatch statement is retriable. `uploaded` remains
   non-retriable, which is now safe because balance-mismatch statements no longer rest there.
+  A retry retrieves the original source before clearing the validation error or
+  committing `parsing`. Missing source records and storage failures return 503
+  with the prior persisted status and error intact and no parsing task dispatched.
 - **Reporting authority**: a balance-invalid statement stays visible in extraction review, but
   cannot contribute to a trusted `PackageDocument` until a current authoritative decision
   establishes the exact input. Visibility is not authority.
@@ -533,6 +554,25 @@ S3_PUBLIC_ENDPOINT=https://s3.zitian.party
 S3_PUBLIC_BUCKET=statements
 S3_PRESIGN_EXPIRY_SECONDS=300
 ```
+
+## Source conservation and retry identity
+
+Every transaction-ledger row must become a structured fact or an explicit source
+failure. An unparseable date or amount is never silently skipped: offsetting
+omissions can preserve net balances while corrupting gross income and expenses.
+The source artifact and its storage key remain reachable for review/retry.
+
+Paged vision extraction merges balance facts by normalized currency, preserving
+later-page currency domains. Repeated identical facts are idempotent; conflicting
+balance facts or different account identifiers require source review rather than
+being overwritten. Consolidated same-currency multiple-account source splitting
+remains unsupported in this single-custody envelope.
+
+Persisted source type and evidence type govern bank/brokerage routing. An empty
+`positions` array in a typed bank result is not brokerage evidence; explicitly
+identified zero-position brokerage snapshots remain reviewable. Retry never
+promotes the provisional `Pending Detection` label into an institution override.
+Persistence checkpoints use the actual canonical statement/source identities.
 
 ## Parsing Resilience
 
@@ -699,3 +739,19 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
+
+Manual and automatic source posting initialize the same ledger-owned starting stock in their posting unit of work. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings. Missing opening facts or rates block posting atomically. Follow-up periods reuse authoritative per-account stock, and source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
+
+The legacy `DeduplicationService.upsert_atomic_transaction` keeps its original
+keyword-capture contract. New source ingestion calls the additive
+`upsert_scoped_atomic_transaction` command with explicit custody; both resolve
+versioned identities through the same owner. Unsupported legacy keywords still
+raise before writes (`AC-extraction.transaction-identity.5`).
+
+`resolve_transaction_identity` owns versioned identity adoption and its persisted `AtomicTransactionIdentity` alias rows; the alias table is an implementation detail of that domain service.
+
+Bank custody uses an extraction-owned persistent DIM binding keyed by exact institution, tenant, available account suffix, and currency. Account names are editable presentation. First allocation holds a transaction-scoped identity lock and the database enforces the same unique key. Explicit account selection still requires an owned, active, non-system asset account in the source currency and may not contradict an existing binding. No fuzzy institution matching is performed. The shared `is_bank_custody_source` predicate prefers typed evidence and centralizes the legacy document fallback for both explicit creation and posting. These bindings apply only to bank transaction ledgers; typed brokerage and position sources retain their separate import boundary. Immutable identity is consulted even when mutable statement metadata has drifted, so drift blocks adoption rather than hiding the original custody.
+
+Historical adoption requires one owned same-currency account, an owned uploaded document, and a current immutable extraction result whose identity and source digest agree with the retained statement. Ambiguous, archived, or contradictory history requires correction review. With no existing binding, explicitly selecting the one owned compatible legacy account resolves missing immutable history; multiple historical candidates still require governed correction. Unproven legacy history is never silently adopted; no posted accounts or historical facts are merged or rewritten. Rejected or rolled-back new allocations release their unused binding and any newly allocated account; existing bindings remain. Bindings use restrictive user and account references rather than cross-owner cascade deletion; explicit extraction-owned cleanup removes only unused new allocations. Archival retains the binding and blocks silent replacement.
+
+The available suffix is not a globally unique full bank account number. Two real accounts sharing the same institution, suffix, and currency cannot be disambiguated automatically by this contract; stronger source identity or explicit governed correction is required.

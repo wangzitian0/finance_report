@@ -78,6 +78,8 @@ def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) ->
         return None
     result = StatementExtractionResult.from_payload(payload)
     return {
+        "source_type": result.source_type.value,
+        "evidence_type": result.evidence_type.value,
         "institution": result.institution,
         "statement": {
             "institution": result.institution,

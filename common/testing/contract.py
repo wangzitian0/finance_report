@@ -1728,7 +1728,8 @@ CONTRACT = PackageContract(
             id="AC-testing.product-gates.2",
             statement=(
                 "A deterministic CSV upload runs as a critical fresh-user staging E2E: "
-                "source facts parse, but a missing authoritative economic disposition "
+                "source facts parse and are explicitly confirmed through the browser, "
+                "but a missing authoritative economic disposition "
                 "returns the statement to pending review with zero journal entries "
                 "instead of a false successful approval."
             ),
@@ -1843,7 +1844,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.product-gates.13",
             statement=(
-                "Provider-backed bank journeys treat an intent_missing approval "
+                "Provider-backed bank journeys confirm missing source envelopes only from "
+                "independent fixture facts and an exact current source digest, then treat an intent_missing approval "
                 "conflict as the expected human-review boundary: they apply only "
                 "fixture-owned explicit economic dispositions, retry approval, and "
                 "continue to ledger/report assertions without inferring intent from "
@@ -4210,6 +4212,66 @@ CONTRACT = PackageContract(
             test=(
                 "tests/e2e/test_institution_statement_journeys.py::"
                 "test_gxs_statement_journey_matches_expected_balances"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.package-lifecycle.3",
+            statement=(
+                "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts "
+                "directly from classification review without losing the explicit draft, "
+                "reviews and approves through browser controls, then generates, reopens and exports "
+                "one frozen report package with independent Decimal totals. Only authentication "
+                "setup may use mutation APIs; backend/frontend versions match the pinned target, "
+                "and model evidence distinguishes requested configuration from actual provider execution."
+            ),
+            test=(
+                "tests/e2e/test_gxs_browser_journey.py::"
+                "test_gxs_browser_upload_to_saved_package"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.pdf-checkpoint.1",
+            statement=(
+                "Generated PDF bytes traverse upload, real storage operations and extraction normalization "
+                "into one tenant-owned document, canonical statement, immutable result and distinct atomic "
+                "facts with matching content digests and retrievable storage keys. Deterministic provider "
+                "responses prove application composition, not live OCR accuracy."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_persists_source_and_fact_identity"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.pdf-checkpoint.2",
+            statement=(
+                "Report drill-down for the generated PDF reaches its actual source document through "
+                "every posted effect, including starting stock, with authoritative decision anchors "
+                "and tenant isolation."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_report_lineage_reaches_source"
+            ),
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.pdf-checkpoint.3",
+            statement=(
+                "The same-period generated PDF checkpoint produces correct independent Decimal opening, "
+                "gross income, gross expense and closing totals across all three basic statements, then "
+                "a trusted saved package whose JSON and CSV exports retain its frozen source decisions."
+            ),
+            test=(
+                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
+                "test_pdf_checkpoint_three_statements_and_saved_package"
             ),
             priority="P0",
             status="done",

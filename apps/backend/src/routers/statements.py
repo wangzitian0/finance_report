@@ -35,9 +35,11 @@ from src.extraction import (
     current_reviewed_statement_envelope,
     edit_and_approve,
     get_current_statement_extraction_result,
+    is_bank_custody_source,
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
+    resolve_bank_custody_account,
     resolve_statement_posting_account,
     resolve_statement_transactions,
     retire_statement,
@@ -160,6 +162,7 @@ async def _queue_statement_reparse(
     user_id: UUID,
     *,
     model: str | None = None,
+    reset_for_retry: bool = False,
 ) -> None:
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     if uploaded_document is None:
@@ -169,13 +172,20 @@ async def _queue_statement_reparse(
 
     storage = StorageService()
     content = await run_in_threadpool(storage.get_object, storage_key)
+    if reset_for_retry:
+        # A failed source fetch must leave the previous review state intact.
+        # Commit before dispatch so the worker sees the accepted retry state.
+        statement.status = BankStatementStatus.PARSING
+        statement.validation_error = None
+        await db.commit()
+        await db.refresh(statement)
     request_id = ensure_request_id()
     model_to_use = None if model == settings.ocr_model else model
     task = await submit_parse_pipeline(
         job=ParseJob(
             statement_id=statement.id,
             filename=filename,
-            institution=statement.institution,
+            institution=None if statement.institution == "Pending Detection" else statement.institution,
             user_id=user_id,
             account_id=statement.account_id,
             file_hash=statement.file_hash,
@@ -205,6 +215,21 @@ async def _create_statement_account_from_confirmation(
     user_id: UUID,
 ) -> Account:
     """Create and bind a statement account after explicit Stage 1 user confirmation."""
+    source = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
+    document = await _resolve_uploaded_document(db, statement, user_id)
+    bank_source = is_bank_custody_source(source, document)
+    if bank_source and statement.institution and statement.account_last4 and statement.currency:
+        resolved_account = await resolve_bank_custody_account(
+            db,
+            user_id=user_id,
+            institution=statement.institution,
+            account_last4=statement.account_last4,
+            currency=statement.currency,
+            account_id=statement.account_id,
+        )
+        statement.account_id = resolved_account.id
+        await db.flush()
+        return resolved_account
     if statement.account_id:
         account_result = await db.execute(
             select(Account).where(Account.id == statement.account_id).where(Account.user_id == user_id)
@@ -485,14 +510,8 @@ async def retry_statement_parsing(
         if not spec.accepts(Modality.IMAGE):
             raise_bad_request("Selected model does not support image/PDF inputs.")
 
-    # Reset status to PARSING before starting background task
-    statement.status = BankStatementStatus.PARSING
-    statement.validation_error = None
-    await db.commit()
-    await db.refresh(statement)
-
     try:
-        await _queue_statement_reparse(db, statement, user_id, model=selected_model)
+        await _queue_statement_reparse(db, statement, user_id, model=selected_model, reset_for_retry=True)
     except StorageError as exc:
         raise_service_unavailable(f"Failed to fetch file from storage: {exc}", cause=exc)
 

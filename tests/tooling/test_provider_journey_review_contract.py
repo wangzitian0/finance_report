@@ -239,3 +239,131 @@ async def test_provider_review_adapter_reuses_account_and_omits_empty_category()
         "counter_account_id": "expense-account",
         "rationale": "Fixture-owned rent.",
     }
+
+
+@pytest.mark.asyncio
+async def test_provider_review_confirms_only_fixture_owned_envelope() -> None:
+    """AC-testing.product-gates.13: missing source facts require explicit fixture evidence."""
+    from common.testing.provider_review import FixtureEnvelope
+    from datetime import date
+    from decimal import Decimal
+
+    class EnvelopeClient(_Client):
+        async def post(self, path, json=None):
+            if path.endswith("/review/approve") and not any(
+                c[1].endswith("/review/envelope") for c in self.calls
+            ):
+                self.calls.append(("POST", path, json))
+                return _Response(
+                    400,
+                    {
+                        "detail": "Current source requires explicit human confirmation before posting"
+                    },
+                )
+            if path.endswith("/review/envelope"):
+                self.calls.append(("POST", path, json))
+                return _Response(200, {"id": "envelope-1"})
+            return await super().post(path, json)
+
+        async def get(self, path):
+            if path.endswith("/review"):
+                return _Response(
+                    200, {"source_result_digest": "a" * 64, "account_id": "bank-1"}
+                )
+            return await super().get(path)
+
+    fixture = FixtureEnvelope(
+        "SGD",
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        Decimal("100"),
+        Decimal("110"),
+        "Generated original facts",
+    )
+    client = EnvelopeClient()
+    result = await approve_statement_with_fixture_review(
+        client,
+        api_url=lambda p: "/api" + p,
+        statement_id="statement-1",
+        transactions=[],
+        dispositions={
+            "Synthetic refund": FixtureDisposition(
+                "expense_refund", "EXPENSE", "Fixture refund"
+            )
+        },
+        envelope=fixture,
+    )
+    command = next(c[2] for c in client.calls if c[1].endswith("/review/envelope"))
+    assert command == {
+        "source_result_digest": "a" * 64,
+        "account_id": "bank-1",
+        "currency": "SGD",
+        "period_start": "2026-01-01",
+        "period_end": "2026-01-31",
+        "opening_balance": "100",
+        "closing_balance": "110",
+        "rationale": "Generated original facts",
+    }
+    assert result["reviewed_dispositions"] == 1
+    with pytest.raises(AssertionError, match="fixture envelope"):
+        await approve_statement_with_fixture_review(
+            EnvelopeClient(),
+            api_url=lambda p: "/api" + p,
+            statement_id="statement-1",
+            transactions=[],
+            dispositions={},
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "digest,confirmation_status", [(None, 200), ("b" * 64, 400), ("b" * 64, 200)]
+)
+async def test_fixture_source_confirmation_fails_closed(
+    digest, confirmation_status
+) -> None:
+    """AC-testing.product-gates.13: source confirmation needs a current digest and accepted command."""
+    from datetime import date
+    from decimal import Decimal
+
+    from common.testing.provider_review import (
+        FixtureEnvelope,
+        _confirm_fixture_envelope,
+    )
+
+    class SourceClient(_Client):
+        async def get(self, path):
+            return _Response(200, {"source_result_digest": digest, "account_id": None})
+
+        async def post(self, path, json=None):
+            self.calls.append(("POST", path, json))
+            if path == "/api/accounts":
+                return _Response(201, {"id": "new-custody"})
+            return _Response(
+                confirmation_status, {"id": "envelope", "detail": "source mismatch"}
+            )
+
+    client = SourceClient()
+    envelope = FixtureEnvelope(
+        "SGD",
+        date(2026, 1, 1),
+        date(2026, 1, 31),
+        Decimal("0"),
+        Decimal("0"),
+        "Generated source",
+    )
+    if digest is None or confirmation_status != 200:
+        with pytest.raises(
+            AssertionError, match="exact current extraction digest|confirmation failed"
+        ):
+            await _confirm_fixture_envelope(
+                client, lambda p: "/api" + p, "statement-1", envelope
+            )
+        if digest is None:
+            assert client.calls == []
+    else:
+        await _confirm_fixture_envelope(
+            client, lambda p: "/api" + p, "statement-1", envelope
+        )
+        assert client.calls[0][2]["type"] == "ASSET"
+        assert client.calls[1][2]["account_id"] == "new-custody"

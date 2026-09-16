@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronRight, LogOut } from "lucide-react";
 
 import {
@@ -12,14 +11,14 @@ import {
 } from "@/components/navigation";
 import { PageHeader } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
-import { clearUser } from "@/lib/auth";
+import { useLogout } from "@/hooks/useLogout";
 import type { HoldingsListResponse } from "@/lib/types";
 
 // EPIC-022 AC22.21.5: the More overflow holds low-frequency destinations. The
 // Portfolio entry is shown only when the user actually holds securities, so a
 // non-investor never sees an empty investment surface.
 export default function MorePage() {
-  const router = useRouter();
+  const { handleLogout, isLoggingOut, logoutError } = useLogout();
   const [hasHoldings, setHasHoldings] = useState(false);
 
   useEffect(() => {
@@ -64,11 +63,6 @@ export default function MorePage() {
     );
   };
 
-  const handleLogout = () => {
-    clearUser();
-    router.push("/login");
-  };
-
   return (
     <div className="p-6">
       <PageHeader
@@ -86,11 +80,13 @@ export default function MorePage() {
       <button
         type="button"
         onClick={handleLogout}
+        disabled={isLoggingOut}
         className="mt-6 flex w-full items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-muted)] min-h-[44px]"
       >
         <LogOut className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
         Logout
       </button>
+      {logoutError && <p role="alert" className="text-sm text-[var(--error)]">{logoutError}</p>}
     </div>
   );
 }

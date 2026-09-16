@@ -181,14 +181,18 @@ def _statement_section_contribution(
     *,
     start_date: date,
     end_date: date,
+    as_of_date: date | None = None,
 ) -> PackageSectionContribution[Any]:
     """Map immutable source facts to only the package sections they can support."""
     sections: list[PackageSectionId] = ["traceability_appendix"]
     result = contribution.source_result
     if result is not None:
-        if result.balances or result.transactions:
+        stock_is_current = contribution.effective_period_end is not None and contribution.effective_period_end <= (
+            as_of_date or end_date
+        )
+        if stock_is_current and (result.balances or result.transactions):
             sections.append("balance_sheet")
-        if result.positions:
+        if stock_is_current and result.positions:
             sections.extend(("balance_sheet", "investment_performance"))
         overlaps_period = (
             contribution.effective_period_start is not None
@@ -196,7 +200,10 @@ def _statement_section_contribution(
             and contribution.effective_period_start <= end_date
             and contribution.effective_period_end >= start_date
         )
-        if result.transactions and overlaps_period:
+        has_period_movement = any(
+            start_date <= fact.transaction_date <= min(end_date, as_of_date or end_date) for fact in result.transactions
+        )
+        if has_period_movement and overlaps_period:
             sections.extend(("cash_flow", "income_statement", "annualized_income_long_term"))
     input_refs = contribution.input_refs or (f"statement:{contribution.statement_id}",)
     return PackageSectionContribution(
@@ -230,6 +237,19 @@ def _journal_section_contribution(
         decision=contribution.decision,
         input_refs=contribution.input_refs,
         reason_code=contribution.reason_code,
+    )
+
+
+def _opening_section_contribution(position: Any) -> PackageSectionContribution[Any]:
+    """Keep even a zero, journal-free initialization in the package authority manifest."""
+    return PackageSectionContribution(
+        contribution_type="opening_position",
+        section_ids=("balance_sheet", "cash_flow", "traceability_appendix"),
+        payload=position,
+        state=position.state,
+        decision=position.decision,
+        input_refs=(f"opening_position:{position.account_id}",),
+        reason_code=position.reason_code,
     )
 
 
@@ -367,10 +387,12 @@ def _section_invariant_blockers(
             )
         )
     cash_rollforward = cash_flow.summary.ending_cash - cash_flow.summary.beginning_cash
-    if cash_rollforward != cash_flow.summary.net_cash_flow:
+    opening_adjustment = cash_flow.cash_bridge.opening_stock_adjustment if cash_flow.cash_bridge else Decimal("0")
+    if cash_rollforward != cash_flow.summary.net_cash_flow + opening_adjustment:
         blockers.append(
             _section_blocker(
-                "cash_flow_rollforward_failed", "Beginning cash plus net cash flow does not equal ending cash."
+                "cash_flow_rollforward_failed",
+                "Beginning cash plus net cash flow and opening balance adjustment does not equal ending cash.",
             )
         )
     # An empty package asserts no financial facts. Enforce cash-event proof
@@ -778,7 +800,16 @@ class PackageAssembler:
         as_of_date: date,
     ) -> tuple[PackageSectionContribution[Any], ...]:
         """Adapt package-owned DTOs; never reconstruct their authority locally."""
-        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=as_of_date)
+        from src.ledger import list_opening_positions
+
+        opening_results = await list_opening_positions(db, user_id=user_id, as_of=as_of_date)
+        # Extraction's as_of filter selects closing stock. Movement evidence can
+        # belong to a statement that closes later, so select its sections here.
+        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
+        statement_contributions = tuple(
+            _statement_section_contribution(item, start_date=start_date, end_date=end_date, as_of_date=as_of_date)
+            for item in statement_results
+        )
         journal_results = await list_journal_contributions(
             db,
             user_id=user_id,
@@ -793,14 +824,17 @@ class PackageAssembler:
         )
         return (
             *(
-                _statement_section_contribution(item, start_date=start_date, end_date=end_date)
-                for item in statement_results
+                item
+                for item in statement_contributions
+                if (item.payload.effective_period_end is not None and item.payload.effective_period_end <= as_of_date)
+                or "income_statement" in item.section_ids
             ),
             *(
                 _journal_section_contribution(item, start_date=start_date, end_date=end_date)
                 for item in journal_results
             ),
             *(_valuation_section_contribution(item) for item in valuation_results),
+            *(_opening_section_contribution(item) for item in opening_results),
         )
 
     async def _selected_market_contributions(

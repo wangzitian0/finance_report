@@ -58,6 +58,11 @@ class CashFlowBridge(BaseModel):
     classified_activity: Decimal
     unclassified_cash: Decimal
     fx_effect: Decimal
+    opening_stock_adjustment: Decimal = Field(
+        default=Decimal("0"),
+        exclude_if=lambda value: value == 0,
+        description="Initial stock first evidenced inside an incompletely covered period; never economic cash flow.",
+    )
     cash_delta: Decimal
     reconciles: bool
 

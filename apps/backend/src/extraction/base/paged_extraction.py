@@ -21,6 +21,7 @@ unit-testable in isolation:
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 _LIST_FIELDS = ("transactions", "positions")
@@ -101,6 +102,9 @@ def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
     if len(dict_parts) == 1:
         return dict_parts[0]
 
+    accounts = {str(part["account_last4"]).strip() for part in dict_parts if part.get("account_last4")}
+    if len(accounts) > 1:
+        raise ValueError("Multiple accounts in one extraction require separate source review")
     merged: dict[str, Any] = dict(dict_parts[0])
 
     # Scalar metadata: first non-empty part wins.
@@ -121,4 +125,21 @@ def merge_paged_extractions(parts: list[dict[str, Any]]) -> dict[str, Any]:
         if any(key in part for part in dict_parts):
             merged[key] = [row for part in dict_parts for row in (part.get(key) or [])]
 
+    # Balances are keyed financial facts, not first-part scalar metadata.
+    balances: dict[str, dict[str, Any]] = {}
+    for part in dict_parts:
+        for bucket in part.get("balances") or []:
+            currency = str(bucket.get("currency") or "").strip().upper()
+            if not currency:
+                raise ValueError("Currency balance is missing its declared currency")
+            current = balances.setdefault(currency, {"currency": currency})
+            for field in ("opening", "closing"):
+                value = bucket.get(field)
+                if value is None:
+                    continue
+                if current.get(field) is not None and Decimal(str(current[field])) != Decimal(str(value)):
+                    raise ValueError("Conflicting per-currency balance facts across page batches")
+                current[field] = value
+    if balances:
+        merged["balances"] = list(balances.values())
     return merged

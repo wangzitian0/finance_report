@@ -200,6 +200,8 @@ CONTRACT = PackageContract(
     ],
     implementations={"be": "apps/backend/src/ledger", "fe": None},
     interface=[
+        "OpeningPosition",
+        "list_opening_positions",
         "Account",
         "AccountNotFoundError",
         "AccountType",
@@ -246,6 +248,7 @@ CONTRACT = PackageContract(
         "get_or_create_processing_account",
         "get_processing_balance",
         "get_unpaired_transfers",
+        "initialize_opening_positions",
         "journal_command_target",
         "ledger_trace_policy_registry",
         "list_journal_contributions",
@@ -353,6 +356,76 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
+        ACRecord(
+            id="AC-ledger.opening-position.9",
+            statement="The legacy opening-entry API retains its positive base-currency JournalEntry contract; additive opening-position initialization supports signed and zero stock without weakening the legacy return guarantee.",
+            test="apps/backend/tests/ledger/test_opening_entry_compatibility.py::test_legacy_opening_entry_rejects_nonpositive_without_writes",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.8",
+            statement="Source-backed starting stock, including zero without a journal, retains the original source decision as a causal ancestor and public typed evidence reference.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_source_opening_retains_pdf_ancestor",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.7",
+            statement="The production migration preserves prior rejected history, installs immutable opening facts, and refuses an evidence-losing downgrade.",
+            test="apps/backend/tests/ledger/test_opening_position_migration.py::test_opening_migration_preserves_history_and_enforces_immutability",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.1",
+            statement="Manual and automatic source approval establish the same account starting stock.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_manual_approval_posts_opening",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.2",
+            statement="Concurrent repeated initialization creates one opening position and one journal entry per account.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_concurrent_opening_initialization",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.3",
+            statement="Readiness checks each account and accepts explicit zero initialization without a fabricated journal.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_zero_and_per_account_readiness",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.4",
+            statement="Foreign-currency opening positions preserve original money and historical FX; missing rates fail atomically.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_foreign_opening_and_missing_rate",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.5",
+            statement="Opening positions retain immutable evidence and do not reinterpret voided or unproven history as initialized.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_and_immutability",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.opening-position.6",
+            statement="A trusted opening position is a dated stock with a public evidence-bearing projection, never a fabricated prior-day flow.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_preserves_date",
+            priority="P0",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-ledger.statement-category.1",
+            statement="The accepted economic category is pinned on the counter-account journal command before authorization.",
+            test="apps/backend/tests/ledger/test_opening_position.py::test_statement_category_is_pinned",
+            priority="P0",
+            status="done",
+        ),
         ACRecord(
             id="AC-ledger.fx-port.1",
             statement=(
@@ -1368,8 +1441,8 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-ledger.15.5",
             statement=(
-                "Opening balances are accepted only in the base currency, with a "
-                "clear error rather than a confusing FX-rate failure. Was EPIC-002 "
+                "Opening balances require an explicit positive historical FX rate for non-base currency; "
+                "missing rates fail before any position is recorded. Was EPIC-002 "
                 "AC2.15.5."
             ),
             test=(
@@ -1415,10 +1488,9 @@ CONTRACT = PackageContract(
             id="AC-ledger.16.1",
             statement=(
                 "get_opening_balance_readiness reports needs_opening_balance=True "
-                "only when the user has posted activity and no opening-balance "
-                "entry on or before its earliest date (no activity, an opening "
-                "entry before activity, or a mis-dated opening entry after "
-                "activity are all distinguished). Was EPIC-002 AC2.16.1."
+                "when any user-managed asset or liability account with posted activity lacks "
+                "current opening-position evidence on or before its first activity. "
+                "Explicit zero initialization counts; another account never masks a gap. Was EPIC-002 AC2.16.1."
             ),
             test=(
                 "apps/backend/tests/ledger/test_opening_balance_readiness.py"
@@ -1820,7 +1892,8 @@ CONTRACT = PackageContract(
             id="AC-ledger.34.5",
             statement=(
                 "Every computed/transfer posting path gates balance through "
-                "Entry: opening-balance, fx-revaluation, and processing-account "
+                "Entry or the anchored repository validator: opening stock uses "
+                "the system-command boundary; fx-revaluation and processing-account "
                 "transfers construct an Entry before persisting (fx-revaluation "
                 "and processing-account previously wrote raw JournalLines with no "
                 "balance validation at all). The remaining raw site review_queue "
@@ -2153,7 +2226,7 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-ledger.fe-accounts-journal.12",
-            statement="Account form modal create mode submits normalized payload and closes on success",
+            statement="Account form modal initializes before becoming interactive, preserves the first input on repeated opens, submits normalized payload, and closes on success",
             # was AC16.21.1
             test="apps/frontend/src/__tests__/accountFormModalComponent.test.tsx::AC16.21.1 create mode submits normalized payload and closes on success",
             priority="P2",
@@ -2229,6 +2302,17 @@ CONTRACT = PackageContract(
             priority="P2",
             status="done",
             vision_anchor="decision-5-processing-account",
+        ),
+        ACRecord(
+            id="AC-ledger.first-use.1",
+            statement=(
+                "Opening balances start without an invented date; a user-selected "
+                "report period offers an explicitly applied previous-day date, "
+                "preserves manual edits and rejects dates inside that period."
+            ),
+            test="apps/frontend/src/__tests__/openingBalanceModal.test.tsx::AC-ledger.first-use.1 explicitly applies the prior-period date without posting",
+            priority="P0",
+            status="done",
         ),
         ACRecord(
             id="AC-ledger.fe-accounts2.2",

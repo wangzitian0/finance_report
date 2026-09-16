@@ -16,13 +16,16 @@ provider-port registrations in ``main.py`` (#1762/#1768 precedents).
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.audit import SqlTraceRecordRepository, TraceEmitter, normalize_currency_code
+from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter, normalize_currency_code
 from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
     DispositionMode,
@@ -33,7 +36,13 @@ from src.extraction import (
     extraction_trace_policy_registry,
     snapshot_currencies,
 )
-from src.ledger import used_currencies
+from src.ledger import (
+    JournalEntry,
+    account_service,
+    initialize_opening_positions,
+    ledger_trace_policy_registry,
+    used_currencies,
+)
 from src.portfolio import active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
 from src.reconciliation import ReviewedDispositionDependencies, accepted_transfer_txn_ids
@@ -46,13 +55,53 @@ async def _load_statement_content(storage_key: str) -> bytes:
     return await run_in_threadpool(storage.get_object, storage_key)
 
 
+def compose_financial_trace_emitter(db: AsyncSession) -> TraceEmitter:
+    """Replay source and ledger authority across the posting causal boundary."""
+    policies = TraceDecisionPolicyRegistry(
+        (
+            *extraction_trace_policy_registry().policies,
+            *ledger_trace_policy_registry().policies,
+        )
+    )
+    return TraceEmitter(SqlTraceRecordRepository(db, policies))
+
+
+async def post_guided_opening_balances(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    entry_date: date,
+    balances: dict[UUID, Decimal],
+    currency: str | None,
+    memo: str,
+) -> JournalEntry | None:
+    """Compose ledger-owned opening targets with pricing-owned historical rates."""
+    base_currency = await get_effective_base_currency(db)
+    currencies = await account_service.opening_balance_currencies(db, user_id, list(balances), currency)
+    fx_rates = {
+        code: await get_exchange_rate(db, code, base_currency, entry_date, lazy_load=True)
+        for code in sorted(currencies - {base_currency})
+    }
+    return await initialize_opening_positions(
+        db,
+        user_id,
+        entry_date=entry_date,
+        balances=balances,
+        currency=currency,
+        fx_rates=fx_rates,
+        trace_emitter=compose_financial_trace_emitter(db),
+        base_currency=base_currency,
+        memo=memo,
+    )
+
+
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
     """Bind statement posting to reconciliation and pricing owner ports."""
     return StatementPostingDependencies(
         transfer_exclusions=accepted_transfer_txn_ids,
         fx_rate_provider=get_exchange_rate,
         fx_rate_error=PricingError,
-        trace_emitter_factory=lambda db: TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
+        trace_emitter_factory=compose_financial_trace_emitter,
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
     )
 
@@ -60,7 +109,7 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
 def compose_reviewed_disposition_dependencies(db: AsyncSession) -> ReviewedDispositionDependencies:
     """Bind reconciliation's manual command to the canonical trace repository and policy."""
     return ReviewedDispositionDependencies(
-        trace_emitter=TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
+        trace_emitter=compose_financial_trace_emitter(db),
         disposition_policy=DispositionPolicy(),
     )
 
@@ -74,7 +123,7 @@ def compose_statement_ingestion_use_case(
         session_maker=session_maker,
         content_loader=_load_statement_content,
         posting_dependencies=compose_statement_posting_dependencies(),
-        trace_emitter_factory=lambda db: TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())),
+        trace_emitter_factory=compose_financial_trace_emitter,
     )
 
 

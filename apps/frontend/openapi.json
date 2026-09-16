@@ -2166,6 +2166,13 @@
             "title": "Fx Effect",
             "type": "string"
           },
+          "opening_stock_adjustment": {
+            "default": "0",
+            "description": "Initial stock first evidenced inside an incompletely covered period; never economic cash flow.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Opening Stock Adjustment",
+            "type": "string"
+          },
           "reconciles": {
             "title": "Reconciles",
             "type": "boolean"
@@ -7796,6 +7803,8 @@
           "cash",
           "listed_security",
           "fund",
+          "personal_income",
+          "personal_expense",
           "dividend_interest",
           "brokerage_fee",
           "fx",
@@ -8639,6 +8648,17 @@
             "title": "Amount",
             "type": "string"
           },
+          "line_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportLineId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical framework line identity when this is a consolidated report line."
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8683,6 +8703,58 @@
         ],
         "title": "ReportLine",
         "type": "object"
+      },
+      "ReportLineId": {
+        "description": "Enumerated canonical L1 reporting lines for personal report packages.",
+        "enum": [
+          "assets.cash_and_cash_equivalents",
+          "assets.cash_in_transit",
+          "income.salary",
+          "income.investment_income",
+          "income.refunds",
+          "income.other",
+          "expenses.dining",
+          "expenses.groceries",
+          "expenses.transport",
+          "expenses.housing",
+          "expenses.utilities",
+          "expenses.shopping",
+          "expenses.healthcare",
+          "expenses.entertainment",
+          "expenses.travel",
+          "expenses.education",
+          "expenses.insurance",
+          "expenses.fees",
+          "expenses.other",
+          "assets.marketable_securities",
+          "assets.financial_assets_at_fair_value",
+          "assets.investments.funds",
+          "assets.restricted_compensation",
+          "assets.investment_property",
+          "assets.biological_assets",
+          "assets.manual_private_assets",
+          "liabilities.financial_liabilities",
+          "equity.fx_translation",
+          "income.dividends_and_interest",
+          "income.unrealized_investment_gain_loss",
+          "income.fair_value_change_in_financial_assets",
+          "income.fx_gain_loss",
+          "expenses.investment_fees",
+          "cash.ending_cash",
+          "investing.fees",
+          "cash.internal_transfers",
+          "notes.fund_liquidity",
+          "notes.tax_hooks",
+          "notes.restricted_asset_treatment",
+          "notes.manual_valuation_basis",
+          "notes.liability_coverage",
+          "notes.transfer_matching",
+          "notes.tax_relevant_items",
+          "notes.us_like_market_price_basis",
+          "notes.hk_like_fair_value_basis"
+        ],
+        "title": "ReportLineId",
+        "type": "string"
       },
       "ReportSnapshotSummary": {
         "description": "Typed metadata for a Layer-4 ``ReportSnapshot`` (#1008, AC18.4.2).\n\nReplaces the model-less ``list[dict]`` returned by\n``GET /reports/{report_type}/snapshots`` so the contract is declared in\nOpenAPI and built from the ORM via ``from_attributes`` instead of a\nhand-rolled dict.",
@@ -14002,6 +14074,91 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "End this browser's session without revoking independently held JWTs.",
+        "operationId": "logout_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Logout",
         "tags": [
           "auth"
         ]

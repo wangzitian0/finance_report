@@ -60,10 +60,10 @@ async def resolve_statement_contribution(
 ) -> ResolvedStatementContribution:
     """Resolve exactly one current statement source result, never a projection.
 
-    A complete result requires its current extraction-promotion decision. A
-    source which requires review instead requires its current reviewed-envelope
-    decision. Both checks pin the target version, so a reparse or decision
-    supersession cannot authorize an older source payload.
+    An exact current human envelope takes precedence when present. Otherwise a
+    complete source requires its current extraction-promotion decision, while
+    missing source facts require explicit review. A revoked human decision never
+    falls back to machine promotion; both paths pin the immutable result version.
     """
     statement = await db.get(StatementSummary, statement_id)
     if statement is None or statement.user_id != user_id:
@@ -111,8 +111,8 @@ async def resolve_statement_contribution(
     effective_period_start: date | None = source_result.period_start
     effective_period_end: date | None = source_result.period_end
     account_id = statement.account_id
-    if source_result.requires_review:
-        envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
+    envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
+    if source_result.requires_review or envelope is not None:
         if envelope is None or envelope.source_result_id != source_record.id:
             return _unproven(
                 statement_id=statement.id,

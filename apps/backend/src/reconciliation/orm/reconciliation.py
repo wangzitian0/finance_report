@@ -68,7 +68,9 @@ class ReconciliationMatch(Base, UUIDMixin, TimestampMixin):
             "uq_reconciliation_matches_active_atomic_txn",
             "atomic_txn_id",
             unique=True,
-            postgresql_where=text("superseded_by_id IS NULL AND status <> 'superseded'::reconciliation_status_enum"),
+            postgresql_where=text(
+                "superseded_by_id IS NULL AND status NOT IN ('superseded'::reconciliation_status_enum, 'rejected'::reconciliation_status_enum)"
+            ),
         ),
     )
 

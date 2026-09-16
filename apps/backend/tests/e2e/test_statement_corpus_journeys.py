@@ -323,6 +323,9 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
         opening_balance=case.opening_balance,
         transactions=[dict(row) for row in case.rows],
     )
+    if case.rows:
+        seeded.statement.period_start = min(row["date"] for row in case.rows)
+        seeded.statement.period_end = max(row["date"] for row in case.rows)
     await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
     stmt_id = str(seeded.id)
     n = len(case.rows)
@@ -380,8 +383,8 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
     run = run_resp.json()
     assert run["unmatched"] == 0, f"[{case.short_id}] reconciliation left unmatched rows: {run}"
 
-    # Report: the balance sheet reflects the statement's net movement on the
-    # posting account, and the accounting equation holds.
+    # Report: ending stock includes the source opening plus period movement.
+    # Opening stock offsets equity and must not become income.
     report_resp = await client.get("/reports/balance-sheet")
     assert report_resp.status_code == 200, report_resp.text
     report = report_resp.json()
@@ -390,8 +393,8 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
     if n:
         lines = {line["account_id"]: Decimal(str(line["amount"])) for line in report["assets"]}
         assert account_id in lines, f"[{case.short_id}] posting account missing from balance sheet assets"
-        assert lines[account_id] == case.net_movement, (
-            f"[{case.short_id}] balance sheet shows {lines[account_id]}, corpus net movement is {case.net_movement}"
+        assert lines[account_id] == case.opening_balance + case.net_movement, (
+            f"[{case.short_id}] balance sheet must include source opening stock and net movement"
         )
 
     # AC-llm.11.4: the income statement ties to the same corpus data by a
@@ -456,12 +459,11 @@ async def test_corpus_statement_full_journey(client, db, test_user, fingerprint)
             )
         else:
             summary = cash_flow["summary"]
-            assert Decimal(str(summary["beginning_cash"])) == Decimal("0"), (
-                f"[{case.short_id}] fresh test user must have zero beginning cash"
+            assert Decimal(str(summary["beginning_cash"])) == case.opening_balance, (
+                f"[{case.short_id}] beginning cash must equal the source opening stock"
             )
-            assert Decimal(str(summary["ending_cash"])) == case.net_movement, (
-                f"[{case.short_id}] cash-flow ending_cash {summary['ending_cash']} "
-                f"!= corpus net movement {case.net_movement} (posting account classified as cash)"
+            assert Decimal(str(summary["ending_cash"])) == case.opening_balance + case.net_movement, (
+                f"[{case.short_id}] ending cash must equal source opening plus net movement"
             )
 
 
@@ -542,7 +544,8 @@ async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user
     GIVEN three real, distinct-account corpus statements (CMB Jan-Jun, MariBank
     May, Moomoo Jun 2025) seeded and approved for the SAME test_user
     WHEN generating the combined-period balance sheet and income statement
-    THEN both tie to the SUM of all three cases' net movements — the
+    THEN assets include all three opening stocks and net movements, while
+    income includes their net movements alone — the
     derivation holds across statements accumulating in one ledger, not just
     within a single statement's own journey.
     """
@@ -558,6 +561,8 @@ async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user
             opening_balance=case.opening_balance,
             transactions=[dict(row) for row in case.rows],
         )
+        seeded.statement.period_start = min(row["date"] for row in case.rows)
+        seeded.statement.period_end = max(row["date"] for row in case.rows)
         await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
         stmt_id = str(seeded.id)
 
@@ -609,8 +614,9 @@ async def test_corpus_multi_statement_acceptance_same_user(client, db, test_user
 
     asset_lines = {line["account_id"]: Decimal(str(line["amount"])) for line in balance["assets"]}
     combined_assets = sum((asset_lines[acc_id] for acc_id in account_ids), Decimal("0"))
-    assert combined_assets == expected_total, (
-        f"combined balance sheet assets {combined_assets} != sum of corpus net movements {expected_total}"
+    expected_assets = sum((case.opening_balance for case in cases), expected_total)
+    assert combined_assets == expected_assets, (
+        f"combined balance sheet assets {combined_assets} != source opening stocks plus net movements {expected_assets}"
     )
 
     income_resp = await client.get(
