@@ -114,7 +114,7 @@ export function TransactionTable({
       >
         <table
           className="table-fixed border-collapse text-sm"
-          style={{ width: "calc(100% - 4px)" }}
+          style={{ width: onSelectTransaction ? "calc(100% - 16px)" : "calc(100% - 4px)" }}
         >
           <thead className="sticky top-0 bg-[var(--background)]">
             <tr className="border-b border-[var(--border)]">
@@ -125,7 +125,7 @@ export function TransactionTable({
                 Confidence
               </th>
               {onSelectTransaction && (
-                <th className="text-right px-4 py-2 font-medium w-20">
+                <th className="text-right px-2 py-2 font-medium w-20">
                   Action
                 </th>
               )}
@@ -171,11 +171,11 @@ export function TransactionTable({
                   )}
                 </td>
                 {onSelectTransaction && (
-                  <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => onSelectTransaction(txn)}
-                      className="btn-ghost btn-xs text-xs text-[var(--accent)] hover:underline"
+                      className="rounded px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10"
                     >
                       Review
                     </button>

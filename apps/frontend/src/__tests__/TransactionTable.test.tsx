@@ -56,6 +56,14 @@ describe("TransactionTable (read-only)", () => {
         expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
     });
 
+    it("reserves responsive margin when action column is rendered", () => {
+        render(<TransactionTable transactions={sample} currency="SGD" onSelectTransaction={vi.fn()} />);
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const table = region.querySelector("table");
+        expect(table).toHaveStyle({ width: "calc(100% - 16px)" });
+    });
+
     it("keeps mobile transaction cards in the DOM without matchMedia gating", () => {
         Object.defineProperty(window, "matchMedia", {
             configurable: true,
