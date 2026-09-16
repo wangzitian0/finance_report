@@ -100,23 +100,33 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
         in tooling_run
     )
     assert "sha256sum --check --status" in tooling_run
-    command_line = next(
+    # The verified wheel installs into the lockfile-backed venv the
+    # backend/backend-integration/backend-e2e-tier1 jobs already cache
+    # (actions/cache@v5 keyed on apps/backend/uv.lock) rather than an ad hoc
+    # `uv run --with <n packages>` resolve+download on every run (#1767
+    # measured that ad hoc install as ~7:47-7:59 of this job's ~8:00).
+    install_line = next(
         line.strip().removesuffix("\\").strip()
         for line in tooling_run.splitlines()
-        if line.strip().startswith("uv run ")
+        if line.strip().startswith("uv pip install ")
     )
-    command_tokens = shlex.split(command_line)
-    with_dependencies = [
-        command_tokens[index + 1]
-        for index, token in enumerate(command_tokens[:-1])
-        if token == "--with"
-    ]
-    assert with_dependencies.count("$sdk_wheel") == 1
-    assert expected_sdk_dependency not in with_dependencies
+    install_tokens = shlex.split(install_line)
+    assert install_tokens[-1] == "$sdk_wheel"
+    assert expected_sdk_dependency not in install_tokens
+    assert "--python" in install_tokens
+    assert "apps/backend/.venv/bin/python" in install_tokens
+
+    pytest_line = next(
+        line.strip().removesuffix("\\").strip()
+        for line in tooling_run.splitlines()
+        if "-m pytest tests/tooling/" in line
+    )
+    pytest_tokens = shlex.split(pytest_line)
+    assert pytest_tokens[0] == "apps/backend/.venv/bin/python"
     pytest_index = max(
-        index for index, token in enumerate(command_tokens) if token == "pytest"
+        index for index, token in enumerate(pytest_tokens) if token == "pytest"
     )
-    assert command_tokens[pytest_index + 1] == "tests/tooling/"
+    assert pytest_tokens[pytest_index + 1] == "tests/tooling/"
 
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST

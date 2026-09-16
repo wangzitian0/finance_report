@@ -1232,13 +1232,37 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Cache Python venv
+        uses: actions/cache@v5
+        with:
+          path: apps/backend/.venv
+          key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd apps/backend && uv sync
+
       - name: Run tooling tests with coverage
         run: |
+          # tests/tooling/ needs exactly what apps/backend already declares
+          # (pytest/pytest-cov/pytest-xdist/pytest-asyncio, pydantic, sqlalchemy,
+          # asyncpg, fastapi, httpx, pdfplumber, reportlab, boto3, pyyaml,
+          # structlog, email-validator, anyio transitively, infra2-sdk) -- so
+          # this job now installs from the SAME lockfile-backed venv/cache the
+          # backend/backend-integration/backend-e2e-tier1 jobs already warm
+          # (actions/cache@v5 on apps/backend/uv.lock), instead of an ad hoc
+          # `uv run --with <17 packages>` resolve+download every run (#1767
+          # measured that ad hoc install at ~7:47-7:59 of this job's ~8:00).
           sdk_pin="$(python tools/sdk_pin.py)" || exit $?
           read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
           sdk_wheel="$RUNNER_TEMP/$sdk_filename"
           curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"
           printf '%s  %s\n' "$sdk_sha256" "$sdk_wheel" | sha256sum --check --status
+          # Prove the pinned wheel actually installs (the SDK pin CLI boundary
+          # restored by #2004/#2036/#2038) -- now into the synced venv rather
+          # than a throwaway `uv run --with` environment.
+          uv pip install --python apps/backend/.venv/bin/python "$sdk_wheel"
           mkdir -p coverage
           printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
           # #1767: -n auto (pytest-xdist) parallelizes across the runner's cores;
@@ -1247,7 +1271,7 @@ jobs:
           # auto produced identical common.lcov/tools.lcov content to a serial
           # run, just ~3.5x faster: 2022 tests in ~58s vs ~205s). This was the
           # critical-path job (~451s of the ~510s main-push pipeline).
-          uv run --with pytest --with pytest-cov --with pytest-xdist --with pytest-asyncio --with anyio --with pyyaml --with pydantic --with pydantic-settings --with email-validator --with structlog --with sqlalchemy --with asyncpg --with fastapi --with httpx --with pdfplumber --with reportlab --with boto3 --with "$sdk_wheel" pytest tests/tooling/ \
+          apps/backend/.venv/bin/python -m pytest tests/tooling/ \
             --cov=common \
             --cov=tools \
             --cov=apps/backend/src \
@@ -1255,8 +1279,8 @@ jobs:
             --cov-report= \
             --junit-xml=coverage/tooling-junit.xml \
             -n auto -x -q
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/common.lcov --include='common/*'
-          COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov -o coverage/tools.lcov --include='tools/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/common.lcov --include='common/*'
+          COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/tools.lcov --include='tools/*'
           # #1669 moved env_keys.py/schema_validation.py from common/config into
           # apps/backend/src/runtime/extension/, so they now belong to the
           # "backend" coverage bucket. Their only test suite is tests/tooling/
@@ -1267,7 +1291,7 @@ jobs:
           # the Backend Tests shards run `--cov=src`) so the emitted SF: paths
           # (src/runtime/...) match the shards' paths exactly — otherwise
           # merge_lcov.py treats them as distinct files and double-counts lines.
-          (cd apps/backend && COVERAGE_RCFILE=/tmp/tooling-coveragerc uv run --with coverage coverage lcov \
+          (cd apps/backend && COVERAGE_RCFILE=/tmp/tooling-coveragerc .venv/bin/python -m coverage lcov \
             --data-file="$GITHUB_WORKSPACE/.coverage" \
             -o "$GITHUB_WORKSPACE/coverage/backend-tooling.lcov" \
             --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py')
