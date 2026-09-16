@@ -161,7 +161,7 @@ def render_db_schema_reference(metadata: MetaData) -> str:
         f"- Foreign key count: `{foreign_key_count}`",
         f"- Index count: `{index_count}`",
         "",
-        "Use [Database Schema SSOT](../ssot/schema.md) for model rationale, data-layer rules, enum naming rules, and migration guardrails.",
+        "Use [Database Schema SSOT](../../common/meta/schema.md) for model rationale, data-layer rules, enum naming rules, and migration guardrails.",
         "",
         "## Table Summary",
         "",
