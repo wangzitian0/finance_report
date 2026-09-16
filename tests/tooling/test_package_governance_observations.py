@@ -1162,6 +1162,12 @@ def test_AC_testing_governance_27_classifies_actual_junit_artifact_lanes(
             / "backend/backend-shard-1-test-context/test-results/backend-shard-1.xml",
             junit_root
             / "backend/backend-shard-5-test-context/test-results/backend-shard-5.xml",
+            # #8-way shard matrix (AC-testing.ci-structure.8): shard numbers
+            # beyond 5 must not fall out of the known-lane classification --
+            # this exact regression broke ac-traceability on the PR that
+            # raised the matrix from 5-way to 8-way (shard-6 was unclassified).
+            junit_root
+            / "backend/backend-shard-8-test-context/test-results/backend-shard-8.xml",
         ],
         "ci.backend_integration": [
             junit_root
