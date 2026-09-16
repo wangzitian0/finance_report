@@ -185,7 +185,11 @@ async def test_full_registration_flow(page: Page):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("viewport", ["desktop", "mobile"])
 async def test_browser_cookie_logout_lifecycle(page: Page, viewport, record_property):
-    """AC-identity.journeys.6: Real UI auth never substitutes local metadata for cookie logout."""
+    """
+    EPIC-001 EPIC-016.
+
+    AC-identity.journeys.6: Real UI auth never substitutes local metadata for cookie logout.
+    """
     expected = os.environ.get("EXPECTED_SHA")
     assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA"
     for path in ("/api/health", "/frontend-version.json"):
