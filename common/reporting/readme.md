@@ -666,3 +666,8 @@ The cash-flow page, package summary and standalone CSV disclose any opening
 balance adjustment during the period. A coverage gap labels beginning cash as
 the known amount; unproven authority never receives a verified arithmetic badge.
 The CSV carries the same proof state and reasons as the report.
+
+The live GXS browser journey also reads a midperiod package from the same uploaded
+source, independently checks cutoff amounts, and requires concrete source decision
+anchors (`AC-reporting.report-integrity.8`). Full-month JSON/CSV snapshot assertions
+remain separate from this live midperiod projection.

@@ -14,6 +14,7 @@ import os
 import re
 import time
 import uuid
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -260,6 +261,49 @@ async def test_gxs_browser_upload_to_saved_package(
     )
     assert csv_amounts["income_statement.total_income"] == income
     assert csv_amounts["income_statement.total_expenses"] == expense
+    # AC-reporting.report-integrity.8: a later-closing source still proves
+    # included movements, but its future closing balance cannot become stock.
+    cutoff = (
+        date.fromisoformat(statement["period_start"]) + timedelta(days=14)
+    ).isoformat()
+    midperiod_response = await page.request.get(
+        f"{APP_URL}/api/reports/package",
+        params={
+            "start_date": statement["period_start"],
+            "end_date": cutoff,
+            "as_of_date": cutoff,
+            "currency": statement["currency"],
+        },
+    )
+    assert midperiod_response.status == 200
+    midperiod = await midperiod_response.json()
+    mid_sections = midperiod["sections"]
+    included = [row for row in expected["events"] if row["date"] <= cutoff]
+    mid_income = sum(
+        (Decimal(row["amount"]) for row in included if row["direction"] == "IN"),
+        Decimal("0"),
+    )
+    mid_expense = sum(
+        (Decimal(row["amount"]) for row in included if row["direction"] == "OUT"),
+        Decimal("0"),
+    )
+    assert Decimal(mid_sections["income_statement"]["total_income"]) == mid_income
+    assert Decimal(mid_sections["income_statement"]["total_expenses"]) == mid_expense
+    assert (
+        Decimal(mid_sections["balance_sheet"]["total_assets"])
+        == Decimal(statement["opening_balance"]) + mid_income - mid_expense
+    )
+    income_line = next(
+        line
+        for line in mid_sections["traceability_appendix"]["lines"]
+        if line["line_id"] == "income_statement.total_income"
+    )
+    assert income_line["source_anchor"]["details"]
+    assert any(
+        detail["decision_id"] for detail in income_line["source_anchor"]["details"]
+    )
+    (tmp_path / "midperiod-package.json").write_text(json.dumps(midperiod, indent=2))
+    record_property("midperiod_source_and_amount_oracle", "passed")
     record_property("browser_saved_package_oracle", "passed")
     record_property("browser_journey_seconds", round(time.monotonic() - started, 2))
     await page.screenshot(path=str(tmp_path / "saved-package.png"), full_page=True)
