@@ -220,6 +220,8 @@ particular, a new named keyword beside existing `**kwargs` changes capture and
 requires consumer proof. Delimiters or annotation-like text inside quoted
 defaults never count as structural additions or removable metadata. This is a
 bounded signature comparison, not a claim about arbitrary implementation changes.
+Callable fingerprints must also compile: duplicate parameter names are malformed
+input and cannot qualify as compatible additions.
 
 The report is generated CI evidence, not an authored SSOT:
 `.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`

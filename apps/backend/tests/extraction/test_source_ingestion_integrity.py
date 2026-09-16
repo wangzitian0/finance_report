@@ -629,3 +629,84 @@ async def test_effective_membership_excludes_superseded_sources(db, test_user):
             await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))
         ).all()
     )
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "foreign_document",
+        "changed_account",
+        "missing_account",
+        "malformed_lineage",
+        "currency_conflict",
+        "different_currency",
+        "missing_custody",
+        "inconsistent_alias",
+    ],
+)
+async def test_transaction_identity_rejects_unproven_adoption(db, test_user, failure):
+    """AC-extraction.transaction-identity.3: invalid custody cannot rewrite old facts."""
+    from src.extraction.extension.transaction_identity import (
+        TransactionIdentityReviewRequired,
+        resolve_transaction_identity,
+        source_custody_scope,
+    )
+    from tests.factories import UserFactory
+
+    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    document, summary = await _source(db, test_user.id, account=account)
+    old = await _legacy(db, test_user.id, document)
+    original = (old.id, old.dedup_hash)
+    if failure in {"foreign_document", "changed_account", "missing_account"}:
+        uid = test_user.id
+        aid = uuid4()
+        if failure == "foreign_document":
+            other = await UserFactory.create_async(db)
+            uid = other.id
+        if failure == "missing_account":
+            summary.account_id = None
+            await db.flush()
+        with pytest.raises((ValueError, TransactionIdentityReviewRequired)):
+            await source_custody_scope(db, user_id=uid, document_id=document.id, account_id=aid)
+    else:
+        if failure == "malformed_lineage":
+            old.source_documents = [{"doc_id": "invalid"}]
+        elif failure == "currency_conflict":
+            summary.currency = "USD"
+        elif failure == "missing_custody":
+            summary.account_id = None
+        if failure == "inconsistent_alias":
+            from src.extraction.extension.transaction_identity import versioned_transaction_hash
+            from src.extraction.orm.layer2 import AtomicTransactionIdentity
+
+            db.add(
+                AtomicTransactionIdentity(
+                    user_id=test_user.id,
+                    identity_version="v2",
+                    identity_hash=versioned_transaction_hash(old.dedup_hash, "SGD", f"account:{account.id}"),
+                    legacy_hash=old.dedup_hash,
+                    atomic_txn_id=old.id,
+                    currency="USD",
+                    custody_scope=f"account:{account.id}",
+                )
+            )
+        await db.flush()
+        if failure == "different_currency":
+            _, candidate = await resolve_transaction_identity(
+                db,
+                user_id=test_user.id,
+                legacy_hash=old.dedup_hash,
+                currency="USD",
+                custody_scope=f"account:{account.id}",
+            )
+            assert candidate is None
+        else:
+            with pytest.raises(TransactionIdentityReviewRequired):
+                await resolve_transaction_identity(
+                    db,
+                    user_id=test_user.id,
+                    legacy_hash=old.dedup_hash,
+                    currency="SGD",
+                    custody_scope=f"account:{account.id}",
+                )
+    assert (old.id, old.dedup_hash) == original

@@ -571,3 +571,60 @@ def test_AC_meta_public_boundary_8_breaking_changes_stay_blocked(
     )
     assert result["status"] == "blocked"
     assert len(result["breaking_changes"]) == 1
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        "class(){value: int; extra: int=...}",
+        "class(){value: int; extra: int=MISSING}",
+        "class(){value: int; extra: int=dataclasses.MISSING}",
+        "class(){value: int; extra: int=Field(default=PydanticUndefined)}",
+        "class(){value: int; extra: int=Field(default_factory=None)}",
+        "class(){value: int; extra: int=field(default_factory=MISSING)}",
+        "class(){value: int; extra: int=Field(default=...)}",
+        "class(){value: int; extra: int=Field(default=0); value: str}",
+        "class(){value: int; extra: int=}",
+        "class(){value: int; extra: int=1=2}",
+        "class(){value: int; ?}",
+        "class(){value: int; extra: int=(]}",
+        "class(){value: int; extra: int='unterminated}",
+        "class(){value: int; extra: int=(}",
+        "class{value: int; extra: int=0}",
+        "class(){value: int; malformed -> int}",
+        "class(){value: int; call self -> int}",
+        "class(){value: int; call(self, duplicate, duplicate) -> int}",
+        "class(){value: int; call(self, *) -> int}",
+    ],
+)
+def test_AC_meta_public_boundary_8_unknown_or_required_defaults_block(after):
+    """AC-meta.public-boundary.8: malformed fingerprints and required sentinels fail closed."""
+    result = dependency_report.evaluate_boundary_compatibility(
+        {
+            "changed_public_symbols": [
+                {
+                    "package": "demo",
+                    "symbol": "Surface",
+                    "before": "class(){value: int}",
+                    "after": after,
+                }
+            ],
+            "head": {"delivery_boundaries": [], "public_symbols": []},
+        },
+        consumer_proofs={},
+    )
+    assert result["status"] == "blocked"
+    assert len(result["breaking_changes"]) == 1
+
+
+@pytest.mark.parametrize(
+    "default", ["Field(default=0)", "Field(default_factory=list)", "Field(0)"]
+)
+def test_AC_meta_public_boundary_8_explicit_defaults_remain_optional(default):
+    """AC-meta.public-boundary.8: concrete default values preserve existing construction."""
+    assert dependency_report._is_compatible_public_change(
+        {
+            "before": "class(BaseModel){value: int}",
+            "after": f"class(BaseModel){{value: int; extra: int={default}}}",
+        }
+    )

@@ -409,3 +409,65 @@ def test_bank_source_classification_is_shared(typed, document_kind):
     document = None if document_kind is None else SimpleNamespace(document_type=document_kind)
     expected = typed == "bank" if typed is not None else document_kind is not DocumentType.BROKERAGE_STATEMENT
     assert is_bank_custody_source(source, document) is expected
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing_document",
+        "brokerage_document",
+        "invalid_payload",
+        "source_digest",
+        "payload_digest",
+        "archived_account",
+        "missing_identity",
+        "explicit_conflict",
+    ],
+)
+async def test_historical_custody_rejects_invalid_evidence(db, test_user, failure):
+    """AC-extraction.custody-binding.4: retained history never bypasses immutable evidence checks."""
+    from datetime import UTC, datetime
+
+    from src.extraction.extension.custody_binding import resolve_bank_custody
+    from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+
+    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    summary = await history(db, test_user.id, account)
+    if failure == "missing_document":
+        summary.uploaded_document_id = None
+    elif failure == "brokerage_document":
+        document = await db.get(UploadedDocument, summary.uploaded_document_id)
+        document.document_type = DocumentType.BROKERAGE_STATEMENT
+    elif failure in {"invalid_payload", "source_digest", "payload_digest"}:
+        original = await db.get(StatementExtractionResultRecord, summary.current_extraction_result_id)
+        replacement = StatementExtractionResultRecord(
+            user_id=test_user.id,
+            statement_id=summary.id,
+            content_digest="a" * 64,
+            source_content_digest="b" * 64 if failure == "source_digest" else original.source_content_digest,
+            schema_version=original.schema_version,
+            producer_version=original.producer_version,
+            payload={} if failure == "invalid_payload" else original.payload,
+            source_trace_record_id=original.source_trace_record_id,
+            created_at=datetime.now(UTC),
+        )
+        db.add(replacement)
+        await db.flush()
+        summary.current_extraction_result_id = replacement.id
+    elif failure == "archived_account":
+        account.is_active = False
+    await db.flush()
+    explicit = (
+        await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+        if failure == "explicit_conflict"
+        else None
+    )
+    with pytest.raises(ExtractionError):
+        await resolve_bank_custody(
+            db,
+            user_id=test_user.id,
+            institution="" if failure == "missing_identity" else "DBS",
+            account_last4="2468",
+            currency="SGD",
+            account_id=explicit.id if explicit else None,
+        )

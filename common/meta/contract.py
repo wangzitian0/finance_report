@@ -521,7 +521,7 @@ CONTRACT = PackageContract(
                 "Structural compatibility accepts appended defaulted dataclass fields, "
                 "optional keyword-only callable parameters and genuinely new public methods "
                 "while preserving existing bindings, defaults, types, returns, decorators "
-                "and member order; ambiguous variadic capture and required additions remain breaking."
+                "and member order; ambiguous variadic capture, required additions, and malformed callable signatures remain breaking."
             ),
             test=(
                 "tests/tooling/test_public_boundary_control.py"

@@ -2297,9 +2297,12 @@ def _callable_surface(surface: str) -> tuple[str, ast.arguments, str, str] | Non
     returns = surface[tokens[arrow][2] : suffix_start].strip()
     metadata = surface[suffix_start:]
     try:
-        function = ast.parse(
+        declaration = ast.parse(
             f"def _boundary({surface[opening + 1 : close]}) -> {returns}: pass"
-        ).body[0]
+        )
+        # Parsing alone accepts duplicate argument names; they are not a callable API.
+        compile(declaration, "<public-boundary>", "exec")
+        function = declaration.body[0]
     except SyntaxError:
         return None
     if not isinstance(function, ast.FunctionDef):
