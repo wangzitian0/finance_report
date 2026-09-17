@@ -588,10 +588,12 @@ SSOT edits: [DELIVERY_ENGINE_RECOMMENDATIONS.md](../../docs/project/DELIVERY_ENG
 >
 > | Environment | Parallelism | Test Scope | Resource Usage |
 > |-------------|-------------|------------|----------------|
-> | **GitHub CI** | `-n auto` + `--splits 8` | ~12.5% tests per shard | Medium (ephemeral runners) |
+> | **GitHub CI** | `-n logical` + `--splits 8` | ~12.5% tests per shard | Medium (ephemeral runners) |
 > | **Local CI** | `-n 4` (fixed) | 100% tests | Controlled (shared machine) |
 >
-> This is intentional design, not inconsistency.
+> This is intentional design, not inconsistency. CI uses `-n logical`, not
+> `-n auto`: with `psutil` installed, xdist's `auto` counts physical cores,
+> which is 2 on a 4-vCPU hosted runner, so half the runner sat idle.
 
 ---
 

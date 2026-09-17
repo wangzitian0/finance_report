@@ -381,9 +381,9 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
@@ -469,9 +469,9 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
@@ -512,6 +512,10 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
+          # -n logical, not -n auto: with psutil installed, xdist's `auto`
+          # counts physical cores (2 on a 4-vCPU hosted runner), so it left half
+          # the runner idle. `logical` uses all logical CPUs.
+          echo "runner CPUs: $(nproc) logical"
           python - <<'PY'
           import json
           from pathlib import Path
@@ -526,7 +530,7 @@ jobs:
               )
           print(f"Loaded pytest-split duration seed with {len(durations)} entries")
           PY
-          uv run pytest -n auto -v \
+          uv run pytest -n logical -v \
             -m "not slow and not e2e and not integration" \
             --splits 8 \
             --group ${{ matrix.shard }} \
@@ -578,12 +582,45 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
+
+      # Started in the background right after checkout, so the image pulls
+      # and the MinIO boot overlap uv/Python/venv setup instead of queueing
+      # behind it. "Wait for MinIO" blocks on the outcome before any
+      # test runs, and a setup failure still fails the job there.
+      - name: Start MinIO
+        run: |
+          cat > "$RUNNER_TEMP/start-minio.sh" <<'SH'
+          set -euo pipefail
+          docker run -d \
+            --name finance-report-minio-integration \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_local_secret \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data --console-address ":9001"
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/live
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
+            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          SH
+          {
+            if bash "$RUNNER_TEMP/start-minio.sh"; then
+              touch "$RUNNER_TEMP/minio-ready"
+            else
+              touch "$RUNNER_TEMP/minio-failed"
+            fi
+          } > "$RUNNER_TEMP/minio-setup.log" 2>&1 &
 
       - name: Install uv
         uses: ./.github/actions/setup-uv-retry
@@ -611,26 +648,16 @@ jobs:
       # #1828 G-health-honest-somewhere: this lane runs the REAL Bootloader
       # _check_database/_check_s3 (tests/integration/test_bootloader_real_checks.py),
       # so it needs a live S3-compatible service, not just the env vars.
-      - name: Start MinIO
+      - name: Wait for MinIO
         run: |
-          docker run -d \
-            --name finance-report-minio-integration \
-            -p 9000:9000 \
-            -e MINIO_ROOT_USER=minio \
-            -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
-            server /data --console-address ":9001"
-
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+          for _ in {1..120}; do
+            if [ -f "$RUNNER_TEMP/minio-ready" ] || [ -f "$RUNNER_TEMP/minio-failed" ]; then
               break
             fi
-            sleep 2
+            sleep 1
           done
-
-          curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
-            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          cat "$RUNNER_TEMP/minio-setup.log"
+          test -f "$RUNNER_TEMP/minio-ready"
 
       - name: Run Integration Tests
         env:
@@ -643,7 +670,7 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
-          uv run pytest -n auto -v \
+          uv run pytest -n logical -v \
             --override-ini addopts="" \
             -m "integration" \
             --dist worksteal \
@@ -688,12 +715,45 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
+
+      # Started in the background right after checkout, so the image pulls
+      # and the MinIO boot overlap uv/Python/venv setup instead of queueing
+      # behind it. "Wait for MinIO" blocks on the outcome before any
+      # test runs, and a setup failure still fails the job there.
+      - name: Start MinIO
+        run: |
+          cat > "$RUNNER_TEMP/start-minio.sh" <<'SH'
+          set -euo pipefail
+          docker run -d \
+            --name finance-report-minio-tier1 \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_local_secret \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data --console-address ":9001"
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/live
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
+            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          SH
+          {
+            if bash "$RUNNER_TEMP/start-minio.sh"; then
+              touch "$RUNNER_TEMP/minio-ready"
+            else
+              touch "$RUNNER_TEMP/minio-failed"
+            fi
+          } > "$RUNNER_TEMP/minio-setup.log" 2>&1 &
 
       - name: Install uv
         uses: ./.github/actions/setup-uv-retry
@@ -718,26 +778,16 @@ jobs:
       - name: Install dependencies
         run: cd apps/backend && uv sync
 
-      - name: Start MinIO
+      - name: Wait for MinIO
         run: |
-          docker run -d \
-            --name finance-report-minio-tier1 \
-            -p 9000:9000 \
-            -e MINIO_ROOT_USER=minio \
-            -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
-            server /data --console-address ":9001"
-
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+          for _ in {1..120}; do
+            if [ -f "$RUNNER_TEMP/minio-ready" ] || [ -f "$RUNNER_TEMP/minio-failed" ]; then
               break
             fi
-            sleep 2
+            sleep 1
           done
-
-          curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
-            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          cat "$RUNNER_TEMP/minio-setup.log"
+          test -f "$RUNNER_TEMP/minio-ready"
 
       - name: Run Tier-1 API E2E Tests
         env:
@@ -754,7 +804,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             pytest_extra_args+=(--maxfail=1)
           fi
-          # -n auto/--dist worksteal (as the `backend` shards already use against
+          # -n logical/--dist worksteal (as the `backend` shards already use against
           # these same services): the 59 tests here have no shared-state hazard --
           # tests/conftest.py's worker_id/get_test_db_url fixtures already give
           # each xdist worker its own Postgres database (truncated per test), S3
@@ -769,7 +819,7 @@ jobs:
             tests/e2e/test_statement_corpus_journeys.py \
             tests/e2e/test_epic025_dry_ssot_e2e.py \
             -m "e2e and not slow and not integration and not perf" \
-            -n auto --dist worksteal \
+            -n logical --dist worksteal \
             "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml
 
@@ -1325,7 +1375,7 @@ jobs:
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
             --junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml \
-            -n auto -x -q
+            -n logical -x -q
           COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/common-${{ matrix.shard }}.lcov --include='common/*'
           COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/tools-${{ matrix.shard }}.lcov --include='tools/*'
           # #1669 moved env_keys.py/schema_validation.py from common/config into
