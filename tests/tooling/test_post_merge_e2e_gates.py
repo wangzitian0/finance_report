@@ -2114,15 +2114,24 @@ def test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_acti
     # wrapper -- and every "Install uv" step resolves to that one wrapper.
     raw_action_reference = "astral-sh/setup-uv"
     assert raw_action_reference not in workflow_text
-    install_uv_steps = [
+    all_steps = [
         step
         for job in jobs.values()
         for step in job.get("steps", [])
-        if isinstance(step, dict) and step.get("name") == "Install uv"
+        if isinstance(step, dict)
     ]
-    assert len(install_uv_steps) >= 7
-    for step in install_uv_steps:
-        assert step.get("uses") == "./.github/actions/setup-uv-retry"
+    install_uv_steps = [step for step in all_steps if step.get("name") == "Install uv"]
+    wrapper_steps = [
+        step
+        for step in all_steps
+        if step.get("uses") == "./.github/actions/setup-uv-retry"
+    ]
+    # Non-empty (never a vacuous pass), but not pinned to a job count: jobs
+    # may be added or removed as long as each uv install routes through the
+    # wrapper. The two lists must be the same steps, so a renamed step cannot
+    # slip past either direction.
+    assert install_uv_steps
+    assert install_uv_steps == wrapper_steps
 
     # The wrapper itself: attempt 1 tolerates failure, a wait, then a retry
     # attempt that does NOT tolerate failure (a second failure must still
