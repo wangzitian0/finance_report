@@ -99,6 +99,15 @@ describe("ChatPageClient", () => {
     expect(screen.getByTestId("chat-panel")).toHaveAttribute("data-prompt", "Analyze my spending")
   })
 
+  it("AC16.20.2 prefers prompt from sessionStorage and clears it", () => {
+    sessionStorage.setItem("ai_chat_pending_prompt", "Contextual prompt from statement")
+    getMock.mockReturnValue("Query prompt")
+    render(<ChatPageClient />)
+
+    expect(screen.getByTestId("chat-panel")).toHaveAttribute("data-prompt", "Contextual prompt from statement")
+    expect(sessionStorage.getItem("ai_chat_pending_prompt")).toBeNull()
+  })
+
   it("AC16.20.2 shows consent modal when not accepted", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)

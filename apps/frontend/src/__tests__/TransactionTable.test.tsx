@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
 import type { BankStatementTransaction } from "@/lib/types";
@@ -54,6 +54,14 @@ describe("TransactionTable (read-only)", () => {
         const table = region.querySelector("table");
         expect(table).toHaveClass("table-fixed", "border-collapse");
         expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
+    });
+
+    it("reserves responsive margin when action column is rendered", () => {
+        render(<TransactionTable transactions={sample} currency="SGD" onSelectTransaction={vi.fn()} />);
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const table = region.querySelector("table");
+        expect(table).toHaveStyle({ width: "calc(100% - 16px)" });
     });
 
     it("keeps mobile transaction cards in the DOM without matchMedia gating", () => {
@@ -157,5 +165,25 @@ describe("TransactionTable (read-only)", () => {
         expect(calls.some((v) => v === "50" || v === 50)).toBe(true);
 
         spy.mockRestore();
+    });
+
+    it("renders review action buttons on desktop and mobile when onSelectTransaction is provided", () => {
+        const onSelect = vi.fn();
+        render(
+            <TransactionTable
+                transactions={sample}
+                currency="SGD"
+                onSelectTransaction={onSelect}
+            />
+        );
+
+        expect(screen.getByText("Action")).toBeInTheDocument();
+        const desktopReviewBtn = screen.getByRole("button", { name: "Review" });
+        fireEvent.click(desktopReviewBtn);
+        expect(onSelect).toHaveBeenCalledWith(sample[0]);
+
+        const mobileReviewBtn = screen.getByRole("button", { name: "Review / Fix" });
+        fireEvent.click(mobileReviewBtn);
+        expect(onSelect).toHaveBeenCalledTimes(2);
     });
 });
