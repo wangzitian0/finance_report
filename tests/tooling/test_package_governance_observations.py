@@ -1217,8 +1217,13 @@ def test_AC_testing_governance_27_classifies_actual_junit_artifact_lanes(
             junit_root
             / "backend/backend-integration-test-context/backend-integration.xml"
         ],
+        # Tier-1 runs as seeded matrix legs (AC-testing.ci-structure.14):
+        # every leg's artifact belongs to the same lane.
         "ci.backend_e2e_tier1": [
-            junit_root / "backend/backend-tier1-e2e-test-context/backend-tier1-e2e.xml"
+            junit_root
+            / "backend/backend-tier1-e2e-1-test-context/backend-tier1-e2e.xml",
+            junit_root
+            / "backend/backend-tier1-e2e-3-test-context/backend-tier1-e2e.xml",
         ],
         "ci.frontend_vitest": [junit_root / "frontend/test-results/vitest-junit.xml"],
         "ci.tooling_coverage": [junit_root / "tooling/tooling-junit.xml"],

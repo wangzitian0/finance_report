@@ -137,6 +137,35 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      # The DDD dependency report is the slowest lint check (two full AST
+      # snapshots, base and HEAD). It starts here in the background and the
+      # "DDD Dependency Impact Report" step near the end of this job waits for
+      # it and fails the job with its exit status, so the other lint checks
+      # run meanwhile instead of queueing behind it (#2050).
+      - name: Start DDD Dependency Impact Report
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          {
+            set +e
+            uv run --with pydantic python tools/report_ddd_dependencies.py \
+              --base-ref "$base_sha" \
+              --fail-on-breaking \
+              --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
+              --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
+              --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
+            echo "$?" > "$RUNNER_TEMP/ddd-dependency-report.exit.tmp"
+            mv "$RUNNER_TEMP/ddd-dependency-report.exit.tmp" "$RUNNER_TEMP/ddd-dependency-report.exit"
+          } > "$RUNNER_TEMP/ddd-dependency-report.log" 2>&1 &
       # Fast-fail (left-move): these SSOT/contract gates are app-independent
       # (`uv run --with pyyaml[--with pydantic]`, no backend sync / npm) and are
       # the drift classes behind most CI failures. Running them BEFORE the
@@ -180,34 +209,6 @@ jobs:
             --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
             --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
           cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: DDD Dependency Impact Report
-        env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
-
-          uv run --with pydantic python tools/report_ddd_dependencies.py \
-            --base-ref "$base_sha" \
-            --fail-on-breaking \
-            --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
-            --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
-            --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
-          cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish DDD governance observations
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ddd-governance-observations
-          path: ${{ runner.temp }}/ddd-governance-observations.json
-          if-no-files-found: warn
-          retention-days: 14
       - name: Migration Risk Contract Check
         run: |
           uv run --with pyyaml python tools/check_migration_risk.py
@@ -350,6 +351,31 @@ jobs:
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
+      - name: DDD Dependency Impact Report
+        run: |
+          for _ in {1..540}; do
+            if [ -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
+              break
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ddd-dependency-report.log"
+          if [ -f "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" ]; then
+            cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ ! -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
+            echo "::error::DDD dependency report did not finish"
+            exit 1
+          fi
+          exit "$(cat "$RUNNER_TEMP/ddd-dependency-report.exit")"
+      - name: Publish DDD governance observations
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ddd-governance-observations
+          path: ${{ runner.temp }}/ddd-governance-observations.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: PR Review Thread Merge Gate
         # Issue #755 (scope 2a): block merge while an unresolved P0/P1 (or
         # unresolved Copilot-authored) review thread is open. Skips cleanly on
@@ -512,10 +538,6 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
-          # -n logical, not -n auto: with psutil installed, xdist's `auto`
-          # counts physical cores (2 on a 4-vCPU hosted runner), so it left half
-          # the runner idle. `logical` uses all logical CPUs.
-          echo "runner CPUs: $(nproc) logical"
           python - <<'PY'
           import json
           from pathlib import Path
@@ -530,19 +552,37 @@ jobs:
               )
           print(f"Loaded pytest-split duration seed with {len(durations)} entries")
           PY
-          uv run pytest -n logical -v \
-            -m "not slow and not e2e and not integration" \
+          # File-level seeded split (common/testing/backend_shard.py): the same
+          # least_duration rule pytest-split applies to items, applied to whole
+          # test files, so this shard collects only its own files instead of
+          # importing the entire suite under --cov-branch to keep an eighth of
+          # it (that collection alone was 37-58 s per shard, #2050). Every
+          # tests/**/test_*.py file lands in exactly one shard.
+          python ../../tools/backend_shard_files.py \
             --splits 8 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/backend-test-durations.json \
+            > "$RUNNER_TEMP/backend-shard-tests.txt"
+          BACKEND_SHARD_TESTS=()
+          while IFS= read -r test_file; do
+            BACKEND_SHARD_TESTS+=("$test_file")
+          done < "$RUNNER_TEMP/backend-shard-tests.txt"
+          if [ "${#BACKEND_SHARD_TESTS[@]}" -eq 0 ]; then
+            echo "::error::backend shard ${{ matrix.shard }}/8 selected no test files"
+            exit 1
+          fi
+          echo "Shard ${{ matrix.shard }}/8 runs ${#BACKEND_SHARD_TESTS[@]} test files"
+          uv run pytest -n auto -v \
+            -m "not slow and not e2e and not integration" \
             --cov=src \
             --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=0 \
             --dist worksteal \
-            --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml
+            --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml \
+            "${BACKEND_SHARD_TESTS[@]}"
 
       - name: Upload coverage artifact
         if: ${{ always() }}
@@ -670,7 +710,7 @@ jobs:
         run: |
           cd apps/backend
           mkdir -p test-results
-          uv run pytest -n logical -v \
+          uv run pytest -n auto -v \
             --override-ini addopts="" \
             -m "integration" \
             --dist worksteal \
@@ -697,11 +737,18 @@ jobs:
           EOF
 
   backend-e2e-tier1:
-    name: Backend Tier-1 API E2E
+    name: Backend Tier-1 API E2E (Shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
+    # Seeded 3-way least_duration split (ci/backend-tier1-test-durations.json):
+    # four statement-corpus journeys take 38-55 s each, so one 2-worker job was
+    # the slowest leg of the PR pipeline (152 s of tests, #2050).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     services:
       postgres:
@@ -804,7 +851,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             pytest_extra_args+=(--maxfail=1)
           fi
-          # -n logical/--dist worksteal (as the `backend` shards already use against
+          # -n auto/--dist worksteal (as the `backend` shards already use against
           # these same services): the 59 tests here have no shared-state hazard --
           # tests/conftest.py's worker_id/get_test_db_url fixtures already give
           # each xdist worker its own Postgres database (truncated per test), S3
@@ -819,7 +866,11 @@ jobs:
             tests/e2e/test_statement_corpus_journeys.py \
             tests/e2e/test_epic025_dry_ssot_e2e.py \
             -m "e2e and not slow and not integration and not perf" \
-            -n logical --dist worksteal \
+            --splits 3 \
+            --group ${{ matrix.shard }} \
+            --splitting-algorithm=least_duration \
+            --durations-path ci/backend-tier1-test-durations.json \
+            -n auto --dist worksteal \
             "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml
 
@@ -827,7 +878,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: backend-tier1-e2e-test-context
+          name: backend-tier1-e2e-${{ matrix.shard }}-test-context
           path: |
             apps/backend/test-results/backend-tier1-e2e.xml
             apps/backend/test-results/served-cassettes*.txt
@@ -1375,7 +1426,7 @@ jobs:
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
             --junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml \
-            -n logical -x -q
+            -n auto -x -q
           COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/common-${{ matrix.shard }}.lcov --include='common/*'
           COVERAGE_RCFILE=/tmp/tooling-coveragerc apps/backend/.venv/bin/python -m coverage lcov -o coverage/tools-${{ matrix.shard }}.lcov --include='tools/*'
           # #1669 moved env_keys.py/schema_validation.py from common/config into
@@ -1935,11 +1986,11 @@ jobs:
           name: backend-integration-test-context
           path: junit-artifacts/backend-integration-test-context
 
-      - name: Download backend Tier-1 junit artifact
+      - name: Download backend Tier-1 junit artifacts
         uses: actions/download-artifact@v8
         with:
-          name: backend-tier1-e2e-test-context
-          path: junit-artifacts/backend-tier1-e2e-test-context
+          pattern: backend-tier1-e2e-*-test-context
+          path: junit-artifacts
 
       - name: Download frontend Vitest junit artifact
         uses: actions/download-artifact@v8

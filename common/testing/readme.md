@@ -24,6 +24,16 @@ including the tooling evidence producer, is registered in
 `WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
 unregistered live invocation or a registration with no live command.
 
+[`backend_shard.py`](./backend_shard.py) (CLI: `tools/backend_shard_files.py`)
+decides which backend test files each CI shard runs: a seeded, file-level
+`least_duration` split over `apps/backend/ci/backend-test-durations.json`
+(AC-testing.ci-structure.13). Every `tests/**/test_*.py` file lands in exactly
+one shard, so a shard collects only its own files instead of importing the
+whole suite under `--cov-branch` (#2050). It is stdlib-only because the shard
+runs it before dependency installation. Tier-1 API E2E keeps pytest-split's
+item-level split over `ci/backend-tier1-test-durations.json`
+(AC-testing.ci-structure.14), because it collects only four files.
+
 ### Package declaration protocol
 
 Each domain package declares its own unit/integration test roots in its

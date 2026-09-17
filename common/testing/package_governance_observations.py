@@ -387,7 +387,7 @@ def _junit_lanes(root: Path) -> dict[str, list[Path]]:
                 lane = "ci.backend"
             elif artifact == "backend-integration-test-context":
                 lane = "ci.backend_integration"
-            elif artifact == "backend-tier1-e2e-test-context":
+            elif re.fullmatch(r"backend-tier1-e2e-\d+-test-context", artifact):
                 lane = "ci.backend_e2e_tier1"
         elif parts and parts[0] == "frontend":
             lane = "ci.frontend_vitest"

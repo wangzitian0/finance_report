@@ -2438,7 +2438,7 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.8",
             statement=(
                 "Backend fast-test CI shards rebalance the current critical path with "
-                "an 8-way pytest-split matrix (raised from 5-way once the committed "
+                "an 8-way seeded least-duration matrix (raised from 5-way once the committed "
                 "duration seed was refreshed against the current ~3300-test suite -- "
                 "347 tests had drifted in unseeded, which is what a stale seed "
                 "produces: a mispriced least_duration assignment, not a missing "
@@ -2524,6 +2524,47 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
                 "::test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.13",
+            statement=(
+                "Each backend CI shard runs only the whole test files that a seeded "
+                "file-level least_duration split (common/testing/backend_shard.py, "
+                "tools/backend_shard_files.py, over ci/backend-test-durations.json) "
+                "assigns to it, so a shard no longer collects the entire suite under "
+                "--cov-branch to keep one eighth of it (37-58 s per shard on a hosted "
+                "runner, #2050). Every tests/**/test_*.py file lands in exactly one "
+                "shard, the split is deterministic and stdlib-only, the step fails "
+                "closed on an empty selection, and discovery matches the backend "
+                "pytest configuration (no collect_ignore hooks an explicit path "
+                "would bypass)."
+            ),
+            test=(
+                "tests/tooling/test_backend_shard.py"
+                "::test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.14",
+            statement=(
+                "Backend Tier-1 API E2E runs as seeded pytest-split least_duration "
+                "matrix legs (ci/backend-tier1-test-durations.json) instead of one "
+                "job whose four 38-55 s statement-corpus journeys made it the "
+                "slowest PR leg (#2050); every leg uploads its own "
+                "backend-tier1-e2e-<n>-test-context artifact, and both the AC "
+                "behavioral ratchet and the package-governance lane classification "
+                "consume all legs."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs"
             ),
             priority="P1",
             status="done",

@@ -177,7 +177,7 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
             "backend-shard-${{ matrix.shard }}-test-context",
             "backend-integration-test-context",
-            "backend-tier1-e2e-test-context",
+            "backend-tier1-e2e-${{ matrix.shard }}-test-context",
             "--reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml",
             "--reporter=line,html",
             "frontend-vitest-test-context",

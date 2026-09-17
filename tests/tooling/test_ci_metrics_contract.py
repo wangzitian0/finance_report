@@ -154,7 +154,7 @@ def test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantic
     assert "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml" in workflow
     assert "backend-shard-${{ matrix.shard }}-test-context" in workflow
     assert "backend-integration-test-context" in workflow
-    assert "backend-tier1-e2e-test-context" in workflow
+    assert "backend-tier1-e2e-${{ matrix.shard }}-test-context" in workflow
     assert (
         "--reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml"
         in workflow
