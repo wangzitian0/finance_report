@@ -437,6 +437,50 @@ def test_junit_proof_is_bound_to_the_declared_test_and_target_sha(
         )
 
 
+def test_AC_testing_capability_proof_4_projection_keeps_the_kept_jobs_attempt(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.capability-proof.4 (#2049): on a partial re-run the builder runs as
+    attempt 2 while the kept job's JUnit carries attempt 1. The projection must
+    accept it, carry the record's own execution id, and survive validation;
+    a different run still fails closed."""
+    junit = tmp_path / "tooling.xml"
+    _write_executed_proof_junit(junit)  # recorded as run 10, attempt 1
+    payload = junit_proof_payload(
+        contracts=[_contract()],
+        issue_states={ISSUE_URL: "open"},
+        junit_lanes={"ci.demo": [junit]},
+        target_sha=TARGET_SHA,
+        observed_at=NOW,
+        evidence_url="https://github.com/example/repo/actions/runs/10",
+        repository=REPOSITORY,
+        execution_id="10.2",
+        proof_profiles=_proof_profiles(),
+    )
+    assert payload["proofs"][0]["execution_id"] == "10.1"
+
+    inputs = _inputs()
+    inputs["proof_payloads"] = [payload]
+    validate_observation_bundle_payload(
+        build_observation_bundle(**inputs),
+        expected_target_sha=TARGET_SHA,
+        now=NOW,
+    )
+
+    with pytest.raises(ObservationInputError, match="CI coordinates"):
+        junit_proof_payload(
+            contracts=[_contract()],
+            issue_states={ISSUE_URL: "open"},
+            junit_lanes={"ci.demo": [junit]},
+            target_sha=TARGET_SHA,
+            observed_at=NOW,
+            evidence_url="https://github.com/example/repo/actions/runs/11",
+            repository=REPOSITORY,
+            execution_id="11.2",
+            proof_profiles=_proof_profiles(),
+        )
+
+
 @ac_proof(
     "package-governance-live-enforcement",
     ac_ids=["AC-testing.governance.24"],

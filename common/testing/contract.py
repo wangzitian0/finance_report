@@ -4166,6 +4166,28 @@ CONTRACT = PackageContract(
             proof_kind="exact",
         ),
         ACRecord(
+            id="AC-testing.capability-proof.4",
+            statement=(
+                "An executed-proof TraceRecord from an earlier attempt of the SAME "
+                "GitHub run satisfies the PR-CI evidence reconciliation "
+                "(common.testing.check_pr_ci_evidence) and the package-governance "
+                "proof projection (common.testing.package_governance_observations), "
+                'so a partial "re-run failed jobs" -- kept jobs\' JUnit on attempt 1, '
+                "the checker on attempt 2 -- can pass (#2049). Repository, commit, "
+                "proof identity and assertion version stay exact; a different run, "
+                "an attempt newer than the checker's, or a non-GitHub execution id "
+                "fails closed; the newest matching attempt is the canonical record "
+                "and the projection carries that record's own execution id."
+            ),
+            test=(
+                "tests/tooling/test_executed_proof.py::"
+                "test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
             id="AC-testing.source-capability-proof.1",
             statement=(
                 "Every non-gap extraction SourceCapability resolves to a behavioral "
