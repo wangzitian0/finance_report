@@ -1,0 +1,16 @@
+[
+  {
+    "version": "v0.1.52",
+    "run_at": "2026-09-17T13:41:50.229423",
+    "app_url": "https://report-staging.zitian.party",
+    "status": "PASS",
+    "cases_total": 2,
+    "cases_passed": 2,
+    "cases_failed": 0,
+    "duration_seconds": 113.58,
+    "max_equation_delta": "0.00",
+    "zero_pnl_contamination": true,
+    "rollforward_balanced": true,
+    "report_url": "v0.1.52/report.html"
+  }
+]
