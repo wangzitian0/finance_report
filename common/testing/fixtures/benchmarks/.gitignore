@@ -1,0 +1,3 @@
+# Ignore downloaded benchmark fixture PDFs
+**/*.pdf
+**/*.PDF

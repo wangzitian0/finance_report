@@ -1,0 +1,49 @@
+{
+  "suite": "financial_reporting_temporal_scenarios",
+  "app_url": "https://report-staging.zitian.party",
+  "run_at": "2026-09-17T13:38:43.584570",
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "success": true
+  },
+  "results": [
+    {
+      "case_id": "case_1",
+      "case_name": "Case 1: Consecutive Monthly Rollforward",
+      "status": "PASS",
+      "duration_seconds": 82.20885992050171,
+      "details": {
+        "m1_closing_balance": "15271.23",
+        "m2_opening_balance": "15271.23",
+        "total_assets": "18250.00",
+        "total_equity": "15450.75",
+        "cumulative_net_income": "2799.25",
+        "beginning_cash": "15450.75",
+        "ending_cash": "18250.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_3",
+      "case_name": "Case 3: Bank-Brokerage Transfer & Asset Swap",
+      "status": "PASS",
+      "duration_seconds": 27.760767936706543,
+      "details": {
+        "bank_cash": "15000.00",
+        "brokerage_portfolio": "5000.00",
+        "total_assets": "20000.00",
+        "total_equity": "20000.00",
+        "total_income": "0.00",
+        "total_expenses": "0.00",
+        "net_income": "0.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+# External Benchmark Statement Fixtures Manifest
+#
+# Declarative inventory of external, open-licensed benchmark statement documents
+# used for end-to-end financial accounting scenario tests.
+# Every external item is pinned to an immutable upstream commit SHA and guarded
+# by an exact SHA-256 checksum.
+
+version: "1.0"
+benchmark_suite: "finance_report_five_core_scenarios"
+updated_at: "2026-09-17"
+
+fixtures:
+  - id: "docubench_carson_bank"
+    name: "Carson Bank Sample Statement"
+    doc_type: "bank_statement"
+    institution: "Carson Bank"
+    currency: "USD"
+    pages: 6
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/IPm0MkgQ.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/IPm0MkgQ.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/IPm0MkgQ.json"
+    sha256: "f1aa9c97ef0a64fec8fac14f93153d10d1e10c305287d8400db2c2288d14fe67"
+    file_size_bytes: 840338
+    license: "vendor sample (dummy data)"
+    local_path: "common/testing/fixtures/benchmarks/docubench/IPm0MkgQ_carson_bank.pdf"
+    cases:
+      - "case_2_overlap_dedup"
+      - "case_5_four_asset"
+
+  - id: "docubench_fidelity_brokerage"
+    name: "Fidelity Brokerage Statement (Sliced 6P)"
+    doc_type: "brokerage_statement"
+    institution: "Fidelity Investments"
+    currency: "USD"
+    pages: 6
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/tLFa76nQ.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/tLFa76nQ.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/tLFa76nQ.json"
+    raw_sha256: "227c0af82ba6ff08c8c29f8da2393169bc6159451eb57bc9e75da18ff24bec7a"
+    raw_size_bytes: 13393071
+    license: "vendor sample"
+    local_path: "common/testing/fixtures/benchmarks/docubench/tLFa76nQ_fidelity_brokerage.pdf"
+    slice_pages: 6
+    notes: "Sliced to pages 1-6 (<10MB limit) containing core cash account and holdings tables."
+    cases:
+      - "case_3_transfer_asset_swap"
+      - "case_5_four_asset"
+
+  - id: "docubench_fha_appraisal"
+    name: "FHA 1004 Real Estate Appraisal"
+    doc_type: "property_appraisal"
+    institution: "Piekos Appraisals"
+    currency: "USD"
+    pages: 7
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/KpewWz3R.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/KpewWz3R.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/KpewWz3R.json"
+    sha256: "56471b590c4e3bfc06999200105996ff7ec4b04957dffc5e3da40bbed7fb753c"
+    file_size_bytes: 8772110
+    license: "(c) Piekos / a la mode form (publicly hosted sample)"
+    local_path: "common/testing/fixtures/benchmarks/docubench/KpewWz3R_fha_appraisal.pdf"
+    cases:
+      - "case_5_four_asset"
+
+  - id: "bankstatemently_straits_capital"
+    name: "Straits Capital Bank Statement (Singapore)"
+    doc_type: "bank_statement"
+    institution: "Straits Capital"
+    currency: "SGD"
+    pages: 3
+    source_platform: "github"
+    source_repo: "bankstatemently/bank-statement-parsing-benchmark"
+    commit_sha: "main"
+    source_url: "https://github.com/bankstatemently/bank-statement-parsing-benchmark/blob/main/datasets/basic/bsb-001/bsb-001-statement.pdf"
+    download_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/main/datasets/basic/bsb-001/bsb-001-statement.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/main/datasets/basic/bsb-001/statement-info.json"
+    sha256: "d3d5071b90a33272f31bab5c5660d78b2ae29d2c6e1720477f5e8b167f73e843"
+    file_size_bytes: 31711
+    license: "MIT"
+    local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
+    cases:
+      - "case_1_consecutive_rollforward"
