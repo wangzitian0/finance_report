@@ -15,10 +15,10 @@ import os
 import re
 import subprocess
 import sys
-import tarfile
 import tempfile
 import tokenize
 from collections.abc import Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1861,19 +1861,25 @@ def _snapshot_git_ref(repo_root: Path, ref: str) -> dict[str, object]:
 
     with tempfile.TemporaryDirectory(prefix="ddd-dependency-base-") as temp_dir:
         base_root = Path(temp_dir)
-        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
-            tar.extractall(base_root, filter="data")
         output_path = base_root / "dependency-snapshot.json"
         current_root = Path(__file__).resolve().parents[3]
+        # The archive is extracted by the loader process, not here: the caller
+        # builds the HEAD snapshot concurrently, and CPU work in this process
+        # would contend with it for the GIL.
         runner = """
+import io
 import json
 import sys
+import tarfile
 from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
 from common.meta.extension.dependency_report import build_dependency_snapshot
 
-snapshot = build_dependency_snapshot(Path(sys.argv[2]))
+base_root = Path(sys.argv[2])
+with tarfile.open(fileobj=io.BytesIO(sys.stdin.buffer.read()), mode="r:") as tar:
+    tar.extractall(base_root, filter="data")
+snapshot = build_dependency_snapshot(base_root)
 Path(sys.argv[3]).write_text(json.dumps(snapshot), encoding="utf-8")
 """
         load = subprocess.run(
@@ -1886,12 +1892,16 @@ Path(sys.argv[3]).write_text(json.dumps(snapshot), encoding="utf-8")
                 base_root.as_posix(),
                 output_path.as_posix(),
             ],
+            input=archive,
             check=False,
             capture_output=True,
-            text=True,
         )
         if load.returncode != 0 or not output_path.is_file():
-            detail = load.stderr.strip() or load.stdout.strip() or "loader failed"
+            detail = (
+                load.stderr.decode("utf-8", errors="replace").strip()
+                or load.stdout.decode("utf-8", errors="replace").strip()
+                or "loader failed"
+            )
             raise RuntimeError(f"cannot snapshot base ref {ref!r}: {detail}")
         try:
             snapshot = json.loads(output_path.read_text(encoding="utf-8"))
@@ -1908,8 +1918,13 @@ def build_impact_report(repo_root: Path, *, base_ref: str) -> dict[str, object]:
     """Compare the working tree with an archive isolated from ``base_ref``."""
 
     root = repo_root.resolve()
-    head = build_dependency_snapshot(root)
-    base = _snapshot_git_ref(root, base_ref)
+    # The base snapshot runs in its own interpreter (see _snapshot_git_ref), so
+    # it waits on a subprocess: start it first and build HEAD meanwhile instead
+    # of paying for both one after the other.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        base_future = pool.submit(_snapshot_git_ref, root, base_ref)
+        head = build_dependency_snapshot(root)
+        base = base_future.result()
     report = compare_dependency_snapshots(base, head)
     report["base_ref"] = base_ref
     return report
