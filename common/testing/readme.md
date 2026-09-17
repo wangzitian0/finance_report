@@ -118,6 +118,9 @@ testcase is not proof by itself: proof id, assertion version, repository, run
 attempt, exact target SHA, declared semantic strength, and the producing gate's
 actual downloaded artifact lane must all reconcile. Semantic strength is bound
 into the assertion-version hash while Trace execution authority remains `exact`.
+Synthetic conformance fixtures preserve that declared semantic strength when
+rebuilding an `AcProof`. The conformance oracle covers exact, schema,
+concurrency, and value-oracle profiles without changing runtime validation.
 Open initiatives fail closed when their lane or proof is absent; closed
 initiatives remain projected and accept fresh current proof without turning
 missing historical evidence into green.

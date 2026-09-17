@@ -953,7 +953,9 @@ CONTRACT = PackageContract(
                 "pr_ci proof that only ever skips pre-merge is not executing its "
                 "promise, though a skip in one shard with a real run in another "
                 "passes), and parametrized/class-nested junit ids are matched "
-                "correctly (Was EPIC-008 AC8.23.4)."
+                "correctly. Synthetic canonical proof fixtures preserve the declared "
+                "semantic strength rather than substituting exact "
+                "(Was EPIC-008 AC8.23.4)."
             ),
             test=(
                 "tests/tooling/test_workflow_selection_conformance.py"
