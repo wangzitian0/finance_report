@@ -97,7 +97,7 @@ export function PdfPreviewPane({
             src={state.url}
             className="w-full h-full rounded border"
             title="Statement PDF preview"
-            sandbox="allow-same-origin allow-scripts"
+            sandbox="allow-scripts"
             referrerPolicy="no-referrer"
           >
             <p>
