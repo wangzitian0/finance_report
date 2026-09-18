@@ -91,6 +91,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
 
 APP_WORKFLOW_FILES = (
     ".github/workflows/audit-replay.yml",
+    ".github/workflows/benchmark.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
