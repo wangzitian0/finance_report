@@ -1,0 +1,74 @@
+# SSOT Error and Workflow Taxonomy
+# Authoritative registry of system-wide error codes, workflow states, and user remediation paths.
+
+version: 1
+taxonomy:
+  unproven_package_input:
+    domain: reporting
+    severity: blocker
+    remediation_action: NAVIGATE_REVIEW
+    user_label:
+      en: "Statements Pending Review"
+      zh: "待核对结单"
+    user_reason:
+      en: "One or more statements need your review before generating the official report."
+      zh: "存在尚未完成审核确认的结单，请核对后再生成正式报告。"
+    recovery_guidance:
+      en: "Review pending transactions or approve with auto-fill default categories."
+      zh: "核对未完成分类的交易，或使用一键补全默认分类。"
+
+  source_review_required:
+    domain: workflow
+    severity: action_required
+    remediation_action: NAVIGATE_STATEMENT_REVIEW
+    user_label:
+      en: "Statement Review Required"
+      zh: "需要核对账单"
+    user_reason:
+      en: "Transactions in this statement need your review to categorize expenses and income."
+      zh: "该结单中包含需要您确认收支分类的交易明细。"
+    recovery_guidance:
+      en: "Open statement review and confirm transaction classifications."
+      zh: "进入账单核对页面并确认交易分类。"
+
+  intent_missing:
+    domain: reconciliation
+    severity: blocker
+    remediation_action: AUTO_FILL_DEFAULT_CATEGORIES
+    user_label:
+      en: "Category Classification Required"
+      zh: "缺少收支分类"
+    user_reason:
+      en: "Transactions require economic intent classification (Expense or Income) before posting."
+      zh: "部分交易缺少收支分类，需要确认属于支出还是收入。"
+    recovery_guidance:
+      en: "Click 'Auto-Fill Default Categories & Approve' or manually assign categories in the transaction table."
+      zh: "点击【一键补全默认分类并批准】，或在交易列表中手动选择分类。"
+
+  balance_unreconciled:
+    domain: extraction
+    severity: blocker
+    remediation_action: DISCARD_OR_RETRY
+    user_label:
+      en: "Balance Mismatch"
+      zh: "账单余额不平衡"
+    user_reason:
+      en: "Calculated closing balance does not equal statement closing balance."
+      zh: "交易发生额累加与账单期末余额不一致。"
+    recovery_guidance:
+      en: "Delete the statement to restore workflow readiness, or retry extraction."
+      zh: "如果账单不完整，可直接删除以恢复就绪状态，或重试解析。"
+
+  statement_rejected:
+    domain: extraction
+    severity: error
+    remediation_action: DELETE_STATEMENT
+    user_label:
+      en: "Parsing Failed"
+      zh: "账单解析失败"
+    user_reason:
+      en: "The uploaded statement format or multi-page layout could not be processed automatically."
+      zh: "上传的文件格式或复杂跨页结构无法被自动解析。"
+    recovery_guidance:
+      en: "Delete this statement from the detail page to unblock your dashboard."
+      zh: "在结单详情页删除该账单以解除仪表盘阻塞。"

@@ -461,6 +461,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
           /These transactions need your confirmation before they can be posted/i,
         ),
       ).toBeInTheDocument();
+
+      const autoFillBtn = screen.getByRole("button", {
+        name: /Auto-Fill Default Categories & Approve/i,
+      });
+      fireEvent.click(autoFillBtn);
     });
 
     it("AC16.34.3 resolves Stage-1 conflicts and unblocks approval", async () => {

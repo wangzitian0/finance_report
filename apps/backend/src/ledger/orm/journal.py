@@ -36,6 +36,15 @@ class JournalEntryStatus(str, enum.Enum):
     RECONCILED = "reconciled"
     VOID = "void"
 
+    @classmethod
+    def _missing_(cls, value: object) -> JournalEntryStatus | None:
+        if isinstance(value, str):
+            val_lower = value.lower()
+            for member in cls:
+                if member.value == val_lower:
+                    return member
+        return None
+
 
 class JournalEntryAuthorityState(str, enum.Enum):
     """Whether this row has a decision that can be used as accounting authority."""

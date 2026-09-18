@@ -13,7 +13,10 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.composition import compose_statement_posting_dependencies
+from src.composition import (
+    auto_fill_default_statement_dispositions,
+    compose_statement_posting_dependencies,
+)
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
@@ -49,7 +52,10 @@ from src.extraction import (
     validate_balance_chain,
 )
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType
+from src.ledger import (
+    Account,
+    AccountType,
+)
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
@@ -922,6 +928,10 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
+        auto_filled_count = 0
+        if request and request.auto_fill_default_categories:
+            auto_filled_count = await auto_fill_default_statement_dispositions(db, statement, user_id)
+
         outcome = await approve_statement_workflow(
             db,
             statement_id,
@@ -932,7 +942,9 @@ async def approve_statement_stage1(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    created_count = _posting_count_or_conflict(outcome)
+    # Journal entries created include those posted directly via reviewed dispositions during auto-fill
+    # plus any additional entries created by approve_statement_workflow.
+    created_count = _posting_count_or_conflict(outcome) + auto_filled_count
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)

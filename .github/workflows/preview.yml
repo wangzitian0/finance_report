@@ -126,7 +126,7 @@ jobs:
           compose_name = f"pr-{pr_number}" if pr_number else ""
           commit_slug = preview_commit_slug(head_sha or github_sha)
           preview_app_url = (
-              f"https://report-pr-{pr_number}.{internal_domain}" if pr_number else ""
+              f"https://report-preview.{internal_domain}" if pr_number else ""
           )
 
           outputs = {

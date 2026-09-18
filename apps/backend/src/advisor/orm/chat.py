@@ -28,6 +28,15 @@ class ChatSessionStatus(str, enum.Enum):
     ACTIVE = "active"
     DELETED = "deleted"
 
+    @classmethod
+    def _missing_(cls, value: object) -> ChatSessionStatus | None:
+        if isinstance(value, str):
+            val_lower = value.lower()
+            for member in cls:
+                if member.value == val_lower:
+                    return member
+        return None
+
 
 class ChatMessageRole(str, enum.Enum):
     """Chat message role mapping to LLM roles."""
@@ -35,6 +44,15 @@ class ChatMessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ChatMessageRole | None:
+        if isinstance(value, str):
+            val_lower = value.lower()
+            for member in cls:
+                if member.value == val_lower:
+                    return member
+        return None
 
 
 def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:

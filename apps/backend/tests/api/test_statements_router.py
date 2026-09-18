@@ -2013,8 +2013,90 @@ async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, t
     assert statement.status is BankStatementStatus.PARSED
     assert statement.stage1_status is Stage1Status.PENDING_REVIEW
     assert statement.validation_error == "Economic review required: intent_missing"
+
     entries = await db.execute(select(JournalEntry).where(JournalEntry.source_id == transaction.id))
     assert entries.scalars().all() == []
+
+
+async def test_approve_statement_stage1_auto_fill_default_categories(db, test_user, monkeypatch):
+    """When auto_fill_default_categories is True, approve_statement_stage1 auto-fills
+    default counter accounts and succeeds without raising 409 intent_missing.
+    """
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    bank_account = await create_statement_account(db, test_user.id, "DBS Auto Fill Account")
+    statement = build_statement(test_user.id, "hash_s1_auto_fill", 88)
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.flush()
+
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 2),
+        description="Opaque merchant IN",
+        amount=Decimal("20.00"),
+        direction="IN",
+    )
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 3),
+        description="Opaque merchant OUT",
+        amount=Decimal("15.00"),
+        direction="OUT",
+    )
+    # Second OUT transaction to test re-using cached/existing counter account (line 159)
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 4),
+        description="Opaque merchant OUT 2",
+        amount=Decimal("5.00"),
+        direction="OUT",
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    assert result.journal_entries_created == 3
+    await db.refresh(statement)
+    assert statement.status is BankStatementStatus.APPROVED
+    assert statement.stage1_status is Stage1Status.APPROVED
+    assert statement.validation_error is None
+
+    # Call again with 0 remaining unmatched transactions to cover line 216
+    result_empty = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+    assert result_empty.journal_entries_created == 0
+
+
+async def test_enum_deserialization_case_insensitivity():
+    """Verify JournalEntryStatus, ChatSessionStatus, ChatMessageRole handle case-insensitive string parsing."""
+    from src.advisor.orm.chat import ChatMessageRole, ChatSessionStatus
+    from src.ledger.orm.journal import JournalEntryStatus
+
+    assert JournalEntryStatus("POSTED") == JournalEntryStatus.POSTED
+    assert JournalEntryStatus("posted") == JournalEntryStatus.POSTED
+    assert JournalEntryStatus._missing_("UNKNOWN_INVALID") is None
+
+    assert ChatSessionStatus("ACTIVE") == ChatSessionStatus.ACTIVE
+    assert ChatSessionStatus("active") == ChatSessionStatus.ACTIVE
+    assert ChatSessionStatus._missing_("UNKNOWN_INVALID") is None
+
+    assert ChatMessageRole("USER") == ChatMessageRole.USER
+    assert ChatMessageRole("user") == ChatMessageRole.USER
+    assert ChatMessageRole._missing_("UNKNOWN_INVALID") is None
 
 
 async def test_AC_extraction_reviewed_envelope_4_approval_uses_reviewed_envelope_and_disposition(db, test_user):

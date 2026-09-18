@@ -78,6 +78,7 @@ nav:
       - AI Advisor: user-guide/ai-advisor.md
   - Generated References:
       - Overview: reference/api-overview.md
+      - Benchmark Observatory: reference/benchmarks.md
       - Generated API Reference: reference/api.md
       - Generated DB Schema Reference: reference/db-schema.md
       - Router Contract Maturity: reference/router-contract-maturity.md

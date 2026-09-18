@@ -57,5 +57,8 @@ actions:
   - uses: moonrepo/setup-toolchain@v0
     runtime_status: node24_native
     owner: ci_workflow
+  - uses: peaceiris/actions-gh-pages@v4
+    runtime_status: node24_native
+    owner: ci_workflow
 
 exceptions: []

@@ -3315,5 +3315,19 @@ CONTRACT = PackageContract(
             kind="registry",
             parent="ssot_governance_gates",
         ),
+        ConceptRecord(
+            key="error_taxonomy",
+            owner="common/meta/data/error-taxonomy.yaml",
+            description=(
+                "Authoritative SSOT taxonomy defining domain error codes, severity levels, "
+                "remediation actions, and translations."
+            ),
+            cross_refs=[
+                "common/meta/data/error-taxonomy.yaml",
+                "apps/backend/src/schemas/errors.py",
+            ],
+            family="extraction",
+            kind="registry",
+        ),
     ],
 )

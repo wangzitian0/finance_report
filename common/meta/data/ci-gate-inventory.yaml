@@ -665,6 +665,19 @@ gates:
     artifacts: []
     failure_semantics: Staging summary could not be produced; upstream jobs still own deploy gate failures.
     action: keep
+  - id: benchmark.run_benchmark
+    stage: staging.release_validation
+    task_category: deploy_smoke
+    workflow: .github/workflows/benchmark.yml
+    job: run-benchmark
+    owner: .github/workflows/benchmark.yml#run-benchmark
+    triggers: [workflow_dispatch, workflow_call]
+    blocks_workflow: false
+    inputs: [staging_environment, optional_version_ref, optional_app_url, optional_cases]
+    outputs: [benchmark_summary, benchmark_html_report]
+    artifacts: []
+    failure_semantics: Financial scenario benchmark execution or report publishing failed.
+    action: keep
 
 resolved_duplicate_cleanups:
   - id: frontend_prod_audit_duplicate

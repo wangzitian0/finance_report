@@ -156,6 +156,10 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/**/__pycache__/**",
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
+            "tools/_lib/benchmarks/**",
+            "tools/run_financial_scenario_benchmark.py",
+            "tools/generate_benchmark_index.py",
+            "tools/sync_benchmark_fixtures.py",
         ),
         # tools/ is largely one-off governance / CI glue (thin shims over
         # common/). Best-effort tier (#923): its LCOV is merged when present and
