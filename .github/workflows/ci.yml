@@ -126,7 +126,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -137,6 +137,35 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      # The DDD dependency report is the slowest lint check (two full AST
+      # snapshots, base and HEAD). It starts here in the background and the
+      # "DDD Dependency Impact Report" step near the end of this job waits for
+      # it and fails the job with its exit status, so the other lint checks
+      # run meanwhile instead of queueing behind it (#2050).
+      - name: Start DDD Dependency Impact Report
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          base_sha="${BASE_SHA:-}"
+          head_sha="${HEAD_SHA:-}"
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
+          fi
+
+          {
+            set +e
+            uv run --with pydantic python tools/report_ddd_dependencies.py \
+              --base-ref "$base_sha" \
+              --fail-on-breaking \
+              --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
+              --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
+              --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
+            echo "$?" > "$RUNNER_TEMP/ddd-dependency-report.exit.tmp"
+            mv "$RUNNER_TEMP/ddd-dependency-report.exit.tmp" "$RUNNER_TEMP/ddd-dependency-report.exit"
+          } > "$RUNNER_TEMP/ddd-dependency-report.log" 2>&1 &
       # Fast-fail (left-move): these SSOT/contract gates are app-independent
       # (`uv run --with pyyaml[--with pydantic]`, no backend sync / npm) and are
       # the drift classes behind most CI failures. Running them BEFORE the
@@ -180,34 +209,6 @@ jobs:
             --json-out "$RUNNER_TEMP/ssot-governance-report.json" \
             --markdown-out "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md"
           cat "$RUNNER_TEMP/SSOT-GOVERNANCE-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: DDD Dependency Impact Report
-        env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
-
-          uv run --with pydantic python tools/report_ddd_dependencies.py \
-            --base-ref "$base_sha" \
-            --fail-on-breaking \
-            --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
-            --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
-            --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
-          cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish DDD governance observations
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ddd-governance-observations
-          path: ${{ runner.temp }}/ddd-governance-observations.json
-          if-no-files-found: warn
-          retention-days: 14
       - name: Migration Risk Contract Check
         run: |
           uv run --with pyyaml python tools/check_migration_risk.py
@@ -350,6 +351,31 @@ jobs:
       - name: SSOT Ownership Lint
         run: |
           python tools/check_ssot_ownership.py --verbose
+      - name: DDD Dependency Impact Report
+        run: |
+          for _ in {1..540}; do
+            if [ -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
+              break
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ddd-dependency-report.log"
+          if [ -f "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" ]; then
+            cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ ! -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
+            echo "::error::DDD dependency report did not finish"
+            exit 1
+          fi
+          exit "$(cat "$RUNNER_TEMP/ddd-dependency-report.exit")"
+      - name: Publish DDD governance observations
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ddd-governance-observations
+          path: ${{ runner.temp }}/ddd-governance-observations.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: PR Review Thread Merge Gate
         # Issue #755 (scope 2a): block merge while an unresolved P0/P1 (or
         # unresolved Copilot-authored) review thread is open. Skips cleanly on
@@ -381,15 +407,15 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -469,15 +495,15 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -526,19 +552,37 @@ jobs:
               )
           print(f"Loaded pytest-split duration seed with {len(durations)} entries")
           PY
-          uv run pytest -n auto -v \
-            -m "not slow and not e2e and not integration" \
+          # File-level seeded split (common/testing/backend_shard.py): the same
+          # least_duration rule pytest-split applies to items, applied to whole
+          # test files, so this shard collects only its own files instead of
+          # importing the entire suite under --cov-branch to keep an eighth of
+          # it (that collection alone was 37-58 s per shard, #2050). Every
+          # tests/**/test_*.py file lands in exactly one shard.
+          python ../../tools/backend_shard_files.py \
             --splits 8 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/backend-test-durations.json \
+            > "$RUNNER_TEMP/backend-shard-tests.txt"
+          BACKEND_SHARD_TESTS=()
+          while IFS= read -r test_file; do
+            BACKEND_SHARD_TESTS+=("$test_file")
+          done < "$RUNNER_TEMP/backend-shard-tests.txt"
+          if [ "${#BACKEND_SHARD_TESTS[@]}" -eq 0 ]; then
+            echo "::error::backend shard ${{ matrix.shard }}/8 selected no test files"
+            exit 1
+          fi
+          echo "Shard ${{ matrix.shard }}/8 runs ${#BACKEND_SHARD_TESTS[@]} test files"
+          uv run pytest -n auto -v \
+            -m "not slow and not e2e and not integration" \
             --cov=src \
             --cov-report=lcov:coverage-backend-${{ matrix.shard }}.lcov \
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=0 \
             --dist worksteal \
-            --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml
+            --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml \
+            "${BACKEND_SHARD_TESTS[@]}"
 
       - name: Upload coverage artifact
         if: ${{ always() }}
@@ -578,15 +622,48 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
 
+      # Started in the background right after checkout, so the image pulls
+      # and the MinIO boot overlap uv/Python/venv setup instead of queueing
+      # behind it. "Wait for MinIO" blocks on the outcome before any
+      # test runs, and a setup failure still fails the job there.
+      - name: Start MinIO
+        run: |
+          cat > "$RUNNER_TEMP/start-minio.sh" <<'SH'
+          set -euo pipefail
+          docker run -d \
+            --name finance-report-minio-integration \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_local_secret \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data --console-address ":9001"
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/live
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
+            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          SH
+          {
+            if bash "$RUNNER_TEMP/start-minio.sh"; then
+              touch "$RUNNER_TEMP/minio-ready"
+            else
+              touch "$RUNNER_TEMP/minio-failed"
+            fi
+          } > "$RUNNER_TEMP/minio-setup.log" 2>&1 &
+
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -611,26 +688,16 @@ jobs:
       # #1828 G-health-honest-somewhere: this lane runs the REAL Bootloader
       # _check_database/_check_s3 (tests/integration/test_bootloader_real_checks.py),
       # so it needs a live S3-compatible service, not just the env vars.
-      - name: Start MinIO
+      - name: Wait for MinIO
         run: |
-          docker run -d \
-            --name finance-report-minio-integration \
-            -p 9000:9000 \
-            -e MINIO_ROOT_USER=minio \
-            -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
-            server /data --console-address ":9001"
-
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+          for _ in {1..120}; do
+            if [ -f "$RUNNER_TEMP/minio-ready" ] || [ -f "$RUNNER_TEMP/minio-failed" ]; then
               break
             fi
-            sleep 2
+            sleep 1
           done
-
-          curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
-            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          cat "$RUNNER_TEMP/minio-setup.log"
+          test -f "$RUNNER_TEMP/minio-ready"
 
       - name: Run Integration Tests
         env:
@@ -670,11 +737,18 @@ jobs:
           EOF
 
   backend-e2e-tier1:
-    name: Backend Tier-1 API E2E
+    name: Backend Tier-1 API E2E (Shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
+    # Seeded 3-way least_duration split (ci/backend-tier1-test-durations.json):
+    # four statement-corpus journeys take 38-55 s each, so one 2-worker job was
+    # the slowest leg of the PR pipeline (152 s of tests, #2050).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     services:
       postgres:
@@ -688,15 +762,48 @@ jobs:
         options: >-
           --mount type=tmpfs,destination=/var/lib/postgresql/data
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 30
 
     steps:
       - uses: actions/checkout@v7
 
+      # Started in the background right after checkout, so the image pulls
+      # and the MinIO boot overlap uv/Python/venv setup instead of queueing
+      # behind it. "Wait for MinIO" blocks on the outcome before any
+      # test runs, and a setup failure still fails the job there.
+      - name: Start MinIO
+        run: |
+          cat > "$RUNNER_TEMP/start-minio.sh" <<'SH'
+          set -euo pipefail
+          docker run -d \
+            --name finance-report-minio-tier1 \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_local_secret \
+            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data --console-address ":9001"
+          for _ in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:9000/minio/health/live
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
+            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          SH
+          {
+            if bash "$RUNNER_TEMP/start-minio.sh"; then
+              touch "$RUNNER_TEMP/minio-ready"
+            else
+              touch "$RUNNER_TEMP/minio-failed"
+            fi
+          } > "$RUNNER_TEMP/minio-setup.log" 2>&1 &
+
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -718,26 +825,16 @@ jobs:
       - name: Install dependencies
         run: cd apps/backend && uv sync
 
-      - name: Start MinIO
+      - name: Wait for MinIO
         run: |
-          docker run -d \
-            --name finance-report-minio-tier1 \
-            -p 9000:9000 \
-            -e MINIO_ROOT_USER=minio \
-            -e MINIO_ROOT_PASSWORD=minio_local_secret \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
-            server /data --console-address ":9001"
-
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then
+          for _ in {1..120}; do
+            if [ -f "$RUNNER_TEMP/minio-ready" ] || [ -f "$RUNNER_TEMP/minio-failed" ]; then
               break
             fi
-            sleep 2
+            sleep 1
           done
-
-          curl -fsS http://127.0.0.1:9000/minio/health/live
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 \
-            -c 'mc alias set local http://127.0.0.1:9000 minio minio_local_secret && mc mb local/statements --ignore-existing'
+          cat "$RUNNER_TEMP/minio-setup.log"
+          test -f "$RUNNER_TEMP/minio-ready"
 
       - name: Run Tier-1 API E2E Tests
         env:
@@ -769,6 +866,10 @@ jobs:
             tests/e2e/test_statement_corpus_journeys.py \
             tests/e2e/test_epic025_dry_ssot_e2e.py \
             -m "e2e and not slow and not integration and not perf" \
+            --splits 3 \
+            --group ${{ matrix.shard }} \
+            --splitting-algorithm=least_duration \
+            --durations-path ci/backend-tier1-test-durations.json \
             -n auto --dist worksteal \
             "${pytest_extra_args[@]}" \
             --junit-xml=test-results/backend-tier1-e2e.xml
@@ -777,7 +878,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: backend-tier1-e2e-test-context
+          name: backend-tier1-e2e-${{ matrix.shard }}-test-context
           path: |
             apps/backend/test-results/backend-tier1-e2e.xml
             apps/backend/test-results/served-cassettes*.txt
@@ -1247,7 +1348,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -1727,7 +1828,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: ./.github/actions/setup-uv-retry
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -1885,11 +1986,11 @@ jobs:
           name: backend-integration-test-context
           path: junit-artifacts/backend-integration-test-context
 
-      - name: Download backend Tier-1 junit artifact
+      - name: Download backend Tier-1 junit artifacts
         uses: actions/download-artifact@v8
         with:
-          name: backend-tier1-e2e-test-context
-          path: junit-artifacts/backend-tier1-e2e-test-context
+          pattern: backend-tier1-e2e-*-test-context
+          path: junit-artifacts
 
       - name: Download frontend Vitest junit artifact
         uses: actions/download-artifact@v8

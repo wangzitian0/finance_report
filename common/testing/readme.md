@@ -24,6 +24,16 @@ including the tooling evidence producer, is registered in
 `WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
 unregistered live invocation or a registration with no live command.
 
+[`backend_shard.py`](./backend_shard.py) (CLI: `tools/backend_shard_files.py`)
+decides which backend test files each CI shard runs: a seeded, file-level
+`least_duration` split over `apps/backend/ci/backend-test-durations.json`
+(AC-testing.ci-structure.13). Every `tests/**/test_*.py` file lands in exactly
+one shard, so a shard collects only its own files instead of importing the
+whole suite under `--cov-branch` (#2050). It is stdlib-only because the shard
+runs it before dependency installation. Tier-1 API E2E keeps pytest-split's
+item-level split over `ci/backend-tier1-test-durations.json`
+(AC-testing.ci-structure.14), because it collects only four files.
+
 ### Package declaration protocol
 
 Each domain package declares its own unit/integration test roots in its
@@ -114,8 +124,9 @@ context. An owning package may expose raw detector facts through the optional
 `common/<package>/extension/governance_detector.py::detect_governance(*,
 repo_root)` provider; the adapter owns discovery and target-SHA provenance and
 rejects foreign, duplicate, malformed, or proof-bearing output. A passing JUnit
-testcase is not proof by itself: proof id, assertion version, repository, run
-attempt, exact target SHA, declared semantic strength, and the producing gate's
+testcase is not proof by itself: proof id, assertion version, repository, GitHub
+run (any attempt up to the builder's own, projected with the record's own
+execution id), exact target SHA, declared semantic strength, and the producing gate's
 actual downloaded artifact lane must all reconcile. Semantic strength is bound
 into the assertion-version hash while Trace execution authority remains `exact`.
 Open initiatives fail closed when their lane or proof is absent; closed
@@ -326,8 +337,13 @@ score is not automatically a terminal execution proof. A scenario-bound
 `@ac_proof` is different. `common.testing.executed_proof_plugin` observes
 pytest's real call-phase result and emits `PASS` only after the call passed. The
 existing `check_pr_ci_evidence` JUnit gate then requires the exact repository,
-checked-out commit, GitHub run attempt, scenario, proof declaration digest, and
-testing authority.
+checked-out commit, GitHub run, scenario, proof declaration digest, and
+testing authority. The run attempt may be earlier than the checker's own
+(AC-testing.capability-proof.4, #2049): a partial "re-run failed jobs" keeps the
+passing jobs' attempt-1 JUnit while the checker runs as attempt 2. A different
+run, or an attempt newer than the checker's, never matches; the newest matching
+attempt is the canonical record. Several matching records in one attempt are
+legitimate (one per case of a parametrized proof).
 
 A scenario may register one post-proof consumer on its pytest item when another
 package must compose evidence only after that real call result exists. The

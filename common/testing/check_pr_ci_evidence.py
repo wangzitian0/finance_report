@@ -25,8 +25,8 @@ from common.audit.extension import TraceJUnitAdapter, TraceRecordCodec
 from common.meta.base.gate_cli import run_gate
 from common.testing.executed_proof import (
     executed_proof_assertion_version,
-    executed_proof_matches,
     github_execution_id,
+    select_executed_proof,
 )
 from common.testing.matrix import PR_EVIDENCE_STAGES, classify_stage
 
@@ -128,9 +128,13 @@ def _has_exact_executed_proof(
         governance_strength=str(proof.get("governance_strength", "exact")),
         required_observation_kind=str(proof.get("required_observation_kind", "")),
     )
-    return any(
-        executed_proof_matches(
-            record,
+    # #2049: a partial "re-run failed jobs" keeps attempt-1 JUnit for the jobs
+    # GitHub did not re-run while this checker runs as attempt 2, so evidence
+    # from an earlier attempt of the same run counts; all other coordinates
+    # stay exact.
+    return (
+        select_executed_proof(
+            (record for key in keys for record in records.get(key, ())),
             proof_id=str(proof["id"]),
             scenario_id=str(proof["scenario_id"]),
             repository_id=repository_id,
@@ -138,8 +142,7 @@ def _has_exact_executed_proof(
             execution_id=execution_id,
             assertion_version=assertion_version,
         )
-        for key in keys
-        for record in records.get(key, ())
+        is not None
     )
 
 

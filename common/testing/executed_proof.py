@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -122,6 +122,31 @@ def github_execution_id(environ: Mapping[str, str]) -> str:
     if len(execution_id) > 200:
         raise ExecutedProofError("GitHub execution id must not exceed 200 characters")
     return execution_id
+
+
+def github_execution_coordinates(execution_id: str) -> tuple[int, int] | None:
+    """Parse a ``github_execution_id()`` value into ``(run_id, run_attempt)``.
+
+    Returns None for anything not in that exact shape (a local, non-CI
+    execution id included), so callers fail closed instead of guessing.
+    """
+    run_id, separator, run_attempt = execution_id.partition(".")
+    if not separator or not run_id.isdigit() or not run_attempt.isdigit():
+        return None
+    if int(run_attempt) < 1:
+        return None
+    return int(run_id), int(run_attempt)
+
+
+def _same_run_not_newer_attempt(record_execution_id: str, execution_id: str) -> bool:
+    record = github_execution_coordinates(record_execution_id)
+    current = github_execution_coordinates(execution_id)
+    return (
+        record is not None
+        and current is not None
+        and record[0] == current[0]
+        and record[1] <= current[1]
+    )
 
 
 def _local_coordinates(
@@ -277,8 +302,23 @@ def executed_proof_matches(
     commit_sha: str,
     execution_id: str,
     assertion_version: str | None = None,
+    accept_earlier_attempt: bool = False,
 ) -> bool:
-    """Validate one emitted record without inferring success from JUnit shape."""
+    """Validate one emitted record without inferring success from JUnit shape.
+
+    ``accept_earlier_attempt`` (#2049): when True, a record from an earlier
+    attempt of the SAME GitHub run also matches. A partial "re-run failed
+    jobs" keeps the jobs that passed on attempt 1 (their JUnit still carries
+    ``run_id.1``) while the re-run jobs and this checker run as attempt 2.
+    Every other coordinate (repository, commit, proof, assertion version,
+    authority) is still compared exactly, a different run never matches, and
+    a record claiming a newer attempt than the checker never matches.
+    """
+    execution_matches = (
+        _same_run_not_newer_attempt(record.execution_id, execution_id)
+        if accept_earlier_attempt
+        else record.execution_id == execution_id
+    )
     return (
         record.record_type is TraceRecordType.OBSERVATION
         and record.result is TraceResult.PASS
@@ -289,7 +329,7 @@ def executed_proof_matches(
         and record.assertion.kind == "executed_proof"
         and record.assertion.id == proof_id
         and (assertion_version is None or record.assertion.version == assertion_version)
-        and record.execution_id == execution_id
+        and execution_matches
         and record.authority.package == "testing"
         and record.authority.tier == "CODE-ONLY"
         and record.authority.proof_kind == "exact"
@@ -297,3 +337,43 @@ def executed_proof_matches(
         and record.authority.execution_stage == "github_ci.merge_authority"
         and record.reason_code == "executed_proof_passed"
     )
+
+
+def select_executed_proof(
+    records: Iterable[TraceRecord],
+    *,
+    proof_id: str,
+    scenario_id: str,
+    repository_id: str,
+    commit_sha: str,
+    execution_id: str,
+    assertion_version: str | None = None,
+) -> TraceRecord | None:
+    """Pick the canonical executed-proof record for the checker's current run.
+
+    Accepts evidence from any attempt of the current GitHub run up to the
+    checker's own attempt (#2049), and prefers the newest such attempt, so a
+    job that GitHub re-ran is represented by its re-run evidence. Several
+    matching records within one attempt are legitimate (a parametrized proof
+    emits one per case, all with the same coordinates), so they are not an
+    error; the first in input order is returned.
+    """
+    newest: TraceRecord | None = None
+    newest_attempt = 0
+    for record in records:
+        if not executed_proof_matches(
+            record,
+            proof_id=proof_id,
+            scenario_id=scenario_id,
+            repository_id=repository_id,
+            commit_sha=commit_sha,
+            execution_id=execution_id,
+            assertion_version=assertion_version,
+            accept_earlier_attempt=True,
+        ):
+            continue
+        coordinates = github_execution_coordinates(record.execution_id)
+        attempt = coordinates[1] if coordinates is not None else 0
+        if attempt > newest_attempt:
+            newest, newest_attempt = record, attempt
+    return newest

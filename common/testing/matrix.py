@@ -432,10 +432,11 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         stage="backend_ci",
         workflow=".github/workflows/ci.yml",
         marker=BACKEND_CI_MARKER,
-        # "--splits 8" alone is no longer unique: tooling-coverage's shard
-        # matrix (#2047) also uses an 8-way least_duration split, so anchor on
-        # backend's own duration-seed path instead.
-        anchor="--durations-path ci/backend-test-durations.json",
+        # Each shard runs exactly the files tools/backend_shard_files.py
+        # assigns to it (a seeded file-level split, #2050), passed as one
+        # shell array; the marker still deselects inside those files.
+        paths=('"${BACKEND_SHARD_TESTS[@]}"',),
+        anchor="--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
     ),
     WorkflowPytestContract(
         stage="backend_integration",

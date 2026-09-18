@@ -1068,7 +1068,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     for token in (
         "backend-shard-${{ matrix.shard }}-test-context",
         "backend-integration-test-context",
-        "backend-tier1-e2e-test-context",
+        "backend-tier1-e2e-${{ matrix.shard }}-test-context",
         "frontend-vitest-test-context",
         "frontend-playwright-test-context",
         "frontend-telemetry-test-context",
@@ -2095,6 +2095,130 @@ def test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_move
         assert skip_is_a_pass_clause in finish_commands
 
 
+def test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action() -> (
+    None
+):
+    """AC-testing.ci-structure.12: every `Install uv` step in ci.yml retries once through a single
+    local composite action instead of failing the job outright on a transient
+    astral-sh/setup-uv network fetch failure (run 35091080269 red-flagged
+    Backend Integration Tests on exactly this; mirrors truealpha#890's buildx
+    retry idiom)."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    jobs = workflow["jobs"]
+    action_path = Path(".github/actions/setup-uv-retry/action.yml")
+    action_text = read(str(action_path))
+    action = yaml.safe_load(action_text)
+
+    # ci.yml never calls the raw action directly -- only through the retry
+    # wrapper -- and every "Install uv" step resolves to that one wrapper.
+    raw_action_reference = "astral-sh/setup-uv"
+    assert raw_action_reference not in workflow_text
+    all_steps = [
+        step
+        for job in jobs.values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict)
+    ]
+    install_uv_steps = [step for step in all_steps if step.get("name") == "Install uv"]
+    wrapper_steps = [
+        step
+        for step in all_steps
+        if step.get("uses") == "./.github/actions/setup-uv-retry"
+    ]
+    # Non-empty (never a vacuous pass), but not pinned to a job count: jobs
+    # may be added or removed as long as each uv install routes through the
+    # wrapper. The two lists must be the same steps, so a renamed step cannot
+    # slip past either direction.
+    assert install_uv_steps
+    assert install_uv_steps == wrapper_steps
+
+    # The wrapper itself: attempt 1 tolerates failure, a wait, then a retry
+    # attempt that does NOT tolerate failure (a second failure must still
+    # fail the job) -- both attempts call the same pinned upstream action.
+    action_steps = action["runs"]["steps"]
+    assert len(action_steps) == 3
+    attempt_1, wait_step, retry = action_steps
+    assert attempt_1["uses"] == "astral-sh/setup-uv@v8.2.0"
+    assert attempt_1.get("continue-on-error") is True
+    attempt_1_id = attempt_1["id"]
+    assert wait_step["if"] == f"steps.{attempt_1_id}.outcome == 'failure'"
+    assert retry["uses"] == "astral-sh/setup-uv@v8.2.0"
+    assert retry["if"] == f"steps.{attempt_1_id}.outcome == 'failure'"
+    assert retry.get("continue-on-error") is None
+
+
+def test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs() -> None:
+    """AC-testing.ci-structure.14: Tier-1 API E2E runs as seeded least_duration matrix
+    legs; every leg uploads its own JUnit context and both evidence consumers
+    read all of them."""
+    workflow_text = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(workflow_text)
+    tier1 = workflow["jobs"]["backend-e2e-tier1"]
+    legs = tier1["strategy"]["matrix"]["shard"]
+    splits = len(legs)
+    assert legs == list(range(1, splits + 1))
+    assert splits >= 2
+    assert tier1["strategy"]["fail-fast"] is False
+    assert (
+        tier1["name"]
+        == f"Backend Tier-1 API E2E (Shard ${{{{ matrix.shard }}}}/{splits})"
+    )
+
+    (pytest_line,) = [
+        line
+        for step in tier1["steps"]
+        if isinstance(step, dict)
+        for line in str(step.get("run", "")).replace("\\\n", " ").splitlines()
+        if "uv run pytest" in line
+    ]
+    tokens = pytest_line.replace("${{ matrix.shard }}", "<shard>").split()
+    options = dict(zip(tokens, tokens[1:]))
+    assert (
+        options["--splits"],
+        options["--group"],
+        options["--durations-path"],
+        tokens.count("--splitting-algorithm=least_duration"),
+    ) == (
+        str(splits),
+        "<shard>",
+        "ci/backend-tier1-test-durations.json",
+        1,
+    )
+
+    seed = json.loads(read("apps/backend/ci/backend-tier1-test-durations.json"))
+    tier1_files = (
+        "tests/e2e/test_core_journeys.py",
+        "tests/e2e/test_seeded_statement_journey.py",
+        "tests/e2e/test_statement_corpus_journeys.py",
+        "tests/e2e/test_epic025_dry_ssot_e2e.py",
+    )
+    assert seed
+    assert {node.split("::", 1)[0] for node in seed} <= set(tier1_files)
+    assert all(isinstance(value, (int, float)) for value in seed.values())
+
+    upload = next(
+        step
+        for step in tier1["steps"]
+        if step.get("name") == "Upload backend Tier-1 E2E test context"
+    )
+    assert (
+        upload["with"]["name"] == "backend-tier1-e2e-${{ matrix.shard }}-test-context"
+    )
+
+    ratchet = workflow["jobs"]["ac-behavioral-ratchet"]
+    downloads = [step.get("with", {}) for step in ratchet["steps"]]
+    assert {
+        "pattern": "backend-tier1-e2e-*-test-context",
+        "path": "junit-artifacts",
+    } in (downloads)
+    traceability = workflow["jobs"]["ac-traceability"]
+    assert {
+        "pattern": "backend-*test-context",
+        "path": "governance-inputs/junit/backend",
+    } in [step.get("with", {}) for step in traceability["steps"]]
+
+
 def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
     """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 8-way least-duration split
     (raised from 5-way alongside a refreshed duration seed, so a shard's slowest wall-clock
@@ -2136,7 +2260,7 @@ def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
     )
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
     assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/8)`" in ci_cd
-    assert "8-way parallel test sharding via `pytest-split`" in ci_cd
+    assert "8-way parallel test sharding over the `pytest-split` duration seed" in ci_cd
     assert "apps/backend/ci/backend-test-durations.json" in ci_cd
     assert "not runner-local cache writes" in ci_cd
     assert "matrix_legs: 8" in inventory
@@ -2179,7 +2303,7 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
     assert "Download all test junit artifacts" not in ratchet_block
     assert "pattern: backend-shard-*-test-context" in ratchet_block
     assert "name: backend-integration-test-context" in ratchet_block
-    assert "name: backend-tier1-e2e-test-context" in ratchet_block
+    assert "pattern: backend-tier1-e2e-*-test-context" in ratchet_block
     assert "name: frontend-vitest-test-context" in ratchet_block
     assert (
         "uv run --with pyyaml python tools/aggregate_ac_evidence.py"

@@ -174,7 +174,8 @@ gates:
     blocks_workflow: true
     inputs: [tier1_api_e2e, ephemeral_postgres, minio_service]
     outputs: [backend_tier1_e2e_junit]
-    artifacts: [backend-tier1-e2e-test-context]
+    artifacts: [backend-tier1-e2e-*-test-context]
+    matrix_legs: 3
     failure_semantics: Tier-1 API E2E behavioral proof failed.
     action: observe
   - id: ci.frontend_build

@@ -2438,7 +2438,7 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.8",
             statement=(
                 "Backend fast-test CI shards rebalance the current critical path with "
-                "an 8-way pytest-split matrix (raised from 5-way once the committed "
+                "an 8-way seeded least-duration matrix (raised from 5-way once the committed "
                 "duration seed was refreshed against the current ~3300-test suite -- "
                 "347 tests had drifted in unseeded, which is what a stale seed "
                 "produces: a mispriced least_duration assignment, not a missing "
@@ -2503,6 +2503,68 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
                 "::test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.12",
+            statement=(
+                "Every `Install uv` step in ci.yml retries once, through one local "
+                "composite action (.github/actions/setup-uv-retry), instead of "
+                "failing the job outright on a transient astral-sh/setup-uv "
+                "network fetch failure -- attempt 1 tolerates failure "
+                "(continue-on-error), a short wait, then a retry attempt that "
+                "does not tolerate failure (a second failure still fails the "
+                "job), mirroring truealpha#890's buildx retry idiom (run "
+                "35091080269 red-flagged Backend Integration Tests on exactly "
+                "this)."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.13",
+            statement=(
+                "Each backend CI shard runs only the whole test files that a seeded "
+                "file-level least_duration split (common/testing/backend_shard.py, "
+                "tools/backend_shard_files.py, over ci/backend-test-durations.json) "
+                "assigns to it, so a shard no longer collects the entire suite under "
+                "--cov-branch to keep one eighth of it (37-58 s per shard on a hosted "
+                "runner, #2050). Every tests/**/test_*.py file lands in exactly one "
+                "shard, the split is deterministic and stdlib-only, the step fails "
+                "closed on an empty selection, and discovery matches the backend "
+                "pytest configuration (no collect_ignore hooks an explicit path "
+                "would bypass)."
+            ),
+            test=(
+                "tests/tooling/test_backend_shard.py"
+                "::test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
+        ACRecord(
+            id="AC-testing.ci-structure.14",
+            statement=(
+                "Backend Tier-1 API E2E runs as seeded pytest-split least_duration "
+                "matrix legs (ci/backend-tier1-test-durations.json) instead of one "
+                "job whose four 38-55 s statement-corpus journeys made it the "
+                "slowest PR leg (#2050); every leg uploads its own "
+                "backend-tier1-e2e-<n>-test-context artifact, and both the AC "
+                "behavioral ratchet and the package-governance lane classification "
+                "consume all legs."
+            ),
+            test=(
+                "tests/tooling/test_post_merge_e2e_gates.py"
+                "::test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs"
             ),
             priority="P1",
             status="done",
@@ -4139,6 +4201,28 @@ CONTRACT = PackageContract(
             test=(
                 "tests/tooling/test_executed_proof.py::"
                 "test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-testing.capability-proof.4",
+            statement=(
+                "An executed-proof TraceRecord from an earlier attempt of the SAME "
+                "GitHub run satisfies the PR-CI evidence reconciliation "
+                "(common.testing.check_pr_ci_evidence) and the package-governance "
+                "proof projection (common.testing.package_governance_observations), "
+                'so a partial "re-run failed jobs" -- kept jobs\' JUnit on attempt 1, '
+                "the checker on attempt 2 -- can pass (#2049). Repository, commit, "
+                "proof identity and assertion version stay exact; a different run, "
+                "an attempt newer than the checker's, or a non-GitHub execution id "
+                "fails closed; the newest matching attempt is the canonical record "
+                "and the projection carries that record's own execution id."
+            ),
+            test=(
+                "tests/tooling/test_executed_proof.py::"
+                "test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run"
             ),
             priority="P0",
             status="done",

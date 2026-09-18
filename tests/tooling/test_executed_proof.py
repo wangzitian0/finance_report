@@ -34,8 +34,10 @@ from common.testing.executed_proof import (
     ExecutedProofError,
     executed_proof_assertion_version,
     executed_proof_matches,
+    github_execution_coordinates,
     record_executed_proof,
     register_executed_proof_consumer,
+    select_executed_proof,
 )
 
 COMMIT_SHA = "a" * 40
@@ -296,6 +298,158 @@ def test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates(
     missing_trace = tmp_path / "missing-trace.xml"
     tree.write(missing_trace, encoding="utf-8", xml_declaration=True)
     assert check_pr_ci_evidence.run_check([missing_trace]) == 1
+
+
+def _write_junit_cases(path: Path, cases: list[tuple[str, TraceRecord]]) -> None:
+    """Write a minimal JUnit file: one testcase per (name, trace_record) pair,
+    in the shape check_pr_ci_evidence.collect_executed_proofs parses."""
+    testsuite = ElementTree.Element("testsuite")
+    for name, record in cases:
+        testcase = ElementTree.SubElement(
+            testsuite,
+            "testcase",
+            classname="tests.integration.test_scenario",
+            name=name,
+        )
+        properties = ElementTree.SubElement(testcase, "properties")
+        ElementTree.SubElement(
+            properties,
+            "property",
+            name=TraceJUnitAdapter.PROPERTY_KEY,
+            value=TraceRecordCodec.encode(record),
+        )
+    ElementTree.ElementTree(testsuite).write(
+        path, encoding="utf-8", xml_declaration=True
+    )
+
+
+def _record_for_attempt(run_id: str, attempt: str) -> TraceRecord:
+    record = record_executed_proof(
+        _Item(),
+        _Report(),
+        environ={**CI_ENV, "GITHUB_RUN_ID": run_id, "GITHUB_RUN_ATTEMPT": attempt},
+        occurred_at=OCCURRED_AT,
+    )
+    assert record is not None
+    return record
+
+
+def _checker_sees_only_scenario_proof(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof = {
+        "id": "scenario-proof",
+        "scope": "behavioral",
+        "ci_tier": "pr_ci",
+        "file": "tests/integration/test_scenario.py",
+        "test": "test_terminal",
+        "ac_ids": ["AC-testing.capability-proof.1"],
+        "scenario_id": "trusted-year-v0",
+        "oracle_kind": "independent_decimal",
+        "stage": "github_ci.merge_authority",
+        "task_category": "critical_behavioral",
+    }
+    import common.testing.ac_graph as ac_graph
+    import common.testing.generate_critical_proof_matrix as proof_matrix
+
+    monkeypatch.setattr(ac_graph, "build_proofs_only", lambda: object())
+    monkeypatch.setattr(
+        proof_matrix, "build_matrix_from_graph", lambda _graph: {"proofs": [proof]}
+    )
+    monkeypatch.setattr(
+        check_pr_ci_evidence,
+        "classify_stage",
+        lambda _path: next(iter(check_pr_ci_evidence.PR_EVIDENCE_STAGES)),
+    )
+    # The checker runs as attempt 2 of run 123456789 (CI_ENV).
+    for env_name, value in CI_ENV.items():
+        monkeypatch.setenv(env_name, value)
+
+
+def test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.capability-proof.4 (#2049): after a partial "re-run failed jobs",
+    the shard GitHub kept still holds attempt-1 evidence while the checker runs
+    as attempt 2. Main run 35091080269 failed on exactly this shape."""
+    _checker_sees_only_scenario_proof(monkeypatch)
+    kept = _record_for_attempt("123456789", "1")
+    rerun = _record_for_attempt("123456789", "2")
+    assert (kept.execution_id, rerun.execution_id) == ("123456789.1", EXECUTION_ID)
+
+    kept_junit = tmp_path / "backend-shard-kept.xml"
+    rerun_junit = tmp_path / "backend-shard-rerun.xml"
+    _write_junit_cases(kept_junit, [("test_terminal", kept)])
+    _write_junit_cases(rerun_junit, [("test_terminal", rerun)])
+
+    # The kept job's attempt-1 evidence alone: the incident shape. Red before
+    # the fix, because "123456789.1" != "123456789.2".
+    assert check_pr_ci_evidence.run_check([kept_junit]) == 0
+    # A job that was re-run matches its own attempt, as before.
+    assert check_pr_ci_evidence.run_check([rerun_junit]) == 0
+    # A mixed evidence set, as the downloaded artifacts of a partial re-run are.
+    assert check_pr_ci_evidence.run_check([kept_junit, rerun_junit]) == 0
+
+
+@pytest.mark.parametrize(
+    ("run_id", "attempt"),
+    [
+        ("999999999", "1"),  # a different run, even at an earlier attempt
+        ("999999999", "2"),  # a different run at the checker's own attempt
+        ("123456789", "3"),  # the same run, but newer than the checker's attempt
+    ],
+)
+def test_AC_testing_capability_proof_4_other_runs_and_newer_attempts_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: str,
+    attempt: str,
+) -> None:
+    """AC-testing.capability-proof.4 (#2049): accepting an earlier attempt does not
+    accept a different run, or an attempt newer than the one checking."""
+    _checker_sees_only_scenario_proof(monkeypatch)
+    junit = tmp_path / "foreign.xml"
+    _write_junit_cases(junit, [("test_terminal", _record_for_attempt(run_id, attempt))])
+
+    assert check_pr_ci_evidence.run_check([junit]) == 1
+
+
+def test_AC_testing_capability_proof_4_same_attempt_duplicates_and_newest_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.capability-proof.4 (#2049): several matching records within one
+    attempt are legitimate (a parametrized proof emits one per case, as
+    test_AC_meta_governance_control_4 does three times in run 35092984003), and
+    when attempts differ the newest one is the canonical record."""
+    _checker_sees_only_scenario_proof(monkeypatch)
+    first = _record_for_attempt("123456789", "1")
+    second = _record_for_attempt("123456789", "1")
+    junit = tmp_path / "parametrized.xml"
+    _write_junit_cases(
+        junit, [("test_terminal[case-a]", first), ("test_terminal[case-b]", second)]
+    )
+    assert check_pr_ci_evidence.run_check([junit]) == 0
+
+    rerun = _record_for_attempt("123456789", "2")
+    coordinates = {
+        "proof_id": "scenario-proof",
+        "scenario_id": "trusted-year-v0",
+        "repository_id": CI_ENV["GITHUB_REPOSITORY"],
+        "commit_sha": COMMIT_SHA,
+        "execution_id": EXECUTION_ID,
+    }
+    assert select_executed_proof([first, rerun, second], **coordinates) is rerun
+    assert select_executed_proof([first, second], **coordinates) is first
+    # Anything that is not a `run_id.attempt` GitHub coordinate never matches.
+    assert (
+        select_executed_proof(
+            [first], **{**coordinates, "execution_id": "tests/x.py::test_terminal"}
+        )
+        is None
+    )
+    assert github_execution_coordinates("123456789.0") is None
+    assert github_execution_coordinates("123456789") is None
+    assert github_execution_coordinates("123456789.2") == (123456789, 2)
 
 
 def _terminal_observation(proof: TraceRecord) -> TraceRecord:

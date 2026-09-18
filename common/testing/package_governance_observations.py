@@ -28,6 +28,7 @@ from common.testing.executed_proof import (
     executed_proof_assertion_version,
     executed_proof_matches,
     github_execution_id,
+    select_executed_proof,
 )
 from common.testing.generate_critical_proof_matrix import (
     GeneratorError,
@@ -186,21 +187,16 @@ def junit_proof_payload(
                     )
                 if not matched_records and issue_state == "closed":
                     continue
-                exact = next(
-                    (
-                        record
-                        for record in matched_records
-                        if executed_proof_matches(
-                            record,
-                            proof_id=guarantee.proof,
-                            scenario_id=guarantee.affected_acs[0],
-                            repository_id=repository,
-                            commit_sha=target_sha,
-                            execution_id=execution_id,
-                            assertion_version=assertion_version,
-                        )
-                    ),
-                    None,
+                # #2049: an earlier attempt of the same run counts (a partial
+                # "re-run failed jobs" keeps attempt-1 JUnit for kept jobs).
+                exact = select_executed_proof(
+                    matched_records,
+                    proof_id=guarantee.proof,
+                    scenario_id=guarantee.affected_acs[0],
+                    repository_id=repository,
+                    commit_sha=target_sha,
+                    execution_id=execution_id,
+                    assertion_version=assertion_version,
                 )
                 if exact is None:
                     if issue_state == "closed":
@@ -225,7 +221,10 @@ def junit_proof_payload(
                         "stage": str(profile["stage"]),
                         "task_category": str(profile["task_category"]),
                         "repository": repository,
-                        "execution_id": execution_id,
+                        # The record's own coordinate, not the builder's: on a
+                        # partial re-run they differ by attempt, and the bundle
+                        # validator checks the record against this field.
+                        "execution_id": exact.execution_id,
                         "assertion_version": assertion_version,
                         "trace_record": TraceRecordCodec.encode(exact),
                     }
@@ -388,7 +387,7 @@ def _junit_lanes(root: Path) -> dict[str, list[Path]]:
                 lane = "ci.backend"
             elif artifact == "backend-integration-test-context":
                 lane = "ci.backend_integration"
-            elif artifact == "backend-tier1-e2e-test-context":
+            elif re.fullmatch(r"backend-tier1-e2e-\d+-test-context", artifact):
                 lane = "ci.backend_e2e_tier1"
         elif parts and parts[0] == "frontend":
             lane = "ci.frontend_vitest"
