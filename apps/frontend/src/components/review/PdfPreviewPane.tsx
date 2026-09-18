@@ -93,11 +93,13 @@ export function PdfPreviewPane({
       </div>
       <div className="flex-1 p-4 min-h-0">
         {state.status === "ready" ? (
+          /* allow-same-origin is required: without it, embedded browser viewers throw
+             SecurityError accessing localStorage/cookies in modern browser contexts */
           <iframe
             src={state.url}
             className="w-full h-full rounded border"
             title="Statement PDF preview"
-            sandbox="allow-scripts"
+            sandbox="allow-same-origin allow-scripts"
             referrerPolicy="no-referrer"
           >
             <p>
