@@ -200,7 +200,7 @@ export default function StatementReviewPage() {
 
   // Mutations
   const approveMutation = useMutation({
-    mutationFn: (variables?: { autoFill?: boolean }) => {
+    mutationFn: (variables: { autoFill?: boolean } | void) => {
       const body: {
         create_account_if_missing: boolean;
         auto_fill_default_categories?: boolean;
