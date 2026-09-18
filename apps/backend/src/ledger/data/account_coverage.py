@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 from uuid import UUID
 
 from sqlalchemy import select
@@ -59,7 +60,12 @@ class StatementCoverageRow:
 
 # Called as (db, user_id, account_ids) — see get_account_statement_coverage's
 # call site.
-StatementCoverageReader = "Callable[[AsyncSession, UUID, Collection[UUID]], Awaitable[list[StatementCoverageRow]]]"
+StatementCoverageReader: TypeAlias = (  # noqa: UP040
+    Callable[
+        [AsyncSession, UUID, Collection[UUID]],
+        Awaitable[list[StatementCoverageRow]],
+    ]
+)
 
 _statement_coverage_reader: StatementCoverageReader | None = None
 
@@ -142,31 +148,50 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
 
         expected_start = previous.period_end + timedelta(days=1)
         if current.period_start <= previous.period_end:
-            issues.append(
-                AccountCoverageIssue(
-                    type=AccountCoverageIssueType.OVERLAP,
-                    severity=CRITICAL_SEVERITY,
-                    currency=currency,
-                    period_start=current.period_start,
-                    period_end=previous.period_end,
-                    statement_id=current.id,
-                    previous_statement_id=previous.id,
-                )
+            # Inclusive boundary check: many standard statements use [end_of_prev_month, end_of_current_month]
+            # e.g., Statement 1: 01/01 - 31/01, Statement 2: 31/01 - 28/02.
+            # When period_start == previous.period_end AND balances match, this is valid continuity.
+            is_inclusive_boundary = (
+                current.period_start == previous.period_end
+                and previous.closing_balance is not None
+                and current.opening_balance is not None
+                and _abs_decimal_delta(current.opening_balance, previous.closing_balance) <= BALANCE_TOLERANCE
             )
+            if not is_inclusive_boundary:
+                issues.append(
+                    AccountCoverageIssue(
+                        type=AccountCoverageIssueType.OVERLAP,
+                        severity=CRITICAL_SEVERITY,
+                        currency=currency,
+                        period_start=current.period_start,
+                        period_end=previous.period_end,
+                        statement_id=current.id,
+                        previous_statement_id=previous.id,
+                    )
+                )
             continue
 
         if current.period_start > expected_start:
-            issues.append(
-                AccountCoverageIssue(
-                    type=AccountCoverageIssueType.GAP,
-                    severity=WARNING_SEVERITY,
-                    currency=currency,
-                    period_start=expected_start,
-                    period_end=current.period_start - timedelta(days=1),
-                    statement_id=current.id,
-                    previous_statement_id=previous.id,
-                )
+            # Calendar gap check: weekend / non-business days (e.g. Fri -> Mon, <= 4 days).
+            # When opening balance of current equals closing balance of previous within a short calendar gap, financial continuity holds.
+            is_continuous_balance = (
+                (current.period_start - expected_start).days <= 4
+                and previous.closing_balance is not None
+                and current.opening_balance is not None
+                and _abs_decimal_delta(current.opening_balance, previous.closing_balance) <= BALANCE_TOLERANCE
             )
+            if not is_continuous_balance:
+                issues.append(
+                    AccountCoverageIssue(
+                        type=AccountCoverageIssueType.GAP,
+                        severity=WARNING_SEVERITY,
+                        currency=currency,
+                        period_start=expected_start,
+                        period_end=current.period_start - timedelta(days=1),
+                        statement_id=current.id,
+                        previous_statement_id=previous.id,
+                    )
+                )
             continue
 
         if previous.closing_balance is None or current.opening_balance is None:

@@ -661,6 +661,40 @@ class TestBaselineComparison:
 
         assert cuc.main([]) == 0
 
+    def test_within_epsilon_jitter_floating_point_imprecision(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression test for IEEE-754 precision: 92.37 - 0.05 is 92.32000000000001 in float.
+        Without explicit rounding to 2 decimal places, 92.32 would be considered < 92.32000000000001
+        and falsely fail the no-regression gate."""
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "coverage_percent": 95.56,
+            "total_lines": 50000,
+            "covered_lines": 47780,
+            "breakdown": {
+                "tools": {
+                    "total_lines": 3399,
+                    "covered_lines": 3140,
+                    "coverage_percent": 92.37,
+                },
+            },
+        }
+        baseline_file.write_text(json.dumps(baseline_data))
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+
+        current = {
+            "tools": {
+                "total_lines": 3399,
+                "covered_lines": 3138,
+                "coverage_percent": 92.32,  # Exactly -0.05%
+            },
+        }
+        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
+        assert cuc.main(["--gate-components", "tools"]) == 0
+
     def test_fails_when_unified_drops_below_baseline(
         self, tmp_path, monkeypatch, capfd
     ):

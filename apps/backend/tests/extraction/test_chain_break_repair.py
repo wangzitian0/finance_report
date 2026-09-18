@@ -301,3 +301,81 @@ async def test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end():
     assert backend.calls[0]["break_info"].index == corpus["break_index"]
     assert validate_balance(result)["balance_valid"] is True
     assert result is clean
+
+
+def test_repair_stitches_partial_slice_at_break_index():
+    """AC-extraction.120.8: Backend returning only a partial slice of repaired rows is stitched at the break index."""
+    payload = _dropped_row_payload()
+    # Dropped row 1 (-200 on 2025-01-10)
+    repaired_slice = {
+        "transactions": [{"date": "2025-01-10", "amount": "200.00", "direction": "OUT", "balance_after": "1300.00"}]
+    }
+    backend = _RecordingReExtractor(repaired_payload=repaired_slice)
+    result = repair_under_extraction(payload, reextractor=backend)
+
+    assert result.attempted is True
+    assert result.repaired is True
+    assert len(result.payload["transactions"]) == 3
+    assert result.payload["transactions"][1]["amount"] == "200.00"
+    assert validate_balance(result.payload)["balance_valid"] is True
+
+
+class _MultiRoundReExtractor:
+    """Mock re-extractor that yields step-by-step repairs across rounds."""
+
+    def __init__(self, responses: list[dict]):
+        self.responses = list(responses)
+        self.calls: list[dict] = []
+
+    def reextract_region(self, *, payload, break_info):
+        self.calls.append({"payload": payload, "break_info": break_info})
+        if self.responses:
+            return self.responses.pop(0)
+        return None
+
+
+def test_repair_supports_multi_round_refinement_up_to_three_rounds():
+    """AC-extraction.120.9: Multi-round targeted repair handles multiple breaks within 3 rounds."""
+    # Statement with 2 dropped rows:
+    # opening 1000
+    # row 0: +500 (1500)
+    # [missing row 1: -200 (1300)]
+    # row 2: +300 (1600)
+    # [missing row 3: -100 (1500)]
+    # row 4: +400 (1900)
+    # closing 1900
+    payload = {
+        "institution": "DBS",
+        "currency": "SGD",
+        "opening_balance": "1000.00",
+        "closing_balance": "1900.00",
+        "transactions": [
+            {"date": "2025-01-05", "amount": "500.00", "direction": "IN", "balance_after": "1500.00"},
+            {"date": "2025-01-15", "amount": "300.00", "direction": "IN", "balance_after": "1600.00"},
+            {"date": "2025-01-25", "amount": "400.00", "direction": "IN", "balance_after": "1900.00"},
+        ],
+    }
+
+    # Round 1 returns missing row 1 (-200)
+    # Round 2 returns missing row 3 (-100)
+    backend = _MultiRoundReExtractor(
+        responses=[
+            {
+                "transactions": [
+                    {"date": "2025-01-10", "amount": "200.00", "direction": "OUT", "balance_after": "1300.00"}
+                ]
+            },
+            {
+                "transactions": [
+                    {"date": "2025-01-20", "amount": "100.00", "direction": "OUT", "balance_after": "1500.00"}
+                ]
+            },
+        ]
+    )
+
+    result = repair_under_extraction(payload, reextractor=backend, max_rounds=3)
+    assert result.attempted is True
+    assert result.repaired is True
+    assert len(backend.calls) == 2
+    assert len(result.payload["transactions"]) == 5
+    assert validate_balance(result.payload)["balance_valid"] is True

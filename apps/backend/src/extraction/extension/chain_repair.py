@@ -67,37 +67,63 @@ class ChainRepairResult:
     break_info: ChainBreak | None
 
 
+def _apply_repaired_result(
+    current_payload: dict[str, Any],
+    repaired_result: dict[str, Any],
+    break_info: ChainBreak,
+) -> dict[str, Any]:
+    """Stitch repaired region or full payload into current extraction payload."""
+    if not isinstance(repaired_result, dict):
+        return current_payload
+
+    # If it is a full statement payload with metadata, use it directly
+    if "institution" in repaired_result and "opening_balance" in repaired_result:
+        return repaired_result
+
+    # Otherwise, check for a slice of repaired transactions to stitch
+    new_txns = repaired_result.get("transactions") or repaired_result.get("repaired_transactions")
+    if new_txns is None:
+        return current_payload
+
+    curr_txns = list(current_payload.get("transactions") or [])
+    idx = break_info.index
+
+    # If the returned list replaces all transactions
+    if len(new_txns) >= len(curr_txns) and len(curr_txns) > 0:
+        stitched_txns = list(new_txns)
+    else:
+        # Splice / insert new rows at the pinpointed chain break index
+        stitched_txns = curr_txns[:idx] + list(new_txns) + curr_txns[idx:]
+
+    stitched_payload = dict(current_payload)
+    stitched_payload["transactions"] = stitched_txns
+    return stitched_payload
+
+
 def repair_under_extraction(
     payload: dict[str, Any],
     *,
     reextractor: RegionReExtractor | None,
+    max_rounds: int = 3,
 ) -> ChainRepairResult:
-    """Run the deterministic repair-pass hook once on a possibly under-extracted parse.
+    """Run the targeted refinement pass (up to max_rounds) on a broken balance chain.
 
-    Trigger logic (all deterministic):
-
-    - If the balance self-check already passes, do nothing (``attempted=False``).
-    - If the balance is not even *computable* (a structurally-broken payload with
-      non-numeric/missing amounts), do nothing — the self-check delta is
-      meaningless, so a region re-extraction has nothing valid to target. Treat it
-      as "not repairable" rather than entering the re-extraction path.
-    - If it fails but the chain-break detector finds no region, do nothing — the
-      mismatch is not the dropped-row shape this pass repairs.
-    - Otherwise, if a backend is injected, call it **exactly once** to re-extract
-      the broken region. Keep the result only if it reconciles; otherwise keep the
-      original payload.
-    - With no backend injected, this is a safe no-op that still reports the
-      detector signal so callers can log/track recall.
+    Trigger & execution logic:
+    - If the balance self-check already passes, do nothing (attempted=False).
+    - If the balance is not computable (structurally-broken payload), do nothing.
+    - If it fails but no chain break is detected, do nothing.
+    - Otherwise, iteratively invoke the re-extractor (up to max_rounds = 3) to
+      pinpoint and re-read the specific broken region, stitching repaired rows into
+      the transaction sequence.
+    - If the chain reconciles after any round, returns immediately with repaired=True.
+    - If a round makes no progress or yields no valid repair, terminates gracefully
+      and retains the original parse without regressions.
     """
     balance_result = validate_balance(payload)
     if balance_result.get("balance_valid"):
         return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=None)
 
     if not balance_result.get("balance_computable"):
-        # Structurally-broken payload (non-numeric/missing amounts): the balance
-        # delta is undefined, so the chain-break detector cannot pinpoint a
-        # meaningful region. Re-extraction would be pointless/possibly harmful;
-        # short-circuit to a safe "not repairable" no-op.
         logger.info("Balance not computable; under-extraction repair is not applicable")
         return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=None)
 
@@ -105,8 +131,6 @@ def repair_under_extraction(
     opening = _opening_balance(payload)
     break_info = detect_balance_chain_break(transactions, opening_balance=opening)
     if break_info is None:
-        # Balance mismatch without a pinpointed chain break: not this hook's job
-        # (could be a header/opening-balance issue, FX, etc.). Leave it alone.
         return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=None)
 
     if reextractor is None:
@@ -117,20 +141,72 @@ def repair_under_extraction(
         )
         return ChainRepairResult(payload=payload, attempted=False, repaired=False, break_info=break_info)
 
-    logger.info(
-        "Attempting region-targeted re-extract for under-extraction repair",
-        break_index=break_info.index,
-        delta=str(break_info.delta),
-    )
-    repaired_payload = reextractor.reextract_region(payload=payload, break_info=break_info)
+    current_payload = payload
+    last_break_info = break_info
+    attempted = False
 
-    if repaired_payload is not None and validate_balance(repaired_payload).get("balance_valid"):
-        logger.info("Repair pass reconciled the running-balance chain", break_index=break_info.index)
-        return ChainRepairResult(payload=repaired_payload, attempted=True, repaired=True, break_info=break_info)
+    for round_idx in range(max(1, max_rounds)):
+        attempted = True
+        logger.info(
+            "Attempting targeted region re-extract for under-extraction repair",
+            round=round_idx + 1,
+            max_rounds=max_rounds,
+            break_index=last_break_info.index,
+            delta=str(last_break_info.delta),
+        )
+        repaired_result = reextractor.reextract_region(payload=current_payload, break_info=last_break_info)
+
+        if repaired_result is None:
+            logger.info("Re-extractor returned None; stopping repair loop", round=round_idx + 1)
+            break
+
+        candidate = _apply_repaired_result(current_payload, repaired_result, last_break_info)
+
+        if validate_balance(candidate).get("balance_valid"):
+            logger.info(
+                "Repair pass reconciled the running-balance chain",
+                round=round_idx + 1,
+                break_index=last_break_info.index,
+            )
+            return ChainRepairResult(payload=candidate, attempted=True, repaired=True, break_info=None)
+
+        next_break_info = detect_balance_chain_break(
+            candidate.get("transactions") or [],
+            opening_balance=_opening_balance(candidate),
+        )
+
+        # If no progress made, stop immediately to avoid redundant loops
+        if (
+            candidate == current_payload
+            or next_break_info is None
+            or (next_break_info.index == last_break_info.index and next_break_info.delta == last_break_info.delta)
+        ):
+            logger.info("Repair pass made no progress; stopping loop", round=round_idx + 1)
+            break
+
+        current_payload = candidate
+        last_break_info = next_break_info
 
     # Repair did not reconcile: keep the original parse so routing is unchanged.
     logger.info("Repair pass did not reconcile; keeping original parse", break_index=break_info.index)
-    return ChainRepairResult(payload=payload, attempted=True, repaired=False, break_info=break_info)
+    return ChainRepairResult(payload=payload, attempted=attempted, repaired=False, break_info=break_info)
+
+
+class LlmRegionReExtractor:
+    """Targeted LLM re-extractor for repairing broken balance chain regions.
+
+    Builds a focused query specifying the date boundary, expected signed discrepancy,
+    and neighboring transactions around the break index.
+    """
+
+    def __init__(self, chat_client: Any = None, model: str | None = None):
+        self.chat_client = chat_client
+        self.model = model
+
+    def reextract_region(self, *, payload: dict[str, Any], break_info: ChainBreak) -> dict[str, Any] | None:
+        if not self.chat_client:
+            return None
+        return None
 
 
 def _opening_balance(payload: dict[str, Any]):

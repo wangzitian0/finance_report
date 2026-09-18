@@ -494,6 +494,10 @@ async def try_auto_post_statement_opening_balance(
         if existing.state != "authoritative":
             raise ValueError("Opening balance authority needs review")
         if existing.effective_date > statement.period_start:
+            if statement.closing_balance is not None and abs(statement.closing_balance - existing.amount) <= Decimal(
+                "0.01"
+            ):
+                return False
             raise ValueError("Earlier statement requires opening-balance correction before posting")
         return False
     source_decision_id = None
