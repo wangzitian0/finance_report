@@ -47,14 +47,18 @@ def test_migration_0063_provisions_case_compatibility():
     assert mig_path.exists(), f"Migration file not found at {mig_path}"
 
     content = mig_path.read_text(encoding="utf-8")
-    assert "journal_entry_status_enum" in content
-    assert '"posted"' in content or "'posted'" in content
-    assert '"POSTED"' in content or "'POSTED'" in content
-    assert '"draft"' in content or "'draft'" in content
-    assert '"DRAFT"' in content or "'DRAFT'" in content
-    assert "chat_session_status_enum" in content
-    assert '"active"' in content or "'active'" in content
-    assert '"ACTIVE"' in content or "'ACTIVE'" in content
-    assert "chat_message_role_enum" in content
-    assert '"user"' in content or "'user'" in content
-    assert '"USER"' in content or "'USER'" in content
+    expected_tokens = {
+        "journal_entry_status_enum",
+        "posted",
+        "POSTED",
+        "draft",
+        "DRAFT",
+        "chat_session_status_enum",
+        "active",
+        "ACTIVE",
+        "chat_message_role_enum",
+        "user",
+        "USER",
+    }
+    missing = [tok for tok in expected_tokens if tok not in content]
+    assert not missing, f"Migration 0063 is missing enum tokens: {missing}"
