@@ -60,3 +60,35 @@ async def test_statement_opening_requires_valid_historical_inputs(db, test_user,
             await db.scalar(select(func.count()).select_from(JournalEntry).where(JournalEntry.user_id == test_user.id))
             == 0
         )
+
+
+async def test_statement_opening_allows_continuous_out_of_order_upload(db, test_user):
+    """Out-of-order statement upload succeeds when earlier statement closing balance matches existing opening position."""
+    account = Account(user_id=test_user.id, name="SGD Checking", type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+
+    # Later statement (Feb 1) was already initialized with opening balance 500
+    await initialize_opening_positions(
+        db,
+        test_user.id,
+        entry_date=date(2026, 2, 1),
+        balances={account.id: Decimal("500")},
+        currency="SGD",
+        base_currency="SGD",
+    )
+
+    # Earlier statement (Jan 1 to Jan 31) arrives with closing balance 500
+    statement = StatementSummaryFactory.build(
+        user_id=test_user.id,
+        account_id=account.id,
+        currency="SGD",
+        opening_balance=Decimal("200"),
+        closing_balance=Decimal("500"),
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+    )
+
+    # Should not raise ValueError; returns False indicating continuity holds and no contradictory opening entry needed
+    posted = await try_auto_post_statement_opening_balance(db, statement, test_user.id)
+    assert posted is False
