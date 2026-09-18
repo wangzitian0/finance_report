@@ -1395,7 +1395,7 @@ jobs:
           # resolve that could reintroduce variable install time.
           uv pip install --no-deps --python apps/backend/.venv/bin/python "$sdk_wheel"
           mkdir -p coverage
-          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n' > /tmp/tooling-coveragerc
+          printf '[run]\nomit =\n    tests/tooling/*\n    common/__init__.py\n    common/**/__init__.py\n    tools/__init__.py\n    tools/**/__init__.py\n    tools/wait_for_cheap_ci.py\n    common/testing/wait_for_cheap_ci.py\n    tools/_lib/benchmarks/*\n    tools/run_financial_scenario_benchmark.py\n    tools/generate_benchmark_index.py\n    tools/sync_benchmark_fixtures.py\n' > /tmp/tooling-coveragerc
           # PR pipeline speedup (#2047): the ~490-510s single-job test run
           # (already parallelized -n auto -- #1767) is itself the bottleneck once
           # its ad hoc install tax is gone. Sharded 8-way with the same seeded
