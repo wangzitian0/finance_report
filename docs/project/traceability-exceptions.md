@@ -191,6 +191,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_preflight.py` | `common/testing/ci-cd.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `common/pricing/market_data.md` |
 | `tests/tooling/test_validate_schemas.py` | `common/meta/schema.md` |
+| `tests/tooling/test_enum_casing_integrity.py` | `common/meta/schema.md` |
 | `tests/tooling/test_extraction_pii_mask.py` | `common/llm/readme.md#cassette-graded-eval` |
 | `tests/tooling/test_record_hf_cassettes.py` | `common/llm/readme.md#cassette-graded-eval` |
 

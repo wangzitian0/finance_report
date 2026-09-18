@@ -235,4 +235,49 @@ describe("StatementDetailPage - coverage additions", () => {
         await waitFor(() => expect(screen.getAllByText("retry failed").length).toBeGreaterThan(0));
         expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1/retry", { method: "POST" });
     });
+
+    it("handles delete statement confirmation and API call", async () => {
+        mockedApi.mockImplementation((path: string, options?: any) => {
+            if (options?.method === "DELETE") return Promise.resolve(null as any);
+            return Promise.resolve(parsedBrokerageStatement as any);
+        });
+
+        renderReviewComponent(<StatementDetailPage /> as any);
+
+        const deleteBtn = await screen.findByRole("button", { name: "Delete statement" });
+        expect(deleteBtn).toBeInTheDocument();
+        fireEvent.click(deleteBtn);
+
+        // Test cancel
+        const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+        fireEvent.click(cancelBtn);
+
+        // Open again and confirm
+        fireEvent.click(deleteBtn);
+        const confirmBtn = await screen.findByRole("button", { name: "Delete" });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1", expect.objectContaining({ method: "DELETE" }));
+        });
+    });
+
+    it("handles delete statement error gracefully", async () => {
+        mockedApi.mockImplementation((path: string, options?: any) => {
+            if (options?.method === "DELETE") return Promise.reject(new Error("Failed to delete"));
+            return Promise.resolve(parsedBrokerageStatement as any);
+        });
+
+        renderReviewComponent(<StatementDetailPage /> as any);
+
+        const deleteBtn = await screen.findByRole("button", { name: "Delete statement" });
+        fireEvent.click(deleteBtn);
+
+        const confirmBtn = await screen.findByRole("button", { name: "Delete" });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText("Failed to delete")).toBeInTheDocument();
+        });
+    });
 });

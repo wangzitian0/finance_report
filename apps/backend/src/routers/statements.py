@@ -12,7 +12,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import (
     compose_reviewed_disposition_dependencies,
     compose_statement_posting_dependencies,
@@ -39,6 +41,7 @@ from src.extraction import (
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
+    effective_statement_transaction_filter,
     get_current_statement_extraction_result,
     is_bank_custody_source,
     pending_stage1_review_filter,
@@ -55,7 +58,13 @@ from src.extraction import (
 )
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType
+from src.ledger import (
+    Account,
+    AccountType,
+    JournalEntry,
+    JournalEntryStatus,
+    current_anchored_journal_entries,
+)
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
@@ -67,12 +76,10 @@ from src.platform import (
     raise_too_large,
 )
 from src.reconciliation import (
+    ReconciliationMatch,
+    ReconciliationStatus,
     ReviewedDispositionCommand,
     submit_reviewed_disposition,
-)
-from src.routers.reconciliation import (
-    _statement_atomic_txn_ids_query,
-    _unmatched_atomic_txn_query,
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
@@ -955,14 +962,39 @@ async def _get_or_create_default_counter_account(
     return account
 
 
+def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
+    matched_transaction = aliased(AtomicTransaction)
+    matched_subquery = (
+        select(ReconciliationMatch.atomic_txn_id)
+        .join(matched_transaction, matched_transaction.id == ReconciliationMatch.atomic_txn_id)
+        .where(matched_transaction.user_id == user_id)
+        .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
+        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
+    )
+    posted_source_subquery = (
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
+        )
+        .with_only_columns(JournalEntry.source_id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
+    return select(AtomicTransaction).where(
+        effective_statement_transaction_filter(user_id, statement.id),
+        AtomicTransaction.id.notin_(matched_subquery),
+        AtomicTransaction.id.notin_(posted_source_subquery),
+    )
+
+
 async def _auto_fill_default_statement_dispositions(
     db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
 ) -> int:
-    query = _unmatched_atomic_txn_query(user_id).where(
-        AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement))
-    )
+    query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
     unmatched_txns = result.scalars().all()
     if not unmatched_txns:
