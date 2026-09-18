@@ -144,12 +144,14 @@ async def _get_or_create_default_counter_account(
     account_type: AccountType,
     currency: str,
 ) -> Account:
+    expected_name = f"General {account_type.value.capitalize()} ({currency})"
     result = await db.execute(
         select(Account)
         .where(
             Account.user_id == user_id,
             Account.type == account_type,
             Account.currency == currency,
+            Account.name == expected_name,
             Account.is_active == True,  # noqa: E712
         )
         .limit(1)
@@ -158,10 +160,9 @@ async def _get_or_create_default_counter_account(
     if account is not None:
         return account
 
-    name = f"General {account_type.value.capitalize()} ({currency})"
     account = Account(
         user_id=user_id,
-        name=name,
+        name=expected_name,
         type=account_type,
         currency=currency,
         is_active=True,

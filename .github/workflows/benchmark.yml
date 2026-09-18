@@ -101,7 +101,7 @@ jobs:
         run: |
           uv run --with httpx --with pymupdf --with pyyaml python tools/sync_benchmark_fixtures.py
 
-      - name: Execute financial benchmark scenarios
+      - name: Run Financial Scenario Benchmark Suite
         id: benchmark
         continue-on-error: true
         env:
@@ -120,13 +120,13 @@ jobs:
             --output-summary "docs/benchmarks/${VERSION_REF}/summary.json" \
             --json-report "docs/benchmarks/${VERSION_REF}/full_report.json"
 
-          echo "status=$?" >> "$GITHUB_OUTPUT"
-
       - name: Update benchmark multi-version index & manifest
+        if: always()
         run: |
           python3 tools/generate_benchmark_index.py --benchmarks-dir docs/benchmarks
 
       - name: Deploy Benchmark Observatory to GitHub Pages
+        if: always()
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -135,19 +135,24 @@ jobs:
           keep_files: true
 
       - name: Write Step Summary with Observatory Links
+        if: always()
         env:
           VERSION_REF: ${{ steps.target.outputs.version_ref }}
           APP_URL: ${{ inputs.app_url || 'https://report-staging.zitian.party' }}
+          BENCHMARK_OUTCOME: ${{ steps.benchmark.outcome }}
         run: |
           report_url="https://wangzitian0.github.io/finance_report/benchmarks/${VERSION_REF}/report.html"
           dashboard_url="https://wangzitian0.github.io/finance_report/benchmarks/index.html"
+          outcome_badge="❌ Benchmark Suite Failed"
+          if [[ "$BENCHMARK_OUTCOME" == "success" ]]; then
+            outcome_badge="✅ All Scenarios Passed (Invariants Verified)"
+          fi
           {
             echo "## 📊 Financial Reporting Benchmark Results"
             echo ""
+            echo "- **Status**: ${outcome_badge}"
             echo "- **Target Environment**: \`${APP_URL}\`"
             echo "- **Evaluated Version**: \`${VERSION_REF}\`"
-            echo "- **Accounting Invariants**: ✅ 3-Statement Mathematical Reconciliation Verified (0.00 SGD Drift)"
-            echo "- **Zero P&L Contamination**: ✅ Verified on internal asset swaps"
             echo ""
             echo "### 🔗 Observatory Links"
             echo "- 📄 [View ${VERSION_REF} Detailed Report](${report_url})"
