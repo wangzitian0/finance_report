@@ -50,26 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"⚠️ Failed to parse {summary_path}: {exc}", file=sys.stderr)
 
     if not summaries:
-        print(
-            f"ℹ️ No summary.json found in {benchmarks_dir}. Creating initial placeholder."
-        )
-        # Minimal placeholder if no runs yet
-        summaries.append(
-            {
-                "version": "v0.1.52",
-                "run_at": "2026-09-17T14:15:00",
-                "app_url": "https://report-staging.zitian.party",
-                "status": "PASS",
-                "cases_total": 2,
-                "cases_passed": 2,
-                "cases_failed": 0,
-                "duration_seconds": 113.58,
-                "max_equation_delta": "0.00",
-                "zero_pnl_contamination": True,
-                "rollforward_balanced": True,
-                "report_url": "v0.1.52/report.html",
-            }
-        )
+        print(f"ℹ️ No summary.json found in {benchmarks_dir}. Writing empty dashboard.")
 
     # Sort newest first
     summaries.sort(key=lambda x: x.get("run_at", ""), reverse=True)

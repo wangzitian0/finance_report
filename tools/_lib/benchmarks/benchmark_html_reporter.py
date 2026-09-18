@@ -49,8 +49,16 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         ),
         "duration_seconds": round(total_duration, 2),
         "max_equation_delta": str(max_delta),
-        "zero_pnl_contamination": True,
-        "rollforward_balanced": True,
+        "zero_pnl_contamination": any(
+            r.get("case_id") == "case_3" and r.get("status") == "PASS" for r in results
+        )
+        if any(r.get("case_id") == "case_3" for r in results)
+        else summary.get("success", False),
+        "rollforward_balanced": any(
+            r.get("case_id") == "case_1" and r.get("status") == "PASS" for r in results
+        )
+        if any(r.get("case_id") == "case_1" for r in results)
+        else summary.get("success", False),
         "report_url": f"{version_ref}/report.html",
     }
 
@@ -123,29 +131,45 @@ def generate_html_report(
         err = r.get("error_message")
 
         details_table = ""
+        case_passed = r.get("status") == "PASS"
         if cid == "case_1":
+            eq_badge = (
+                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+                if case_passed
+                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+            )
             details_table = f"""
             <table class="data-table">
                 <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Month 1 (Jan) Ending Balance</td><td>${cdetails.get("month_1_ending_balance", "15,450.75")}</td><td>✅ Anchor Confirmed</td></tr>
-                    <tr><td>Month 2 (Feb) Opening Cash</td><td>${cdetails.get("month_2_opening_cash", "15,450.75")}</td><td>✅ Exact Continuity Rollforward</td></tr>
-                    <tr><td>Month 2 Cumulative Assets</td><td>${cdetails.get("month_2_assets", "18,250.00")}</td><td>✅ Mathematical Balance</td></tr>
-                    <tr><td>Cumulative Net Income</td><td>${cdetails.get("month_2_net_income", "2,799.25")}</td><td>✅ Articulated to Retained Earnings</td></tr>
-                    <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>${cdetails.get("equation_delta", "0.00")}</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
+                    <tr><td>Month 1 (Jan) Ending Balance</td><td>${cdetails.get("month_1_ending_balance", "15,450.75")}</td><td>{"✅ Anchor Confirmed" if case_passed else "❌ Unconfirmed"}</td></tr>
+                    <tr><td>Month 2 (Feb) Opening Cash</td><td>${cdetails.get("month_2_opening_cash", "15,450.75")}</td><td>{"✅ Exact Continuity Rollforward" if case_passed else "❌ Discontinuous"}</td></tr>
+                    <tr><td>Month 2 Cumulative Assets</td><td>${cdetails.get("month_2_assets", "18,250.00")}</td><td>{"✅ Mathematical Balance" if case_passed else "❌ Imbalanced"}</td></tr>
+                    <tr><td>Cumulative Net Income</td><td>${cdetails.get("month_2_net_income", "2,799.25")}</td><td>{"✅ Articulated to Retained Earnings" if case_passed else "❌ Mismatched"}</td></tr>
+                    <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>${cdetails.get("equation_delta", "0.00")}</td><td>{eq_badge}</td></tr>
                 </tbody>
             </table>
             """
         elif cid == "case_3":
+            pnl_badge = (
+                '<span class="badge badge-pass">Zero P&amp;L Contamination</span>'
+                if case_passed
+                else '<span class="badge badge-fail">P&amp;L Contamination Detected</span>'
+            )
+            eq_badge = (
+                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+                if case_passed
+                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+            )
             details_table = f"""
             <table class="data-table">
                 <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Cash Account Outflow</td><td>-$5,000.00</td><td>✅ Bank Debit Tracked</td></tr>
-                    <tr><td>Brokerage Account Inflow</td><td>+$5,000.00</td><td>✅ Asset Transfer Inflow</td></tr>
-                    <tr><td>Net P&amp;L Contamination Delta</td><td>$0.00</td><td><span class="badge badge-pass">Zero P&amp;L Contamination</span></td></tr>
-                    <tr><td>Ending Total Net Worth</td><td>${cdetails.get("assets", "20,000.00")}</td><td>✅ Total Wealth Conserved</td></tr>
-                    <tr><td>Balance Sheet Equation Delta</td><td>${cdetails.get("equation_delta", "0.00")}</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
+                    <tr><td>Cash Account Outflow</td><td>-$5,000.00</td><td>{"✅ Bank Debit Tracked" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Brokerage Account Inflow</td><td>+$5,000.00</td><td>{"✅ Asset Transfer Inflow" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Net P&amp;L Contamination Delta</td><td>$0.00</td><td>{pnl_badge}</td></tr>
+                    <tr><td>Ending Total Net Worth</td><td>${cdetails.get("assets", "20,000.00")}</td><td>{"✅ Total Wealth Conserved" if case_passed else "❌ Wealth Delta"}</td></tr>
+                    <tr><td>Balance Sheet Equation Delta</td><td>${cdetails.get("equation_delta", "0.00")}</td><td>{eq_badge}</td></tr>
                 </tbody>
             </table>
             """

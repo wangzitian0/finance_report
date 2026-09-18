@@ -55,16 +55,17 @@ class CaseResult:
 class ScenarioBenchmarkRunner:
     """Benchmark scenario runner connecting to the target API."""
 
-    def __init__(self, base_url: str, timeout: float = 180.0):
+    def __init__(self, base_url: str, timeout: float = 180.0, verify: bool = True):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.verify = verify
 
     def create_ephemeral_client(
         self, prefix: str = "qa_bench"
     ) -> tuple[httpx.Client, str, dict[str, Any]]:
         """Register an ephemeral test user and return an authenticated HTTP client."""
         client = httpx.Client(
-            base_url=self.base_url, verify=False, timeout=self.timeout
+            base_url=self.base_url, verify=self.verify, timeout=self.timeout
         )
         user_email = f"{prefix}_{uuid.uuid4().hex[:8]}@test.example.com"
         reg_resp = client.post(
@@ -852,6 +853,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=180.0,
         help="HTTP timeout per request in seconds",
     )
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        default=False,
+        help="Disable TLS certificate verification for local development/testing",
+    )
     args = parser.parse_args(argv)
 
     print("======================================================================")
@@ -862,7 +869,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Started At:         {datetime.now().isoformat()}")
     print("======================================================================")
 
-    runner = ScenarioBenchmarkRunner(base_url=args.app_url, timeout=args.timeout)
+    runner = ScenarioBenchmarkRunner(
+        base_url=args.app_url, timeout=args.timeout, verify=not args.insecure
+    )
 
     requested = [c.strip().lower() for c in args.case.split(",")]
     run_all = "all" in requested

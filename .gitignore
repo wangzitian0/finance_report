@@ -47,3 +47,6 @@ common/testing/fixtures/pdf/output/
 
 # Real statement inputs for the local cassette recorder — never commit (PII)
 tools/_lib/pdf_fixtures/
+
+# Benchmark local run report
+benchmark_run_report.json

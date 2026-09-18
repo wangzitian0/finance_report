@@ -12,11 +12,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
-from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import (
-    compose_reviewed_disposition_dependencies,
+    auto_fill_default_statement_dispositions,
     compose_statement_posting_dependencies,
 )
 from src.config import settings
@@ -24,14 +22,12 @@ from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BankStatementStatus,
     BrokeragePositionImportService,
-    EconomicIntent,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
     StatementPostingOutcome,
     StatementPostingStatus,
-    TransactionDirection,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -41,7 +37,6 @@ from src.extraction import (
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
-    effective_statement_transaction_filter,
     get_current_statement_extraction_result,
     is_bank_custody_source,
     pending_stage1_review_filter,
@@ -56,14 +51,10 @@ from src.extraction import (
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
-from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
     AccountType,
-    JournalEntry,
-    JournalEntryStatus,
-    current_anchored_journal_entries,
 )
 from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
@@ -74,12 +65,6 @@ from src.platform import (
     raise_not_found,
     raise_service_unavailable,
     raise_too_large,
-)
-from src.reconciliation import (
-    ReconciliationMatch,
-    ReconciliationStatus,
-    ReviewedDispositionCommand,
-    submit_reviewed_disposition,
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
@@ -928,118 +913,6 @@ async def confirm_statement_review_envelope(
     )
 
 
-async def _get_or_create_default_counter_account(
-    db: AsyncSession,
-    user_id: UUID,
-    account_type: AccountType,
-    currency: str,
-) -> Account:
-    result = await db.execute(
-        select(Account)
-        .where(
-            Account.user_id == user_id,
-            Account.type == account_type,
-            Account.currency == currency,
-            Account.is_active == True,  # noqa: E712
-        )
-        .limit(1)
-    )
-    account = result.scalar_one_or_none()
-    if account is not None:
-        return account
-
-    name = f"General {account_type.value.capitalize()} ({currency})"
-    account = Account(
-        user_id=user_id,
-        name=name,
-        type=account_type,
-        currency=currency,
-        is_active=True,
-    )
-    db.add(account)
-    await db.flush()
-    await db.refresh(account)
-    return account
-
-
-def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
-    matched_transaction = aliased(AtomicTransaction)
-    matched_subquery = (
-        select(ReconciliationMatch.atomic_txn_id)
-        .join(matched_transaction, matched_transaction.id == ReconciliationMatch.atomic_txn_id)
-        .where(matched_transaction.user_id == user_id)
-        .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
-        .where(ReconciliationMatch.superseded_by_id.is_(None))
-        .where(ReconciliationMatch.atomic_txn_id.is_not(None))
-    )
-    posted_source_subquery = (
-        current_anchored_journal_entries(
-            user_id=user_id,
-            target_kind="journal_command",
-            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
-        )
-        .with_only_columns(JournalEntry.source_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-    )
-    return select(AtomicTransaction).where(
-        effective_statement_transaction_filter(user_id, statement.id),
-        AtomicTransaction.id.notin_(matched_subquery),
-        AtomicTransaction.id.notin_(posted_source_subquery),
-    )
-
-
-async def _auto_fill_default_statement_dispositions(
-    db: AsyncSession,
-    statement: StatementSummary,
-    user_id: UUID,
-) -> int:
-    query = _statement_unmatched_txns_query(statement, user_id)
-    result = await db.execute(query)
-    unmatched_txns = result.scalars().all()
-    if not unmatched_txns:
-        return 0
-
-    dependencies = compose_reviewed_disposition_dependencies(db)
-    resolved_count = 0
-    accounts_cache: dict[tuple[AccountType, str], Account] = {}
-
-    for txn in unmatched_txns:
-        if txn.direction == TransactionDirection.OUT:
-            intent = EconomicIntent.EXPENSE
-            account_type = AccountType.EXPENSE
-            category = "General Expense"
-            rationale = "Auto-filled default expense"
-        else:
-            intent = EconomicIntent.INCOME
-            account_type = AccountType.INCOME
-            category = "General Income"
-            rationale = "Auto-filled default income"
-
-        cache_key = (account_type, txn.currency)
-        if cache_key not in accounts_cache:
-            accounts_cache[cache_key] = await _get_or_create_default_counter_account(
-                db, user_id, account_type, txn.currency
-            )
-        counter_account = accounts_cache[cache_key]
-
-        await submit_reviewed_disposition(
-            db,
-            transaction_id=txn.id,
-            user_id=user_id,
-            command=ReviewedDispositionCommand(
-                intent=intent,
-                counter_account_id=counter_account.id,
-                category=category,
-                rationale=rationale,
-            ),
-            dependencies=dependencies,
-        )
-        resolved_count += 1
-
-    return resolved_count
-
-
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
@@ -1057,7 +930,7 @@ async def approve_statement_stage1(
 
         auto_filled_count = 0
         if request and request.auto_fill_default_categories:
-            auto_filled_count = await _auto_fill_default_statement_dispositions(db, statement, user_id)
+            auto_filled_count = await auto_fill_default_statement_dispositions(db, statement, user_id)
 
         outcome = await approve_statement_workflow(
             db,
@@ -1069,6 +942,8 @@ async def approve_statement_stage1(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    # Journal entries created include those posted directly via reviewed dispositions during auto-fill
+    # plus any additional entries created by approve_statement_workflow.
     created_count = _posting_count_or_conflict(outcome) + auto_filled_count
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)

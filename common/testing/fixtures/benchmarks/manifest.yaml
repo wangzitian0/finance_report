@@ -79,10 +79,10 @@ fixtures:
     pages: 3
     source_platform: "github"
     source_repo: "bankstatemently/bank-statement-parsing-benchmark"
-    commit_sha: "main"
-    source_url: "https://github.com/bankstatemently/bank-statement-parsing-benchmark/blob/main/datasets/basic/bsb-001/bsb-001-statement.pdf"
-    download_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/main/datasets/basic/bsb-001/bsb-001-statement.pdf"
-    upstream_ground_truth_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/main/datasets/basic/bsb-001/statement-info.json"
+    commit_sha: "dd6803b3e9e4d827a54ebbdbb3bee801dade5547"
+    source_url: "https://github.com/bankstatemently/bank-statement-parsing-benchmark/blob/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-001/bsb-001-statement.pdf"
+    download_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-001/bsb-001-statement.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-001/statement-info.json"
     sha256: "d3d5071b90a33272f31bab5c5660d78b2ae29d2c6e1720477f5e8b167f73e843"
     file_size_bytes: 31711
     license: "MIT"
