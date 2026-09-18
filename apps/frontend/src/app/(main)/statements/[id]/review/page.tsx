@@ -200,14 +200,24 @@ export default function StatementReviewPage() {
 
   // Mutations
   const approveMutation = useMutation({
-    mutationFn: () =>
-      apiOperation(
+    mutationFn: (variables?: { autoFill?: boolean }) => {
+      const body: {
+        create_account_if_missing: boolean;
+        auto_fill_default_categories?: boolean;
+      } = {
+        create_account_if_missing: !data?.account_id,
+      };
+      if (variables?.autoFill) {
+        body.auto_fill_default_categories = true;
+      }
+      return apiOperation(
         "approve_statement_stage1_statements__statement_id__review_approve_post",
         {
           path: { statement_id: statementId },
-          body: { create_account_if_missing: !data?.account_id },
+          body,
         },
-      ),
+      );
+    },
     onSuccess: (result) => {
       setEconomicReviewRequired(false);
       const createdCount = result.journal_entries_created ?? 0;
@@ -522,18 +532,30 @@ export default function StatementReviewPage() {
       {(economicReviewRequired ||
         data.validation_error?.startsWith("Economic review required:")) && (
         <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4">
-          <h2 className="font-semibold">
+          <h2 className="font-semibold text-[var(--foreground)]">
             Transaction classifications need review
           </h2>
           <p className="mt-1 text-sm text-muted">
-            These transactions need your confirmation before they can be posted.
+            These transactions need your confirmation before they can be posted into the journal. You can apply default categories immediately or review them manually.
           </p>
-          <Link
-            href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${encodeURIComponent(`/statements/${statementId}/review`)}`}
-            className="btn-primary mt-3 inline-flex"
-          >
-            Review transaction classifications
-          </Link>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => approveMutation.mutate({ autoFill: true })}
+              disabled={approveMutation.isPending}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              {approveMutation.isPending
+                ? "Approving..."
+                : "Auto-Fill Default Categories & Approve"}
+            </button>
+            <Link
+              href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${encodeURIComponent(`/statements/${statementId}/review`)}`}
+              className="btn-secondary inline-flex"
+            >
+              Review transaction classifications
+            </Link>
+          </div>
         </section>
       )}
 

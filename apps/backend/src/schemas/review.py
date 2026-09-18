@@ -133,6 +133,7 @@ class EditAndApproveRequest(BaseModel):
 
 class Stage1ApprovalRequest(BaseModel):
     create_account_if_missing: bool = False
+    auto_fill_default_categories: bool = False
 
 
 class SetOpeningBalanceRequest(BaseModel):

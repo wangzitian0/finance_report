@@ -6660,6 +6660,11 @@ export interface components {
              * @default false
              */
             create_account_if_missing: boolean;
+            /**
+             * Auto Fill Default Categories
+             * @default false
+             */
+            auto_fill_default_categories?: boolean;
         };
         /** Stage1ApprovalResponse */
         Stage1ApprovalResponse: {

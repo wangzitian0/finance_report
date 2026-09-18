@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
 import { LoadingState } from "@/components/ui";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
 import { apiOperation } from "@/lib/api-client";
 import {
@@ -34,6 +35,8 @@ export default function StatementDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryLoading, setRetryLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [polling, setPolling] = useState(false);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [pollingStoppedReason, setPollingStoppedReason] = useState<
@@ -222,6 +225,26 @@ export default function StatementDetailPage() {
     }
   };
 
+  const handleDeleteStatement = async () => {
+    setDeleteLoading(true);
+    try {
+      await apiOperation("delete_statement_statements__statement_id__delete", {
+        path: { statement_id: statementId },
+      });
+      showToast("Statement deleted successfully", "success");
+      if (typeof window !== "undefined") {
+        window.location.href = "/upload";
+      }
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to delete statement",
+        "error",
+      );
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -318,10 +341,13 @@ export default function StatementDetailPage() {
         statementId={statementId}
         canImport={canImport}
         canRetry={canRetry}
+        canDelete={statement.status !== "approved"}
         importLoading={importLoading}
         retryLoading={retryLoading}
+        deleteLoading={deleteLoading}
         onBrokerageImport={handleBrokerageImport}
         onRetry={handleRetry}
+        onDelete={() => setDeleteDialogOpen(true)}
         formatCode={currencyCodeOrDash}
         formatPeriod={formatPeriod}
       />
@@ -458,6 +484,18 @@ export default function StatementDetailPage() {
 
       {/* Transactions Table */}
       <StatementTransactionsTable statement={statement} />
+
+      {/* Delete Statement Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="Delete Statement"
+        message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={deleteLoading}
+        onConfirm={handleDeleteStatement}
+        onCancel={() => setDeleteDialogOpen(false)}
+      />
     </div>
   );
 }

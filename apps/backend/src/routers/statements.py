@@ -13,18 +13,23 @@ from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.composition import compose_statement_posting_dependencies
+from src.composition import (
+    compose_reviewed_disposition_dependencies,
+    compose_statement_posting_dependencies,
+)
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BankStatementStatus,
     BrokeragePositionImportService,
+    EconomicIntent,
     ParseJob,
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
     StatementPostingOutcome,
     StatementPostingStatus,
+    TransactionDirection,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -48,6 +53,7 @@ from src.extraction import (
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType
 from src.llm import LitellmCatalog, Modality
@@ -59,6 +65,14 @@ from src.platform import (
     raise_not_found,
     raise_service_unavailable,
     raise_too_large,
+)
+from src.reconciliation import (
+    ReviewedDispositionCommand,
+    submit_reviewed_disposition,
+)
+from src.routers.reconciliation import (
+    _statement_atomic_txn_ids_query,
+    _unmatched_atomic_txn_query,
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
@@ -907,6 +921,93 @@ async def confirm_statement_review_envelope(
     )
 
 
+async def _get_or_create_default_counter_account(
+    db: AsyncSession,
+    user_id: UUID,
+    account_type: AccountType,
+    currency: str,
+) -> Account:
+    result = await db.execute(
+        select(Account)
+        .where(
+            Account.user_id == user_id,
+            Account.type == account_type,
+            Account.currency == currency,
+            Account.is_active == True,  # noqa: E712
+        )
+        .limit(1)
+    )
+    account = result.scalar_one_or_none()
+    if account is not None:
+        return account
+
+    name = f"General {account_type.value.capitalize()} ({currency})"
+    account = Account(
+        user_id=user_id,
+        name=name,
+        type=account_type,
+        currency=currency,
+        is_active=True,
+    )
+    db.add(account)
+    await db.flush()
+    await db.refresh(account)
+    return account
+
+
+async def _auto_fill_default_statement_dispositions(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+) -> int:
+    query = _unmatched_atomic_txn_query(user_id).where(
+        AtomicTransaction.id.in_(_statement_atomic_txn_ids_query(statement))
+    )
+    result = await db.execute(query)
+    unmatched_txns = result.scalars().all()
+    if not unmatched_txns:
+        return 0
+
+    dependencies = compose_reviewed_disposition_dependencies(db)
+    resolved_count = 0
+    accounts_cache: dict[tuple[AccountType, str], Account] = {}
+
+    for txn in unmatched_txns:
+        if txn.direction == TransactionDirection.OUT:
+            intent = EconomicIntent.EXPENSE
+            account_type = AccountType.EXPENSE
+            category = "General Expense"
+            rationale = "Auto-filled default expense"
+        else:
+            intent = EconomicIntent.INCOME
+            account_type = AccountType.INCOME
+            category = "General Income"
+            rationale = "Auto-filled default income"
+
+        cache_key = (account_type, txn.currency)
+        if cache_key not in accounts_cache:
+            accounts_cache[cache_key] = await _get_or_create_default_counter_account(
+                db, user_id, account_type, txn.currency
+            )
+        counter_account = accounts_cache[cache_key]
+
+        await submit_reviewed_disposition(
+            db,
+            transaction_id=txn.id,
+            user_id=user_id,
+            command=ReviewedDispositionCommand(
+                intent=intent,
+                counter_account_id=counter_account.id,
+                category=category,
+                rationale=rationale,
+            ),
+            dependencies=dependencies,
+        )
+        resolved_count += 1
+
+    return resolved_count
+
+
 @router.post("/{statement_id}/review/approve", response_model=Stage1ApprovalResponse)
 async def approve_statement_stage1(
     statement_id: UUID,
@@ -922,6 +1023,10 @@ async def approve_statement_stage1(
         elif not statement.account_id:
             await resolve_statement_posting_account(db, statement, user_id)
 
+        auto_filled_count = 0
+        if request and request.auto_fill_default_categories:
+            auto_filled_count = await _auto_fill_default_statement_dispositions(db, statement, user_id)
+
         outcome = await approve_statement_workflow(
             db,
             statement_id,
@@ -932,7 +1037,7 @@ async def approve_statement_stage1(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    created_count = _posting_count_or_conflict(outcome)
+    created_count = _posting_count_or_conflict(outcome) + auto_filled_count
     statement = await _get_statement_or_404(db, statement_id, user_id)
     response = await _compose_statement_response(db, statement, user_id)
     return Stage1ApprovalResponse(**response.model_dump(), journal_entries_created=created_count)
