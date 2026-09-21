@@ -159,6 +159,61 @@ class TestReportsEndpoints:
         assert "end_date" in data
         assert mock_service.called
 
+    async def test_flow_24_balance_sheet_diagnostics_endpoint(self, client: AsyncClient, db, test_user: User):
+        """Flow 24 (Accounting Equation Out-of-Balance Diagnostic Triage)."""
+        response = await client.get("/reports/balance-sheet/diagnostics")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "is_balanced" in data
+        assert "equation_delta" in data
+        assert "primary_category" in data
+        assert "suggested_action" in data
+
+    async def test_flow_25_income_statement_default_dates(self, client: AsyncClient, db, test_user: User):
+        """Flow 25: Income statement defaults to YTD dates when omitted instead of failing with 422."""
+        response = await client.get("/reports/income-statement")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "income" in data
+        assert "expenses" in data
+        assert "start_date" in data
+        assert "end_date" in data
+
+    @patch("src.routers.reports.generate_cash_flow")
+    async def test_flow_26_cash_flow_default_dates(
+        self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User
+    ):
+        """Flow 26: Cash flow statement defaults to YTD dates when omitted instead of failing with 422."""
+        from decimal import Decimal
+
+        today = date.today()
+        start_of_year = date(today.year, 1, 1)
+        mock_service.return_value = {
+            "operating": [],
+            "investing": [],
+            "financing": [],
+            "proof_state": "proven",
+            "proof_reasons": [],
+            "summary": {
+                "operating_activities": Decimal("0.00"),
+                "investing_activities": Decimal("0.00"),
+                "financing_activities": Decimal("0.00"),
+                "net_cash_flow": Decimal("0.00"),
+                "beginning_cash": Decimal("1000.00"),
+                "ending_cash": Decimal("1000.00"),
+            },
+            "currency": "SGD",
+            "start_date": start_of_year,
+            "end_date": today,
+        }
+        response = await client.get("/reports/cash-flow")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "operating" in data
+        assert "summary" in data
+        assert mock_service.called
+
     @patch("src.routers.reports.get_account_trend")
     async def test_account_trend_success(self, mock_service: AsyncMock, client: AsyncClient, db, test_user: User):
         """AC5.3.2: Test getting account trend data."""

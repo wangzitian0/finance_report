@@ -17,11 +17,12 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, union
+from sqlalchemy import func, select, union
 
-from src.composition import observed_fx_pairs
+from src.composition import StatementSummary, observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
+from src.extraction import BankStatementStatus
 from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
@@ -49,6 +50,7 @@ from src.reporting import (
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
 )
+from src.reporting.diagnostics import EquationDiagnosticResult, diagnose_equation_imbalance
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
@@ -476,6 +478,58 @@ async def balance_sheet(
     return BalanceSheetResponse.model_validate(report)
 
 
+@router.get("/balance-sheet/diagnostics", response_model=EquationDiagnosticResult)
+async def balance_sheet_diagnostics(
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> EquationDiagnosticResult:
+    """Diagnose accounting equation out-of-balance root cause (Flow 24)."""
+    report_date = as_of_date or date.today()
+    await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
+    report = await generate_balance_sheet(
+        db,
+        user_id,
+        as_of_date=report_date,
+        currency=currency,
+        include_restricted=include_restricted,
+    )
+    # Check pending statements
+    pending_count = (
+        await db.scalar(
+            select(func.count(StatementSummary.id))
+            .where(StatementSummary.user_id == user_id)
+            .where(
+                StatementSummary.status.in_(
+                    [
+                        BankStatementStatus.UPLOADED,
+                        BankStatementStatus.PARSING,
+                        BankStatementStatus.PARSED,
+                    ]
+                )
+            )
+        )
+        or 0
+    )
+    # Check unclassified accounts
+    unclassified_count = (
+        await db.scalar(select(func.count(Account.id)).where(Account.user_id == user_id).where(Account.type.is_(None)))
+        or 0
+    )
+    await db.commit()
+    return diagnose_equation_imbalance(
+        equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
+        has_pending_drafts=pending_count > 0,
+        unposted_draft_count=pending_count,
+        has_unclassified_accounts=unclassified_count > 0,
+        unclassified_account_count=unclassified_count,
+        is_multicurrency=bool(report.get("fx_warnings")),
+    )
+
+
 @router.get("/account-lineage", response_model=AccountLineageResponse)
 async def account_lineage(
     account_id: UUID = Query(...),
@@ -510,8 +564,8 @@ async def account_lineage(
 
 @router.get("/income-statement", response_model=IncomeStatementResponse)
 async def income_statement(
-    start_date: date = Query(...),
-    end_date: date = Query(...),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     tags: list[str] | None = Query(default=None, alias="tags"),
     account_type: AccountType | None = Query(default=None, alias="account_type"),
@@ -520,13 +574,15 @@ async def income_statement(
     user_id: CurrentUserId,
 ) -> IncomeStatementResponse:
     """Get income statement for a period with optional filtering."""
+    resolved_end_date = end_date or date.today()
+    resolved_start_date = start_date or date(resolved_end_date.year, 1, 1)
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
         report = await generate_income_statement(
             db,
             user_id,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=resolved_start_date,
+            end_date=resolved_end_date,
             currency=currency,
             tags=tags,
             account_type=account_type,
@@ -534,8 +590,8 @@ async def income_statement(
     except ReportError as exc:
         logger.warning(
             "Income statement generation failed",
-            start_date=str(start_date),
-            end_date=str(end_date),
+            start_date=str(resolved_start_date),
+            end_date=str(resolved_end_date),
             currency=currency,
             error=str(exc),
         )
@@ -546,28 +602,30 @@ async def income_statement(
 
 @router.get("/cash-flow", response_model=CashFlowResponse)
 async def cash_flow(
-    start_date: date = Query(...),
-    end_date: date = Query(...),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
     *,
     db: DbSession,
     user_id: CurrentUserId,
 ) -> CashFlowResponse:
     """Get cash flow statement for a period."""
+    resolved_end_date = end_date or date.today()
+    resolved_start_date = start_date or date(resolved_end_date.year, 1, 1)
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
         report = await generate_cash_flow(
             db,
             user_id,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=resolved_start_date,
+            end_date=resolved_end_date,
             currency=currency,
         )
     except ReportError as exc:
         logger.warning(
             "Cash flow generation failed",
-            start_date=str(start_date),
-            end_date=str(end_date),
+            start_date=str(resolved_start_date),
+            end_date=str(resolved_end_date),
             currency=currency,
             error=str(exc),
         )

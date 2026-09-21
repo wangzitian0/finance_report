@@ -648,3 +648,12 @@ async def test_AC_consistency_checks_10_list_endpoint_rejects_unbounded_limit(cl
 
     response = await client.get("/statements/consistency-checks/list", params={"limit": 0})
     assert response.status_code == 422
+
+
+async def test_flow_12_consistency_checks_list_accepts_limit_500(client):
+    """Flow 12 (Stage 2 Review Queue): client requests limit=500 without 422 error."""
+    response = await client.get("/statements/consistency-checks/list", params={"limit": 500})
+    assert response.status_code == 200
+    payload = response.json()
+    assert "items" in payload
+    assert "total" in payload

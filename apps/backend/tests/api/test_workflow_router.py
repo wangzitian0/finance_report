@@ -616,3 +616,16 @@ async def test_AC19_8_3_workflow_status_and_events_expose_session_timeline(
     assert events_payload["items"][0]["session_id"] == active_session["id"]
     assert events_payload["sessions"][0]["id"] == active_session["id"]
     assert events_payload["sessions"][0]["last_event_at"] == events_payload["items"][0]["occurred_at"]
+
+
+async def test_flow_29_notifications_endpoint_alias(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """Flow 29 (Recurring Subscriptions & Anomaly Alerts): GET /notifications returns 200 with workflow events."""
+    response = await client.get("/notifications")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "items" in payload
+    assert "sessions" in payload

@@ -39,7 +39,7 @@ export default function ChatPageClient() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 max-w-full overflow-hidden">
       <div className="page-header flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="page-title">AI Advisor</h1>
@@ -53,7 +53,7 @@ export default function ChatPageClient() {
         </div>
       </div>
 
-      <div className="mt-6 card p-6">
+      <div className="mt-4 sm:mt-6 card p-4 sm:p-6 max-w-full overflow-hidden">
         <ChatPanel variant="page" initialPrompt={initialPrompt} />
       </div>
 
