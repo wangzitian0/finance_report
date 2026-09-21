@@ -21,17 +21,17 @@
           "name": "Batch Multi-Month Ingestion & Continuity Gap Detection",
           "title": "多月份账单批量连续导入与断流预警",
           "ui_surface": "/upload",
-          "component": "BatchUploadQueue",
+          "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "Statement[M].closing_balance == Statement[M+1].opening_balance",
-          "test_ref": "apps/backend/tests/extraction/test_source_ingestion_integrity.py"
+          "test_ref": "apps/backend/tests/accounting/test_account_statement_coverage.py"
         },
         {
           "id": 3,
           "name": "Custom Non-Standard CSV Column Mapping",
           "title": "非标机构 CSV 流水导入与表头映射",
           "ui_surface": "/upload",
-          "component": "CsvMappingModal",
+          "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "All mapped rows have valid txn_date, description, and Decimal amount",
           "test_ref": "apps/backend/tests/extraction/test_csv_parsing.py"
@@ -42,7 +42,7 @@
           "title": "纸质小票/手机银行截图拍照识别",
           "ui_surface": "/portfolio/evidence",
           "component": "GuidedEvidenceForm",
-          "backend_endpoint": "POST /evidence/upload",
+          "backend_endpoint": "POST /assets/valuation-snapshots",
           "invariant": "Evidence file anchored to transaction or asset with SHA-256 digest",
           "test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx"
         },
@@ -51,8 +51,8 @@
           "name": "Alternative Asset Appraisal & Valuation Ingestion",
           "title": "不动产/车辆/私募等另类资产凭证录入",
           "ui_surface": "/assets",
-          "component": "AssetValuationModal",
-          "backend_endpoint": "POST /assets/{id}/valuation",
+          "component": "AssetDetailPage",
+          "backend_endpoint": "POST /assets/valuation-snapshots",
           "invariant": "Valuation creates journal entry adjusting Asset and UnrealizedGain",
           "test_ref": "apps/backend/tests/assets/test_assets_router.py"
         }
@@ -74,12 +74,12 @@
         },
         {
           "id": 7,
-          "name": "Stage-1 Balance Chain Break Inline Repair",
-          "title": "链断裂行内快捷订正与即时重算",
+          "name": "Stage-1 Balance Mismatch Defense & Rejection Guidance",
+          "title": "链断裂防御与驳回重析引导",
           "ui_surface": "/statements/{id}/review",
           "component": "LowConfidenceReviewModal",
-          "backend_endpoint": "POST /statements/{id}/review/edit",
-          "invariant": "Corrected amount dynamically recalculates closing delta to 0.00 unblocking approval",
+          "backend_endpoint": "POST /statements/{id}/review/reject",
+          "invariant": "Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse",
           "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
         },
         {
@@ -100,7 +100,7 @@
           "component": "StatementRejectModal",
           "backend_endpoint": "POST /statements/{id}/review/reject",
           "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
-          "test_ref": "apps/backend/tests/reconciliation/test_rejection_recovery.py"
+          "test_ref": "apps/backend/tests/api/test_statements_router.py"
         },
         {
           "id": 10,
@@ -108,7 +108,7 @@
           "title": "页内伴随式 AI 问答与容错",
           "ui_surface": "/statements/{id}/review",
           "component": "StatementAiAssistantButton",
-          "backend_endpoint": "POST /ai/chat",
+          "backend_endpoint": "POST /chat",
           "invariant": "Chat prompt carries immutable statement metadata and handles SSE disconnects",
           "test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx"
         }
@@ -172,7 +172,7 @@
           "component": "Workbench",
           "backend_endpoint": "POST /reconciliation/match",
           "invariant": "Source account Dr == Target account Cr; Transfer clearing account net balance == 0",
-          "test_ref": "apps/backend/tests/reporting/test_internal_transfer_e2e.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py"
         },
         {
           "id": 16,
@@ -182,7 +182,7 @@
           "component": "Workbench",
           "backend_endpoint": "POST /reconciliation/match",
           "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
-          "test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
+          "test_ref": "apps/backend/tests/e2e/test_core_journeys.py"
         },
         {
           "id": 17,
@@ -271,7 +271,7 @@
           "name": "Accounting Equation Out-of-Balance Diagnostic Triage",
           "title": "会计恒等式失衡智能排错",
           "ui_surface": "/reports/balance-sheet",
-          "component": "DiagnosticTriageBanner",
+          "component": "BalanceSheetPage",
           "backend_endpoint": "GET /reports/balance-sheet/diagnostics",
           "invariant": "When Equation Delta != 0, returns classified cause: UNPOSTED_DRAFT, ONE_SIDED, UNMAPPED, FX_DRIFT",
           "test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py"
@@ -283,7 +283,7 @@
           "ui_surface": "/reports/income-statement",
           "component": "IncomeStatementPage",
           "backend_endpoint": "GET /reports/income-statement",
-          "invariant": "Comparative percentages handle zero-base safely (no division by zero)",
+          "invariant": "Comparative periodic columns display balance variations without silent drop",
           "test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx"
         },
         {
@@ -309,7 +309,7 @@
           "ui_surface": "/reports/balance-sheet",
           "component": "ProvenanceBadge",
           "backend_endpoint": "GET /reports/lineage/{account_id}",
-          "invariant": "Report Line -> Journal Entry -> Statement Transaction -> Source PDF Bounding Box coordinates",
+          "invariant": "Report Line drilldown traces to underlying journal entries and source statement metadata",
           "test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx"
         },
         {
@@ -338,7 +338,7 @@
           "title": "自然语言财务 AI 顾问",
           "ui_surface": "/chat",
           "component": "ChatPageClient",
-          "backend_endpoint": "POST /ai/chat",
+          "backend_endpoint": "POST /chat",
           "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
           "test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx"
         }

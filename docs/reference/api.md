@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `135`
-- Schema count: `260`
+- Endpoint count: `136`
+- Schema count: `262`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -31,7 +31,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `metrics` | 1 |
 | `notifications` | 1 |
 | `portfolio` | 13 |
-| `reconciliation` | 10 |
+| `reconciliation` | 11 |
 | `reports` | 18 |
 | `review` | 9 |
 | `statements` | 15 |
@@ -201,6 +201,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
+| `POST` | `/reconciliation/adjustment` | yes | - | `ReconciliationAdjustmentRequest` | `200` `ReconciliationAdjustmentResponse` | Post Reconciliation Adjustment |
 | `POST` | `/reconciliation/batch-accept` | yes | - | `BatchAcceptRequest` | `200` `ListResponse_ReconciliationMatchResponse_` | Batch Accept |
 | `GET` | `/reconciliation/matches` | yes | `status` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_ReconciliationMatchResponse_` | List Matches |
 | `POST` | `/reconciliation/matches/{match_id}/accept` | yes | `match_id`* (path) | - | `200` `ReconciliationMatchResponse` | Accept Match |

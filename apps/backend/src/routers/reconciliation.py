@@ -1,8 +1,9 @@
 """Reconciliation API router."""
 
 from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import Select, func, select
@@ -17,12 +18,16 @@ from src.extraction import BankStatementStatus, effective_statement_transaction_
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
+    Account,
+    AccountType,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     ValidationError,
     current_anchored_journal_entries,
 )
+from src.ledger.extension.anchored_posting import submit_system_journal_entry
+from src.ledger.splits import calculate_reconciliation_adjustment
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
@@ -46,6 +51,8 @@ from src.schemas.reconciliation import (
     BankTransactionSummary,
     BatchAcceptRequest,
     JournalEntrySummary,
+    ReconciliationAdjustmentRequest,
+    ReconciliationAdjustmentResponse,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
     ReconciliationRunRequest,
@@ -559,3 +566,116 @@ async def list_anomalies(
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     page = anomalies[pagination.offset : pagination.offset + pagination.limit]
     return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]
+
+
+@router.post("/adjustment", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
+async def post_reconciliation_adjustment(
+    payload: ReconciliationAdjustmentRequest,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReconciliationAdjustmentResponse:
+    """Post an immaterial penny rounding adjustment (Flow 18)."""
+    account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
+
+    try:
+        adjustment = calculate_reconciliation_adjustment(
+            bank_balance=payload.bank_balance,
+            book_balance=payload.book_balance,
+            threshold=payload.threshold,
+        )
+    except ValueError as exc:
+        raise_bad_request(str(exc), cause=exc)
+
+    if adjustment.difference == Decimal("0"):
+        return ReconciliationAdjustmentResponse(
+            account_id=account.id,
+            bank_balance=adjustment.bank_balance,
+            book_balance=adjustment.book_balance,
+            difference=adjustment.difference,
+            is_gain=adjustment.is_gain,
+            journal_entry_id=None,
+            entry=None,
+        )
+
+    preferred_type = AccountType.INCOME if adjustment.is_gain else AccountType.EXPENSE
+    stmt = select(Account).where(
+        Account.user_id == user_id,
+        Account.name == "BankRoundingDifference",
+        Account.currency == account.currency,
+        Account.type == preferred_type,
+    )
+    rounding_account = (await db.execute(stmt)).scalar_one_or_none()
+    if rounding_account is None:
+        alt_stmt = select(Account).where(
+            Account.user_id == user_id,
+            Account.name == "BankRoundingDifference",
+            Account.currency == account.currency,
+            Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+        )
+        rounding_account = (await db.execute(alt_stmt)).scalars().first()
+    if rounding_account is None:
+        rounding_account = Account(
+            user_id=user_id,
+            name="BankRoundingDifference",
+            type=preferred_type,
+            currency=account.currency,
+            is_active=True,
+        )
+        db.add(rounding_account)
+        await db.flush()
+
+    lines_data = []
+    for split_line in adjustment.lines:
+        line_account_id = account.id if split_line.role == "bank_adjustment" else rounding_account.id
+        direction = Direction.DEBIT if split_line.direction.value.lower() == "debit" else Direction.CREDIT
+        lines_data.append(
+            {
+                "account_id": line_account_id,
+                "direction": direction,
+                "amount": split_line.amount,
+                "currency": account.currency,
+            }
+        )
+
+    entry_date = payload.entry_date or date.today()
+    base_currency = await get_effective_base_currency(db)
+
+    try:
+        entry = await submit_system_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=entry_date,
+            memo=f"Reconciliation rounding adjustment for {account.name}",
+            lines_data=lines_data,
+            base_currency=base_currency,
+            operation="reconciliation_adjustment",
+            source_id=uuid4(),
+            post_immediately=True,
+        )
+        await db.refresh(entry, ["lines"])
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise_bad_request(str(exc), cause=exc)
+
+    log_financial_mutation(
+        logger,
+        "reconciliation.adjustment.posted",
+        user_id=user_id,
+        action="adjustment",
+        resource_type="journal_entry",
+        resource_id=entry.id,
+        difference=str(adjustment.difference),
+    )
+
+    entry_summary = _build_entry_summary(entry)
+    return ReconciliationAdjustmentResponse(
+        account_id=account.id,
+        bank_balance=adjustment.bank_balance,
+        book_balance=adjustment.book_balance,
+        difference=adjustment.difference,
+        is_gain=adjustment.is_gain,
+        journal_entry_id=entry.id,
+        entry=entry_summary,
+    )
