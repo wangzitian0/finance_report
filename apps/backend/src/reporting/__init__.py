@@ -84,9 +84,6 @@ _EXPORTS = {
     "register_fx_gateway": "src.reporting.extension.fx_gateway",
     "register_manual_valuation_lines_provider": "src.reporting.extension.balance_sheet",
     "resolve_line_currency": "src.reporting.extension.reporting_calc",
-    "EquationDiagnosticCategory": "src.reporting.diagnostics",
-    "EquationDiagnosticResult": "src.reporting.diagnostics",
-    "diagnose_equation_imbalance": "src.reporting.diagnostics",
 }
 
 __all__ = [
@@ -147,9 +144,6 @@ __all__ = [
     "register_fx_gateway",
     "register_manual_valuation_lines_provider",
     "resolve_line_currency",
-    "EquationDiagnosticCategory",
-    "EquationDiagnosticResult",
-    "diagnose_equation_imbalance",
 ]
 
 
