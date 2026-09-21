@@ -271,11 +271,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     bindings = (
                         (
                             await db.execute(
-                                select(BankCustodyBinding).where(
+                                select(BankCustodyBinding)
+                                .where(
                                     BankCustodyBinding.user_id == user_id,
                                     BankCustodyBinding.institution == final_institution,
                                     BankCustodyBinding.currency == statement_currency,
                                 )
+                                .limit(2)
                             )
                         )
                         .scalars()

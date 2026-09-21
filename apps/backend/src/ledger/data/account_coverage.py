@@ -173,9 +173,11 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
 
         if current.period_start > expected_start:
             # Calendar gap check: weekend / non-business days (e.g. Fri -> Mon, <= 4 days).
-            # When opening balance of current equals closing balance of previous within a short calendar gap, financial continuity holds.
+            gap_days = (current.period_start - expected_start).days
+            spans_weekend = any((expected_start + timedelta(days=d)).weekday() in (5, 6) for d in range(gap_days + 1))
             is_continuous_balance = (
-                (current.period_start - expected_start).days <= 4
+                gap_days <= 4
+                and spans_weekend
                 and previous.closing_balance is not None
                 and current.opening_balance is not None
                 and _abs_decimal_delta(current.opening_balance, previous.closing_balance) <= BALANCE_TOLERANCE

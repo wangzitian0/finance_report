@@ -16,7 +16,14 @@ from uuid import UUID
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, TraceRecord, TraceResult
+from src.audit import (
+    STATEMENT_BALANCE_TOLERANCE,
+    STATEMENT_SOURCE_TYPES,
+    JournalEntrySourceType,
+    TraceEmitter,
+    TraceRecord,
+    TraceResult,
+)
 from src.audit.money.currency import normalize_currency_code
 from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import (
@@ -494,8 +501,9 @@ async def try_auto_post_statement_opening_balance(
         if existing.state != "authoritative":
             raise ValueError("Opening balance authority needs review")
         if existing.effective_date > statement.period_start:
-            if statement.closing_balance is not None and abs(statement.closing_balance - existing.amount) <= Decimal(
-                "0.01"
+            if (
+                statement.closing_balance is not None
+                and abs(statement.closing_balance - existing.amount) <= STATEMENT_BALANCE_TOLERANCE
             ):
                 return False
             raise ValueError("Earlier statement requires opening-balance correction before posting")

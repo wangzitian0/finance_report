@@ -168,7 +168,7 @@ def repair_under_extraction(
                 round=round_idx + 1,
                 break_index=last_break_info.index,
             )
-            return ChainRepairResult(payload=candidate, attempted=True, repaired=True, break_info=None)
+            return ChainRepairResult(payload=candidate, attempted=True, repaired=True, break_info=break_info)
 
         next_break_info = detect_balance_chain_break(
             candidate.get("transactions") or [],
