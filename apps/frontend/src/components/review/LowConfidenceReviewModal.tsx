@@ -96,11 +96,7 @@ export function LowConfidenceReviewModal({
     if (saving) return;
     const trimmed = category.trim();
     const amountTrimmed = amount.trim();
-    if (!trimmed && !onSaveCorrection) {
-      setError("Please select or enter a category.");
-      return;
-    }
-    if (!trimmed && !amountTrimmed) {
+    if (!trimmed && (!onSaveCorrection || !amountTrimmed)) {
       setError("Please select or enter a category.");
       return;
     }
@@ -332,6 +328,7 @@ export function LowConfidenceReviewModal({
               </button>
               <button
                 type="submit"
+                onClick={handleSave}
                 disabled={saving || (!category.trim() && !amount.trim())}
                 className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50"
               >
