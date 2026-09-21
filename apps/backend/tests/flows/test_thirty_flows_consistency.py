@@ -20,7 +20,7 @@ from src.ledger.splits import (
     calculate_reconciliation_adjustment,
     calculate_transfer_fx_split,
 )
-from src.reporting.diagnostics import (
+from src.reporting import (
     EquationDiagnosticCategory,
     diagnose_equation_imbalance,
 )

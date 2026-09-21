@@ -887,6 +887,33 @@
         "title": "AllocationBreakdownResponse",
         "type": "object"
       },
+      "AnnualTaxArchiveRequest": {
+        "description": "Request payload for annual tax archive ZIP generation.",
+        "properties": {
+          "currency": {
+            "default": "SGD",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "framework_id": {
+            "$ref": "#/components/schemas/PersonalReportingFrameworkId",
+            "default": "personal_us_gaap_like"
+          },
+          "year": {
+            "maximum": 2100.0,
+            "minimum": 1900.0,
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "AnnualTaxArchiveRequest",
+        "type": "object"
+      },
       "AnnualizedIncomeResponse": {
         "description": "Annualized income summary derived from posted income journal lines.",
         "properties": {
@@ -3289,6 +3316,59 @@
           }
         },
         "title": "EditAndApproveRequest",
+        "type": "object"
+      },
+      "EquationDiagnosticCategory": {
+        "enum": [
+          "BALANCED",
+          "UNPOSTED_DRAFT",
+          "ONE_SIDED_ENTRY",
+          "UNCLASSIFIED_ACCOUNT",
+          "FX_ROUNDING_DRIFT",
+          "UNKNOWN_DISCREPANCY"
+        ],
+        "title": "EquationDiagnosticCategory",
+        "type": "string"
+      },
+      "EquationDiagnosticResult": {
+        "description": "Structured diagnostic evaluation of accounting equation state.",
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "equation_delta": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equation Delta",
+            "type": "string"
+          },
+          "is_balanced": {
+            "title": "Is Balanced",
+            "type": "boolean"
+          },
+          "primary_category": {
+            "$ref": "#/components/schemas/EquationDiagnosticCategory"
+          },
+          "suggested_action": {
+            "title": "Suggested Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "is_balanced",
+          "equation_delta",
+          "primary_category",
+          "confidence",
+          "suggested_action"
+        ],
+        "title": "EquationDiagnosticResult",
         "type": "object"
       },
       "ErrorResponse": {
@@ -6563,7 +6643,8 @@
         "description": "Supported saved package snapshot export formats.",
         "enum": [
           "json",
-          "csv"
+          "csv",
+          "zip"
         ],
         "title": "PackageSnapshotExportFormat",
         "type": "string"
@@ -9364,6 +9445,11 @@
       },
       "Stage1ApprovalRequest": {
         "properties": {
+          "auto_fill_default_categories": {
+            "default": false,
+            "title": "Auto Fill Default Categories",
+            "type": "boolean"
+          },
           "create_account_if_missing": {
             "default": false,
             "title": "Create Account If Missing",
@@ -17647,6 +17733,143 @@
         ]
       }
     },
+    "/notifications": {
+      "get": {
+        "description": "Return workflow events as notifications (Flow 29).",
+        "operationId": "list_notifications_endpoint_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkflowEventStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Notifications Endpoint",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/ping": {
       "get": {
         "description": "Get current ping-pong state.",
@@ -21320,6 +21543,160 @@
         ]
       }
     },
+    "/reports/balance-sheet/diagnostics": {
+      "get": {
+        "description": "Diagnose accounting equation out-of-balance root cause (Flow 24).",
+        "operationId": "balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "as_of_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_restricted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Restricted",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquationDiagnosticResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Balance Sheet Diagnostics",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
     "/reports/breakdown": {
       "get": {
         "description": "Get income or expense category breakdown.",
@@ -21472,21 +21849,35 @@
           {
             "in": "query",
             "name": "start_date",
-            "required": true,
+            "required": false,
             "schema": {
-              "format": "date",
-              "title": "Start Date",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
             }
           },
           {
             "in": "query",
             "name": "end_date",
-            "required": true,
+            "required": false,
             "schema": {
-              "format": "date",
-              "title": "End Date",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
             }
           },
           {
@@ -21934,21 +22325,35 @@
           {
             "in": "query",
             "name": "start_date",
-            "required": true,
+            "required": false,
             "schema": {
-              "format": "date",
-              "title": "Start Date",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
             }
           },
           {
             "in": "query",
             "name": "end_date",
-            "required": true,
+            "required": false,
             "schema": {
-              "format": "date",
-              "title": "End Date",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
             }
           },
           {
@@ -22615,6 +23020,121 @@
         ]
       }
     },
+    "/reports/package/annual-archive": {
+      "post": {
+        "description": "Generate and stream an annual tax & audit package archive ZIP.",
+        "operationId": "export_annual_tax_archive_reports_package_annual_archive_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnualTaxArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Export Annual Tax Archive",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
     "/reports/package/generate": {
       "post": {
         "description": "Generate and persist an immutable personal report package snapshot.",
@@ -22993,7 +23513,7 @@
     },
     "/reports/package/snapshots/{snapshot_id}/export": {
       "get": {
-        "description": "Export a saved package snapshot as JSON or CSV.",
+        "description": "Export a saved package snapshot as JSON, CSV, or ZIP.",
         "operationId": "export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get",
         "parameters": [
           {
@@ -24153,7 +24673,7 @@
             "schema": {
               "default": 50,
               "description": "Maximum items to return",
-              "maximum": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
