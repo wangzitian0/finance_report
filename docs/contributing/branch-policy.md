@@ -14,7 +14,14 @@
    - Current PR is merged, OR
    - User explicitly requests a new branch or PR, OR
    - Previous task is explicitly completed.
-4. **No agent merge authority**: Agents may open PRs and monitor CI, but only the user may merge them.
+4. **Conditional agent merge authority**: An agent may merge a PR only when **all** of the following hold. Any one of them unverifiable means fail closed — do not merge.
+   - Required checks are green on the **exact head SHA being merged**, not on an earlier one.
+   - Every actionable review thread is resolved — human reviewer, Copilot, or `/code-review` alike. An actionable finding requests a concrete code, documentation, test, or process change; questions and informational comments do not count.
+   - The PR touches no protected file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `vision.md` — the list `common/meta/extension/check_ssot_ownership.py` enforces).
+   - Merging triggers no deploy and no other irreversible side effect.
+   - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`).
+
+   A PR that fails any condition is still the agent's to prepare and the user's to merge. A PR that modifies a protected file or triggers a deploy needs the user's **explicit approval of that head SHA** — an approval of an earlier head does not carry over.
 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 
 ---
