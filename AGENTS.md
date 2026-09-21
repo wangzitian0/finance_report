@@ -21,23 +21,18 @@ Quick reference:
 
 ---
 
-## 🧱 Four Orthogonal Concerns
+## 🧱 Document Hierarchy & Boundaries
 
-These four are **orthogonal axes, not a hierarchy** — each answers a different
-question, so they never compete for ownership:
+The project divides documentation into four distinct roles with zero overlapping ownership:
 
-| Concern | Question it answers | Axis |
-|---------|--------------------|------|
-| **vision.md** | *Why* — the overall product goal and culture | north star |
-| **SSOT** | *In what shared language* — the canonical base elements, vocabulary, and contracts that everything else reuses; every concept lives in its owning package's `common/<pkg>/readme.md` / `contract.py`, and `meta` owns cross-cutting governance data (`common/meta/data/`) — the cross-package registry is [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) | common dictionary |
-| **EPIC** (`docs/project/`) | *Terminal residue* — a closed, shrink-only home for genuinely-non-package-owned horizontal/fe-exception ACs, verified via `EPIC → AC → test`; not a growing feature-slice axis — new work goes to a package's `contract.py` roadmap per `ac-workflow`, full stop | closed residue |
-| **README** (root, `apps/*`) | *What, per module* — one module's goal and how it is built | module slice |
+| Document | Question it answers | Role & Responsibility |
+|---|---|---|
+| **vision.md** | *Why* | Product vision, architectural north star, and design culture. |
+| **Package README / contract.py** | *In what shared language* | Base entities, vocabulary, and data contracts (`common/<pkg>/`). Cross-cutting registry is [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml). |
+| **docs/project/** | *What tracking* | Horizontal EPIC milestone tracking (packages own their own ACs in contract.py). |
+| **README** (root, `apps/*`) | *What per module* | Module goals, setup commands, and build guides. |
 
-Because they slice the project on different axes, the **same fact appearing in
-more than one is not drift** — each states it in its own register: vision as
-direction, SSOT as a defined term, EPIC as terminal residue, README as a module
-goal. Drift is only when a doc adopts another axis's *job* (e.g. vision dictating
-implementation, or an EPIC redefining a base element that SSOT already owns).
+No document may usurp another document's role: vision does not dictate internal module implementation; EPICs do not redefine base data types owned by packages.
 
 ---
 
@@ -210,5 +205,13 @@ tracking. Do not duplicate phase status in this quick-reference file.
 | **Agent governance** | `docs/agents/` | Red lines, orchestration |
 | **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
 | **Cross-cutting governance data** | `common/meta/data/`, `common/testing/data/`, `common/runtime/` | Live gate-data inputs, generated artifacts, and the concept-ownership registry (`common/meta/data/MANIFEST.yaml`) — package-owned concepts live in `common/<pkg>/readme.md` instead; `docs/ssot/` is retired |
-| **Project EPICs (terminal residue)** | `docs/project/` | Closed, shrink-only home for genuinely-non-package-owned horizontal/fe-exception ACs — not a growing feature-slice axis |
+| **Project EPICs** | `docs/project/` | Horizontal milestone tracking (packages own their ACs in `contract.py`; legacy EPICs shrink only) |
 | **Module READMEs** | `apps/*/README.md` | Per-module goal & design guide |
+
+---
+
+## ✍️ Communication & Writing Standards
+
+- **State plain engineering facts**: Commits, PR descriptions, and chat summaries must state exact files changed, rationale, and physical verification results (tests executed, exit codes, latency).
+- **Banned Pseudo-Academic Jargon**: Do NOT use terms like "orthogonal" (outside mathematics), "ontology planes", "terminal residue", "epistemic layer", "emergence", "empowerment/赋能", "touchpoint/抓手", "paradigm shift".
+- **Zero concealment**: If blocked or encountering an error, report the exact failing command, stack trace, and minimal reproduction steps. Never mask uncompleted work behind abstract prose.
