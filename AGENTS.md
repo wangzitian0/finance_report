@@ -29,7 +29,7 @@ The project divides documentation into four distinct roles with zero overlapping
 |---|---|---|
 | **vision.md** | *Why* | Product vision, architectural north star, and design culture. |
 | **Package README / contract.py** | *In what shared language* | Base entities, vocabulary, and data contracts (`common/<pkg>/`). Cross-cutting registry is [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml). |
-| **docs/project/** | *What tracking* | Project EPICs, acceptance criteria (AC), and task progress. |
+| **docs/project/** | *What tracking* | Horizontal EPIC milestone tracking (packages own their own ACs in contract.py). |
 | **README** (root, `apps/*`) | *What per module* | Module goals, setup commands, and build guides. |
 
 No document may usurp another document's role: vision does not dictate internal module implementation; EPICs do not redefine base data types owned by packages.
@@ -205,7 +205,7 @@ tracking. Do not duplicate phase status in this quick-reference file.
 | **Agent governance** | `docs/agents/` | Red lines, orchestration |
 | **Contributor guide** | `docs/contributing/` | Branch policy, pre-commit |
 | **Cross-cutting governance data** | `common/meta/data/`, `common/testing/data/`, `common/runtime/` | Live gate-data inputs, generated artifacts, and the concept-ownership registry (`common/meta/data/MANIFEST.yaml`) — package-owned concepts live in `common/<pkg>/readme.md` instead; `docs/ssot/` is retired |
-| **Project EPICs** | `docs/project/` | Horizontal feature tracking and cross-package acceptance criteria (AC) |
+| **Project EPICs** | `docs/project/` | Horizontal milestone tracking (packages own their ACs in `contract.py`; legacy EPICs shrink only) |
 | **Module READMEs** | `apps/*/README.md` | Per-module goal & design guide |
 
 ---
