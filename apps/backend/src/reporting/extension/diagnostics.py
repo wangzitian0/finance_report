@@ -1,54 +1,23 @@
-"""Accounting equation out-of-balance diagnostic triage (Flow 24).
-
-When an equation delta (|Assets - (Liabilities + Equity + PnL)| >= 0.01) is observed,
-this module diagnoses the discrepancy into 4 actionable root cause categories:
-1. UNPOSTED_DRAFT: Unapproved/pending statements altering physical cash balances.
-2. ONE_SIDED_ENTRY: Unbalanced journal entry (debit != credit).
-3. UNCLASSIFIED_ACCOUNT: Accounts missing standard accounting categorization.
-4. FX_ROUNDING_DRIFT: Multi-currency fractional cent translation rounding.
-"""
+"""Accounting equation out-of-balance diagnostic triage domain services (Flow 24)."""
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
-from enum import Enum
-from typing import Any
+from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
 
 from src.audit.money import to_money
+from src.reporting.base.diagnostics import EquationDiagnosticCategory, EquationDiagnosticResult
 
 __all__ = [
-    "EquationDiagnosticCategory",
-    "EquationDiagnosticResult",
     "diagnose_equation_imbalance",
+    "run_balance_sheet_diagnostics",
 ]
 
-ZERO = Decimal("0.00")
 EPSILON = Decimal("0.01")
 FX_DRIFT_THRESHOLD = Decimal("0.10")
-
-
-class EquationDiagnosticCategory(str, Enum):
-    BALANCED = "BALANCED"
-    UNPOSTED_DRAFT = "UNPOSTED_DRAFT"
-    ONE_SIDED_ENTRY = "ONE_SIDED_ENTRY"
-    UNCLASSIFIED_ACCOUNT = "UNCLASSIFIED_ACCOUNT"
-    FX_ROUNDING_DRIFT = "FX_ROUNDING_DRIFT"
-    UNKNOWN_DISCREPANCY = "UNKNOWN_DISCREPANCY"
-
-
-class EquationDiagnosticResult(BaseModel):
-    """Structured diagnostic evaluation of accounting equation state."""
-
-    model_config = ConfigDict(frozen=True)
-
-    is_balanced: bool
-    equation_delta: Decimal
-    primary_category: EquationDiagnosticCategory
-    confidence: float = Field(ge=0.0, le=1.0)
-    suggested_action: str
-    details: dict[str, Any] = Field(default_factory=dict)
 
 
 def diagnose_equation_imbalance(
@@ -138,4 +107,55 @@ def diagnose_equation_imbalance(
         confidence=0.50,
         suggested_action=(f"Unclassified discrepancy of {delta} detected. Run audit ledger verification."),
         details={"delta": str(delta)},
+    )
+
+
+async def run_balance_sheet_diagnostics(
+    db: Any,
+    user_id: Any,
+    *,
+    as_of_date: date | None = None,
+    currency: str | None = None,
+    include_restricted: bool = False,
+) -> EquationDiagnosticResult:
+    """Execute end-to-end accounting equation diagnostics against ledger & statements."""
+    from src.extraction import BankStatementStatus, StatementSummary
+    from src.ledger import Account
+    from src.reporting.extension.balance_sheet import generate_balance_sheet
+
+    report_date = as_of_date or date.today()
+    report = await generate_balance_sheet(
+        db,
+        user_id,
+        as_of_date=report_date,
+        currency=currency,
+        include_restricted=include_restricted,
+    )
+    pending_count = (
+        await db.scalar(
+            select(func.count(StatementSummary.id))
+            .where(StatementSummary.user_id == user_id)
+            .where(
+                StatementSummary.status.in_(
+                    [
+                        BankStatementStatus.UPLOADED,
+                        BankStatementStatus.PARSING,
+                        BankStatementStatus.PARSED,
+                    ]
+                )
+            )
+        )
+        or 0
+    )
+    unclassified_count = (
+        await db.scalar(select(func.count(Account.id)).where(Account.user_id == user_id).where(Account.type.is_(None)))
+        or 0
+    )
+    return diagnose_equation_imbalance(
+        equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
+        has_pending_drafts=pending_count > 0,
+        unposted_draft_count=pending_count,
+        has_unclassified_accounts=unclassified_count > 0,
+        unclassified_account_count=unclassified_count,
+        is_multicurrency=bool(report.get("fx_warnings")),
     )

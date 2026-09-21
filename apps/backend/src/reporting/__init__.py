@@ -36,6 +36,10 @@ _EXPORTS = {
     "personal_report_package_decision_ref": "src.reporting.extension.package_document",
     "current_package_document_summary": "src.reporting.extension.package_document",
     "PackageDocumentVersionError": "src.reporting.extension.report_package",
+    "EquationDiagnosticCategory": "src.reporting.base.diagnostics",
+    "EquationDiagnosticResult": "src.reporting.base.diagnostics",
+    "diagnose_equation_imbalance": "src.reporting.extension.diagnostics",
+    "run_balance_sheet_diagnostics": "src.reporting.extension.diagnostics",
     "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
     "CashFlowItem": "src.reporting.base.cash_flow_types",
     "CashFlowResponse": "src.reporting.base.cash_flow_types",
@@ -96,6 +100,10 @@ __all__ = [
     "personal_report_package_decision_ref",
     "current_package_document_summary",
     "PackageDocumentVersionError",
+    "EquationDiagnosticCategory",
+    "EquationDiagnosticResult",
+    "diagnose_equation_imbalance",
+    "run_balance_sheet_diagnostics",
     "AnnualizedIncomeTotals",
     "CashFlowItem",
     "CashFlowResponse",
@@ -159,6 +167,10 @@ def __getattr__(name: str) -> object:
 
 if TYPE_CHECKING:
     from src.reporting.base.cash_flow_types import CashFlowItem, CashFlowResponse, CashFlowSummary
+    from src.reporting.base.diagnostics import (
+        EquationDiagnosticCategory,
+        EquationDiagnosticResult,
+    )
     from src.reporting.base.l1_registry import is_valid_line_for_framework
     from src.reporting.base.package_contribution import PackageSectionContribution
     from src.reporting.base.package_decision import personal_report_package_target
@@ -173,6 +185,10 @@ if TYPE_CHECKING:
         register_manual_valuation_lines_provider,
     )
     from src.reporting.extension.cash_flow import generate_cash_flow
+    from src.reporting.extension.diagnostics import (
+        diagnose_equation_imbalance,
+        run_balance_sheet_diagnostics,
+    )
     from src.reporting.extension.framework_policy import derive_user_framework_policy_result
     from src.reporting.extension.framework_report import (
         assemble_framework_balance_sheet,

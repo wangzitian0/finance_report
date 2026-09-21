@@ -17,12 +17,11 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, union
+from sqlalchemy import select, union
 
-from src.composition import StatementSummary, observed_fx_pairs
+from src.composition import observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
-from src.extraction import BankStatementStatus
 from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
@@ -30,6 +29,7 @@ from src.portfolio import active_stock_symbols
 from src.pricing import ensure_market_data_fresh
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
+    EquationDiagnosticResult,
     PackageAssembler,
     PackageDocumentVersionError,
     ReportError,
@@ -49,8 +49,8 @@ from src.reporting import (
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
+    run_balance_sheet_diagnostics,
 )
-from src.reporting.diagnostics import EquationDiagnosticResult, diagnose_equation_imbalance
 from src.schemas import (
     AccountLineageResponse,
     AccountTrendResponse,
@@ -490,43 +490,12 @@ async def balance_sheet_diagnostics(
     """Diagnose accounting equation out-of-balance root cause (Flow 24)."""
     report_date = as_of_date or date.today()
     await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-    report = await generate_balance_sheet(
+    return await run_balance_sheet_diagnostics(
         db,
         user_id,
         as_of_date=report_date,
         currency=currency,
         include_restricted=include_restricted,
-    )
-    # Check pending statements
-    pending_count = (
-        await db.scalar(
-            select(func.count(StatementSummary.id))
-            .where(StatementSummary.user_id == user_id)
-            .where(
-                StatementSummary.status.in_(
-                    [
-                        BankStatementStatus.UPLOADED,
-                        BankStatementStatus.PARSING,
-                        BankStatementStatus.PARSED,
-                    ]
-                )
-            )
-        )
-        or 0
-    )
-    # Check unclassified accounts
-    unclassified_count = (
-        await db.scalar(select(func.count(Account.id)).where(Account.user_id == user_id).where(Account.type.is_(None)))
-        or 0
-    )
-    await db.commit()
-    return diagnose_equation_imbalance(
-        equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
-        has_pending_drafts=pending_count > 0,
-        unposted_draft_count=pending_count,
-        has_unclassified_accounts=unclassified_count > 0,
-        unclassified_account_count=unclassified_count,
-        is_multicurrency=bool(report.get("fx_warnings")),
     )
 
 

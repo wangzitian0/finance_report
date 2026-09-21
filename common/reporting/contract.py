@@ -98,6 +98,26 @@ CONTRACT = PackageContract(
         Unit(name="AnnualizedIncomeTotals", kind=Kind.VALUE_OBJECT),
         Unit(name="NetWorthTimeSeriesPoint", kind=Kind.VALUE_OBJECT),
         Unit(name="AccountLineageLine", kind=Kind.VALUE_OBJECT),
+        Unit(
+            name="EquationDiagnosticCategory",
+            kind=Kind.VALUE_OBJECT,
+            module="base/diagnostics.py",
+        ),
+        Unit(
+            name="EquationDiagnosticResult",
+            kind=Kind.VALUE_OBJECT,
+            module="base/diagnostics.py",
+        ),
+        Unit(
+            name="diagnose_equation_imbalance",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/diagnostics.py",
+        ),
+        Unit(
+            name="run_balance_sheet_diagnostics",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/diagnostics.py",
+        ),
         Unit(name="ReportSnapshot", kind=Kind.AGGREGATE_ROOT),
         # ── extension (report generation + lanes) ──
         Unit(
@@ -195,6 +215,10 @@ CONTRACT = PackageContract(
         "personal_report_package_target",
         "personal_report_package_decision_ref",
         "PackageDocumentVersionError",
+        "EquationDiagnosticCategory",
+        "EquationDiagnosticResult",
+        "diagnose_equation_imbalance",
+        "run_balance_sheet_diagnostics",
         "current_package_document_summary",
         "AnnualizedIncomeTotals",
         "CashFlowItem",
