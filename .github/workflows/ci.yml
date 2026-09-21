@@ -1335,7 +1335,7 @@ jobs:
             --version-ref "${{ steps.get_sha.outputs.short_sha }}"
 
   tooling-coverage:
-    name: Tooling/Common Coverage (Shard ${{ matrix.shard }}/8)
+    name: Tooling/Common Coverage (Shard ${{ matrix.shard }}/2)
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
