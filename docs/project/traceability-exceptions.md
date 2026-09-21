@@ -86,6 +86,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/extraction/test_pii_redaction.py` | `docs/agents/red-lines.md` |
 | `apps/backend/tests/extraction/test_statement_parsing_supervisor.py` | `common/extraction/readme.md` |
 | `apps/backend/tests/extraction/test_statements_supervisor_errors.py` | `common/extraction/readme.md` |
+| `apps/backend/tests/flows/test_thirty_flows_consistency.py` | `common/meta/flows/thirty_flows_ssot.json` (Unified 30-Flow SSOT consistency suite) |
 | `apps/backend/tests/infra/test_boot.py` | `common/meta/development.md` |
 | `apps/backend/tests/infra/test_config.py` | `common/meta/development.md` |
 | `apps/backend/tests/infra/test_database.py` | `common/meta/development.md` |
@@ -96,6 +97,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/reconciliation.md` |
 | `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reporting/test_equation_diagnostics.py` | `common/reporting/reporting.md` (Accounting equation diagnostic triage) |
 | `apps/backend/tests/reporting/test_net_income_average_rates.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_helpers.py` | `common/reporting/reporting.md` |
@@ -115,6 +117,7 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/correctionLoopPage.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/ThemeToggle.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/thirtyFlowsConsistency.test.tsx` | `common/meta/flows/thirty_flows_ssot.json` (Unified 30-Flow SSOT frontend consistency suite) |
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/allocationChart.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/api-urls.test.ts` | `apps/frontend/frontend-patterns.md` |
