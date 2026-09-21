@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import hashlib
 import json
+import zipfile
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select, union
 
 from src.composition import observed_fx_pairs
@@ -150,6 +153,15 @@ class PackageSnapshotExportFormat(str, Enum):
 
     JSON = "json"
     CSV = "csv"
+    ZIP = "zip"
+
+
+class AnnualTaxArchiveRequest(BaseModel):
+    """Request payload for annual tax archive ZIP generation."""
+
+    year: int = Field(ge=1900, le=2100)
+    currency: str = Field(default="SGD", min_length=3, max_length=3)
+    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE
 
 
 class ExportReportType(str, Enum):
@@ -290,6 +302,80 @@ async def get_personal_report_package_snapshot(
         raise_bad_request(str(exc), cause=exc)
 
 
+def _render_balance_sheet_csv(bs: BalanceSheetResponse) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Balance Sheet", str(bs.as_of_date), "", ""])
+    writer.writerow(["section", "account", "amount", "currency"])
+    for section, lines in (("Assets", bs.assets), ("Liabilities", bs.liabilities), ("Equity", bs.equity)):
+        for line in lines:
+            writer.writerow([section, line.name, line.amount, bs.currency])
+    writer.writerow(["Total Assets", "", bs.total_assets, bs.currency])
+    writer.writerow(["Total Liabilities", "", bs.total_liabilities, bs.currency])
+    writer.writerow(["Total Equity", "", bs.total_equity, bs.currency])
+    return output.getvalue()
+
+
+def _render_income_statement_csv(is_stmt: IncomeStatementResponse) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["section", "account", "amount", "currency"])
+    for section, lines in (("Income", is_stmt.income), ("Expenses", is_stmt.expenses)):
+        for line in lines:
+            writer.writerow([section, line.name, line.amount, is_stmt.currency])
+    writer.writerow(["Total Income", "", is_stmt.total_income, is_stmt.currency])
+    writer.writerow(["Total Expenses", "", is_stmt.total_expenses, is_stmt.currency])
+    writer.writerow(["Net Income", "", is_stmt.net_income, is_stmt.currency])
+    return output.getvalue()
+
+
+def _render_cash_flow_csv(cf: CashFlowResponse) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["section", "account", "amount", "currency", "description"])
+    for section, lines in (("Operating", cf.operating), ("Investing", cf.investing), ("Financing", cf.financing)):
+        for line in lines:
+            writer.writerow([section, line.subcategory, line.amount, cf.currency, line.description or ""])
+    writer.writerow(["Operating Activities", "", cf.summary.operating_activities, cf.currency, ""])
+    writer.writerow(["Investing Activities", "", cf.summary.investing_activities, cf.currency, ""])
+    writer.writerow(["Financing Activities", "", cf.summary.financing_activities, cf.currency, ""])
+    writer.writerow(["Net Cash Flow", "", cf.summary.net_cash_flow, cf.currency, ""])
+    writer.writerow(["Beginning Cash", "", cf.summary.beginning_cash, cf.currency, ""])
+    writer.writerow(["Ending Cash", "", cf.summary.ending_cash, cf.currency, ""])
+    return output.getvalue()
+
+
+def _package_snapshot_zip(snapshot: PersonalReportPackageSnapshotResponse) -> bytes:
+    sections = snapshot.document.sections
+    files_data = [
+        ("balance_sheet.csv", _render_balance_sheet_csv(sections.balance_sheet)),
+        ("income_statement.csv", _render_income_statement_csv(sections.income_statement)),
+        ("cash_flow.csv", _render_cash_flow_csv(sections.cash_flow)),
+    ]
+    file_entries = []
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for filename, content in files_data:
+            data = content.encode("utf-8")
+            zf.writestr(filename, data)
+            file_entries.append(
+                {
+                    "filename": filename,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "size_bytes": len(data),
+                }
+            )
+        manifest = {
+            "package_id": str(snapshot.id),
+            "reporting_currency": snapshot.currency,
+            "as_of_date": str(snapshot.as_of_date),
+            "tax_year": snapshot.as_of_date.year,
+            "files": file_entries,
+        }
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"))
+    return buffer.getvalue()
+
+
 @router.get("/package/snapshots/{snapshot_id}/export")
 async def export_personal_report_package_snapshot(
     snapshot_id: UUID,
@@ -297,9 +383,20 @@ async def export_personal_report_package_snapshot(
     user_id: CurrentUserId,
     format: PackageSnapshotExportFormat = Query(default=PackageSnapshotExportFormat.CSV),
 ) -> StreamingResponse:
-    """Export a saved package snapshot as JSON or CSV."""
+    """Export a saved package snapshot as JSON, CSV, or ZIP."""
     snapshot = await get_personal_report_package_snapshot(snapshot_id=snapshot_id, db=db, user_id=user_id)
     stem = f"personal-report-package-{snapshot.framework_id.value}-{snapshot.as_of_date}-{snapshot.id}"
+    if format == PackageSnapshotExportFormat.ZIP:
+        zip_bytes = _package_snapshot_zip(snapshot)
+        filename = f"{stem}.zip"
+        return StreamingResponse(
+            BytesIO(zip_bytes),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(zip_bytes)),
+            },
+        )
     if format == PackageSnapshotExportFormat.JSON:
         content = json.dumps(snapshot.model_dump(mode="json"), sort_keys=True)
         envelope = ExportStreamEnvelope(media_type=ExportStreamMediaType.JSON, filename=f"{stem}.json")
@@ -310,6 +407,40 @@ async def export_personal_report_package_snapshot(
         StringIO(content),
         media_type=envelope.media_type.value,
         headers=envelope.to_headers(),
+    )
+
+
+@router.post("/package/annual-archive")
+async def export_annual_tax_archive(
+    request: AnnualTaxArchiveRequest,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> StreamingResponse:
+    """Generate and stream an annual tax & audit package archive ZIP."""
+    start_date = date(request.year, 1, 1)
+    end_date = date(request.year, 12, 31)
+    target_currency = _package_currency(request.currency)
+    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=end_date)
+    snapshot = await generate_personal_report_package_snapshot(
+        db=db,
+        user_id=user_id,
+        request=PersonalReportPackageGenerateRequest(
+            framework_id=request.framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=end_date,
+            currency=target_currency,
+        ),
+    )
+    zip_bytes = _package_snapshot_zip(snapshot)
+    filename = f"annual-tax-archive-{request.year}.zip"
+    return StreamingResponse(
+        BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(zip_bytes)),
+        },
     )
 
 

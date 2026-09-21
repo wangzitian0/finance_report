@@ -127,6 +127,42 @@ describe("UnmatchedBoard", () => {
     expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
   });
 
+  it("Flow 13: allows creating a new counter account on the fly even when candidate accounts already exist", async () => {
+    const secondAccount = {
+      id: "expense-2",
+      name: "Expense - Utilities",
+      type: "EXPENSE",
+      currency: "SGD",
+      is_active: true,
+    };
+    mockedApiFetch
+      .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
+      .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
+      .mockResolvedValueOnce(secondAccount);
+
+    render(<UnmatchedBoard />);
+    fireEvent.change(await findReadyReviewDraft(), { target: { value: "expense" } });
+
+    // Existing candidate account is present
+    expect(screen.getByRole("option", { name: /Expense - Dining/ })).toBeInTheDocument();
+
+    // Trigger on-the-fly creation via the always-accessible button
+    const createBtn = screen.getByRole("button", { name: "+ Create counter account" });
+    fireEvent.click(createBtn);
+
+    const form = within(screen.getByRole("dialog", { name: "New Account" }));
+    expect(form.getByLabelText("Type *")).toHaveValue("EXPENSE");
+    fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: secondAccount.name } });
+    fireEvent.click(form.getByRole("button", { name: "Create Account" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // Both old and newly created accounts are now in candidate options
+    expect(screen.getByRole("option", { name: /Expense - Dining/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Expense - Utilities/ })).toBeInTheDocument();
+  });
+
+
   it("keeps intent-to-account compatibility explicit for income and liability dispositions", () => {
     expect(compatibleAccountTypes("income")).toEqual(["INCOME"]);
     expect(compatibleAccountTypes("loan_principal")).toEqual(["LIABILITY"]);

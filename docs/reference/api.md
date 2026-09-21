@@ -5,8 +5,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `132`
-- Schema count: `257`
+- Endpoint count: `133`
+- Schema count: `258`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -31,7 +31,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `metrics` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 10 |
-| `reports` | 16 |
+| `reports` | 17 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -219,6 +219,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackageDocument` | Preview Personal Report Package |
+| `POST` | `/reports/package/annual-archive` | yes | - | `AnnualTaxArchiveRequest` | `200` - | Export Annual Tax Archive |
 | `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |

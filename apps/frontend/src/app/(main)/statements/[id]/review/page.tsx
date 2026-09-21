@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -144,7 +144,11 @@ export default function StatementReviewPage() {
     closingBalance: "",
     rationale: "",
   });
+  const [localEdits, setLocalEdits] = useState<
+    Record<string, { txn_id: string; amount: string; direction: "IN" | "OUT" }>
+  >({});
   const queryClient = useQueryClient();
+  const hasCorrections = Object.keys(localEdits).length > 0;
 
   // Queries
   const {
@@ -201,6 +205,21 @@ export default function StatementReviewPage() {
   // Mutations
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => {
+      if (hasCorrections) {
+        return apiOperation(
+          "edit_and_approve_statement_statements__statement_id__review_edit_post",
+          {
+            path: { statement_id: statementId },
+            body: {
+              edits: Object.values(localEdits).map((e) => ({
+                txn_id: e.txn_id,
+                amount: e.amount,
+                direction: e.direction,
+              })),
+            },
+          },
+        );
+      }
       const body: {
         create_account_if_missing: boolean;
         auto_fill_default_categories?: boolean;
@@ -393,6 +412,54 @@ export default function StatementReviewPage() {
     });
   }, [data, requiresEnvelopeConfirmation]);
 
+  const effectiveTransactions: Transaction[] = useMemo(() => {
+    return (data?.transactions ?? []).map((txn) => {
+      const edit = localEdits[txn.id];
+      if (!edit) return txn;
+      return {
+        ...txn,
+        amount: edit.amount,
+        direction: edit.direction,
+      };
+    });
+  }, [data?.transactions, localEdits]);
+
+  const effectiveValidationResult: BalanceValidationResult | null = useMemo(() => {
+    if (!data?.balance_validation_result) return null;
+    if (!hasCorrections) return data.balance_validation_result;
+
+    const opening = Number(data.opening_balance ?? 0);
+    let net = 0;
+    for (const txn of effectiveTransactions) {
+      const amt = Number(txn.amount);
+      if (txn.direction === "IN") {
+        net += amt;
+      } else {
+        net -= amt;
+      }
+    }
+    const calculatedClosing = opening + net;
+    const declaredClosing =
+      data.closing_balance !== null && data.closing_balance !== undefined
+        ? Number(data.closing_balance)
+        : null;
+    let closingDelta = "0.00";
+    let closingMatch = true;
+
+    if (declaredClosing !== null) {
+      const delta = calculatedClosing - declaredClosing;
+      closingDelta = delta.toFixed(2);
+      closingMatch = Math.abs(delta) < 0.005;
+    }
+
+    return {
+      ...data.balance_validation_result,
+      calculated_closing: calculatedClosing.toFixed(2),
+      closing_delta: closingDelta,
+      closing_match: closingMatch,
+    };
+  }, [data, hasCorrections, effectiveTransactions]);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -446,8 +513,8 @@ export default function StatementReviewPage() {
   }
 
   const balanceValid = Boolean(
-    data.balance_validation_result?.opening_match &&
-    data.balance_validation_result?.closing_match,
+    effectiveValidationResult?.opening_match &&
+    effectiveValidationResult?.closing_match,
   );
   // Honor the server-persisted resolution marker so a refresh (or a resolution
   // from another tab/session) keeps approval unblocked, not just this session's
@@ -599,7 +666,7 @@ export default function StatementReviewPage() {
       <BalanceIndicator
         openingBalance={data.opening_balance}
         closingBalance={data.closing_balance}
-        validationResult={data.balance_validation_result ?? null}
+        validationResult={effectiveValidationResult}
         currency={data.currency || "SGD"}
       />
 
@@ -791,7 +858,7 @@ export default function StatementReviewPage() {
         />
 
         <TransactionTable
-          transactions={data.transactions ?? []}
+          transactions={effectiveTransactions}
           currency={data.currency || "SGD"}
           onSelectTransaction={(txn) => setReviewingTxn(txn)}
         />
@@ -802,6 +869,16 @@ export default function StatementReviewPage() {
         onClose={() => setReviewingTxn(null)}
         transaction={reviewingTxn}
         currency={data.currency || "SGD"}
+        onSaveCorrection={(correction) => {
+          setLocalEdits((prev) => ({
+            ...prev,
+            [correction.txn_id]: {
+              txn_id: correction.txn_id,
+              amount: correction.amount,
+              direction: correction.direction,
+            },
+          }));
+        }}
         onSuccess={() => {
           void refetch();
         }}
@@ -824,11 +901,13 @@ export default function StatementReviewPage() {
         onConfirm={() => approveMutation.mutate()}
         title="Approve Statement"
         message={
-          data.account_id
-            ? "This will approve the statement with balance validation. Proceed?"
-            : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"
+          hasCorrections
+            ? `You have corrected ${Object.keys(localEdits).length} transaction(s). This will apply the corrections and approve the statement with balance validation. Proceed?`
+            : data.account_id
+              ? "This will approve the statement with balance validation. Proceed?"
+              : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"
         }
-        confirmLabel="Approve"
+        confirmLabel={hasCorrections ? "Confirm & Post Entries" : "Approve"}
         loading={approveMutation.isPending}
       />
 

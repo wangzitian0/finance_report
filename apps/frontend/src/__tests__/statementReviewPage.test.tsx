@@ -873,4 +873,86 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         fireEvent.click(reviewBtns[0]);
         expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
     });
+
+    it("Flow 7: corrects transaction amount in review modal, dynamically updates balance delta, and enables Approve", async () => {
+        const mismatchedStatement = {
+            ...baseStatement,
+            closing_balance: 130,
+            balance_validation_result: {
+                opening_balance: "100.00",
+                closing_balance: "130.00",
+                calculated_closing: "120.00",
+                opening_delta: "0.00",
+                closing_delta: "-10.00",
+                opening_match: true,
+                closing_match: false,
+                validated_at: "2024-01-31T00:00:00Z",
+            },
+        };
+
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve(mismatchedStatement);
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/statements/s1/review/edit") {
+                return Promise.resolve({
+                    ...mismatchedStatement,
+                    status: "approved",
+                    stage1_status: "approved",
+                    journal_entries_created: 1,
+                });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        // 1. Initial state: Closing Mismatch, Closing Δ: -10.00, Approve disabled
+        expect(await screen.findByText("Closing Mismatch")).toBeInTheDocument();
+        expect(screen.getByText("Closing Δ: -10.00")).toBeInTheDocument();
+        const approveBtn = screen.getByRole("button", { name: "Approve" });
+        expect(approveBtn).toBeDisabled();
+
+        // 2. Open review/fix on txn-1
+        const reviewBtn = screen.getByRole("button", { name: "Review" });
+        fireEvent.click(reviewBtn);
+
+        expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
+
+        // 3. Edit amount from 20 to 30 (100 + 30 = 130 == closing balance)
+        const amountInput = screen.getByLabelText(/transaction amount/i);
+        fireEvent.change(amountInput, { target: { value: "30" } });
+
+        const saveBtn = screen.getByRole("button", { name: /save correction/i });
+        fireEvent.click(saveBtn);
+
+        // 4. Modal closes, dynamic recalculation: Closing Valid, Closing Δ: 0.00, Approve enabled
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        expect(screen.getByText("Closing Valid")).toBeInTheDocument();
+        expect(screen.getByText("Closing Δ: 0.00")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+
+        // 5. Clicking Approve calls /api/statements/s1/review/edit with corrected edits
+        fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+        const confirmBtn = await screen.findByRole("button", { name: "Confirm & Post Entries" });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "/api/statements/s1/review/edit",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({
+                        edits: [{ txn_id: "txn-1", amount: "30", direction: "IN" }],
+                    }),
+                }),
+            );
+        });
+    });
 });
