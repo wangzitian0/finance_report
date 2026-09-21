@@ -16,6 +16,7 @@ from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, 
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
@@ -252,22 +253,46 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             bank_allocation = None
             if db is not None and account_id is not None and not is_brokerage_payload:
                 await validate_custody_account(db, user_id=user_id, account_id=account_id, currency=statement_currency)
-            if (
-                db is not None
-                and not is_brokerage_payload
-                and final_institution
-                and sanitized_account_last4
-                and statement_currency
-            ):
-                bank_allocation = await resolve_bank_custody(
-                    db,
-                    user_id=user_id,
-                    institution=final_institution,
-                    account_last4=sanitized_account_last4,
-                    currency=statement_currency,
-                    account_id=account_id,
-                )
-                account_id = bank_allocation.account.id
+            if db is not None and not is_brokerage_payload and final_institution and statement_currency:
+                if sanitized_account_last4:
+                    bank_allocation = await resolve_bank_custody(
+                        db,
+                        user_id=user_id,
+                        institution=final_institution,
+                        account_last4=sanitized_account_last4,
+                        currency=statement_currency,
+                        account_id=account_id,
+                    )
+                    account_id = bank_allocation.account.id
+                elif account_id is None:
+                    from sqlalchemy import select
+
+                    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+
+                    bindings = (
+                        (
+                            await db.execute(
+                                select(BankCustodyBinding)
+                                .where(
+                                    BankCustodyBinding.user_id == user_id,
+                                    BankCustodyBinding.institution == final_institution,
+                                    BankCustodyBinding.currency == statement_currency,
+                                )
+                                .limit(2)
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+                    if len(bindings) == 1:
+                        await validate_custody_account(
+                            db,
+                            user_id=user_id,
+                            account_id=bindings[0].account_id,
+                            currency=statement_currency,
+                        )
+                        account_id = bindings[0].account_id
+                        sanitized_account_last4 = bindings[0].account_last4
 
             statement = StatementSummary(
                 user_id=user_id,
@@ -921,11 +946,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 )
             # Under-extraction repair pass (#1140 / AC13.20): whole-document
             # re-extract did not reconcile. Run the deterministic chain-break
-            # detector and, when it pinpoints a dropped-row region, attempt a single
-            # region-targeted re-extract via the injectable backend. Safe no-op when
-            # no backend is wired — recall stays a soft metric, the self-check guard
-            # stays hard. A successful repair replaces ``best``; a failed one keeps it.
-            repair = repair_under_extraction(best, reextractor=self.region_reextractor)
+            # detector and, when it pinpoints a dropped-row region, attempt up to
+            # 3 targeted refinement rounds via the injectable backend.
+            # A successful repair replaces ``best`` and establishes high confidence.
+            repair = repair_under_extraction(best, reextractor=self.region_reextractor, max_rounds=3)
+            if repair.repaired and repair.payload.get("confidence_score", 0) < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD:
+                repair.payload["confidence_score"] = HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
             return repair.payload
         if last_parse is not None:
             # No balance-computable parse, but at least one attempt produced a

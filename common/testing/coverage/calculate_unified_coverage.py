@@ -708,9 +708,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             # scoped gate (PR touched only some components) cannot fairly
             # attribute a total dip to THIS run — skip it when scoped; an
             # unscoped (None = "all") run keeps checking it, unchanged.
-            if (
-                gate_component_names is None
-                and unified_current < unified_floor - REGRESSION_EPSILON_PCT
+            if gate_component_names is None and unified_current < round(
+                unified_floor - REGRESSION_EPSILON_PCT, 2
             ):
                 regressions.append(("unified", unified_current, unified_floor))
 
@@ -733,11 +732,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ("tools", tools, baseline_breakdown["tools"])
                 )
 
+            # #1689: if gate_component_names is provided, filter the check list
+            # so that regressions on un-scoped components are informational only.
             if gate_component_names is not None:
                 out_of_scope = [
-                    name
-                    for name, _current, _baseline in components_to_check
-                    if name not in gate_component_names
+                    entry[0]
+                    for entry in components_to_check
+                    if entry[0] not in gate_component_names
                 ]
                 components_to_check = [
                     entry
@@ -753,7 +754,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             for component_name, current_data, baseline_data in components_to_check:
                 current_percent = round(float(current_data["coverage_percent"]), 2)
                 baseline_percent = round(float(baseline_data["coverage_percent"]), 2)
-                if current_percent < baseline_percent - REGRESSION_EPSILON_PCT:
+                if current_percent < round(
+                    baseline_percent - REGRESSION_EPSILON_PCT, 2
+                ):
                     regressions.append(
                         (component_name, current_percent, baseline_percent)
                     )
