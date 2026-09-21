@@ -129,8 +129,13 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
             "the CI classifier job id is `changes`, not `classify-changes`",
         ),
         (
+            "Shards 1-8",
+            "the backend fast path uses 4 seeded shards (consolidated from 8, "
+            "AC-testing.ci-structure.8), not 8 shards",
+        ),
+        (
             "Shards 1-5",
-            "the backend fast path uses 8 seeded shards (raised from 5, "
+            "the backend fast path uses 4 seeded shards (consolidated from 8, "
             "AC-testing.ci-structure.8), not 5 shards",
         ),
     ),

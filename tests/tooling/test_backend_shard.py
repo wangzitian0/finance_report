@@ -28,19 +28,19 @@ BASH = shutil.which("bash") or "/bin/bash"
 def _real_partition() -> tuple[list[str], list[list[str]]]:
     files = discover_test_files(BACKEND)
     durations = json.loads(SEED.read_text(encoding="utf-8"))
-    return files, split_files(files, durations, 8)
+    return files, split_files(files, durations, 4)
 
 
 def test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced() -> (
     None
 ):
     """AC-testing.ci-structure.13: every backend test file runs in exactly one of the
-    eight shards, and the seeded file-level split stays as balanced as the
+    four shards, and the seeded file-level split stays as balanced as the
     item-level split it replaces."""
     files, groups = _real_partition()
 
     assigned = [path for group in groups for path in group]
-    assert len(groups) == 8
+    assert len(groups) == 4
     assert all(groups)
     assert sorted(assigned) == files
     assert len(assigned) == len(set(assigned))
@@ -161,7 +161,7 @@ def test_AC_testing_ci_structure_13_shim_runs_without_backend_dependencies() -> 
             "-S",
             str(ROOT / "tools/backend_shard_files.py"),
             "--splits",
-            "8",
+            "4",
             "--group",
             "1",
             "--splitting-algorithm=least_duration",
@@ -186,7 +186,7 @@ def _backend_run_script(shard: int) -> str:
     return script.replace("${{ matrix.shard }}", str(shard))
 
 
-@pytest.mark.parametrize("shard", [1, 8])
+@pytest.mark.parametrize("shard", [1, 4])
 def test_AC_testing_ci_structure_13_workflow_runs_exactly_the_selected_files(
     tmp_path: Path, shard: int
 ) -> None:

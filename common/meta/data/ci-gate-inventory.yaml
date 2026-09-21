@@ -146,7 +146,7 @@ gates:
     inputs: [backend_unit_tests, ephemeral_postgres, minio_service]
     outputs: [backend_lcov, backend_junit]
     artifacts: [coverage-backend-*, backend-shard-*-test-context]
-    matrix_legs: 8
+    matrix_legs: 4
     failure_semantics: Deterministic backend unit shard failed or did not produce expected coverage/JUnit evidence.
     action: observe
   - id: ci.backend_integration
@@ -277,7 +277,7 @@ gates:
     inputs: [tooling_tests, common_sources, tools_sources]
     outputs: [common_lcov, tools_lcov, tooling_junit]
     artifacts: [coverage-tooling-*]
-    matrix_legs: 8
+    matrix_legs: 2
     failure_semantics: A tooling/common contract test shard failed or could not emit its slice of common/tools coverage inputs; not directly required by finish -- ci.tooling_coverage (tooling-coverage-merge) is, and it needs this job.
     action: keep
   - id: ci.tooling_coverage
@@ -292,7 +292,7 @@ gates:
     inputs: [tooling_coverage_shards]
     outputs: [common_lcov, tools_lcov, tooling_junit]
     artifacts: [coverage-tooling]
-    failure_semantics: Merging the 8 tooling-coverage shards' LCOV/JUnit into the combined coverage-tooling artifact failed, or a shard did not succeed.
+    failure_semantics: Merging the 2 tooling-coverage shards' LCOV/JUnit into the combined coverage-tooling artifact failed, or a shard did not succeed.
     action: keep
   - id: ci.unified_coverage
     stage: github_ci.merge_authority

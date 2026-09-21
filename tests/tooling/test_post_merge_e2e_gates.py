@@ -2219,10 +2219,10 @@ def test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs() -> None:
     } in [step.get("with", {}) for step in traceability["steps"]]
 
 
-def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
-    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 8-way least-duration split
-    (raised from 5-way alongside a refreshed duration seed, so a shard's slowest wall-clock
-    time comes down instead of just being evenly wrong)."""
+def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
+    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 4-way least-duration split
+    (consolidated from 8-way alongside pytest -n auto parallelization, so a shard's slowest wall-clock
+    time stays low while cutting fixed VM startup overhead)."""
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
@@ -2230,8 +2230,8 @@ def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
-    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/8)"
-    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/4)"
+    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4]
     assert len(durations) >= 2_000
     assert all(isinstance(value, (int, float)) for value in durations.values())
 
@@ -2243,7 +2243,7 @@ def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
     assert "Loaded pytest-split duration seed" in backend_commands
     assert "pytest-split duration seed is missing" in backend_commands
     assert "len(durations) < 500" in backend_commands
-    assert "--splits 8" in backend_commands
+    assert "--splits 4" in backend_commands
     assert "--group ${{ matrix.shard }}" in backend_commands
     assert "--splitting-algorithm=least_duration" in backend_commands
     assert "--durations-path ci/backend-test-durations.json" in backend_commands
@@ -2259,11 +2259,11 @@ def test_AC8_13_148_backend_shards_use_seeded_8_way_split() -> None:
         in upload_context
     )
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
-    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/8)`" in ci_cd
-    assert "8-way parallel test sharding over the `pytest-split` duration seed" in ci_cd
+    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/4)`" in ci_cd
+    assert "4-way parallel test sharding over the `pytest-split` duration seed" in ci_cd
     assert "apps/backend/ci/backend-test-durations.json" in ci_cd
     assert "not runner-local cache writes" in ci_cd
-    assert "matrix_legs: 8" in inventory
+    assert "matrix_legs: 4" in inventory
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
