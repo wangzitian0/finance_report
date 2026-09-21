@@ -16,6 +16,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.audit.money import to_money
+
 __all__ = [
     "EquationDiagnosticCategory",
     "EquationDiagnosticResult",
@@ -28,14 +30,12 @@ FX_DRIFT_THRESHOLD = Decimal("0.10")
 
 
 class EquationDiagnosticCategory(str, Enum):
-    """Categorized root causes for accounting equation imbalance."""
-
-    BALANCED = "balanced"
-    UNPOSTED_DRAFT = "unposted_draft"
-    ONE_SIDED_ENTRY = "one_sided_entry"
-    UNCLASSIFIED_ACCOUNT = "unclassified_account"
-    FX_ROUNDING_DRIFT = "fx_rounding_drift"
-    UNKNOWN_DISCREPANCY = "unknown_discrepancy"
+    BALANCED = "BALANCED"
+    UNPOSTED_DRAFT = "UNPOSTED_DRAFT"
+    ONE_SIDED_ENTRY = "ONE_SIDED_ENTRY"
+    UNCLASSIFIED_ACCOUNT = "UNCLASSIFIED_ACCOUNT"
+    FX_ROUNDING_DRIFT = "FX_ROUNDING_DRIFT"
+    UNKNOWN_DISCREPANCY = "UNKNOWN_DISCREPANCY"
 
 
 class EquationDiagnosticResult(BaseModel):
@@ -61,7 +61,7 @@ def diagnose_equation_imbalance(
     unclassified_account_count: int = 0,
 ) -> EquationDiagnosticResult:
     """Diagnose an accounting equation delta into an actionable cause."""
-    delta = equation_delta.quantize(Decimal("0.01"))
+    delta = to_money(equation_delta)
     abs_delta = abs(delta)
 
     if abs_delta < EPSILON:

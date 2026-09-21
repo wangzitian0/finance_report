@@ -88,8 +88,13 @@ class SplitLine(BaseModel):
 
 
 def _assert_balanced(lines: Sequence[SplitLine]) -> None:
-    debits = sum((line.amount for line in lines if line.direction is Direction.DEBIT), ZERO)
-    credits = sum((line.amount for line in lines if line.direction is Direction.CREDIT), ZERO)
+    debits = ZERO
+    credits = ZERO
+    for item in lines:
+        if item.direction is Direction.DEBIT:
+            debits += item.amount
+        else:
+            credits += item.amount
     if debits != credits:
         raise ValueError(f"split unbalanced: debit {debits} != credit {credits}")
 
