@@ -96,8 +96,12 @@ export function LowConfidenceReviewModal({
     if (saving) return;
     const trimmed = category.trim();
     const amountTrimmed = amount.trim();
+    if (!trimmed && !onSaveCorrection) {
+      setError("Please select or enter a category.");
+      return;
+    }
     if (!trimmed && !amountTrimmed) {
-      setError("Please select or enter a category or amount.");
+      setError("Please select or enter a category.");
       return;
     }
 
