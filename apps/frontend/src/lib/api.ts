@@ -56,7 +56,7 @@ function handle401Redirect(): never {
     throw new Error("Authentication required");
   }
 
-  if (!redirecting) {
+  if (!redirecting && window.location.pathname !== "/login") {
     redirecting = true;
     try {
       window.location.href = "/login";

@@ -13,8 +13,8 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 | `POST` | `` | `chat_message` | apps/backend/src/routers/chat.py:43 |
 | `DELETE` | `/session/{session_id}` | `delete_session` | apps/backend/src/routers/chat.py:220 |
 | `DELETE` | `/{entry_id}` | `delete_journal_entry` | apps/backend/src/routers/journal.py:190 |
-| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:380 |
-| `POST` | `/package/annual-archive` | `export_annual_tax_archive` | apps/backend/src/routers/reports.py:414 |
-| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:713 |
+| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:382 |
+| `POST` | `/package/annual-archive` | `export_annual_tax_archive` | apps/backend/src/routers/reports.py:416 |
+| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:749 |
 | `GET` | `/{statement_id}/document` | `get_statement_document` | apps/backend/src/routers/statements.py:598 |
 | `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:746 |

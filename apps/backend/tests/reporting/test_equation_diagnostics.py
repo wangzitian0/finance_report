@@ -10,7 +10,7 @@ the diagnostic engine categorizes the root cause into one of the canonical bucke
 
 from decimal import Decimal
 
-from src.reporting.diagnostics import (
+from src.reporting import (
     EquationDiagnosticCategory,
     diagnose_equation_imbalance,
 )

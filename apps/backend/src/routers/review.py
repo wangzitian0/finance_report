@@ -271,7 +271,7 @@ async def list_consistency_checks(
     status: CheckStatus | None = None,
     check_type: CheckType | None = None,
     run_id: str | None = None,
-    limit: Annotated[int, Query(ge=1, le=200, description="Maximum items to return")] = 50,
+    limit: Annotated[int, Query(ge=1, le=500, description="Maximum items to return")] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ConsistencyCheckListResponse:
     """List/filter consistency checks."""

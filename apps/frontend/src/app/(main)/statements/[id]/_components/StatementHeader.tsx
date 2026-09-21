@@ -35,8 +35,8 @@ export function StatementHeader({
     formatPeriod,
 }: StatementHeaderProps) {
     return (
-        <div className="page-header flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
+        <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1 min-w-0 w-full">
                 <div className="flex items-center gap-3 mb-2">
                     <h1 className="page-title truncate">{statement.original_filename}</h1>
                     <StatusBadge
@@ -50,7 +50,7 @@ export function StatementHeader({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
                 <Link
                     href={`/statements/${statementId}/review`}
                     className="btn-primary flex items-center gap-2"

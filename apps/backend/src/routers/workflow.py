@@ -70,3 +70,17 @@ async def update_workflow_event_status_endpoint(
     await db.commit()
     await db.refresh(event)
     return WorkflowEventResponse.model_validate(event)
+
+
+notifications_router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@notifications_router.get("", response_model=WorkflowEventListResponse)
+async def list_notifications_endpoint(
+    db: DbSession,
+    user_id: CurrentUserId,
+    status_filter: WorkflowEventStatus | None = Query(default=None, alias="status"),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> WorkflowEventListResponse:
+    """Return workflow events as notifications (Flow 29)."""
+    return await list_workflow_events_endpoint(db, user_id, status_filter=status_filter, limit=limit)

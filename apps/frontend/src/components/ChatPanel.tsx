@@ -418,7 +418,7 @@ export default function ChatPanel({
           </p>
           <h2 className="text-lg font-semibold">Conversation</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-w-full">
           <button
             type="button"
             onClick={() => setSessionsOpen(true)}
@@ -428,7 +428,7 @@ export default function ChatPanel({
             Sessions
           </button>
           <select
-            className="input text-xs min-w-[220px]"
+            className="input text-xs min-w-0 max-w-full sm:min-w-[200px]"
             value={selectedModel}
             onChange={(event) => {
               const next = event.target.value;
