@@ -469,7 +469,7 @@ def generate_bank_asset_transfer_pdf(output_path: Path) -> bytes:
 def generate_standard_operations_csv(
     opening_balance: Decimal = Decimal("10000.00"),
 ) -> bytes:
-    """Generate standard operations CSV statement with verified accounting identity."""
+    """Generate standard operations CSV statement rows representing balanced revenue and expenses."""
     closing_balance = opening_balance + Decimal("2800.00")
     lines = [
         "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
@@ -672,7 +672,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
-    Case 2: Standard CSV Statement Flow & 3-Statement Reconciliation (标准CSV单月经营流)
+    Case 2: Standard CSV Statement Flow & 3-Statement Reconciliation
     - Opening Cash: 10,000.00 SGD.
     - Operating Revenue: +5,000.00 SGD.
     - Operating Expenses: -2,200.00 SGD (Rent 1500, SaaS 500, Dining 200).
