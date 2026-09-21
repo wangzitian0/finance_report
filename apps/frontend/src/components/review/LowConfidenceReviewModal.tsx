@@ -332,7 +332,6 @@ export function LowConfidenceReviewModal({
               </button>
               <button
                 type="submit"
-                onClick={(e) => void handleSave(e)}
                 disabled={saving || (!category.trim() && !amount.trim())}
                 className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50"
               >

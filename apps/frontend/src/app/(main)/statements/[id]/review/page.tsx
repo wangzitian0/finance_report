@@ -428,33 +428,40 @@ export default function StatementReviewPage() {
     if (!data?.balance_validation_result) return null;
     if (!hasCorrections) return data.balance_validation_result;
 
-    const opening = Number(data.opening_balance ?? 0);
-    let net = 0;
+    const toCents = (val: string | number | null | undefined): number => {
+      if (val === null || val === undefined || val === "") return 0;
+      const n = typeof val === "number" ? val : parseFloat(val);
+      if (isNaN(n)) return 0;
+      return Math.round(n * 100);
+    };
+
+    const openingCents = toCents(data.opening_balance);
+    let netCents = 0;
     for (const txn of effectiveTransactions) {
-      const amt = Number(txn.amount);
+      const amtCents = toCents(txn.amount);
       if (txn.direction === "IN") {
-        net += amt;
+        netCents += amtCents;
       } else {
-        net -= amt;
+        netCents -= amtCents;
       }
     }
-    const calculatedClosing = opening + net;
-    const declaredClosing =
+    const calculatedClosingCents = openingCents + netCents;
+    const declaredClosingCents =
       data.closing_balance !== null && data.closing_balance !== undefined
-        ? Number(data.closing_balance)
+        ? toCents(data.closing_balance)
         : null;
     let closingDelta = "0.00";
     let closingMatch = true;
 
-    if (declaredClosing !== null) {
-      const delta = calculatedClosing - declaredClosing;
-      closingDelta = delta.toFixed(2);
-      closingMatch = Math.abs(delta) < 0.005;
+    if (declaredClosingCents !== null) {
+      const deltaCents = calculatedClosingCents - declaredClosingCents;
+      closingDelta = (deltaCents / 100).toFixed(2);
+      closingMatch = deltaCents === 0;
     }
 
     return {
       ...data.balance_validation_result,
-      calculated_closing: calculatedClosing.toFixed(2),
+      calculated_closing: (calculatedClosingCents / 100).toFixed(2),
       closing_delta: closingDelta,
       closing_match: closingMatch,
     };

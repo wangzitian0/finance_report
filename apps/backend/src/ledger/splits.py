@@ -25,6 +25,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from src.audit.money import to_money
+
 __all__ = [
     "Direction",
     "AccountKind",
@@ -43,13 +45,12 @@ __all__ = [
 
 ZERO = Decimal("0")
 ONE = Decimal("1")
-MONEY_Q = Decimal("0.01")
 RATE_Q = Decimal("0.000001")  # 6 dp, reporting only
 
 
 def quantize_money(v: Decimal) -> Decimal:
-    """Quantize to standard two decimal places using ROUND_HALF_UP."""
-    return v.quantize(MONEY_Q, rounding=ROUND_HALF_UP)
+    """Quantize to standard two decimal places using canonical banker's rounding."""
+    return to_money(v)
 
 
 def quantize_rate(v: Decimal) -> Decimal:
