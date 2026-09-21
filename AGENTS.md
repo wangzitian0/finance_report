@@ -1,7 +1,7 @@
 # Finance Report — Agent & Contributor Guide
 
 > **Prohibition**: AI may NOT modify this file without explicit authorization.
-> **Prohibition**: AI deliverable = CI-passing PR. User reviews and decides whether to merge.
+> **Merge authority**: AI deliverable = CI-passing PR. An agent may merge it only when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds; short of that, the user decides.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 > **Language**: All code, PRs, commits, issues, and repo docs must be in **English**.
 > Conversation with the user follows the **user's language** — answer in the language the question was asked in.
@@ -142,7 +142,8 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 
 - ❌ No direct commits to `main`
 - ✅ User-approved parallel PR branches are allowed
-- ❌ Agents never merge PRs
+- ✅ Agents may merge a PR that meets every condition in [branch-policy.md](docs/contributing/branch-policy.md) §4
+- ❌ Agents never merge a PR that touches a protected file or triggers a deploy — those need the user's approval of that exact head SHA
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
 - ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Reply on the thread with what changed *before* resolving it, then resolve the thread on GitHub.

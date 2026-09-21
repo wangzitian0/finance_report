@@ -49,10 +49,12 @@ immediately before reporting a PR ready, not just after your last push:
 7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each, **reply on the thread** with what changed (or why not), then resolve the thread on GitHub
 8. ✅ **Report: "PR ready for your review"** — with PR URL, branch, commit SHA,
    draft status, `mergeable`, `mergeStateStatus`, and required-check summary
-9. 🔁 **Keep the PR mergeable while waiting** (agents never merge): watch for
+9. 🔁 **Keep the PR mergeable while waiting**: watch for
    new CI runs, late CR comments, and conflicts caused by other merges — fix
-   them unprompted; report state changes only
-10. ▶️ **On merge** (detected, or announced by the user): resync `main`, rebase
+   them unprompted; report state changes only. Merge it yourself only when
+   every condition in [branch-policy.md](../contributing/branch-policy.md) §4
+   holds; otherwise leave the merge to the user and say why
+10. ▶️ **On merge** (yours, detected, or announced by the user): resync `main`, rebase
     any remaining open branches, and continue the next planned slice — report
     plan progress (done / remaining) instead of asking what to do next
 
