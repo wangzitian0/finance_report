@@ -92,13 +92,14 @@ class ScenarioBenchmarkRunner:
     def upload_statement(
         self,
         client: httpx.Client,
-        pdf_bytes: bytes,
+        file_bytes: bytes,
         filename: str,
         account_id: str | None = None,
         institution: str | None = None,
     ) -> str:
-        """Upload a statement PDF and return statement ID."""
-        files = {"file": (filename, pdf_bytes, "application/pdf")}
+        """Upload a statement PDF or CSV and return statement ID."""
+        content_type = "text/csv" if filename.endswith(".csv") else "application/pdf"
+        files = {"file": (filename, file_bytes, content_type)}
         data: dict[str, str] = {}
         if account_id:
             data["account_id"] = str(account_id)
@@ -465,6 +466,21 @@ def generate_bank_asset_transfer_pdf(output_path: Path) -> bytes:
     return output_path.read_bytes()
 
 
+def generate_standard_operations_csv(
+    opening_balance: Decimal = Decimal("10000.00"),
+) -> bytes:
+    """Generate standard operations CSV statement with verified accounting identity."""
+    closing_balance = opening_balance + Decimal("2800.00")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-05,CONSULTING SERVICES REVENUE,5000.00",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-10,COMMERCIAL OFFICE LEASE RENT,-1500.00",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-15,AWS CLOUD HOSTING AND SAAS,-500.00",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-20,BUSINESS CLIENT DINING DINNER,-200.00",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 # =====================================================================
 # Scenario Benchmark Test Cases
 # =====================================================================
@@ -654,6 +670,157 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         )
 
 
+def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
+    """
+    Case 2: Standard CSV Statement Flow & 3-Statement Reconciliation (标准CSV单月经营流)
+    - Opening Cash: 10,000.00 SGD.
+    - Operating Revenue: +5,000.00 SGD.
+    - Operating Expenses: -2,200.00 SGD (Rent 1500, SaaS 500, Dining 200).
+    - Net Income: +2,800.00 SGD.
+    - Closing Cash: 12,800.00 SGD.
+    - Assertions:
+      * Balance Sheet is balanced (delta == 0.00, Assets == Liabilities + Equity).
+      * Income Statement matches operating categories and net income.
+      * Cash Flow matches beginning cash, net cash flow, and ending cash.
+    """
+    start_time = time.time()
+    case_name = "Case 2: Standard CSV Statement Flow & Category Reconciliation"
+    print("\n=======================================================")
+    print(f"🚀 RUNNING: {case_name}")
+    print("=======================================================")
+
+    try:
+        client, user_email, _ = runner.create_ephemeral_client("case2")
+        print(f"  [1/5] Registered test user: {user_email}")
+
+        print("  [2/5] Generating & uploading Standard CSV statement...")
+        csv_bytes = generate_standard_operations_csv(Decimal("10000.00"))
+        stmt_id = runner.upload_statement(
+            client,
+            csv_bytes,
+            "standard_operations_april_2025.csv",
+            institution="DBS Bank",
+        )
+        stmt_data = runner.wait_for_statement_parsed(client, stmt_id)
+        print(
+            f"        Parsed CSV: Opening={stmt_data.get('opening_balance')}, "
+            f"Closing={stmt_data.get('closing_balance')}, "
+            f"Txns={len(stmt_data.get('transactions', []))}"
+        )
+
+        assert Decimal(stmt_data["opening_balance"]) == Decimal("10000.00"), (
+            f"Opening balance mismatch: {stmt_data.get('opening_balance')}"
+        )
+        assert Decimal(stmt_data["closing_balance"]) == Decimal("12800.00"), (
+            f"Closing balance mismatch: {stmt_data.get('closing_balance')}"
+        )
+        assert len(stmt_data.get("transactions", [])) == 4, (
+            f"Expected 4 transactions, got {len(stmt_data.get('transactions', []))}"
+        )
+
+        print("  [3/5] Adjudicating unmatched items & approving statement...")
+        runner.adjudicate_unmatched_items(client, stmt_id)
+        app_resp = runner.approve_statement(client, stmt_id)
+        print(f"        Approved successfully (status={app_resp['status']})")
+
+        print("  [4/5] Verifying Balance Sheet as of 2025-04-30...")
+        bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        total_assets = Decimal(bs["total_assets"])
+        total_liabilities = Decimal(bs["total_liabilities"])
+        total_equity = Decimal(bs["total_equity"])
+        equation_delta = Decimal(bs["equation_delta"])
+        is_balanced = bs["is_balanced"]
+
+        print(
+            f"        Assets={total_assets}, Liab={total_liabilities}, Equity={total_equity}, "
+            f"Delta={equation_delta}, Balanced={is_balanced}"
+        )
+        assert is_balanced is True, (
+            f"Balance sheet not balanced: delta={equation_delta}"
+        )
+        assert equation_delta == Decimal("0.00"), (
+            f"Equation delta not zero: {equation_delta}"
+        )
+        assert total_assets == Decimal("12800.00"), (
+            f"Expected total assets 12800.00, got {total_assets}"
+        )
+
+        print(
+            "  [5/5] Verifying Income Statement & Cash Flow (2025-04-01 to 2025-04-30)..."
+        )
+        inc = runner.get_income_statement(
+            client, start_date="2025-04-01", end_date="2025-04-30"
+        )
+        net_income = Decimal(inc["net_income"])
+        total_income = Decimal(inc["total_income"])
+        total_expenses = Decimal(inc["total_expenses"])
+        print(
+            f"        Total Income={total_income}, Total Expenses={total_expenses}, Net Income={net_income}"
+        )
+        assert net_income == Decimal("2800.00"), (
+            f"Expected net income 2800.00, got {net_income}"
+        )
+        assert total_income == Decimal("5000.00"), (
+            f"Expected total income 5000.00, got {total_income}"
+        )
+        assert total_expenses == Decimal("2200.00"), (
+            f"Expected total expenses 2200.00, got {total_expenses}"
+        )
+
+        cf = runner.get_cash_flow(
+            client, start_date="2025-04-01", end_date="2025-04-30"
+        )
+        cfs = cf.get("summary", {})
+        beg_cash = Decimal(cfs.get("beginning_cash", "0"))
+        net_cash = Decimal(cfs.get("net_cash_flow", "0"))
+        end_cash = Decimal(cfs.get("ending_cash", "0"))
+        print(
+            f"        Beginning Cash={beg_cash}, Net Cash Flow={net_cash}, Ending Cash={end_cash}"
+        )
+        assert beg_cash == Decimal("10000.00"), (
+            f"Expected beginning cash 10000.00, got {beg_cash}"
+        )
+        assert net_cash == Decimal("2800.00"), (
+            f"Expected net cash flow 2800.00, got {net_cash}"
+        )
+        assert end_cash == Decimal("12800.00"), (
+            f"Expected ending cash 12800.00, got {end_cash}"
+        )
+        assert beg_cash + net_cash == end_cash, "Cash flow rollforward mismatch"
+
+        duration = time.time() - start_time
+        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
+        return CaseResult(
+            case_id="case_2",
+            case_name=case_name,
+            status="PASS",
+            duration_seconds=duration,
+            details={
+                "opening_balance": "10000.00",
+                "closing_balance": "12800.00",
+                "total_assets": str(total_assets),
+                "total_equity": str(total_equity),
+                "total_income": str(total_income),
+                "total_expenses": str(total_expenses),
+                "net_income": str(net_income),
+                "beginning_cash": str(beg_cash),
+                "ending_cash": str(end_cash),
+                "equation_delta": str(equation_delta),
+                "is_balanced": is_balanced,
+            },
+        )
+    except Exception as exc:
+        duration = time.time() - start_time
+        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
+        return CaseResult(
+            case_id="case_2",
+            case_name=case_name,
+            status="FAIL",
+            duration_seconds=duration,
+            error_message=str(exc),
+        )
+
+
 def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
     Case 3: Bank-Brokerage Transfer & Asset Swap (银证划转不污染损益)
@@ -820,8 +987,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--case",
-        default="1,3",
-        help="Comma-separated case IDs to run (1, 3, or all)",
+        default="1,2,3",
+        help="Comma-separated case IDs to run (1, 2, 3, or all)",
     )
     parser.add_argument(
         "--version-ref",
@@ -885,6 +1052,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if run_all or "1" in requested:
         results.append(execute_case_1(runner))
+
+    if run_all or "2" in requested:
+        results.append(execute_case_2(runner))
 
     if run_all or "3" in requested:
         results.append(execute_case_3(runner))

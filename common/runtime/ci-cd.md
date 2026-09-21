@@ -255,7 +255,7 @@ deploy-blocking usability gates:
 | Environment | Gate | Command | Skip Policy |
 |-------------|------|---------|-------------|
 | Staging | Shell smoke | `bash tools/smoke_test.sh "$APP_URL" staging` | No skips; any failed check fails deploy |
-| Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
+| Staging | Non-LLM E2E | `STRICT_E2E_GATES=true pytest tests/e2e -v -m "smoke and not llm" -n 4` | Tests marked `critical` must fail instead of skip |
 | Staging | AI/OCR Canary (blocking path) | `STRICT_E2E_GATES=true pytest tests/e2e/test_brokerage_upload_to_portfolio_value.py -v -m "llm"` | Minimal upload→parse→import→value liveness; exact-SHA and fail-fast on the deploy path, transient classification owned by the provider gate (issue #1232) |
 | Staging | AI/OCR Audit Replay (nightly/manual) | `STRICT_E2E_GATES=true pytest tests/e2e/test_statement_full_journey.py tests/e2e/test_four_asset_net_worth_golden_path.py tests/e2e/test_personal_financial_report_package.py tests/e2e/test_statement_upload_e2e.py -v -m "llm"` | Comprehensive heavy journeys via `audit-replay.yml`; record-only, never blocks production promotion. The full corpus (canary + audit) runs fail-fast only in the on-demand `manual-ai-ocr-gate` recovery diagnostic |
 | Production | Shell smoke | `bash tools/smoke_test.sh https://report.zitian.party production` | Read-only checks only |

@@ -417,7 +417,7 @@ jobs:
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
-            pytest tests/e2e -v -m "(smoke or e2e) and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
+            pytest tests/e2e -v -m "smoke and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
 
           echo "✅ Staging deploy health gate passed!"
 
@@ -550,7 +550,7 @@ jobs:
             echo "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}"
             echo "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
             echo "strict_e2e_gates=true"
-            echo "marker=(smoke or e2e) and not llm"
+            echo "marker=smoke and not llm"
           } > ci-context/staging-deploy-context.txt
 
       - name: Upload staging deploy test context

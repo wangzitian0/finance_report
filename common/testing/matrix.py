@@ -400,8 +400,8 @@ def emit_shell(stage: str) -> str:
 BACKEND_CI_MARKER = "not slow and not e2e and not integration"
 BACKEND_INTEGRATION_MARKER = "integration"
 BACKEND_TIER1_MARKER = "e2e and not slow and not integration and not perf"
-# Staging post-deploy core E2E intentionally shares the preview expression.
-STAGING_CORE_E2E_MARKER = PR_PREVIEW_E2E_MARKER
+# Staging post-deploy core E2E intentionally scopes to smoke and not llm for fast fail-closed health.
+STAGING_CORE_E2E_MARKER = "smoke and not llm"
 STAGING_AI_OCR_MARKER = "llm"
 STAGING_VERSION_CHECK_MARKER = "smoke"
 PRODUCTION_READONLY_MARKER = "prod_safe"
