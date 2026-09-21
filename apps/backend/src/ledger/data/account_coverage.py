@@ -172,12 +172,14 @@ def _coverage_issues(statements: list[StatementCoverageRow], currency: str) -> l
             continue
 
         if current.period_start > expected_start:
-            # Calendar gap check: weekend / non-business days (e.g. Fri -> Mon, <= 4 days).
+            # Calendar gap check: weekend / non-business days (e.g. Fri -> Mon, only Sat/Sun un-covered).
             gap_days = (current.period_start - expected_start).days
-            spans_weekend = any((expected_start + timedelta(days=d)).weekday() in (5, 6) for d in range(gap_days + 1))
+            all_weekend_days = gap_days > 0 and all(
+                (expected_start + timedelta(days=d)).weekday() in (5, 6) for d in range(gap_days)
+            )
             is_continuous_balance = (
                 gap_days <= 4
-                and spans_weekend
+                and all_weekend_days
                 and previous.closing_balance is not None
                 and current.opening_balance is not None
                 and _abs_decimal_delta(current.opening_balance, previous.closing_balance) <= BALANCE_TOLERANCE

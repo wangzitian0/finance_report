@@ -492,3 +492,25 @@ async def test_parse_resolves_custody_from_single_binding_when_last4_is_missing(
     statement = await parse(db, test_user.id, account_id=None, account_last4=None)
     assert statement.account_id == account.id
     assert statement.account_last4 == "9999"
+
+
+async def test_parse_raises_if_fallback_custody_account_is_archived(db, test_user):
+    """Fallback single binding resolution must validate that the bound account is active."""
+    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+
+    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+    account.is_active = False
+    await db.flush()
+
+    binding = BankCustodyBinding(
+        user_id=test_user.id,
+        account_id=account.id,
+        institution="DBS",
+        account_last4="8888",
+        currency="SGD",
+    )
+    db.add(binding)
+    await db.commit()
+
+    with pytest.raises(ExtractionError, match="Custody account is archived"):
+        await parse(db, test_user.id, account_id=None, account_last4=None)

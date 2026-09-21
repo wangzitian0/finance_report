@@ -367,3 +367,39 @@ async def test_account_coverage_accepts_inclusive_boundary_and_weekend_gap(
     item = _coverage_item(response.json(), account)
     assert item["coverage_complete"] is True
     assert item["issues"] == []
+
+
+async def test_account_coverage_flags_business_day_gap_even_if_weekend_included(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    """AC-extraction.7.5: Business days included in gap must report GAP issue even if weekend is spanned."""
+    account = await _create_account(db, test_user.id, name="Business Gap Checking")
+    # Statement 1: Ends on Wed Feb 26, 2025
+    await _create_statement(
+        db,
+        test_user.id,
+        account,
+        file_hash="gap-wed",
+        period_start=date(2025, 2, 1),
+        period_end=date(2025, 2, 26),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1500.00"),
+    )
+    # Statement 2: Starts Mon March 3, 2025 (Thursday Feb 27 & Friday Feb 28 are business days)
+    await _create_statement(
+        db,
+        test_user.id,
+        account,
+        file_hash="gap-mon",
+        period_start=date(2025, 3, 3),
+        period_end=date(2025, 3, 31),
+        opening_balance=Decimal("1500.00"),
+        closing_balance=Decimal("2000.00"),
+    )
+    await db.commit()
+
+    response = await client.get("/accounts/coverage?as_of=2025-04-01&stale_after_days=45")
+    assert response.status_code == 200
+    item = _coverage_item(response.json(), account)
+    assert item["coverage_complete"] is False
+    assert any(issue["type"] == "gap" for issue in item["issues"])

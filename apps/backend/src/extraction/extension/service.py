@@ -16,6 +16,7 @@ from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, 
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
@@ -284,6 +285,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         .all()
                     )
                     if len(bindings) == 1:
+                        await validate_custody_account(
+                            db,
+                            user_id=user_id,
+                            account_id=bindings[0].account_id,
+                            currency=statement_currency,
+                        )
                         account_id = bindings[0].account_id
                         sanitized_account_last4 = bindings[0].account_last4
 
@@ -943,8 +950,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # 3 targeted refinement rounds via the injectable backend.
             # A successful repair replaces ``best`` and establishes high confidence.
             repair = repair_under_extraction(best, reextractor=self.region_reextractor, max_rounds=3)
-            if repair.repaired and repair.payload.get("confidence_score", 0) < 85:
-                repair.payload["confidence_score"] = 85
+            if repair.repaired and repair.payload.get("confidence_score", 0) < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD:
+                repair.payload["confidence_score"] = HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
             return repair.payload
         if last_parse is not None:
             # No balance-computable parse, but at least one attempt produced a
