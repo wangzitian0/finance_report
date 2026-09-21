@@ -1842,7 +1842,7 @@
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures": 0.00366720900638029,
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_146_report_main_dispatch_waits_for_ci_images": 0.01279000099748373,
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_147_frontend_ci_split_preserves_merge_authority": 0.09775683400221169,
-    "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_148_backend_shards_use_seeded_8_way_split": 0.09400104198721237,
+    "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_148_backend_shards_use_seeded_4_way_split": 0.09400104198721237,
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_149_fan_in_jobs_download_only_required_artifacts": 0.08848516500438564,
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job": 0.005339208000805229,
     "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_152_workflow_consumers_keep_classification_single_owned": 0.12315954203950241,

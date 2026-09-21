@@ -2438,17 +2438,15 @@ CONTRACT = PackageContract(
             id="AC-testing.ci-structure.8",
             statement=(
                 "Backend fast-test CI shards rebalance the current critical path with "
-                "an 8-way seeded least-duration matrix (raised from 5-way once the committed "
-                "duration seed was refreshed against the current ~3300-test suite -- "
-                "347 tests had drifted in unseeded, which is what a stale seed "
-                "produces: a mispriced least_duration assignment, not a missing "
-                "file), a committed duration seed, least-duration assignment, and a "
-                "seed-size guard so CI cannot silently fall back to unseeded even "
-                "splitting (Was EPIC-008 AC8.13.148)."
+                "a 4-way seeded least-duration matrix (consolidated from 8-way alongside "
+                "pytest -n auto parallelization, saturating runner vCPUs and cutting fixed "
+                "VM startup overhead while keeping wall-clock runtime low), a committed duration "
+                "seed, least-duration assignment, and a seed-size guard so CI cannot silently "
+                "fall back to unseeded even splitting (Was EPIC-008 AC8.13.148)."
             ),
             test=(
                 "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_148_backend_shards_use_seeded_8_way_split"
+                "::test_AC8_13_148_backend_shards_use_seeded_4_way_split"
             ),
             priority="P1",
             status="done",

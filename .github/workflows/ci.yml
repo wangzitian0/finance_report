@@ -473,7 +473,7 @@ jobs:
             apps/backend/ci-context/schema-migration-context.txt
           retention-days: 14
   backend:
-    name: Backend Tests (Shard ${{ matrix.shard }}/8)
+    name: Backend Tests (Shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [changes]
@@ -481,7 +481,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4]
 
     services:
       postgres:
@@ -559,7 +559,7 @@ jobs:
           # it (that collection alone was 37-58 s per shard, #2050). Every
           # tests/**/test_*.py file lands in exactly one shard.
           python ../../tools/backend_shard_files.py \
-            --splits 8 \
+            --splits 4 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/backend-test-durations.json \
@@ -569,10 +569,10 @@ jobs:
             BACKEND_SHARD_TESTS+=("$test_file")
           done < "$RUNNER_TEMP/backend-shard-tests.txt"
           if [ "${#BACKEND_SHARD_TESTS[@]}" -eq 0 ]; then
-            echo "::error::backend shard ${{ matrix.shard }}/8 selected no test files"
+            echo "::error::backend shard ${{ matrix.shard }}/4 selected no test files"
             exit 1
           fi
-          echo "Shard ${{ matrix.shard }}/8 runs ${#BACKEND_SHARD_TESTS[@]} test files"
+          echo "Shard ${{ matrix.shard }}/4 runs ${#BACKEND_SHARD_TESTS[@]} test files"
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
             --cov=src \
@@ -1343,7 +1343,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -1416,7 +1416,7 @@ jobs:
           print(f"Loaded pytest-split duration seed with {len(durations)} entries")
           PY
           apps/backend/.venv/bin/python -m pytest tests/tooling/ \
-            --splits 8 \
+            --splits 2 \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/tooling-test-durations.json \
