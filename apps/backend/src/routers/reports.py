@@ -489,14 +489,23 @@ async def balance_sheet_diagnostics(
 ) -> EquationDiagnosticResult:
     """Diagnose accounting equation out-of-balance root cause (Flow 24)."""
     report_date = as_of_date or date.today()
-    await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
-    return await run_balance_sheet_diagnostics(
-        db,
-        user_id,
-        as_of_date=report_date,
-        currency=currency,
-        include_restricted=include_restricted,
-    )
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
+        return await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
+    except ReportError as exc:
+        logger.warning(
+            "Balance sheet diagnostics failed",
+            as_of_date=str(report_date),
+            currency=currency,
+            error=str(exc),
+        )
+        raise_bad_request(str(exc), cause=exc)
 
 
 @router.get("/account-lineage", response_model=AccountLineageResponse)

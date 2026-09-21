@@ -151,11 +151,14 @@ async def run_balance_sheet_diagnostics(
         await db.scalar(select(func.count(Account.id)).where(Account.user_id == user_id).where(Account.type.is_(None)))
         or 0
     )
+    currency_count = (
+        await db.scalar(select(func.count(func.distinct(Account.currency))).where(Account.user_id == user_id)) or 0
+    )
     return diagnose_equation_imbalance(
         equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
         has_pending_drafts=pending_count > 0,
         unposted_draft_count=pending_count,
         has_unclassified_accounts=unclassified_count > 0,
         unclassified_account_count=unclassified_count,
-        is_multicurrency=bool(report.get("fx_warnings")),
+        is_multicurrency=currency_count > 1 or bool(report.get("fx_warnings")),
     )
