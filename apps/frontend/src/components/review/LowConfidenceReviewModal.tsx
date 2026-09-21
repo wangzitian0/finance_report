@@ -19,6 +19,12 @@ export interface LowConfidenceReviewModalProps {
   transaction: BankStatementTransaction | null;
   currency?: string;
   onSuccess?: () => void;
+  onSaveCorrection?: (edit: {
+    txn_id: string;
+    amount: string;
+    direction: "IN" | "OUT";
+    category?: string;
+  }) => void;
 }
 
 const QUICK_CATEGORIES = [
@@ -39,14 +45,18 @@ export function LowConfidenceReviewModal({
   transaction,
   currency = "SGD",
   onSuccess,
+  onSaveCorrection,
 }: LowConfidenceReviewModalProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState("");
+  const [direction, setDirection] = useState<"IN" | "OUT">("OUT");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const categoryInputRef = useRef<HTMLInputElement>(null);
+
 
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
@@ -54,6 +64,8 @@ export function LowConfidenceReviewModal({
   useEffect(() => {
     if (isOpen && transaction) {
       setCategory("");
+      setAmount(String(transaction.amount ?? ""));
+      setDirection(transaction.direction === "IN" ? "IN" : "OUT");
       setError(null);
       setSaving(false);
       setTimeout(() => {
@@ -79,10 +91,12 @@ export function LowConfidenceReviewModal({
     return null;
   }
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault();
+    if (saving) return;
     const trimmed = category.trim();
-    if (!trimmed) {
+    const amountTrimmed = amount.trim();
+    if (!trimmed && (!onSaveCorrection || !amountTrimmed)) {
       setError("Please select or enter a category.");
       return;
     }
@@ -90,13 +104,23 @@ export function LowConfidenceReviewModal({
     setSaving(true);
     setError(null);
     try {
-      await apiOperation("create_correction_corrections_post", {
-        body: {
-          transaction_id: transaction.id,
-          corrected_category: trimmed,
-        },
-      });
-      showToast(`Category updated to "${trimmed}"`, "success");
+      if (trimmed) {
+        await apiOperation("create_correction_corrections_post", {
+          body: {
+            transaction_id: transaction.id,
+            corrected_category: trimmed,
+          },
+        });
+        showToast(`Category updated to "${trimmed}"`, "success");
+      }
+      if (onSaveCorrection && amountTrimmed) {
+        onSaveCorrection({
+          txn_id: transaction.id,
+          amount: amountTrimmed,
+          direction,
+          category: trimmed || undefined,
+        });
+      }
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -107,6 +131,7 @@ export function LowConfidenceReviewModal({
       setSaving(false);
     }
   };
+
 
   const isPositive = transaction.direction === "IN";
   const displayCurrency = transaction.currency || currency;
@@ -193,9 +218,44 @@ export function LowConfidenceReviewModal({
 
         {/* Form */}
         <form onSubmit={handleSave} className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="corrected-amount-input" className="block text-xs font-semibold uppercase text-muted mb-1.5">
+                Transaction Amount
+              </label>
+              <input
+                id="corrected-amount-input"
+                aria-label="Transaction Amount"
+                type="number"
+                step="0.01"
+                className="input w-full text-sm"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                disabled={saving}
+              />
+            </div>
+            <div>
+              <label htmlFor="corrected-direction-select" className="block text-xs font-semibold uppercase text-muted mb-1.5">
+                Direction
+              </label>
+              <select
+                id="corrected-direction-select"
+                aria-label="Transaction Direction"
+                className="input w-full text-sm"
+                value={direction}
+                onChange={(e) => setDirection(e.target.value as "IN" | "OUT")}
+                disabled={saving}
+              >
+                <option value="IN">Inflow (+)</option>
+                <option value="OUT">Outflow (-)</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <label htmlFor="corrected-category-input" className="block text-xs font-semibold uppercase text-muted mb-1.5">
-              Classification Category <span className="text-[var(--error)]">*</span>
+              Classification Category
             </label>
             <input
               id="corrected-category-input"
@@ -268,7 +328,8 @@ export function LowConfidenceReviewModal({
               </button>
               <button
                 type="submit"
-                disabled={saving || !category.trim()}
+                onClick={handleSave}
+                disabled={saving || (!category.trim() && !amount.trim())}
                 className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50"
               >
                 {saving ? (

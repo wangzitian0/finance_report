@@ -59,6 +59,7 @@ class ExportStreamMediaType(str, Enum):
 
     CSV = "text/csv"
     JSON = "application/json"
+    ZIP = "application/zip"
 
 
 class ChatStreamEnvelope(BaseModel):

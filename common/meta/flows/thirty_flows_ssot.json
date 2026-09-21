@@ -1,0 +1,348 @@
+{
+  "version": "1.0.0",
+  "description": "Single Source of Truth (SSOT) Registry for the 30 Core Wealth & Accounting Flows in Finance Report",
+  "domains": [
+    {
+      "id": 1,
+      "name": "Ingestion & Multimodal Extraction",
+      "flows": [
+        {
+          "id": 1,
+          "name": "Standard Statement Drag & Drop Upload and OCR",
+          "title": "标准银行账单拖拽上传与解析",
+          "ui_surface": "/upload",
+          "component": "StatementUploader",
+          "backend_endpoint": "POST /statements/upload",
+          "invariant": "Parsed opening + sum(IN) - sum(OUT) == calculated_closing",
+          "test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx"
+        },
+        {
+          "id": 2,
+          "name": "Batch Multi-Month Ingestion & Continuity Gap Detection",
+          "title": "多月份账单批量连续导入与断流预警",
+          "ui_surface": "/upload",
+          "component": "BatchUploadQueue",
+          "backend_endpoint": "POST /statements/upload",
+          "invariant": "Statement[M].closing_balance == Statement[M+1].opening_balance",
+          "test_ref": "apps/backend/tests/extraction/test_source_ingestion_integrity.py"
+        },
+        {
+          "id": 3,
+          "name": "Custom Non-Standard CSV Column Mapping",
+          "title": "非标机构 CSV 流水导入与表头映射",
+          "ui_surface": "/upload",
+          "component": "CsvMappingModal",
+          "backend_endpoint": "POST /statements/upload",
+          "invariant": "All mapped rows have valid txn_date, description, and Decimal amount",
+          "test_ref": "apps/backend/tests/extraction/test_csv_parsing.py"
+        },
+        {
+          "id": 4,
+          "name": "Physical Receipt & Screenshot Mobile Capture",
+          "title": "纸质小票/手机银行截图拍照识别",
+          "ui_surface": "/portfolio/evidence",
+          "component": "GuidedEvidenceForm",
+          "backend_endpoint": "POST /evidence/upload",
+          "invariant": "Evidence file anchored to transaction or asset with SHA-256 digest",
+          "test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx"
+        },
+        {
+          "id": 5,
+          "name": "Alternative Asset Appraisal & Valuation Ingestion",
+          "title": "不动产/车辆/私募等另类资产凭证录入",
+          "ui_surface": "/assets",
+          "component": "AssetValuationModal",
+          "backend_endpoint": "POST /assets/{id}/valuation",
+          "invariant": "Valuation creates journal entry adjusting Asset and UnrealizedGain",
+          "test_ref": "apps/backend/tests/assets/test_assets_router.py"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Fact Review & Human-in-the-Loop",
+      "flows": [
+        {
+          "id": 6,
+          "name": "Stage-1 Review Quick Human Approval",
+          "title": "事实核对快速批准",
+          "ui_surface": "/statements/{id}/review",
+          "component": "ReviewActionBar",
+          "backend_endpoint": "POST /statements/{id}/review/approve",
+          "invariant": "Approved statements create posted journal entries with matching custody account",
+          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+        },
+        {
+          "id": 7,
+          "name": "Stage-1 Balance Chain Break Inline Repair",
+          "title": "链断裂行内快捷订正与即时重算",
+          "ui_surface": "/statements/{id}/review",
+          "component": "LowConfidenceReviewModal",
+          "backend_endpoint": "POST /statements/{id}/review/edit",
+          "invariant": "Corrected amount dynamically recalculates closing delta to 0.00 unblocking approval",
+          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+        },
+        {
+          "id": 8,
+          "name": "Cross-Statement Overlapping Transaction Deduplication",
+          "title": "跨账单重叠交易去重",
+          "ui_surface": "/statements/{id}/review",
+          "component": "ConflictResolutionDialog",
+          "backend_endpoint": "POST /review/conflicts/{id}/resolve",
+          "invariant": "Duplicate transactions flagged and linked without double-counting in ledger",
+          "test_ref": "apps/backend/tests/extraction/test_deduplication.py"
+        },
+        {
+          "id": 9,
+          "name": "Low Quality Document Triage and Rejection Recovery",
+          "title": "劣质文档排查与废弃",
+          "ui_surface": "/statements/{id}",
+          "component": "StatementRejectModal",
+          "backend_endpoint": "POST /statements/{id}/review/reject",
+          "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
+          "test_ref": "apps/backend/tests/reconciliation/test_rejection_recovery.py"
+        },
+        {
+          "id": 10,
+          "name": "Contextual In-Page AI Assistant & Recovery",
+          "title": "页内伴随式 AI 问答与容错",
+          "ui_surface": "/statements/{id}/review",
+          "component": "StatementAiAssistantButton",
+          "backend_endpoint": "POST /ai/chat",
+          "invariant": "Chat prompt carries immutable statement metadata and handles SSE disconnects",
+          "test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Economic Intent & Categorization",
+      "flows": [
+        {
+          "id": 11,
+          "name": "Stage-2 Interactive Economic Intent Allocation",
+          "title": "未归类意图交互分配",
+          "ui_surface": "/reconciliation/unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /reconciliation/disposition",
+          "invariant": "Each transaction disposition assigns counter account and posts debit/credit",
+          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+        },
+        {
+          "id": 12,
+          "name": "Batch Rule Commit & Clearing",
+          "title": "规则批量自动回填与提交",
+          "ui_surface": "/reconciliation/review-queue",
+          "component": "Stage2ReviewQueue",
+          "backend_endpoint": "POST /statements/batch-approve-matches",
+          "invariant": "Batch approve commits all matching rules atomically when checks resolved",
+          "test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx"
+        },
+        {
+          "id": 13,
+          "name": "On-the-Fly Counter Account Creation During Review",
+          "title": "审核中即时新建会计科目",
+          "ui_surface": "/reconciliation/unmatched",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /accounts",
+          "invariant": "Created account is added to choices but requires explicit reviewer confirmation (AC-reconciliation.first-use.1)",
+          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+        },
+        {
+          "id": 14,
+          "name": "Payroll Gross-to-Net & Tax/CPF Deductions Split",
+          "title": "薪资净额与税费/公积金拆分",
+          "ui_surface": "/journal",
+          "component": "PayrollSplitForm",
+          "backend_endpoint": "POST /journal/entries",
+          "invariant": "Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions",
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Cross-Source Reconciliation & Transfers",
+      "flows": [
+        {
+          "id": 15,
+          "name": "Inter-Account Transfer Automatic Pairing",
+          "title": "内部转账自动配对",
+          "ui_surface": "/reconciliation",
+          "component": "Workbench",
+          "backend_endpoint": "POST /reconciliation/match",
+          "invariant": "Source account Dr == Target account Cr; Transfer clearing account net balance == 0",
+          "test_ref": "apps/backend/tests/reporting/test_internal_transfer_e2e.py"
+        },
+        {
+          "id": 16,
+          "name": "Credit Card Repayment & Refund Clearing",
+          "title": "信用卡还款勾稽",
+          "ui_surface": "/reconciliation",
+          "component": "Workbench",
+          "backend_endpoint": "POST /reconciliation/match",
+          "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
+          "test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
+        },
+        {
+          "id": 17,
+          "name": "Multi-Currency Transfer Realized FX Gain/Loss Decomposition",
+          "title": "跨币种电汇汇兑损益分解",
+          "ui_surface": "/journal",
+          "component": "FxTransferForm",
+          "backend_endpoint": "POST /journal/entries",
+          "invariant": "OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss",
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+        },
+        {
+          "id": 18,
+          "name": "Reconciliation Immaterial Adjustment & Penny Rounding Write-Off",
+          "title": "悬空微小差额平账",
+          "ui_surface": "/reconciliation",
+          "component": "ReconciliationAdjustmentModal",
+          "backend_endpoint": "POST /reconciliation/adjustment",
+          "invariant": "Immaterial discrepancy (|delta| <= 0.05) balances to BankRoundingDifference",
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Investments & Multi-Asset Valuation",
+      "flows": [
+        {
+          "id": 19,
+          "name": "Brokerage Monthly Statement Position Sync",
+          "title": "券商月结单持仓更新",
+          "ui_surface": "/portfolio",
+          "component": "HoldingsTable",
+          "backend_endpoint": "POST /statements/upload",
+          "invariant": "Position quantity * average_cost == Book cost; synced across statement boundaries",
+          "test_ref": "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+        },
+        {
+          "id": 20,
+          "name": "Dividend Gross-to-Net & Withholding Tax Split",
+          "title": "股票分红预扣税拆分",
+          "ui_surface": "/reconciliation/unmatched",
+          "component": "DividendSplitModal",
+          "backend_endpoint": "POST /journal/entries",
+          "invariant": "Gross Dividend Income == Net Cash Received + Withholding Tax Expense",
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+        },
+        {
+          "id": 21,
+          "name": "Real-Time Market Price Refresh & Unrealized PnL",
+          "title": "实时市价刷新与重估",
+          "ui_surface": "/portfolio",
+          "component": "PortfolioPricesPage",
+          "backend_endpoint": "GET /pricing/market-data",
+          "invariant": "Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost",
+          "test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx"
+        },
+        {
+          "id": 22,
+          "name": "Mortgage Principal Amortization and Interest Split",
+          "title": "房贷月供本息摊销拆解",
+          "ui_surface": "/reconciliation/unmatched",
+          "component": "MortgageSplitModal",
+          "backend_endpoint": "POST /journal/entries",
+          "invariant": "Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense",
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Financial Reporting & Accounting Equation Governance",
+      "flows": [
+        {
+          "id": 23,
+          "name": "Balance Sheet Accounting Equation Validation",
+          "title": "资产负债表恒等式检验",
+          "ui_surface": "/reports/balance-sheet",
+          "component": "BalanceSheetPage",
+          "backend_endpoint": "GET /reports/balance-sheet",
+          "invariant": "Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)",
+          "test_ref": "apps/backend/tests/ledger/test_accounting_equation.py"
+        },
+        {
+          "id": 24,
+          "name": "Accounting Equation Out-of-Balance Diagnostic Triage",
+          "title": "会计恒等式失衡智能排错",
+          "ui_surface": "/reports/balance-sheet",
+          "component": "DiagnosticTriageBanner",
+          "backend_endpoint": "GET /reports/balance-sheet/diagnostics",
+          "invariant": "When Equation Delta != 0, returns classified cause: UNPOSTED_DRAFT, ONE_SIDED, UNMAPPED, FX_DRIFT",
+          "test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py"
+        },
+        {
+          "id": 25,
+          "name": "Income Statement Comparative Trend Analysis",
+          "title": "损益表多期环比分析",
+          "ui_surface": "/reports/income-statement",
+          "component": "IncomeStatementPage",
+          "backend_endpoint": "GET /reports/income-statement",
+          "invariant": "Comparative percentages handle zero-base safely (no division by zero)",
+          "test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx"
+        },
+        {
+          "id": 26,
+          "name": "Cash Flow Statement Multi-Activity Invariant Verification",
+          "title": "现金流量表健康度与自洽检验",
+          "ui_surface": "/reports/cash-flow",
+          "component": "CashFlowPage",
+          "backend_endpoint": "GET /reports/cash-flow",
+          "invariant": "Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow",
+          "test_ref": "apps/backend/tests/reporting/test_reports_router.py"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Audit Traceability, Compliance & AI Insights",
+      "flows": [
+        {
+          "id": 27,
+          "name": "Financial Report to PDF Provenance Drilldown",
+          "title": "报表到 PDF 凭证穿透",
+          "ui_surface": "/reports/balance-sheet",
+          "component": "ProvenanceBadge",
+          "backend_endpoint": "GET /reports/lineage/{account_id}",
+          "invariant": "Report Line -> Journal Entry -> Statement Transaction -> Source PDF Bounding Box coordinates",
+          "test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx"
+        },
+        {
+          "id": 28,
+          "name": "Annual Tax & Audit Package ZIP Export",
+          "title": "年度报税合规包导出",
+          "ui_surface": "/reports",
+          "component": "AnnualPackageDownloadButton",
+          "backend_endpoint": "POST /reports/package/annual-archive",
+          "invariant": "ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail",
+          "test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py"
+        },
+        {
+          "id": 29,
+          "name": "Recurring Subscriptions & Anomaly Alerts",
+          "title": "周期扣费/重复扣款异常告警",
+          "ui_surface": "/notifications",
+          "component": "NotificationsList",
+          "backend_endpoint": "GET /notifications",
+          "invariant": "Identifies recurring cadence and flags unexpected amount increases or duplicate runs",
+          "test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py"
+        },
+        {
+          "id": 30,
+          "name": "Natural Language Financial AI Assistant with Tool Calling",
+          "title": "自然语言财务 AI 顾问",
+          "ui_surface": "/chat",
+          "component": "ChatPageClient",
+          "backend_endpoint": "POST /ai/chat",
+          "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
+          "test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx"
+        }
+      ]
+    }
+  ]
+}

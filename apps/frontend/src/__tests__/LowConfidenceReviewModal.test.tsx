@@ -245,4 +245,36 @@ describe("LowConfidenceReviewModal", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it("calls onSaveCorrection with edited amount and direction", async () => {
+    const onSaveCorrection = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <LowConfidenceReviewModal
+        isOpen={true}
+        onClose={onClose}
+        transaction={mockTransaction}
+        onSaveCorrection={onSaveCorrection}
+      />
+    );
+
+    const amountInput = screen.getByLabelText(/Transaction Amount/i);
+    fireEvent.change(amountInput, { target: { value: "42.50" } });
+
+    const dirSelect = screen.getByLabelText(/Transaction Direction/i);
+    fireEvent.change(dirSelect, { target: { value: "IN" } });
+
+    const saveButton = screen.getByRole("button", { name: /Save Correction/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(onSaveCorrection).toHaveBeenCalledWith({
+        txn_id: "txn-123",
+        amount: "42.50",
+        direction: "IN",
+        category: undefined,
+      });
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
 });

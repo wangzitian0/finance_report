@@ -445,9 +445,22 @@ export default function UnmatchedBoard() {
                 </div>
               ) : (
                 <>
-                  <label className="block text-sm font-medium">
-                    Counter account
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="counter-account-select" className="block text-sm font-medium">
+                        Counter account
+                      </label>
+                      <button
+                        type="button"
+                        className="text-xs text-[var(--accent)] hover:underline"
+                        onClick={() => setAccountCreationType(compatibleAccountTypes(activeDraft.intent)[0] || "EXPENSE")}
+                      >
+                        + Create counter account
+                      </button>
+                    </div>
                     <select
+                      id="counter-account-select"
+                      aria-label="Counter account"
                       className="input mt-1 w-full"
                       value={activeDraft.counterAccountId}
                       onChange={(event) =>
@@ -461,7 +474,7 @@ export default function UnmatchedBoard() {
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                   {candidateAccounts.length === 0 && (
                     <div>
                       <p className="text-xs text-muted">
