@@ -379,3 +379,49 @@ def test_repair_supports_multi_round_refinement_up_to_three_rounds():
     assert len(backend.calls) == 2
     assert len(result.payload["transactions"]) == 5
     assert validate_balance(result.payload)["balance_valid"] is True
+
+
+def test_apply_repaired_result_edge_cases():
+    """Test defensive branches in _apply_repaired_result and LlmRegionReExtractor."""
+    from decimal import Decimal
+
+    from src.extraction.base.validation import ChainBreak
+    from src.extraction.extension.chain_repair import (
+        LlmRegionReExtractor,
+        _apply_repaired_result,
+        repair_under_extraction,
+    )
+
+    dummy_break = ChainBreak(
+        index=1,
+        expected_balance=Decimal("110"),
+        observed_balance=Decimal("100"),
+    )
+    curr = {"transactions": [{"date": "2025-01-01"}]}
+
+    # 1. repaired_result is not a dict
+    assert _apply_repaired_result(curr, None, dummy_break) == curr
+    assert _apply_repaired_result(curr, "invalid", dummy_break) == curr
+
+    # 2. repaired_result has no transactions key
+    assert _apply_repaired_result(curr, {"other": 123}, dummy_break) == curr
+
+    # 3. len(new_txns) >= len(curr_txns)
+    rep_full = {"transactions": [{"date": "2025-01-01"}, {"date": "2025-01-02"}]}
+    assert _apply_repaired_result(curr, rep_full, dummy_break)["transactions"] == rep_full["transactions"]
+
+    # 4. re-extractor returning None
+    class _NoneReExtractor:
+        def reextract_region(self, *, payload, break_info):
+            return None
+
+    broken_payload = _dropped_row_payload()
+    res = repair_under_extraction(broken_payload, reextractor=_NoneReExtractor())
+    assert res.attempted is True
+    assert res.repaired is False
+
+    # 5. LlmRegionReExtractor coverage
+    llm_re = LlmRegionReExtractor(chat_client=None, model="test-model")
+    assert llm_re.chat_client is None
+    assert llm_re.model == "test-model"
+    assert llm_re.reextract_region(payload=curr, break_info=dummy_break) is None

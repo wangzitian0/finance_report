@@ -471,3 +471,24 @@ async def test_historical_custody_rejects_invalid_evidence(db, test_user, failur
             currency="SGD",
             account_id=explicit.id if explicit else None,
         )
+
+
+async def test_parse_resolves_custody_from_single_binding_when_last4_is_missing(db, test_user):
+    """When statement payload has no last4, resolve to account if exactly one binding exists for institution+currency."""
+    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+
+    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
+
+    binding = BankCustodyBinding(
+        user_id=test_user.id,
+        account_id=account.id,
+        institution="DBS",
+        account_last4="9999",
+        currency="SGD",
+    )
+    db.add(binding)
+    await db.commit()
+
+    statement = await parse(db, test_user.id, account_id=None, account_last4=None)
+    assert statement.account_id == account.id
+    assert statement.account_last4 == "9999"
