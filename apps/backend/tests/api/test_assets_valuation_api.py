@@ -66,7 +66,7 @@ class TestAssetsValuationApi:
         assert list_resp.status_code == 200
         data = list_resp.json()
         assert data["total"] >= 1
-        assert any(item["component_type"] == "other_asset" for item in data["items"])
+        assert all(item["component_type"] == "other_asset" for item in data["items"])
 
     async def test_flow5_update_and_delete_valuation_snapshot(self, client: AsyncClient) -> None:
         """Flow 5: Snapshot supports in-place valuation adjustment; physical deletion is rejected with 400 (immutable audit trail)."""

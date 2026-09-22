@@ -371,8 +371,13 @@ async def generate_cash_flow(
     classified_activity = operating_total + investing_total + financing_total
     cash_delta = _quantize_money(ending_cash - beginning_cash)
     net_cash_flow = _quantize_money(cash_delta - opening_stock_adjustment)
-    fx_effect = _quantize_money(net_cash_flow - classified_activity - unclassified_cash)
+    if bool(fx_needs):
+        fx_effect = _quantize_money(net_cash_flow - classified_activity - unclassified_cash)
+    else:
+        fx_effect = Decimal("0.00")
     bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
+    discrepancy = _quantize_money(cash_delta - bridge_total)
+    reconciles = discrepancy == Decimal("0.00")
 
     return {
         "start_date": start_date,
@@ -395,7 +400,8 @@ async def generate_cash_flow(
             "fx_effect": fx_effect,
             "opening_stock_adjustment": _quantize_money(opening_stock_adjustment),
             "cash_delta": cash_delta,
-            "reconciles": bridge_total == cash_delta,
+            "discrepancy": discrepancy,
+            "reconciles": reconciles,
         },
         "event_lineage": event_lineage,
         "proof_state": "proven" if not proof_reasons else "unproven",

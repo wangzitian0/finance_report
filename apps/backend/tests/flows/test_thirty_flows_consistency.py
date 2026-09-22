@@ -217,3 +217,10 @@ def test_domain_7_audit_traceability_and_package_invariants():
     actual_digest = hashlib.sha256(csv_payload).hexdigest()
     assert actual_digest == entry["sha256"]
     assert entry["bytes"] == len(csv_payload)
+
+
+def test_flow_26_and_30_specific_test_references():
+    """Issue #2067: Ensure Flow 26 and Flow 30 have explicit, verified test references."""
+    flows = {f["id"]: f for f in _all_flows()}
+    assert flows[26]["frontend_test_ref"] == "apps/frontend/src/__tests__/cashFlowPage.test.tsx"
+    assert flows[30]["backend_test_ref"] == "apps/backend/tests/ai/test_ai_advisor_service.py"

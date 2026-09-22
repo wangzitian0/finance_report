@@ -346,7 +346,7 @@
           "invariant": "Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow",
           "test_ref": "apps/backend/tests/reporting/test_cash_flow_invariants.py",
           "backend_test_ref": "apps/backend/tests/reporting/test_cash_flow_invariants.py",
-          "frontend_test_ref": "apps/frontend/src/__tests__/reportsPage.test.tsx"
+          "frontend_test_ref": "apps/frontend/src/__tests__/cashFlowPage.test.tsx"
         }
       ]
     },
@@ -399,7 +399,7 @@
           "backend_endpoint": "POST /chat",
           "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
           "test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx",
-          "backend_test_ref": "apps/backend/tests/reconciliation/test_ai_reconciliation.py",
+          "backend_test_ref": "apps/backend/tests/ai/test_ai_advisor_service.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx"
         }
       ]
