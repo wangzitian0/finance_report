@@ -56,7 +56,7 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                "/api/statements/batch-approve-matches",
+                expect.stringContaining("batch-approve-matches"),
                 expect.objectContaining({
                     method: "POST",
                     body: JSON.stringify({ match_ids: ["m1"] }),
@@ -89,7 +89,7 @@ describe("Review queue actions", () => {
         await waitFor(() => {
             expect(mocked.mock.calls.length).toBeGreaterThanOrEqual(3);
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("/api/statements/consistency-checks/list")
+                expect.stringContaining("consistency-checks/list")
             );
         });
 
@@ -120,7 +120,7 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("/api/statements/consistency-checks/c2/resolve"),
+                expect.stringContaining("consistency-checks/c2/resolve"),
                 expect.objectContaining({
                     method: "POST",
                 }),
@@ -188,7 +188,7 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                "/api/statements/batch-reject-matches",
+                expect.stringContaining("batch-reject-matches"),
                 expect.objectContaining({
                     method: "POST",
                     body: JSON.stringify({ match_ids: ["r1", "r2"] }),

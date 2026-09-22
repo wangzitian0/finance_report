@@ -11,8 +11,8 @@ interface FlowDefinition {
   backend_endpoint: string
   invariant: string
   test_ref: string
-  backend_test_ref?: string
-  frontend_test_ref?: string
+  backend_test_ref: string
+  frontend_test_ref: string
   domain_id?: number
   domain_name?: string
 }

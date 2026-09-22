@@ -45,7 +45,7 @@
         {
           "id": 4,
           "name": "Physical Receipt & Screenshot Mobile Capture",
-          "title": "另类资产手工估值凭据录入与未实现损益调平",
+          "title": "纸质小票/手机银行截图拍照识别",
           "ui_surface": "/portfolio/evidence",
           "component": "GuidedEvidenceForm",
           "backend_endpoint": "POST /assets/valuation-snapshots",
@@ -127,7 +127,7 @@
           "ui_surface": "/statements/{id}/review",
           "component": "StatementAiAssistantButton",
           "backend_endpoint": "POST /chat",
-          "invariant": "元数据保留与无缝导航：对话保留不可变账单元数据上下文，支持断连恢复与无缝导航",
+          "invariant": "Metadata-preserving navigation: Chat prompt carries immutable statement metadata and gracefully recovers from SSE disconnects",
           "test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx",
           "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx"
