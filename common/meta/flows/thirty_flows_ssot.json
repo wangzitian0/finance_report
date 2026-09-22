@@ -51,7 +51,7 @@
           "name": "Alternative Asset Appraisal & Valuation Ingestion",
           "title": "不动产/车辆/私募等另类资产凭证录入",
           "ui_surface": "/assets",
-          "component": "AssetDetailPage",
+          "component": "AssetsPage",
           "backend_endpoint": "POST /assets/valuation-snapshots",
           "invariant": "Valuation creates journal entry adjusting Asset and UnrealizedGain",
           "test_ref": "apps/backend/tests/assets/test_assets_router.py"

@@ -183,3 +183,40 @@ class TestReconciliationAdjustmentApi:
         }
         response = await client.post("/reconciliation/adjustment", json=payload)
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_adjustment_non_base_currency_with_fx_rate(self, client: AsyncClient, db, test_user: User):
+        """Flow 18: Non-base currency adjustment succeeds when fx_rate is provided."""
+        bank_account = await create_test_bank_account(db, test_user, currency="USD")
+        await db.commit()
+
+        payload = {
+            "account_id": str(bank_account.id),
+            "bank_balance": "500.03",
+            "book_balance": "500.00",
+            "fx_rate": "1.35",
+        }
+        response = await client.post("/reconciliation/adjustment", json=payload)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["journal_entry_id"] is not None
+
+        entry_id = UUID(data["journal_entry_id"])
+        result = await db.execute(
+            select(JournalEntry).options(selectinload(JournalEntry.lines)).where(JournalEntry.id == entry_id)
+        )
+        entry = result.scalar_one()
+        assert all(line.fx_rate == Decimal("1.35") for line in entry.lines)
+
+    async def test_adjustment_non_base_currency_missing_fx_rate(self, client: AsyncClient, db, test_user: User):
+        """Flow 18: Non-base currency adjustment returns 400 when fx_rate is missing."""
+        bank_account = await create_test_bank_account(db, test_user, currency="USD")
+        await db.commit()
+
+        payload = {
+            "account_id": str(bank_account.id),
+            "bank_balance": "500.03",
+            "book_balance": "500.00",
+        }
+        response = await client.post("/reconciliation/adjustment", json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "fx_rate is required" in response.json()["detail"]

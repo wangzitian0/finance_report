@@ -19,6 +19,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
+    AccountingError,
     AccountType,
     Direction,
     JournalEntry,
@@ -628,6 +629,12 @@ async def post_reconciliation_adjustment(
         db.add(rounding_account)
         await db.flush()
 
+    base_currency = await get_effective_base_currency(db)
+    if account.currency != base_currency and payload.fx_rate is None:
+        raise_bad_request(
+            f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"
+        )
+
     lines_data = []
     for split_line in adjustment.lines:
         line_account_id = account.id if split_line.role == "bank_adjustment" else rounding_account.id
@@ -638,11 +645,11 @@ async def post_reconciliation_adjustment(
                 "direction": direction,
                 "amount": split_line.amount,
                 "currency": account.currency,
+                "fx_rate": payload.fx_rate if account.currency != base_currency else None,
             }
         )
 
     entry_date = payload.entry_date or date.today()
-    base_currency = await get_effective_base_currency(db)
 
     try:
         entry = await submit_system_journal_entry(
@@ -658,9 +665,9 @@ async def post_reconciliation_adjustment(
         )
         await db.refresh(entry, ["lines"])
         await db.commit()
-    except Exception as exc:
+    except (ValidationError, AccountingError) as exc:
         await db.rollback()
-        raise_bad_request(str(exc), cause=exc)
+        raise_bad_request(safe_error_message(exc), cause=exc)
 
     log_financial_mutation(
         logger,

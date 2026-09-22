@@ -163,6 +163,10 @@ class ReconciliationAdjustmentRequest(BaseModel):
     book_balance: Decimal
     threshold: Decimal = Decimal("0.05")
     entry_date: date | None = None
+    fx_rate: Decimal | None = Field(
+        default=None,
+        description="Exchange rate to base currency (required if account currency != base currency)",
+    )
 
 
 class ReconciliationAdjustmentResponse(BaseModel):
