@@ -153,3 +153,31 @@ class AnomalyResponse(BaseModel):
     anomaly_type: str
     severity: str
     message: str
+
+
+class ReconciliationAdjustmentRequest(BaseModel):
+    """Request body for reconciliation adjustment (Flow 18)."""
+
+    account_id: UUID
+    bank_balance: Decimal
+    book_balance: Decimal
+    threshold: Decimal = Decimal("0.05")
+    entry_date: date | None = None
+    fx_rate: Decimal | None = Field(
+        default=None,
+        description="Exchange rate to base currency (required if account currency != base currency)",
+    )
+
+
+class ReconciliationAdjustmentResponse(BaseModel):
+    """Response for reconciliation adjustment (Flow 18)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    account_id: UUID
+    bank_balance: Decimal
+    book_balance: Decimal
+    difference: Decimal
+    is_gain: bool
+    journal_entry_id: UUID | None = None
+    entry: JournalEntrySummary | None = None

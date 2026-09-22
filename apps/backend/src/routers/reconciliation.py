@@ -1,8 +1,9 @@
 """Reconciliation API router."""
 
 from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import Select, func, select
@@ -17,11 +18,16 @@ from src.extraction import BankStatementStatus, effective_statement_transaction_
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
+    Account,
+    AccountingError,
+    AccountType,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     ValidationError,
+    calculate_reconciliation_adjustment,
     current_anchored_journal_entries,
+    submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
@@ -46,6 +52,8 @@ from src.schemas.reconciliation import (
     BankTransactionSummary,
     BatchAcceptRequest,
     JournalEntrySummary,
+    ReconciliationAdjustmentRequest,
+    ReconciliationAdjustmentResponse,
     ReconciliationMatchListResponse,
     ReconciliationMatchResponse,
     ReconciliationRunRequest,
@@ -559,3 +567,125 @@ async def list_anomalies(
     anomalies = await detect_anomalies(db, txn, user_id=user_id)
     page = anomalies[pagination.offset : pagination.offset + pagination.limit]
     return [AnomalyResponse(**anomaly.__dict__) for anomaly in page]
+
+
+@router.post("/adjustment", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
+async def post_reconciliation_adjustment(
+    payload: ReconciliationAdjustmentRequest,
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReconciliationAdjustmentResponse:
+    """Post an immaterial penny rounding adjustment (Flow 18)."""
+    account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
+
+    # Pre-validate threshold to avoid raw ValueError in domain function
+    # (AC-reconciliation.signature-surgery.4: no raw ValueError handlers).
+    diff = abs(payload.bank_balance - payload.book_balance)
+    if diff > payload.threshold:
+        raise_bad_request(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
+
+    adjustment = calculate_reconciliation_adjustment(
+        bank_balance=payload.bank_balance,
+        book_balance=payload.book_balance,
+        threshold=payload.threshold,
+    )
+
+    if adjustment.difference == Decimal("0"):
+        return ReconciliationAdjustmentResponse(
+            account_id=account.id,
+            bank_balance=adjustment.bank_balance,
+            book_balance=adjustment.book_balance,
+            difference=adjustment.difference,
+            is_gain=adjustment.is_gain,
+            journal_entry_id=None,
+            entry=None,
+        )
+
+    preferred_type = AccountType.INCOME if adjustment.is_gain else AccountType.EXPENSE
+    stmt = select(Account).where(
+        Account.user_id == user_id,
+        Account.name == "BankRoundingDifference",
+        Account.currency == account.currency,
+        Account.type == preferred_type,
+    )
+    rounding_account = (await db.execute(stmt)).scalar_one_or_none()
+    if rounding_account is None:
+        alt_stmt = select(Account).where(
+            Account.user_id == user_id,
+            Account.name == "BankRoundingDifference",
+            Account.currency == account.currency,
+            Account.type.in_([AccountType.INCOME, AccountType.EXPENSE]),
+        )
+        rounding_account = (await db.execute(alt_stmt)).scalars().first()
+    if rounding_account is None:
+        rounding_account = Account(
+            user_id=user_id,
+            name="BankRoundingDifference",
+            type=preferred_type,
+            currency=account.currency,
+            is_active=True,
+        )
+        db.add(rounding_account)
+        await db.flush()
+
+    base_currency = await get_effective_base_currency(db)
+    if account.currency != base_currency and payload.fx_rate is None:
+        raise_bad_request(
+            f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"
+        )
+
+    lines_data = []
+    for split_line in adjustment.lines:
+        line_account_id = account.id if split_line.role == "bank_adjustment" else rounding_account.id
+        direction = Direction.DEBIT if split_line.direction.value.lower() == "debit" else Direction.CREDIT
+        lines_data.append(
+            {
+                "account_id": line_account_id,
+                "direction": direction,
+                "amount": split_line.amount,
+                "currency": account.currency,
+                "fx_rate": payload.fx_rate if account.currency != base_currency else None,
+            }
+        )
+
+    entry_date = payload.entry_date or date.today()
+
+    try:
+        entry = await submit_system_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=entry_date,
+            memo=f"Reconciliation rounding adjustment for {account.name}",
+            lines_data=lines_data,
+            base_currency=base_currency,
+            operation="reconciliation_adjustment",
+            source_id=uuid4(),
+            post_immediately=True,
+        )
+        await db.refresh(entry, ["lines"])
+        await db.commit()
+    except (ValidationError, AccountingError) as exc:
+        await db.rollback()
+        raise_bad_request(safe_error_message(exc), cause=exc)
+
+    log_financial_mutation(
+        logger,
+        "reconciliation.adjustment.posted",
+        user_id=user_id,
+        action="adjustment",
+        resource_type="journal_entry",
+        resource_id=entry.id,
+        difference=str(adjustment.difference),
+    )
+
+    entry_summary = _build_entry_summary(entry)
+    return ReconciliationAdjustmentResponse(
+        account_id=account.id,
+        bank_balance=adjustment.bank_balance,
+        book_balance=adjustment.book_balance,
+        difference=adjustment.difference,
+        is_gain=adjustment.is_gain,
+        journal_entry_id=entry.id,
+        entry=entry_summary,
+    )

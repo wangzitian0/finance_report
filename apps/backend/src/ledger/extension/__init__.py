@@ -22,6 +22,7 @@ from src.ledger.extension.anchored_posting import (
     submit_anchored_journal_entry,
     submit_anchored_journal_entry_v2,
     submit_manual_journal_entry,
+    submit_system_journal_entry,
     validate_manual_journal_entry_for_post,
 )
 from src.ledger.extension.contribution import list_journal_contributions
@@ -71,6 +72,7 @@ __all__ = [
     "submit_anchored_journal_entry",
     "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
+    "submit_system_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "post_opening_balance_entry",
