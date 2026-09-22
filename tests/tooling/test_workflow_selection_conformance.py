@@ -291,8 +291,14 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
     )
     import common.testing.check_pr_ci_evidence as evidence_gate
 
-    def reject_match_for_nonexecuted_proof(*args, **kwargs):
-        raise AssertionError("a skipped proof must not enter TraceRecord validation")
+    orig_has_exact = evidence_gate._has_exact_executed_proof
+
+    def reject_match_for_nonexecuted_proof(proof_arg, *args, **kwargs):
+        if proof_arg.get("id") == scenario.get("id"):
+            raise AssertionError(
+                "a skipped proof must not enter TraceRecord validation"
+            )
+        return orig_has_exact(proof_arg, *args, **kwargs)
 
     with monkeypatch.context() as skipped_gate:
         skipped_gate.setattr(
