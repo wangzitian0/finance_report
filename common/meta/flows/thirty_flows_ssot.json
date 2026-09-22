@@ -14,7 +14,7 @@
           "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "Parsed opening + sum(IN) - sum(OUT) == calculated_closing",
-          "test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx"
+          "test_ref": "apps/backend/tests/extraction/test_extraction_invariants.py"
         },
         {
           "id": 2,
@@ -97,7 +97,7 @@
           "name": "Low Quality Document Triage and Rejection Recovery",
           "title": "劣质文档排查与废弃",
           "ui_surface": "/statements/{id}",
-          "component": "StatementRejectModal",
+          "component": "ConfirmDialog",
           "backend_endpoint": "POST /statements/{id}/review/reject",
           "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
           "test_ref": "apps/backend/tests/api/test_statements_router.py"
@@ -124,7 +124,7 @@
           "title": "未归类意图交互分配",
           "ui_surface": "/reconciliation/unmatched",
           "component": "UnmatchedBoard",
-          "backend_endpoint": "POST /reconciliation/disposition",
+          "backend_endpoint": "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition",
           "invariant": "Each transaction disposition assigns counter account and posts debit/credit",
           "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         },
@@ -153,8 +153,8 @@
           "name": "Payroll Gross-to-Net & Tax/CPF Deductions Split",
           "title": "薪资净额与税费/公积金拆分",
           "ui_surface": "/journal",
-          "component": "PayrollSplitForm",
-          "backend_endpoint": "POST /journal/entries",
+          "component": "JournalPage",
+          "backend_endpoint": "POST /journal-entries",
           "invariant": "Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions",
           "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
         }
@@ -170,7 +170,7 @@
           "title": "内部转账自动配对",
           "ui_surface": "/reconciliation",
           "component": "Workbench",
-          "backend_endpoint": "POST /reconciliation/match",
+          "backend_endpoint": "POST /reconciliation/runs",
           "invariant": "Source account Dr == Target account Cr; Transfer clearing account net balance == 0",
           "test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py"
         },
@@ -180,7 +180,7 @@
           "title": "信用卡还款勾稽",
           "ui_surface": "/reconciliation",
           "component": "Workbench",
-          "backend_endpoint": "POST /reconciliation/match",
+          "backend_endpoint": "POST /reconciliation/matches/{match_id}/accept",
           "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
           "test_ref": "apps/backend/tests/e2e/test_core_journeys.py"
         },
@@ -189,8 +189,8 @@
           "name": "Multi-Currency Transfer Realized FX Gain/Loss Decomposition",
           "title": "跨币种电汇汇兑损益分解",
           "ui_surface": "/journal",
-          "component": "FxTransferForm",
-          "backend_endpoint": "POST /journal/entries",
+          "component": "JournalPage",
+          "backend_endpoint": "POST /journal-entries",
           "invariant": "OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss",
           "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
         },
@@ -199,10 +199,10 @@
           "name": "Reconciliation Immaterial Adjustment & Penny Rounding Write-Off",
           "title": "悬空微小差额平账",
           "ui_surface": "/reconciliation",
-          "component": "ReconciliationAdjustmentModal",
+          "component": "ReconciliationPage",
           "backend_endpoint": "POST /reconciliation/adjustment",
           "invariant": "Immaterial discrepancy (|delta| <= 0.05) balances to BankRoundingDifference",
-          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+          "test_ref": "apps/backend/tests/api/test_reconciliation_adjustment_api.py"
         }
       ]
     },
@@ -225,8 +225,8 @@
           "name": "Dividend Gross-to-Net & Withholding Tax Split",
           "title": "股票分红预扣税拆分",
           "ui_surface": "/reconciliation/unmatched",
-          "component": "DividendSplitModal",
-          "backend_endpoint": "POST /journal/entries",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /journal-entries",
           "invariant": "Gross Dividend Income == Net Cash Received + Withholding Tax Expense",
           "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
         },
@@ -234,9 +234,9 @@
           "id": 21,
           "name": "Real-Time Market Price Refresh & Unrealized PnL",
           "title": "实时市价刷新与重估",
-          "ui_surface": "/portfolio",
-          "component": "PortfolioPricesPage",
-          "backend_endpoint": "GET /pricing/market-data",
+          "ui_surface": "/portfolio/prices",
+          "component": "PricesPage",
+          "backend_endpoint": "POST /portfolio/prices/update",
           "invariant": "Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost",
           "test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx"
         },
@@ -245,8 +245,8 @@
           "name": "Mortgage Principal Amortization and Interest Split",
           "title": "房贷月供本息摊销拆解",
           "ui_surface": "/reconciliation/unmatched",
-          "component": "MortgageSplitModal",
-          "backend_endpoint": "POST /journal/entries",
+          "component": "UnmatchedBoard",
+          "backend_endpoint": "POST /journal-entries",
           "invariant": "Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense",
           "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
         }
@@ -308,7 +308,7 @@
           "title": "报表到 PDF 凭证穿透",
           "ui_surface": "/reports/balance-sheet",
           "component": "ProvenanceBadge",
-          "backend_endpoint": "GET /reports/lineage/{account_id}",
+          "backend_endpoint": "GET /reports/account-lineage",
           "invariant": "Report Line drilldown traces to underlying journal entries and source statement metadata",
           "test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx"
         },
@@ -316,8 +316,8 @@
           "id": 28,
           "name": "Annual Tax & Audit Package ZIP Export",
           "title": "年度报税合规包导出",
-          "ui_surface": "/reports",
-          "component": "AnnualPackageDownloadButton",
+          "ui_surface": "/reports/package",
+          "component": "PersonalReportPackagePage",
           "backend_endpoint": "POST /reports/package/annual-archive",
           "invariant": "ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail",
           "test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py"
@@ -327,7 +327,7 @@
           "name": "Recurring Subscriptions & Anomaly Alerts",
           "title": "周期扣费/重复扣款异常告警",
           "ui_surface": "/notifications",
-          "component": "NotificationsList",
+          "component": "WorkflowEventsPageContent",
           "backend_endpoint": "GET /notifications",
           "invariant": "Identifies recurring cadence and flags unexpected amount increases or duplicate runs",
           "test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py"
