@@ -64,6 +64,13 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         ),
         "triggers": ("push", "pull_request", "workflow_dispatch"),
     },
+    ".github/workflows/deploy-freshness.yml": {
+        # Daily age bound on what staging/production serve versus origin/main;
+        # the `freshness` job id is the one ci-gate-inventory.yaml keys on, and
+        # the schedule is the primary trigger (dispatch only overrides bounds).
+        "jobs": ("freshness",),
+        "triggers": ("schedule", "workflow_dispatch"),
+    },
     ".github/workflows/deploy.yml": {
         # Staging is a manual-only job; tag-push image promotion shares the
         # deploy workflow but is gated to release tags. Production release moved
@@ -93,6 +100,7 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/audit-replay.yml",
     ".github/workflows/benchmark.yml",
     ".github/workflows/ci.yml",
+    ".github/workflows/deploy-freshness.yml",
     ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
     ".github/workflows/maintenance.yml",

@@ -716,6 +716,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        # ── deploy freshness: how old is what a user sees (truealpha#560 model) ──
+        ACRecord(
+            id="AC-runtime.deploy-freshness.1",
+            statement=(
+                "A scheduled check reads each environment's /api/health release, measures "
+                "the age of the oldest main commit not deployed there against an explicit "
+                "per-environment bound (staging 3d, production 7d), names whether the "
+                "newest release tag is cut-but-unpromoted or the release lane is idle, and "
+                "a stale or unmeasurable environment files/updates one tracking issue "
+                "instead of failing silently in the Actions tab."
+            ),
+            test="tests/tooling/test_deploy_freshness.py::test_AC_runtime_deploy_freshness_1_age_not_count_is_the_bound",
+            priority="P1",
+            status="done",
+        ),
         ACRecord(
             id="AC-runtime.deploy-request.1",
             statement=(

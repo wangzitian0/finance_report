@@ -431,6 +431,19 @@ gates:
     artifacts: [ghcr-sha-retention-context]
     failure_semantics: Scheduled or manual GHCR SHA retention could not discover live deploy SHAs, classify package versions, or delete selected stale SHA versions.
     action: keep
+  - id: deploy_freshness.freshness
+    stage: prod.release_integrity
+    task_category: deploy_smoke
+    workflow: .github/workflows/deploy-freshness.yml
+    job: freshness
+    owner: tools/deploy_freshness.py
+    triggers: [schedule, workflow_dispatch]
+    blocks_workflow: true
+    inputs: [deployed_health_release, main_release_tags, undeployed_commit_age]
+    outputs: [freshness_verdict]
+    artifacts: []
+    failure_semantics: Staging or production serves a release whose oldest undeployed main commit is older than the environment's age bound (staging 3d, production 7d), or its release identity could not be measured; the run files or updates one tracking issue per environment and breakage.
+    action: keep
   - id: notify_infra2_report_main.dispatch
     stage: staging.release_validation
     task_category: deploy_smoke

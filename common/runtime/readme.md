@@ -76,6 +76,18 @@ while including the workflow entrypoint in the tooling coverage measurement.
   report rendering, and empty-safe abbreviated-SHA match used by both
   `tier2_http_e2e.py` and `production_infra_smoke.py`. Workflow-facing files in
   `tools/` only delegate to these package-owned commands.
+- **Deploy freshness** — `deploy_freshness.py` owns the daily age bound on what
+  an environment serves: it reads the release from `/api/health`, measures the
+  oldest `main` commit not deployed there against an explicit per-environment
+  bound (staging 3 days; production 7 days, because promotion through
+  `release.yml` is the owner's deliberate act), and reports whether the newest
+  `vX.Y.Z` tag is cut-but-unpromoted or the release lane is idle. The bound is
+  age, not commit count: a count measures how busy the repository has been, age
+  measures how long finished work has been invisible.
+  `.github/workflows/deploy-freshness.yml` runs it at 07:00 UTC and files or
+  updates one tracking issue per environment and breakage
+  (`deploy-freshness: <env> is stale` / `could not be measured`)
+  (AC-runtime.deploy-freshness.1; modelled on truealpha#560).
 
 ## Invariants (the contract)
 
