@@ -104,3 +104,38 @@ class TestAssetsValuationApi:
         """Flow 5: Invalid component_type query parameter triggers 400 Bad Request."""
         resp = await client.get("/assets/valuation-snapshots?component_type=non_existent_type")
         assert resp.status_code == 400
+
+    async def test_flow5_retire_alternative_asset_by_zeroing_valuation(self, client: AsyncClient) -> None:
+        """Flow 5 / Issue #2067: Retiring an asset with zero value removes it from active valuation components."""
+        from decimal import Decimal
+
+        payload = {
+            "component_type": "other_asset",
+            "as_of_date": "2026-06-20",
+            "value": "150000.00",
+            "currency": "SGD",
+            "source": "vintage car collection",
+        }
+        create_resp = await client.post("/assets/valuation-snapshots", json=payload)
+        assert create_resp.status_code == 201
+        snapshot_id = create_resp.json()["id"]
+
+        # Before retirement: active component exists in /assets/valuation-components
+        comps_resp = await client.get("/assets/valuation-components?as_of_date=2026-06-20")
+        assert comps_resp.status_code == 200
+        active_comps = comps_resp.json()
+        assert any(item["source"] == "vintage car collection" for item in active_comps["items"])
+
+        # Retire asset by zeroing value (PATCH with value=0.00)
+        retire_resp = await client.patch(
+            f"/assets/valuation-snapshots/{snapshot_id}",
+            json={"value": "0.00", "notes": "Asset sold or disposed"},
+        )
+        assert retire_resp.status_code == 200
+        assert Decimal(retire_resp.json()["value"]) == Decimal("0.00")
+
+        # After retirement: active component no longer appears in /assets/valuation-components
+        comps_after = await client.get("/assets/valuation-components?as_of_date=2026-06-20")
+        assert comps_after.status_code == 200
+        comps_after_data = comps_after.json()
+        assert not any(item["source"] == "vintage car collection" for item in comps_after_data["items"])

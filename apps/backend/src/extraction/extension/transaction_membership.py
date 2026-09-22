@@ -122,7 +122,7 @@ def effective_statement_transaction_filter(user_id: UUID, statement_id: UUID | N
         .where(
             linked,
             UploadedDocument.user_id == user_id,
-            StatementSummary.status != BankStatementStatus.RETIRED,
+            StatementSummary.status.notin_([BankStatementStatus.RETIRED, BankStatementStatus.REJECTED]),
             custody_proven,
             or_(
                 and_(StatementSummary.current_extraction_result_id.is_(None), payload.is_(None)),

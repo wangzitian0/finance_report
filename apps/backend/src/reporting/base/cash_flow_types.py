@@ -64,6 +64,7 @@ class CashFlowBridge(BaseModel):
         description="Initial stock first evidenced inside an incompletely covered period; never economic cash flow.",
     )
     cash_delta: Decimal
+    discrepancy: Decimal = Decimal("0.00")
     reconciles: bool
 
 

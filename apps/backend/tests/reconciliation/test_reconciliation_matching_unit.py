@@ -1653,9 +1653,9 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
         m2o_matches = [m for m in matches if m.score_breakdown.get("many_to_one_bonus")]
-        if m2o_matches:
-            for m in m2o_matches:
-                assert m.status == ReconciliationStatus.PENDING_REVIEW
+        assert len(m2o_matches) >= 1, "Expected at least one many-to-one match"
+        for m in m2o_matches:
+            assert m.status == ReconciliationStatus.PENDING_REVIEW
 
 
 async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user):

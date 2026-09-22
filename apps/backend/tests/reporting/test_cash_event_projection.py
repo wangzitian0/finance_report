@@ -187,6 +187,7 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
         "opening_stock_adjustment": Decimal("0.00"),
         "fx_effect": Decimal("0.00"),
         "cash_delta": Decimal("0.00"),
+        "discrepancy": Decimal("0.00"),
         "reconciles": True,
     }
     assert report["proof_state"] == "proven"
@@ -236,6 +237,7 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
         "opening_stock_adjustment": Decimal("0.00"),
         "fx_effect": Decimal("5.00"),
         "cash_delta": Decimal("140.00"),
+        "discrepancy": Decimal("0.00"),
         "reconciles": True,
     }
 

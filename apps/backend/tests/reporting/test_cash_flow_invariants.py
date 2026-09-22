@@ -292,6 +292,8 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
     assert cash_bridge["reconciles"] is True
     assert cash_bridge["cash_delta"] == net_cash_change
     assert cash_bridge["unclassified_cash"] == Decimal("0.00")
+    assert cash_bridge["fx_effect"] == Decimal("0.00")
+    assert cash_bridge["discrepancy"] == Decimal("0.00")
 
     # 14. Activity lists non-empty and accurately classified
     assert len(report["operating"]) >= 2
@@ -299,3 +301,62 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
     assert len(report["financing"]) >= 2
     assert report["proof_state"] == "proven"
     assert report["proof_reasons"] == []
+
+
+@pytest.mark.asyncio
+async def test_flow26_cash_flow_bridge_exposes_discrepancy_when_imbalanced(
+    db: AsyncSession, test_user: User, monkeypatch
+):
+    """Issue #2067: Single currency cash bridge must have fx_effect == 0 and expose discrepancy if not balancing."""
+    import src.reporting.extension.cash_flow as cf_mod
+
+    user_id = test_user.id
+    period_start = date(2026, 2, 1)
+    period_end = date(2026, 2, 28)
+
+    cash_acc = await _create_account(db, user_id, "Checking Imbalance Test", AccountType.ASSET, "1002")
+    revenue = await _create_account(db, user_id, "Sales Imbalance Test", AccountType.INCOME, "4001")
+
+    await post_entry(
+        db,
+        user_id=user_id,
+        entry_date=date(2026, 2, 10),
+        memo="Inflow",
+        entry=Entry.transfer(
+            debit=cash_acc.id,
+            credit=revenue.id,
+            money=Money(Decimal("500.00"), "SGD"),
+        ),
+        base_currency="SGD",
+        operation="cf-inflow-test",
+    )
+    await db.commit()
+
+    # Normal single-currency report
+    report = await generate_cash_flow(
+        db,
+        user_id,
+        start_date=period_start,
+        end_date=period_end,
+        currency="SGD",
+        cash_account_ids=frozenset([cash_acc.id]),
+    )
+    assert report["cash_bridge"]["fx_effect"] == Decimal("0.00")
+    assert report["cash_bridge"]["discrepancy"] == Decimal("0.00")
+    assert report["cash_bridge"]["reconciles"] is True
+
+    # If classified activity does not sum to cash_delta, it must NOT be absorbed by fx_effect.
+    # Discrepancy must be non-zero and reconciles must be False.
+    monkeypatch.setattr(cf_mod, "_line_total", lambda items: Decimal("0.00"))
+
+    imbalanced_report = await generate_cash_flow(
+        db,
+        user_id,
+        start_date=period_start,
+        end_date=period_end,
+        currency="SGD",
+        cash_account_ids=frozenset([cash_acc.id]),
+    )
+    assert imbalanced_report["cash_bridge"]["fx_effect"] == Decimal("0.00")
+    assert imbalanced_report["cash_bridge"]["discrepancy"] == Decimal("500.00")
+    assert imbalanced_report["cash_bridge"]["reconciles"] is False

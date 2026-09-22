@@ -4518,3 +4518,41 @@ async def test_retry_statement_invalid_model(db, monkeypatch, storage_stub, test
         )
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST
     assert "Invalid model selection" in exc.value.detail
+
+
+async def test_rejected_statement_transactions_excluded_from_effective_filter(db, test_user):
+    """Flow 9 / Issue #2067: A rejected bank statement must not leak transactions into effective filter.
+
+    When a statement has status REJECTED, transactions belonging to it must be
+    excluded by effective_statement_transaction_filter for both scoped and global queries.
+    """
+    from src.extraction import effective_statement_transaction_filter
+
+    statement = build_statement(test_user.id, "hash_rejected_leak_test", 80)
+    statement.status = BankStatementStatus.REJECTED
+    db.add(statement)
+    await db.flush()
+
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 15),
+        description="Rejected statement transaction",
+        amount=Decimal("50.00"),
+        direction="IN",
+    )
+    await db.commit()
+
+    # Scoped query by statement_id
+    scoped_txns = (
+        await db.scalars(
+            select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, statement.id))
+        )
+    ).all()
+    assert len(scoped_txns) == 0, f"Expected 0 transactions for rejected statement, got {len(scoped_txns)}"
+
+    # Global query without statement_id
+    global_txns = (
+        await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))
+    ).all()
+    assert txn.id not in global_txns, "Rejected statement transaction leaked into global effective filter"
