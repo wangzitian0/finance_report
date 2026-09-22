@@ -14,7 +14,9 @@
           "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "Parsed opening + sum(IN) - sum(OUT) == calculated_closing",
-          "test_ref": "apps/backend/tests/extraction/test_extraction_invariants.py"
+          "test_ref": "apps/backend/tests/extraction/test_extraction_invariants.py",
+          "backend_test_ref": "apps/backend/tests/extraction/test_extraction_invariants.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx"
         },
         {
           "id": 2,
@@ -24,7 +26,9 @@
           "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "Statement[M].closing_balance == Statement[M+1].opening_balance",
-          "test_ref": "apps/backend/tests/accounting/test_account_statement_coverage.py"
+          "test_ref": "apps/backend/tests/accounting/test_account_statement_coverage.py",
+          "backend_test_ref": "apps/backend/tests/accounting/test_account_statement_coverage.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx"
         },
         {
           "id": 3,
@@ -34,7 +38,9 @@
           "component": "StatementUploader",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "All mapped rows have valid txn_date, description, and Decimal amount",
-          "test_ref": "apps/backend/tests/extraction/test_csv_parsing.py"
+          "test_ref": "apps/backend/tests/extraction/test_csv_parsing.py",
+          "backend_test_ref": "apps/backend/tests/extraction/test_csv_parsing.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx"
         },
         {
           "id": 4,
@@ -44,7 +50,9 @@
           "component": "GuidedEvidenceForm",
           "backend_endpoint": "POST /assets/valuation-snapshots",
           "invariant": "Evidence file anchored to transaction or asset with SHA-256 digest",
-          "test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_assets_valuation_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx"
         },
         {
           "id": 5,
@@ -54,7 +62,9 @@
           "component": "AssetsPage",
           "backend_endpoint": "POST /assets/valuation-snapshots",
           "invariant": "Valuation creates journal entry adjusting Asset and UnrealizedGain",
-          "test_ref": "apps/backend/tests/assets/test_assets_router.py"
+          "test_ref": "apps/backend/tests/api/test_assets_valuation_api.py",
+          "backend_test_ref": "apps/backend/tests/api/test_assets_valuation_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/assetsPage.test.tsx"
         }
       ]
     },
@@ -70,7 +80,9 @@
           "component": "ReviewActionBar",
           "backend_endpoint": "POST /statements/{id}/review/approve",
           "invariant": "Approved statements create posted journal entries with matching custody account",
-          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
         },
         {
           "id": 7,
@@ -80,7 +92,9 @@
           "component": "LowConfidenceReviewModal",
           "backend_endpoint": "POST /statements/{id}/review/reject",
           "invariant": "Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse",
-          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/statementReviewPage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/LowConfidenceReviewModal.test.tsx"
         },
         {
           "id": 8,
@@ -90,7 +104,9 @@
           "component": "ConflictResolutionDialog",
           "backend_endpoint": "POST /review/conflicts/{id}/resolve",
           "invariant": "Duplicate transactions flagged and linked without double-counting in ledger",
-          "test_ref": "apps/backend/tests/extraction/test_deduplication.py"
+          "test_ref": "apps/backend/tests/extraction/test_deduplication.py",
+          "backend_test_ref": "apps/backend/tests/extraction/test_deduplication.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx"
         },
         {
           "id": 9,
@@ -100,7 +116,9 @@
           "component": "ConfirmDialog",
           "backend_endpoint": "POST /statements/{id}/review/reject",
           "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
-          "test_ref": "apps/backend/tests/api/test_statements_router.py"
+          "test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/confirmDialogComponent.test.tsx"
         },
         {
           "id": 10,
@@ -109,8 +127,10 @@
           "ui_surface": "/statements/{id}/review",
           "component": "StatementAiAssistantButton",
           "backend_endpoint": "POST /chat",
-          "invariant": "Chat prompt carries immutable statement metadata and handles SSE disconnects",
-          "test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx"
+          "invariant": "Metadata-preserving navigation: Chat prompt carries immutable statement metadata and gracefully recovers from SSE disconnects",
+          "test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/StatementAiAssistantButton.test.tsx"
         }
       ]
     },
@@ -126,7 +146,9 @@
           "component": "UnmatchedBoard",
           "backend_endpoint": "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition",
           "invariant": "Each transaction disposition assigns counter account and posts debit/credit",
-          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_reconciliation_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         },
         {
           "id": 12,
@@ -136,7 +158,9 @@
           "component": "Stage2ReviewQueue",
           "backend_endpoint": "POST /statements/batch-approve-matches",
           "invariant": "Batch approve commits all matching rules atomically when checks resolved",
-          "test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/api/test_statements_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reviewQueuePage.test.tsx"
         },
         {
           "id": 13,
@@ -146,7 +170,9 @@
           "component": "UnmatchedBoard",
           "backend_endpoint": "POST /accounts",
           "invariant": "Created account is added to choices but requires explicit reviewer confirmation (AC-reconciliation.first-use.1)",
-          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx",
+          "backend_test_ref": "apps/backend/tests/accounting/test_accounts_endpoints.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         },
         {
           "id": 14,
@@ -156,7 +182,9 @@
           "component": "JournalPage",
           "backend_endpoint": "POST /journal-entries",
           "invariant": "Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions",
-          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/journalPage.test.tsx"
         }
       ]
     },
@@ -172,7 +200,9 @@
           "component": "Workbench",
           "backend_endpoint": "POST /reconciliation/runs",
           "invariant": "Source account Dr == Target account Cr; Transfer clearing account net balance == 0",
-          "test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_reconciliation_matching_unit.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
         },
         {
           "id": 16,
@@ -182,7 +212,9 @@
           "component": "Workbench",
           "backend_endpoint": "POST /reconciliation/matches/{match_id}/accept",
           "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
-          "test_ref": "apps/backend/tests/e2e/test_core_journeys.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
         },
         {
           "id": 17,
@@ -192,7 +224,9 @@
           "component": "JournalPage",
           "backend_endpoint": "POST /journal-entries",
           "invariant": "OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss",
-          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/journalPage.test.tsx"
         },
         {
           "id": 18,
@@ -202,7 +236,9 @@
           "component": "ReconciliationPage",
           "backend_endpoint": "POST /reconciliation/adjustment",
           "invariant": "Immaterial discrepancy (|delta| <= 0.05) balances to BankRoundingDifference",
-          "test_ref": "apps/backend/tests/api/test_reconciliation_adjustment_api.py"
+          "test_ref": "apps/backend/tests/api/test_reconciliation_adjustment_api.py",
+          "backend_test_ref": "apps/backend/tests/api/test_reconciliation_adjustment_api.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
         }
       ]
     },
@@ -218,7 +254,9 @@
           "component": "HoldingsTable",
           "backend_endpoint": "POST /statements/upload",
           "invariant": "Position quantity * average_cost == Book cost; synced across statement boundaries",
-          "test_ref": "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py"
+          "test_ref": "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py",
+          "backend_test_ref": "apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/holdingsTable.test.tsx"
         },
         {
           "id": 20,
@@ -228,7 +266,9 @@
           "component": "UnmatchedBoard",
           "backend_endpoint": "POST /journal-entries",
           "invariant": "Gross Dividend Income == Net Cash Received + Withholding Tax Expense",
-          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         },
         {
           "id": 21,
@@ -238,7 +278,9 @@
           "component": "PricesPage",
           "backend_endpoint": "POST /portfolio/prices/update",
           "invariant": "Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost",
-          "test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/pricing/test_valuation_lines.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/portfolioPricesPage.test.tsx"
         },
         {
           "id": 22,
@@ -248,7 +290,9 @@
           "component": "UnmatchedBoard",
           "backend_endpoint": "POST /journal-entries",
           "invariant": "Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense",
-          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_specialized_splits.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         }
       ]
     },
@@ -264,7 +308,9 @@
           "component": "BalanceSheetPage",
           "backend_endpoint": "GET /reports/balance-sheet",
           "invariant": "Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)",
-          "test_ref": "apps/backend/tests/ledger/test_accounting_equation.py"
+          "test_ref": "apps/backend/tests/ledger/test_accounting_equation.py",
+          "backend_test_ref": "apps/backend/tests/ledger/test_accounting_equation.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/balanceSheetPage.test.tsx"
         },
         {
           "id": 24,
@@ -274,7 +320,9 @@
           "component": "BalanceSheetPage",
           "backend_endpoint": "GET /reports/balance-sheet/diagnostics",
           "invariant": "When Equation Delta != 0, returns classified cause: UNPOSTED_DRAFT, ONE_SIDED, UNMAPPED, FX_DRIFT",
-          "test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py"
+          "test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py",
+          "backend_test_ref": "apps/backend/tests/reporting/test_equation_diagnostics.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/balanceSheetPage.test.tsx"
         },
         {
           "id": 25,
@@ -284,7 +332,9 @@
           "component": "IncomeStatementPage",
           "backend_endpoint": "GET /reports/income-statement",
           "invariant": "Comparative periodic columns display balance variations without silent drop",
-          "test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/reporting/test_reports_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/incomeStatementPage.test.tsx"
         },
         {
           "id": 26,
@@ -294,7 +344,9 @@
           "component": "CashFlowPage",
           "backend_endpoint": "GET /reports/cash-flow",
           "invariant": "Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow",
-          "test_ref": "apps/backend/tests/reporting/test_reports_router.py"
+          "test_ref": "apps/backend/tests/reporting/test_cash_flow_invariants.py",
+          "backend_test_ref": "apps/backend/tests/reporting/test_cash_flow_invariants.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/reportsPage.test.tsx"
         }
       ]
     },
@@ -310,7 +362,9 @@
           "component": "ProvenanceBadge",
           "backend_endpoint": "GET /reports/account-lineage",
           "invariant": "Report Line drilldown traces to underlying journal entries and source statement metadata",
-          "test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx",
+          "backend_test_ref": "apps/backend/tests/reporting/test_reports_router.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/provenanceBadge.test.tsx"
         },
         {
           "id": 28,
@@ -320,7 +374,9 @@
           "component": "PersonalReportPackagePage",
           "backend_endpoint": "POST /reports/package/annual-archive",
           "invariant": "ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail",
-          "test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py"
+          "test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py",
+          "backend_test_ref": "apps/backend/tests/reporting/test_annual_tax_package.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/personalReportPackagePage.test.tsx"
         },
         {
           "id": 29,
@@ -330,7 +386,9 @@
           "component": "WorkflowEventsPageContent",
           "backend_endpoint": "GET /notifications",
           "invariant": "Identifies recurring cadence and flags unexpected amount increases or duplicate runs",
-          "test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py"
+          "test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_anomaly_detection.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/notificationsPage.test.tsx"
         },
         {
           "id": 30,
@@ -340,7 +398,9 @@
           "component": "ChatPageClient",
           "backend_endpoint": "POST /chat",
           "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
-          "test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx"
+          "test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx",
+          "backend_test_ref": "apps/backend/tests/reconciliation/test_ai_reconciliation.py",
+          "frontend_test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx"
         }
       ]
     }

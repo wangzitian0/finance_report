@@ -11,6 +11,8 @@ interface FlowDefinition {
   backend_endpoint: string
   invariant: string
   test_ref: string
+  backend_test_ref: string
+  frontend_test_ref: string
   domain_id?: number
   domain_name?: string
 }
@@ -72,6 +74,8 @@ describe("Unified 30-Flow Frontend Consistency & SSOT Compliance Suite", () => {
       expect(flow.backend_endpoint.trim()).toBeTruthy()
       expect(flow.invariant.trim()).toBeTruthy()
       expect(flow.test_ref.trim()).toBeTruthy()
+      expect(flow.backend_test_ref?.trim()).toBeTruthy()
+      expect(flow.frontend_test_ref?.trim()).toBeTruthy()
     }
   })
 
@@ -83,6 +87,22 @@ describe("Unified 30-Flow Frontend Consistency & SSOT Compliance Suite", () => {
         exists,
         `Flow #${flow.id} (${flow.name}) references test_ref "${flow.test_ref}" which does not exist on disk.`
       ).toBe(true)
+
+      if (flow.backend_test_ref) {
+        const fullBackendPath = path.resolve(repoRoot, flow.backend_test_ref)
+        expect(
+          fs.existsSync(fullBackendPath),
+          `Flow #${flow.id} (${flow.name}) references backend_test_ref "${flow.backend_test_ref}" which does not exist on disk.`
+        ).toBe(true)
+      }
+
+      if (flow.frontend_test_ref) {
+        const fullFrontendPath = path.resolve(repoRoot, flow.frontend_test_ref)
+        expect(
+          fs.existsSync(fullFrontendPath),
+          `Flow #${flow.id} (${flow.name}) references frontend_test_ref "${flow.frontend_test_ref}" which does not exist on disk.`
+        ).toBe(true)
+      }
     }
   })
 

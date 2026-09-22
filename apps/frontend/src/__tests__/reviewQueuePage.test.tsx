@@ -149,6 +149,8 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
     // AC-reconciliation.fe-stage2-review.26
     it("AC16.32.3 requests an expanded consistency-check limit for unblockable queues", async () => {
+        let requestedCheckUrl = "";
+
         mockedApi.mockImplementation((path: string) => {
             if (path === "/api/statements/stage2/queue") {
                 return Promise.resolve({
@@ -159,7 +161,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             }
 
             if (path.startsWith("/api/statements/consistency-checks/list")) {
-                expect(path).toContain("limit=500");
+                requestedCheckUrl = path;
                 return Promise.resolve({ items: [] });
             }
 
@@ -169,6 +171,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
         renderReviewComponent(<ReviewQueuePage /> as never);
 
         expect(await screen.findByText("No pending checks")).toBeInTheDocument();
+        expect(requestedCheckUrl).toContain("limit=500");
     });
 
     // AC-reconciliation.fe-stage2-review.1
@@ -187,7 +190,11 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
                     method: "POST",
                     body: JSON.stringify({ match_ids: ["m1"] }),
                 });
-                return Promise.resolve({ success: true, approved_count: 1 });
+                return Promise.resolve({
+                    approved_count: 1,
+                    journal_entries_created: 1,
+                    journal_entries_reconciled: 1,
+                });
             }
 
             return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -208,6 +215,35 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
                 }),
             );
         });
+    });
+
+    it("intercepts 409 Conflict when batch approval fails and displays user error toast", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path === "/api/statements/stage2/queue") {
+                return Promise.resolve(queueData);
+            }
+
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] });
+            }
+
+            if (path === "/api/statements/batch-approve-matches") {
+                return Promise.reject(
+                    new Error("409 Conflict: unresolved consistency checks block batch approval"),
+                );
+            }
+
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
+        fireEvent.click(within(desktopRegion).getByText("Transfer"));
+        fireEvent.click(screen.getByRole("button", { name: /Approve Selected/i }));
+
+        const alert = await screen.findByRole("alert");
+        expect(alert).toHaveTextContent("409 Conflict: unresolved consistency checks block batch approval");
     });
 
     // AC-reconciliation.fe-stage2-review.5
