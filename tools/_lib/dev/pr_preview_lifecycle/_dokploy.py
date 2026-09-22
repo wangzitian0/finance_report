@@ -1,4 +1,11 @@
-"""Dokploy API client + compose CRUD + deployment rollout."""
+"""Dokploy API client + compose CRUD + deployment rollout.
+
+@deprecated-host-adapter
+Architectural Notice:
+Dokploy API operations belong to the platform/workspace layer (infra2). This module
+is retained strictly to maintain backward-compatible manual preview deployment and
+existing AC8.13 gate contracts. Do NOT introduce new callers to this module.
+"""
 
 from __future__ import annotations
 

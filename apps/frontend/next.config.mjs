@@ -2,53 +2,111 @@ export function shouldProxyApiToLocalBackend() {
     return process.env.NODE_ENV !== 'production' && (process.env.NEXT_PUBLIC_API_URL ?? '') === '';
 }
 
-const securityHeaders = [
-    {
-        key: 'Content-Security-Policy',
-        value: [
-            "default-src 'self'",
-            "base-uri 'self'",
-            "object-src 'none'",
-            "frame-ancestors 'none'",
-            // #963 / AC16.33.5: the Stage 1 review embeds the statement document
-            // as a same-origin `blob:` object URL (fetched with auth), so the
-            // iframe needs an explicit frame-src. Without it the iframe falls
-            // back to `default-src 'self'`, which excludes `blob:` and renders
-            // the browser "This content is blocked" message.
-            "frame-src 'self' blob:",
-            "img-src 'self' data: blob:",
-            "font-src 'self' data:",
-            "style-src 'self' 'unsafe-inline'",
-            // The OpenPanel analytics SDK (EPIC-024) loads its script from the
-            // self-hosted host (Analytics.tsx DEFAULT_OPENPANEL_API_URL). Without
-            // it here the browser blocks op1.js and telemetry silently dies
-            // (#1623). connect-src already covers *.zitian.party for the beacon POSTs.
-            "script-src 'self' 'unsafe-inline' https://openpanel.zitian.party",
-            "connect-src 'self' https://*.zitian.party",
-            "form-action 'self'",
-        ].join('; '),
-    },
-    {
-        key: 'Strict-Transport-Security',
-        value: 'max-age=31536000; includeSubDomains; preload',
-    },
-    {
-        key: 'X-Frame-Options',
-        value: 'DENY',
-    },
-    {
-        key: 'X-Content-Type-Options',
-        value: 'nosniff',
-    },
-    {
-        key: 'Referrer-Policy',
-        value: 'strict-origin-when-cross-origin',
-    },
-    {
-        key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=(), payment=()',
-    },
-];
+function extractOrigin(urlString) {
+    if (!urlString || typeof urlString !== 'string') return null;
+    try {
+        const origin = new URL(urlString.trim()).origin;
+        return (!origin || origin === 'null') ? null : origin;
+    } catch {
+        return null;
+    }
+}
+
+function parseSources(str) {
+    if (!str || typeof str !== 'string') return [];
+    const tokens = str.split(/[,\s;]+/).map(s => s.replace(/;/g, '').trim()).filter(Boolean);
+    const validSources = [];
+    for (const token of tokens) {
+        if (/^'[a-zA-Z0-9_-]+'$/.test(token)) {
+            validSources.push(token);
+            continue;
+        }
+        const origin = extractOrigin(token);
+        if (origin) {
+            validSources.push(origin);
+        }
+    }
+    return validSources;
+}
+
+// Canonical base CSP directives (satisfies test_csp_script_src_contract.py).
+const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://api.openpanel.dev";
+const BASE_CONNECT_SRC = "connect-src 'self' https://api.openpanel.dev";
+
+export function buildContentSecurityPolicy() {
+    const scriptSources = BASE_SCRIPT_SRC.slice("script-src ".length).split(' ');
+    const connectSources = BASE_CONNECT_SRC.slice("connect-src ".length).split(' ');
+
+    const openpanelApiOrigin = extractOrigin(process.env.OPENPANEL_API_URL);
+    if (openpanelApiOrigin) {
+        if (!scriptSources.includes(openpanelApiOrigin)) scriptSources.push(openpanelApiOrigin);
+        if (!connectSources.includes(openpanelApiOrigin)) connectSources.push(openpanelApiOrigin);
+    }
+
+    const openpanelScriptOrigin = extractOrigin(process.env.OPENPANEL_SCRIPT_URL);
+    if (openpanelScriptOrigin) {
+        if (!scriptSources.includes(openpanelScriptOrigin)) scriptSources.push(openpanelScriptOrigin);
+    }
+
+    for (const src of parseSources(process.env.EXTRA_CSP_SCRIPT_SRC)) {
+        if (!scriptSources.includes(src)) scriptSources.push(src);
+    }
+
+    for (const src of parseSources(process.env.EXTRA_CSP_CONNECT_SRC)) {
+        if (!connectSources.includes(src)) connectSources.push(src);
+    }
+
+    return [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        // #963 / AC16.33.5: the Stage 1 review embeds the statement document
+        // as a same-origin `blob:` object URL (fetched with auth), so the
+        // iframe needs an explicit frame-src. Without it the iframe falls
+        // back to `default-src 'self'`, which excludes `blob:` and renders
+        // the browser "This content is blocked" message.
+        "frame-src 'self' blob:",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "style-src 'self' 'unsafe-inline'",
+        // The OpenPanel analytics SDK loads its script from the configured
+        // API/script host. connect-src covers beacon POSTs.
+        `script-src ${scriptSources.join(' ')}`,
+        `connect-src ${connectSources.join(' ')}`,
+        "form-action 'self'",
+    ].join('; ');
+}
+
+export function getSecurityHeaders() {
+    return [
+        {
+            key: 'Content-Security-Policy',
+            value: buildContentSecurityPolicy(),
+        },
+        {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+        },
+        {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+        },
+        {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+        },
+        {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+        },
+        {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=()',
+        },
+    ];
+}
+
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -57,7 +115,7 @@ const nextConfig = {
         return [
             {
                 source: '/:path*',
-                headers: securityHeaders,
+                headers: getSecurityHeaders(),
             },
         ];
     },

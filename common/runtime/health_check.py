@@ -5,7 +5,7 @@ version/git_sha stable-mismatch budget) is infra's responsibility, not app's --
 extracted to ``infra2_sdk.deploy_health`` (finance_report#1535, infra2-sdk
 v0.5.0). This module keeps only Finance Report's own presentation on top of
 that shared core: periodic route-shadow probing on a 404 (diagnosing a
-missing/shadowed Traefik API route), and the SigNoz observability link. Do
+missing/shadowed Traefik API route), and the observability backend link. Do
 not add behavioral changes to what "healthy" means here -- that belongs in
 infra2's deploy contract, which infra2_sdk.deploy_health serves.
 
@@ -20,12 +20,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from collections.abc import Callable, Sequence
 
 from infra2_sdk.deploy_health import HttpGet, default_http_get, poll_until_healthy
 
-SIGNOZ_URL = "https://signoz.zitian.party"
+SIGNOZ_URL = (os.environ.get("OBSERVABILITY_BACKEND_URL") or "").strip()
 SERVICE_NAME = "finance-report-backend"
 DEFAULT_MAX_ATTEMPTS = 24
 INTERVAL_SECONDS = 10.0
@@ -110,7 +111,12 @@ def check_health(
     print(f"URL: {app_base_url}")
     print(f"Response: {result.body}")
     print()
-    print(f"Logs (observability backend): {SIGNOZ_URL}")
+    if SIGNOZ_URL:
+        print(f"Logs (observability backend): {SIGNOZ_URL}")
+    else:
+        print(
+            "Logs available in observability backend (set OBSERVABILITY_BACKEND_URL to display link)"
+        )
     print(f"Filter: deployment.environment={environment} service_name={SERVICE_NAME}")
     print("=" * 41)
     return 0

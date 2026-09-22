@@ -47,14 +47,14 @@ describe('API URL Configuration Scenarios', () => {
     })
 
     it('should construct correct API path with absolute API_URL', () => {
-      const API_URL = 'https://report.zitian.party'
+      const API_URL = 'https://report.example.com'
       const path = '/api/accounts'
       const fullPath = `${API_URL}${path}`
-      expect(fullPath).toBe('https://report.zitian.party/api/accounts')
+      expect(fullPath).toBe('https://report.example.com/api/accounts')
     })
 
     it('AC7.9.5 does not proxy production API routes to localhost', async () => {
-      vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://report.zitian.party')
+      vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://report.example.com')
       vi.stubEnv('NODE_ENV', 'production')
 
       const { default: nextConfig } = await import('../../next.config.mjs')
@@ -90,8 +90,8 @@ describe('API URL Configuration Scenarios', () => {
 
   describe('PR Environment', () => {
     it('should work with PR-specific domain', () => {
-      const APP_URL = 'https://report-pr-101.zitian.party'
-      expect(APP_URL).toMatch(/^https:\/\/report-pr-\d+\.zitian\.party$/)
+      const APP_URL = 'https://report-pr-101.example.com'
+      expect(APP_URL).toMatch(/^https:\/\/report-pr-\d+\.example\.com$/)
     })
   })
 
@@ -135,6 +135,73 @@ describe('API URL Configuration Scenarios', () => {
       const envValue = ''
       const API_URL = envValue || 'https://fallback.com'
       expect(API_URL).toBe('https://fallback.com')
+    })
+  })
+
+  describe('Dynamic Content Security Policy', () => {
+    it('defaults to allowing standard OpenPanel cloud and contains no private infrastructure domains', async () => {
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toContain('script-src')
+      expect(csp).toContain('https://api.openpanel.dev')
+      expect(csp).not.toContain('zitian.party')
+    })
+
+    it('allows injecting private or wildcard domains via EXTRA_CSP_CONNECT_SRC', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', 'https://*.zitian.party')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/\*\.zitian\.party/)
+    })
+
+    it('dynamically parses OPENPANEL_API_URL and OPENPANEL_SCRIPT_URL into CSP', async () => {
+      vi.stubEnv('OPENPANEL_API_URL', 'https://custom-openpanel.example.com/api/v1')
+      vi.stubEnv('OPENPANEL_SCRIPT_URL', 'https://cdn-openpanel.example.com/tracker.js')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/script-src [^;]*https:\/\/custom-openpanel\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/custom-openpanel\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/cdn-openpanel\.example\.com/)
+    })
+
+    it('supports EXTRA_CSP_CONNECT_SRC and EXTRA_CSP_SCRIPT_SRC', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', 'https://extra-api.example.com https://extra-api2.example.com')
+      vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', 'https://extra-script.example.com')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/extra-api\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/extra-api2\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/extra-script\.example\.com/)
+    })
+
+    it('safely handles and strips semicolons from EXTRA_CSP variables without corrupting directives', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', 'https://semi1.example.com; https://semi2.example.com;')
+      vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', 'https://semi-script.example.com;')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/semi1\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/semi2\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/semi-script\.example\.com/)
+    })
+
+    it('filters out opaque origins (null) from invalid or opaque URLs', async () => {
+      vi.stubEnv('OPENPANEL_API_URL', 'data:text/plain;base64,SGVsbG8=')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).not.toContain('null')
+    })
+
+    it('validates EXTRA_CSP sources, preserving valid origins and quoted keywords while discarding invalid or opaque strings', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', "invalid-opaque 'self' data:text/plain;base64,abc https://valid-extra.example.com/path")
+      vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', "opaque-token 'unsafe-eval' https://valid-script.example.com")
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toContain('https://valid-extra.example.com')
+      expect(csp).toContain('https://valid-script.example.com')
+      expect(csp).toContain("'unsafe-eval'")
+      expect(csp).not.toContain('invalid-opaque')
+      expect(csp).not.toContain('opaque-token')
+      expect(csp).not.toMatch(/connect-src [^;]*data:/)
     })
   })
 })

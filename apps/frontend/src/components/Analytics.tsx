@@ -4,12 +4,12 @@ import { Component, type ReactNode } from "react";
 import { OpenPanelComponent } from "@openpanel/nextjs";
 
 /**
- * Default OpenPanel API endpoint for the self-hosted instance.
+ * Default OpenPanel API endpoint (standard official cloud endpoint).
  *
  * Each environment can override this at runtime; this constant is only the
- * fallback used when no explicit `apiUrl` is supplied.
+ * neutral fallback used when no explicit `apiUrl` is supplied.
  */
-export const DEFAULT_OPENPANEL_API_URL = "https://openpanel.zitian.party/api";
+export const DEFAULT_OPENPANEL_API_URL = "https://api.openpanel.dev";
 
 export interface AnalyticsProps {
   /**
