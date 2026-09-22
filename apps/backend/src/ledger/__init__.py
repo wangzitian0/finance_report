@@ -76,11 +76,13 @@ if TYPE_CHECKING:
         submit_anchored_journal_entry,
         submit_anchored_journal_entry_v2,
         submit_manual_journal_entry,
+        submit_system_journal_entry,
         used_currencies,
         validate_line_account_ownership,
         validate_manual_journal_entry_for_post,
         void_journal_entry,
     )
+    from src.ledger.splits import calculate_reconciliation_adjustment
 
 # ORM models owned by this package (moved from src/models, #1675). Imported
 # eagerly — unlike the lazy service surface below — so importing the published
@@ -140,6 +142,7 @@ __all__ = [
     "calculate_account_balance",
     "calculate_account_balances",
     "calculate_account_balances_in_base_currency",
+    "calculate_reconciliation_adjustment",
     "calculate_unrealized_fx_gains",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
@@ -159,6 +162,7 @@ __all__ = [
     "submit_anchored_journal_entry",
     "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
+    "submit_system_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "post_opening_balance_entry",
@@ -224,6 +228,7 @@ _EXTENSION_NAMES = {
     "submit_anchored_journal_entry",
     "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
+    "submit_system_journal_entry",
     "validate_manual_journal_entry_for_post",
     "post_journal_entry",
     "register_fx_revaluation_provider",
@@ -241,6 +246,9 @@ _DATA_NAMES = {
     "register_statement_coverage_reader",
     "verify_accounting_equation",
 }
+_SPLITS_NAMES = {
+    "calculate_reconciliation_adjustment",
+}
 
 
 def __getattr__(name: str):
@@ -250,6 +258,8 @@ def __getattr__(name: str):
         module_name = "src.ledger.extension"
     elif name in _DATA_NAMES:
         module_name = "src.ledger.data"
+    elif name in _SPLITS_NAMES:
+        module_name = "src.ledger.splits"
     else:
         raise AttributeError(f"module 'src.ledger' has no attribute {name!r}")
     value = getattr(import_module(module_name), name)

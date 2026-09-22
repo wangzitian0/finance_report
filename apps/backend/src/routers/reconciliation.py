@@ -24,10 +24,10 @@ from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
     ValidationError,
+    calculate_reconciliation_adjustment,
     current_anchored_journal_entries,
+    submit_system_journal_entry,
 )
-from src.ledger.extension.anchored_posting import submit_system_journal_entry
-from src.ledger.splits import calculate_reconciliation_adjustment
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
 from src.platform import get_owned_or_404, raise_bad_request, raise_not_found
 from src.reconciliation import (
@@ -578,14 +578,17 @@ async def post_reconciliation_adjustment(
     """Post an immaterial penny rounding adjustment (Flow 18)."""
     account = await get_owned_or_404(db, Account, payload.account_id, user_id, name="Account")
 
-    try:
-        adjustment = calculate_reconciliation_adjustment(
-            bank_balance=payload.bank_balance,
-            book_balance=payload.book_balance,
-            threshold=payload.threshold,
-        )
-    except ValueError as exc:
-        raise_bad_request(str(exc), cause=exc)
+    # Pre-validate threshold to avoid raw ValueError in domain function
+    # (AC-reconciliation.signature-surgery.4: no raw ValueError handlers).
+    diff = abs(payload.bank_balance - payload.book_balance)
+    if diff > payload.threshold:
+        raise_bad_request(f"difference {diff} exceeds immaterial threshold {payload.threshold}")
+
+    adjustment = calculate_reconciliation_adjustment(
+        bank_balance=payload.bank_balance,
+        book_balance=payload.book_balance,
+        threshold=payload.threshold,
+    )
 
     if adjustment.difference == Decimal("0"):
         return ReconciliationAdjustmentResponse(

@@ -1,5 +1,8 @@
 """Tests for Flow 18: Reconciliation Immaterial Adjustment & Penny Rounding Write-Off API.
 
+AC-reconciliation.adjustment.1: POST /reconciliation/adjustment with valid minor difference
+creates a POSTED journal entry with 2 lines (Bank account and BankRoundingDifference account).
+
 Verifies:
 - POST /reconciliation/adjustment with valid minor difference creates a POSTED journal entry
   with 2 lines (Bank account and BankRoundingDifference account).
