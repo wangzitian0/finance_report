@@ -1,4 +1,9 @@
-"""Dokploy API client + compose CRUD + deployment rollout."""
+"""Dokploy API client + compose CRUD + deployment rollout.
+
+@deprecated-host-adapter
+架构说明：
+Dokploy API 属于 infra2 边界，本模块保留仅为看守既有 AC8.13 契约与手动部署回退，严禁新增业务调用。
+"""
 
 from __future__ import annotations
 

@@ -20,12 +20,15 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from collections.abc import Callable, Sequence
 
 from infra2_sdk.deploy_health import HttpGet, default_http_get, poll_until_healthy
 
-SIGNOZ_URL = "https://signoz.zitian.party"
+SIGNOZ_URL = (
+    os.environ.get("OBSERVABILITY_BACKEND_URL") or ""
+).strip() or "https://signoz.zitian.party"
 SERVICE_NAME = "finance-report-backend"
 DEFAULT_MAX_ATTEMPTS = 24
 INTERVAL_SECONDS = 10.0

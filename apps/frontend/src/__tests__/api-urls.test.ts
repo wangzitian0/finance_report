@@ -137,4 +137,52 @@ describe('API URL Configuration Scenarios', () => {
       expect(API_URL).toBe('https://fallback.com')
     })
   })
+
+  describe('Dynamic Content Security Policy', () => {
+    it('defaults to allowing standard OpenPanel cloud and legacy zitian endpoints', async () => {
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toContain('script-src')
+      expect(csp).toContain('https://openpanel.zitian.party')
+      expect(csp).toContain('https://api.openpanel.dev')
+      expect(csp).toContain('https://*.zitian.party')
+    })
+
+    it('dynamically parses OPENPANEL_API_URL and OPENPANEL_SCRIPT_URL into CSP', async () => {
+      vi.stubEnv('OPENPANEL_API_URL', 'https://custom-openpanel.example.com/api/v1')
+      vi.stubEnv('OPENPANEL_SCRIPT_URL', 'https://cdn-openpanel.example.com/tracker.js')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/script-src [^;]*https:\/\/custom-openpanel\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/custom-openpanel\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/cdn-openpanel\.example\.com/)
+    })
+
+    it('supports EXTRA_CSP_CONNECT_SRC and EXTRA_CSP_SCRIPT_SRC', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', 'https://extra-api.example.com https://extra-api2.example.com')
+      vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', 'https://extra-script.example.com')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/extra-api\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/extra-api2\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/extra-script\.example\.com/)
+    })
+
+    it('safely handles and strips semicolons from EXTRA_CSP variables without corrupting directives', async () => {
+      vi.stubEnv('EXTRA_CSP_CONNECT_SRC', 'https://semi1.example.com; https://semi2.example.com;')
+      vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', 'https://semi-script.example.com;')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/semi1\.example\.com/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/semi2\.example\.com/)
+      expect(csp).toMatch(/script-src [^;]*https:\/\/semi-script\.example\.com/)
+    })
+
+    it('filters out opaque origins (null) from invalid or opaque URLs', async () => {
+      vi.stubEnv('OPENPANEL_API_URL', 'data:text/plain;base64,SGVsbG8=')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).not.toContain('null')
+    })
+  })
 })

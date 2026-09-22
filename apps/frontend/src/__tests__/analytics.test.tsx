@@ -59,6 +59,10 @@ describe("Analytics", () => {
     })
   })
 
+  it("DEFAULT_OPENPANEL_API_URL points to the neutral official cloud endpoint", () => {
+    expect(DEFAULT_OPENPANEL_API_URL).toBe("https://api.openpanel.dev")
+  })
+
   it("error boundary swallows a render error from OpenPanelComponent (no rethrow)", async () => {
     const { OpenPanelComponent } = await import("@openpanel/nextjs")
     const mocked = vi.mocked(OpenPanelComponent)
