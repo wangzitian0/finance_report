@@ -123,6 +123,14 @@ describe("navigation metadata", () => {
   });
 
   it("exposes APP_ROUTES SSOT constants covering all core navigation surfaces", () => {
+    // Assert every declared APP_ROUTES constant is represented in ROUTE_CONFIG
+    for (const [key, route] of Object.entries(APP_ROUTES)) {
+      expect(
+        ROUTE_CONFIG[route],
+        `Route ${key} (${route}) must have a matching ROUTE_CONFIG entry`,
+      ).toBeDefined();
+    }
+
     expect(APP_ROUTES.HOME).toBe("/");
     expect(APP_ROUTES.UPLOAD).toBe("/upload");
     expect(APP_ROUTES.NOTIFICATIONS).toBe("/notifications");
