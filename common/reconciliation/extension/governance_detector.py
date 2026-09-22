@@ -56,7 +56,7 @@ def _one_active_head(repo_root: Path) -> list[str]:
         (
             '"uq_reconciliation_matches_active_atomic_txn"',
             '"atomic_txn_id",\n            unique=True',
-            "superseded_by_id IS NULL AND status <> 'superseded'",
+            "superseded_by_id IS NULL AND status NOT IN ('superseded'::reconciliation_status_enum, 'rejected'::reconciliation_status_enum)",
         ),
     )
 

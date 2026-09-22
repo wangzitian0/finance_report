@@ -282,7 +282,6 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         ACRecord(
-<<<<<<< HEAD
             id="AC-reconciliation.rejection-recovery.4",
             statement="Historical retired or superseded source facts cannot reenter unmatched queues, automatic candidates, or direct reviewed posting.",
             test="apps/backend/tests/reconciliation/test_rejection_recovery.py::test_historical_source_transactions_are_not_actionable",
