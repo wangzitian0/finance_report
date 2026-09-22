@@ -90,6 +90,8 @@ nav:
       # docs/ssot/ itself (including its README.md tombstone) was retired
       # entirely in #1823 (Package-ization 4/4, terminal); no page replaces
       # it here since the content is package-scattered, not mkdocs-rendered.
+      - SSOT Index: ssot/README.md
+      - 30 Wealth Flows SSOT: ssot/thirty-wealth-flows.md
       - Product Analytics Events: reference/analytics-events.md
   - Governance:
       - Agent Orchestration: agents/orchestration.md
