@@ -25,7 +25,7 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.extraction import StatementSourceType
-from src.reporting import personal_report_package_decision_ref, personal_report_package_target
+from src.reporting import CashFlowBridge, personal_report_package_decision_ref, personal_report_package_target
 from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution
 from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import (
@@ -208,6 +208,13 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
             currency="SGD",
             proof_state="proven",
             proof_reasons=[],
+            cash_bridge=CashFlowBridge(
+                classified_activity=Decimal("5.00"),
+                unclassified_cash=Decimal("0.00"),
+                fx_effect=Decimal("0.00"),
+                cash_delta=Decimal("4.00"),
+                reconciles=False,
+            ),
             summary=SimpleNamespace(
                 beginning_cash=Decimal("10.00"),
                 net_cash_flow=Decimal("5.00"),

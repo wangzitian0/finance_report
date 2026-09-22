@@ -1,29 +1,23 @@
-"""Opening-balance domain services (#949).
-
-The double-entry core — the journal write pipeline, the posting validators, and the
-account-balance projection — now lives in the ``ledger`` package
-(``common/ledger`` / ``apps/backend/src/ledger``). This module keeps only the
-opening-balance domain services, which orchestrate the guided year-start flow on
-top of the published ledger interface.
-"""
+"""Account starting positions: one immutable stock, independent of approval path."""
 
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
+from src.audit import TraceScope, current_authoritative_trace_decision_projection
+from src.audit.money import to_money
+from src.audit.money.currency import normalize_currency_code
 from src.ledger.base.validators import ValidationError
-from src.ledger.extension.post import post_entry
+from src.ledger.extension.anchored_posting import submit_system_journal_entry
+from src.ledger.extension.opening_positions import list_opening_positions, record_opening_position
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
-__all__ = [
-    "get_opening_balance_readiness",
-    "post_opening_balance_entry",
-]
+__all__ = ["get_opening_balance_readiness", "post_opening_balance_entry"]
 
 
 async def post_opening_balance_entry(
@@ -32,170 +26,188 @@ async def post_opening_balance_entry(
     *,
     entry_date: date,
     balances: dict[UUID, Decimal],
-    currency: str,
+    currency: str | None = None,
     base_currency: str | None = None,
     memo: str = "Opening balances",
-) -> JournalEntry:
-    """Post a balanced opening-balance entry establishing year-start positions (#949).
+    fx_rates: dict[str, Decimal] | None = None,
+    source_decision_id: UUID | None = None,
+) -> JournalEntry | None:
+    """Initialize signed account stock; repeated identical requests are idempotent.
 
-    Each supplied account is increased to its opening balance per its normal
-    side (assets/expenses debited, liabilities/equity/income credited); the net
-    is offset into the system Opening Balance Equity account so the entry
-    balances and the accounting equation holds. All amounts are ``Decimal``.
+    Zero is recorded as evidence without inventing a monetary journal. FX rates
+    are explicit historical inputs supplied by the composition boundary.
     """
-    # Imported lazily so importing this module stays free of the FastAPI/util
-    # dependency graph (tooling tests import accounting without those installed).
-    from src.audit.money import Money, to_money
-    from src.audit.money.currency import normalize_currency_code
-    from src.ledger import Entry, Leg
     from src.ledger.extension.account_service import get_or_create_opening_balance_equity_account
 
     if not balances:
         raise ValidationError("At least one opening balance is required")
-
-    normalized_currency = normalize_currency_code(currency)
-    account_ids = list(balances.keys())
-    result = await db.execute(select(Account).where(Account.id.in_(account_ids), Account.user_id == user_id))
-    accounts = {account.id: account for account in result.scalars().all()}
-    missing = [str(account_id) for account_id in account_ids if account_id not in accounts]
-    if missing:
-        raise ValidationError(f"Unknown or non-owned account(s): {sorted(missing)}")
-
-    # The posted entry is SYSTEM-typed (it offsets into the system equity account),
-    # which would otherwise let a caller target any system account (e.g. Processing).
-    # Opening balances may only target user-managed accounts.
-    system_targets = sorted(str(account.id) for account in accounts.values() if account.is_system)
-    if system_targets:
-        raise ValidationError(f"Opening balances cannot target system accounts: {system_targets}")
-
-    normalized_base_currency = normalize_currency_code(base_currency or src.config.settings.base_currency)
-    if normalized_currency != normalized_base_currency:
-        raise ValidationError(
-            "Opening balances are supported only in the base currency "
-            f"({normalized_base_currency}); got {normalized_currency}."
+    # Serializes first initialization and the per-user equity-account creation
+    # across independent sessions, not merely tasks sharing one identity map.
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": f"ledger-opening:{user_id}"}
+    )
+    normalized_base = normalize_currency_code(base_currency or src.config.settings.base_currency)
+    expected_currency = normalize_currency_code(currency) if currency else None
+    accounts = {
+        a.id: a
+        for a in (
+            await db.execute(
+                select(Account)
+                .where(Account.id.in_(balances), Account.user_id == user_id)
+                .order_by(Account.id)
+                .with_for_update()
+            )
         )
-
-    # An opening balance establishes a starting position, not a delta: reject when
-    # any affected account already has posted/reconciled activity before entry_date,
-    # otherwise the posted amount would stack on top of an existing balance.
-    prior = await db.execute(
+        .scalars()
+        .all()
+    }
+    if len(accounts) != len(balances):
+        raise ValidationError("Unknown or non-owned account(s)")
+    if any(a.is_system for a in accounts.values()):
+        raise ValidationError("Opening balances cannot target system accounts")
+    if any(not a.is_active for a in accounts.values()):
+        raise ValidationError("Opening balances require active accounts")
+    if source_decision_id is not None:
+        projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery()
+        if (
+            await db.scalar(select(projection.c.decision_id).where(projection.c.decision_id == source_decision_id))
+            is None
+        ):
+            raise ValidationError("Opening source decision is not currently authoritative")
+    positions = {p.account_id: p for p in await list_opening_positions(db, user_id=user_id, as_of=date.max)}
+    new = {}
+    existing_entries = set()
+    rates = {}
+    for aid, raw in balances.items():
+        if not isinstance(raw, Decimal):
+            raise ValidationError("Opening balance amounts must be Decimal")
+        amount = to_money(raw)
+        account = accounts[aid]
+        code = normalize_currency_code(account.currency)
+        if expected_currency and code != expected_currency:
+            raise ValidationError("Opening balance currency does not match the currency of account")
+        previous = positions.get(aid)
+        if previous:
+            if previous.state != "authoritative":
+                raise ValidationError("Existing opening evidence needs review before replacement")
+            if (previous.effective_date, previous.amount, previous.currency) != (entry_date, amount, code):
+                raise ValidationError("Account already has a different opening position; use the correction lifecycle")
+            if previous.journal_entry_id:
+                existing_entries.add(previous.journal_entry_id)
+            continue
+        rate = (fx_rates or {}).get(code)
+        if code != normalized_base and amount != 0:
+            if not isinstance(rate, Decimal) or not rate.is_finite() or rate <= 0:
+                raise ValidationError(f"FX rate required for opening balance in {code}")
+            rate = rate.quantize(Decimal("0.000001"))
+            if rate <= 0:
+                raise ValidationError("FX rate is below supported precision")
+        else:
+            rate = None
+        rates[aid] = rate
+        new[aid] = amount
+    if not new:
+        return await db.get(JournalEntry, next(iter(existing_entries))) if existing_entries else None
+    # Opening stock must precede activity. Same-date activity is allowed: the
+    # opening evidence distinguishes the start of that day from its flows.
+    prior = await db.scalar(
         select(JournalLine.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id.in_(account_ids))
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
-        .where(JournalEntry.entry_date < entry_date)
+        .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
+        .where(
+            JournalLine.account_id.in_(new),
+            JournalEntry.user_id == user_id,
+            JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+            JournalEntry.entry_date < entry_date,
+        )
         .limit(1)
     )
-    if prior.first() is not None:
-        raise ValidationError(
-            "Opening balances must precede all activity for the affected accounts; "
-            "one or more already have posted entries before the opening date."
-        )
-
-    lines_data: list[dict] = []
-    total_debit = Decimal("0")
-    total_credit = Decimal("0")
-    for account_id, raw_amount in balances.items():
-        amount = to_money(raw_amount)
-        if amount <= Decimal("0"):
-            raise ValidationError("Opening balance amounts must be positive")
-        account = accounts[account_id]
-        if normalize_currency_code(account.currency or "") != normalized_currency:
-            raise ValidationError(
-                f"Opening balance currency {normalized_currency} does not match the currency "
-                f"of account {account_id} ({account.currency}); lines must not be mis-stamped."
-            )
-        if account.type in (AccountType.ASSET, AccountType.EXPENSE):
-            direction = Direction.DEBIT
-            total_debit += amount
-        else:
-            direction = Direction.CREDIT
-            total_credit += amount
-        lines_data.append(
-            {"account_id": account_id, "direction": direction, "amount": amount, "currency": normalized_currency}
-        )
-
-    net = total_debit - total_credit
-    if net != Decimal("0"):
-        equity_account = await get_or_create_opening_balance_equity_account(db, user_id, normalized_currency)
-        lines_data.append(
+    if prior is not None:
+        raise ValidationError("Opening balances must precede all activity for the affected accounts")
+    lines = []
+    net = Decimal("0")
+    for aid, amount in new.items():
+        if amount == 0:
+            continue
+        account = accounts[aid]
+        debit_normal = account.type in (AccountType.ASSET, AccountType.EXPENSE)
+        debit = debit_normal if amount > 0 else not debit_normal
+        direction = Direction.DEBIT if debit else Direction.CREDIT
+        rate = rates[aid]
+        lines.append(
             {
-                "account_id": equity_account.id,
-                "direction": Direction.CREDIT if net > 0 else Direction.DEBIT,
-                "amount": abs(net),
-                "currency": normalized_currency,
+                "account_id": aid,
+                "direction": direction,
+                "amount": abs(amount),
+                "currency": account.currency,
+                "fx_rate": rate,
             }
         )
-
-    # Guarantee the double-entry balance as a TYPE before persistence: if the
-    # equity-plug logic above is wrong, Entry construction raises here rather than
-    # producing an unbalanced opening entry (Axiom D / double-entry integrity).
-    opening_entry = Entry.of(
-        *(Leg(line["account_id"], line["direction"], Money(line["amount"], line["currency"])) for line in lines_data)
-    )
-
-    # SYSTEM-typed: the guided flow orchestrates this entry and it offsets into
-    # the system Opening Balance Equity account, which manual entries may not touch.
-    return await post_entry(
-        db,
-        user_id=user_id,
-        entry_date=entry_date,
-        memo=memo,
-        entry=opening_entry,
-        base_currency=normalized_base_currency,
-        operation="opening-balance",
-    )
+        converted = abs(amount) * (rate or Decimal("1"))
+        net += converted if debit else -converted
+    entry = None
+    if lines:
+        net = to_money(net)
+        if net != 0:
+            equity = await get_or_create_opening_balance_equity_account(db, user_id, normalized_base)
+            lines.append(
+                {
+                    "account_id": equity.id,
+                    "direction": Direction.CREDIT if net > 0 else Direction.DEBIT,
+                    "amount": abs(net),
+                    "currency": normalized_base,
+                }
+            )
+        entry = await submit_system_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=entry_date,
+            memo=memo,
+            lines_data=lines,
+            base_currency=normalized_base,
+            operation="opening-balance",
+        )
+        await db.refresh(entry, ["lines"])
+    for aid, amount in new.items():
+        await record_opening_position(
+            db,
+            user_id=user_id,
+            account_id=aid,
+            effective_date=entry_date,
+            amount=amount,
+            currency=accounts[aid].currency,
+            fx_rate=rates[aid],
+            journal_entry_id=entry.id if entry is not None and amount != 0 else None,
+            source_decision_id=source_decision_id,
+        )
+    return entry
 
 
 async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict:
-    """Detect whether a user's balance sheet may be silently incomplete (#949 / AC-ledger.16.1).
-
-    The everyday-user persona who already owns assets/liabilities on day one will,
-    without recording opening balances, get a balance sheet that looks right but
-    omits the starting position. This returns ``needs_opening_balance=True`` when
-    the user has posted activity but no opening-balance entry on or before the
-    earliest such activity, so the UI can nudge them before they ship incomplete
-    numbers.
-    """
-    posted = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
-
-    # Opening-balance entries are exactly the journal entries with a line on the
-    # user's system-managed Opening Balance Equity account (code 3199).
-    opening_entry_ids = (
-        select(JournalLine.journal_entry_id)
-        .join(Account, Account.id == JournalLine.account_id)
-        .where(
-            Account.user_id == user_id,
-            Account.is_system.is_(True),
-            Account.code == "3199",
+    """An initialized account never masks another account's missing starting stock."""
+    positions = await list_opening_positions(db, user_id=user_id, as_of=date.max)
+    initialized = {p.account_id: p for p in positions if p.state == "authoritative"}
+    opening_ids = {p.journal_entry_id for p in positions if p.journal_entry_id}
+    rows = (
+        await db.execute(
+            select(Account.id, func.min(JournalEntry.entry_date))
+            .join(JournalLine, JournalLine.account_id == Account.id)
+            .join(JournalEntry, JournalEntry.id == JournalLine.journal_entry_id)
+            .where(
+                Account.user_id == user_id,
+                JournalEntry.user_id == user_id,
+                Account.is_system.is_(False),
+                Account.type.in_([AccountType.ASSET, AccountType.LIABILITY]),
+                JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+                JournalEntry.id.notin_(opening_ids),
+            )
+            .group_by(Account.id)
         )
-    )
-
-    # Earliest "real" activity = earliest posted/reconciled entry that is not an
-    # opening-balance entry (statements, manual entries, FX, processing, ...).
-    earliest_activity = await db.scalar(
-        select(func.min(JournalEntry.entry_date)).where(
-            JournalEntry.user_id == user_id,
-            JournalEntry.status.in_(posted),
-            JournalEntry.id.notin_(opening_entry_ids),
-        )
-    )
-    earliest_opening = await db.scalar(
-        select(func.min(JournalEntry.entry_date)).where(
-            JournalEntry.user_id == user_id,
-            JournalEntry.status.in_(posted),
-            JournalEntry.id.in_(opening_entry_ids),
-        )
-    )
-
-    has_activity = earliest_activity is not None
-    has_opening_before = earliest_opening is not None and (
-        earliest_activity is None or earliest_opening <= earliest_activity
-    )
+    ).all()
+    needs = any(aid not in initialized or initialized[aid].effective_date > first_date for aid, first_date in rows)
+    needs = needs or any(p.state != "authoritative" for p in positions)
     return {
-        "needs_opening_balance": has_activity and not has_opening_before,
-        "has_activity": has_activity,
-        "has_opening_entry": earliest_opening is not None,
-        "earliest_activity_date": earliest_activity,
+        "needs_opening_balance": needs,
+        "has_activity": bool(rows),
+        "has_opening_entry": bool(initialized),
+        "earliest_activity_date": min((row[1] for row in rows), default=None),
     }

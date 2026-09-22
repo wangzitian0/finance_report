@@ -18,7 +18,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User, get_current_user_id
 from src.ledger import Account, AccountType
 from src.main import app
-from src.reporting import ReportSnapshot, ReportType
+from src.reporting import ReportSnapshot, ReportType, current_package_document_summary
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventListResponse,
@@ -333,16 +333,24 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     )
 
     unproven = await _get_as_user(public_client, unproven_user.id, "/workflow/status")
+    package = await current_package_document_summary(db, user_id=unproven_user.id)
+    # This fixture has only income/expense accounts: no starting stock is owed.
+    # Its three unanchored inputs and two missing cash proofs still block trust.
+    assert {blocker.code: blocker.count for blocker in package.readiness.blockers} == {
+        "cash_identity_missing": 1,
+        "cash_balance_input_missing": 1,
+        "unproven_package_input": 3,
+    }
     assert unproven["primary_state"] == "blocked"
     assert unproven["next_action"] == _next_action(
         "resolve_blocker",
-        count=6,
+        count=5,
         href="/reports/package",
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 6, "href": "/reports/package"}
-    assert unproven["event_counts"] == {"unread": 5, "action_required": 0, "blocked": 4}
+    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 5, "href": "/reports/package"}
+    assert unproven["event_counts"] == {"unread": 4, "action_required": 0, "blocked": 3}
 
 
 async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(

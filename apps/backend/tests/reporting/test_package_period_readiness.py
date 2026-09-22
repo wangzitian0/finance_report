@@ -11,7 +11,7 @@ from src.extraction import RuleType
 from src.extraction.extension import transaction_classification
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import ClassificationRule
-from src.ledger import Account, AccountType, Entry, post_entry, post_opening_balance_entry
+from src.ledger import Account, AccountType, Entry, initialize_opening_positions, post_entry
 from src.reporting import PackageAssembler
 from src.routers.reports import (
     PackageSnapshotExportFormat,
@@ -62,8 +62,12 @@ async def test_AC_reporting_package_document_11_prior_period_package_lifecycle(
             default_account_id=securities.id,
         )
     )
-    await post_opening_balance_entry(
-        db, test_user.id, entry_date=date(2025, 1, 1), balances={bank.id: Decimal("9930")}, currency="SGD"
+    await initialize_opening_positions(
+        db,
+        test_user.id,
+        entry_date=date(2025, 1, 1),
+        balances={bank.id: Decimal("9930"), securities.id: Decimal("0")},
+        currency="SGD",
     )
     for debit, credit, amount in ((bank, income, "100"), (expense, bank, "30")):
         await post_entry(

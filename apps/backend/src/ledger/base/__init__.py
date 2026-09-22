@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from src.ledger.base.contribution import JournalLineContribution, ResolvedJournalContribution
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
+from src.ledger.base.opening import OpeningPosition
 from src.ledger.base.processing import (
     ProcessingAccount,
     ProcessingCurrencyConflictError,
@@ -32,6 +33,7 @@ from src.ledger.base.validators import (
 )
 
 __all__ = [
+    "OpeningPosition",
     "AccountingError",
     "DegenerateEntryError",
     "DecisionAnchor",
