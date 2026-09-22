@@ -97,7 +97,7 @@
           "name": "Low Quality Document Triage and Rejection Recovery",
           "title": "劣质文档排查与废弃",
           "ui_surface": "/statements/{id}",
-          "component": "PromptDialog",
+          "component": "ConfirmDialog",
           "backend_endpoint": "POST /statements/{id}/review/reject",
           "invariant": "Rejected statements excluded from general ledger and marked with taxonomy reason",
           "test_ref": "apps/backend/tests/api/test_statements_router.py"

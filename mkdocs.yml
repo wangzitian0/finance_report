@@ -83,9 +83,8 @@ nav:
       - Generated DB Schema Reference: reference/db-schema.md
       - Router Contract Maturity: reference/router-contract-maturity.md
   - Technical Docs:
-      # #1822 (SSOT dissolution, Package-ization 3/4) moved every prose/gate-data
-      # doc formerly nav'd here out of docs/ssot/ into its owning package
-      # (common/<pkg>/, outside MkDocs' docs_dir) — see
+      # #1822 (SSOT dissolution, Package-ization 3/4) moved prose/gate-data
+      # docs out of docs/ssot/ into their owning packages (common/<pkg>/).
       # docs/ssot/ itself was retired entirely in #1823 (Package-ization 4/4, terminal);
       # core flow reference specifications live under docs/reference/.
       - 30 Core Wealth Flows: reference/thirty-wealth-flows.md
