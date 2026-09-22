@@ -90,6 +90,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/infra/test_boot.py` | `common/meta/development.md` |
 | `apps/backend/tests/infra/test_config.py` | `common/meta/development.md` |
 | `apps/backend/tests/infra/test_database.py` | `common/meta/development.md` |
+| `apps/backend/tests/infra/test_enum_drift_cleanup.py` | `common/meta/schema.md` (0064_enum_drift_cleanup.py migration DDL round-trip; not EPIC/AC product behavior, see infra2 #698 / finance_report #2064) |
 | `apps/backend/tests/infra/test_migrations.py` | `common/meta/schema.md` |
 | `apps/backend/tests/infra/test_rate_limit.py` | `docs/agents/red-lines.md` |
 | `apps/backend/tests/infra/test_schema_drift.py` | `common/meta/schema.md` |
