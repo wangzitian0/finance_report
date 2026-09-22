@@ -14,12 +14,24 @@ function extractOrigin(urlString) {
 
 function parseSources(str) {
     if (!str || typeof str !== 'string') return [];
-    return str.split(/[,\s;]+/).map(s => s.replace(/;/g, '').trim()).filter(Boolean);
+    const tokens = str.split(/[,\s;]+/).map(s => s.replace(/;/g, '').trim()).filter(Boolean);
+    const validSources = [];
+    for (const token of tokens) {
+        if (/^'[a-zA-Z0-9_-]+'$/.test(token)) {
+            validSources.push(token);
+            continue;
+        }
+        const origin = extractOrigin(token);
+        if (origin) {
+            validSources.push(origin);
+        }
+    }
+    return validSources;
 }
 
 // Canonical base CSP directives (satisfies test_csp_script_src_contract.py).
-const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://openpanel.zitian.party https://api.openpanel.dev";
-const BASE_CONNECT_SRC = "connect-src 'self' https://*.zitian.party https://openpanel.zitian.party https://api.openpanel.dev";
+const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://api.openpanel.dev";
+const BASE_CONNECT_SRC = "connect-src 'self' https://api.openpanel.dev";
 
 export function buildContentSecurityPolicy() {
     const scriptSources = BASE_SCRIPT_SRC.slice("script-src ".length).split(' ');
