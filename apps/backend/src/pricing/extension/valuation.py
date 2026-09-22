@@ -447,9 +447,6 @@ class ValuationService:
                 continue
 
             value = to_money(snapshot.value)
-            if value == Decimal("0.00"):
-                continue
-
             if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
                 total_liabilities += value
             else:

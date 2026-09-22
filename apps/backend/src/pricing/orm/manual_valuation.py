@@ -24,7 +24,7 @@ class ManualValuationSnapshot(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     __tablename__ = "manual_valuation_snapshots"
     __table_args__ = (
-        CheckConstraint("value >= 0", name="ck_manual_valuation_snapshots_value_non_negative"),
+        CheckConstraint("value > 0", name="ck_manual_valuation_snapshots_value_positive"),
         CheckConstraint(
             "recurrence_days IS NULL OR recurrence_days > 0",
             name="ck_manual_valuation_snapshots_recurrence_days_positive",

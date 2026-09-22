@@ -24,7 +24,7 @@ from enum import IntEnum, StrEnum
 from uuid import UUID, uuid4
 
 from src.pricing.base.errors import InvalidObservationError
-from src.pricing.base.subject import PriceableSubject, SubjectKind
+from src.pricing.base.subject import PriceableSubject
 
 
 def pricing_valuation_lineage_id(
@@ -99,10 +99,7 @@ class PriceObservation:
             raise InvalidObservationError(f"observation value must be a Decimal, got {type(self.value).__name__}")
         if not self.value.is_finite():
             raise InvalidObservationError("observation value must be finite")
-        if self.subject.kind is SubjectKind.COMPONENT or self.source is ObservationSource.MANUAL:
-            if self.value < 0:
-                raise InvalidObservationError("observation value must be non-negative")
-        elif self.value <= 0:
+        if self.value <= 0:
             raise InvalidObservationError("observation value must be positive")
         if self.observed_at.tzinfo is None:
             raise InvalidObservationError(
