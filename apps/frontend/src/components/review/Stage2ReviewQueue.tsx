@@ -166,7 +166,7 @@ export function Stage2ReviewQueue() {
             check_type: checkTypeParameter(checkTypeFilter),
             status: checkStatusParameter(statusFilter),
             run_id: runId,
-            limit: 200,
+            limit: 500,
           },
         },
       );

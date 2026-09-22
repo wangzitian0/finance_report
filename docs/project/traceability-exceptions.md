@@ -73,6 +73,7 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `common/llm/ai.md` |
+| `apps/backend/tests/api/test_assets_valuation_api.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 5: Alternative Asset Appraisal & Valuation Ingestion API) |
 | `apps/backend/tests/assets/test_assets_positions_and_depreciation.py` | `common/portfolio/assets.md` |
 | `apps/backend/tests/identity/test_auth_router_unit.py` | `common/identity/readme.md` |
 | `apps/backend/tests/runtime/test_manifest.py` | `common/runtime/readme.md` |
@@ -97,7 +98,9 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/infra/test_schema_guardrails.py` | `common/meta/schema.md` |
 | `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 16: Credit Card Repayment & Refund Clearing) |
 | `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/reconciliation.md` |
+| `apps/backend/tests/reporting/test_cash_flow_invariants.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 26: Cash Flow Statement Direct Method Multi-Activity Invariants) |
 | `apps/backend/tests/reporting/test_equation_diagnostics.py` | `common/reporting/reporting.md` (Accounting equation diagnostic triage) |
 | `apps/backend/tests/reporting/test_net_income_average_rates.py` | `common/reporting/reporting.md` |
 | `apps/backend/tests/reporting/test_reporting_fx_fallbacks.py` | `common/reporting/reporting.md` |

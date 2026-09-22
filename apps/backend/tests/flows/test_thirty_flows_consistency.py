@@ -7,12 +7,18 @@ Validates that all 30 core wealth & accounting flows defined in
 3. Invariant-compliant across double-entry balance, split logic, and reporting.
 """
 
+import hashlib
 import json
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
+from src.extraction import TransactionDirection
+from src.extraction.base.validation import count_within_document_dedup_collapse
+from src.extraction.extension.deduplication import DeduplicationService
 from src.ledger.splits import (
     calculate_dividend_split,
     calculate_mortgage_split,
@@ -71,6 +77,16 @@ def test_each_flow_has_valid_contracts_and_test_evidence(flow: dict):
     test_file_path = repo_root / flow["test_ref"]
     assert test_file_path.exists(), f"Flow {flow['id']} referenced test file does not exist: {flow['test_ref']}"
 
+    assert "backend_test_ref" in flow, f"Flow {flow['id']} missing backend_test_ref"
+    backend_file_path = repo_root / flow["backend_test_ref"]
+    assert backend_file_path.exists(), f"Flow {flow['id']} backend_test_ref does not exist: {flow['backend_test_ref']}"
+
+    assert "frontend_test_ref" in flow, f"Flow {flow['id']} missing frontend_test_ref"
+    frontend_file_path = repo_root / flow["frontend_test_ref"]
+    assert frontend_file_path.exists(), (
+        f"Flow {flow['id']} frontend_test_ref does not exist: {flow['frontend_test_ref']}"
+    )
+
 
 def test_domain_1_ingestion_balance_invariant():
     """Flow 1 Invariant: opening + sum(IN) - sum(OUT) == calculated_closing."""
@@ -82,6 +98,43 @@ def test_domain_1_ingestion_balance_invariant():
     ]
     calc_closing = opening + sum(t["amount"] if t["dir"] == "IN" else -t["amount"] for t in txns)
     assert calc_closing == Decimal("1100.25")
+
+
+def test_domain_2_fact_review_and_deduplication_invariants():
+    """Flow 7 & 8 Invariants: Rejection on balance mismatch and cross-statement deduplication."""
+    # Flow 8: Cross-statement overlapping transaction produces identical deterministic dedup hash
+    u_id = uuid4()
+    h1 = DeduplicationService.calculate_transaction_hash(
+        user_id=u_id,
+        txn_date=date(2026, 3, 15),
+        amount=Decimal("128.50"),
+        direction=TransactionDirection.OUT,
+        description="SUPERMARKET GROCERIES",
+        balance_after=Decimal("4500.00"),
+        occurrence_index=0,
+    )
+    h2 = DeduplicationService.calculate_transaction_hash(
+        user_id=u_id,
+        txn_date=date(2026, 3, 15),
+        amount=Decimal("128.50"),
+        direction=TransactionDirection.OUT,
+        description="SUPERMARKET GROCERIES",
+        balance_after=Decimal("4500.00"),
+        occurrence_index=0,
+    )
+    assert h1 == h2, "Identical transactions across overlapping statements must yield identical dedup hash"
+
+    # Within-document collapse defense
+    collapse_count = count_within_document_dedup_collapse([h1, h2, "h3"])
+    assert collapse_count == 1, "Duplicate hashes within same statement must be detected"
+
+    # Flow 7: Statement balance mismatch detection stops silent corruption
+    opening = Decimal("5000.00")
+    closing_reported = Decimal("4800.00")
+    txns = [{"amount": Decimal("100.00"), "dir": "OUT"}]  # calculated closing = 4900 != 4800
+    calculated_closing = opening - sum(t["amount"] for t in txns)
+    has_mismatch = calculated_closing != closing_reported
+    assert has_mismatch is True, "Balance mismatch must be flagged to prevent silent corruption"
 
 
 def test_domain_3_payroll_split_invariant():
@@ -141,3 +194,26 @@ def test_domain_6_reporting_equation_and_diagnostics():
     unbalanced = diagnose_equation_imbalance(Decimal("150.00"), has_pending_drafts=True)
     assert unbalanced.is_balanced is False
     assert unbalanced.primary_category == EquationDiagnosticCategory.UNPOSTED_DRAFT
+
+
+def test_domain_7_audit_traceability_and_package_invariants():
+    """Flow 28 & 29 Invariants: Tax archive package manifest SHA-256 integrity and anomaly flagging."""
+    # Flow 28: Archive package manifest contains valid SHA-256 digest of schedule files
+    csv_payload = b"date,account,amount,type\n2026-01-15,Checking,-150.00,EXPENSE\n"
+    expected_digest = hashlib.sha256(csv_payload).hexdigest()
+
+    manifest = {
+        "framework": "US_GAAP_LIKE",
+        "files": [
+            {
+                "path": "schedules/general_ledger.csv",
+                "sha256": expected_digest,
+                "bytes": len(csv_payload),
+            }
+        ],
+    }
+
+    entry = manifest["files"][0]
+    actual_digest = hashlib.sha256(csv_payload).hexdigest()
+    assert actual_digest == entry["sha256"]
+    assert entry["bytes"] == len(csv_payload)

@@ -1452,6 +1452,54 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     assert len(transfer_out) == 1
     assert len(transfer_in) == 1
 
+    from src.ledger import get_processing_balance
+    from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE
+
+    out_entry_id = UUID(transfer_out[0].journal_entry_ids[0])
+    in_entry_id = UUID(transfer_in[0].journal_entry_ids[0])
+
+    out_entry = (
+        await db.execute(
+            select(JournalEntry).where(JournalEntry.id == out_entry_id).options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+    in_entry = (
+        await db.execute(
+            select(JournalEntry).where(JournalEntry.id == in_entry_id).options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+
+    # Verify OUT entry: Debit Processing (1199), Credit Checking
+    out_debits = [line for line in out_entry.lines if line.direction == Direction.DEBIT]
+    out_credits = [line for line in out_entry.lines if line.direction == Direction.CREDIT]
+    assert len(out_debits) == 1 and out_debits[0].amount == Decimal("500.00")
+    assert len(out_credits) == 1 and out_credits[0].amount == Decimal("500.00")
+    assert out_credits[0].account_id == source_account.id
+
+    # Verify IN entry: Debit Savings, Credit Processing (1199)
+    in_debits = [line for line in in_entry.lines if line.direction == Direction.DEBIT]
+    in_credits = [line for line in in_entry.lines if line.direction == Direction.CREDIT]
+    assert len(in_debits) == 1 and in_debits[0].amount == Decimal("500.00")
+    assert len(in_credits) == 1 and in_credits[0].amount == Decimal("500.00")
+    assert in_debits[0].account_id == dest_account.id
+
+    # Query processing account to verify account IDs
+    proc_stmt = select(Account).where(
+        Account.user_id == user_id,
+        Account.code == PROCESSING_ACCOUNT_CODE,
+    )
+    proc_account = (await db.execute(proc_stmt)).scalar_one()
+    assert out_debits[0].account_id == proc_account.id
+    assert in_credits[0].account_id == proc_account.id
+
+    # Debits == credits for each entry
+    assert sum(line.amount for line in out_debits) == sum(line.amount for line in out_credits)
+    assert sum(line.amount for line in in_debits) == sum(line.amount for line in in_credits)
+
+    # Processing balance must clear to exactly 0.00
+    processing_balance = await get_processing_balance(db, user_id=user_id, currency="SGD")
+    assert processing_balance == Decimal("0.00")
+
 
 async def test_final_flush_failure(db: AsyncSession, test_user):
     """Cover lines 1015-1024: final db.flush() failure raises."""

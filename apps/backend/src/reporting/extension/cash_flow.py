@@ -35,10 +35,24 @@ CashActivity = Literal["Operating", "Investing", "Financing"]
 _EXPLICIT_EVENT_ACTIVITIES: dict[str, CashActivity] = {
     "investment_buy": "Investing",
     "investment_sell": "Investing",
+    "loan_borrow": "Financing",
+    "loan_repay": "Financing",
+    "loan_drawdown": "Financing",
+    "loan_repayment": "Financing",
+    "loan_principal": "Financing",
+    "financing_borrow": "Financing",
+    "financing_repay": "Financing",
 }
 _EXPLICIT_EVENT_COMPANIONS: dict[str, frozenset[str]] = {
     "investment_buy": frozenset({"investment_buy"}),
     "investment_sell": frozenset({"investment_sell", "investment_realized_pnl"}),
+    "loan_borrow": frozenset({"loan_borrow"}),
+    "loan_repay": frozenset({"loan_repay"}),
+    "loan_drawdown": frozenset({"loan_drawdown"}),
+    "loan_repayment": frozenset({"loan_repayment"}),
+    "loan_principal": frozenset({"loan_principal"}),
+    "financing_borrow": frozenset({"financing_borrow"}),
+    "financing_repay": frozenset({"financing_repay"}),
 }
 
 

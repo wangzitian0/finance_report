@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import { renderReviewComponent } from "@/__tests__/helpers/renderReviewComponent";
 import { apiFetch } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })), useSearchParams: vi.fn(() => ({ get: () => null })), usePathname: vi.fn(() => "/") }));
+const mockReplace = vi.fn();
+const mockRouter = { replace: mockReplace, push: vi.fn() };
+vi.mock("next/navigation", () => ({
+    useRouter: () => mockRouter,
+    useSearchParams: () => ({ get: () => null }),
+    usePathname: () => "/",
+}));
 
 const mocked = vi.mocked(apiFetch);
 
@@ -26,7 +32,11 @@ describe("Review queue actions", () => {
 
         mocked.mockResolvedValueOnce(data); // initial queue
         mocked.mockResolvedValueOnce({ items: [] }); // filtered checks
-        mocked.mockResolvedValueOnce({ success: true, approved_count: 2 }); // batch approve
+        mocked.mockResolvedValueOnce({
+            approved_count: 2,
+            journal_entries_created: 2,
+            journal_entries_reconciled: 2,
+        }); // batch approve
 
         renderReviewComponent(<ReviewQueuePage /> as any);
 
@@ -44,20 +54,28 @@ describe("Review queue actions", () => {
 
         fireEvent.click(approve);
 
-        // wait for api calls
-        for (let i = 0; i < 20; i++) {
-            if (mocked.mock.calls.length >= 3) break;
-            await new Promise((r) => setTimeout(r, 50));
-        }
-
-        const found = mocked.mock.calls.some((c) => typeof c[0] === 'string' && c[0].includes('batch-approve-matches'));
-        expect(found).toBe(true);
+        await waitFor(() => {
+            expect(mocked).toHaveBeenCalledWith(
+                "/api/statements/batch-approve-matches",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["m1"] }),
+                }),
+            );
+        });
     });
 
     it("toggles severity filters and refetches filtered checks", async () => {
-        const data = { pending_matches: [], consistency_checks: [{ id: 'c1', check_type: 'duplicate', status: 'pending', related_txn_ids: [], details: { message: 'x' }, severity: 'high', resolved_at: null, resolution_note: null, created_at: '', updated_at: '' }], has_unresolved_checks: false };
+        const data = {
+            pending_matches: [],
+            consistency_checks: [
+                { id: 'c1', check_type: 'duplicate', status: 'pending', related_txn_ids: [], details: { message: 'x' }, severity: 'high', resolved_at: null, resolution_note: null, created_at: '', updated_at: '' }
+            ],
+            has_unresolved_checks: false
+        };
 
         mocked.mockResolvedValueOnce(data);
+        mocked.mockResolvedValueOnce({ items: data.consistency_checks });
         mocked.mockResolvedValueOnce({ items: data.consistency_checks });
 
         renderReviewComponent(<ReviewQueuePage /> as any);
@@ -68,13 +86,19 @@ describe("Review queue actions", () => {
         const highBtn = screen.getByRole('button', { name: 'HIGH' });
         fireEvent.click(highBtn);
 
-        // wait for filtered fetch to be called a second time
-        for (let i = 0; i < 20; i++) {
-            if (mocked.mock.calls.length >= 2) break;
-            await new Promise((r) => setTimeout(r, 50));
-        }
+        await waitFor(() => {
+            expect(mocked.mock.calls.length).toBeGreaterThanOrEqual(3);
+            expect(mocked).toHaveBeenCalledWith(
+                expect.stringContaining("/api/statements/consistency-checks/list")
+            );
+        });
 
-        expect(mocked).toHaveBeenCalled();
+        await waitFor(() => {
+            expect(mockReplace).toHaveBeenCalledWith(
+                expect.stringContaining("severity=high"),
+                expect.anything()
+            );
+        });
     });
 
     it("opens resolve dialog and approves a check", async () => {
@@ -94,14 +118,14 @@ describe("Review queue actions", () => {
         const approve = await screen.findByRole('button', { name: 'Approve' });
         fireEvent.click(approve);
 
-        // ensure api was called for resolve
-        for (let i = 0; i < 20; i++) {
-            if (mocked.mock.calls.length >= 3) break;
-            await new Promise((r) => setTimeout(r, 50));
-        }
-
-        const found = mocked.mock.calls.some((c) => typeof c[0] === 'string' && c[0].includes('/consistency-checks/') && c[0].includes('/resolve'));
-        expect(found).toBe(true);
+        await waitFor(() => {
+            expect(mocked).toHaveBeenCalledWith(
+                expect.stringContaining("/api/statements/consistency-checks/c2/resolve"),
+                expect.objectContaining({
+                    method: "POST",
+                }),
+            );
+        });
     });
 
     it("shows unresolved checks warning and disables approve", async () => {
@@ -162,13 +186,14 @@ describe("Review queue actions", () => {
 
         fireEvent.click(reject);
 
-        // wait for api call to batch-reject-matches
-        for (let i = 0; i < 20; i++) {
-            if (mocked.mock.calls.length >= 3) break;
-            await new Promise((r) => setTimeout(r, 50));
-        }
-
-        const found = mocked.mock.calls.some((c) => typeof c[0] === 'string' && c[0].includes('batch-reject-matches'));
-        expect(found).toBe(true);
+        await waitFor(() => {
+            expect(mocked).toHaveBeenCalledWith(
+                "/api/statements/batch-reject-matches",
+                expect.objectContaining({
+                    method: "POST",
+                    body: JSON.stringify({ match_ids: ["r1", "r2"] }),
+                }),
+            );
+        });
     });
 });

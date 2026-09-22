@@ -990,6 +990,23 @@ async def test_stage1_reject_triggers_reparse(db, monkeypatch, storage_stub, tes
     assert queued_job.storage_key == document.file_path
     assert queued["content"] == b"dummy content"
 
+    # Flow 9 Invariant: Rejected statements excluded from general ledger,
+    # leaving exactly 0 journal entries and zero trial balance leakage.
+    from sqlalchemy import func
+
+    from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
+
+    entry_count = await db.scalar(select(func.count(JournalEntry.id)).where(JournalEntry.user_id == test_user.id))
+    assert entry_count == 0, f"Expected 0 JournalEntries for rejected statement, found {entry_count}"
+
+    line_count = await db.scalar(
+        select(func.count(JournalLine.id))
+        .join(JournalEntry)
+        .where(JournalEntry.user_id == test_user.id)
+        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+    )
+    assert line_count == 0, f"Expected 0 posted trial balance lines, found {line_count}"
+
 
 async def test_get_statement_not_found(db, test_user):
     """AC-extraction.5.11: Missing statement returns 404."""
