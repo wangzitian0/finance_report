@@ -124,7 +124,7 @@
           "title": "未归类意图交互分配",
           "ui_surface": "/reconciliation/unmatched",
           "component": "UnmatchedBoard",
-          "backend_endpoint": "POST /reconciliation/unmatched/{id}/reviewed-disposition",
+          "backend_endpoint": "POST /reconciliation/unmatched/{txn_id}/reviewed-disposition",
           "invariant": "Each transaction disposition assigns counter account and posts debit/credit",
           "test_ref": "apps/frontend/src/__tests__/unmatchedBoardComponent.test.tsx"
         },
@@ -180,7 +180,7 @@
           "title": "信用卡还款勾稽",
           "ui_surface": "/reconciliation",
           "component": "Workbench",
-          "backend_endpoint": "POST /reconciliation/matches/{id}/accept",
+          "backend_endpoint": "POST /reconciliation/matches/{match_id}/accept",
           "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
           "test_ref": "apps/backend/tests/e2e/test_core_journeys.py"
         },

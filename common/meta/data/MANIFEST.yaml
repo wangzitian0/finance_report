@@ -58,12 +58,3 @@ concepts:
     cross_refs:
       - AGENTS.md
       - docs/agents/orchestration.md
-
-  thirty_wealth_flows:
-    owner: docs/reference/thirty-wealth-flows.md
-    description: Authoritative specification of the 30 core wealth and accounting flows.
-    family: accounting
-    kind: registry
-    cross_refs:
-      - common/meta/flows/thirty_flows_ssot.json
-      - docs/reference/api-overview.md

@@ -3329,5 +3329,21 @@ CONTRACT = PackageContract(
             family="extraction",
             kind="registry",
         ),
+        ConceptRecord(
+            key="thirty_wealth_flows",
+            owner="common/meta/flows/thirty_flows_ssot.json",
+            description="Authoritative registry for the 30 core wealth and accounting flows.",
+            cross_refs=[
+                "docs/reference/thirty-wealth-flows.md",
+                "docs/reference/api-overview.md",
+            ],
+            proofs=[
+                "apps/backend/tests/flows/test_thirty_flows_consistency.py",
+                "apps/frontend/src/__tests__/thirtyFlowsConsistency.test.tsx",
+            ],
+            family="accounting",
+            kind="registry",
+            authority="machine_generated",
+        ),
     ],
 )
