@@ -35,6 +35,7 @@ concepts:
     owner: apps/frontend/frontend-patterns.md
     description: "Frontend MUST use lib/api.ts wrapper; never raw fetch()."
     family: frontend
+    kind: playbook
     cross_refs:
       - AGENTS.md
       - docs/agents/red-lines.md
@@ -43,18 +44,24 @@ concepts:
   security_red_lines:
     owner: docs/agents/red-lines.md
     description: Hard security and integrity rules agents must never violate.
+    family: agents
+    kind: playbook
     cross_refs:
       - AGENTS.md
 
   agent_orchestration:
     owner: docs/agents/orchestration.md
     description: Delegation rules, STAR framework, deliverable scope.
+    family: agents
+    kind: playbook
     cross_refs:
       - AGENTS.md
 
   branch_policy:
     owner: docs/contributing/branch-policy.md
     description: No commits to main; one branch at a time; PR lifecycle.
+    family: contributing
+    kind: playbook
     cross_refs:
       - AGENTS.md
       - docs/agents/orchestration.md

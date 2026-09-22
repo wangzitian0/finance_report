@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ADD_ACTION,
+  APP_ROUTES,
   DEFAULT_ROUTE_ICON,
   ROUTE_CONFIG,
   advancedItems,
@@ -119,5 +120,15 @@ describe("navigation metadata", () => {
     expect(isActive("/reports/balance-sheet", "/reports")).toBe(true);
     expect(isActive("/reportsomething", "/reports")).toBe(false);
     expect(isActive("/journal", "/reports")).toBe(false);
+  });
+
+  it("exposes APP_ROUTES SSOT constants covering all core navigation surfaces", () => {
+    expect(APP_ROUTES.HOME).toBe("/");
+    expect(APP_ROUTES.UPLOAD).toBe("/upload");
+    expect(APP_ROUTES.NOTIFICATIONS).toBe("/notifications");
+    expect(APP_ROUTES.AUDIT).toBe("/audit");
+    expect(APP_ROUTES.CHAT).toBe("/chat");
+    expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation/review-queue");
+    expect(APP_ROUTES.REPORTS_CASH_FLOW).toBe("/reports/cash-flow");
   });
 });

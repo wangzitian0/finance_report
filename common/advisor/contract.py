@@ -1253,6 +1253,8 @@ CONTRACT = PackageContract(
                 "common/pricing/market_data.md",
                 "docs/project/EPIC-021.application-ai-advisor.md",
             ],
+            family="ai",
+            kind="concept",
         ),
     ],
 )

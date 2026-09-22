@@ -138,6 +138,8 @@ CONTRACT = PackageContract(
                 "common/extraction/confirmation-workflow.md",
                 "common/reporting/reporting.md",
             ],
+            family="workflow",
+            kind="concept",
         ),
     ],
 )

@@ -721,6 +721,8 @@ CONTRACT = PackageContract(
                 "Identity-owned auth, user CRUD, AI settings, and feedback "
                 "request/response value objects."
             ),
+            family="identity",
+            kind="concept",
         ),
     ],
 )

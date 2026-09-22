@@ -1792,6 +1792,8 @@ CONTRACT = PackageContract(
                 "common/reconciliation/reconciliation.md",
                 "common/extraction/readme.md",
             ],
+            family="audit",
+            kind="concept",
         ),
     ],
 )

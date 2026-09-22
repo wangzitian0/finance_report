@@ -35,15 +35,41 @@ export interface RouteConfig {
     Icon: LucideIcon;
 }
 
+export const APP_ROUTES = {
+    HOME: "/",
+    UPLOAD: "/upload",
+    NOTIFICATIONS: "/notifications",
+    AUDIT: "/audit",
+    MORE: "/more",
+    CHAT: "/chat",
+    CONFIDENCE: "/confidence",
+    PROCESSING: "/processing",
+    ACCOUNTS: "/accounts",
+    JOURNAL: "/journal",
+    PORTFOLIO: "/portfolio",
+    PORTFOLIO_EVIDENCE: "/portfolio/evidence",
+    PORTFOLIO_PRICES: "/portfolio/prices",
+    RECONCILIATION: "/reconciliation",
+    RECONCILIATION_UNMATCHED: "/reconciliation/unmatched",
+    RECONCILIATION_REVIEW_QUEUE: "/reconciliation/review-queue",
+    REPORTS: "/reports",
+    REPORTS_BALANCE_SHEET: "/reports/balance-sheet",
+    REPORTS_INCOME_STATEMENT: "/reports/income-statement",
+    REPORTS_CASH_FLOW: "/reports/cash-flow",
+    SETTINGS: "/settings",
+} as const;
+
+export type AppRoute = (typeof APP_ROUTES)[keyof typeof APP_ROUTES];
+
 // EPIC-022 AC22.21: mobile/PWA-first bottom tab bar, mirrored by the desktop
 // sidebar. Exactly four routed tabs plus a center "Add" action (see ADD_ACTION).
 // The accounting machinery is no longer a set of nav verbs — it lives in the
 // on-demand `/audit` hub; low-frequency destinations live behind `/more`.
 export const bottomTabItems: NavItem[] = [
-    { icon: Home, label: "Home", href: "/", protected: false },
-    { icon: MessageSquare, label: "Chat", href: "/chat", protected: true },
-    { icon: ShieldCheck, label: "Audit", href: "/audit", protected: true },
-    { icon: MoreHorizontal, label: "More", href: "/more", protected: true },
+    { icon: Home, label: "Home", href: APP_ROUTES.HOME, protected: false },
+    { icon: MessageSquare, label: "Chat", href: APP_ROUTES.CHAT, protected: true },
+    { icon: ShieldCheck, label: "Audit", href: APP_ROUTES.AUDIT, protected: true },
+    { icon: MoreHorizontal, label: "More", href: APP_ROUTES.MORE, protected: true },
 ];
 
 // The center tab is an action (opens the Add bottom sheet), not a route.
@@ -52,23 +78,23 @@ export const ADD_ACTION = { icon: Plus, label: "Add" } as const;
 // `/audit` hub cards — verify-on-demand machinery folded out of navigation.
 // Each deep-links to an existing page (which back-links to `/audit`).
 export const auditHubItems: NavItem[] = [
-    { icon: TrendingDown, label: "Trust", href: "/confidence", protected: true },
-    { icon: Link2, label: "Reconciliation", href: "/reconciliation", protected: true },
-    { icon: BookOpen, label: "Journal", href: "/journal", protected: true },
-    { icon: Clock, label: "Processing", href: "/processing", protected: true },
+    { icon: TrendingDown, label: "Trust", href: APP_ROUTES.CONFIDENCE, protected: true },
+    { icon: Link2, label: "Reconciliation", href: APP_ROUTES.RECONCILIATION, protected: true },
+    { icon: BookOpen, label: "Journal", href: APP_ROUTES.JOURNAL, protected: true },
+    { icon: Clock, label: "Processing", href: APP_ROUTES.PROCESSING, protected: true },
 ];
 
 // `/more` overflow — low-frequency destinations. Portfolio is conditional
 // (rendered only when the user holds securities; gating happens in the page).
 export const moreItems: NavItem[] = [
-    { icon: Wallet, label: "Portfolio", href: "/portfolio", protected: true },
-    { icon: SlidersHorizontal, label: "Settings", href: "/settings", protected: true },
+    { icon: Wallet, label: "Portfolio", href: APP_ROUTES.PORTFOLIO, protected: true },
+    { icon: SlidersHorizontal, label: "Settings", href: APP_ROUTES.SETTINGS, protected: true },
 ];
 
 // The genuine power/escape-hatch routes left after Audit and Settings absorb the
 // rest. Rendered under an "Advanced" subheading on `/more`.
 export const advancedItems: NavItem[] = [
-    { icon: Landmark, label: "Accounts", href: "/accounts", protected: true },
+    { icon: Landmark, label: "Accounts", href: APP_ROUTES.ACCOUNTS, protected: true },
 ];
 
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {

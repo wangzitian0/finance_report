@@ -941,6 +941,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notifications Endpoint
+         * @description Return workflow events as notifications (Flow 29).
+         */
+        get: operations["list_notifications_endpoint_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ping": {
         parameters: {
             query?: never;
@@ -1229,6 +1249,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reconciliation/adjustment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Reconciliation Adjustment
+         * @description Post an immaterial penny rounding adjustment (Flow 18).
+         */
+        post: operations["post_reconciliation_adjustment_reconciliation_adjustment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reconciliation/batch-accept": {
         parameters: {
             query?: never;
@@ -1447,6 +1487,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/balance-sheet/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Balance Sheet Diagnostics
+         * @description Diagnose accounting equation out-of-balance root cause (Flow 24).
+         */
+        get: operations["balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/breakdown": {
         parameters: {
             query?: never;
@@ -1607,6 +1667,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/package/annual-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Annual Tax Archive
+         * @description Generate and stream an annual tax & audit package archive ZIP.
+         */
+        post: operations["export_annual_tax_archive_reports_package_annual_archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/package/generate": {
         parameters: {
             query?: never;
@@ -1676,7 +1756,7 @@ export interface paths {
         };
         /**
          * Export Personal Report Package Snapshot
-         * @description Export a saved package snapshot as JSON or CSV.
+         * @description Export a saved package snapshot as JSON, CSV, or ZIP.
          */
         get: operations["export_personal_report_package_snapshot_reports_package_snapshots__snapshot_id__export_get"];
         put?: never;
@@ -2777,6 +2857,21 @@ export interface components {
             value: string;
         };
         /**
+         * AnnualTaxArchiveRequest
+         * @description Request payload for annual tax archive ZIP generation.
+         */
+        AnnualTaxArchiveRequest: {
+            /**
+             * Currency
+             * @default SGD
+             */
+            currency: string;
+            /** @default personal_us_gaap_like */
+            framework_id: components["schemas"]["PersonalReportingFrameworkId"];
+            /** Year */
+            year: number;
+        };
+        /**
          * AnnualizedIncomeResponse
          * @description Annualized income summary derived from posted income journal lines.
          */
@@ -3370,6 +3465,11 @@ export interface components {
             cash_delta: string;
             /** Classified Activity */
             classified_activity: string;
+            /**
+             * Discrepancy
+             * @default 0.00
+             */
+            discrepancy: string;
             /** Fx Effect */
             fx_effect: string;
             /**
@@ -3887,6 +3987,30 @@ export interface components {
              * @description Reviewer corrections applied before approving the statement
              */
             edits?: components["schemas"]["TransactionEditRequest"][];
+        };
+        /**
+         * EquationDiagnosticCategory
+         * @enum {string}
+         */
+        EquationDiagnosticCategory: "BALANCED" | "UNPOSTED_DRAFT" | "ONE_SIDED_ENTRY" | "UNCLASSIFIED_ACCOUNT" | "FX_ROUNDING_DRIFT" | "UNKNOWN_DISCREPANCY";
+        /**
+         * EquationDiagnosticResult
+         * @description Structured diagnostic evaluation of accounting equation state.
+         */
+        EquationDiagnosticResult: {
+            /** Confidence */
+            confidence: number;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Equation Delta */
+            equation_delta: string;
+            /** Is Balanced */
+            is_balanced: boolean;
+            primary_category: components["schemas"]["EquationDiagnosticCategory"];
+            /** Suggested Action */
+            suggested_action: string;
         };
         /**
          * ErrorResponse
@@ -5309,7 +5433,7 @@ export interface components {
          * @description Supported saved package snapshot export formats.
          * @enum {string}
          */
-        PackageSnapshotExportFormat: "json" | "csv";
+        PackageSnapshotExportFormat: "json" | "csv" | "zip";
         /** PerformanceMetricsResponse */
         PerformanceMetricsResponse: {
             /** Money Weighted Return */
@@ -6190,6 +6314,55 @@ export interface components {
             updated: number;
         };
         /**
+         * ReconciliationAdjustmentRequest
+         * @description Request body for reconciliation adjustment (Flow 18).
+         */
+        ReconciliationAdjustmentRequest: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Bank Balance */
+            bank_balance: number | string;
+            /** Book Balance */
+            book_balance: number | string;
+            /** Entry Date */
+            entry_date?: string | null;
+            /**
+             * Fx Rate
+             * @description Exchange rate to base currency (required if account currency != base currency)
+             */
+            fx_rate?: number | string | null;
+            /**
+             * Threshold
+             * @default 0.05
+             */
+            threshold: number | string;
+        };
+        /**
+         * ReconciliationAdjustmentResponse
+         * @description Response for reconciliation adjustment (Flow 18).
+         */
+        ReconciliationAdjustmentResponse: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Bank Balance */
+            bank_balance: string;
+            /** Book Balance */
+            book_balance: string;
+            /** Difference */
+            difference: string;
+            entry?: components["schemas"]["JournalEntrySummary"] | null;
+            /** Is Gain */
+            is_gain: boolean;
+            /** Journal Entry Id */
+            journal_entry_id?: string | null;
+        };
+        /**
          * ReconciliationMatchResponse
          * @description Match response with transaction and entry details.
          */
@@ -6656,15 +6829,15 @@ export interface components {
         /** Stage1ApprovalRequest */
         Stage1ApprovalRequest: {
             /**
+             * Auto Fill Default Categories
+             * @default false
+             */
+            auto_fill_default_categories: boolean;
+            /**
              * Create Account If Missing
              * @default false
              */
             create_account_if_missing: boolean;
-            /**
-             * Auto Fill Default Categories
-             * @default false
-             */
-            auto_fill_default_categories?: boolean;
         };
         /** Stage1ApprovalResponse */
         Stage1ApprovalResponse: {
@@ -12437,6 +12610,101 @@ export interface operations {
             };
         };
     };
+    list_notifications_endpoint_notifications_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["WorkflowEventStatus"] | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowEventListResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_ping_state_ping_get: {
         parameters: {
             query?: never;
@@ -13881,6 +14149,102 @@ export interface operations {
             };
         };
     };
+    post_reconciliation_adjustment_reconciliation_adjustment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconciliationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationAdjustmentResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     batch_accept_reconciliation_batch_accept_post: {
         parameters: {
             query?: never;
@@ -15021,6 +15385,102 @@ export interface operations {
             };
         };
     };
+    balance_sheet_diagnostics_reports_balance_sheet_diagnostics_get: {
+        parameters: {
+            query?: {
+                as_of_date?: string | null;
+                currency?: string | null;
+                include_restricted?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquationDiagnosticResult"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     category_breakdown_reports_breakdown_get: {
         parameters: {
             query: {
@@ -15119,9 +15579,9 @@ export interface operations {
     };
     cash_flow_reports_cash_flow_get: {
         parameters: {
-            query: {
-                start_date: string;
-                end_date: string;
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
                 currency?: string | null;
             };
             header?: never;
@@ -15399,9 +15859,9 @@ export interface operations {
     };
     income_statement_reports_income_statement_get: {
         parameters: {
-            query: {
-                start_date: string;
-                end_date: string;
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
                 currency?: string | null;
                 tags?: string[] | null;
                 account_type?: components["schemas"]["AccountType"] | null;
@@ -15711,6 +16171,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonalReportPackageDocument"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_annual_tax_archive_reports_package_annual_archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnualTaxArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Bad request */

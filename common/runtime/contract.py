@@ -1412,6 +1412,8 @@ CONTRACT = PackageContract(
                 "tests/tooling/test_issue_489_deployment_contracts.py",
                 "tests/tooling/test_post_merge_e2e_gates.py",
             ],
+            family="runtime",
+            kind="concept",
         ),
         ConceptRecord(
             key="env_reference_generated",
@@ -1442,6 +1444,8 @@ CONTRACT = PackageContract(
                 "tests/tooling/test_runtime_incident_response_ssot.py",
                 "tests/tooling/test_runtime_ssot_internalized.py",
             ],
+            family="runtime",
+            kind="playbook",
         ),
         ConceptRecord(
             key="required_env_manifest_generated",
@@ -1488,6 +1492,7 @@ CONTRACT = PackageContract(
             ],
             proofs=["tests/tooling/test_issue_489_deployment_contracts.py"],
             family="environments",
+            kind="concept",
         ),
     ],
 )

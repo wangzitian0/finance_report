@@ -4776,6 +4776,8 @@ CONTRACT = PackageContract(
                 ".github/workflows/ci.yml",
                 ".pre-commit-config.yaml",
             ],
+            family="tdd",
+            kind="playbook",
         ),
         ConceptRecord(
             key="critical_proof_matrix",
@@ -4943,6 +4945,7 @@ CONTRACT = PackageContract(
                 ".github/workflows/ci.yml",
             ],
             family="tdd",
+            kind="baseline",
         ),
         ConceptRecord(
             key="tdd_workflow",
@@ -4954,6 +4957,8 @@ CONTRACT = PackageContract(
                 ".github/workflows/ci.yml",
                 "tools/check_e2e_epic_traceability.py",
             ],
+            family="tdd",
+            kind="playbook",
         ),
         ConceptRecord(
             key="test_coverage",
@@ -4964,6 +4969,8 @@ CONTRACT = PackageContract(
                 "tests/tooling/test_coverage_policy.py",
                 "tests/tooling/test_calculate_unified_coverage.py",
             ],
+            family="tdd",
+            kind="baseline",
         ),
         ConceptRecord(
             key="test_execution_matrix",
