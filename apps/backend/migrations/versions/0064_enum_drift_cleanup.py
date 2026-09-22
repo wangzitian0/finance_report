@@ -33,7 +33,7 @@ no-op wherever a given drift was never present (e.g. running it against staging 
 no-op for the two prod-only cases) and is safe to re-run.
 
 A third, unrelated drift shape was also found and is explicitly NOT an orphan label
-to drop: ``LLMProtocolFamily.GOOGLE_GEMINI = "google-gemini"``
+to drop: ``ProtocolFamily.GOOGLE_GEMINI = "google-gemini"``
 (``src/llm/base/types.py``) was added to the code side with no migration ever adding
 the label to ``llm_protocol_family_enum`` -- present in BOTH environments. This is
 the same *forward* drift shape as the #698 incident itself (code ahead of DB), not a
@@ -96,7 +96,7 @@ _LABEL_DROPS: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...]], ...]
     ),
 )
 
-# Added to LLMProtocolFamily (src/llm/base/types.py) with no migration ever adding
+# Added to ProtocolFamily (src/llm/base/types.py) with no migration ever adding
 # the DB label -- the DB needs a label added, not a label dropped.
 _LLM_PROTOCOL_FAMILY_ENUM = "llm_protocol_family_enum"
 _LLM_PROTOCOL_FAMILY_ADD = "google-gemini"
@@ -169,14 +169,33 @@ def upgrade() -> None:
         )
 
     # 3. Additive: the code side already declares 'google-gemini'
-    #    (LLMProtocolFamily.GOOGLE_GEMINI); the DB enum never got the label. Growing
-    #    an enum needs no rebuild, but ADD VALUE cannot run inside this migration's
-    #    transaction block.
+    #    (ProtocolFamily.GOOGLE_GEMINI); the DB enum never got the label. Growing
+    #    an enum needs no rebuild. PG12+ CAN run ADD VALUE inside a transaction
+    #    block -- the restriction is narrower (the new value cannot be USED, e.g.
+    #    compared or inserted, in the same transaction that added it, until it is
+    #    committed). This migration never uses the value it adds, so that
+    #    restriction would not bite either way; autocommit_block is used anyway to
+    #    keep this statement's transaction boundary consistent with step 1's (both
+    #    commit independently rather than folding into one long migration
+    #    transaction).
     with op.get_context().autocommit_block():
         op.execute(f"ALTER TYPE {_LLM_PROTOCOL_FAMILY_ENUM} ADD VALUE IF NOT EXISTS '{_LLM_PROTOCOL_FAMILY_ADD}'")
 
 
 def downgrade() -> None:
+    """Schema-reversible, NOT data-reversible.
+
+    Re-adding a label to each rebuilt enum TYPE (below) exactly restores the
+    0063-drifted label SET. It does not -- and cannot -- undo upgrade()'s step 1:
+    the defensive UPDATE that normalized any orphan-cased ROW to canonical casing
+    before the type rebuild. A row upgrade() actually renormalized stays
+    canonical-cased after downgrade(); only the enum type's label set reverts.
+    On both live environments this defensive UPDATE was verified to affect 0 rows
+    (module docstring), so today there is nothing for downgrade() to fail to
+    restore on the data side -- but a future caller relying on downgrade() to
+    fully undo upgrade() should know the row-level casing normalization is
+    one-way.
+    """
     # Label drops: re-add the orphan labels so the migration is reversible (mirrors
     # 0040's downgrade). Idempotent and tolerant of an already-present label.
     with op.get_context().autocommit_block():

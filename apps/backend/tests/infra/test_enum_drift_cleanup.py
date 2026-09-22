@@ -73,6 +73,23 @@ _LLM_PROTOCOL_FAMILY_WITHOUT_GEMINI = (
     "openrouter-compatible",
 )
 
+# The full pre-upgrade (0063-drifted) label SET for each of the 5 enums 0064
+# rebuilds -- canonical labels plus their orphans, exactly what downgrade() must
+# restore. Full-set equality (not a weaker "orphan is present" check) is what
+# schema-reversible means here.
+_PRE_UPGRADE_LABEL_SET: dict[str, set[str]] = {
+    enum_name: set(canonical)
+    | set(_UPPERCASE_ORPHAN_DRIFT.get(enum_name, ()))
+    | set(_LOWERCASE_ORPHAN_DRIFT.get(enum_name, ()))
+    for enum_name, canonical in (
+        ("chat_session_status_enum", ("active", "deleted")),
+        ("chat_message_role_enum", ("user", "assistant", "system")),
+        ("journal_entry_status_enum", ("draft", "posted", "reconciled", "void")),
+        ("account_type_enum", ("ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE")),
+        ("journal_line_direction_enum", ("DEBIT", "CREDIT")),
+    )
+}
+
 # The 6 enum types 0064 touches, mapped to their code-side authoritative Enum class.
 _CODE_ENUMS_UNDER_TEST = {
     "chat_session_status_enum": ChatSessionStatus,
@@ -90,6 +107,21 @@ def _load_migration_module() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _migration_step_runner(migration: ModuleType, step: str):
+    """A ``conn.run_sync``-compatible callable that runs ``migration.upgrade()`` or
+    ``migration.downgrade()`` against the sync-facing connection, bound through a
+    real ``MigrationContext`` transaction (required for ``autocommit_block()`` to
+    work -- it asserts a managed transaction is open)."""
+
+    def run(sync_conn: Engine) -> None:
+        ctx = MigrationContext.configure(sync_conn)
+        migration.op = Operations(ctx)
+        with ctx.begin_transaction():
+            getattr(migration, step)()
+
+    return run
 
 
 async def _db_enum_labels(conn, enum_name: str) -> set[str]:
@@ -196,12 +228,7 @@ async def test_0064_enum_drift_cleanup_converges_db_enums_to_code_red_then_green
 
     # --- Run the migration under test ---
     migration = _load_migration_module()
-
-    def run_upgrade(sync_conn: Engine) -> None:
-        ctx = MigrationContext.configure(sync_conn)
-        migration.op = Operations(ctx)
-        with ctx.begin_transaction():
-            migration.upgrade()
+    run_upgrade = _migration_step_runner(migration, "upgrade")
 
     async with engine.connect() as conn:
         await conn.run_sync(run_upgrade)
@@ -225,3 +252,81 @@ async def test_0064_enum_drift_cleanup_converges_db_enums_to_code_red_then_green
         for enum_name, code_values in code_side.items():
             db_values = await _db_enum_labels(conn, enum_name)
             assert db_values == code_values
+
+
+async def test_0064_downgrade_restores_pre_upgrade_label_set(enum_drift_engine: AsyncEngine):
+    """downgrade() must restore the EXACT pre-0064 (0063-drifted) label set for the
+    5 orphan-label enums it rebuilds -- full label-SET equality, the same strength
+    as the upgrade red/green assertions above, not a weaker "the orphan label is
+    present again" check.
+
+    Schema-reversible, NOT data-reversible (see ``0064_enum_drift_cleanup.py``'s
+    ``downgrade()`` docstring): this test only proves the enum TYPE's label set
+    round-trips. It does not assert anything about row-level casing, because
+    upgrade()'s defensive UPDATE has nothing to normalize in this test's synthetic
+    setup (no rows are inserted) -- matching the live databases, where that UPDATE
+    was independently verified to affect 0 rows.
+
+    ``llm_protocol_family_enum`` is deliberately excluded from the "restores
+    exactly" assertion: downgrade() cannot remove its additive 'google-gemini'
+    label (Postgres has no DROP VALUE) and is not supposed to -- that label stays,
+    proven separately below.
+    """
+    engine = enum_drift_engine
+
+    # --- Simulate the pre-0064 drift, same as the upgrade test ---
+    async with engine.begin() as conn:
+        for enum_name, orphans in {**_UPPERCASE_ORPHAN_DRIFT, **_LOWERCASE_ORPHAN_DRIFT}.items():
+            for orphan in orphans:
+                await conn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{orphan}'"))
+
+    # Sanity: the simulated drift actually matches what downgrade() must restore,
+    # before any migration step runs.
+    async with engine.connect() as conn:
+        for enum_name, pre_upgrade_labels in _PRE_UPGRADE_LABEL_SET.items():
+            assert await _db_enum_labels(conn, enum_name) == pre_upgrade_labels
+
+    migration = _load_migration_module()
+    run_upgrade = _migration_step_runner(migration, "upgrade")
+    run_downgrade = _migration_step_runner(migration, "downgrade")
+
+    # --- upgrade(): rebuilds each enum down to just its canonical labels ---
+    async with engine.connect() as conn:
+        await conn.run_sync(run_upgrade)
+        await conn.commit()
+
+    # --- Red: right after upgrade(), the label set does NOT yet match the
+    #     pre-upgrade (0063-drifted) set -- downgrade() has not run yet. This is
+    #     the literal red checkpoint for the round-trip this test proves. ---
+    async with engine.connect() as conn:
+        for enum_name, pre_upgrade_labels in _PRE_UPGRADE_LABEL_SET.items():
+            db_values = await _db_enum_labels(conn, enum_name)
+            assert db_values != pre_upgrade_labels, (
+                f"expected {enum_name} to NOT yet match the pre-upgrade set before "
+                f"downgrade() runs (red); db={sorted(db_values)} pre_upgrade={sorted(pre_upgrade_labels)}"
+            )
+
+    # --- Run downgrade() ---
+    async with engine.connect() as conn:
+        await conn.run_sync(run_downgrade)
+        await conn.commit()
+
+    # --- Green: downgrade() restored the EXACT pre-upgrade label set for every
+    #     one of the 5 rebuilt enums -- full set equality. ---
+    async with engine.connect() as conn:
+        for enum_name, pre_upgrade_labels in _PRE_UPGRADE_LABEL_SET.items():
+            db_values = await _db_enum_labels(conn, enum_name)
+            assert db_values == pre_upgrade_labels, (
+                f"downgrade() did not restore {enum_name} to its pre-upgrade label set: "
+                f"db={sorted(db_values)} pre_upgrade={sorted(pre_upgrade_labels)}"
+            )
+
+    # --- llm_protocol_family_enum: downgrade() never touches it; the additive
+    #     'google-gemini' label from upgrade() stays (no DROP VALUE in Postgres). ---
+    code_llm_values = {member.value for member in ProtocolFamily}
+    async with engine.connect() as conn:
+        db_llm_values = await _db_enum_labels(conn, _LLM_PROTOCOL_FAMILY_ENUM)
+        assert db_llm_values == code_llm_values, (
+            f"llm_protocol_family_enum should be unaffected by downgrade(): "
+            f"db={sorted(db_llm_values)} code={sorted(code_llm_values)}"
+        )
