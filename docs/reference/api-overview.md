@@ -12,7 +12,7 @@ endpoint or database inventory.
 | [ReDoc](https://report.zitian.party/api/redoc) | Runtime OpenAPI | Long-form runtime API browsing |
 | [Generated API Reference](api.md) | `python tools/generate_api_reference.py` | Static endpoint inventory for GitHub Pages |
 | [Generated DB Schema Reference](db-schema.md) | MkDocs hook + `python tools/generate_db_schema_reference.py` | Build-time table, column, enum, index, constraint, and FK inventory |
-| [30 Wealth Flows SSOT](../ssot/thirty-wealth-flows.md) | `common/meta/flows/thirty_flows_ssot.json` | Authoritative specification of 30 core wealth & accounting flows |
+| [30 Wealth Flows Reference](thirty-wealth-flows.md) | `common/meta/flows/thirty_flows_ssot.json` | Authoritative specification of 30 core wealth & accounting flows |
 
 The production base URL is:
 
