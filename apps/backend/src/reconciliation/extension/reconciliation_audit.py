@@ -28,7 +28,11 @@ from src.ledger import (
     detect_transfer_pattern,
 )
 from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
-from src.reconciliation.extension.matching import _find_many_to_one_candidates, _find_normal_candidates
+from src.reconciliation.extension.candidate_policy import (
+    _find_many_to_one_candidates,
+    _find_normal_candidates,
+    build_many_to_one_groups,
+)
 from src.reconciliation.extension.scoring import (
     score_amount,
     score_business_logic,
@@ -381,16 +385,6 @@ def _transaction_ref(transaction: AtomicTransaction) -> str:
 def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) -> list[dict]:
     actual_by_txn: dict[str, dict] = {}
 
-    for txn in scenario.transactions:
-        ref = _transaction_ref(txn)
-        if detect_transfer_pattern(txn.description):
-            actual_by_txn[ref] = {
-                "route": AUTO_ACCEPT,
-                "score": 100,
-                "journal_entry_ids": [],
-                "score_breakdown": {"transfer": 100.0},
-            }
-
     many_to_one = _find_many_to_one_candidates(
         list(scenario.transactions),
         list(scenario.entries),
@@ -398,11 +392,9 @@ def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) ->
         config,
         base_currency="SGD",
     )
+    groups_by_head = {group[0].id: group for group in build_many_to_one_groups(scenario.transactions)}
     for group_txn, candidate in many_to_one:
-        group_key = f"{group_txn.description}:{group_txn.txn_date.isoformat()}"
-        for txn in scenario.transactions:
-            if f"{txn.description}:{txn.txn_date.isoformat()}" != group_key:
-                continue
+        for txn in groups_by_head[group_txn.id]:
             actual_by_txn[_transaction_ref(txn)] = {
                 "route": _route_for_score(candidate.score, config),
                 "score": candidate.score,
@@ -424,6 +416,16 @@ def _evaluate_scenario(scenario: AuditScenario, config: ReconciliationConfig) ->
             "journal_entry_ids": sorted(candidate.journal_entry_ids),
             "score_breakdown": candidate.breakdown,
         }
+
+    for txn in scenario.transactions:
+        ref = _transaction_ref(txn)
+        if ref not in actual_by_txn and detect_transfer_pattern(txn.description):
+            actual_by_txn[ref] = {
+                "route": AUTO_ACCEPT,
+                "score": 100,
+                "journal_entry_ids": [],
+                "score_breakdown": {"transfer": 100.0},
+            }
 
     rows: list[dict] = []
     for expectation in scenario.expectations:
