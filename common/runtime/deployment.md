@@ -26,7 +26,7 @@ dispatches canonical requests to the infra2 receiver.
 The target repository boundary is one-way: Finance Report owns application
 artifacts and emits a versioned `DeployRequest`; infra2 owns IaC selection,
 credentials, and every deployment side effect. The application pins
-[`infra2-sdk v1.5.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v1.5.0)
+[`infra2-sdk v1.6.0`](https://github.com/wangzitian0/infra2-sdk/releases/tag/v1.6.0)
 as the wire-contract authority — the one pin is the release wheel URL in
 `apps/backend/pyproject.toml` `[project.dependencies]`, locked with its sha256
 in `apps/backend/uv.lock`; the `ci.yml` / `deploy.yml` / `release.yml` steps
