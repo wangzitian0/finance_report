@@ -104,3 +104,9 @@ def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch
     monkeypatch.setenv("DATABASE_URL", "")
     settings_db = Settings(_env_file=None)
     assert settings_db.database_url == ""
+
+
+def test_explicit_empty_cors_and_rate_limits() -> None:
+    settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
+    assert "http://localhost:3000" in settings.cors_origins
+    assert settings.api_rate_limit_requests == 300
