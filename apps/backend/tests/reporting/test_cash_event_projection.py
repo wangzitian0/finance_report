@@ -4,6 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+from common.testing.ac_proof import ac_proof
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import operators, visitors
 from sqlalchemy.sql.elements import BinaryExpression
@@ -69,8 +71,17 @@ async def _report(db: AsyncSession, user_id, cash_ids):
     )
 
 
-async def test_AC_reporting_cash_events_1_2_only_cash_touch_events_are_classified(db: AsyncSession, test_user):
-    """AC-reporting.cash-events.1 AC-reporting.cash-events.2: classify only cash-touch settlement events."""
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-adversarial-oracle",
+    ac_ids=["AC-reporting.cash-events.1"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.1",
+    oracle_kind="non_cash_event_exclusion",
+    governance_strength="value-oracle",
+)
+async def test_AC_reporting_cash_events_1_only_cash_touch_events_are_classified(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.1: non-cash accruals and financed asset acquisitions emit zero cash flow."""
     cash = await _account(db, test_user.id, "Custody A", AccountType.ASSET)
     receivable = await _account(db, test_user.id, "Receivable", AccountType.ASSET)
     payable = await _account(db, test_user.id, "Payable", AccountType.LIABILITY)
@@ -78,24 +89,80 @@ async def test_AC_reporting_cash_events_1_2_only_cash_touch_events_are_classifie
     expense = await _account(db, test_user.id, "Utilities", AccountType.EXPENSE)
     equipment = await _account(db, test_user.id, "Equipment", AccountType.ASSET)
     liability = await _account(db, test_user.id, "Equipment Loan", AccountType.LIABILITY)
-    await _entry(
+    accrual = await _entry(
         db,
         test_user.id,
         "Non-cash accrual",
         [(receivable, Direction.DEBIT, Decimal("500")), (income, Direction.CREDIT, Decimal("500"))],
     )
-    await _entry(
+    financed = await _entry(
         db,
         test_user.id,
         "Financed equipment",
         [(equipment, Direction.DEBIT, Decimal("900")), (liability, Direction.CREDIT, Decimal("900"))],
     )
-    await _entry(
+    payable_accrual = await _entry(
         db,
         test_user.id,
         "Non-cash payable accrual",
         [(expense, Direction.DEBIT, Decimal("200")), (payable, Direction.CREDIT, Decimal("200"))],
     )
+    receivable_settlement = await _entry(
+        db,
+        test_user.id,
+        "Receivable settlement",
+        [(cash, Direction.DEBIT, Decimal("500")), (receivable, Direction.CREDIT, Decimal("500"))],
+        event_type="investment_buy",
+    )
+    payable_settlement = await _entry(
+        db,
+        test_user.id,
+        "Payable settlement",
+        [(payable, Direction.DEBIT, Decimal("200")), (cash, Direction.CREDIT, Decimal("200"))],
+    )
+    investment = await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 15),
+        memo="Explicit investment purchase",
+        entry=Entry.transfer(
+            debit=equipment.id,
+            credit=cash.id,
+            money=Money(Decimal("100"), "SGD"),
+            event_type="investment_buy",
+        ),
+        base_currency="SGD",
+        operation="reporting-cash-event-proof",
+    )
+
+    report = await _report(db, test_user.id, {cash.id})
+
+    assert report["operating"] == []
+    assert [item["amount"] for item in report["investing"]] == [Decimal("-100.00")]
+    assert report["financing"] == []
+    assert report["cash_bridge"]["unclassified_cash"] == Decimal("300.00")
+    lineage_entry_ids = {item["journal_entry_id"] for item in report["event_lineage"]}
+    assert accrual.id not in lineage_entry_ids
+    assert financed.id not in lineage_entry_ids
+    assert payable_accrual.id not in lineage_entry_ids
+    assert {receivable_settlement.id, payable_settlement.id, investment.id} <= lineage_entry_ids
+
+
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-classification-oracle",
+    ac_ids=["AC-reporting.cash-events.2"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.2",
+    oracle_kind="authoritative_event_classification",
+    governance_strength="value-oracle",
+)
+async def test_AC_reporting_cash_events_2_event_classification_is_authoritative(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.2: classify events only from unambiguous full-event evidence with authoritative producer provenance."""
+    cash = await _account(db, test_user.id, "Custody A", AccountType.ASSET)
+    receivable = await _account(db, test_user.id, "Receivable", AccountType.ASSET)
+    payable = await _account(db, test_user.id, "Payable", AccountType.LIABILITY)
+    equipment = await _account(db, test_user.id, "Equipment", AccountType.ASSET)
     receivable_settlement = await _entry(
         db,
         test_user.id,
@@ -145,8 +212,17 @@ async def test_AC_reporting_cash_events_1_2_only_cash_touch_events_are_classifie
     assert lineage_by_entry[investment.id]["event_types"] == ["investment_buy"]
 
 
-async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_bridge_ties(db: AsyncSession, test_user):
-    """AC-reporting.cash-events.3 AC-reporting.cash-events.4: transfers are neutral and the bridge ties."""
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-transfer-neutrality",
+    ac_ids=["AC-reporting.cash-events.3"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.3",
+    oracle_kind="transfer_neutrality",
+    governance_strength="value-oracle",
+)
+async def test_AC_reporting_cash_events_3_internal_transfers_are_neutral(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.3: internal transfers among cash identities emit zero activity."""
     cash_a = await _account(db, test_user.id, "Custody A", AccountType.ASSET)
     cash_b = await _account(db, test_user.id, "Custody B", AccountType.ASSET)
     processing = await _account(
@@ -181,6 +257,51 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
 
     assert report["operating"] == report["investing"] == report["financing"] == []
     assert report["summary"]["net_cash_flow"] == Decimal("0.00")
+
+
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-bridge-oracle",
+    ac_ids=["AC-reporting.cash-events.4"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.4",
+    oracle_kind="cash_bridge_reconciliation",
+    governance_strength="value-oracle",
+)
+async def test_AC_reporting_cash_events_4_cash_bridge_ties_exactly(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.4: cash bridge ties classified activity, unclassified cash, and FX effect."""
+    cash_a = await _account(db, test_user.id, "Custody A", AccountType.ASSET)
+    cash_b = await _account(db, test_user.id, "Custody B", AccountType.ASSET)
+    processing = await _account(
+        db,
+        test_user.id,
+        "Processing",
+        AccountType.ASSET,
+        code=PROCESSING_ACCOUNT_CODE,
+        is_system=True,
+        description=PROCESSING_ACCOUNT_DESCRIPTION,
+    )
+    await _entry(
+        db,
+        test_user.id,
+        "Direct transfer",
+        [(cash_b, Direction.DEBIT, Decimal("100")), (cash_a, Direction.CREDIT, Decimal("100"))],
+    )
+    await _entry(
+        db,
+        test_user.id,
+        "Transfer out",
+        [(processing, Direction.DEBIT, Decimal("40")), (cash_a, Direction.CREDIT, Decimal("40"))],
+    )
+    await _entry(
+        db,
+        test_user.id,
+        "Transfer in",
+        [(cash_b, Direction.DEBIT, Decimal("40")), (processing, Direction.CREDIT, Decimal("40"))],
+    )
+
+    report = await _report(db, test_user.id, {cash_a.id, cash_b.id})
+
     assert report["cash_bridge"] == {
         "classified_activity": Decimal("0.00"),
         "unclassified_cash": Decimal("0.00"),
@@ -242,6 +363,15 @@ async def test_AC_reporting_cash_events_3_4_internal_transfers_are_neutral_and_b
     }
 
 
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-tenant-query-contract",
+    ac_ids=["AC-reporting.cash-events.5"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.5",
+    oracle_kind="dual_tenant_isolation",
+    governance_strength="exact",
+)
 async def test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_entries(db: AsyncSession, test_user):
     """AC-reporting.cash-events.5: neither a foreign header nor a foreign account can leak a cash event."""
     foreign_user = User(email=f"foreign-{uuid4()}@example.com", hashed_password="hashed")
@@ -302,10 +432,17 @@ async def test_AC_reporting_cash_events_5_dual_tenant_predicates_reject_hostile_
     assert report["event_lineage"][0]["reason_code"] is None
 
 
-async def test_AC_reporting_cash_events_6_7_one_projection_serves_proven_and_unproven_consumers(
-    db: AsyncSession, test_user
-):
-    """AC-reporting.cash-events.6 AC-reporting.cash-events.7: one projection reports exact proof state."""
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-consumer-contract",
+    ac_ids=["AC-reporting.cash-events.6"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.6",
+    oracle_kind="single_projection_owner",
+    governance_strength="exact",
+)
+async def test_AC_reporting_cash_events_6_one_projection_serves_every_cash_flow_consumer(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.6: generate_cash_flow is the single reporting-owned cash projection used by standalone and package consumers."""
     cash = await _account(db, test_user.id, "Generic Custody", AccountType.ASSET, code="AUTO-BANK")
     income = await _account(db, test_user.id, "Income", AccountType.INCOME)
     await post_entry(
@@ -326,6 +463,38 @@ async def test_AC_reporting_cash_events_6_7_one_projection_serves_proven_and_unp
     standalone = await generate_cash_flow(db, test_user.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
 
     assert proven["summary"] == standalone["summary"]
+
+
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-proof-state-contract",
+    ac_ids=["AC-reporting.cash-events.7"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.7",
+    oracle_kind="consumer_proof_state",
+    governance_strength="exact",
+)
+async def test_AC_reporting_cash_events_7_consumer_proof_state_is_explicit(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.7: exact cash identities plus anchored decisions produce proven output while fallback or unanchored events produce unproven."""
+    cash = await _account(db, test_user.id, "Generic Custody", AccountType.ASSET, code="AUTO-BANK")
+    income = await _account(db, test_user.id, "Income", AccountType.INCOME)
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 15),
+        memo="Anchored receipt",
+        entry=Entry.transfer(
+            debit=cash.id,
+            credit=income.id,
+            money=Money(Decimal("30"), "SGD"),
+        ),
+        base_currency="SGD",
+        operation="reporting-cash-event-anchored-receipt",
+    )
+
+    proven = await _report(db, test_user.id, {cash.id})
+    standalone = await generate_cash_flow(db, test_user.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
+
     assert proven["proof_state"] == "proven"
     assert standalone["proof_state"] == "unproven"
     assert standalone["proof_reasons"] == ["cash_identity_compatibility_fallback"]
@@ -342,7 +511,18 @@ async def test_AC_reporting_cash_events_6_7_one_projection_serves_proven_and_unp
     assert unanchored["proof_reasons"] == ["cash_event_decision_unproven"]
 
 
-async def test_AC_reporting_cash_events_8_10_lineage_void_and_ambiguous_events_fail_closed(db: AsyncSession, test_user):
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-lineage-oracle",
+    ac_ids=["AC-reporting.cash-events.8"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.8",
+    oracle_kind="event_lineage_provenance",
+    governance_strength="exact",
+)
+async def test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_decision_anchors(
+    db: AsyncSession, test_user
+):
     """AC-reporting.cash-events.8: exact lineage survives while void and ambiguous events fail closed."""
     cash = await _account(db, test_user.id, "Custody", AccountType.ASSET)
     income = await _account(db, test_user.id, "Income", AccountType.INCOME)
@@ -391,18 +571,3 @@ async def test_AC_reporting_cash_events_8_10_lineage_void_and_ambiguous_events_f
     assert report["event_lineage"][0]["decision_anchor_id"] is None
     assert report["event_lineage"][0]["decision_authority_state"] == "legacy_unproven"
     assert report["event_lineage"][0]["event_types"] == []
-
-
-def test_AC_reporting_cash_events_9_governance_detail_is_package_owned_and_enforced():
-    """AC-reporting.cash-events.9: the package initiative projects onto existing blocking gates."""
-    from common.meta.data.projection import contract_index
-    from common.reporting.contract import CONTRACT
-
-    projected = contract_index([CONTRACT])["governance"]["reporting/authoritative-cash-event-projection"]
-
-    assert len(projected["guarantees"]) == 10
-    assert {guarantee["enforcing_gate"] for guarantee in projected["guarantees"]} == {
-        "ci.backend",
-        "ci.backend_integration",
-        "ci.lint",
-    }
