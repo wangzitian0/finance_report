@@ -53,4 +53,28 @@ describe('AC1.10.4 Next.js Middleware Dynamic Content Security Policy', () => {
     expect(csp).toMatch(/connect-src [^;]*https:\/\/otel\.zitian\.party/)
     expect(csp).toMatch(/connect-src [^;]*https:\/\/api\.zitian\.party/)
   })
+
+  it('permits unsafe-eval in development mode for Next.js Fast Refresh and HMR (issue #2044)', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+
+    const request = new NextRequest('http://localhost:3000/')
+    const response = middleware(request)
+
+    const csp = response.headers.get('Content-Security-Policy')
+    expect(csp).toBeTruthy()
+    expect(csp).toContain("'unsafe-eval'")
+  })
+
+  it('strictly excludes unsafe-eval from script-src in production mode even if specified in extra sources (AC1.10.4 / issue #2044)', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', "'unsafe-eval' https://custom.script.test")
+
+    const request = new NextRequest('http://localhost:3000/')
+    const response = middleware(request)
+
+    const csp = response.headers.get('Content-Security-Policy')
+    expect(csp).toBeTruthy()
+    expect(csp).not.toContain("'unsafe-eval'")
+    expect(csp).toContain('https://custom.script.test')
+  })
 })

@@ -68,6 +68,22 @@ export function buildContentSecurityPolicy() {
         if (!connectSources.includes(src)) connectSources.push(src);
     }
 
+    // In development mode (NODE_ENV === 'development'), Next.js Fast Refresh and Webpack HMR
+    // require eval() for source maps and hot reloading. Without 'unsafe-eval', browser hydration
+    // fails with EvalError (issue #2044). In production, 'unsafe-eval' is strictly forbidden (AC1.10.4).
+    if (process.env.NODE_ENV === 'development') {
+        if (!scriptSources.includes("'unsafe-eval'")) {
+            scriptSources.push("'unsafe-eval'");
+        }
+    } else if (process.env.NODE_ENV === 'production') {
+        // Enforce production security invariant (AC1.10.4 / issue #2044):
+        // 'unsafe-eval' is strictly forbidden in production, even if attempted
+        // to be injected via EXTRA_CSP_SCRIPT_SRC.
+        const filtered = scriptSources.filter((src) => src !== "'unsafe-eval'" && src !== "unsafe-eval");
+        scriptSources.length = 0;
+        scriptSources.push(...filtered);
+    }
+
     return [
         "default-src 'self'",
         "base-uri 'self'",
