@@ -75,6 +75,13 @@ export function buildContentSecurityPolicy() {
         if (!scriptSources.includes("'unsafe-eval'")) {
             scriptSources.push("'unsafe-eval'");
         }
+    } else {
+        // Enforce production security invariant (AC1.10.4 / issue #2044):
+        // 'unsafe-eval' is strictly forbidden in production, even if attempted
+        // to be injected via EXTRA_CSP_SCRIPT_SRC.
+        const filtered = scriptSources.filter((src) => src !== "'unsafe-eval'" && src !== "unsafe-eval");
+        scriptSources.length = 0;
+        scriptSources.push(...filtered);
     }
 
     return [
