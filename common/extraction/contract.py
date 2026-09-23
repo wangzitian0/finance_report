@@ -5175,7 +5175,7 @@ CONTRACT = PackageContract(
         GovernanceInitiative(
             id="source-lifecycle-convergence",
             title="Source-fact lifecycle and failure convergence",
-            issue="https://github.com/wangzitian0/finance_report/issues/1970",
+            issue="https://github.com/wangzitian0/finance_report/issues/1995",
             depends_on=["meta/governance-control-plane"],
             guarantees=[
                 GovernanceGuarantee(
@@ -5250,10 +5250,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-extraction.source-lifecycle.7"],
                     detector="untyped-source-lifecycle-boundaries",
                     target="0 untyped audited boundaries",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="source-lifecycle-signature-contract",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
                 GovernanceGuarantee(
                     id="purge-boundary",
@@ -5261,10 +5261,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-extraction.source-lifecycle.8"],
                     detector="ordinary-api-physical-purge-paths",
                     target="0 ordinary purge paths",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="source-lifecycle-purge-boundary",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
                 GovernanceGuarantee(
                     id="exact-governance-detail",
@@ -5272,10 +5272,10 @@ CONTRACT = PackageContract(
                     affected_acs=["AC-extraction.source-lifecycle.9"],
                     detector="source-lifecycle-governance-join-gaps",
                     target="0 missing detail facts",
-                    lock="ci.lint",
+                    lock="ci.backend",
                     proof="source-lifecycle-governance-detail",
                     required_proof_strength="exact",
-                    enforcing_gate="ci.lint",
+                    enforcing_gate="ci.backend",
                 ),
                 GovernanceGuarantee(
                     id="counterfactual-lock",
