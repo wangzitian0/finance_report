@@ -3,22 +3,19 @@ import { NextRequest } from 'next/server'
 import { middleware } from '../middleware'
 
 describe('AC1.10.4 Next.js Middleware Dynamic Content Security Policy', () => {
-  const originalEnv = { ...process.env }
-
   beforeEach(() => {
-    vi.resetModules()
-    process.env = { ...originalEnv }
+    vi.unstubAllEnvs()
   })
 
   afterEach(() => {
-    process.env = originalEnv
+    vi.unstubAllEnvs()
   })
 
   it('attaches Content-Security-Policy header with default public endpoints when env is unconfigured', () => {
-    delete process.env.OPENPANEL_API_URL
-    delete process.env.OPENPANEL_SCRIPT_URL
-    delete process.env.EXTRA_CSP_SCRIPT_SRC
-    delete process.env.EXTRA_CSP_CONNECT_SRC
+    vi.stubEnv('OPENPANEL_API_URL', '')
+    vi.stubEnv('OPENPANEL_SCRIPT_URL', '')
+    vi.stubEnv('EXTRA_CSP_SCRIPT_SRC', '')
+    vi.stubEnv('EXTRA_CSP_CONNECT_SRC', '')
 
     const request = new NextRequest('http://localhost:3000/')
     const response = middleware(request)
@@ -31,8 +28,8 @@ describe('AC1.10.4 Next.js Middleware Dynamic Content Security Policy', () => {
   })
 
   it('dynamically derives Content-Security-Policy at runtime when OPENPANEL_API_URL and OPENPANEL_SCRIPT_URL are set', () => {
-    process.env.OPENPANEL_API_URL = 'https://openpanel.zitian.party/api'
-    process.env.OPENPANEL_SCRIPT_URL = 'https://openpanel.zitian.party/op1.js'
+    vi.stubEnv('OPENPANEL_API_URL', 'https://openpanel.zitian.party/api')
+    vi.stubEnv('OPENPANEL_SCRIPT_URL', 'https://openpanel.zitian.party/op1.js')
 
     const request = new NextRequest('http://localhost:3000/')
     const response = middleware(request)
