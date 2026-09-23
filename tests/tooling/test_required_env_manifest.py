@@ -215,3 +215,56 @@ def test_AC_runtime_guard_proofs_13_unknown_source_class_name_exits_with_the_fie
         gen._environment_contract()
     assert "not_a_setting" in str(stop.value)
     assert str(stop.value).startswith("ENV_SOURCE_CLASSES:")
+
+
+def test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation():
+    """AC-runtime.guard-proofs.14 (#2016):
+    1. Credential-bearing fields DATABASE_URL and REDIS_URL emit sensitive=true
+       through their existing source-class metadata; never include real credentials in test.
+    2. manifest_gate_errors validates the exact emitted consumer artifact after
+       field filtering, catching dropped required producers/composed_from references
+       that an unfiltered precursor would have concealed.
+    """
+    committed = _committed_manifest()
+    by_env = {entry["env"]: entry for entry in committed["fields"]}
+
+    # Guarantee 1: credential-bearing fields are flagged sensitive=true
+    assert by_env["DATABASE_URL"]["sensitive"] is True
+    assert by_env["REDIS_URL"]["sensitive"] is True
+
+    # Guarantee 2: manifest_gate_errors validates consumer representation post-filtering
+    assert gen.manifest_gate_errors() == []
+
+    # Counterexample: an emitted consumer artifact where a composed_from reference
+    # points to an undeclared producer (e.g. dropped during filtering) fails the offline gate.
+    counterexample = json.loads(
+        gen.render_required_env_manifest(gen.collect_backend_fields())
+    )
+    counterexample["fields"].append(
+        {
+            "field": "synthetic_downstream_url",
+            "env": "SYNTHETIC_DOWNSTREAM_URL",
+            "aliases": [],
+            "required": False,
+            "injected": False,
+            "has_default": True,
+            "sensitive": False,
+            "group": "Application",
+            "description": "Synthetic service URL",
+            "source": "runtime",
+            "empty_ok": False,
+            "scope": "env",
+            "provided_by": "",
+            "composed_from": "https://service:{SYNTHETIC_SECRET}@internal:8080",
+            "mirror_to_1password": False,
+            "ci": "forbidden",
+            "store_key": "",
+            "vault": False,
+        }
+    )
+    errors = gen.manifest_gate_errors(counterexample)
+    assert any(
+        "composed_from references undeclared SYNTHETIC_SECRET" in err for err in errors
+    ), (
+        f"Expected counterexample with dropped producer to fail offline gate, got: {errors}"
+    )

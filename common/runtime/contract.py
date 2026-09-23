@@ -1251,6 +1251,35 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.13",
+            statement=(
+                "The required-env manifest is the infra2-sdk v2 contract: every "
+                "field names its producer in source metadata, a vault field is "
+                "never an un-injected plain code default, and the offline gate is green."
+            ),
+            test=(
+                "tests/tooling/test_required_env_manifest.py"
+                "::test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-runtime.guard-proofs.14",
+            statement=(
+                "Credential-bearing fields DATABASE_URL and REDIS_URL emit sensitive=true "
+                "through their source-class metadata, and manifest_gate_errors validates "
+                "the exact filtered consumer artifact, failing on dropped required producers "
+                "(issue #2016)."
+            ),
+            test=(
+                "tests/tooling/test_required_env_manifest.py"
+                "::test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(
