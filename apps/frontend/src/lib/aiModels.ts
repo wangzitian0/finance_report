@@ -15,18 +15,9 @@ export interface AiModelCatalogViewModel {
   models: AiModelInfo[];
 }
 
-export type AiModelListResponse = AiModelCatalogViewModel;
-
-export async function fetchAiModels(
-  options: { modality?: string; freeOnly?: boolean } = {},
-): Promise<AiModelListResponse> {
-  const catalog = await apiOperation("get_catalog_llm_catalog_get", {
-    query: {
-      modality: options.modality as Schemas["Modality"] | undefined,
-      free_only: options.freeOnly || undefined,
-    },
-  });
-
+export function toAiModelCatalogViewModel(
+  catalog: Schemas["LlmCatalogResponse"],
+): AiModelCatalogViewModel {
   const models: AiModelInfo[] = catalog.models.map((m) => ({
     id: m.id,
     name: m.id,
@@ -40,4 +31,17 @@ export async function fetchAiModels(
     fallback_models: models.slice(1).map((m) => m.id),
     models,
   };
+}
+
+export async function fetchAiModels(
+  options: { modality?: string; freeOnly?: boolean } = {},
+): Promise<AiModelCatalogViewModel> {
+  const catalog = await apiOperation("get_catalog_llm_catalog_get", {
+    query: {
+      modality: options.modality as Schemas["Modality"] | undefined,
+      free_only: options.freeOnly || undefined,
+    },
+  });
+
+  return toAiModelCatalogViewModel(catalog);
 }

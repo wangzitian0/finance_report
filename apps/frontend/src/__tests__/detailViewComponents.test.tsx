@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar"
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal"
 import { apiFetch } from "@/lib/api"
-import type { Account, JournalEntry, JournalLine, JournalEntryListResponse } from "@/lib/types"
+import type { Account, JournalEntry, JournalLine, JournalEntryResponse, JournalEntryListResponse } from "@/lib/types"
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
 vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
@@ -52,8 +52,8 @@ describe("AccountDetailsSidebar", () => {
 
   it("shows loading spinner while fetching and then transaction list", async () => {
     const account: Account = { id: "a3", name: "Wallet", type: "ASSET", currency: "SGD", is_active: true, balance: "50" }
-    const line: JournalLine = { id: "l1", account_id: "a3", direction: "DEBIT", amount: "25", currency: "SGD" }
-    const entry: JournalEntry = { id: "e1", entry_date: "2023-01-01", memo: "Pay", source_type: "bank_import", status: "posted", lines: [line], created_at: "2023-01-01T00:00:00Z" }
+    const line = { id: "l1", journal_entry_id: "e1", account_id: "a3", direction: "DEBIT" as const, amount: "25", currency: "SGD", created_at: "2023-01-01T00:00:00Z", updated_at: "2023-01-01T00:00:00Z" }
+    const entry: JournalEntryResponse = { id: "e1", user_id: "u1", decision_authority_state: "anchored", entry_date: "2023-01-01", memo: "Pay", source_type: "manual", status: "posted", lines: [line], created_at: "2023-01-01T00:00:00Z", updated_at: "2023-01-01T00:00:00Z" }
     mockedApiFetch.mockResolvedValueOnce({ items: [entry], total: 1 } satisfies JournalEntryListResponse)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })

@@ -60,8 +60,16 @@ export function toTransactionViewModel(
       (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | undefined),
     confidence_reason: overrides?.confidence_reason ?? null,
     raw_text: overrides?.raw_text ?? null,
-    created_at: isAtomic ? (raw as Schemas["AtomicTransactionResponse"]).created_at : new Date().toISOString(),
-    updated_at: isAtomic ? (raw as Schemas["AtomicTransactionResponse"]).updated_at : new Date().toISOString(),
+    created_at: isAtomic
+      ? (raw as Schemas["AtomicTransactionResponse"]).created_at
+      : "txn_date" in raw && raw.txn_date
+        ? `${raw.txn_date}T00:00:00Z`
+        : "1970-01-01T00:00:00Z",
+    updated_at: isAtomic
+      ? (raw as Schemas["AtomicTransactionResponse"]).updated_at
+      : "txn_date" in raw && raw.txn_date
+        ? `${raw.txn_date}T00:00:00Z`
+        : "1970-01-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -82,7 +90,7 @@ export interface JournalEntryViewModel {
     | "LOW"
     | "DETERMINISTIC"
     | null;
-  status: "draft" | "posted" | "reconciled" | "void" | string;
+  status: Schemas["JournalEntryStatus"];
   lines: JournalLine[];
   created_at: string;
   total_amount?: MoneyValue;

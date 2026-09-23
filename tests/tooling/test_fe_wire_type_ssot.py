@@ -31,6 +31,11 @@ _WIRE_INTERFACE_DEF = re.compile(
     r"^\s*(?:export\s+)?interface\s+(\w*(?:Response|Request))\b(?!\s*<T>)", re.MULTILINE
 )
 
+# Matches exported `type FooResponse = ...` or `type FooRequest = ...`.
+_SHADOW_WIRE_ALIAS_DEF = re.compile(
+    r"^\s*export\s+type\s+(\w+(?:Response|Request))\b\s*=\s*([^;]+);", re.MULTILINE
+)
+
 # Matches exported `*ViewModel` declarations.
 _VIEW_MODEL_DEF = re.compile(r"^\s*export\s+interface\s+(\w+ViewModel)\b", re.MULTILINE)
 
@@ -94,7 +99,13 @@ def test_AC_fe_wire_ssot_2_no_hand_declared_wire_interfaces_in_lib():
         content = path.read_text(encoding="utf-8")
         matches = _WIRE_INTERFACE_DEF.findall(content)
         if matches:
-            violations.append(f"{path.relative_to(REPO)}: {matches}")
+            violations.append(f"{path.relative_to(REPO)} interfaces: {matches}")
+
+        for name, rhs in _SHADOW_WIRE_ALIAS_DEF.findall(content):
+            if "ViewModel" in rhs:
+                violations.append(
+                    f"{path.relative_to(REPO)} alias to ViewModel: {name} = {rhs.strip()}"
+                )
 
     assert not violations, (
         "Wire-shaped Response/Request interfaces under lib/ must resolve to generated "
@@ -110,34 +121,45 @@ def test_AC_fe_wire_ssot_2_no_hand_declared_wire_interfaces_in_lib():
 )
 def test_AC_fe_wire_ssot_3_view_models_have_typed_normalizers():
     """#1985 G-explicit-view-models: frontend view models require paired normalizer functions."""
-    normalizers_path = LIB_DIR / "normalizers.ts"
-    assert normalizers_path.exists(), "apps/frontend/src/lib/normalizers.ts must exist"
+    lib_files = [
+        path
+        for path in _frontend_source_files(include_lib=True)
+        if (LIB_DIR in path.parents or path.parent == LIB_DIR)
+    ]
+    all_view_models: dict[str, Path] = {}
+    all_normalizers: set[str] = set()
 
-    content = normalizers_path.read_text(encoding="utf-8")
-    view_models = _VIEW_MODEL_DEF.findall(content)
-    normalizers = _NORMALIZER_FUNC_DEF.findall(content)
+    for path in lib_files:
+        content = path.read_text(encoding="utf-8")
+        for vm in _VIEW_MODEL_DEF.findall(content):
+            all_view_models[vm] = path
+        for norm in _NORMALIZER_FUNC_DEF.findall(content):
+            all_normalizers.add(norm)
 
-    assert view_models, "At least one ViewModel must be declared in normalizers.ts"
-    assert normalizers, (
-        "At least one normalizer function must be declared in normalizers.ts"
+    assert all_view_models, "At least one ViewModel must be declared under lib/"
+    assert all_normalizers, (
+        "At least one normalizer function must be declared under lib/"
     )
 
-    # Every ViewModel must have a corresponding mapper/normalizer function.
-    for vm in view_models:
+    for vm, path in all_view_models.items():
         base_name = vm.removesuffix("ViewModel")
         allowed = {
             f"to{vm}",
             f"to{base_name}",
             f"to{base_name}ViewModel",
             f"normalize{base_name}",
+            f"normalize{vm}",
         }
         if vm == "BankStatementTransactionViewModel":
             allowed.add("toTransactionViewModel")
+        if "PersonalReportPackage" in vm:
+            allowed.add("normalizePersonalReportPackageDocument")
+            allowed.add("normalizePersonalReportPackageSnapshot")
 
-        has_paired_mapper = any(n in allowed for n in normalizers)
+        has_paired_mapper = any(n in allowed for n in all_normalizers)
         assert has_paired_mapper, (
-            f"ViewModel '{vm}' has no paired typed normalizer function in "
-            f"apps/frontend/src/lib/normalizers.ts (found normalizers: {normalizers})"
+            f"ViewModel '{vm}' in {path.relative_to(REPO)} has no paired typed normalizer function in "
+            f"lib/ (found normalizers: {sorted(all_normalizers)})"
         )
 
 
@@ -166,3 +188,12 @@ def test_AC_fe_wire_ssot_counterfactual_catches_shadow_wire_and_orphan_view_mode
 
     has_paired_mapper = any(n in allowed for n in normalizers)
     assert not has_paired_mapper
+
+    # Counterfactual 4: Type alias Response pointing to ViewModel is caught
+    shadow_alias = "export type CustomReportResponse = CustomReportViewModel;"
+    shadow_matches = [
+        name
+        for name, rhs in _SHADOW_WIRE_ALIAS_DEF.findall(shadow_alias)
+        if "ViewModel" in rhs
+    ]
+    assert shadow_matches == ["CustomReportResponse"]

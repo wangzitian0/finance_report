@@ -57,11 +57,16 @@ export type {
 
 export type JournalEntry = JournalEntryViewModel;
 
+export type JournalEntryResponse = Schemas["JournalEntryResponse"];
+
 export type JournalEntrySummary = Schemas["JournalEntrySummary"];
 
 export type JournalEntryListResponse = ListResponse<JournalEntry>;
 
 export type BankStatementTransaction = BankStatementTransactionViewModel;
+
+export type BankStatementTransactionResponse =
+  Schemas["AtomicTransactionResponse"];
 
 export interface BankStatementTransactionSummary {
   id: string;
@@ -256,7 +261,7 @@ export interface PersonalReportPackageSnapshotViewModel
 }
 
 export type PersonalReportPackageSnapshotResponse =
-  PersonalReportPackageSnapshotViewModel;
+  Schemas["PersonalReportPackageSnapshotResponse"];
 
 export interface AdvisorSuggestion {
   basis: string;
@@ -403,7 +408,7 @@ export function normalizePersonalReportPackageDocument(
 
 export function normalizePersonalReportPackageSnapshot(
   snapshot: Schemas["PersonalReportPackageSnapshotResponse"],
-): PersonalReportPackageSnapshotResponse {
+): PersonalReportPackageSnapshotViewModel {
   return {
     ...snapshot,
     created_at: snapshot.created_at ?? null,

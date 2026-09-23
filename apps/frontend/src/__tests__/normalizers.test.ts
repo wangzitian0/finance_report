@@ -3,9 +3,10 @@ import {
   toTransactionViewModel,
   toJournalEntryViewModel,
 } from "../lib/normalizers";
+import { toAiModelCatalogViewModel } from "../lib/aiModels";
 import type { Schemas } from "../lib/api-schema";
 
-describe("normalizers", () => {
+describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
   describe("toTransactionViewModel", () => {
     it("normalizes AtomicTransactionResponse with default fields", () => {
       const raw: Schemas["AtomicTransactionResponse"] = {
@@ -152,6 +153,45 @@ describe("normalizers", () => {
       expect(vm.id).toBe("je-2");
       expect(vm.lines).toEqual([]);
       expect(vm.total_amount).toBeUndefined();
+    });
+  });
+
+  describe("toAiModelCatalogViewModel", () => {
+    it("maps LlmCatalogResponse into AiModelCatalogViewModel", () => {
+      const catalog: Schemas["LlmCatalogResponse"] = {
+        models: [
+          {
+            id: "gpt-4o",
+            is_free: false,
+            modalities: ["text", "image"],
+            provider_id: "openai",
+            supports_reasoning: false,
+          },
+          {
+            id: "gemini-1.5-flash",
+            is_free: true,
+            modalities: ["text"],
+            provider_id: "google",
+            supports_reasoning: false,
+          },
+        ],
+      };
+      const vm = toAiModelCatalogViewModel(catalog);
+      expect(vm.default_model).toBe("gpt-4o");
+      expect(vm.fallback_models).toEqual(["gemini-1.5-flash"]);
+      expect(vm.models).toHaveLength(2);
+      expect(vm.models[0].is_free).toBe(false);
+      expect(vm.models[1].is_free).toBe(true);
+    });
+
+    it("handles empty model list gracefully", () => {
+      const catalog: Schemas["LlmCatalogResponse"] = {
+        models: [],
+      };
+      const vm = toAiModelCatalogViewModel(catalog);
+      expect(vm.default_model).toBe("");
+      expect(vm.fallback_models).toEqual([]);
+      expect(vm.models).toHaveLength(0);
     });
   });
 });
