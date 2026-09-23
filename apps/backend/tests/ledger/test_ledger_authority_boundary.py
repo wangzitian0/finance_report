@@ -160,7 +160,7 @@ async def test_AC_ledger_80_3_external_statement_staging_rejects_processing_acco
 
     txn = AtomicTransaction(
         user_id=user_id,
-        txn_date=date(2026, 9, 20),
+        txn_date=date(2024, 1, 15),
         description="Office Supplies",
         amount=Decimal("100.00"),
         currency="SGD",
@@ -306,7 +306,7 @@ async def test_AC_ledger_80_3_anchored_gateway_rejects_processing_account_for_no
         },
     ]
     target = journal_command_target(
-        entry_date=date(2026, 9, 20),
+        entry_date=date(2024, 1, 15),
         memo="Illegal processing route",
         lines_data=lines_data,
         base_currency="SGD",
@@ -323,7 +323,7 @@ async def test_AC_ledger_80_3_anchored_gateway_rejects_processing_account_for_no
             db,
             user_id=user_id,
             command=AnchoredJournalCommandV2.from_mappings(
-                entry_date=date(2026, 9, 20),
+                entry_date=date(2024, 1, 15),
                 memo="Illegal processing route",
                 lines_data=lines_data,
                 base_currency="SGD",
@@ -358,7 +358,7 @@ async def test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejectio
         {"account_id": sales.id, "direction": Direction.CREDIT, "amount": Decimal("80.00"), "currency": "SGD"},
     ]
     target = journal_command_target(
-        entry_date=date(2026, 9, 20),
+        entry_date=date(2024, 1, 15),
         memo="Unbalanced entry",
         lines_data=unbalanced_lines,
         base_currency="SGD",
@@ -373,7 +373,7 @@ async def test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejectio
             db,
             user_id=user_id,
             command=AnchoredJournalCommandV2.from_mappings(
-                entry_date=date(2026, 9, 20),
+                entry_date=date(2024, 1, 15),
                 memo="Unbalanced entry",
                 lines_data=unbalanced_lines,
                 base_currency="SGD",
@@ -435,8 +435,8 @@ async def test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejectio
 
 
 @pytest.mark.asyncio
-async def test_AC_ledger_80_4_direct_database_bypass_interception(db, test_user) -> None:
-    """AC-ledger.80.4: Direct DB bypass triggers physical constraint/trigger rejection."""
+async def test_AC_ledger_80_5_direct_database_bypass_interception(db, test_user) -> None:
+    """AC-ledger.80.5: Direct DB bypass triggers physical constraint/trigger rejection."""
     user_id = test_user.id
     cash = Account(user_id=user_id, name=f"Cash {uuid4()}", type=AccountType.ASSET, currency="SGD")
     sales = Account(user_id=user_id, name=f"Sales {uuid4()}", type=AccountType.INCOME, currency="SGD")
@@ -446,7 +446,7 @@ async def test_AC_ledger_80_4_direct_database_bypass_interception(db, test_user)
     # 1. Bypass gateway by creating an anchored entry without decision_anchor_id
     invalid_header = JournalEntry(
         user_id=user_id,
-        entry_date=date(2026, 9, 20),
+        entry_date=date(2024, 1, 15),
         memo="Bypass attempt",
         source_type=JournalEntrySourceType.MANUAL,
         decision_authority_state=JournalEntryAuthorityState.ANCHORED,
@@ -454,7 +454,7 @@ async def test_AC_ledger_80_4_direct_database_bypass_interception(db, test_user)
         status=JournalEntryStatus.DRAFT,
     )
     db.add(invalid_header)
-    with pytest.raises(IntegrityError):
+    with pytest.raises((IntegrityError, DBAPIError)):
         await db.flush()
     await db.rollback()
 
@@ -466,7 +466,7 @@ async def test_AC_ledger_80_4_direct_database_bypass_interception(db, test_user)
 
     entry = JournalEntry(
         user_id=user_id,
-        entry_date=date(2026, 9, 20),
+        entry_date=date(2024, 1, 15),
         memo="Unbalanced direct post attempt",
         source_type=JournalEntrySourceType.MANUAL,
         decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN,

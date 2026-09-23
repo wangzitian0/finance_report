@@ -8,6 +8,7 @@ lifecycle verbs; voiding creates its reversal through the system anchored comman
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select, text
@@ -20,6 +21,8 @@ from src.audit.money import Currency
 from src.ledger.base.decision_anchor import DecisionAnchor
 from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE
 from src.ledger.base.validators import (
+    JournalEntryPostingProtocol,
+    JournalLinePostingProtocol,
     ValidationError,
     validate_fx_rates,
     validate_journal_balance,
@@ -54,8 +57,8 @@ def _historical_reversal_base_currency(
         raise ValidationError(f"Cannot determine historical base currency from FX-free lines: {currencies}")
 
     historical_base = next(iter(fx_free_currencies), fallback)
-    validate_journal_balance(lines, base_currency=historical_base)
-    validate_fx_rates(lines, base_currency=historical_base)
+    validate_journal_balance(cast("list[JournalLinePostingProtocol]", lines), base_currency=historical_base)
+    validate_fx_rates(cast("list[JournalLinePostingProtocol]", lines), base_currency=historical_base)
     return historical_base
 
 
@@ -133,8 +136,8 @@ async def _create_anchored_journal_entry(
         )
         lines.append(line)
 
-    validate_journal_balance(lines, base_currency=base_currency)
-    validate_fx_rates(lines, base_currency=base_currency)
+    validate_journal_balance(cast("list[JournalLinePostingProtocol]", lines), base_currency=base_currency)
+    validate_fx_rates(cast("list[JournalLinePostingProtocol]", lines), base_currency=base_currency)
 
     db.add(entry)
     await db.flush()
@@ -184,7 +187,7 @@ async def post_journal_entry(
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
 
-    validate_journal_posting_invariants(entry, base_currency=base_currency)
+    validate_journal_posting_invariants(cast("JournalEntryPostingProtocol", entry), base_currency=base_currency)
 
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)

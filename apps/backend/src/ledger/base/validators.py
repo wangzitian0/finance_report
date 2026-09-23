@@ -40,10 +40,10 @@ class ValidationError(AccountingError):
 class Account(Protocol):
     """Structural protocol for account validation in posting invariants."""
 
-    user_id: Any
-    name: Any
-    is_system: Any
-    is_active: Any
+    user_id: Any  # Mapped[UUID] on ORM instances
+    name: str
+    is_system: bool
+    is_active: bool
 
 
 AccountPostingProtocol = Account
@@ -53,12 +53,12 @@ AccountPostingProtocol = Account
 class JournalLine(Protocol):
     """Structural protocol for journal lines in balance and posting invariant checks."""
 
-    amount: Any
-    direction: Any
-    currency: Any
-    fx_rate: Any
-    account_id: Any
-    account: Any
+    amount: Decimal
+    direction: Direction
+    currency: str | None
+    fx_rate: Decimal | None
+    account_id: Any  # Mapped[UUID] on ORM instances
+    account: Account | None
 
 
 JournalLinePostingProtocol = JournalLine
@@ -68,8 +68,8 @@ JournalLinePostingProtocol = JournalLine
 class JournalEntry(Protocol):
     """Structural protocol for journal entry header in posting invariants."""
 
-    lines: Any
-    user_id: Any
+    lines: Sequence[JournalLine] | Any  # Mapped[list[JournalLine]] on ORM instances
+    user_id: Any  # Mapped[UUID] on ORM instances
     source_type: Any
 
 

@@ -2601,13 +2601,27 @@ CONTRACT = PackageContract(
             id="AC-ledger.80.4",
             statement=(
                 "submit_anchored_journal_entry_v2 enforces DecisionAnchor validation and "
-                "double-entry balance in base currency; bypassing the authoritative submission "
-                "gateway triggers physical database constraint or trigger rejection with zero "
-                "journal state pollution (#2052)."
+                "double-entry balance in base currency, preserving a clean ledger state upon "
+                "rejection (#2052)."
             ),
             test=(
                 "apps/backend/tests/ledger/test_ledger_authority_boundary.py"
                 "::test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejection_preserves_clean_ledger"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-ledger.80.5",
+            statement=(
+                "Bypassing the authoritative ledger submission gateway and attempting direct "
+                "database insertion triggers physical constraint or deferred trigger rejection "
+                "with zero journal state pollution (#2052)."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_authority_boundary.py"
+                "::test_AC_ledger_80_5_direct_database_bypass_interception"
             ),
             priority="P0",
             status="done",
