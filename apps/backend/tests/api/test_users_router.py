@@ -25,7 +25,8 @@ async def test_delete_current_user_removes_authenticated_user(
     response = await client.delete(f"/users/{test_user.id}")
 
     assert response.status_code == 204
-    assert await db.scalar(select(User.id).where(User.id == test_user.id)) is None
+    await db.refresh(test_user)
+    assert test_user.is_deleted is True
 
     followup = await client.get("/users")
     assert followup.status_code == 401
@@ -111,4 +112,57 @@ async def test_AC13_23_1_delete_user_without_in_flight_parse_succeeds(
     response = await client.delete(f"/users/{test_user.id}")
 
     assert response.status_code == 204
-    assert await db.scalar(select(User.id).where(User.id == test_user.id)) is None
+    assert await db.scalar(select(User.id).where(User.id == test_user.id, User.is_deleted.is_(False))) is None
+
+
+async def test_soft_delete_preserves_user_row_and_revokes_access(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """#1848: Deleting a user marks is_deleted=True without cascading DELETE,
+    preventing append-only trigger violations while removing queryability.
+    """
+    response = await client.delete(f"/users/{test_user.id}")
+    assert response.status_code == 204
+
+    # The user cannot access endpoints
+    get_res = await client.get("/users")
+    assert get_res.status_code == 401
+
+    # The user record is marked is_deleted=True in DB
+    await db.refresh(test_user)
+    assert test_user.is_deleted is True
+
+
+async def test_update_user_email_collision_with_soft_deleted_user_rejected(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """#1848 / CR: Attempting to update user email to an address held by a soft-deleted user
+    must be rejected with 400, preventing 500 IntegrityError on unique email constraint.
+    """
+    deleted_email = f"deleted-{uuid4()}@example.com"
+    deleted_user = User(email=deleted_email, hashed_password="hashed", is_deleted=True)
+    db.add(deleted_user)
+    await db.commit()
+
+    response = await client.put(f"/users/{test_user.id}", json={"email": deleted_email})
+    assert response.status_code == 400
+    assert "Invalid update data" in response.json()["detail"]
+
+
+async def test_update_user_db_integrity_error_handled(
+    client: AsyncClient,
+    test_user: User,
+) -> None:
+    """CR / #1848: Concurrent conflict causing IntegrityError on commit returns 400."""
+    with patch.object(
+        AsyncSession,
+        "commit",
+        side_effect=IntegrityError("duplicate key", params={}, orig=Exception("duplicate key")),
+    ):
+        response = await client.put(f"/users/{test_user.id}", json={"email": "new_email@example.com"})
+        assert response.status_code == 400
+        assert "Invalid update data" in response.json()["detail"]
