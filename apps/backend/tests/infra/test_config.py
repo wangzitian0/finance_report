@@ -49,3 +49,21 @@ def test_statement_disposition_mode_is_closed_configuration(monkeypatch) -> None
     monkeypatch.setenv("STATEMENT_DISPOSITION_MODE", "unsafe-default")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_cors_origin_regex_normalizes_empty_string_to_none(monkeypatch) -> None:
+    monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
+    settings_default = Settings(_env_file=None)
+    assert settings_default.cors_origin_regex is None
+
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "")
+    settings_empty = Settings(_env_file=None)
+    assert settings_empty.cors_origin_regex is None
+
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", "   ")
+    settings_spaces = Settings(_env_file=None)
+    assert settings_spaces.cors_origin_regex is None
+
+    monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://.*\.example\.com$")
+    settings_valid = Settings(_env_file=None)
+    assert settings_valid.cors_origin_regex == r"^https://.*\.example\.com$"

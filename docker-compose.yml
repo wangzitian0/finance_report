@@ -136,7 +136,6 @@ services:
       # code for months (#2005); the retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD
       # knobs (dropped per common/llm/contract.py AC-llm.2.6 / AC-llm.4.6) are gone too.
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
-      CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
       DEBUG: ${DEBUG:-false}
       GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

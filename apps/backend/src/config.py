@@ -288,8 +288,8 @@ class Settings(BaseSettings):
     )
 
     # CORS origin regex - for dynamic subdomains (PR deployments and staging)
-    cors_origin_regex: str = Field(
-        default=r"https://report(-pr-\d+|-staging)?\.zitian\.party",
+    cors_origin_regex: str | None = Field(
+        default=None,
         description="CORS origin regex for dynamic subdomains (PR deployments and staging).",
         json_schema_extra={
             "group": "Security",
@@ -451,6 +451,14 @@ class Settings(BaseSettings):
         Pydantic cannot parse "" as int, so an empty env value would otherwise
         raise at startup and the seed could never actually be omitted via env.
         """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("cors_origin_regex", mode="before")
+    @classmethod
+    def _empty_cors_origin_regex_is_none(cls, value: object) -> object:
+        """Treat an empty/whitespace CORS_ORIGIN_REGEX as omitted (None)."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
