@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { middleware } from '../middleware'
 
-describe('Next.js Middleware Dynamic Content Security Policy', () => {
+describe('AC1.10.4 Next.js Middleware Dynamic Content Security Policy', () => {
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
