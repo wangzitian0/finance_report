@@ -10,6 +10,12 @@ instructions, skills, and MCP tools:
 * ``.claude/skills`` and ``.codex/skills`` are flat symlinks onto the canonical
   skill library in ``.opencode/skills`` so every runtime discovers the same
   SKILL.md files.
+* ``.claude/skills`` additionally carries links into ``skills/``, the workspace
+  skills vendored 1:1 from dev_env (dev_env#120). They are a second, declared
+  source rather than drift: ``skills/`` is not a path any runtime reads, so
+  without these links the vendored copies are committed and discovered by
+  nothing. Mirror completeness for the ``.opencode`` library is asserted
+  separately and is unaffected.
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
@@ -34,6 +40,9 @@ MIRROR_SKILL_DIRS = {
     "claude": ROOT / ".claude" / "skills",
     "codex": ROOT / ".codex" / "skills",
 }
+# The workspace skills vendored 1:1 from dev_env. Not a path any runtime reads,
+# which is the whole reason `.claude/skills` carries links into it.
+VENDORED_SKILLS = ROOT / "skills"
 
 # Auth plugins that borrow a first-party subscription OAuth seat inside a
 # third-party client. Removed because that pattern risks account suspension;
@@ -126,7 +135,20 @@ def test_every_opencode_skill_is_mirrored() -> None:
 
 
 def test_no_orphan_or_broken_mirror_skill_links() -> None:
-    """Every mirror entry is a live symlink back into .opencode."""
+    """Every mirror entry is a live symlink into one of the two declared sources.
+
+    The forward direction -- every .opencode skill is mirrored everywhere -- is
+    `test_every_opencode_skill_is_mirrored`. This one is the reverse: nothing
+    sits in a mirror directory that points nowhere, or at something outside the
+    repository, or at a directory that is not a skill.
+
+    Requiring `.opencode` membership used to stand in for that, which was true
+    while `.opencode` was the only source. It is not any more: `skills/` holds
+    the workspace skills vendored 1:1 from dev_env, and `.claude/skills` is
+    where a runtime actually finds them -- no runtime reads `skills/` itself.
+    So the assertion names both sources, and everything else still fails,
+    including a link that has gone stale inside either one.
+    """
     leaves = _opencode_leaf_skill_dirs()
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for entry in sorted(skills_dir.iterdir()):
@@ -134,8 +156,18 @@ def test_no_orphan_or_broken_mirror_skill_links() -> None:
             assert entry.exists(), (
                 f"{runtime}: {entry} is a broken symlink -> {os.readlink(entry)}"
             )
-            assert entry.name in leaves, (
-                f"{runtime}: {entry.name} has no matching .opencode skill"
+            resolved = entry.resolve()
+            assert (resolved / "SKILL.md").is_file(), (
+                f"{runtime}: {entry.name} resolves to {resolved}, which exposes no "
+                "SKILL.md -- a link into a directory that is not a skill"
+            )
+            if entry.name in leaves:
+                continue
+            assert resolved.is_relative_to(VENDORED_SKILLS), (
+                f"{runtime}: {entry.name} resolves to {resolved}, which is neither "
+                f"a .opencode skill nor one of the skills vendored under "
+                f"{VENDORED_SKILLS.name}/. Those are the two declared sources; a "
+                "third one is drift, not a feature."
             )
 
 
@@ -243,4 +275,6 @@ def test_skill_docs_reference_existing_tools() -> None:
         for name in _BARE_PY_REF.findall(text):
             if name not in repo_basenames:
                 missing.append(f"{rel} -> {name} (no such file in repo)")
-    assert not missing, f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"
+    assert not missing, (
+        f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"
+    )
