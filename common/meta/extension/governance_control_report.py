@@ -20,6 +20,35 @@ def render_governance_markdown(index: dict[str, object]) -> str:
             f"{row['issue']} |"
         )
 
+    census = index.get("census") or index.get("denominators")
+    if isinstance(census, dict):
+        delivery = census.get("delivery_surfaces", {})
+        roots = census.get("backend_root_modules", {})
+        units = census.get("ddd_units", {})
+        ops = census.get("operations", {})
+        fe = census.get("frontend_assets", {})
+        lines.extend(
+            [
+                "",
+                "## Exhaustive Governance Denominators",
+                "",
+                "| Asset Surface | Count | Category / Status |",
+                "|---|---:|---|",
+                f"| Flat Routers (`apps/backend/src/routers/`) | {delivery.get('router_count', 0)} | Sanctioned delivery debt (shrink-only ratchet) |",
+                f"| Flat Schemas (`apps/backend/src/schemas/`) | {delivery.get('schema_count', 0)} | Sanctioned DTO debt (shrink-only ratchet) |",
+                f"| Backend Root Modules (`apps/backend/src/`) | {roots.get('count', 0)} | Shell & composition boundaries |",
+                f"| Total DDD Units | {units.get('total_count', 0)} | Package-owned domain building blocks |",
+                f"| Bound DDD Units | {units.get('bound_count', 0)} | Implemented building blocks |",
+                f"| Unbound DDD Units | {units.get('unbound_count', 0)} | Migration debt (shrink-only ratchet) |",
+                f"| Incomplete Repository Splits | {units.get('incomplete_splits', 0)} | Migration debt (shrink-only ratchet) |",
+                f"| OpenAPI Operations (Total) | {ops.get('total_operations', 0)} | Backend REST endpoints |",
+                f"| Consumed Operations | {ops.get('consumed_operations', 0)} | Consumed via direct or semantic client wrapper |",
+                f"| Intentional API-Only Operations | {ops.get('api_only_operations', 0)} | Intentional non-UI API capabilities |",
+                f"| Frontend Consumer Call Sites | {ops.get('total_consumer_call_sites', 0)} | Generated & semantic operation consumers |",
+                f"| Frontend Production Files | {fe.get('production_file_count', 0)} | Production TS/TSX asset census |",
+            ]
+        )
+
     for initiative_id in sorted(initiatives):
         row = initiatives[initiative_id]
         lines.extend(["", f"## {initiative_id}", ""])

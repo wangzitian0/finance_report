@@ -2699,6 +2699,155 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="exact",
         ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.1",
+            statement=(
+                "Every flat router in apps/backend/src/routers/ and schema module in "
+                "apps/backend/src/schemas/ is classified in the package governance "
+                "census with an explicit shrink-only ratchet; any unratcheted delivery "
+                "surface addition fails closed."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_1_app_ownership"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.2",
+            statement=(
+                "Backend root module boundaries are tracked in the package governance "
+                "census and enforced shrink-only; unauthorized root composition modules "
+                "or domain boundary escapes fail closed."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_2_domain_locality"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.3",
+            statement=(
+                "Public Python signatures and app-root composition boundaries are counted "
+                "and governed; an undiscovered root module or zero-count denominator fails closed."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_3_python_boundary_denominator"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.4",
+            statement=(
+                "Frontend production discovery covers all active modules and exports; "
+                "empty, partial, or vacuous frontend scans fail closed with non-zero exit "
+                "and actionable diagnostics."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_4_frontend_export_denominator"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.5",
+            statement=(
+                "Frontend operation consumer discovery recognizes API wrapper call sites "
+                "in apps/frontend/src/lib/api.ts, classifying wrapper-delegated OpenAPI "
+                "operations as consumed rather than dead code."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_5_operation_consumer_truth"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.6",
+            statement=(
+                "Unused OpenAPI operations are partitioned honestly between intentional "
+                "API-only operations and consumer gaps, ensuring total operations equal "
+                "consumed plus API-only with zero unaccounted endpoints."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_6_unused_operation_honesty"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.7",
+            statement=(
+                "The delivery surface migration debt remains visible with semantic owner "
+                "and shrink-only status; expansion beyond baseline fails closed."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_7_delivery_surface_truth"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.8",
+            statement=(
+                "DDD unit accountability enforces that all declared bounded context units "
+                "are accounted for, unbound units are tracked with shrink-only limits, "
+                "and incomplete splits fail closed."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_8_unit_accountability"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.9",
+            statement=(
+                "Empty app discovery, skipped frontend roots, excluded wrapper files, "
+                "and unknown production directories fail closed through counterfactual "
+                "non-vacuity checks."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_9_non_vacuity"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-meta.governance-ratchet.10",
+            statement=(
+                "Package governance integration runs exhaustive denominator census and "
+                "ratchet verification via CLI, failing closed on any regression or "
+                "unproved governance guarantee."
+            ),
+            test=(
+                "tests/tooling/test_governance_ratchet.py"
+                "::test_AC_meta_governance_ratchet_10_governance_integration"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
     ],
     governance=[
         GovernanceInitiative(
@@ -2840,8 +2989,150 @@ CONTRACT = PackageContract(
                 ),
             ],
         ),
+        GovernanceInitiative(
+            id="app-and-frontend-governance",
+            title="Make app and frontend governance discovery exhaustive",
+            issue="https://github.com/wangzitian0/finance_report/issues/1984",
+            depends_on=[
+                "meta/governance-control-plane",
+                "meta/public-boundary-control",
+            ],
+            guarantees=[
+                GovernanceGuarantee(
+                    id="app-ownership",
+                    statement="Every backend router, schema, and root module is accounted for under package governance or an explicit shrink-only ratchet.",
+                    affected_acs=["AC-meta.governance-ratchet.1"],
+                    detector="governance-ratchet-status",
+                    target="zero unratcheted delivery surfaces",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-app-ownership",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="domain-locality",
+                    statement="Backend root modules remain bounded to authorized platform orchestration; unauthorized domain leakage fails closed.",
+                    affected_acs=["AC-meta.governance-ratchet.2"],
+                    detector="governance-ratchet-status",
+                    target="zero unauthorized backend root modules",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-domain-locality",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="python-boundary-denominator",
+                    statement="All backend public symbols and schemas are classified in the governance denominator.",
+                    affected_acs=["AC-meta.governance-ratchet.3"],
+                    detector="governance-ratchet-status",
+                    target="zero unclassified python boundary schemas",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-python-boundary-denominator",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="frontend-export-denominator",
+                    statement="Frontend production scan discovers all production modules without vacuous or silent exclusion.",
+                    affected_acs=["AC-meta.governance-ratchet.4"],
+                    detector="governance-ratchet-status",
+                    target="zero vacuous or dropped frontend modules",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-frontend-export-denominator",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="operation-consumer-truth",
+                    statement="Frontend API client wrapper calls are discovered as valid operation consumers.",
+                    affected_acs=["AC-meta.governance-ratchet.5"],
+                    detector="governance-ratchet-status",
+                    target="zero falsely unconsumed wrapper operations",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-operation-consumer-truth",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="unused-operation-honesty",
+                    statement="Unused OpenAPI operations are fully partitioned with zero unaccounted endpoints.",
+                    affected_acs=["AC-meta.governance-ratchet.6"],
+                    detector="governance-ratchet-status",
+                    target="zero unaccounted OpenAPI operations",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-unused-operation-honesty",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="delivery-surface-truth",
+                    statement="All flat routers and schema modules are subject to shrink-only baselines.",
+                    affected_acs=["AC-meta.governance-ratchet.7"],
+                    detector="governance-ratchet-status",
+                    target="zero expanded flat routers or schemas",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-delivery-surface-truth",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="unit-accountability",
+                    statement="DDD bounded context units are strictly accounted for and unbound units shrink only.",
+                    affected_acs=["AC-meta.governance-ratchet.8"],
+                    detector="governance-ratchet-status",
+                    target="zero increased unbound units and zero incomplete splits",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-unit-accountability",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="non-vacuity",
+                    statement="Governance census fails closed if discovered counts are zero or suspiciously drop below baseline.",
+                    affected_acs=["AC-meta.governance-ratchet.9"],
+                    detector="governance-ratchet-status",
+                    target="zero vacuous census runs",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-non-vacuity",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+                GovernanceGuarantee(
+                    id="governance-integration",
+                    statement="CLI reports and CI gates verify package governance ratchet and census integrity.",
+                    affected_acs=["AC-meta.governance-ratchet.10"],
+                    detector="governance-ratchet-status",
+                    target="zero unverified package governance runs",
+                    lock="ci.tooling_coverage",
+                    proof="governance-ratchet-governance-integration",
+                    required_proof_strength="exact",
+                    enforcing_gate="ci.tooling_coverage",
+                ),
+            ],
+        ),
     ],
     concepts=[
+        ConceptRecord(
+            key="governance_ratchet_baseline",
+            owner="common/meta/data/governance-ratchet-baseline.json",
+            description=(
+                "Exhaustive shrink-only baseline locking 21 flat routers, 23 schemas, "
+                "9 backend root composition modules, and 104 unbound DDD units in the "
+                "package governance census."
+            ),
+            cross_refs=[
+                "common/meta/data/governance-ratchet-baseline.json",
+                "common/meta/extension/governance_census.py",
+                "common/meta/extension/governance_detector.py",
+                "tools/report_package_governance.py",
+                "tests/tooling/test_governance_ratchet.py",
+            ],
+            proofs=["tests/tooling/test_governance_ratchet.py"],
+            family="platform",
+            kind="baseline",
+            authority="machine_generated",
+            parent="package_model",
+        ),
         ConceptRecord(
             key="api_surface_terminal_home",
             owner="common/meta/contract.py",

@@ -601,6 +601,62 @@ def test_control_detector_ignores_public_boundary_initiative_payload() -> None:
     assert payload["detectors"] == []
 
 
+def test_control_detector_ignores_app_and_frontend_governance_initiative_payload() -> (
+    None
+):
+    """AC-testing.governance.23: meta app and frontend governance detector is emitted by package detector, not control adapter."""
+    contract = _contract().model_copy(
+        update={
+            "name": "meta",
+            "governance": [
+                GovernanceInitiative(
+                    id="app-and-frontend-governance",
+                    title="Make app and frontend governance discovery exhaustive",
+                    issue=ISSUE_URL,
+                    guarantees=[
+                        GovernanceGuarantee(
+                            id="app-ownership",
+                            statement="App ownership.",
+                            affected_acs=["AC-meta.governance-ratchet.1"],
+                            detector="governance-ratchet-status",
+                            target="zero unratcheted delivery surfaces",
+                            lock="ci.tooling_coverage",
+                            proof="governance-ratchet-app-ownership",
+                            required_proof_strength="exact",
+                            enforcing_gate="ci.tooling_coverage",
+                        )
+                    ],
+                )
+            ],
+        }
+    )
+    existing_payloads = [
+        {
+            "source": "package-detector",
+            "target_sha": TARGET_SHA,
+            "detectors": [
+                {
+                    "guarantee_id": "meta/app-ownership",
+                    "current": 0,
+                    "target": 0,
+                    "findings": [],
+                }
+            ],
+        }
+    ]
+    payload = observation_adapter._control_detector_payload(
+        contracts=[contract],
+        open_issue_urls={ISSUE_URL},
+        existing_payloads=existing_payloads,
+        target_sha=TARGET_SHA,
+        gate_inventory=_inputs()["gate_inventory"],
+        workflow=_inputs()["workflow"],
+        rulesets=_inputs()["rulesets"],
+        issue_payloads=_inputs()["issue_payloads"],
+    )
+    assert payload["detectors"] == []
+
+
 def test_mixed_parameterized_skip_cannot_reuse_a_passing_trace_record(
     tmp_path: Path,
 ) -> None:

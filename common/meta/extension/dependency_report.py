@@ -1997,7 +1997,6 @@ def discover_frontend_operation_consumers(repo_root: Path) -> list[dict[str, obj
         if "__tests__" in path.parts or path.name.endswith((".test.ts", ".test.tsx")):
             continue
         if path.name in {
-            "api.ts",
             "api-client.ts",
             "api-operations.ts",
             "api-types.ts",
@@ -2025,20 +2024,43 @@ def discover_frontend_operation_consumers(repo_root: Path) -> list[dict[str, obj
                     "blocking": False,
                 }
             )
-        for match in _UNTYPED_TRANSPORT.finditer(source):
-            line_number = source.count("\n", 0, match.start()) + 1
-            records.append(
-                {
-                    "kind": "frontend-operation-consumer",
-                    "id": f"untyped@{relative}:{line_number}",
-                    "operation_id": None,
-                    "source": relative,
-                    "line": line_number,
-                    "classification": "untyped-api-fetch",
-                    "blocking": True,
-                }
-            )
+        if path.name != "api.ts":
+            for match in _UNTYPED_TRANSPORT.finditer(source):
+                line_number = source.count("\n", 0, match.start()) + 1
+                records.append(
+                    {
+                        "kind": "frontend-operation-consumer",
+                        "id": f"untyped@{relative}:{line_number}",
+                        "operation_id": None,
+                        "source": relative,
+                        "line": line_number,
+                        "classification": "untyped-api-fetch",
+                        "blocking": True,
+                    }
+                )
     return records
+
+
+def classify_operation_usage(repo_root: Path) -> dict[str, object]:
+    """Classify OpenAPI operations into consumed vs intentional API-only with exact counts."""
+    boundaries = discover_delivery_boundaries(repo_root)
+    operations = [b for b in boundaries if b.get("kind") == "openapi-operation"]
+    consumers = [
+        b for b in boundaries if b.get("kind") == "frontend-operation-consumer"
+    ]
+    consumed_op_ids = {
+        str(c["operation_id"]) for c in consumers if c.get("operation_id")
+    }
+    all_op_ids = {str(o["id"]) for o in operations if o.get("id")}
+    api_only_op_ids = sorted(all_op_ids - consumed_op_ids)
+    return {
+        "total_operations": len(all_op_ids),
+        "consumed_operations": len(consumed_op_ids),
+        "api_only_operations": len(api_only_op_ids),
+        "total_consumer_call_sites": len(consumers),
+        "consumed_operation_ids": sorted(consumed_op_ids),
+        "api_only_operation_ids": api_only_op_ids,
+    }
 
 
 def discover_delivery_boundaries(repo_root: Path) -> list[dict[str, object]]:

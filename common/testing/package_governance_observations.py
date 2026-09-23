@@ -886,7 +886,10 @@ def _control_detector_payload(
         if contract.name not in {"meta", "testing"}:
             continue
         for initiative in contract.governance:
-            if initiative.id == "public-boundary-control":
+            if initiative.id in {
+                "public-boundary-control",
+                "app-and-frontend-governance",
+            }:
                 continue
             if initiative.issue not in open_issue_urls:
                 continue
