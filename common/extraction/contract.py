@@ -5331,6 +5331,8 @@ CONTRACT = PackageContract(
                 "common/reconciliation/reconciliation.md",
                 "common/ledger/readme.md",
             ],
+            family="extraction",
+            kind="concept",
         ),
         ConceptRecord(
             key="confirmation_workflow_states",
@@ -5353,6 +5355,8 @@ CONTRACT = PackageContract(
                 "common/reporting/reporting.md",
                 "apps/backend/tests/extraction/test_evidence_graph_materialization.py",
             ],
+            family="evidence",
+            kind="concept",
         ),
         ConceptRecord(
             key="extraction_confidence_tiers",
@@ -5388,6 +5392,8 @@ CONTRACT = PackageContract(
                 "common/reconciliation/reconciliation.md",
                 "apps/backend/tests/extraction/test_dual_write_layer2.py",
             ],
+            family="extraction",
+            kind="concept",
         ),
     ],
 )

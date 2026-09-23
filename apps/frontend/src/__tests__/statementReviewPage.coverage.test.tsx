@@ -181,7 +181,7 @@ describe("StatementReviewPage - coverage additions", () => {
         const approveCall = mockedApi.mock.calls.find(c => String(c[0]).includes("/review/approve"));
         expect(approveCall?.[1]).toMatchObject({
             method: "POST",
-            body: JSON.stringify({ create_account_if_missing: true }),
+            body: JSON.stringify({ create_account_if_missing: true, auto_fill_default_categories: false }),
         });
 
         // Now test reject

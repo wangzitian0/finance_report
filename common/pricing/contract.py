@@ -1145,6 +1145,8 @@ CONTRACT = PackageContract(
                 "common/reporting/reporting.md",
                 "common/pricing/contract.py",
             ],
+            family="market",
+            kind="concept",
         ),
         ConceptRecord(
             key="net_worth_valuation_snapshots",
@@ -1162,6 +1164,7 @@ CONTRACT = PackageContract(
                 "common/meta/schema.md",
             ],
             family="assets",
+            kind="concept",
         ),
     ],
 )

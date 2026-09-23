@@ -3293,6 +3293,8 @@ CONTRACT = PackageContract(
                 "common/ledger/readme.md",
                 "docs/project/EPIC-020.framework-aware-personal-reporting.md",
             ],
+            family="reporting",
+            kind="concept",
         ),
         ConceptRecord(
             key="reporting_calculations",
@@ -3303,6 +3305,8 @@ CONTRACT = PackageContract(
                 "common/ledger/readme.md",
                 "common/pricing/market_data.md",
             ],
+            family="reporting",
+            kind="concept",
         ),
     ],
 )

@@ -2592,6 +2592,7 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/ledger/test_accounting_equation.py",
             ],
             family="accounting",
+            kind="concept",
         ),
         ConceptRecord(
             key="decimal_monetary_rule",
@@ -2610,6 +2611,7 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/audit/money/test_money.py",
             ],
             family="accounting",
+            kind="concept",
         ),
         ConceptRecord(
             key="double_entry_bookkeeping",
@@ -2620,6 +2622,7 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/ledger/test_accounting.py",
             ],
             family="accounting",
+            kind="concept",
         ),
         ConceptRecord(
             key="processing_account",
@@ -2630,6 +2633,7 @@ CONTRACT = PackageContract(
                 "common/reconciliation/reconciliation.md",
             ],
             family="accounting",
+            kind="concept",
         ),
         ConceptRecord(
             key="transaction_boundary",
@@ -2640,6 +2644,7 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/ledger/test_accounting_integration.py",
             ],
             family="accounting",
+            kind="concept",
         ),
     ],
 )

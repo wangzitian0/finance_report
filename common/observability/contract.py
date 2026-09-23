@@ -1226,6 +1226,8 @@ CONTRACT = PackageContract(
             owner="common/observability/observability.md",
             description="Structured logging, OTLP export configuration.",
             cross_refs=["common/meta/development.md"],
+            family="observability",
+            kind="concept",
         ),
         ConceptRecord(
             key="statement_parsing_model_selection_logging",

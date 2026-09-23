@@ -3041,6 +3041,7 @@ CONTRACT = PackageContract(
                 "docs/project/EPIC-011.asset-lifecycle.md",
             ],
             family="schema",
+            kind="concept",
         ),
         ConceptRecord(
             key="database_schema",
@@ -3138,6 +3139,7 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/infra/test_schema_guardrails.py",
             ],
             family="schema",
+            kind="concept",
         ),
         ConceptRecord(
             key="context_contract_debt_baseline",
@@ -3177,6 +3179,7 @@ CONTRACT = PackageContract(
                 ".pre-commit-config.yaml",
             ],
             family="development",
+            kind="concept",
         ),
         ConceptRecord(
             key="epic_residue_baseline",
@@ -3217,6 +3220,7 @@ CONTRACT = PackageContract(
                 "common/runtime/shell/common.sh",
             ],
             family="development",
+            kind="matrix",
         ),
         ConceptRecord(
             key="migration_risk_classification",
@@ -3233,6 +3237,8 @@ CONTRACT = PackageContract(
                 "common/meta/extension/migration_risk.py",
                 "tests/tooling/test_migration_risk_contract.py",
             ],
+            family="delivery",
+            kind="concept",
         ),
         ConceptRecord(
             key="moon_commands",
@@ -3240,6 +3246,7 @@ CONTRACT = PackageContract(
             description="Primary interface for dev, lint, test, and build tasks.",
             cross_refs=["AGENTS.md", "docs/contributing/branch-policy.md"],
             family="development",
+            kind="playbook",
         ),
         ConceptRecord(
             key="namespace_isolation",
@@ -3247,6 +3254,7 @@ CONTRACT = PackageContract(
             description="Namespace-based test DB and S3 bucket isolation for parallel runs.",
             cross_refs=["common/runtime/environments.md"],
             family="development",
+            kind="concept",
         ),
         ConceptRecord(
             key="package_model",
@@ -3298,6 +3306,8 @@ CONTRACT = PackageContract(
                 "docker-compose.yml",
                 "docker-compose.pr-preview.yml",
             ],
+            family="development",
+            kind="concept",
         ),
         ConceptRecord(
             key="ssot_governance_exceptions",

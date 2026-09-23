@@ -2496,6 +2496,8 @@ CONTRACT = PackageContract(
                 "common/reconciliation/confirmation-workflow.md",
                 "common/reconciliation/reconciliation.md",
             ],
+            family="reconciliation",
+            kind="model",
         ),
         ConceptRecord(
             key="reconciliation_thresholds",
@@ -2505,6 +2507,8 @@ CONTRACT = PackageContract(
                 "docs/agents/red-lines.md",
                 "common/reconciliation/reconciliation.md",
             ],
+            family="reconciliation",
+            kind="baseline",
         ),
     ],
 )
