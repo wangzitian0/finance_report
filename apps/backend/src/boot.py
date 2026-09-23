@@ -383,8 +383,7 @@ class Bootloader:
                 "warning",
                 f"Secrets file not found at {VAULT_SECRETS_FILE_PATH}. "
                 "If in staging/production, the vault-agent failed to render secrets. "
-                "Re-provision AppRole creds (from infra2): DEPLOY_ENV=<env> invoke "
-                "vault.setup-approle --project=finance_report --service=app --deploy",
+                "Verify secrets provider or provision credentials for the deployment environment.",
                 duration_ms,
             )
 

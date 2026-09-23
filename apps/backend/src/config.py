@@ -289,7 +289,7 @@ class Settings(BaseSettings):
 
     # CORS origin regex - for dynamic subdomains (PR deployments and staging)
     cors_origin_regex: str = Field(
-        default=r"https://report(-pr-\d+|-staging)?\.zitian\.party",
+        default=r"^$",
         description="CORS origin regex for dynamic subdomains (PR deployments and staging).",
         json_schema_extra={
             "group": "Security",
@@ -673,7 +673,6 @@ class Settings(BaseSettings):
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://127.0.0.1:3000",
-                "https://report.zitian.party",
             ],
         )
 
