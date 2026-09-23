@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, func, select
+from sqlalchemy import Boolean, ForeignKey, Index, String, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,6 +41,9 @@ class User(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     ai_settings: Mapped[dict[str, bool]] = mapped_column(JSONB, nullable=False, default=dict)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=text("false"), index=True
+    )
 
 
 class AiFeedback(Base, UUIDMixin, TimestampMixin):
@@ -67,13 +70,18 @@ class SqlUserRepository:
         self._db = db
 
     async def exists(self, user_id: UUID) -> bool:
-        """True iff a user row with ``user_id`` exists."""
-        result = await self._db.execute(select(User.id).where(User.id == user_id))
+        """True iff an active user row with ``user_id`` exists."""
+        result = await self._db.execute(select(User.id).where(User.id == user_id, User.is_deleted.is_(False)))
         return result.scalar_one_or_none() is not None
 
     async def get_by_normalized_email(self, normalized_email: str) -> User | None:
-        """The ``User`` whose normalized (lowercased) email matches, or None."""
-        result = await self._db.execute(select(User).where(func.lower(User.email) == normalized_email))
+        """The active ``User`` whose normalized (lowercased) email matches, or None."""
+        result = await self._db.execute(
+            select(User).where(
+                func.lower(User.email) == normalized_email,
+                User.is_deleted.is_(False),
+            )
+        )
         return result.scalar_one_or_none()
 
     async def add(self, user: User) -> None:

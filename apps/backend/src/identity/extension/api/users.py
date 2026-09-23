@@ -81,7 +81,7 @@ async def list_users(
     user_id: CurrentUserId,
 ) -> UserListResponse:
     """List the authenticated user's profile only."""
-    scoped_query = select(User).where(User.id == user_id)
+    scoped_query = select(User).where(User.id == user_id, User.is_deleted.is_(False))
     count_result = await db.execute(select(func.count()).select_from(scoped_query.subquery()))
     total = count_result.scalar_one()
 
@@ -105,7 +105,7 @@ async def get_user(
     if user_id != current_user_id:
         raise_not_found("User")
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted.is_(False)))
     user = result.scalar_one_or_none()
 
     if not user:
@@ -126,14 +126,16 @@ async def update_user(
     if user_id != current_user_id:
         raise_not_found("User")
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted.is_(False)))
     user = result.scalar_one_or_none()
 
     if not user:
         raise_not_found("User")
 
     if user_data.email is not None:
-        result = await db.execute(select(User).where(User.email == user_data.email).where(User.id != user_id))
+        result = await db.execute(
+            select(User).where(User.email == user_data.email, User.id != user_id, User.is_deleted.is_(False))
+        )
         existing_user = result.scalar_one_or_none()
         if existing_user:
             raise_bad_request("Invalid update data")
@@ -152,24 +154,18 @@ async def delete_user(
     db: DbSession,
     current_user_id: CurrentUserId,
 ) -> None:
-    """Delete the authenticated user's own account."""
+    """Delete the authenticated user's own account (soft delete)."""
     if user_id != current_user_id:
         raise_not_found("User")
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted.is_(False)))
     user = result.scalar_one_or_none()
 
     if not user:
         raise_not_found("User")
 
-    # Lifecycle coordination (#1256, AC13.23.1): the user-owned cascade
-    # (UserOwnedMixin FK, ON DELETE CASCADE) would remove statement rows out from
-    # under a still-running background parse. That parse captured user_id/statement_id
-    # and would later write uploaded-document lineage for the now-deleted user,
-    # which PostgreSQL rejects with a FK IntegrityError (and the original error gets
-    # masked). The in-flight parse is queryable as StatementSummary.status == PARSING,
-    # so refuse the delete with an actionable 409 rather than racing the parse
-    # (read through the registered port — see module note above).
+    # Lifecycle coordination (#1256, AC13.23.1): refuse deletion while a statement
+    # parse is still in-flight.
     in_flight_parse = await _require_in_flight_parse_checker()(db, user_id)
     if in_flight_parse is not None:
         raise_conflict(
@@ -177,7 +173,10 @@ async def delete_user(
             "Wait for the parse to finish (or fail) and try again."
         )
 
-    await db.delete(user)
+    # Soft delete (#1848): mark the user as deleted instead of issuing a cascading DELETE,
+    # preventing violations of append-only database triggers on statement_envelopes and
+    # preserving historical audit invariants while ensuring the user is no longer queryable.
+    user.is_deleted = True
     try:
         await db.commit()
     except IntegrityError as exc:

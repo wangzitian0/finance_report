@@ -25,7 +25,8 @@ async def test_delete_current_user_removes_authenticated_user(
     response = await client.delete(f"/users/{test_user.id}")
 
     assert response.status_code == 204
-    assert await db.scalar(select(User.id).where(User.id == test_user.id)) is None
+    await db.refresh(test_user)
+    assert test_user.is_deleted is True
 
     followup = await client.get("/users")
     assert followup.status_code == 401
@@ -111,4 +112,24 @@ async def test_AC13_23_1_delete_user_without_in_flight_parse_succeeds(
     response = await client.delete(f"/users/{test_user.id}")
 
     assert response.status_code == 204
-    assert await db.scalar(select(User.id).where(User.id == test_user.id)) is None
+    assert await db.scalar(select(User.id).where(User.id == test_user.id, User.is_deleted.is_(False))) is None
+
+
+async def test_soft_delete_preserves_user_row_and_revokes_access(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """#1848: Deleting a user marks is_deleted=True without cascading DELETE,
+    preventing append-only trigger violations while removing queryability.
+    """
+    response = await client.delete(f"/users/{test_user.id}")
+    assert response.status_code == 204
+
+    # The user cannot access endpoints
+    get_res = await client.get("/users")
+    assert get_res.status_code == 401
+
+    # The user record is marked is_deleted=True in DB
+    await db.refresh(test_user)
+    assert test_user.is_deleted is True
