@@ -547,6 +547,60 @@ def test_control_detector_never_synthesizes_green_for_missing_raw_facts() -> Non
     assert "gate-failure-not-blocked-by-finish" in payload["detectors"][0]["findings"]
 
 
+def test_control_detector_ignores_public_boundary_initiative_payload() -> None:
+    """AC-testing.governance.23: meta public boundary detector is emitted by dependency report, not control adapter."""
+    contract = _contract().model_copy(
+        update={
+            "name": "meta",
+            "governance": [
+                GovernanceInitiative(
+                    id="public-boundary-control",
+                    title="Public boundary control",
+                    issue=ISSUE_URL,
+                    guarantees=[
+                        GovernanceGuarantee(
+                            id="one-boundary-graph",
+                            statement="One graph.",
+                            affected_acs=["AC-meta.public-boundary.1"],
+                            detector="boundary-discovery-completeness",
+                            target="zero findings",
+                            lock="ci.tooling_coverage",
+                            proof="public-boundary-graph",
+                            required_proof_strength="exact",
+                            enforcing_gate="ci.tooling_coverage",
+                        )
+                    ],
+                )
+            ],
+        }
+    )
+    existing_payloads = [
+        {
+            "source": "package-detector",
+            "target_sha": TARGET_SHA,
+            "detectors": [
+                {
+                    "guarantee_id": "meta/one-boundary-graph",
+                    "current": 0,
+                    "target": 0,
+                    "findings": [],
+                }
+            ],
+        }
+    ]
+    payload = observation_adapter._control_detector_payload(
+        contracts=[contract],
+        open_issue_urls={ISSUE_URL},
+        existing_payloads=existing_payloads,
+        target_sha=TARGET_SHA,
+        gate_inventory=_inputs()["gate_inventory"],
+        workflow=_inputs()["workflow"],
+        rulesets=_inputs()["rulesets"],
+        issue_payloads=_inputs()["issue_payloads"],
+    )
+    assert payload["detectors"] == []
+
+
 def test_mixed_parameterized_skip_cannot_reuse_a_passing_trace_record(
     tmp_path: Path,
 ) -> None:

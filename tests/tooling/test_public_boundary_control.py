@@ -7,8 +7,16 @@ from pathlib import Path
 import pytest
 
 from common.meta.extension import dependency_report
+from common.testing.ac_proof import ac_proof
 
 
+@ac_proof(
+    "public-boundary-graph",
+    ac_ids=["AC-meta.public-boundary.1"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.public-boundary.1",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_public_boundary_1_snapshot_is_complete_and_single_source(
     tmp_path: Path,
 ) -> None:
@@ -53,6 +61,13 @@ def test_AC_meta_public_boundary_1_snapshot_projects_delivery_records(
     ]
 
 
+@ac_proof(
+    "public-boundary-financial-signatures",
+    ac_ids=["AC-meta.public-boundary.2"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.public-boundary.2",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_public_boundary_2_financial_signatures_fail_closed() -> None:
     """AC-meta.public-boundary.2: dynamic financial command seams are rejected."""
     records = [
@@ -84,6 +99,13 @@ def test_AC_meta_public_boundary_2_financial_signatures_fail_closed() -> None:
     ]
 
 
+@ac_proof(
+    "public-boundary-operation-client",
+    ac_ids=["AC-meta.public-boundary.3"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.public-boundary.3",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_public_boundary_3_frontend_uses_generated_operations(
     tmp_path: Path,
 ) -> None:
@@ -129,6 +151,13 @@ apiUpload('/legacy', new FormData());
     ]
 
 
+@ac_proof(
+    "public-boundary-consumer-impact",
+    ac_ids=["AC-meta.public-boundary.4"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.public-boundary.4",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_public_boundary_4_breaking_consumers_block() -> None:
     """AC-meta.public-boundary.4: every impacted consumer needs an exact proof."""
     report = {
@@ -267,6 +296,13 @@ def test_AC_meta_public_boundary_4_nested_enum_addition_is_not_a_dto_break() -> 
     assert not dependency_report._is_compatible_public_change(removed_enum_member)
 
 
+@ac_proof(
+    "public-boundary-enforcement",
+    ac_ids=["AC-meta.public-boundary.5"],
+    ci_tier="pr_ci",
+    scenario_id="AC-meta.public-boundary.5",
+    oracle_kind="deterministic_contract",
+)
 def test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
