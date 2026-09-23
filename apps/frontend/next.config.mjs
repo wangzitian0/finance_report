@@ -75,7 +75,7 @@ export function buildContentSecurityPolicy() {
         if (!scriptSources.includes("'unsafe-eval'")) {
             scriptSources.push("'unsafe-eval'");
         }
-    } else {
+    } else if (process.env.NODE_ENV === 'production') {
         // Enforce production security invariant (AC1.10.4 / issue #2044):
         // 'unsafe-eval' is strictly forbidden in production, even if attempted
         // to be injected via EXTRA_CSP_SCRIPT_SRC.
