@@ -45,3 +45,48 @@ def test_consumer_proofs_main_entrypoint(tmp_path: Path) -> None:
     data = json.loads(output_path.read_text(encoding="utf-8"))
     assert data.get("runtime") is not None
     assert data["runtime"]["result"] == "passed"
+
+
+def test_consumer_proofs_error_and_ast_fallbacks(tmp_path: Path) -> None:
+    """Verify ModuleNotFoundError AST parsing fallback, missing CONTRACT, and exception branches."""
+    from unittest.mock import patch
+
+    fake_root = tmp_path / "error_repo"
+    for pkg in ALL_PACKAGES:
+        pkg_dir = fake_root / "common" / pkg
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "contract.py").write_text("CONTRACT = 'mock'\n", encoding="utf-8")
+
+    # 1. ModuleNotFoundError with valid AST containing CONTRACT
+    with patch("importlib.import_module", side_effect=ModuleNotFoundError("simulated")):
+        proofs = generate_consumer_proofs(repo_root=fake_root)
+        assert proofs["runtime"]["result"] == "passed"
+
+    # 2. ModuleNotFoundError with AST lacking CONTRACT
+    (fake_root / "common" / "runtime" / "contract.py").write_text(
+        "NO_CONTRACT = 1\n", encoding="utf-8"
+    )
+    with patch("importlib.import_module", side_effect=ModuleNotFoundError("simulated")):
+        proofs = generate_consumer_proofs(repo_root=fake_root)
+        assert proofs["runtime"]["result"] == "failed"
+
+    # 3. ModuleNotFoundError with AST syntax error
+    (fake_root / "common" / "runtime" / "contract.py").write_text(
+        "def (\n", encoding="utf-8"
+    )
+    with patch("importlib.import_module", side_effect=ModuleNotFoundError("simulated")):
+        proofs = generate_consumer_proofs(repo_root=fake_root)
+        assert proofs["runtime"]["result"] == "failed"
+
+    # 4. Generic Exception during import
+    with patch("importlib.import_module", side_effect=RuntimeError("simulated error")):
+        proofs = generate_consumer_proofs(repo_root=fake_root)
+        assert proofs["runtime"]["result"] == "failed"
+
+    # 5. Module without CONTRACT attribute
+    class DummyModule:
+        pass
+
+    with patch("importlib.import_module", return_value=DummyModule()):
+        proofs = generate_consumer_proofs(repo_root=fake_root)
+        assert proofs["runtime"]["result"] == "failed"

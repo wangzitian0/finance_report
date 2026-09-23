@@ -120,6 +120,23 @@ def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch
 
 
 def test_explicit_empty_cors_and_rate_limits() -> None:
+    from pydantic.fields import FieldInfo
+
+    from src.config import _extract_env_candidate_names
+
+    # Test line 50: candidate extraction fallback for field without validation_alias
+    assert _extract_env_candidate_names(FieldInfo(), "fallback_field") == ["fallback_field"]
+
+    # Test line 552: validator directly handles empty string
+    assert Settings._empty_cors_origins_is_none("   ") is None
+    assert Settings._empty_cors_origins_is_none("http://localhost:3000") == "http://localhost:3000"
+
+    # Test line 565: rate limit validator directly returns field default
+    class _DummyInfo:
+        field_name = "api_rate_limit_requests"
+
+    assert Settings._empty_rate_limits_use_default("", _DummyInfo()) == 300
+
     settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
     assert "http://localhost:3000" in settings.cors_origins
     assert settings.api_rate_limit_requests == 300

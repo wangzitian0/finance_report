@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_ROOT) not in sys.path:
+if str(REPO_ROOT) not in sys.path:  # pragma: no cover
     sys.path.insert(0, str(REPO_ROOT))
 
 # Known bounded-context packages across the repository
@@ -146,5 +146,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
