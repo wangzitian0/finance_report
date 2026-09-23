@@ -223,6 +223,7 @@ CONTRACT = PackageContract(
         "JournalLineContribution",
         "LedgerError",
         "Leg",
+        "PROCESSING_ACCOUNT_CODE",
         "ProcessingAccount",
         "ProcessingCurrencyConflictError",
         "ResolvedJournalContribution",
@@ -2576,6 +2577,37 @@ CONTRACT = PackageContract(
             test=(
                 "apps/backend/tests/ledger/test_decision_anchor.py"
                 "::test_AC_ledger_80_2_publishes_decision_policy_registry"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-ledger.80.3",
+            statement=(
+                "External statements are staged via Layer 2 AtomicTransaction and strictly "
+                "forbidden from routing through Processing Account (Code 1199); non-system "
+                "journal entries referencing Code 1199 are rejected at the ledger boundary (#2052)."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_authority_boundary.py"
+                "::test_AC_ledger_80_3_external_statement_staging_rejects_processing_account"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-ledger.80.4",
+            statement=(
+                "submit_anchored_journal_entry_v2 enforces DecisionAnchor validation and "
+                "double-entry balance in base currency; bypassing the authoritative submission "
+                "gateway triggers physical database constraint or trigger rejection with zero "
+                "journal state pollution (#2052)."
+            ),
+            test=(
+                "apps/backend/tests/ledger/test_ledger_authority_boundary.py"
+                "::test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejection_preserves_clean_ledger"
             ),
             priority="P0",
             status="done",

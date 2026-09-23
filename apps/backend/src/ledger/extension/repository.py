@@ -18,6 +18,7 @@ import src.config
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import Currency
 from src.ledger.base.decision_anchor import DecisionAnchor
+from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE
 from src.ledger.base.validators import (
     ValidationError,
     validate_fx_rates,
@@ -93,17 +94,25 @@ async def _create_anchored_journal_entry(
     decision_anchor: DecisionAnchor,
 ) -> JournalEntry:
     base_currency = await _set_transaction_base_currency(db, base_currency)
-    await validate_line_account_ownership(
+    accounts = await validate_line_account_ownership(
         db,
         user_id,
         {line_data["account_id"] for line_data in lines_data},
     )
 
+    normalized_source = normalize_source_type(source_type)
+    if normalized_source != JournalEntrySourceType.SYSTEM:
+        for account in accounts.values():
+            if account.code == PROCESSING_ACCOUNT_CODE:
+                raise ValidationError(
+                    f"Processing account (code {PROCESSING_ACCOUNT_CODE}) is reserved for internal transfer reconciliation and cannot be used in {normalized_source.value} journal entries"
+                )
+
     entry = JournalEntry(
         user_id=user_id,
         entry_date=entry_date,
         memo=memo,
-        source_type=normalize_source_type(source_type),
+        source_type=normalized_source,
         source_id=source_id,
         decision_anchor_id=decision_anchor.decision_id,
         decision_authority_state=JournalEntryAuthorityState.ANCHORED,

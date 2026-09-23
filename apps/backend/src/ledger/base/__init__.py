@@ -11,6 +11,7 @@ from src.ledger.base.contribution import JournalLineContribution, ResolvedJourna
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
 from src.ledger.base.opening import OpeningPosition
 from src.ledger.base.processing import (
+    PROCESSING_ACCOUNT_CODE,
     ProcessingAccount,
     ProcessingCurrencyConflictError,
     TransferAccountCurrencyMismatchError,
@@ -60,6 +61,7 @@ __all__ = [
     "LedgerError",
     "Leg",
     "OpeningPosition",
+    "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
     "ResolvedJournalContribution",

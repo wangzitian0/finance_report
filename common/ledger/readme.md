@@ -409,6 +409,12 @@ The effective Processing currency is mandatory at every processing API boundary;
 the delivery layer passes the configured owner value, and the processing path has
 no hidden `SGD` default.
 
+### In-Transit Isolation and External Statement Staging Boundary (#2052)
+
+- **Processing Account (Code 1199) Reservation**: Code `1199` is strictly a system-managed asset suspense account reserved for internal transfer reconciliation (`TransferPair`, EPIC-015). It holds funds in-transit between a user's own accounts so that each leg cancels to zero upon pairing.
+- **External Statement Staging Boundary**: External statements (bank CSV/PDF exports, credit card records) must stage unverified transactions exclusively in Layer 2 `AtomicTransaction` (extraction bounded context). External transactions are strictly forbidden from routing through Code 1199. Diverting external statements into Code 1199 pollutes the balance sheet, corrupts P&L, and causes unresolvable accounting discrepancies.
+- **Ledger Authority Defense**: Unverified transactions remain staged in `AtomicTransaction` through classification and economic disposition. Final admission into the immutable double-entry ledger occurs exclusively via `submit_anchored_journal_entry_v2` with an authoritative `DecisionAnchor`. Any non-system journal command attempting to post against Code 1199 is rejected fail-closed with `ValidationError`.
+
 ---
 
 ## P4. Data Model
