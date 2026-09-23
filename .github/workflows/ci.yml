@@ -1687,6 +1687,16 @@ jobs:
             unified-coverage.json
           retention-days: 14
 
+      - name: Rehearse unified coverage baseline PR (dry-run)
+        run: |
+          python tools/open_unified_coverage_baseline_pr.py \
+            --coverage-context unified-coverage.json \
+            --dry-run
+
+      - name: Rehearse evidence bundle generation (dry-run)
+        run: |
+          python -m pip install --quiet pyyaml
+          python tools/generate_evidence_bundle.py --dry-run
 
       - name: Build line-only Coveralls LCOV
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -1707,9 +1717,7 @@ jobs:
     needs: [changes, unified-coverage]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'
     # Best-effort post-merge automation: opening/refreshing the baseline PR must
-    # never fail the main CI run. A red run here has been silently blocking
-    # release-image promotion (the promote step gates on a green main CI run).
-    continue-on-error: true
+    # never fail the main CI run. Isolated with continue-on-error on the execution step.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -1725,96 +1733,15 @@ jobs:
           name: unified-coverage-context
           path: coverage-context
 
-      # Note: baseline auto-push removed — branch protection requires PRs.
       # Main pushes open/update a reviewed baseline PR when the measured baseline rises.
       - name: Open unified coverage baseline PR
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           BASELINE_BRANCH: automation/unified-coverage-baseline
         run: |
-          set -euo pipefail
-          if [ ! -f coverage-context/unified-coverage.json ]; then
-            echo "::error::unified-coverage-context did not contain unified-coverage.json"
-            exit 1
-          fi
-
-          git switch -C "$BASELINE_BRANCH"
-          # Quantized rise-only MERGE: raw covered_lines jitter ±1 between runs,
-          # so a byte-level diff churns a baseline PR on every main push. Fold
-          # in ONLY the components whose ROUNDED percent rose; a component
-          # whose percent dipped keeps its old baseline triple, so jitter (or a
-          # real drop inside the gate's epsilon) can never walk the committed
-          # baseline downward while something else rises. The written unified
-          # triple may then not equal the breakdown sums — sound, because the
-          # regression gate compares each recorded percent independently.
-          if ! python3 - <<'PY'
-          import json, sys
-          old = json.load(open("unified-coverage.json"))
-          new = json.load(open("coverage-context/unified-coverage.json"))
-          def pct(d):
-              return round(float(d.get("coverage_percent", 0)), 2)
-          merged = dict(new)
-          merged["breakdown"] = dict(new.get("breakdown", {}))
-          rises, kept = {}, []
-          for name, comp in list(merged["breakdown"].items()):
-              o = old.get("breakdown", {}).get(name)
-              if o is None or pct(comp) > pct(o):
-                  rises[name] = (pct(o) if o else None, pct(comp))
-              else:
-                  merged["breakdown"][name] = o
-                  kept.append(name)
-          if pct(new) > pct(old):
-              rises["unified"] = (pct(old), pct(new))
-          else:
-              for key in ("total_lines", "covered_lines", "coverage_percent"):
-                  merged[key] = old.get(key, merged.get(key))
-              kept.append("unified")
-          print(f"rises: {rises or 'none'}; kept old baseline for: {kept or 'none'}")
-          if not rises:
-              sys.exit(1)
-          with open("unified-coverage.json", "w") as f:
-              json.dump(merged, f, indent=2)
-              f.write("\n")
-          PY
-          then
-            echo "No rounded-percent rise — line-count jitter only; skipping baseline PR."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add unified-coverage.json
-          git commit -m "chore(ci): update unified coverage baseline"
-          # Plain --force, not a leased push: the runner's shallow checkout
-          # never fetches this branch, so the lease has no remote-tracking ref to
-          # compare against and git rejects every push with "stale info". This is
-          # a dedicated single-writer bot branch, so a force push is safe.
-          git push --force origin "HEAD:$BASELINE_BRANCH"
-
-          pr_body="$(mktemp)"
-          cat > "$pr_body" <<'EOF'
-          ## What
-
-          Updates `unified-coverage.json` from the latest successful main CI coverage calculation.
-
-          ## Why
-
-          The no-regression gate still uses the committed baseline. This PR keeps branch protection intact while removing manual baseline file edits after coverage rises.
-          EOF
-
-          if gh pr view "$BASELINE_BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh pr edit "$BASELINE_BRANCH" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "chore(ci): update unified coverage baseline" \
-              --body-file "$pr_body"
-          else
-            gh pr create \
-              --repo "$GITHUB_REPOSITORY" \
-              --base main \
-              --head "$BASELINE_BRANCH" \
-              --title "chore(ci): update unified coverage baseline" \
-              --body-file "$pr_body"
-          fi
+          python tools/open_unified_coverage_baseline_pr.py \
+            --coverage-context coverage-context/unified-coverage.json
 
   ac-traceability:
     name: AC Traceability Check
@@ -2040,6 +1967,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate evidence bundle
+        continue-on-error: true
         run: |
           # ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry
           # -> ac_registry_format needs PyYAML; this job is bare setup-python

@@ -2570,6 +2570,23 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.ci-structure.15",
+            statement=(
+                "Main-only CI jobs declare pre-main PR rehearsal or failure isolation "
+                "in the workflow contract (#1811); rehearsals execute in dry-run mode "
+                "riding existing PR jobs without growing the required check count, and "
+                "failure isolation guarantees that post-merge state writes cannot "
+                "flip merge semantics red."
+            ),
+            test=(
+                "tests/tooling/test_workflow_contract.py"
+                "::test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolation"
+            ),
+            priority="P1",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group coverage: coverage/LCOV gates (was EPIC-008 AC8.13
         # subset), migration closeout, #1663 / #1718 ──
         ACRecord(

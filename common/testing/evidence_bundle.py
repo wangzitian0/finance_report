@@ -371,7 +371,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Generate the shared CI/nightly evidence bundle (#1690)."
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output JSON file for the evidence bundle (required unless --dry-run is set).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Rehearse evidence bundle generation without side effects.",
+    )
     parser.add_argument("--github-summary", type=Path, default=None)
     parser.add_argument(
         "--gate-results",
@@ -389,6 +399,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--provider-exit-code", type=str, default=None)
     args = parser.parse_args(argv)
 
+    if not args.dry_run and args.output is None:
+        parser.error("--output is required when --dry-run is not specified")
+
     gate_results = json.loads(args.gate_results) if args.gate_results else None
     provider_health = (
         {
@@ -404,15 +417,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         gate_results=gate_results,
         provider_health=provider_health,
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"Evidence bundle written: {args.output}")
+    rendered = render_markdown(bundle)
+
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        print(f"Evidence bundle written: {args.output}")
+    elif args.dry_run:
+        print(
+            f"[dry-run] Evidence bundle rehearsal OK: version={bundle.get('version')}, "
+            f"gates={len(bundle.get('gate_map', []))}"
+        )
 
     if args.github_summary:
         with args.github_summary.open("a", encoding="utf-8") as fh:
-            fh.write(render_markdown(bundle))
+            fh.write(rendered)
 
     return 0
 

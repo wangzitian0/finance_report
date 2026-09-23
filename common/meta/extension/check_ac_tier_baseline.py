@@ -36,7 +36,6 @@ from pathlib import Path
 from typing import Any
 
 from common.meta.base.gate_cli import run_gate
-from common.meta.extension.generate_ac_registry import build_registry_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = REPO_ROOT / "common" / "meta" / "data" / "ac-tier-baseline.json"
@@ -45,6 +44,8 @@ BASELINE_UPDATE_MODE = "shrink-only"
 
 def current_untagged(repo_root: Path) -> set[str]:
     """Return the set of AC ids in the registry that declare no tier."""
+    from common.meta.extension.generate_ac_registry import build_registry_entries
+
     entries = build_registry_entries(epic_source=repo_root / "docs" / "project")
     return {ac_id for ac_id, entry in entries.items() if not entry.get("tier")}
 

@@ -346,4 +346,14 @@ def test_gate_map_has_no_duplicate_job_entries() -> None:
     assert len(jobs) == len(set(jobs))
 
 
+def test_evidence_bundle_main_dry_run() -> None:
+    rc = eb.main(["--dry-run"])
+    assert rc == 0
+
+
+def test_evidence_bundle_main_requires_output_without_dry_run() -> None:
+    with pytest.raises(SystemExit):
+        eb.main([])
+
+
 # --------------------------------------------------------------------------- #
