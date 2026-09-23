@@ -279,6 +279,14 @@ jobs:
             preflight_status=0
           fi
           if [ "$preflight_status" -ne 0 ]; then
+            .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+              --status precondition-failed --corpus "${CORPUS:-canary}" \
+              --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
+              --app-url "$APP_URL" \
+              --exit-code "$preflight_status" \
+              --alert-body-out test-results/staging-ai-ocr-alert-body.md \
+              --manifest-out test-results/staging-ai-ocr-manifest.json \
+              --observation-out test-results/staging-ai-ocr-observation.json || true
             write_staging_audit_result "$preflight_status"
             record_and_finish "$preflight_status" "precondition-failed"
           fi
@@ -302,6 +310,10 @@ jobs:
               eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py \
                 --classify-junit test-results/staging-ai-ocr-gate.xml \
                 --alert-body-out test-results/staging-ai-ocr-alert-body.md \
+                --manifest-out test-results/staging-ai-ocr-manifest.json \
+                --observation-out test-results/staging-ai-ocr-observation.json \
+                --exit-code "$gate_status" \
+                --corpus "${CORPUS:-canary}" \
                 --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
                 --app-url "$APP_URL")" || true
             fi
@@ -341,11 +353,24 @@ jobs:
             "[staging-ai-ocr] gate produced no result (likely step timeout)"; do
             resolved_number="$(gh issue list --state open --search "in:title ${resolved_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
             if [ -n "$resolved_number" ]; then
-              gh issue close "$resolved_number" \
-                --comment "Auto-closing: staging AI/OCR gate run ${GITHUB_RUN_ID:-?} (corpus=${CORPUS:-canary}, version=${EXPECTED_SHA:-?}) completed green." \
-                || echo "::warning::auto-close of alert issue #${resolved_number} failed (non-fatal)."
+              alert_body="$(gh issue view "$resolved_number" --json body --jq '.body' 2>/dev/null || true)"
+              if .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+                --can-close-alert "$alert_body" --corpus "${CORPUS:-canary}"; then
+                gh issue close "$resolved_number" \
+                  --comment "Auto-closing: staging AI/OCR gate run ${GITHUB_RUN_ID:-?} (corpus=${CORPUS:-canary}, version=${EXPECTED_SHA:-?}) completed green." \
+                  || echo "::warning::auto-close of alert issue #${resolved_number} failed (non-fatal)."
+              else
+                echo "::notice::open staging-ai-ocr alert #${resolved_number} is not covered by current corpus '${CORPUS:-canary}'; leaving open."
+              fi
             fi
           done
+
+          .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
+            --status passed --corpus "${CORPUS:-canary}" \
+            --run-id "${GITHUB_RUN_ID:-?}" --expected-sha "${EXPECTED_SHA:-?}" \
+            --app-url "$APP_URL" \
+            --manifest-out test-results/staging-ai-ocr-manifest.json \
+            --observation-out test-results/staging-ai-ocr-observation.json || true
 
           echo "ai_ocr_status=passed" >> "$GITHUB_OUTPUT"
           echo "ai_ocr_exit_code=0" >> "$GITHUB_OUTPUT"
@@ -415,7 +440,8 @@ jobs:
             echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
             echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
             echo "vision_model=${STAGING_E2E_VISION_MODEL}"
-            echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outcome }}"
+            echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}"
+            echo "ai_ocr_exit_code=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}"
             echo "blocking=${{ inputs.blocking }}"
             echo "corpus=${{ inputs.corpus }}"
             echo "provider_resource_boundary=isolated-users-provider-gate-only"
