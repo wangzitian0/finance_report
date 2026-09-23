@@ -212,3 +212,52 @@ def test_emit_audit_proof_fails_closed_on_residuals(monkeypatch, tmp_path) -> No
             ]
         )
     assert not proof_file.exists()
+
+
+def test_get_schema_revision_fallback() -> None:
+    """Verify fallback to 'unknown' when schema query fails."""
+    import tools.anonymize_snapshot as cli
+
+    class _FailingConn:
+        def execute(self, stmt):
+            raise RuntimeError("Database error")
+
+    assert cli._get_schema_revision(_FailingConn()) == "unknown"
+
+
+def test_get_anonymizer_sha_branches(monkeypatch) -> None:
+    """Verify all branches of _get_anonymizer_sha (env, git success, git failure, exception)."""
+    import subprocess
+    import tools.anonymize_snapshot as cli
+
+    # 1. GITHUB_SHA env var
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    assert cli._get_anonymizer_sha() == "a" * 40
+
+    # 2. Git rev-parse success
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout=("b" * 40) + "\n"
+        ),
+    )
+    assert cli._get_anonymizer_sha() == "b" * 40
+
+    # 3. Git returncode non-zero
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=1, stdout=""
+        ),
+    )
+    assert cli._get_anonymizer_sha() == "0" * 40
+
+    # 4. Exception during git execution
+    def _raise(*args, **kwargs):
+        raise RuntimeError("git execution failed")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+    assert cli._get_anonymizer_sha() == "0" * 40
