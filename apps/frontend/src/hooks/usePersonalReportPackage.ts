@@ -15,7 +15,7 @@ import {
 import type {
   PersonalReportPackageDocument,
   PersonalReportPackageContractResponse,
-  PersonalReportPackageSnapshotResponse,
+  PersonalReportPackageSnapshotViewModel,
   PersonalReportPackageSnapshotSummary,
   PersonalReportingFrameworkId,
 } from "@/lib/types";
@@ -24,7 +24,7 @@ export async function generatePackageSnapshot(
   frameworkId: PersonalReportingFrameworkId,
   reportDate: string,
   startDate = reportPeriodStart(reportDate),
-): Promise<PersonalReportPackageSnapshotResponse> {
+): Promise<PersonalReportPackageSnapshotViewModel> {
   const snapshot = await apiOperation(
     "generate_personal_report_package_snapshot_reports_package_generate_post",
     {

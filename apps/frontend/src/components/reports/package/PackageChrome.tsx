@@ -157,7 +157,8 @@ export function PackageFrameworkSelection({
   onSelectFramework: (frameworkId: string) => void;
   onReportDateChange: (reportDate: string) => void;
 }) {
-  const frameworkButtons = contract.supported_frameworks.map((frameworkId) => {
+  const supported = contract.supported_frameworks ?? [];
+  const frameworkButtons = supported.map((frameworkId) => {
     const isSelected = selectedFrameworkId === frameworkId;
     return (
       <button
@@ -238,7 +239,7 @@ export function PackageFrameworkSelection({
               <div>
                 <dt className="text-xs text-muted">Supported Frameworks</dt>
                 <dd className="mt-1 font-mono text-xs">
-                  {contract.supported_frameworks.join(", ")}
+                  {(contract.supported_frameworks ?? []).join(", ")}
                 </dd>
               </div>
             </dl>

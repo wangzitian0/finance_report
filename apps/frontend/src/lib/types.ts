@@ -42,42 +42,31 @@ export interface JournalLine {
   fx_rate?: DecimalValue | null;
 }
 
-export interface JournalEntry {
-  id: string;
-  entry_date: string;
-  memo: string;
-  source_type: string;
-  confidence_tier?:
-    "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | "DETERMINISTIC" | null;
-  status: "draft" | "posted" | "reconciled" | "void";
-  lines: JournalLine[];
-  created_at: string;
-  // Summary view properties
-  total_amount?: MoneyValue;
-}
+import type {
+  BankStatementTransactionViewModel,
+  JournalEntryViewModel,
+} from "./normalizers";
+export {
+  toTransactionViewModel,
+  toJournalEntryViewModel,
+} from "./normalizers";
+export type {
+  BankStatementTransactionViewModel,
+  JournalEntryViewModel,
+};
+
+export type JournalEntry = JournalEntryViewModel;
+
+export type JournalEntryResponse = Schemas["JournalEntryResponse"];
 
 export type JournalEntrySummary = Schemas["JournalEntrySummary"];
 
 export type JournalEntryListResponse = ListResponse<JournalEntry>;
 
-export interface BankStatementTransaction {
-  id: string;
-  statement_id?: string | null;
-  txn_date: string;
-  description: string;
-  amount: MoneyValue;
-  direction: string;
-  reference?: string | null;
-  currency?: string | null;
-  balance_after?: MoneyValue | null;
-  status?: "pending" | "matched" | "unmatched";
-  confidence?: "high" | "medium" | "low";
-  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
-  confidence_reason?: string | null;
-  raw_text?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type BankStatementTransaction = BankStatementTransactionViewModel;
+
+export type BankStatementTransactionResponse =
+  Schemas["AtomicTransactionResponse"];
 
 export interface BankStatementTransactionSummary {
   id: string;
@@ -182,37 +171,17 @@ export type CashFlowResponse = Omit<
 export type PersonalReportPackageSectionContract =
   Schemas["PersonalReportPackageSectionContract"];
 
-export interface PersonalReportPackageContractResponse {
-  package_id: string;
-  version: string;
-  period_semantics: Record<string, string>;
-  supported_frameworks: string[];
-  selected_framework_id?: string | null;
-  sections: PersonalReportPackageSectionContract[];
-  export_contract: {
-    formats: string[];
-    csv_columns: string[];
-  };
-}
+export type PersonalReportPackageContractResponse =
+  Schemas["PersonalReportPackageContractResponse"];
 
 export type PersonalReportPackageReadinessBlocker =
   Schemas["PersonalReportPackageReadinessBlocker"];
 
-export interface PersonalReportPackageInputCoverage {
-  manifest_decision_count: number;
-  authoritative_input_count: number;
-  unproven_input_count: number;
-}
+export type PersonalReportPackageInputCoverage =
+  Schemas["PersonalReportPackageInputCoverage"];
 
-export interface PersonalReportPackageReadinessResponse {
-  package_id: string;
-  state: "ready" | "processing" | "blocked" | "draft" | "generated" | "stale";
-  label: string;
-  action_href: string;
-  blocking_count: number;
-  blockers: PersonalReportPackageReadinessBlocker[];
-  input_coverage: PersonalReportPackageInputCoverage;
-}
+export type PersonalReportPackageReadinessResponse =
+  Schemas["PersonalReportPackageReadinessResponse"];
 
 export type PersonalReportPackageDocumentLifecycle =
   Schemas["PersonalReportPackageDocumentLifecycle"];
@@ -225,7 +194,7 @@ export type PersonalReportPackageTraceManifestEntry =
 export type PersonalReportPackageStatementDispositionPolicy =
   Schemas["PersonalReportPackageStatementDispositionPolicy"];
 
-export interface PersonalReportPackageSections {
+export interface PersonalReportPackageSectionsViewModel {
   balance_sheet: BalanceSheetResponse;
   income_statement: IncomeStatementResponse;
   cash_flow: CashFlowResponse;
@@ -235,8 +204,20 @@ export interface PersonalReportPackageSections {
   traceability_appendix: PersonalReportPackageTraceabilityResponse;
 }
 
-/** The package renderer receives a complete document, never partial endpoint data. */
-export interface PersonalReportPackageDocument {
+export type PersonalReportPackageSections =
+  PersonalReportPackageSectionsViewModel;
+
+export interface PersonalReportPackageReadinessViewModel {
+  package_id: string;
+  state: Schemas["PersonalReportPackageReadinessState"];
+  label: string;
+  action_href: string;
+  blocking_count: number;
+  blockers: Schemas["PersonalReportPackageReadinessBlocker"][];
+  input_coverage: Schemas["PersonalReportPackageInputCoverage"];
+}
+
+export interface PersonalReportPackageDocumentViewModel {
   schema_version: "2";
   lifecycle: PersonalReportPackageDocumentLifecycle;
   snapshot_id: string | null;
@@ -253,19 +234,34 @@ export interface PersonalReportPackageDocument {
     currency: string;
   };
   contract: PersonalReportPackageContractResponse;
-  readiness: PersonalReportPackageReadinessResponse;
-  framework_policy: FrameworkPolicyResult;
+  readiness: PersonalReportPackageReadinessViewModel;
+  framework_policy: Schemas["FrameworkPolicyResult"] & {
+    decisions: (Schemas["FrameworkPolicyDecision"] & {
+      evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
+    })[];
+    gaps: (Schemas["FrameworkPolicyGap"] & {
+      evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
+    })[];
+  };
   input_manifest: PersonalReportPackageTraceManifestEntry[];
   statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
-  sections: PersonalReportPackageSections;
+  sections: PersonalReportPackageSectionsViewModel;
 }
 
-export interface PersonalReportPackageSnapshotResponse extends PersonalReportPackageSnapshotSummary {
-  document: PersonalReportPackageDocument;
-}
+export type PersonalReportPackageDocument =
+  PersonalReportPackageDocumentViewModel;
 
 export type PersonalReportPackageSnapshotSummary =
   Schemas["PersonalReportPackageSnapshotSummary"];
+
+export interface PersonalReportPackageSnapshotViewModel
+  extends PersonalReportPackageSnapshotSummary {
+  created_at: string | null;
+  document: PersonalReportPackageDocumentViewModel;
+}
+
+export type PersonalReportPackageSnapshotResponse =
+  Schemas["PersonalReportPackageSnapshotResponse"];
 
 export interface AdvisorSuggestion {
   basis: string;
@@ -289,16 +285,14 @@ export interface ChatActionChip {
   count?: number | null;
 }
 
-export interface ChatResponseMetadata {
+export interface ChatMetadata {
   grounded: boolean;
   citations: ChatCitation[];
   actions: ChatActionChip[];
 }
+export type ChatResponseMetadata = ChatMetadata;
 
-export interface ChatSuggestionsResponse {
-  suggestions: string[];
-  structured_suggestions?: AdvisorSuggestion[];
-}
+export type ChatSuggestionsResponse = Schemas["ChatSuggestionsResponse"];
 
 export type PersonalReportPackageNote = Schemas["PersonalReportPackageNote"];
 
@@ -325,52 +319,17 @@ export type EvidenceLineageBlocker = Schemas["EvidenceLineageBlocker"];
 
 export type EvidenceLineageResponse = Schemas["EvidenceLineageResponse"];
 
-export interface FrameworkPolicyEvidenceAnchor {
-  anchor_id: string;
-  anchor_type: string;
-  source_system: string;
-  source_id: string;
-  description?: string | null;
-}
+export type FrameworkPolicyEvidenceAnchor =
+  Schemas["FrameworkPolicyEvidenceAnchor"];
 
-export interface FrameworkPolicyDecision {
-  domain: string;
-  recognition?: string | null;
-  measurement?: string | null;
-  classification?: string | null;
-  presentation?: string | null;
-  disclosure?: string | null;
-  line_mappings: Record<string, string>;
-  evidence_anchors: FrameworkPolicyEvidenceAnchor[];
-  provenance: string;
-  confidence_tier?: string;
-  review_state: string;
-  policy_field_name: string;
-  accepted_value?: string | null;
-}
+export type FrameworkPolicyDecision =
+  Schemas["FrameworkPolicyDecision"];
 
-export interface FrameworkPolicyGap {
-  code: string;
-  fact_id: string;
-  domain: string;
-  instrument_type: string;
-  blocker: boolean;
-  reason: string;
-  remediation: string;
-  evidence_anchors: FrameworkPolicyEvidenceAnchor[];
-}
+export type FrameworkPolicyGap =
+  Schemas["FrameworkPolicyGap"];
 
-export interface FrameworkPolicyResult {
-  result_id: string;
-  framework_id: string;
-  matrix_version: string;
-  report_period_start: string;
-  report_period_end: string;
-  generated_at: string;
-  required_statements: string[];
-  decisions: FrameworkPolicyDecision[];
-  gaps: FrameworkPolicyGap[];
-}
+export type FrameworkPolicyResult =
+  Schemas["FrameworkPolicyResult"];
 
 export function normalizeFxWarningRows(
   rows: Array<Record<string, string>> | undefined,
@@ -449,7 +408,7 @@ export function normalizePersonalReportPackageDocument(
 
 export function normalizePersonalReportPackageSnapshot(
   snapshot: Schemas["PersonalReportPackageSnapshotResponse"],
-): PersonalReportPackageSnapshotResponse {
+): PersonalReportPackageSnapshotViewModel {
   return {
     ...snapshot,
     created_at: snapshot.created_at ?? null,
@@ -554,18 +513,11 @@ export type Stage2Data = Schemas["Stage2ReviewQueueResponse"];
 export type UnmatchedTransactionsResponse =
   ListResponse<BankStatementTransactionSummary>;
 
-export interface TrendPoint {
-  period_start: string;
-  period_end: string;
-  amount: MoneyValue;
-}
+export type AccountTrendPoint = Schemas["AccountTrendPoint"];
+export type TrendPoint = AccountTrendPoint;
 
-export interface TrendResponse {
-  account_id: string;
-  currency: string;
-  period: string;
-  points: TrendPoint[];
-}
+export type AccountTrendResponse = Schemas["AccountTrendResponse"];
+export type TrendResponse = AccountTrendResponse;
 
 export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
 
@@ -576,28 +528,9 @@ export type NetWorthTimeSeriesResponse = Schemas["NetWorthTimeSeriesResponse"];
 export type NetWorthAllocationSourceLine =
   Schemas["NetWorthAllocationSourceLine"];
 
-export interface NetWorthAllocationRow {
-  asset_class: string;
-  liquidity_class: string;
-  source_currency: string;
-  value: MoneyValue;
-  percentage_of_net_worth?: MoneyValue | null;
-  source_line_count: number;
-  source_lines: NetWorthAllocationSourceLine[];
-}
+export type NetWorthAllocationRow = Schemas["NetWorthAllocationRow"];
 
-export interface NetWorthAllocationResponse {
-  as_of_date: string;
-  currency: string;
-  include_restricted: boolean;
-  total_assets: MoneyValue;
-  total_liabilities: MoneyValue;
-  net_worth: MoneyValue;
-  rows: NetWorthAllocationRow[];
-  // #1481/#1486: same opening-balance gate as the balance sheet.
-  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
-  opening_balance_warnings?: FxWarning[];
-}
+export type NetWorthAllocationResponse = Schemas["NetWorthAllocationResponse"];
 
 export type ReconciliationMatchResponse =
   Schemas["ReconciliationMatchResponse"];
@@ -624,14 +557,7 @@ export interface ManagedPosition {
 
 export type ManagedPositionListResponse = ListResponse<ManagedPosition>;
 
-export interface ReconcilePositionsResponse {
-  message: string;
-  created: number;
-  updated: number;
-  disposed: number;
-  skipped: number;
-  skipped_assets: string[];
-}
+export type ReconcilePositionsResponse = Schemas["ReconcilePositionsResponse"];
 
 export type ManualValuationComponentType =
   | "property_value"
@@ -734,26 +660,12 @@ export interface PortfolioHolding {
  * `warnings` discloses snapshots excluded from the page (e.g. no reconciled
  * position as of the requested date) instead of omitting them silently.
  */
-export interface HoldingsListResponse extends ListResponse<PortfolioHolding> {
-  warnings: Record<string, string>[];
-}
+export type HoldingsListResponse = Schemas["HoldingsListResponse"];
 
-export interface PortfolioSummaryResponse {
-  total_market_value: string;
-  total_cost_basis: string;
-  total_unrealized_pnl: string;
-  total_unrealized_pnl_percent: string;
-  total_realized_pnl: string;
-  total_realized_pnl_percent: string;
-  net_pnl: string;
-  net_pnl_percent: string;
-  holdings_count: number;
-  active_positions_count: number;
-  disposed_positions_count: number;
-  currency: string;
-  realized_pnl_ytd: string;
-  dividend_income_ytd: string;
-}
+export type PortfolioSummaryDashboardResponse =
+  Schemas["PortfolioSummaryDashboardResponse"];
+
+export type PortfolioSummaryResponse = PortfolioSummaryDashboardResponse;
 
 export interface DividendEvent {
   id: string;
@@ -824,19 +736,8 @@ export interface PriceUpdate {
   price_date: string;
 }
 
-export interface PriceUpdateResponse {
-  updated_count: number;
-  results: Array<{
-    success: boolean;
-    message: string;
-    asset_identifier: string;
-    price_date: string;
-    price: string;
-    currency: string;
-    source: string;
-    created_at?: string | null;
-  }>;
-}
+export type PriceUpdateBatchResponse = Schemas["PriceUpdateBatchResponse"];
+export type PriceUpdateResponse = PriceUpdateBatchResponse;
 
 export type ProcessingSummaryResponse = Schemas["ProcessingSummaryResponse"];
 

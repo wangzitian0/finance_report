@@ -15,6 +15,13 @@ export function PackageReadinessSection({
 }: {
   readiness: PersonalReportPackageReadinessResponse;
 }) {
+  const blockers = readiness.blockers ?? [];
+  const inputCoverage = readiness.input_coverage ?? {
+    manifest_decision_count: 0,
+    authoritative_input_count: 0,
+    unproven_input_count: 0,
+  };
+
   return (
     <section id="package-readiness" className="card p-5 mb-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -34,19 +41,19 @@ export function PackageReadinessSection({
         <div>
           <dt className="text-xs text-muted">Authority Decisions</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.input_coverage.manifest_decision_count}
+            {inputCoverage.manifest_decision_count}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Authoritative Inputs</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.input_coverage.authoritative_input_count}
+            {inputCoverage.authoritative_input_count}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Unproven Inputs</dt>
           <dd className="mt-1 font-semibold">
-            {readiness.input_coverage.unproven_input_count}
+            {inputCoverage.unproven_input_count}
           </dd>
         </div>
         <div>
@@ -54,9 +61,9 @@ export function PackageReadinessSection({
           <dd className="mt-1 font-semibold">{readiness.blocking_count}</dd>
         </div>
       </dl>
-      {readiness.blockers.length ? (
+      {blockers.length ? (
         <div className="mt-5 grid lg:grid-cols-2 gap-4">
-          {readiness.blockers.map((blocker) => (
+          {blockers.map((blocker) => (
             <article
               key={blocker.code}
               className="border border-[var(--border)] rounded p-3"
@@ -89,9 +96,9 @@ export function PackageReadinessSection({
             <dd className="mt-1 font-mono text-xs">{readiness.action_href}</dd>
           </div>
         </dl>
-        {readiness.blockers.length ? (
+        {blockers.length ? (
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {readiness.blockers.map((blocker) => (
+            {blockers.map((blocker) => (
               <article key={blocker.code} className="rounded border border-[var(--border)] p-3">
                 <p className="font-mono text-xs">{blocker.code}</p>
                 <dl className="mt-2 space-y-1 text-xs">
@@ -168,6 +175,9 @@ export function PackageFrameworkPolicySection({
   policy: FrameworkPolicyResult;
 }) {
   const frameworkLabel = FRAMEWORK_LABELS[policy.framework_id] ?? humanizeIdentifier(policy.framework_id);
+  const gaps = policy.gaps ?? [];
+  const decisions = policy.decisions ?? [];
+  const requiredStatements = policy.required_statements ?? [];
 
   return (
     <section id="package-framework-policy" className="card p-5 mb-6">
@@ -190,24 +200,24 @@ export function PackageFrameworkPolicySection({
         <div>
           <dt className="text-xs text-muted">Required statements</dt>
           <dd className="mt-1 font-semibold">
-            {policy.required_statements.length}
+            {requiredStatements.length}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Decisions</dt>
           <dd className="mt-1 font-semibold">
-            {policy.decisions.length}
+            {decisions.length}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Reporting gaps</dt>
           <dd className="mt-1 font-semibold">
-            {policy.gaps.length}
+            {gaps.length}
           </dd>
         </div>
       </dl>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
-        {policy.decisions.map((decision) => (
+        {decisions.map((decision) => (
           <article
             key={`${decision.domain}:${decision.line_mappings.balance_sheet ?? decision.presentation}`}
               className="border border-[var(--border)] rounded p-3"
@@ -224,7 +234,7 @@ export function PackageFrameworkPolicySection({
               <p className="mt-3 text-sm text-muted">{decision.presentation}</p>
             </article>
           ))}
-        {policy.gaps.map((gap) => (
+        {gaps.map((gap) => (
           <article
             key={`${gap.code}:${gap.fact_id}`}
             className="border border-[var(--border)] rounded p-3"
@@ -283,7 +293,7 @@ export function PackageFrameworkPolicySection({
               </dl>
             </article>
           ))}
-          {policy.gaps.map((gap) => (
+          {gaps.map((gap) => (
             <article
               key={`audit:${gap.code}:${gap.fact_id}`}
               className="rounded border border-[var(--border)] p-3"

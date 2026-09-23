@@ -96,9 +96,9 @@ export function evidenceBundleReferences(
   policyResult: FrameworkPolicyResult,
 ): string[] {
   const anchors = [
-    ...policyResult.decisions.flatMap((decision) => decision.evidence_anchors),
-    ...policyResult.gaps.flatMap((gap) => gap.evidence_anchors),
-  ];
+    ...(policyResult.decisions ?? []).flatMap((decision) => decision.evidence_anchors ?? []),
+    ...(policyResult.gaps ?? []).flatMap((gap) => gap.evidence_anchors ?? []),
+  ].filter((anchor): anchor is NonNullable<typeof anchor> => Boolean(anchor));
   return Array.from(
     new Set(
       anchors.map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`),
