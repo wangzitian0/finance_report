@@ -508,12 +508,14 @@ def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
                 )
             job_steps = jobs[job_id].get("steps", [])
             has_isolated_step = any(
-                isinstance(step, dict) and step.get("continue-on-error") is True
+                isinstance(step, dict)
+                and step.get("continue-on-error") is True
+                and "run" in step
                 for step in job_steps
             )
             if not has_isolated_step:
                 errors.append(
-                    f"{ci_path}: {job_id} declares failure_isolation=True but has no step "
+                    f"{ci_path}: {job_id} declares failure_isolation=True but has no run step "
                     "with continue-on-error: true."
                 )
 

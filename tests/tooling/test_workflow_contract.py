@@ -284,7 +284,9 @@ def test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolatio
         rehearsal = spec.get("pr_rehearsal")
         if rehearsal:
             cmd = [sys.executable if arg == "python" else arg for arg in rehearsal]
-            proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+            proc = subprocess.run(
+                cmd, cwd=ROOT, capture_output=True, text=True, timeout=30
+            )
             assert proc.returncode == 0, (
                 f"Rehearsal for {job_id} failed: {proc.stderr}\n{proc.stdout}"
             )
@@ -296,7 +298,9 @@ def test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolatio
             assert job_id not in finish_needs
             job_steps = ci_yaml.get("jobs", {}).get(job_id, {}).get("steps", [])
             has_isolated_step = any(
-                isinstance(step, dict) and step.get("continue-on-error") is True
+                isinstance(step, dict)
+                and step.get("continue-on-error") is True
+                and "run" in step
                 for step in job_steps
             )
             assert has_isolated_step is True
