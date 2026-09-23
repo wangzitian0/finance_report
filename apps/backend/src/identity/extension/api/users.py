@@ -133,15 +133,17 @@ async def update_user(
         raise_not_found("User")
 
     if user_data.email is not None:
-        result = await db.execute(
-            select(User).where(User.email == user_data.email, User.id != user_id, User.is_deleted.is_(False))
-        )
+        result = await db.execute(select(User).where(User.email == user_data.email, User.id != user_id))
         existing_user = result.scalar_one_or_none()
         if existing_user:
             raise_bad_request("Invalid update data")
         user.email = user_data.email
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise_bad_request("Invalid update data", cause=exc)
     await db.refresh(user)
 
     return UserResponse.model_validate(user)

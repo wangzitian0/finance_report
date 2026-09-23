@@ -133,3 +133,21 @@ async def test_soft_delete_preserves_user_row_and_revokes_access(
     # The user record is marked is_deleted=True in DB
     await db.refresh(test_user)
     assert test_user.is_deleted is True
+
+
+async def test_update_user_email_collision_with_soft_deleted_user_rejected(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """#1848 / CR: Attempting to update user email to an address held by a soft-deleted user
+    must be rejected with 400, preventing 500 IntegrityError on unique email constraint.
+    """
+    deleted_email = f"deleted-{uuid4()}@example.com"
+    deleted_user = User(email=deleted_email, hashed_password="hashed", is_deleted=True)
+    db.add(deleted_user)
+    await db.commit()
+
+    response = await client.put(f"/users/{test_user.id}", json={"email": deleted_email})
+    assert response.status_code == 400
+    assert "Invalid update data" in response.json()["detail"]
