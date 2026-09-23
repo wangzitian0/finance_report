@@ -225,12 +225,18 @@ def test_gemini_mcp_baseline_present() -> None:
 
 
 def test_claude_settings_enable_mcp_baseline() -> None:
-    """If present, .claude/settings.json auto-approves the baseline for the project."""
-    settings_path = ROOT / ".claude" / "settings.json"
-    if not settings_path.exists():
-        # Untracked on clean clones per #2105
+    """If tracked, .claude/settings.json auto-approves the baseline for the project."""
+    proc = subprocess.run(
+        ["git", "ls-files", ".claude/settings.json"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    if not proc.stdout.strip():
+        # Untracked and ignored per #2105; developer-local workstation file is unconstrained
         return
-    cfg = json.loads(settings_path.read_text(encoding="utf-8"))
+    cfg = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
     enabled = set(cfg.get("enabledMcpjsonServers", []))
     missing = MCP_BASELINE - enabled
     assert not missing, (
@@ -238,8 +244,15 @@ def test_claude_settings_enable_mcp_baseline() -> None:
     )
 
 
+def _assert_claude_settings_untracked(tracked_output: str) -> None:
+    assert tracked_output == "", (
+        f".claude/settings.json is tracked in git index: {tracked_output!r}. "
+        "It must be untracked (git rm --cached) and ignored to avoid leaking private paths."
+    )
+
+
 def test_claude_settings_not_tracked_and_no_symlink_staged() -> None:
-    """AC-testing.git-hygiene.claude-settings (#2105): .claude/settings.json must not be tracked in git.
+    """Issue #2105: .claude/settings.json must not be tracked in git.
 
     If tracked (e.g. via git add -A staging a local workstation symlink -> /Users/...),
     it exposes developer machine paths to public history and breaks fresh clones.
@@ -252,26 +265,16 @@ def test_claude_settings_not_tracked_and_no_symlink_staged() -> None:
         text=True,
         check=True,
     )
-    tracked_output = proc.stdout.strip()
-    assert tracked_output == "", (
-        f".claude/settings.json is tracked in git index: {tracked_output!r}. "
-        "It must be untracked (git rm --cached) and ignored to avoid leaking private paths."
-    )
+    _assert_claude_settings_untracked(proc.stdout.strip())
 
 
-def test_claude_settings_tracked_symlink_fails_closed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_claude_settings_tracked_symlink_fails_closed() -> None:
     """Counterfactual: detecting a tracked symlink or any git index entry must fail closed."""
-    fake_proc = subprocess.CompletedProcess(
-        args=["git", "ls-files", "-s", ".claude/settings.json"],
-        returncode=0,
-        stdout="120000 4b825dc642cb6eb9a060e54bf8d69288fbee4904 0\t.claude/settings.json\n",
-        stderr="",
+    fake_output = (
+        "120000 4b825dc642cb6eb9a060e54bf8d69288fbee4904 0\t.claude/settings.json"
     )
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
     with pytest.raises(AssertionError, match="tracked in git index"):
-        test_claude_settings_not_tracked_and_no_symlink_staged()
+        _assert_claude_settings_untracked(fake_output)
 
 
 # Explicit `tools/<x>.py` path — must exist at exactly that path.
