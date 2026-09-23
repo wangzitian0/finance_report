@@ -93,13 +93,15 @@ export function PdfPreviewPane({
       </div>
       <div className="flex-1 p-4 min-h-0">
         {state.status === "ready" ? (
-          /* allow-same-origin is required: without it, embedded browser viewers throw
-             SecurityError accessing localStorage/cookies in modern browser contexts */
+          /* #2107: Do not declare sandbox on the PDF iframe. In Chromium, any sandbox
+             attribute disables browser plugins including internal PDFium, rendering
+             ERR_BLOCKED_BY_CLIENT ("This page has been blocked by Chromium"). The blob URL
+             is safe as it is fetched via authenticated same-origin API and governed by
+             frame-src 'self' blob: CSP. */
           <iframe
             src={state.url}
             className="w-full h-full rounded border"
             title="Statement PDF preview"
-            sandbox="allow-same-origin allow-scripts"
             referrerPolicy="no-referrer"
           >
             <p>
