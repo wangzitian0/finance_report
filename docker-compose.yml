@@ -200,7 +200,7 @@ volumes:
 
 networks:
   dokploy-network:
-    name: ${DOKPLOY_NETWORK_NAME:-dokploy-network}
-    external: ${DOKPLOY_NETWORK_EXTERNAL:-false}
+    name: dokploy-network
+    external: true
   internal:
     name: finance-report-internal${ENV_SUFFIX:-}
