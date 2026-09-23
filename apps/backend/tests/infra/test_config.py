@@ -1,6 +1,7 @@
 """Tests for configuration helpers."""
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from pydantic import ValidationError
 
 from src.config import Settings, parse_comma_list, parse_key_value_pairs
@@ -60,3 +61,82 @@ def test_cors_origin_regex_defaults_to_match_nothing(monkeypatch) -> None:
     monkeypatch.setenv("CORS_ORIGIN_REGEX", r"^https://.*\.example\.com$")
     settings_valid = Settings(_env_file=None)
     assert settings_valid.cors_origin_regex == r"^https://.*\.example\.com$"
+
+
+@ac_proof(
+    proof_id="test_AC_runtime_env_empty_values_2_settings_empty_env_resolution",
+    ac_ids=["AC-runtime.env-empty-values.2"],
+    ci_tier="pr_ci",
+)
+def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch, tmp_path) -> None:
+    """AC-runtime.env-empty-values.2: Settings resolves empty environment strings safely across alias chains."""
+    # 1. Process environment: ZAI_API_KEY="" does not mask GEMINI_API_KEY="real-gemini-key"
+    for k in ("GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("ZAI_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key")
+    monkeypatch.setenv("CORS_ORIGINS", "")
+    monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
+
+    settings = Settings(_env_file=None)
+    assert settings.ai_api_key == "real-gemini-key"
+    assert "http://localhost:3000" in settings.cors_origins
+    assert settings.api_rate_limit_requests == 300
+
+    # 2. Dotenv file source: ZAI_API_KEY= with fallback GEMINI_API_KEY=real-dotenv-key
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("API_RATE_LIMIT_REQUESTS", raising=False)
+
+    env_file = tmp_path / "test.env"
+    env_file.write_text(
+        "ZAI_API_KEY=\nGEMINI_API_KEY=real-dotenv-key\nCORS_ORIGINS=\nAPI_RATE_LIMIT_REQUESTS=\n",
+        encoding="utf-8",
+    )
+
+    settings_dotenv = Settings(_env_file=str(env_file))
+    assert settings_dotenv.ai_api_key == "real-dotenv-key"
+    assert "http://localhost:3000" in settings_dotenv.cors_origins
+    assert settings_dotenv.api_rate_limit_requests == 300
+
+    # 3. Fail-closed: DATABASE_URL="" does NOT silently revert to default localhost
+    monkeypatch.setenv("DATABASE_URL", "")
+    settings_db = Settings(_env_file=None)
+    assert settings_db.database_url == ""
+
+    # 4. Import-time resilience: module-level settings = Settings() succeeds on empty rate limits
+    import importlib
+
+    import src.config
+
+    orig_settings = src.config.settings
+    try:
+        monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
+        reloaded_module = importlib.reload(src.config)
+        assert reloaded_module.settings.api_rate_limit_requests == 300
+    finally:
+        reloaded_module.settings = orig_settings
+
+
+def test_explicit_empty_cors_and_rate_limits() -> None:
+    from pydantic.fields import FieldInfo
+
+    from src.config import _extract_env_candidate_names
+
+    # Test line 50: candidate extraction fallback for field without validation_alias
+    assert _extract_env_candidate_names(FieldInfo(), "fallback_field") == ["fallback_field"]
+
+    # Test line 552: validator directly handles empty string
+    assert Settings._empty_cors_origins_is_none("   ") is None
+    assert Settings._empty_cors_origins_is_none("http://localhost:3000") == "http://localhost:3000"
+
+    # Test line 565: rate limit validator directly returns field default
+    class _DummyInfo:
+        field_name = "api_rate_limit_requests"
+
+    assert Settings._empty_rate_limits_use_default("", _DummyInfo()) == 300
+
+    settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
+    assert "http://localhost:3000" in settings.cors_origins
+    assert settings.api_rate_limit_requests == 300

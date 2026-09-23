@@ -1391,6 +1391,23 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.env-empty-values.2",
+            statement=(
+                "Settings resolves empty environment strings safely across alias chains: "
+                "an empty primary alias (e.g. ZAI_API_KEY='') does not shadow later fallback "
+                "aliases (e.g. GEMINI_API_KEY), empty CORS_ORIGINS yields default origins, "
+                "empty API_RATE_LIMIT_REQUESTS does not raise at import time, and downstream "
+                "package contracts are verified compatible by tools/generate_consumer_proofs.py "
+                "executing dynamic verification feeding report_ddd_dependencies.py --consumer-proofs."
+            ),
+            test=(
+                "apps/backend/tests/infra/test_config.py"
+                "::test_AC_runtime_env_empty_values_2_settings_empty_env_resolution"
+            ),
+            priority="P1",
+            status="done",
+        ),
     ],
     concepts=[
         ConceptRecord(

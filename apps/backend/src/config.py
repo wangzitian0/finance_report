@@ -6,16 +6,85 @@ Environment Variable Strategy:
 - Optional fields have sensible defaults, rarely need override
 """
 
+import os
 from functools import cached_property
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic.fields import FieldInfo
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 # Environments that are real deployments (infra2 issues the telemetry contract
 # here). Local/CI/preview are exempt from the deployed-env fast-fail below.
 # Single source of truth — boot.py imports this (config is the lower-level module).
 PROTECTED_ENVIRONMENTS = frozenset({"staging", "production"})
+
+# Credential and fallback fields that should ignore empty values to allow fallbacks or defaults (#2032)
+EMPTY_FALLBACK_FIELDS = frozenset(
+    {
+        "ai_api_key",
+        "cors_origins_str",
+        "api_rate_limit_requests",
+        "api_rate_limit_window",
+        "register_rate_limit_requests",
+        "llm_encryption_keys",
+        "s3_public_access_key",
+        "s3_public_secret_key",
+    }
+)
+
+
+def _extract_env_candidate_names(field: FieldInfo, field_name: str) -> list[str]:
+    """Extract candidate env names using public Pydantic validation_alias metadata."""
+    alias = field.validation_alias
+    if isinstance(alias, AliasChoices):
+        return [c for c in alias.choices if isinstance(c, str)]
+    if isinstance(alias, str):
+        return [alias]
+    return [field_name]
+
+
+def _resolve_safe_empty_value(
+    source: EnvSettingsSource, field: FieldInfo, field_name: str
+) -> tuple[Any, str, bool] | None:
+    if field_name in EMPTY_FALLBACK_FIELDS:
+        env_map = getattr(source, "env_vars", None)
+        for env_name in _extract_env_candidate_names(field, field_name):
+            val = None
+            if env_map is not None:
+                val = env_map.get(env_name.lower()) if env_name.lower() in env_map else env_map.get(env_name)
+            if val is None:
+                val = os.environ.get(env_name)
+            if val is not None and str(val).strip() != "":
+                return val, env_name, False
+        return None, field_name, False
+    return None
+
+
+class SafeEnvSettingsSource(EnvSettingsSource):
+    """Env settings source that allows selected empty env strings to fall back."""
+
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        resolved = _resolve_safe_empty_value(self, field, field_name)
+        if resolved is not None:
+            return resolved
+        return super().get_field_value(field, field_name)
+
+
+class SafeDotEnvSettingsSource(DotEnvSettingsSource):
+    """DotEnv settings source that allows selected empty env strings to fall back."""
+
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        resolved = _resolve_safe_empty_value(self, field, field_name)
+        if resolved is not None:
+            return resolved
+        return super().get_field_value(field, field_name)
 
 
 def parse_comma_list(value: str | list[str] | None, default: list[str]) -> list[str]:
@@ -59,6 +128,26 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            SafeEnvSettingsSource(settings_cls),
+            SafeDotEnvSettingsSource(
+                settings_cls,
+                env_file=getattr(dotenv_settings, "env_file", None),
+                env_file_encoding=getattr(dotenv_settings, "env_file_encoding", "utf-8"),
+            ),
+            file_secret_settings,
+        )
 
     # ================================================================
     # REQUIRED - must be provided by environment
@@ -453,6 +542,27 @@ class Settings(BaseSettings):
         """
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("cors_origins_str", mode="before")
+    @classmethod
+    def _empty_cors_origins_is_none(cls, value: object) -> object:
+        """Treat an empty/whitespace CORS_ORIGINS as omitted (None) to use defaults."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator(
+        "api_rate_limit_requests",
+        "api_rate_limit_window",
+        "register_rate_limit_requests",
+        mode="before",
+    )
+    @classmethod
+    def _empty_rate_limits_use_default(cls, value: object, info: Any) -> object:
+        """Treat empty/whitespace rate limit env vars as default rather than failing int parse (#2032)."""
+        if (isinstance(value, str) and not value.strip()) or value is None:
+            return cls.model_fields[info.field_name].default
         return value
 
     @model_validator(mode="after")
