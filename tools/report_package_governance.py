@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.meta.extension.governance_census import (  # noqa: E402
+from common.meta.extension.governance_census import (  # noqa: E402, F401
     collect_governance_census,
     verify_governance_ratchet,
 )

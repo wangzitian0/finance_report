@@ -104,8 +104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         census = collect_governance_census(args.repo_root.resolve())
         report["census"] = census
         report["denominators"] = census
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"Warning: governance census collection failed: {exc}", file=sys.stderr)
     rendered_json = json.dumps(report, indent=2, sort_keys=True) + "\n"
     rendered_markdown = render_governance_markdown(report)
     if args.json_out:
