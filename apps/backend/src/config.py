@@ -727,6 +727,7 @@ settings = Settings()
 ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     "database_url": {
         "source": "runtime",
+        "sensitive": True,
         "provided_by": "finance_report/postgres:POSTGRES_PASSWORD",
         "composed_from": (
             "postgresql+asyncpg://postgres:{POSTGRES_PASSWORD}"
@@ -735,6 +736,7 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     },
     "redis_url": {
         "source": "runtime",
+        "sensitive": True,
         "provided_by": "finance_report/redis:PASSWORD",
         "composed_from": "redis://:{PASSWORD}@finance_report-redis{env:ENV_SUFFIX}:6379/0",
     },

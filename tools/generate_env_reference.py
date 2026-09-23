@@ -374,11 +374,27 @@ def _environment_contract():
         raise SystemExit(f"ENV_SOURCE_CLASSES: {error}") from None
 
 
-def manifest_gate_errors() -> list[str]:
-    """Offline contract violations (infra2_sdk.ci); no infrastructure involved."""
-    from infra2_sdk.ci import validate_manifest_offline
+def manifest_gate_errors(manifest=None) -> list[str]:
+    """Offline contract violations (infra2_sdk.ci); no infrastructure involved.
 
-    return validate_manifest_offline(_environment_contract())
+    Validates the exact emitted consumer representation (post-field-filtering),
+    ensuring that no required producer or composed-from reference was dropped
+    during rendering (issue #2016).
+    """
+    import json
+    from infra2_sdk.ci import validate_manifest_offline
+    from infra2_sdk.runtime.config_schema import EnvironmentManifest
+
+    if manifest is None:
+        fields = collect_backend_fields()
+        raw_json = render_required_env_manifest(fields)
+        manifest = EnvironmentManifest.from_dict(json.loads(raw_json))
+    elif isinstance(manifest, dict):
+        manifest = EnvironmentManifest.from_dict(manifest)
+    elif isinstance(manifest, str):
+        manifest = EnvironmentManifest.from_dict(json.loads(manifest))
+
+    return validate_manifest_offline(manifest)
 
 
 def _diff(label: str, current: str, generated: str) -> str:
@@ -433,7 +449,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(REQUIRED_ENV_MANIFEST_PATH.name), current_manifest, new_manifest
                 )
             )
-        gate_errors = manifest_gate_errors()
+        gate_errors = manifest_gate_errors(new_manifest)
         for error in gate_errors:
             print(f"manifest gate: {error}")
         if drift or gate_errors:
