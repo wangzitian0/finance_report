@@ -64,7 +64,7 @@ describe("Review pages data flows", () => {
         expect(await screen.findByText("Back to Statements")).toBeInTheDocument();
     });
 
-    it("AC16.33.5 embeds the document as a same-origin sandboxed blob URL", async () => {
+    it("AC16.33.5 embeds the document as a same-origin blob URL without sandbox to allow PDF plugin rendering", async () => {
         renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument /> as any);
 
         const iframe = await screen.findByTitle("Statement PDF preview");
@@ -72,9 +72,10 @@ describe("Review pages data flows", () => {
         // cross-origin object-storage URL, and embedded as a blob: object URL.
         expect(mockedDownload).toHaveBeenCalledWith("/api/statements/s1/document");
         expect(iframe).toHaveAttribute("src", "blob:preview-1");
-        expect(iframe).toHaveAttribute("sandbox");
+        expect(iframe).not.toHaveAttribute("sandbox");
         expect(iframe).toHaveAttribute("referrerPolicy", "no-referrer");
     });
+
 
     it("AC16.33.5 shows a fallback and skips the fetch when no document exists", () => {
         mockedDownload.mockClear();

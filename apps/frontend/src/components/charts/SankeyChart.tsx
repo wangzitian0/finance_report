@@ -80,8 +80,25 @@ export function SankeyChart({
     const foregroundColor = getCSSVar("--foreground");
     const foregroundMutedColor = getCSSVar("--foreground-muted");
 
-    const nodes: { name: string; itemStyle?: { color: string } }[] = [];
-    const links: { source: string; target: string; value: number }[] = [];
+    const nodeMap = new Map<string, { name: string; itemStyle?: { color: string } }>();
+    const linkMap = new Map<string, { source: string; target: string; value: number }>();
+
+    const ensureNode = (name: string, itemStyle?: { color: string }) => {
+      if (!nodeMap.has(name)) {
+        nodeMap.set(name, itemStyle ? { name, itemStyle } : { name });
+      }
+    };
+
+    const addLink = (source: string, target: string, value: number) => {
+      if (value <= 0) return;
+      const key = `${source}\0${target}`;
+      const existing = linkMap.get(key);
+      if (existing) {
+        existing.value += value;
+      } else {
+        linkMap.set(key, { source, target, value });
+      }
+    };
 
     const addCategory = (items: SankeyItem[], color: string, prefix: string) => {
       const inflowItems = items.filter((i) => compareAmounts(i.amount, "0") > 0);
@@ -89,29 +106,27 @@ export function SankeyChart({
 
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
-      nodes.push({ name: prefix, itemStyle: { color } });
-      nodes.push({ name: `${prefix}-Inflows`, itemStyle: { color: successColor } });
-      nodes.push({ name: `${prefix}-Outflows`, itemStyle: { color: errorColor } });
+      ensureNode(prefix, { color });
+      if (inflowItems.length > 0) {
+        ensureNode(`${prefix}-Inflows`, { color: successColor });
+      }
+      if (outflowItems.length > 0) {
+        ensureNode(`${prefix}-Outflows`, { color: errorColor });
+      }
 
       inflowItems.forEach((item) => {
         const amount = amountToChartNumber(item.amount);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
-        links.push({
-          source: `${prefix}-Inflows`,
-          target: `${prefix}-${item.subcategory}`,
-          value: amount,
-        });
+        const subcategoryNode = `${prefix}-${item.subcategory}`;
+        ensureNode(subcategoryNode, { color: foregroundMutedColor });
+        addLink(`${prefix}-Inflows`, subcategoryNode, amount);
       });
 
       outflowItems.forEach((item) => {
         const rawValue = amountToChartNumber(item.amount);
         const amount = Math.abs(rawValue);
-        nodes.push({ name: `${prefix}-${item.subcategory}`, itemStyle: { color: foregroundMutedColor } });
-        links.push({
-          source: `${prefix}-${item.subcategory}`,
-          target: `${prefix}-Outflows`,
-          value: amount,
-        });
+        const subcategoryNode = `${prefix}-${item.subcategory}`;
+        ensureNode(subcategoryNode, { color: foregroundMutedColor });
+        addLink(subcategoryNode, `${prefix}-Outflows`, amount);
       });
     };
 
@@ -119,7 +134,10 @@ export function SankeyChart({
     addCategory(investing, accentColor, "Investing");
     addCategory(financing, warningColor, "Financing");
 
-    const hasData = nodes.length > 0;
+    const nodes = Array.from(nodeMap.values());
+    const links = Array.from(linkMap.values());
+    const hasData = nodes.length > 0 && links.length > 0;
+
 
     if (!hasData) {
       return {

@@ -162,4 +162,66 @@ describe("SankeyChart", () => {
       expect(subcategoryColor).toBe("#334155")
     })
   })
+
+  it("deduplicates subcategories and aggregates link values to prevent ECharts duplicate node crash", async () => {
+    const echarts = await import("echarts")
+    render(
+      <SankeyChart
+        title="Cash Flow with duplicate subcategories"
+        operating={[
+          { category: "operating", subcategory: "Transfer", amount: "100" },
+          { category: "operating", subcategory: "Transfer", amount: "200" },
+          { category: "operating", subcategory: "Transfer", amount: "-50" },
+        ]}
+      />,
+    )
+
+    const option = sankeyMockState.capturedProps?.option as {
+      series: Array<{
+        data: Array<{ name: string }>
+        links: Array<{ source: string; target: string; value: number }>
+      }>
+    }
+    const series = option.series[0]
+    const nodeNames = series.data.map((n) => n.name)
+    const uniqueNames = new Set(nodeNames)
+    expect(nodeNames.length).toBe(uniqueNames.size)
+
+    const inflowLink = series.links.find(
+      (l) => l.source === "Operating-Inflows" && l.target === "Operating-Transfer",
+    )
+    expect(inflowLink?.value).toBe(300)
+
+    // Verify real ECharts executes option without throwing 'Cannot set properties of undefined (setting dataIndex)'
+    const container = document.createElement("div")
+    Object.defineProperty(container, "clientWidth", { value: 500 })
+    Object.defineProperty(container, "clientHeight", { value: 500 })
+    const chart = echarts.init(container, null, { renderer: "svg", ssr: true, width: 500, height: 500 })
+    expect(() => chart.setOption(option)).not.toThrow()
+    chart.dispose()
+  })
+
+  it("aggregates links safely when subcategory names contain separator substrings", () => {
+    render(
+      <SankeyChart
+        title="Separator Safety"
+        operating={[
+          { category: "operating", subcategory: "Alpha -> Beta", amount: "150" },
+          { category: "operating", subcategory: "Alpha -> Beta", amount: "50" },
+        ]}
+      />,
+    )
+
+    const option = sankeyMockState.capturedProps?.option as {
+      series: Array<{
+        data: Array<{ name: string }>
+        links: Array<{ source: string; target: string; value: number }>
+      }>
+    }
+    const series = option.series[0]
+    const link = series.links.find(
+      (l) => l.source === "Operating-Inflows" && l.target === "Operating-Alpha -> Beta",
+    )
+    expect(link?.value).toBe(200)
+  })
 })

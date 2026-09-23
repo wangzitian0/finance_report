@@ -98,7 +98,7 @@ describe("useReportFilters", () => {
     expect(params.get("currency")).toBe("USD");
   });
 
-  it("AC5.34.6 lets an explicit option override the URL query param", () => {
+  it("AC5.34.6 prioritizes URL query params over caller initial options to preserve deep links", () => {
     urlParams = new URLSearchParams({
       as_of_date: "2026-05-31",
       currency: "USD",
@@ -112,9 +112,23 @@ describe("useReportFilters", () => {
       }),
     );
 
-    expect(result.current.asOfDate).toBe("2026-01-15");
-    expect(result.current.currency).toBe("SGD");
+    expect(result.current.asOfDate).toBe("2026-05-31");
+    expect(result.current.currency).toBe("USD");
   });
+
+  it("AC5.34.6 uses caller initial options as fallback when URL query params are not present", () => {
+    const { result } = renderHook(() =>
+      useReportFilters({
+        reportType: "balance-sheet",
+        initialAsOfDate: "2026-01-15",
+        initialCurrency: "EUR",
+      }),
+    );
+
+    expect(result.current.asOfDate).toBe("2026-01-15");
+    expect(result.current.currency).toBe("EUR");
+  });
+
 
   it("AC5.34.6 falls back to defaults when neither option nor URL is present", () => {
     const { result } = renderHook(() =>
@@ -124,5 +138,45 @@ describe("useReportFilters", () => {
     // No URL param and no option: as-of date defaults to today, currency to SGD.
     expect(result.current.asOfDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(result.current.currency).toBe("SGD");
+  });
+
+  it("prioritizes URL search params over caller initialStartDate option to preserve deep links", () => {
+    urlParams = new URLSearchParams({
+      start_date: "2025-01-01",
+      end_date: "2025-01-31",
+      currency: "USD",
+    });
+
+    const { result } = renderHook(() =>
+      useReportFilters({
+        reportType: "income-statement",
+        initialStartDate: "2025-10-01",
+      }),
+    );
+
+    expect(result.current.startDate).toBe("2025-01-01");
+    expect(result.current.endDate).toBe("2025-01-31");
+  });
+
+  it("treats empty-string or whitespace URL query params as absent and falls back to options or defaults", () => {
+    urlParams = new URLSearchParams({
+      as_of_date: "",
+      start_date: "   ",
+      end_date: "",
+      currency: "",
+    });
+
+    const { result } = renderHook(() =>
+      useReportFilters({
+        reportType: "balance-sheet",
+        initialAsOfDate: "2026-02-01",
+        initialCurrency: "EUR",
+      }),
+    );
+
+    expect(result.current.asOfDate).toBe("2026-02-01");
+    expect(result.current.currency).toBe("EUR");
+    expect(result.current.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.current.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

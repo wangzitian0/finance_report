@@ -52,21 +52,27 @@ export function useReportFilters(
   const isPointInTime = reportType === "balance-sheet";
 
   // Seed initial filter state with precedence:
-  //   explicit option ?? URL query param ?? existing default.
-  // This restores deep-link support (e.g. ?as_of_date=2026-05-31&currency=SGD)
-  // that was dropped when filters were centralized into this hook (Slice 3 of
-  // #751). `useSearchParams` is read once; the values only seed `useState`
-  // initial expressions (evaluated on mount), so they never fight user edits and
-  // no URL round-trip / router.replace is performed here.
+  //   URL query param ?? explicit option ?? existing default.
+  // This preserves deep-link support (e.g. ?start_date=2025-01-01&end_date=2025-01-31&currency=SGD)
+  // so external links, bookmarks, and date range filters take precedence over caller
+  // default configs (such as defaultStartDate()), avoiding inverted start/end date errors.
+  // `useSearchParams` is read once; the values only seed `useState` initial expressions
+  // (evaluated on mount), so they never fight user edits and no URL round-trip / router.replace
+  // is performed here.
   const searchParams = useSearchParams();
+  const getParam = (key: string) => {
+    const val = searchParams.get(key);
+    return val && val.trim().length > 0 ? val.trim() : undefined;
+  };
   const initialAsOfDate =
-    options.initialAsOfDate ?? searchParams.get("as_of_date") ?? today();
+    getParam("as_of_date") ?? options.initialAsOfDate ?? today();
   const initialStartDate =
-    options.initialStartDate ?? searchParams.get("start_date") ?? today();
+    getParam("start_date") ?? options.initialStartDate ?? today();
   const initialEndDate =
-    options.initialEndDate ?? searchParams.get("end_date") ?? today();
+    getParam("end_date") ?? options.initialEndDate ?? today();
   const initialCurrency =
-    options.initialCurrency ?? searchParams.get("currency") ?? "SGD";
+    getParam("currency") ?? options.initialCurrency ?? "SGD";
+
 
   const [asOfDate, setAsOfDate] = useState(initialAsOfDate);
   const [startDate, setStartDate] = useState(initialStartDate);
