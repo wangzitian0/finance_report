@@ -173,8 +173,8 @@ def test_emit_audit_proof_outputs_verified_json(monkeypatch, tmp_path) -> None:
     assert proof_file.exists()
     payload = json.loads(proof_file.read_text(encoding="utf-8"))
     assert payload["status"] == "passed"
-    assert payload["classified_columns"] > 500
-    assert payload["tables_scanned"] == 5
+    assert payload["classified_columns"] == len(cli.classify_columns(cli.Base.metadata))
+    assert payload["tables_scanned"] == len(cli.Base.metadata.tables)
     assert payload["residuals_found"] == 0
     assert payload["source_schema_revision"] == "0065_user_soft_delete"
     assert len(payload["anonymizer_sha"]) == 40
@@ -214,15 +214,27 @@ def test_emit_audit_proof_fails_closed_on_residuals(monkeypatch, tmp_path) -> No
     assert not proof_file.exists()
 
 
-def test_get_schema_revision_fallback() -> None:
-    """Verify fallback to 'unknown' when schema query fails."""
+def test_get_schema_revision_fails_closed_on_error() -> None:
+    """Verify fail-closed RuntimeError when schema revision is unreadable or missing."""
     import tools.anonymize_snapshot as cli
 
     class _FailingConn:
         def execute(self, stmt):
             raise RuntimeError("Database error")
 
-    assert cli._get_schema_revision(_FailingConn()) == "unknown"
+    class _EmptyConn:
+        def execute(self, stmt):
+            class _EmptyResult:
+                def scalar_one_or_none(self):
+                    return None
+
+            return _EmptyResult()
+
+    with pytest.raises(RuntimeError, match="Unable to read schema revision"):
+        cli._get_schema_revision(_FailingConn())
+
+    with pytest.raises(RuntimeError, match="Missing schema revision"):
+        cli._get_schema_revision(_EmptyConn())
 
 
 def test_get_anonymizer_sha_branches(monkeypatch) -> None:

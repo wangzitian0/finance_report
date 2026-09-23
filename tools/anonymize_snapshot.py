@@ -74,9 +74,11 @@ def _get_schema_revision(conn: Any) -> str:
         ).scalar_one_or_none()
         if res:
             return str(res)
-    except Exception:
-        pass
-    return "unknown"
+    except Exception as exc:
+        raise RuntimeError(
+            f"Unable to read schema revision from alembic_version: {exc}"
+        ) from exc
+    raise RuntimeError("Missing schema revision in alembic_version table")
 
 
 def _get_anonymizer_sha() -> str:
@@ -168,7 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             proof = {
                 "status": "passed",
                 "classified_columns": len(plan),
-                "tables_scanned": report.tables_updated,
+                "tables_scanned": len(Base.metadata.tables),
                 "residuals_found": 0,
                 "source_schema_revision": _get_schema_revision(conn),
                 "anonymizer_sha": _get_anonymizer_sha(),
