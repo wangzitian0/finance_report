@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence
@@ -17,6 +18,10 @@ from common.meta.base.governance_control import (
 )
 from common.meta.data.governance_control import governance_control_index
 from common.meta.extension.check_package_contract import discover_packages
+from common.meta.extension.governance_census import (
+    collect_governance_census,
+    verify_governance_ratchet,
+)
 from common.meta.extension.governance_control_report import render_governance_markdown
 from common.testing.package_governance_observations import (
     ObservationInputError,
@@ -46,6 +51,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--expected-target-sha")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--markdown-out", type=Path)
+    parser.add_argument(
+        "--check-ratchet",
+        action="store_true",
+        help="Enforce shrink-only ratchet against baseline",
+    )
     args = parser.parse_args(argv)
 
     payload = (
@@ -90,6 +100,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         ],
         observed_at=observed_at,
     )
+    try:
+        census = collect_governance_census(args.repo_root.resolve())
+        report["census"] = census
+        report["denominators"] = census
+    except Exception:
+        pass
     rendered_json = json.dumps(report, indent=2, sort_keys=True) + "\n"
     rendered_markdown = render_governance_markdown(report)
     if args.json_out:
@@ -102,14 +118,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     policy_failed = any(
         initiative["issue_state"] is None
         or initiative["state"] == "regressed"
-        or (
-            initiative["issue_state"] == "OPEN"
-            and initiative["state"] != "enforced"
-        )
+        or (initiative["issue_state"] == "OPEN" and initiative["state"] != "enforced")
         or "closed-issue-has-open-acceptance-criteria"
         in {finding["code"] for finding in initiative["findings"]}
         for initiative in initiatives
     )
+    if args.check_ratchet:
+        ratchet_result = verify_governance_ratchet(args.repo_root.resolve())
+        if ratchet_result["status"] != "passed":
+            print(
+                f"Governance ratchet check failed: {ratchet_result['findings']}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.observations:
+            return 0
     return 1 if policy_failed else 0
 
 

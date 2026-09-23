@@ -1,0 +1,72 @@
+{
+  "delivery_surfaces": {
+    "router_count": 21,
+    "routers": [
+      "apps/backend/src/routers/accounts.py",
+      "apps/backend/src/routers/ai_feedback.py",
+      "apps/backend/src/routers/app_config.py",
+      "apps/backend/src/routers/assets.py",
+      "apps/backend/src/routers/audit.py",
+      "apps/backend/src/routers/chat.py",
+      "apps/backend/src/routers/classifications.py",
+      "apps/backend/src/routers/corrections.py",
+      "apps/backend/src/routers/evidence.py",
+      "apps/backend/src/routers/income.py",
+      "apps/backend/src/routers/journal.py",
+      "apps/backend/src/routers/llm.py",
+      "apps/backend/src/routers/market_data.py",
+      "apps/backend/src/routers/metrics.py",
+      "apps/backend/src/routers/portfolio.py",
+      "apps/backend/src/routers/reconciliation.py",
+      "apps/backend/src/routers/reports.py",
+      "apps/backend/src/routers/review.py",
+      "apps/backend/src/routers/statements.py",
+      "apps/backend/src/routers/user_settings.py",
+      "apps/backend/src/routers/workflow.py"
+    ],
+    "schema_count": 23,
+    "schemas": [
+      "apps/backend/src/schemas/__init__.py",
+      "apps/backend/src/schemas/account.py",
+      "apps/backend/src/schemas/app_config.py",
+      "apps/backend/src/schemas/assets.py",
+      "apps/backend/src/schemas/audit.py",
+      "apps/backend/src/schemas/base.py",
+      "apps/backend/src/schemas/chat.py",
+      "apps/backend/src/schemas/errors.py",
+      "apps/backend/src/schemas/evidence.py",
+      "apps/backend/src/schemas/extraction.py",
+      "apps/backend/src/schemas/income.py",
+      "apps/backend/src/schemas/journal.py",
+      "apps/backend/src/schemas/llm.py",
+      "apps/backend/src/schemas/metrics.py",
+      "apps/backend/src/schemas/ping.py",
+      "apps/backend/src/schemas/portfolio.py",
+      "apps/backend/src/schemas/provenance.py",
+      "apps/backend/src/schemas/reconciliation.py",
+      "apps/backend/src/schemas/reporting.py",
+      "apps/backend/src/schemas/review.py",
+      "apps/backend/src/schemas/streaming.py",
+      "apps/backend/src/schemas/user.py",
+      "apps/backend/src/schemas/workflow.py"
+    ]
+  },
+  "backend_root_modules": {
+    "count": 9,
+    "modules": [
+      "apps/backend/src/__init__.py",
+      "apps/backend/src/boot.py",
+      "apps/backend/src/composition.py",
+      "apps/backend/src/config.py",
+      "apps/backend/src/config_app.py",
+      "apps/backend/src/database.py",
+      "apps/backend/src/deps.py",
+      "apps/backend/src/main.py",
+      "apps/backend/src/orm_registry.py"
+    ]
+  },
+  "ddd_units": {
+    "unbound_count": 104,
+    "incomplete_splits": 0
+  }
+}
