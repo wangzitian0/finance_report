@@ -19,6 +19,7 @@ tests/e2e/.auth/
 .DS_Store
 .vscode/
 .moon/cache/
+.claude/settings.json
 
 # Python
 __pycache__/
