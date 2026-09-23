@@ -105,6 +105,15 @@ def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch
     settings_db = Settings(_env_file=None)
     assert settings_db.database_url == ""
 
+    # 4. Import-time resilience: module-level settings = Settings() succeeds on empty rate limits
+    import importlib
+
+    import src.config
+
+    monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
+    reloaded_module = importlib.reload(src.config)
+    assert reloaded_module.settings.api_rate_limit_requests == 300
+
 
 def test_explicit_empty_cors_and_rate_limits() -> None:
     settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")

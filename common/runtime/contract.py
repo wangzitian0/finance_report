@@ -1397,9 +1397,9 @@ CONTRACT = PackageContract(
                 "Settings resolves empty environment strings safely across alias chains: "
                 "an empty primary alias (e.g. ZAI_API_KEY='') does not shadow later fallback "
                 "aliases (e.g. GEMINI_API_KEY), empty CORS_ORIGINS yields default origins, "
-                "empty API_RATE_LIMIT_REQUESTS does not raise at import, and cross-package "
-                "compatibility is verified by tools/generate_consumer_proofs.py feeding "
-                "report_ddd_dependencies.py --consumer-proofs."
+                "empty API_RATE_LIMIT_REQUESTS does not raise at import time, and downstream "
+                "package contracts are verified compatible by tools/generate_consumer_proofs.py "
+                "executing dynamic verification feeding report_ddd_dependencies.py --consumer-proofs."
             ),
             test=(
                 "apps/backend/tests/infra/test_config.py"

@@ -6,6 +6,7 @@ Environment Variable Strategy:
 - Optional fields have sensible defaults, rarely need override
 """
 
+import os
 from functools import cached_property
 from typing import Any, Literal
 
@@ -39,14 +40,29 @@ EMPTY_FALLBACK_FIELDS = frozenset(
 )
 
 
+def _extract_env_candidate_names(field: FieldInfo, field_name: str) -> list[str]:
+    """Extract candidate env names using public Pydantic validation_alias metadata."""
+    alias = field.validation_alias
+    if isinstance(alias, AliasChoices):
+        return [c for c in alias.choices if isinstance(c, str)]
+    if isinstance(alias, str):
+        return [alias]
+    return [field_name]
+
+
 def _resolve_safe_empty_value(
     source: EnvSettingsSource, field: FieldInfo, field_name: str
 ) -> tuple[Any, str, bool] | None:
     if field_name in EMPTY_FALLBACK_FIELDS:
-        for field_key, env_name, value_is_complex in source._extract_field_info(field, field_name):
-            val = source.env_vars.get(env_name)
+        env_map = getattr(source, "env_vars", None)
+        for env_name in _extract_env_candidate_names(field, field_name):
+            val = None
+            if env_map is not None:
+                val = env_map.get(env_name.lower()) if env_name.lower() in env_map else env_map.get(env_name)
+            if val is None:
+                val = os.environ.get(env_name)
             if val is not None and str(val).strip() != "":
-                return val, field_key, value_is_complex
+                return val, env_name, False
         return None, field_name, False
     return None
 
