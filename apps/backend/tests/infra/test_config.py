@@ -110,9 +110,13 @@ def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch
 
     import src.config
 
-    monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
-    reloaded_module = importlib.reload(src.config)
-    assert reloaded_module.settings.api_rate_limit_requests == 300
+    orig_settings = src.config.settings
+    try:
+        monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
+        reloaded_module = importlib.reload(src.config)
+        assert reloaded_module.settings.api_rate_limit_requests == 300
+    finally:
+        reloaded_module.settings = orig_settings
 
 
 def test_explicit_empty_cors_and_rate_limits() -> None:
