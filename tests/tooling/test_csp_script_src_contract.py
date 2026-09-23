@@ -52,3 +52,11 @@ def test_csp_script_src_allows_every_external_script_host() -> None:
             f"loads.\n  script-src: {directive}\n  Add https://{host} (or the "
             "wildcard parent) to next.config.mjs, or the browser will block the script."
         )
+
+
+def test_production_csp_script_src_does_not_contain_unsafe_eval() -> None:
+    """Production baseline CSP script-src must never contain 'unsafe-eval' (AC1.10.4 / issue #2044)."""
+    directive = _script_src_hosts()
+    assert "'unsafe-eval'" not in directive, (
+        f"Production baseline CSP script-src must not contain 'unsafe-eval': {directive!r}"
+    )
