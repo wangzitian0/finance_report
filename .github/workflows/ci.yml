@@ -155,7 +155,7 @@ jobs:
             base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
           fi
 
-          python tools/generate_consumer_proofs.py --output "$RUNNER_TEMP/consumer-proofs.json"
+          uv run --with pydantic python tools/generate_consumer_proofs.py --output "$RUNNER_TEMP/consumer-proofs.json"
           {
             set +e
             uv run --with pydantic python tools/report_ddd_dependencies.py \
