@@ -57,6 +57,7 @@ def test_csp_script_src_allows_every_external_script_host() -> None:
 def test_production_csp_script_src_does_not_contain_unsafe_eval() -> None:
     """Production baseline CSP script-src must never contain 'unsafe-eval' (AC1.10.4 / issue #2044)."""
     directive = _script_src_hosts()
-    assert "'unsafe-eval'" not in directive, (
+    has_unsafe_eval = "'unsafe-eval'" in directive
+    assert not has_unsafe_eval, (
         f"Production baseline CSP script-src must not contain 'unsafe-eval': {directive!r}"
     )
