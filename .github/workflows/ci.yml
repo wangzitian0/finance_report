@@ -1695,6 +1695,7 @@ jobs:
 
       - name: Rehearse evidence bundle generation (dry-run)
         run: |
+          python -m pip install --quiet pyyaml
           python tools/generate_evidence_bundle.py --dry-run
 
       - name: Build line-only Coveralls LCOV
