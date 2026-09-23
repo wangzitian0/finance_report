@@ -1,8 +1,8 @@
-"""``ledger.base`` — the pure double-entry core (types + validators).
+"""``ledger.base`` — the pure double-entry core (types, vocabulary + validators).
 
 No I/O and no concrete cross-package wiring: it never imports this package's own
-``extension`` / ``data`` layers, and reaches other packages only through their
-published interfaces (``src.audit.money``'s value types, ``src.config`` as a bare module).
+``extension`` / ``data`` layers, has zero ORM or configuration dependencies, and reaches other
+packages only through their published pure value interfaces (``src.audit.money``).
 """
 
 from __future__ import annotations
@@ -26,23 +26,40 @@ from src.ledger.base.types import (
 )
 from src.ledger.base.validators import (
     AccountingError,
+    AccountPostingProtocol,
+    JournalEntryPostingProtocol,
+    JournalLinePostingProtocol,
     ValidationError,
     validate_fx_rates,
     validate_journal_balance,
     validate_journal_posting_invariants,
 )
+from src.ledger.base.vocabulary import (
+    DEFAULT_BASE_CURRENCY,
+    AccountType,
+    Direction,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+)
 
 __all__ = [
-    "OpeningPosition",
+    "DEFAULT_BASE_CURRENCY",
+    "AccountPostingProtocol",
+    "AccountType",
     "AccountingError",
-    "DegenerateEntryError",
     "DecisionAnchor",
     "DecisionAnchorError",
-    "journal_command_target",
+    "DegenerateEntryError",
+    "Direction",
     "Entry",
+    "JournalEntryAuthorityState",
+    "JournalEntryPostingProtocol",
+    "JournalEntryStatus",
     "JournalLineContribution",
+    "JournalLinePostingProtocol",
     "LedgerError",
     "Leg",
+    "OpeningPosition",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
     "ResolvedJournalContribution",
@@ -51,6 +68,7 @@ __all__ = [
     "UnbalancedEntryError",
     "ValidationError",
     "detect_transfer_pattern",
+    "journal_command_target",
     "validate_fx_rates",
     "validate_journal_balance",
     "validate_journal_posting_invariants",

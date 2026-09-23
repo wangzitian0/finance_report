@@ -9,8 +9,7 @@ from typing import Literal
 from uuid import UUID
 
 from src.audit import TraceDecisionRef
-from src.ledger.orm.account import AccountType
-from src.ledger.orm.journal import Direction
+from src.ledger.base.vocabulary import AccountType, Direction
 
 
 @dataclass(frozen=True, slots=True)
