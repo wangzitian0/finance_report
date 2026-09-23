@@ -48,6 +48,18 @@ export function buildContentSecurityPolicy() {
         if (!scriptSources.includes(openpanelScriptOrigin)) scriptSources.push(openpanelScriptOrigin);
     }
 
+    const otelEndpointOrigin = extractOrigin(
+        process.env.NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+    );
+    if (otelEndpointOrigin) {
+        if (!connectSources.includes(otelEndpointOrigin)) connectSources.push(otelEndpointOrigin);
+    }
+
+    const apiOrigin = extractOrigin(process.env.NEXT_PUBLIC_API_URL);
+    if (apiOrigin) {
+        if (!connectSources.includes(apiOrigin)) connectSources.push(apiOrigin);
+    }
+
     for (const src of parseSources(process.env.EXTRA_CSP_SCRIPT_SRC)) {
         if (!scriptSources.includes(src)) scriptSources.push(src);
     }

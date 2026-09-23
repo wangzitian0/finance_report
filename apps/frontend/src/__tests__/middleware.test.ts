@@ -40,4 +40,17 @@ describe('AC1.10.4 Next.js Middleware Dynamic Content Security Policy', () => {
     expect(csp).toMatch(/script-src [^;]*https:\/\/openpanel\.zitian\.party/)
     expect(csp).toMatch(/connect-src [^;]*https:\/\/openpanel\.zitian\.party/)
   })
+
+  it('dynamically derives connect-src from NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT and NEXT_PUBLIC_API_URL', () => {
+    vi.stubEnv('NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT', 'https://otel.zitian.party/v1/traces')
+    vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.zitian.party')
+
+    const request = new NextRequest('http://localhost:3000/')
+    const response = middleware(request)
+
+    const csp = response.headers.get('Content-Security-Policy')
+    expect(csp).toBeTruthy()
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/otel\.zitian\.party/)
+    expect(csp).toMatch(/connect-src [^;]*https:\/\/api\.zitian\.party/)
+  })
 })

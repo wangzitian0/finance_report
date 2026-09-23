@@ -203,5 +203,14 @@ describe('API URL Configuration Scenarios', () => {
       expect(csp).not.toContain('opaque-token')
       expect(csp).not.toMatch(/connect-src [^;]*data:/)
     })
+
+    it('dynamically includes NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT and NEXT_PUBLIC_API_URL in connect-src', async () => {
+      vi.stubEnv('NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT', 'https://otel.zitian.party/v1/traces')
+      vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.com')
+      const { buildContentSecurityPolicy } = await import('../../next.config.mjs')
+      const csp = buildContentSecurityPolicy()
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/otel\.zitian\.party/)
+      expect(csp).toMatch(/connect-src [^;]*https:\/\/api\.example\.com/)
+    })
   })
 })
