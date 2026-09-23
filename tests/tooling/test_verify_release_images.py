@@ -145,3 +145,18 @@ def test_AC_runtime_release_images_6_negative_delay_is_rejected() -> None:
             retry_delay_seconds=-1.0,
             sleep=lambda _s: None,
         )
+
+
+def test_release_images_main_dry_run() -> None:
+    rc = release_images.main(
+        [
+            "--registry",
+            "ghcr.io",
+            "--image-prefix",
+            "example",
+            "--version-ref",
+            "abc1234",
+            "--dry-run",
+        ]
+    )
+    assert rc == 0

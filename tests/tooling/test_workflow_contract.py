@@ -10,6 +10,7 @@ The contract mechanically checks that:
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -404,3 +405,136 @@ def test_AC_testing_ci_structure_15_open_baseline_pr_dry_run_execution() -> None
 
     rc = open_unified_coverage_baseline_pr(repo_root=ROOT, dry_run=True)
     assert rc == 0
+
+
+def test_workflow_contract_main_only_job_edge_cases(tmp_path: Path) -> None:
+    # 1. find_main_only_jobs with non-dict jobs or non-dict job
+    assert contract.find_main_only_jobs({"jobs": "not-a-dict"}) == set()
+    assert contract.find_main_only_jobs({"jobs": {"invalid": "not-a-dict"}}) == set()
+
+    # 2. check_main_only_jobs with missing ci.yml
+    errs: list[str] = []
+    contract.check_main_only_jobs(tmp_path, errs)
+    assert len(errs) > 0
+
+    # 3. check_main_only_jobs with stale declared job in MAIN_ONLY_JOBS
+    import unittest.mock
+
+    errs_stale: list[str] = []
+    with unittest.mock.patch.dict(
+        contract.MAIN_ONLY_JOBS,
+        {"nonexistent-job-xyz": {"pr_rehearsal": "echo"}},
+        clear=False,
+    ):
+        contract.check_main_only_jobs(ROOT, errs_stale)
+    assert any("nonexistent-job-xyz" in e for e in errs_stale)
+
+    # 4. check_main_only_jobs with job lacking rehearsal and isolation
+    errs_empty: list[str] = []
+    with unittest.mock.patch.dict(
+        contract.MAIN_ONLY_JOBS,
+        {"unified-coverage-baseline-pr": {}},
+        clear=False,
+    ):
+        contract.check_main_only_jobs(ROOT, errs_empty)
+    assert any("unified-coverage-baseline-pr" in e for e in errs_empty)
+
+    # 5. check_main_only_jobs with job in finish_needs declaring failure_isolation
+    errs_finish: list[str] = []
+    with unittest.mock.patch.dict(
+        contract.MAIN_ONLY_JOBS,
+        {"lint": {"failure_isolation": True}},
+        clear=False,
+    ):
+        contract.check_main_only_jobs(ROOT, errs_finish)
+    assert any("blocking dependency of the 'finish' job" in e for e in errs_finish)
+
+
+def test_unified_coverage_baseline_pr_edge_cases(tmp_path: Path) -> None:
+    from common.testing import unified_coverage_baseline_pr as ucb
+    import unittest.mock
+
+    # 1. calculate_rise_merge when unified coverage rises
+    old_data = {
+        "coverage_percent": 80.0,
+        "breakdown": {"backend": {"coverage_percent": 80.0}},
+    }
+    new_data = {
+        "coverage_percent": 85.0,
+        "breakdown": {"backend": {"coverage_percent": 80.0}},
+    }
+    merged, rises, kept = ucb.calculate_rise_merge(old_data, new_data)
+    unified_key = "unified"
+    assert unified_key in rises
+    assert merged["coverage_percent"] == 85.0
+
+    # 2. render_pr_body
+    body = ucb.render_pr_body()
+    assert len(body) > 0
+
+    # 3. open_unified_coverage_baseline_pr: missing baseline file
+    assert ucb.open_unified_coverage_baseline_pr(repo_root=tmp_path, dry_run=False) == 1
+
+    # Setup fake repo directory
+    baseline_file = tmp_path / "unified-coverage.json"
+    baseline_file.write_text(json.dumps(old_data), encoding="utf-8")
+
+    # 4. Missing coverage context when dry_run=False
+    missing_ctx = tmp_path / "nonexistent-ctx.json"
+    assert (
+        ucb.open_unified_coverage_baseline_pr(
+            repo_root=tmp_path, coverage_context=missing_ctx, dry_run=False
+        )
+        == 1
+    )
+
+    # 5. Existing coverage context with dry_run=True
+    ctx_file = tmp_path / "ctx.json"
+    ctx_file.write_text(json.dumps(new_data), encoding="utf-8")
+    assert (
+        ucb.open_unified_coverage_baseline_pr(
+            repo_root=tmp_path, coverage_context=ctx_file, dry_run=True
+        )
+        == 0
+    )
+
+    # 6. Existing coverage context with dry_run=False and no rises
+    no_rise_ctx = tmp_path / "no_rise.json"
+    no_rise_ctx.write_text(json.dumps(old_data), encoding="utf-8")
+    assert (
+        ucb.open_unified_coverage_baseline_pr(
+            repo_root=tmp_path, coverage_context=no_rise_ctx, dry_run=False
+        )
+        == 0
+    )
+
+    # 7. Non-dry-run with rises, mocking subprocess.run (PR exists -> edit)
+    with unittest.mock.patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_REPOSITORY": "test/repo"}):
+            rc_edit = ucb.open_unified_coverage_baseline_pr(
+                repo_root=tmp_path, coverage_context=ctx_file, dry_run=False
+            )
+            assert rc_edit == 0
+
+    # 8. Non-dry-run with rises, mocking subprocess.run (PR does not exist -> create)
+    baseline_file.write_text(json.dumps(old_data), encoding="utf-8")
+    with unittest.mock.patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 1
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_REPOSITORY": "test/repo"}):
+            rc_create = ucb.open_unified_coverage_baseline_pr(
+                repo_root=tmp_path, coverage_context=ctx_file, dry_run=False
+            )
+            assert rc_create == 0
+
+    # 9. main CLI invocation with --dry-run and --coverage-context
+    rc_main = ucb.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--coverage-context",
+            str(ctx_file),
+            "--dry-run",
+        ]
+    )
+    assert rc_main == 0
