@@ -15,10 +15,10 @@ def test_generate_consumer_proofs_covers_all_packages(tmp_path: Path) -> None:
     proofs = generate_consumer_proofs()
     assert len(proofs) == len(ALL_PACKAGES)
     for pkg in ALL_PACKAGES:
-        assert pkg in proofs
+        assert proofs.get(pkg) is not None
         assert proofs[pkg]["result"] == "passed"
         assert proofs[pkg]["strength"] == "exact"
-        assert "proof-runtime-settings-compat-" in proofs[pkg]["proof"]
+        assert proofs[pkg]["proof"].startswith(f"proof-runtime-settings-compat-{pkg}")
 
 
 def test_generate_consumer_proofs_handles_missing_package(tmp_path: Path) -> None:
@@ -43,5 +43,5 @@ def test_consumer_proofs_main_entrypoint(tmp_path: Path) -> None:
     assert output_path.exists()
 
     data = json.loads(output_path.read_text(encoding="utf-8"))
-    assert "runtime" in data
+    assert data.get("runtime") is not None
     assert data["runtime"]["result"] == "passed"
