@@ -11,6 +11,7 @@ from typing import get_type_hints
 from uuid import UUID, uuid4
 
 import pytest
+from common.testing.ac_proof import ac_proof
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -112,6 +113,14 @@ def _atomic(
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-per-currency-oracle",
+    ac_ids=["AC-extraction.source-lifecycle.1"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.1",
+    oracle_kind="independent_currency_balance",
+    governance_strength="value-oracle",
+)
 async def test_AC_extraction_source_lifecycle_1_approval_is_per_currency(
     db: AsyncSession,
     test_user,
@@ -266,6 +275,14 @@ def _source_result(source_digest: str) -> StatementExtractionResult:
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-two-session-identity",
+    ac_ids=["AC-extraction.source-lifecycle.2"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.2",
+    oracle_kind="concurrent_session_identity",
+    governance_strength="concurrency",
+)
 async def test_AC_extraction_source_lifecycle_2_two_sessions_share_source_identity(
     db: AsyncSession,
     db_engine,
@@ -347,6 +364,14 @@ async def test_AC_extraction_source_lifecycle_2_two_sessions_share_source_identi
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-savepoint-recovery",
+    ac_ids=["AC-extraction.source-lifecycle.3"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.3",
+    oracle_kind="savepoint_session_isolation",
+    governance_strength="concurrency",
+)
 async def test_AC_extraction_source_lifecycle_3_conflict_preserves_outer_session(
     db_engine,
     test_user,
@@ -428,6 +453,14 @@ async def _history_fixture(db: AsyncSession, user_id: UUID) -> tuple[StatementSu
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-history-preservation",
+    ac_ids=["AC-extraction.source-lifecycle.4"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.4",
+    oracle_kind="append_only_history_schema",
+    governance_strength="schema",
+)
 async def test_AC_extraction_source_lifecycle_4_retire_preserves_history(
     db: AsyncSession,
     test_user,
@@ -463,6 +496,14 @@ async def test_AC_extraction_source_lifecycle_4_retire_preserves_history(
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-storage-failure",
+    ac_ids=["AC-extraction.source-lifecycle.5"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.5",
+    oracle_kind="storage_resilient_retirement",
+    governance_strength="exact",
+)
 async def test_AC_extraction_source_lifecycle_5_retire_does_not_delete_storage(
     db: AsyncSession,
     test_user,
@@ -485,6 +526,14 @@ async def test_AC_extraction_source_lifecycle_5_retire_does_not_delete_storage(
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-failure-retry",
+    ac_ids=["AC-extraction.source-lifecycle.6"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.6",
+    oracle_kind="retry_cardinality_convergence",
+    governance_strength="exact",
+)
 async def test_AC_extraction_source_lifecycle_6_failure_and_retry_converge(
     db: AsyncSession,
     db_engine,
@@ -594,6 +643,14 @@ async def test_AC_extraction_source_lifecycle_6_failure_and_retry_converge(
     assert storage.keys == set()
 
 
+@ac_proof(
+    "source-lifecycle-signature-contract",
+    ac_ids=["AC-extraction.source-lifecycle.7"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.7",
+    oracle_kind="typed_boundary_signatures",
+    governance_strength="exact",
+)
 def test_AC_extraction_source_lifecycle_7_boundary_is_typed() -> None:
     """AC-extraction.source-lifecycle.7: lifecycle inputs are typed values."""
     identity_hints = get_type_hints(SourceIdentityCommand)
@@ -607,6 +664,14 @@ def test_AC_extraction_source_lifecycle_7_boundary_is_typed() -> None:
     assert "dict" not in str(signature.parameters["transactions"].annotation)
 
 
+@ac_proof(
+    "source-lifecycle-purge-boundary",
+    ac_ids=["AC-extraction.source-lifecycle.8"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.8",
+    oracle_kind="ast_purge_boundary",
+    governance_strength="exact",
+)
 def test_AC_extraction_source_lifecycle_8_ordinary_api_has_no_purge_path() -> None:
     """AC-extraction.source-lifecycle.8: DELETE is retirement, never purge."""
     source = inspect.getsource(statements_router.delete_statement)
@@ -617,6 +682,14 @@ def test_AC_extraction_source_lifecycle_8_ordinary_api_has_no_purge_path() -> No
 
 
 @pytest.mark.asyncio
+@ac_proof(
+    "source-lifecycle-counterfactual-matrix",
+    ac_ids=["AC-extraction.source-lifecycle.10"],
+    ci_tier="pr_ci",
+    scenario_id="AC-extraction.source-lifecycle.10",
+    oracle_kind="adversarial_lifecycle_matrix",
+    governance_strength="exact",
+)
 async def test_AC_extraction_source_lifecycle_10_counterfactual_matrix_is_locked(
     db: AsyncSession,
     test_user,
