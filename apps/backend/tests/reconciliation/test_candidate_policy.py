@@ -150,3 +150,32 @@ async def test_batch_policy_preserves_membership_and_source_rank() -> None:
         assert row["actual_journal_entry_ids"] == match.journal_entry_ids == expected_ids
         assert row["score"] == match.match_score
         assert row["score_breakdown"] == match.score_breakdown
+
+
+def test_batch_policy_skips_unbalanced_entries() -> None:
+    """AC-reconciliation.candidate-policy.1: unbalanced entries are pruned."""
+    transactions = [
+        audit._txn(f"batch-{index}", date(2026, 1, 1), "Batch settlement", "5.00", "OUT") for index in range(2)
+    ]
+    txn = transactions[0]
+    accounts = audit._scenario_accounts(txn.user_id)
+    entry = audit._entry(
+        txn.user_id,
+        "unbalanced-entry",
+        txn.txn_date,
+        txn.description,
+        "10.00",
+        bank_account=accounts["bank"],
+        other_account=accounts["expense"],
+        direction="OUT",
+    )
+    entry.lines[0].amount = Decimal("5.00")
+    scenario = audit.AuditScenario(
+        "batch-unbalanced",
+        "Unbalanced batch candidate",
+        tuple(transactions),
+        (entry,),
+        (audit.AuditExpectation(txn.reference, audit.UNMATCHED, ()),),
+    )
+    observed = audit._evaluate_scenario(scenario, DEFAULT_CONFIG)
+    assert observed[0]["actual_journal_entry_ids"] == []
