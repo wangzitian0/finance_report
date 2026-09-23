@@ -210,7 +210,6 @@ def _exact_governance_detail(repo_root: Path) -> list[str]:
             'required_proof_strength="schema"',
             'required_proof_strength="exact"',
             'enforcing_gate="ci.backend"',
-            'enforcing_gate="ci.backend_integration"',
         ),
     )
 
