@@ -157,4 +157,26 @@ describe("useReportFilters", () => {
     expect(result.current.startDate).toBe("2025-01-01");
     expect(result.current.endDate).toBe("2025-01-31");
   });
+
+  it("treats empty-string or whitespace URL query params as absent and falls back to options or defaults", () => {
+    urlParams = new URLSearchParams({
+      as_of_date: "",
+      start_date: "   ",
+      end_date: "",
+      currency: "",
+    });
+
+    const { result } = renderHook(() =>
+      useReportFilters({
+        reportType: "balance-sheet",
+        initialAsOfDate: "2026-02-01",
+        initialCurrency: "EUR",
+      }),
+    );
+
+    expect(result.current.asOfDate).toBe("2026-02-01");
+    expect(result.current.currency).toBe("EUR");
+    expect(result.current.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.current.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });

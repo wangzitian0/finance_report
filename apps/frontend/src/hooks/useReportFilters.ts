@@ -60,14 +60,18 @@ export function useReportFilters(
   // (evaluated on mount), so they never fight user edits and no URL round-trip / router.replace
   // is performed here.
   const searchParams = useSearchParams();
+  const getParam = (key: string) => {
+    const val = searchParams.get(key);
+    return val && val.trim().length > 0 ? val.trim() : undefined;
+  };
   const initialAsOfDate =
-    searchParams.get("as_of_date") ?? options.initialAsOfDate ?? today();
+    getParam("as_of_date") ?? options.initialAsOfDate ?? today();
   const initialStartDate =
-    searchParams.get("start_date") ?? options.initialStartDate ?? today();
+    getParam("start_date") ?? options.initialStartDate ?? today();
   const initialEndDate =
-    searchParams.get("end_date") ?? options.initialEndDate ?? today();
+    getParam("end_date") ?? options.initialEndDate ?? today();
   const initialCurrency =
-    searchParams.get("currency") ?? options.initialCurrency ?? "SGD";
+    getParam("currency") ?? options.initialCurrency ?? "SGD";
 
 
   const [asOfDate, setAsOfDate] = useState(initialAsOfDate);

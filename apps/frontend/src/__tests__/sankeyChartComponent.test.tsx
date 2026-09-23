@@ -200,4 +200,28 @@ describe("SankeyChart", () => {
     expect(() => chart.setOption(option)).not.toThrow()
     chart.dispose()
   })
+
+  it("aggregates links safely when subcategory names contain separator substrings", () => {
+    render(
+      <SankeyChart
+        title="Separator Safety"
+        operating={[
+          { category: "operating", subcategory: "Alpha -> Beta", amount: "150" },
+          { category: "operating", subcategory: "Alpha -> Beta", amount: "50" },
+        ]}
+      />,
+    )
+
+    const option = sankeyMockState.capturedProps?.option as {
+      series: Array<{
+        data: Array<{ name: string }>
+        links: Array<{ source: string; target: string; value: number }>
+      }>
+    }
+    const series = option.series[0]
+    const link = series.links.find(
+      (l) => l.source === "Operating-Inflows" && l.target === "Operating-Alpha -> Beta",
+    )
+    expect(link?.value).toBe(200)
+  })
 })

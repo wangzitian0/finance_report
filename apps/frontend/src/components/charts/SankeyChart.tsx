@@ -91,7 +91,7 @@ export function SankeyChart({
 
     const addLink = (source: string, target: string, value: number) => {
       if (value <= 0) return;
-      const key = `${source} -> ${target}`;
+      const key = `${source}\0${target}`;
       const existing = linkMap.get(key);
       if (existing) {
         existing.value += value;
