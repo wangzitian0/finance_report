@@ -26,10 +26,14 @@ to be reversed.
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import secrets
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 BACKEND_DIR = ROOT_DIR / "apps" / "backend"
@@ -61,6 +65,41 @@ def _normalize_url(url: str) -> str:
     return url.replace("+asyncpg", "+psycopg2")
 
 
+def _get_schema_revision(conn: Any) -> str:
+    import sqlalchemy as sa
+
+    try:
+        res = conn.execute(
+            sa.text("SELECT version_num FROM alembic_version")
+        ).scalar_one_or_none()
+        if res:
+            return str(res)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Unable to read schema revision from alembic_version: {exc}"
+        ) from exc
+    raise RuntimeError("Missing schema revision in alembic_version table")
+
+
+def _get_anonymizer_sha() -> str:
+    env_sha = os.getenv("GITHUB_SHA")
+    if env_sha and len(env_sha) == 40:
+        return env_sha
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT_DIR),
+            timeout=5,
+        )
+        if res.returncode == 0 and len(res.stdout.strip()) == 40:
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "0" * 40
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -86,6 +125,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--secret",
         default=secrets.token_hex(32),
         help="HMAC secret for deterministic pseudonyms (default: random per run)",
+    )
+    parser.add_argument(
+        "--emit-audit-proof",
+        help="Write intermediate verified audit proof JSON to path upon clean completion",
     )
     args = parser.parse_args(argv)
 
@@ -123,6 +166,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{report.json_redacted} JSON payloads redacted, "
             f"residual scan clean"
         )
+        if args.emit_audit_proof:
+            proof = {
+                "status": "passed",
+                "classified_columns": len(plan),
+                "tables_scanned": len(Base.metadata.tables),
+                "residuals_found": 0,
+                "source_schema_revision": _get_schema_revision(conn),
+                "anonymizer_sha": _get_anonymizer_sha(),
+            }
+            Path(args.emit_audit_proof).write_text(
+                json.dumps(proof, indent=2) + "\n", encoding="utf-8"
+            )
     return 0
 
 
