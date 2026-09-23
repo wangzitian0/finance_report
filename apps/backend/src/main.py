@@ -484,10 +484,11 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 # CORS for frontend
+_cors_regex = settings.cors_origin_regex.strip() if settings.cors_origin_regex else ""
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_origin_regex=settings.cors_origin_regex or None,
+    allow_origin_regex=_cors_regex if _cors_regex and _cors_regex != "^$" else None,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization"],

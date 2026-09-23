@@ -59,7 +59,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `OTEL_SERVICE_NAME` | `finance-report-backend` |  | yes | Observability | OpenTelemetry service name. |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` |  |  | Security | Access token lifetime in minutes. |
 | `CORS_ORIGINS` |  | `http://localhost:3000,http://localhost:3001` | yes | Security | Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001. |
-| `CORS_ORIGIN_REGEX` |  | `r"https://report(-pr-\d+|-staging)?\.zitian\.party"` |  | Security | CORS origin regex for dynamic subdomains (PR deployments and staging). |
+| `CORS_ORIGIN_REGEX` | `^$` | `r"https://report(-pr-\d+|-staging)?\.zitian\.party"` |  | Security | CORS origin regex for dynamic subdomains (PR deployments and staging). |
 | `JWT_ALGORITHM` | `HS256` |  |  | Security | JWT signing algorithm. |
 | `SECRET_KEY` | `dev_secret_key_change_in_prod` | `generate_a_secure_token_for_production_here` | yes | Security | Application secret key. CRITICAL: must be set to a secure random value in production via Vault. |
 | `ENABLE_AI_CLASSIFICATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted transaction classification suggestions (default false, opt-in to avoid API costs). |
