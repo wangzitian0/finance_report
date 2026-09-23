@@ -3516,7 +3516,9 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     assert "name: unified-coverage-context" in baseline_job_block
     # The baseline content still comes from the uploaded coverage context; the
     # rise-only merge reads it instead of a blind cp (which folded dips in).
-    assert 'open("coverage-context/unified-coverage.json")' in baseline_block
+    tool_impl = read("common/testing/unified_coverage_baseline_pr.py")
+    assert "tools/open_unified_coverage_baseline_pr.py" in baseline_block
+    assert "--coverage-context coverage-context/unified-coverage.json" in baseline_block
     assert "BASELINE_BRANCH: automation/unified-coverage-baseline" in baseline_block
     # Quantized-rise guard (replaces the old byte-level `git diff --quiet`,
     # which churned a baseline PR on every ±1 covered-line jitter) and a plain
@@ -3525,11 +3527,14 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     # info"; single-writer bot branch, and the push still targets
     # $BASELINE_BRANCH — never main, asserted below — so the AC's real
     # invariant, baseline updates via PR, holds).
-    assert "kept old baseline for" in baseline_block
-    assert 'git push --force origin "HEAD:$BASELINE_BRANCH"' in baseline_block
-    assert "gh pr create" in baseline_block
-    assert "gh pr edit" in baseline_block
-    assert "HEAD:main" not in baseline_block
+    tool_impl.index("kept old baseline for")
+    tool_impl.index('"git"')
+    tool_impl.index('"push"')
+    tool_impl.index('f"HEAD:{baseline_branch}"')
+    tool_impl.index('"gh"')
+    tool_impl.index('"edit"')
+    tool_impl.index('"create"')
+    assert "HEAD:main" not in baseline_block and "HEAD:main" not in tool_impl
     assert "[skip ci]" not in baseline_block
     assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
     assert "automatic baseline PR" in ci_cd
