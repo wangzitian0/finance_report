@@ -24,6 +24,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -117,6 +118,54 @@ WORKFLOW_FORBIDDEN_PUSH_BRANCHES: dict[str, tuple[str, ...]] = {
     ".github/workflows/deploy.yml": ("main",),
     # release.yml is manual-dispatch only; a branch push must never deploy prod.
     ".github/workflows/release.yml": ("main",),
+}
+
+# Governed main-only CI jobs (#1811, mechanizing the #1686 lane invariant).
+# Every job in .github/workflows/ci.yml whose execution condition restricts it
+# to main branch pushes must declare either pr_rehearsal (dry-run command) or
+# failure_isolation (non-blocking step-level isolation).
+MAIN_ONLY_JOBS: dict[str, dict[str, Any]] = {
+    "unified-coverage-baseline-pr": {
+        "pr_rehearsal": (
+            "python",
+            "tools/open_unified_coverage_baseline_pr.py",
+            "--coverage-context",
+            "unified-coverage.json",
+            "--dry-run",
+        ),
+        "failure_isolation": True,
+        "isolation_reason": (
+            "Baseline PR creation is non-blocking automation with step continue-on-error"
+        ),
+    },
+    "evidence-bundle": {
+        "pr_rehearsal": (
+            "python",
+            "tools/generate_evidence_bundle.py",
+            "--dry-run",
+        ),
+        "failure_isolation": True,
+        "isolation_reason": (
+            "Evidence bundle aggregation is informational with step continue-on-error"
+        ),
+    },
+    "verify-sha-image-published": {
+        "pr_rehearsal": (
+            "python",
+            "tools/verify_release_images.py",
+            "--registry",
+            "ghcr.io",
+            "--image-prefix",
+            "wangzitian0/finance-report",
+            "--version-ref",
+            "0000000",
+            "--dry-run",
+        ),
+        "failure_isolation": False,
+        "isolation_reason": (
+            "Commit image verification on main is a blocking release requirement"
+        ),
+    },
 }
 
 ACTION_RUNTIME_INVENTORY = "common/testing/data/github-action-runtime.yaml"
@@ -389,6 +438,86 @@ def check_workflows(repo_root: Path, errors: list[str]) -> None:
                 )
 
 
+def find_main_only_jobs(workflow: dict[str, Any]) -> set[str]:
+    """Identify jobs in ci.yml whose execution condition restricts them to main push."""
+    jobs = workflow.get("jobs", {})
+    if not isinstance(jobs, dict):
+        return set()
+    main_only: set[str] = set()
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        if_expr = job.get("if")
+        if not isinstance(if_expr, str):
+            continue
+        if "refs/heads/main" not in if_expr:
+            continue
+        # If it has an alternative branch for PRs (like frontend_changed, image_build_required, pull_request)
+        if "||" in if_expr and any(
+            token in if_expr
+            for token in ("frontend_changed", "image_build_required", "pull_request")
+        ):
+            continue
+        main_only.add(str(job_id))
+    return main_only
+
+
+def check_main_only_jobs(repo_root: Path, errors: list[str]) -> None:
+    """Enforce pre-main rehearsal and failure isolation for main-only jobs (#1811)."""
+    ci_path = ".github/workflows/ci.yml"
+    try:
+        workflow = load_yaml(repo_root, ci_path)
+    except (FileNotFoundError, ValueError) as exc:
+        errors.append(f"{ci_path}: {exc}")
+        return
+
+    jobs = workflow.get("jobs", {})
+    detected = find_main_only_jobs(workflow)
+    declared = set(MAIN_ONLY_JOBS.keys())
+
+    missing = sorted(detected - declared)
+    if missing:
+        errors.append(
+            f"{ci_path}: main-only job(s) {missing} must declare pr_rehearsal "
+            "or failure_isolation in MAIN_ONLY_JOBS (#1811)."
+        )
+
+    stale = sorted(declared - set(jobs.keys()))
+    if stale:
+        errors.append(
+            f"{ci_path}: declared main-only job(s) {stale} not found in ci.yml."
+        )
+
+    finish_needs = set(jobs.get("finish", {}).get("needs", []))
+
+    for job_id, spec in MAIN_ONLY_JOBS.items():
+        if job_id not in jobs:
+            continue
+        rehearsal = spec.get("pr_rehearsal")
+        isolation = spec.get("failure_isolation")
+        if not rehearsal and not isolation:
+            errors.append(
+                f"{ci_path}: {job_id} must declare at least one of pr_rehearsal or failure_isolation."
+            )
+
+        if isolation:
+            if job_id in finish_needs:
+                errors.append(
+                    f"{ci_path}: {job_id} declares failure_isolation=True but is a blocking "
+                    "dependency of the 'finish' job."
+                )
+            job_steps = jobs[job_id].get("steps", [])
+            has_isolated_step = any(
+                isinstance(step, dict) and step.get("continue-on-error") is True
+                for step in job_steps
+            )
+            if not has_isolated_step:
+                errors.append(
+                    f"{ci_path}: {job_id} declares failure_isolation=True but has no step "
+                    "with continue-on-error: true."
+                )
+
+
 def check_ssot_docs(repo_root: Path, errors: list[str]) -> None:
     for path, forbidden in SSOT_FORBIDDEN_PROSE.items():
         try:
@@ -603,6 +732,7 @@ def check_action_runtime_inventory(repo_root: Path, errors: list[str]) -> None:
 def run_contract(repo_root: Path) -> int:
     errors: list[str] = []
     check_workflows(repo_root, errors)
+    check_main_only_jobs(repo_root, errors)
     check_ssot_docs(repo_root, errors)
     check_issue_templates(repo_root, errors)
     check_action_runtime_inventory(repo_root, errors)

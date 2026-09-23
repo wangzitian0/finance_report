@@ -103,13 +103,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--registry", default=os.getenv("REGISTRY", ""))
     parser.add_argument("--image-prefix", default=os.getenv("IMAGE_PREFIX", ""))
     parser.add_argument("--version-ref", default=os.getenv("VERSION_REF", ""))
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Rehearse image verification arguments without querying the container registry.",
+    )
     args = parser.parse_args(argv)
 
     try:
+        registry = _required(args.registry, "registry")
+        image_prefix = _required(args.image_prefix, "image-prefix")
+        version_ref = _required(args.version_ref, "version-ref")
+
+        if args.dry_run:
+            print(
+                f"[dry-run] Release image verification rehearsal OK for "
+                f"{registry}/{image_prefix}-{{backend,frontend}}:{version_ref}"
+            )
+            return 0
+
         digests = verify_release_images(
-            registry=_required(args.registry, "registry"),
-            image_prefix=_required(args.image_prefix, "image-prefix"),
-            version_ref=_required(args.version_ref, "version-ref"),
+            registry=registry,
+            image_prefix=image_prefix,
+            version_ref=version_ref,
         )
     except (ValueError, RuntimeError) as exc:
         print(f"verify_release_images failed: {exc}", file=sys.stderr)

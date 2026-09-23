@@ -263,3 +263,140 @@ def test_action_runtime_inventory_rejects_forced_runtime_env_without_exceptions(
     )
     workflow.write_text(content, encoding="utf-8")
     assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolation() -> (
+    None
+):
+    """AC-testing.ci-structure.15: Main-only CI jobs declare pre-main PR rehearsal or failure isolation (#1811)."""
+    import subprocess
+    import yaml
+
+    ci_yaml = yaml.safe_load(
+        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
+    detected = contract.find_main_only_jobs(ci_yaml)
+    declared = set(contract.MAIN_ONLY_JOBS.keys())
+    assert detected == declared
+
+    # Execute all declared rehearsals behaviorally via subprocess
+    for job_id, spec in contract.MAIN_ONLY_JOBS.items():
+        rehearsal = spec.get("pr_rehearsal")
+        if rehearsal:
+            cmd = [sys.executable if arg == "python" else arg for arg in rehearsal]
+            proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+            assert proc.returncode == 0, (
+                f"Rehearsal for {job_id} failed: {proc.stderr}\n{proc.stdout}"
+            )
+
+    # Verify failure isolation: isolated jobs do not block finish
+    finish_needs = set(ci_yaml.get("jobs", {}).get("finish", {}).get("needs", []))
+    for job_id, spec in contract.MAIN_ONLY_JOBS.items():
+        if spec.get("failure_isolation"):
+            assert job_id not in finish_needs
+            job_steps = ci_yaml.get("jobs", {}).get(job_id, {}).get("steps", [])
+            has_isolated_step = any(
+                isinstance(step, dict) and step.get("continue-on-error") is True
+                for step in job_steps
+            )
+            assert has_isolated_step is True
+
+
+def test_AC_testing_ci_structure_15_undeclared_main_only_job_fails(tmp_path) -> None:
+    """AC-testing.ci-structure.15: Adding an undeclared main-only job fails contract check."""
+    _copy_inputs(tmp_path)
+    target = tmp_path / ".github/workflows/ci.yml"
+    content = target.read_text(encoding="utf-8")
+    extra_job = (
+        "\n  unrehearsed-main-job:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n"
+        "    steps:\n"
+        "      - run: echo hello\n"
+    )
+    target.write_text(content + extra_job, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC_testing_ci_structure_15_unisolated_main_only_job_fails(tmp_path) -> None:
+    """AC-testing.ci-structure.15: An isolated main-only job missing continue-on-error fails."""
+    _copy_inputs(tmp_path)
+    target = tmp_path / ".github/workflows/ci.yml"
+    content = target.read_text(encoding="utf-8")
+    broken = content.replace(
+        "        continue-on-error: true\n        env:\n          GH_TOKEN:",
+        "        env:\n          GH_TOKEN:",
+    )
+    target.write_text(broken, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_AC_testing_ci_structure_15_open_baseline_pr_rise_calculation() -> None:
+    from common.testing.unified_coverage_baseline_pr import calculate_rise_merge
+
+    old_cov = {
+        "coverage_percent": 80.0,
+        "breakdown": {
+            "backend": {
+                "coverage_percent": 80.0,
+                "total_lines": 100,
+                "covered_lines": 80,
+            },
+            "frontend": {
+                "coverage_percent": 80.0,
+                "total_lines": 100,
+                "covered_lines": 80,
+            },
+        },
+    }
+    # 1. Rising breakdown component
+    new_cov_rise = {
+        "coverage_percent": 80.0,
+        "breakdown": {
+            "backend": {
+                "coverage_percent": 85.0,
+                "total_lines": 100,
+                "covered_lines": 85,
+            },
+            "frontend": {
+                "coverage_percent": 79.5,
+                "total_lines": 100,
+                "covered_lines": 79,
+            },
+        },
+    }
+    merged, rises, kept = calculate_rise_merge(old_cov, new_cov_rise)
+    backend_key = "backend"
+    frontend_key = "frontend"
+    assert backend_key in rises
+    assert frontend_key in kept
+    assert merged["breakdown"]["frontend"]["coverage_percent"] == 80.0
+
+    # 2. No rise (jitter or drop)
+    new_cov_drop = {
+        "coverage_percent": 79.9,
+        "breakdown": {
+            "backend": {
+                "coverage_percent": 79.9,
+                "total_lines": 100,
+                "covered_lines": 79,
+            },
+            "frontend": {
+                "coverage_percent": 79.9,
+                "total_lines": 100,
+                "covered_lines": 79,
+            },
+        },
+    }
+    merged_drop, rises_drop, kept_drop = calculate_rise_merge(old_cov, new_cov_drop)
+    assert not bool(rises_drop)
+    assert len(kept_drop) == 3
+
+
+def test_AC_testing_ci_structure_15_open_baseline_pr_dry_run_execution() -> None:
+    from common.testing.unified_coverage_baseline_pr import (
+        open_unified_coverage_baseline_pr,
+    )
+
+    rc = open_unified_coverage_baseline_pr(repo_root=ROOT, dry_run=True)
+    assert rc == 0
