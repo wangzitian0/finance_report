@@ -10,7 +10,6 @@ describe("normalizers", () => {
     it("normalizes AtomicTransactionResponse with default fields", () => {
       const raw: Schemas["AtomicTransactionResponse"] = {
         id: "txn-1",
-        account_id: "acc-1",
         statement_id: "stmt-1",
         txn_date: "2026-03-01",
         description: "Salary",
@@ -18,7 +17,6 @@ describe("normalizers", () => {
         direction: "CREDIT",
         reference: "REF123",
         currency: "SGD",
-        confidence_tier: "TRUSTED",
         created_at: "2026-03-01T10:00:00Z",
         updated_at: "2026-03-01T10:00:00Z",
       };
@@ -32,7 +30,6 @@ describe("normalizers", () => {
       expect(vm.direction).toBe("CREDIT");
       expect(vm.reference).toBe("REF123");
       expect(vm.currency).toBe("SGD");
-      expect(vm.confidence_tier).toBe("TRUSTED");
       expect(vm.balance_after).toBeNull();
       expect(vm.status).toBe("pending");
       expect(vm.created_at).toBe("2026-03-01T10:00:00Z");
@@ -45,6 +42,10 @@ describe("normalizers", () => {
         description: "Coffee",
         amount: "5.50",
         direction: "DEBIT",
+        txn_date: "2026-03-02",
+        reference: "COFFEE-REF",
+        confidence_tier: "HIGH",
+        statement_id: "stmt-1",
       };
 
       const vm = toTransactionViewModel(raw, {
@@ -57,9 +58,9 @@ describe("normalizers", () => {
       });
 
       expect(vm.id).toBe("summary-1");
-      expect(vm.statement_id).toBeNull();
-      expect(vm.txn_date).toBe("");
-      expect(vm.reference).toBeNull();
+      expect(vm.statement_id).toBe("stmt-1");
+      expect(vm.txn_date).toBe("2026-03-02");
+      expect(vm.reference).toBe("COFFEE-REF");
       expect(vm.currency).toBeNull();
       expect(vm.balance_after).toBe("500.00");
       expect(vm.status).toBe("matched");
@@ -76,29 +77,38 @@ describe("normalizers", () => {
     it("normalizes JournalEntryResponse with mapped lines and total_amount", () => {
       const entry: Schemas["JournalEntryResponse"] = {
         id: "je-1",
+        user_id: "user-1",
+        decision_authority_state: "anchored",
         entry_date: "2026-03-15",
         memo: "Reclassification",
-        source_type: "MANUAL",
+        source_type: "manual",
         confidence_tier: "HIGH",
         status: "posted",
         lines: [
           {
             id: "line-1",
+            journal_entry_id: "je-1",
             account_id: "acc-1",
             direction: "DEBIT",
             amount: "100.00",
             currency: "SGD",
             fx_rate: "1.0",
+            created_at: "2026-03-15T00:00:00Z",
+            updated_at: "2026-03-15T00:00:00Z",
           },
           {
             id: "line-2",
+            journal_entry_id: "je-1",
             account_id: "acc-2",
             direction: "CREDIT",
             amount: "100.00",
             currency: "SGD",
+            created_at: "2026-03-15T00:00:00Z",
+            updated_at: "2026-03-15T00:00:00Z",
           },
         ],
         created_at: "2026-03-15T00:00:00Z",
+        updated_at: "2026-03-15T00:00:00Z",
       };
 
       const vm = toJournalEntryViewModel(entry, "100.00");
@@ -127,11 +137,15 @@ describe("normalizers", () => {
     it("handles JournalEntryResponse with empty lines", () => {
       const entry: Schemas["JournalEntryResponse"] = {
         id: "je-2",
+        user_id: "user-1",
+        decision_authority_state: "anchored",
         entry_date: "2026-03-15",
         memo: "Empty entry",
-        source_type: "MANUAL",
+        source_type: "manual",
         status: "draft",
+        lines: [],
         created_at: "2026-03-15T00:00:00Z",
+        updated_at: "2026-03-15T00:00:00Z",
       };
 
       const vm = toJournalEntryViewModel(entry);
