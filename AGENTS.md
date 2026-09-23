@@ -143,16 +143,16 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ❌ No direct commits to `main`
 - ✅ User-approved parallel PR branches are allowed
 - ✅ Agents may merge a PR that meets every condition in [branch-policy.md](docs/contributing/branch-policy.md) §4
-- ❌ Agents never merge a PR that touches a protected file or triggers a deploy — those need the user's approval of that exact head SHA
+- ❌ Agents do not merge a PR that touches a protected file or whose merge reaches **production** — those need the user's approval of that exact head SHA. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4 for exactly which workflows reach which environment.
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
 - ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Reply on the thread with what changed *before* resolving it, then resolve the thread on GitHub.
 - ✅ For implementation work, the final deliverable is not complete until a ready PR is pushed and the final report includes PR URL, branch, commit SHA, draft status, `mergeable`, `mergeStateStatus`, and required-check summary.
 - ✅ If GitHub does not report `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN`, the task is not a mergeable-PR delivery; report the blocker, the failing/pending check or review thread, and the next action instead of calling the work complete. `mergeStateStatus` can flip from `CLEAN` to `DIRTY`/`BEHIND` the instant a sibling PR merges to `main` — re-check it fresh before every "ready" report, never trust an earlier snapshot; see the playbook in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 - ✅ A "verified against staging/production" claim is only true if the verification mechanism actually targeted the commit you think it did (e.g. a post-merge gate dispatched without an explicit version/commit pin defaults to whatever is *currently deployed*, which may predate your merge) — confirm and state the actual commit/version before reporting a live result.
-- ✅ Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the user merges — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
-- ✅ The user's merge (announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
-- ✅ Blocked on a user-only action (merging, product judgment)? Don't stall — state the blocker and start the next independent planned slice.
+- ✅ Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the PR is merged (by you when §4 holds, by the user otherwise) — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
+- ✅ The merge (yours or the user's, announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
+- ✅ Blocked on a decision only the user can make (product judgment, or a merge that fails §4)? Don't stall — state the blocker and start the next independent planned slice.
 
 ---
 

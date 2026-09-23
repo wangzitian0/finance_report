@@ -18,10 +18,10 @@
    - Required checks are green on the **exact head SHA being merged**, not on an earlier one.
    - Every actionable review thread is resolved — human reviewer, Copilot, or `/code-review` alike. An actionable finding requests a concrete code, documentation, test, or process change; questions and informational comments do not count.
    - The PR touches no protected file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `vision.md` — the list `common/meta/extension/check_ssot_ownership.py` enforces).
-   - Merging triggers no deploy and no other irreversible side effect.
+   - Merging must not reach **production**, and must trigger no other irreversible side effect. Scoped by environment, not by "any deploy": the automatic `report-branch-main` **preview** redeploy that `.github/workflows/notify-infra2.yml` dispatches after every green `main` CI run is expected and never blocks agent merge; a **staging** deploy (`.github/workflows/deploy.yml`, manual `workflow_dispatch`) is likewise the agent's to trigger. Only **production** is gated — it deploys exclusively through the separate, manual `.github/workflows/release.yml` (`workflow_dispatch` on a pinned `version_ref` release tag) — dispatching that workflow, or any action that otherwise promotes this head SHA to production, needs the owner's approval first.
    - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`).
 
-   A PR that fails any condition is still the agent's to prepare and the user's to merge. A PR that modifies a protected file or triggers a deploy needs the user's **explicit approval of that head SHA** — an approval of an earlier head does not carry over.
+   A PR that fails any condition is still the agent's to prepare and the user's to merge. A PR that modifies a protected file or whose merge would reach production needs the user's **explicit approval of that head SHA** — an approval of an earlier head does not carry over.
 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 
 ---

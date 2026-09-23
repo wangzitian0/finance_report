@@ -56,9 +56,8 @@ Assets = Liabilities + Equity + (Income - Expenses)
 
 ## 🔒 Agent Deliverable Scope
 
-- ❌ Agent **NEVER** merges a PR automatically.
 - ✅ Agent **MUST** ensure CI passes before reporting completion.
-- ⏸️ Merging = **User's authority**, not Agent's.
+- Merge authority is scoped by [branch-policy.md](../contributing/branch-policy.md) §4 — that section is the only source, not this one.
 
 For the full agent workflow, see [orchestration.md](./orchestration.md).
 

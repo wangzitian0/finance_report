@@ -201,6 +201,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_enum_casing_integrity.py` | `common/meta/schema.md` |
 | `tests/tooling/test_extraction_pii_mask.py` | `common/llm/readme.md#cassette-graded-eval` |
 | `tests/tooling/test_record_hf_cassettes.py` | `common/llm/readme.md#cassette-graded-eval` |
+| `tests/tooling/test_merge_authority_wording.py` | `docs/contributing/branch-policy.md` (issue #2069: merge-authority wording in `AGENTS.md` / `docs/agents/*.md` / `branch-policy.md` must not restate or contradict branch-policy.md §4, the single source) |
 
 ## Source Direct-Test Heuristic Exceptions
 

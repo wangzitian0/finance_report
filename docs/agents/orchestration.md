@@ -8,7 +8,7 @@
 
 ## Agent Deliverable Contract
 
-**What Agent Delivers**: A **mergeable PR** (NOT merged code).
+**What Agent Delivers**: A **mergeable PR**.
 
 **Definition of a mergeable PR** — every item must hold:
 - On a branch, never committed to `main`
@@ -51,14 +51,13 @@ immediately before reporting a PR ready, not just after your last push:
    draft status, `mergeable`, `mergeStateStatus`, and required-check summary
 9. 🔁 **Keep the PR mergeable while waiting**: watch for
    new CI runs, late CR comments, and conflicts caused by other merges — fix
-   them unprompted; report state changes only. Merge it yourself only when
-   every condition in [branch-policy.md](../contributing/branch-policy.md) §4
-   holds; otherwise leave the merge to the user and say why
+   them unprompted; report state changes only. Merge authority: see
+   [branch-policy.md](../contributing/branch-policy.md) §4
 10. ▶️ **On merge** (yours, detected, or announced by the user): resync `main`, rebase
     any remaining open branches, and continue the next planned slice — report
     plan progress (done / remaining) instead of asking what to do next
 
-**User Workflow**: Review → Approve / Request changes / Reject → **User merges PR**.
+**User Workflow**: Review → Approve / Request changes / Reject → merge, per [branch-policy.md](../contributing/branch-policy.md) §4.
 
 ---
 
