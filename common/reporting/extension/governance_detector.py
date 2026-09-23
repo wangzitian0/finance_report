@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 _CASH_FLOW = "apps/backend/src/reporting/extension/cash_flow.py"
 _REPORTING_INIT = "apps/backend/src/reporting/__init__.py"
@@ -36,6 +36,11 @@ def _contains(repo_root: Path, relative: str, fragments: tuple[str, ...]) -> lis
         raw_source = path.read_text(encoding="utf-8")
     except Exception as exc:
         return [f"{relative}: failed to read: {exc}"]
+    if relative.endswith(".py"):
+        try:
+            ast.parse(raw_source, filename=str(path))
+        except SyntaxError as exc:
+            return [f"{relative}: syntax error ({type(exc).__name__}): {exc}"]
     source = " ".join(raw_source.split())
     return [
         f"{relative}: missing {fragment}"
@@ -200,17 +205,12 @@ _CHECKS: tuple[tuple[str, Callable[[Path], list[str]]], ...] = (
 )
 
 
-def detect_governance(repo_root: Path | None = None) -> list[dict[str, Any]]:
+def detect_governance(*, repo_root: Path) -> list[dict[str, object]]:
     """Scan reporting cash-event projection invariants and emit detector observations."""
-    resolved_root = (
-        repo_root
-        if repo_root is not None
-        else Path(__file__).resolve().parent.parent.parent.parent
-    )
-    observations: list[dict[str, Any]] = []
+    observations: list[dict[str, object]] = []
     for guarantee_id, check in _CHECKS:
         try:
-            findings = check(resolved_root)
+            findings = check(repo_root)
         except (OSError, SyntaxError, UnicodeError) as exc:
             findings = [
                 f"{guarantee_id}: source inspection failed ({type(exc).__name__}): {exc}"
