@@ -9,11 +9,13 @@ export interface AiModelInfo {
   pricing: Record<string, string>;
 }
 
-export interface AiModelListResponse {
+export interface AiModelCatalogViewModel {
   default_model: string;
   fallback_models: string[];
   models: AiModelInfo[];
 }
+
+export type AiModelListResponse = AiModelCatalogViewModel;
 
 export async function fetchAiModels(
   options: { modality?: string; freeOnly?: boolean } = {},
