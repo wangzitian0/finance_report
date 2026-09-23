@@ -151,3 +151,18 @@ async def test_update_user_email_collision_with_soft_deleted_user_rejected(
     response = await client.put(f"/users/{test_user.id}", json={"email": deleted_email})
     assert response.status_code == 400
     assert "Invalid update data" in response.json()["detail"]
+
+
+async def test_update_user_db_integrity_error_handled(
+    client: AsyncClient,
+    test_user: User,
+) -> None:
+    """CR / #1848: Concurrent conflict causing IntegrityError on commit returns 400."""
+    with patch.object(
+        AsyncSession,
+        "commit",
+        side_effect=IntegrityError("duplicate key", params={}, orig=Exception("duplicate key")),
+    ):
+        response = await client.put(f"/users/{test_user.id}", json={"email": "new_email@example.com"})
+        assert response.status_code == 400
+        assert "Invalid update data" in response.json()["detail"]
