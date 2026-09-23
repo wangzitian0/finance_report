@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.ledger.base import (
+        PROCESSING_ACCOUNT_CODE,
         AccountingError,
         DecisionAnchor,
         DecisionAnchorError,
@@ -129,6 +130,7 @@ __all__ = [
     "JournalLineContribution",
     "LedgerError",
     "Leg",
+    "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
     "RevaluationError",
@@ -190,6 +192,7 @@ _BASE_NAMES = {
     "JournalLineContribution",
     "LedgerError",
     "Leg",
+    "PROCESSING_ACCOUNT_CODE",
     "ProcessingAccount",
     "ProcessingCurrencyConflictError",
     "ResolvedJournalContribution",

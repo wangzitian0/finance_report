@@ -19,9 +19,9 @@ DB-touching ownership check lives in the ``extension/`` adapter.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
-from uuid import UUID
 
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
@@ -40,7 +40,7 @@ class ValidationError(AccountingError):
 class Account(Protocol):
     """Structural protocol for account validation in posting invariants."""
 
-    user_id: UUID
+    user_id: Any  # Mapped[UUID] on ORM instances
     name: str
     is_system: bool
     is_active: bool
@@ -57,7 +57,7 @@ class JournalLine(Protocol):
     direction: Direction
     currency: str | None
     fx_rate: Decimal | None
-    account_id: UUID
+    account_id: Any  # Mapped[UUID] on ORM instances
     account: Account | None
 
 
@@ -68,8 +68,8 @@ JournalLinePostingProtocol = JournalLine
 class JournalEntry(Protocol):
     """Structural protocol for journal entry header in posting invariants."""
 
-    lines: list[JournalLine]
-    user_id: UUID
+    lines: Sequence[JournalLine] | Any  # Mapped[list[JournalLine]] on ORM instances
+    user_id: Any  # Mapped[UUID] on ORM instances
     source_type: Any
 
 
@@ -81,7 +81,7 @@ def _effective_base_currency(base_currency: str | None) -> str:
     return Currency.of(base_currency or DEFAULT_BASE_CURRENCY).code
 
 
-def validate_fx_rates(lines: list[JournalLine], *, base_currency: str | None = None) -> None:
+def validate_fx_rates(lines: Sequence[JournalLine], *, base_currency: str | None = None) -> None:
     """
     Validate FX rate requirements for multi-currency lines.
 
@@ -107,7 +107,7 @@ def _line_base_amount(line: JournalLine, *, base_currency: str | None = None) ->
     return Money(line.amount * line.fx_rate, base.code)  # type: ignore[arg-type]
 
 
-def validate_journal_balance(lines: list[JournalLine], *, base_currency: str | None = None) -> None:
+def validate_journal_balance(lines: Sequence[JournalLine], *, base_currency: str | None = None) -> None:
     """
     Validate that journal entry lines are balanced (debit = credit).
 

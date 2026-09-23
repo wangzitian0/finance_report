@@ -26,6 +26,7 @@ from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
+    PROCESSING_ACCOUNT_CODE,
     Account,
     AccountType,
     AnchoredJournalCommandV2,
@@ -284,6 +285,11 @@ async def _create_entry_from_txn(
         raise ValueError("Statement posting account must be an active asset account")
     if bank_account.currency != currency:
         raise ValueError("Statement posting account currency must match the transaction currency")
+    if bank_account.code == PROCESSING_ACCOUNT_CODE:
+        raise ValueError(
+            f"Statement posting cannot use Processing account ({PROCESSING_ACCOUNT_CODE}) as bank account; "
+            "external transactions must stage via AtomicTransaction"
+        )
     if (
         disposition is None
         or disposition.status is not DispositionStatus.AUTHORITATIVE
@@ -297,6 +303,11 @@ async def _create_entry_from_txn(
         raise ValueError("Disposition counter-account must be an active account owned by the user")
     if counter_account.currency != currency:
         raise ValueError("Disposition counter-account currency must match the transaction currency")
+    if counter_account.code == PROCESSING_ACCOUNT_CODE:
+        raise ValueError(
+            f"Statement posting cannot use Processing account ({PROCESSING_ACCOUNT_CODE}) as counter account; "
+            "external transactions must stage via AtomicTransaction"
+        )
     if not intent_matches_counter_account(disposition.intent, counter_account.type.value):
         raise ValueError("Disposition intent is incompatible with the counter-account type")
     if txn.direction == TransactionDirection.IN:
