@@ -1,5 +1,6 @@
 """Tooling coverage anchor for reconciliation governance detector (#1994).
 
+AC-reconciliation.economic-disposition.8: live governance detector contract proof.
 Re-exports live detector contract tests into the tooling suite so
 common/reconciliation/extension/governance_detector.py is measured under
 the `common` coverage component in CI.
