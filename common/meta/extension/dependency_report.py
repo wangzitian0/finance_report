@@ -2162,7 +2162,7 @@ _LITERAL_ENUM_BINDING = re.compile(
     r"(?:(?P<imported>src\.[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+) -> )?"
     r"apps/backend/src/(?P<owner>[A-Za-z_]\w*)/(?:[A-Za-z_]\w*/)*"
     r"[A-Za-z_]\w*\.py::(?P<symbol>[A-Za-z_]\w*) -> "
-    r"(?P<enum>class\(str, Enum\)\{"
+    r"(?P<enum>class\(str, (?:enum\.)?Enum\)\{"
     rf"[A-Za-z_]\w*=(?:{_QUOTED_FINGERPRINT_VALUE})"
     rf"(?:; [A-Za-z_]\w*=(?:{_QUOTED_FINGERPRINT_VALUE}))*\}})"
 )

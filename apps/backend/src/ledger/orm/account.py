@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -11,20 +10,11 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.ledger.base.vocabulary import AccountType
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.ledger.orm.journal import JournalLine
-
-
-class AccountType(str, enum.Enum):
-    """Account type classification."""
-
-    ASSET = "ASSET"
-    LIABILITY = "LIABILITY"
-    EQUITY = "EQUITY"
-    INCOME = "INCOME"
-    EXPENSE = "EXPENSE"
 
 
 class Account(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

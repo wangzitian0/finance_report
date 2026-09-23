@@ -24,11 +24,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from src.ledger.base.validators import ValidationError
-from src.ledger.orm.account import AccountType
-from src.ledger.orm.journal import Direction, JournalEntry
+from src.ledger.base.validators import JournalEntry, ValidationError
+from src.ledger.base.vocabulary import AccountType, Direction
 
 # The fixed identity of the Processing virtual account (SSOT P3 in
 # common/ledger/readme.md). A per-user instance is a regular ``Account`` row that
@@ -192,8 +192,8 @@ def _score_date_proximity(date1: date, date2: date) -> float:
 
 
 def _calculate_pair_confidence(
-    out_entry: JournalEntry,
-    in_entry: JournalEntry,
+    out_entry: Any,
+    in_entry: Any,
     processing_account_id: UUID | None = None,
     *,
     description_scorer: Callable[[str | None, str | None], float],

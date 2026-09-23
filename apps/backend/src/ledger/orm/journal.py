@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -22,35 +21,15 @@ from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.config import settings
 from src.database import Base
+from src.ledger.base.vocabulary import (
+    Direction,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+)
 from src.platform.orm.base import TimestampMixin, UserOwnedMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.ledger.orm.account import Account
-
-
-class JournalEntryStatus(str, enum.Enum):
-    """Status of a journal entry."""
-
-    DRAFT = "draft"
-    POSTED = "posted"
-    RECONCILED = "reconciled"
-    VOID = "void"
-
-    @classmethod
-    def _missing_(cls, value: object) -> JournalEntryStatus | None:
-        if isinstance(value, str):
-            val_lower = value.lower()
-            for member in cls:
-                if member.value == val_lower:
-                    return member
-        return None
-
-
-class JournalEntryAuthorityState(str, enum.Enum):
-    """Whether this row has a decision that can be used as accounting authority."""
-
-    ANCHORED = "anchored"
-    LEGACY_UNPROVEN = "legacy_unproven"
 
 
 ConfidenceTier = Literal["DETERMINISTIC", "TRUSTED", "HIGH", "MEDIUM", "LOW"]
@@ -93,13 +72,6 @@ def derive_confidence_tier(
         return "LOW"
     value = source_type.value if isinstance(source_type, JournalEntrySourceType) else str(source_type)
     return _SOURCE_TYPE_TIERS.get(value, "LOW")
-
-
-class Direction(str, enum.Enum):
-    """Debit or credit direction."""
-
-    DEBIT = "DEBIT"
-    CREDIT = "CREDIT"
 
 
 class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):

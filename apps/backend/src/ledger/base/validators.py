@@ -1,6 +1,6 @@
 """Pure journal-balance validators — the ledger's posting invariants as code.
 
-These operate on already-loaded ``JournalLine`` / ``JournalEntry`` objects with
+These operate on domain protocols or already-loaded ``JournalLine`` / ``JournalEntry`` objects with
 **no I/O**, so they live in ``base/`` (the pure, downward-only core). The async,
 DB-touching ownership check lives in the ``extension/`` adapter.
 
@@ -20,11 +20,12 @@ DB-touching ownership check lives in the ``extension/`` adapter.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any, Protocol, runtime_checkable
+from uuid import UUID
 
-import src.config
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
-from src.ledger.orm.journal import Direction, JournalEntry, JournalLine
+from src.ledger.base.vocabulary import DEFAULT_BASE_CURRENCY, Direction
 
 
 class AccountingError(Exception):
@@ -35,9 +36,49 @@ class ValidationError(AccountingError):
     """Validation error for accounting operations."""
 
 
+@runtime_checkable
+class Account(Protocol):
+    """Structural protocol for account validation in posting invariants."""
+
+    user_id: UUID
+    name: str
+    is_system: bool
+    is_active: bool
+
+
+AccountPostingProtocol = Account
+
+
+@runtime_checkable
+class JournalLine(Protocol):
+    """Structural protocol for journal lines in balance and posting invariant checks."""
+
+    amount: Decimal
+    direction: Direction
+    currency: str | None
+    fx_rate: Decimal | None
+    account_id: UUID
+    account: Account | None
+
+
+JournalLinePostingProtocol = JournalLine
+
+
+@runtime_checkable
+class JournalEntry(Protocol):
+    """Structural protocol for journal entry header in posting invariants."""
+
+    lines: list[JournalLine]
+    user_id: UUID
+    source_type: Any
+
+
+JournalEntryPostingProtocol = JournalEntry
+
+
 def _effective_base_currency(base_currency: str | None) -> str:
     """Normalize explicit base currency, retaining legacy caller compatibility."""
-    return Currency.of(base_currency or src.config.settings.base_currency).code
+    return Currency.of(base_currency or DEFAULT_BASE_CURRENCY).code
 
 
 def validate_fx_rates(lines: list[JournalLine], *, base_currency: str | None = None) -> None:
@@ -46,24 +87,24 @@ def validate_fx_rates(lines: list[JournalLine], *, base_currency: str | None = N
 
     Requires fx_rate when line currency differs from base currency.
     """
-    base_currency = _effective_base_currency(base_currency)
+    effective_base = _effective_base_currency(base_currency)
     for line in lines:
-        line_currency = (line.currency or base_currency).upper()
-        if line_currency != base_currency and line.fx_rate is None:
-            raise ValidationError(f"fx_rate required for currency {line_currency} (base {base_currency})")
+        line_currency = (line.currency or effective_base).upper()
+        if line_currency != effective_base and line.fx_rate is None:
+            raise ValidationError(f"fx_rate required for currency {line_currency} (base {effective_base})")
 
 
 def _line_base_amount(line: JournalLine, *, base_currency: str | None = None) -> Money:
     """Return the line value converted to the caller's base currency, as Money."""
     base = Currency.of(_effective_base_currency(base_currency))
     # Resolve an omitted in-memory currency against the explicit validation
-    # context, not JournalLine.money's legacy process-config fallback.
-    line_money = Money(line.amount, line.currency or base.code)
+    # context, not legacy process-config fallback.
+    line_money = Money(line.amount, line.currency or base.code)  # type: ignore[arg-type]
     if line_money.currency == base:
         return line_money
     if line.fx_rate is None:
         raise ValidationError(f"fx_rate required for currency {line_money.currency.code} (base {base.code})")
-    return Money(line.amount * line.fx_rate, base.code)
+    return Money(line.amount * line.fx_rate, base.code)  # type: ignore[arg-type]
 
 
 def validate_journal_balance(lines: list[JournalLine], *, base_currency: str | None = None) -> None:
@@ -72,6 +113,7 @@ def validate_journal_balance(lines: list[JournalLine], *, base_currency: str | N
 
     Args:
         lines: List of journal lines to validate
+        base_currency: Optional base currency override (defaults to DEFAULT_BASE_CURRENCY)
 
     Raises:
         ValidationError: If debits and credits don't balance
