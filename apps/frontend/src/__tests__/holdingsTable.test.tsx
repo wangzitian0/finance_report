@@ -4,28 +4,41 @@ import { HoldingsTable } from "@/components/portfolio/HoldingsTable"
 import type { PortfolioHolding } from "@/lib/types"
 import { describe, expect, it } from "vitest"
 
-const fractional: PortfolioHolding = {
+function createHolding(overrides: Partial<PortfolioHolding> & { id: string; asset_identifier: string; cost_basis: string; market_value: string }): PortfolioHolding {
+  const currency = overrides.currency ?? "USD"
+  return {
+    user_id: "u1",
+    account_id: "acc1",
+    quantity: "1",
+    unrealized_pnl: "0.00",
+    unrealized_pnl_percent: "0.00",
+    acquisition_date: "2025-01-01",
+    status: "active",
+    account_name: "BrokerA",
+    currency,
+    native_cost_basis: overrides.cost_basis,
+    native_currency: currency,
+    reporting_cost_basis: overrides.cost_basis,
+    reporting_currency: currency,
+    ...overrides,
+  }
+}
+
+const fractional: PortfolioHolding = createHolding({
   id: "h1",
-  user_id: "u1",
-  account_id: "acc1",
   asset_identifier: "FOO",
   quantity: "10.5",
   cost_basis: "1000.00",
   market_value: "1200.00",
   unrealized_pnl: "200.00",
   unrealized_pnl_percent: "20.00",
-  currency: "USD",
-  acquisition_date: "2025-01-01",
-  status: "active",
-  account_name: "BrokerA",
-}
+})
 
 const emptyHoldings: PortfolioHolding[] = []
 
 const groupedHoldings: PortfolioHolding[] = [
-  {
+  createHolding({
     id: "h2",
-    user_id: "u1",
     account_id: "acc2",
     asset_identifier: "BAR",
     quantity: "2",
@@ -33,14 +46,11 @@ const groupedHoldings: PortfolioHolding[] = [
     market_value: "210.00",
     unrealized_pnl: "10.00",
     unrealized_pnl_percent: "5.00",
-    currency: "USD",
     acquisition_date: "2025-02-01",
-    status: "active",
     account_name: "BrokerB",
-  },
-  {
+  }),
+  createHolding({
     id: "h3",
-    user_id: "u1",
     account_id: "acc2",
     asset_identifier: "BAZ",
     quantity: "3",
@@ -48,11 +58,9 @@ const groupedHoldings: PortfolioHolding[] = [
     market_value: "250.00",
     unrealized_pnl: "-50.00",
     unrealized_pnl_percent: "-16.67",
-    currency: "USD",
     acquisition_date: "2025-03-01",
-    status: "active",
     account_name: "BrokerB",
-  },
+  }),
 ]
 
 describe("HoldingsTable", () => {

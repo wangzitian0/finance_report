@@ -37,17 +37,10 @@ import {
   withAttentionSource,
 } from "@/lib/attentionNavigation";
 
-interface BalanceValidationResult {
-  opening_balance: string;
-  // null when the statement has no declared closing balance (#1390).
-  closing_balance: string | null;
-  calculated_closing: string;
-  opening_delta: string;
-  closing_delta: string;
-  opening_match: boolean;
-  closing_match: boolean;
-  validated_at: string;
-}
+import {
+  calculateEffectiveBalanceValidation,
+  type BalanceValidationResult,
+} from "@/components/review/statementReviewBalance";
 
 interface StatementReview {
   id: string;
@@ -410,43 +403,12 @@ export default function StatementReviewPage() {
     if (!data?.balance_validation_result) return null;
     if (!hasCorrections) return data.balance_validation_result;
 
-    const toCents = (val: string | number | null | undefined): number => {
-      if (val === null || val === undefined || val === "") return 0;
-      const n = typeof val === "number" ? val : parseFloat(val);
-      if (isNaN(n)) return 0;
-      return Math.round(n * 100);
-    };
-
-    const openingCents = toCents(data.opening_balance);
-    let netCents = 0;
-    for (const txn of effectiveTransactions) {
-      const amtCents = toCents(txn.amount);
-      if (txn.direction === "IN") {
-        netCents += amtCents;
-      } else {
-        netCents -= amtCents;
-      }
-    }
-    const calculatedClosingCents = openingCents + netCents;
-    const declaredClosingCents =
-      data.closing_balance !== null && data.closing_balance !== undefined
-        ? toCents(data.closing_balance)
-        : null;
-    let closingDelta = "0.00";
-    let closingMatch = true;
-
-    if (declaredClosingCents !== null) {
-      const deltaCents = calculatedClosingCents - declaredClosingCents;
-      closingDelta = (deltaCents / 100).toFixed(2);
-      closingMatch = deltaCents === 0;
-    }
-
-    return {
-      ...data.balance_validation_result,
-      calculated_closing: (calculatedClosingCents / 100).toFixed(2),
-      closing_delta: closingDelta,
-      closing_match: closingMatch,
-    };
+    return calculateEffectiveBalanceValidation(
+      data.balance_validation_result,
+      data.opening_balance,
+      data.closing_balance,
+      effectiveTransactions,
+    );
   }, [data, hasCorrections, effectiveTransactions]);
 
   if (loading) {

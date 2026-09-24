@@ -259,12 +259,12 @@ workspace packages. Each layer lives under `apps/frontend/src/`:
 | Layer | Lives in | Responsibility |
 |-------|----------|----------------|
 | **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiFetch`, `apiUpload`, `apiDownload`, `apiStream`, `apiDelete`, and typed endpoint helpers. |
-| **Money boundary** | `lib/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
-| **Quantity boundary** | `lib/quantity` | Decimal-safe quantity value type and quantity formatting. |
+| **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
+| **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
 | **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useDashboardData`, `useReportFilters`, `useCurrencies`). |
-| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges). |
-| **Feature modules** | `components/<feature>/*` | Domain UI that composes primitives + hooks (e.g. `components/reports/*`). |
-| **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only. |
+| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with local DOM accessibility hooks under `components/ui/hooks/`. |
+| **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). |
+| **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). |
 
 The intended dependency direction is:
 
@@ -275,31 +275,32 @@ app routes
       -> transport (lib/api)
         -> shared API types (lib/types)
     -> UI primitives (components/ui/*)
-    -> money/quantity boundaries (lib/money, lib/quantity)
+    -> money/quantity boundaries (lib/audit/money, lib/audit/quantity)
 ```
 
 ### Rules
 
-- **`components/ui/*` must not import business features, API clients, or React
-  Query.** Primitives stay presentational: they take props and render
+- **`components/ui/*` must not import business features, API clients, React
+  Query, or root `@/hooks/*`.** Primitives stay presentational: they take props and render
   token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
-  query hooks, or feature components.
+  query hooks, or feature components. Any DOM accessibility hooks needed by primitives
+  live inside `components/ui/hooks/` (`test_fe_layer_boundaries.py`,
+  `AC-meta.fe-contract-types.6`).
 - **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/`
   depend only on lower-level utilities and contracts. They must not import
   anything under `components/` or `app/`. The transport boundary `lib/api.ts` is
   framework-agnostic and must additionally never import React (`test_fe_layer_boundaries.py`,
   `AC-meta.fe-contract-types.6`, issue #2117).
-- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/money` /
-  `lib/quantity` when needed) but not on route components.** A hook may call
+- **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/audit/money` /
+  `lib/audit/quantity` when needed) but not on route components.** A hook may call
   `apiFetch` or `apiOperation` and shape data, but it must not import `app/**/page.tsx`
   or otherwise depend on a specific route.
 - **Feature modules compose UI primitives, query hooks, and domain logic.** This
-  is where `components/ui/*`, `hooks/*`, and `lib/money` / `lib/quantity` are
-  wired together for a concrete workflow.
-- **Route pages stay thin.** Pages should compose feature modules and express
+  is where `components/ui/*`, `hooks/*`, and `lib/audit/money` / `lib/audit/quantity` are
+  wired together for a concrete workflow aligned with backend bounded contexts.
+- **Route pages stay thin (<300 lines).** Pages should compose feature modules and express
   page-level intent. They should not own raw endpoint construction, complex inline
-  review forms (e.g. `SourceEnvelopeConfirmation`), or repeated
-  loading/error/empty/retry markup — push those into hooks and feature components.
+  review forms, or repeated loading/error/empty/retry markup (`test_fe_no_godfile.py`).
 - **Direct `apiFetch` in components/app is retired (locked at 0).**
   `common/testing/fe_fetch_ratchet.py` enforces a strict shrink-only baseline of 0
   call sites under `components/` and `app/`. Production calls use `apiOperation`
@@ -308,9 +309,10 @@ app routes
 ### Automated Layer Boundary Enforcement
 
 Layer rules are enforced by CI gates:
-- `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`).
+- `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`, `components/ui/` never imports `@/hooks/`).
 - `tests/tooling/test_fe_fetch_ratchet.py`: guards the 0-callsite baseline for raw client methods in components.
 - `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases.
+- `tests/tooling/test_fe_no_godfile.py`: guards that workflow and route page files remain under 300 lines.
 - `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions.
 
 ### Why no `shared/*` or `packages/*` directory yet
@@ -332,15 +334,15 @@ import-path rules in this section as the contract.
 ## 8. Monetary Amounts
 
 Frontend monetary display and arithmetic must use `decimal.js` through
-`src/lib/money`. Frontend quantities must use `src/lib/quantity`.
+`src/lib/audit/money`. Frontend quantities must use `src/lib/audit/quantity`.
 
 **Rules:**
 - Do not convert money with `Number()`, `parseFloat()`, or `toFixed()` in page/component code.
 - Use `formatCurrencyLocale()` for currency display; it formats from Decimal/string values without JS number precision loss.
-- Use `formatQuantity()` from `src/lib/quantity` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
+- Use `formatQuantity()` from `src/lib/audit/quantity` for portfolio and asset quantities; page/component code must not parse Decimal quantity strings through JS `number`.
 - Use `sumAmounts()`, `subtractAmounts()`, `compareAmounts()`, and `toDecimal()` for monetary calculations and comparisons.
 - Shared API types must represent decimal-bearing payload fields with `MoneyValue` or `DecimalValue`, not bare `number` field declarations.
-- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/money`.
+- `MoneyValue` and `DecimalValue` are serialized strings at the API boundary. Components may accept `number` only at rendering/chart boundaries after explicit conversion through `src/lib/audit/money`.
 - Do not calculate or display cross-currency allocation percentages from raw nominal amounts. Show per-currency amounts until the backend provides a single-currency FX-converted total.
 - Chart geometry may use `amountToChartNumber()` because chart libraries require `number` coordinates; do not reuse chart numbers for accounting totals or displayed money.
 

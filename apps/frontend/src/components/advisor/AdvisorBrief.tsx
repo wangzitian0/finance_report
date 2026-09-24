@@ -57,7 +57,7 @@ function promptForSuggestion(suggestion: AdvisorSuggestion): string {
     "Explain this Advisor Brief item using only the cited application facts.",
     `Basis: ${suggestion.basis}`,
     `Limitation: ${suggestion.limitation}`,
-    `Sources: ${suggestion.source_refs.join(", ") || "not provided"}`,
+    `Sources: ${suggestion.source_refs?.join(", ") || "not provided"}`,
     `Next action: ${safeAdvisorHref(suggestion.next_action_href)}`,
   ].join("\n");
 }
@@ -122,7 +122,7 @@ export function AdvisorBrief({
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {suggestion.source_refs.length ? (
+                {suggestion.source_refs && suggestion.source_refs.length > 0 ? (
                   suggestion.source_refs.map((source, sourceIndex) => (
                     <span key={`${source}-${sourceIndex}`} className="badge badge-info">
                       {source}

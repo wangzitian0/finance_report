@@ -19,6 +19,7 @@ from common.testing.ac_proof import ac_proof
 REPO = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = (REPO / "apps" / "frontend" / "src").resolve()
 WORKFLOW_DIR = FRONTEND_SRC / "components" / "workflow"
+HOME_PAGE_FILE = FRONTEND_SRC / "app" / "(main)" / "page.tsx"
 
 _MAX_LINES = 300
 
@@ -81,4 +82,19 @@ def test_AC_fe_no_godfile_2_cx_has_exactly_one_definition():
 
     assert hits == [_CX_CANONICAL_HOME], (
         f"cx must be defined exactly once, at {_CX_CANONICAL_HOME}: found {hits}"
+    )
+
+
+@ac_proof(
+    proof_id="test_fe_no_godfile_home_page_under_300_lines",
+    ac_ids=["AC-meta.fe-contract-types.5"],
+    ci_tier="pr_ci",
+)
+def test_AC_fe_no_godfile_3_home_page_stays_under_300_lines():
+    """AC-meta.fe-contract-types.5: apps/frontend/src/app/(main)/page.tsx must not exceed 300 lines."""
+    assert HOME_PAGE_FILE.exists(), f"Missing {HOME_PAGE_FILE}"
+    line_count = sum(1 for _ in HOME_PAGE_FILE.read_text(encoding="utf-8").splitlines())
+    assert line_count <= _MAX_LINES, (
+        f"{HOME_PAGE_FILE.relative_to(REPO)} has {line_count} lines, exceeding {_MAX_LINES}. "
+        "Decompose into domain components under components/home/."
     )

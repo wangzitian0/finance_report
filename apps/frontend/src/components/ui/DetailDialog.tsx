@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef } from "react";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useFocusTrap, useBodyScrollLock } from "./hooks";
 
 interface DetailDialogProps {
     isOpen: boolean;

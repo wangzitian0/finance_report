@@ -46,6 +46,27 @@ describe("AssetsPage", () => {
     total: 0,
   }
 
+  function mockPosition(overrides: Partial<ManagedPosition> & { id: string; asset_identifier: string }): ManagedPosition {
+    const currency = overrides.currency ?? "USD"
+    const cost_basis = overrides.cost_basis ?? "1500"
+    return {
+      user_id: "u1",
+      account_id: "acc1",
+      account_name: "IBKR",
+      quantity: "10",
+      cost_basis,
+      native_cost_basis: overrides.native_cost_basis ?? cost_basis,
+      native_currency: overrides.native_currency ?? currency,
+      acquisition_date: "2025-01-01",
+      disposal_date: null,
+      status: "active",
+      currency,
+      created_at: "2025-01-01",
+      updated_at: "2025-01-02",
+      ...overrides,
+    }
+  }
+
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
@@ -109,21 +130,15 @@ describe("AssetsPage", () => {
       if (path.includes("status_filter=disposed")) {
         return Promise.resolve({
           items: [
-            {
+            mockPosition({
               id: "p2",
-              user_id: "u1",
-              account_id: "acc1",
-              account_name: "IBKR",
               asset_identifier: "TSLA",
               quantity: "5",
               cost_basis: "1000",
-              acquisition_date: "2025-01-01",
               disposal_date: "2025-12-01",
               status: "disposed",
-              currency: "USD",
-              created_at: "2025-01-01",
               updated_at: "2025-12-01",
-            },
+            }),
           ],
           total: 1,
         } satisfies ManagedPositionListResponse)
@@ -131,21 +146,12 @@ describe("AssetsPage", () => {
 
       return Promise.resolve({
         items: [
-          {
+          mockPosition({
             id: "p1",
-            user_id: "u1",
-            account_id: "acc1",
-            account_name: "IBKR",
             asset_identifier: "AAPL",
             quantity: "10",
             cost_basis: "1500",
-            acquisition_date: "2025-01-01",
-            disposal_date: null,
-            status: "active",
-            currency: "USD",
-            created_at: "2025-01-01",
-            updated_at: "2025-01-02",
-          },
+          }),
         ],
         total: 1,
       } satisfies ManagedPositionListResponse)
@@ -234,36 +240,23 @@ describe("AssetsPage", () => {
       }
       return Promise.resolve({
       items: [
-        {
+        mockPosition({
           id: "p1",
-          user_id: "u1",
-          account_id: "acc1",
-          account_name: "IBKR",
           asset_identifier: "AAPL",
           quantity: "10",
           cost_basis: "1500",
-          acquisition_date: "2025-01-01",
-          disposal_date: null,
-          status: "active",
-          currency: "USD",
-          created_at: "2025-01-01",
-          updated_at: "2025-01-02",
-        },
-        {
+        }),
+        mockPosition({
           id: "p2",
-          user_id: "u1",
-          account_id: "acc1",
-          account_name: "IBKR",
           asset_identifier: "TSLA",
           quantity: "5",
           cost_basis: "900",
           acquisition_date: "2025-03-01",
           disposal_date: "2025-11-01",
           status: "disposed",
-          currency: "USD",
           created_at: "2025-03-01",
           updated_at: "2025-11-01",
-        },
+        }),
       ],
       total: 2,
       } satisfies ManagedPositionListResponse)
@@ -286,36 +279,24 @@ describe("AssetsPage", () => {
       }
       return Promise.resolve({
       items: [
-        {
+        mockPosition({
           id: "p1",
-          user_id: "u1",
-          account_id: "acc1",
-          account_name: "IBKR",
           asset_identifier: "AAPL",
           quantity: "10",
           cost_basis: "1500",
-          acquisition_date: "2025-01-01",
-          disposal_date: null,
-          status: "active",
-          currency: "USD",
-          created_at: "2025-01-01",
-          updated_at: "2025-01-02",
-        },
-        {
+        }),
+        mockPosition({
           id: "p3",
-          user_id: "u1",
           account_id: "acc2",
           account_name: "MOOMOO",
           asset_identifier: "9988.HK",
           quantity: "100",
           cost_basis: "800",
           acquisition_date: "2025-06-01",
-          disposal_date: null,
-          status: "active",
           currency: "HKD",
           created_at: "2025-06-01",
           updated_at: "2025-06-02",
-        },
+        }),
       ],
       total: 2,
       } satisfies ManagedPositionListResponse)
@@ -387,21 +368,12 @@ describe("AssetsPage", () => {
       }
       return Promise.resolve({
         items: [
-          {
+          mockPosition({
             id: "p1",
-            user_id: "u1",
-            account_id: "acc1",
-            account_name: "IBKR",
             asset_identifier: "BTC",
             quantity: "0.123456789",
             cost_basis: "15000",
-            acquisition_date: "2025-01-01",
-            disposal_date: null,
-            status: "active",
-            currency: "USD",
-            created_at: "2025-01-01",
-            updated_at: "2025-01-02",
-          },
+          }),
         ],
         total: 1,
       } satisfies ManagedPositionListResponse)

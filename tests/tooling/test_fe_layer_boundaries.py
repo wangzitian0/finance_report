@@ -26,6 +26,7 @@ REPO = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO / "apps" / "frontend" / "src"
 LIB_DIR = FRONTEND_SRC / "lib"
 HOOKS_DIR = FRONTEND_SRC / "hooks"
+UI_COMPONENTS_DIR = FRONTEND_SRC / "components" / "ui"
 API_TRANSPORT_FILE = LIB_DIR / "api.ts"
 
 _IMPORT_PATTERN = re.compile(
@@ -116,11 +117,32 @@ def test_AC_fe_layer_boundaries_3_hooks_never_import_app():
     )
 
 
+@ac_proof(
+    proof_id="test_fe_layer_boundaries_ui_primitives_never_import_hooks",
+    ac_ids=["AC-meta.fe-contract-types.6"],
+    ci_tier="pr_ci",
+)
+def test_AC_fe_layer_boundaries_4_ui_primitives_never_import_hooks():
+    """AC-meta.fe-contract-types.6: UI primitives under components/ui/ must not depend on query hooks in @/hooks/."""
+    violations: list[str] = []
+    for path in _source_files_in(UI_COMPONENTS_DIR):
+        content = path.read_text(encoding="utf-8")
+        for imp in _IMPORT_PATTERN.findall(content):
+            if imp.startswith("@/hooks") or imp.startswith("hooks/"):
+                violations.append(f"{path.relative_to(REPO)} illegally imports '{imp}'")
+
+    assert not violations, (
+        "Layer boundary violation: components/ui/ must not depend on @/hooks/:\n"
+        + "\n".join(violations)
+    )
+
+
 def test_AC_fe_layer_boundaries_counterfactual_catches_inverted_dependencies():
     """Antagonist proof: verify that hypothetical reverse imports are caught."""
     bad_lib_import = 'import { Button } from "@/components/ui";'
     bad_hook_import = 'import Page from "@/app/(main)/dashboard/page";'
     bad_api_import = 'import { useState } from "react";'
+    bad_ui_hook_import = 'import { useAccounts } from "@/hooks/useAccounts";'
 
     # Counterfactual 1: lib importing component
     matches_lib = [
@@ -145,3 +167,11 @@ def test_AC_fe_layer_boundaries_counterfactual_catches_inverted_dependencies():
         if imp in ("react", "react-dom")
     ]
     assert matches_api == ["react"]
+
+    # Counterfactual 4: UI component importing @/hooks/
+    matches_ui = [
+        imp
+        for imp in _IMPORT_PATTERN.findall(bad_ui_hook_import)
+        if imp.startswith("@/hooks") or imp.startswith("hooks/")
+    ]
+    assert matches_ui == ["@/hooks/useAccounts"]
