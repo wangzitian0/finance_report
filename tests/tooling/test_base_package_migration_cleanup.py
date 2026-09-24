@@ -29,7 +29,7 @@ FRONTEND_PERCENT_FILES = [
     Path("apps/frontend/src/components/portfolio/AllocationChart.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
-    Path("apps/frontend/src/app/(main)/page.tsx"),
+    Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
     Path("apps/frontend/src/app/(main)/reports/page.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
 ]
