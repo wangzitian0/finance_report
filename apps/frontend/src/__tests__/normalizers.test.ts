@@ -117,22 +117,8 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       expect(vm.memo).toBe("Reclassification");
       expect(vm.total_amount).toBe("100.00");
       expect(vm.lines).toHaveLength(2);
-      expect(vm.lines[0]).toEqual({
-        id: "line-1",
-        account_id: "acc-1",
-        direction: "DEBIT",
-        amount: "100.00",
-        currency: "SGD",
-        fx_rate: "1.0",
-      });
-      expect(vm.lines[1]).toEqual({
-        id: "line-2",
-        account_id: "acc-2",
-        direction: "CREDIT",
-        amount: "100.00",
-        currency: "SGD",
-        fx_rate: undefined,
-      });
+      expect(vm.lines[0]).toEqual(entry.lines![0]);
+      expect(vm.lines[1]).toEqual(entry.lines![1]);
     });
 
     it("handles JournalEntryResponse with empty lines", () => {

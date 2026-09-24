@@ -15,7 +15,9 @@ Issue #1985 bifurcates frontend types into:
 
 from __future__ import annotations
 
+import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from common.testing.ac_proof import ac_proof
@@ -25,10 +27,16 @@ FRONTEND_SRC = REPO / "apps" / "frontend" / "src"
 LIB_DIR = FRONTEND_SRC / "lib"
 GENERATED_API_TYPES = LIB_DIR / "api-types.ts"
 HTTP_CLIENT_BOUNDARY = LIB_DIR / "api.ts"
+OPENAPI_SPEC = REPO / "apps" / "frontend" / "openapi.json"
 
 # Matches `interface FooResponse` or `interface FooRequest`, ignoring generic `interface ListResponse<T>`.
 _WIRE_INTERFACE_DEF = re.compile(
     r"^\s*(?:export\s+)?interface\s+(\w*(?:Response|Request))\b(?!\s*<T>)", re.MULTILINE
+)
+
+# Matches any interface definition, ignoring generic `interface ListResponse<T>`.
+_ALL_INTERFACE_DEF = re.compile(
+    r"^\s*(?:export\s+)?interface\s+(\w+)\b(?!\s*<T>)", re.MULTILINE
 )
 
 # Matches exported `type FooResponse = ...` or `type FooRequest = ...`.
@@ -59,6 +67,14 @@ def _frontend_source_files(*, include_lib: bool = True) -> list[Path]:
                 continue
             files.append(path)
     return files
+
+
+@lru_cache(maxsize=1)
+def _openapi_schemas() -> frozenset[str]:
+    if not OPENAPI_SPEC.exists():
+        return frozenset()
+    data = json.loads(OPENAPI_SPEC.read_text(encoding="utf-8"))
+    return frozenset(data.get("components", {}).get("schemas", {}).keys())
 
 
 @ac_proof(
@@ -163,6 +179,83 @@ def test_AC_fe_wire_ssot_3_view_models_have_typed_normalizers():
         )
 
 
+@ac_proof(
+    proof_id="test_fe_wire_type_ssot_no_hand_declared_entity_schemas_in_src",
+    ac_ids=["AC-meta.fe-contract-types.3"],
+    ci_tier="pr_ci",
+)
+def test_AC_fe_wire_ssot_4_no_hand_declared_entity_schemas_in_src():
+    """No hand-declared interfaces in FE matching OpenAPI schema names (#2127).
+
+    Generated `lib/api-types.ts` is the single source of truth. Declaring
+    `interface Foo` where `Foo` or `FooResponse` is in OpenAPI schemas
+    creates shadow types that drift silently from the wire contract.
+    Such types must be `Schemas["..."]` aliases or explicit `*ViewModel`s.
+    """
+    schemas = _openapi_schemas()
+    assert schemas, f"OpenAPI schema definitions must exist at {OPENAPI_SPEC}"
+
+    violations: list[str] = []
+    for path in _frontend_source_files(include_lib=True):
+        content = path.read_text(encoding="utf-8")
+        for name in _ALL_INTERFACE_DEF.findall(content):
+            if name.endswith("ViewModel") or name.endswith("Props"):
+                continue
+            if name in schemas or f"{name}Response" in schemas:
+                violations.append(
+                    f"{path.relative_to(REPO)}: interface {name} shadows OpenAPI schema"
+                )
+
+    assert not violations, (
+        "Hand-declared interfaces shadow OpenAPI schemas. "
+        'Converge them to Schemas["..."] aliases in lib/types.ts or rename to *ViewModel: '
+        f"{violations}"
+    )
+
+
+@ac_proof(
+    proof_id="test_fe_wire_type_ssot_core_entities_are_schema_aliases",
+    ac_ids=["AC-meta.fe-contract-types.3"],
+    ci_tier="pr_ci",
+)
+def test_AC_fe_wire_ssot_5_core_entities_are_schema_aliases():
+    """Core domain entities and enums in lib/types.ts must be pure Schemas[...] aliases (#2127)."""
+    types_file = LIB_DIR / "types.ts"
+    assert types_file.exists(), f"Expected {types_file} to exist"
+    content = types_file.read_text(encoding="utf-8")
+
+    core_aliases = [
+        "Account",
+        "JournalLine",
+        "BankTransactionSummary",
+        "BalanceValidationResult",
+        "WorkflowPrimaryState",
+        "WorkflowNextActionType",
+        "WorkflowReportReadinessState",
+        "WorkflowEventFamily",
+        "WorkflowEventSeverity",
+        "WorkflowEventStatus",
+        "WorkflowReportImpact",
+        "WorkflowSessionStatus",
+        "ManualValuationComponentType",
+        "ManualValuationLiquidityClass",
+        "ManualValuationBasis",
+        "AiSuggestion",
+        "PingStateResponse",
+    ]
+
+    missing_aliases: list[str] = []
+    for alias in core_aliases:
+        # Matches: `export type <alias> = Schemas["..."]`
+        pattern = rf'^\s*export\s+type\s+{alias}\b\s*=\s*Schemas\["[^"]+"\];'
+        if not re.search(pattern, content, re.MULTILINE):
+            missing_aliases.append(alias)
+
+    assert not missing_aliases, (
+        f"Core domain entities/enums in lib/types.ts must be Schemas[...] aliases: {missing_aliases}"
+    )
+
+
 def test_AC_fe_wire_ssot_counterfactual_catches_shadow_wire_and_orphan_view_model():
     """Antagonist proof: verify that shadow wire interface and orphan view model trigger failures."""
     # Counterfactual 1: Hand-written FooResponse fails pattern check
@@ -197,3 +290,30 @@ def test_AC_fe_wire_ssot_counterfactual_catches_shadow_wire_and_orphan_view_mode
         if "ViewModel" in rhs
     ]
     assert shadow_matches == ["CustomReportResponse"]
+
+    # Counterfactual 5: Hand-written interface Account is caught by entity schema check
+    bad_account_interface = "export interface Account { id: string; name: string; }"
+    account_matches = [
+        name
+        for name in _ALL_INTERFACE_DEF.findall(bad_account_interface)
+        if name in {"Account", "AccountResponse"}
+        or f"{name}Response" in {"AccountResponse"}
+    ]
+    assert "Account" in account_matches
+
+    # Counterfactual 6: Hand-written BalanceValidationResult is caught by entity schema check
+    bad_balance_interface = (
+        "export interface BalanceValidationResult { opening_balance: string; }"
+    )
+    balance_matches = [
+        name
+        for name in _ALL_INTERFACE_DEF.findall(bad_balance_interface)
+        if name in {"BalanceValidationResult"}
+        or f"{name}Response" in {"BalanceValidationResultResponse"}
+    ]
+    assert "BalanceValidationResult" in balance_matches
+
+    # Counterfactual 7: Hand-written enum union fails core alias check
+    fake_types_content = "export type WorkflowPrimaryState = 'open' | 'closed';"
+    pattern = r'^\s*export\s+type\s+WorkflowPrimaryState\b\s*=\s*Schemas\["[^"]+"\];'
+    assert re.search(pattern, fake_types_content, re.MULTILINE) is None

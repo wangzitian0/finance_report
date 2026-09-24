@@ -27,7 +27,7 @@ const SESSION_KEY = "ai_chat_session_id";
 const MODEL_KEY = "ai_chat_model_v1";
 
 type ChatRole = "user" | "assistant";
-interface ChatMessage {
+interface ChatBubbleViewModel {
   id: string;
   role: ChatRole;
   content: string;
@@ -66,7 +66,7 @@ const formatErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unable to send the message.";
 const parseChatMetadata = (
   response: Response,
-): Pick<ChatMessage, "citations" | "actions"> | undefined => {
+): Pick<ChatBubbleViewModel, "citations" | "actions"> | undefined => {
   const headers = response.headers as Headers | undefined;
   const raw =
     typeof headers?.get === "function"
@@ -105,7 +105,7 @@ export default function ChatPanel({
   initialPrompt,
   onClose,
 }: ChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatBubbleViewModel[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -253,7 +253,7 @@ export default function ChatPanel({
       id: string,
       content: string,
       streaming?: boolean,
-      metadata?: Pick<ChatMessage, "citations" | "actions">,
+      metadata?: Pick<ChatBubbleViewModel, "citations" | "actions">,
     ) => {
       setMessages((prev) =>
         prev.map((i) =>
@@ -268,7 +268,7 @@ export default function ChatPanel({
     async (
       response: Response,
       assistantId: string,
-      metadata?: Pick<ChatMessage, "citations" | "actions">,
+      metadata?: Pick<ChatBubbleViewModel, "citations" | "actions">,
     ) => {
       const reader = response.body?.getReader();
       if (!reader) {
@@ -303,13 +303,13 @@ export default function ChatPanel({
     async (text?: string) => {
       const messageText = (text ?? input).trim();
       if (!messageText || isStreaming) return;
-      const userMessage: ChatMessage = {
+      const userMessage: ChatBubbleViewModel = {
         id: `user-${Date.now()}`,
         role: "user",
         content: messageText,
       };
       const assistantId = `assistant-${Date.now()}`;
-      const assistantMessage: ChatMessage = {
+      const assistantMessage: ChatBubbleViewModel = {
         id: assistantId,
         role: "assistant",
         content: "",

@@ -105,14 +105,7 @@ export function toJournalEntryViewModel(
 ): JournalEntryViewModel {
   return {
     ...entry,
-    lines: (entry.lines ?? []).map((line) => ({
-      id: line.id,
-      account_id: line.account_id,
-      direction: line.direction,
-      amount: line.amount,
-      currency: line.currency,
-      fx_rate: line.fx_rate,
-    })),
+    lines: entry.lines ?? [],
     total_amount,
   };
 }
