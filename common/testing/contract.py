@@ -4791,7 +4791,6 @@ CONTRACT = PackageContract(
                 "common/testing/ac_score_baseline_format.py",
                 "common/testing/check_ac_score_baseline.py",
                 "tools/check_ac_score_baseline.py",
-                "tools/migrate_proof_index_storage.py",
                 "tests/tooling/test_ac_evidence_pipeline.py",
             ],
             family="tdd",
