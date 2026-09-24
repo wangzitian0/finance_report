@@ -5,9 +5,9 @@
 # Every external item is pinned to an immutable upstream commit SHA and guarded
 # by an exact SHA-256 checksum.
 
-version: "1.0"
-benchmark_suite: "finance_report_five_core_scenarios"
-updated_at: "2026-09-17"
+version: "2.0"
+benchmark_suite: "finance_report_five_core_scenarios_v2"
+updated_at: "2026-09-24"
 
 fixtures:
   - id: "docubench_carson_bank"
@@ -89,3 +89,81 @@ fixtures:
     local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
     cases:
       - "case_1_consecutive_rollforward"
+      - "case_4_multicurrency"
+
+  - id: "bankstatemently_liberty_national"
+    name: "Liberty National Bank Statement (United States)"
+    doc_type: "bank_statement"
+    institution: "Liberty National"
+    currency: "USD"
+    pages: 3
+    source_platform: "github"
+    source_repo: "bankstatemently/bank-statement-parsing-benchmark"
+    commit_sha: "dd6803b3e9e4d827a54ebbdbb3bee801dade5547"
+    source_url: "https://github.com/bankstatemently/bank-statement-parsing-benchmark/blob/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-002/bsb-002-statement.pdf"
+    download_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-002/bsb-002-statement.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-002/statement-info.json"
+    sha256: "3700a073ac1262173cbabbd5667cd3a59e04cf0b14e3a865ae25ce21089ab97d"
+    file_size_bytes: 55807
+    license: "MIT"
+    local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_002_liberty_national.pdf"
+    cases:
+      - "case_4_multicurrency"
+
+  - id: "bankstatemently_silk_road"
+    name: "Silk Road Bank Statement (Hong Kong)"
+    doc_type: "bank_statement"
+    institution: "Silk Road"
+    currency: "HKD"
+    pages: 3
+    source_platform: "github"
+    source_repo: "bankstatemently/bank-statement-parsing-benchmark"
+    commit_sha: "dd6803b3e9e4d827a54ebbdbb3bee801dade5547"
+    source_url: "https://github.com/bankstatemently/bank-statement-parsing-benchmark/blob/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-004/bsb-004-statement.pdf"
+    download_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-004/bsb-004-statement.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/bankstatemently/bank-statement-parsing-benchmark/dd6803b3e9e4d827a54ebbdbb3bee801dade5547/datasets/basic/bsb-004/statement-info.json"
+    sha256: "67a5b862696fc06e675db53867be6fcc71a4ecc13998193e8b45e2cd63371051"
+    file_size_bytes: 75960
+    license: "MIT"
+    local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_004_silk_road.pdf"
+    cases:
+      - "case_4_multicurrency"
+
+  - id: "docubench_w2_tax_statement"
+    name: "Form W-2 Wage and Tax Statement"
+    doc_type: "tax_statement"
+    institution: "Internal Revenue Service / Employer"
+    currency: "USD"
+    pages: 3
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/phovuuuk.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/phovuuuk.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/phovuuuk.json"
+    sha256: "7d3fb063fd2f8e1d49e60ccd4c7ddae7ecb8f56cb021012df29c73e498e60e94"
+    file_size_bytes: 1512470
+    license: "vendor sample / public form"
+    local_path: "common/testing/fixtures/benchmarks/docubench/phovuuuk_w2_tax_statement.pdf"
+    cases:
+      - "case_5_holistic_multi_asset_tax"
+
+  - id: "docubench_payslip_statement"
+    name: "Earnings / Payslip Statement"
+    doc_type: "payslip"
+    institution: "Corporate Payroll"
+    currency: "USD"
+    pages: 1
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/Oe7iRM1G.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/Oe7iRM1G.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/Oe7iRM1G.json"
+    sha256: "89f8b803c66027555833f013960348b2459f3d834dbe98abf69187d8f09d4472"
+    file_size_bytes: 18959
+    license: "vendor sample"
+    local_path: "common/testing/fixtures/benchmarks/docubench/Oe7iRM1G_payslip_statement.pdf"
+    cases:
+      - "case_2_household_multi_pii"
+      - "case_5_holistic_multi_asset_tax"
