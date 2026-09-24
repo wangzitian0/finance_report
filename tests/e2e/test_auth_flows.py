@@ -135,6 +135,11 @@ async def test_login_api_path(page: Page):
         f"Double /api prefix detected: {api_request_path}"
     )
 
+    # Verify expected path format
+    assert "/api/auth/login" in api_request_path or "/auth/login" in api_request_path, (
+        f"Unexpected API path: {api_request_path}"
+    )
+
 
 @pytest.mark.asyncio
 async def test_full_registration_flow(page: Page):
