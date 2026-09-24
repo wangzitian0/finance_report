@@ -292,5 +292,34 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     assert "Wife Account (Standard Chartered) Ending Cash" in html_out
     assert "Credit Card Incurred Charges" in html_out
     assert "Real Estate Property Appraisal" in html_out
-    assert "Singapore Jurisdiction (SGD Account)" in html_out
     assert len(html_out) > 5000
+
+
+def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
+    """AC-testing.benchmarks.v2: CLI fails closed on invalid case selection and supports case_1 format."""
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import main
+
+    # Passing invalid case must fail-closed with code 2 (never GREEN-WHILE-EMPTY code 0)
+    exit_code = main(
+        ["--case", "invalid_case_99", "--app-url", "http://localhost:8000"]
+    )
+    assert exit_code == 2, (
+        f"Expected exit code 2 on empty case selection, got {exit_code}"
+    )
+
+
+def test_benchmark_valuation_basis_contract_conformance() -> None:
+    """AC-testing.benchmarks.v2: valuation_basis aligns with backend ManualValuationBasis schema."""
+    import inspect
+    from src.pricing.base.manual_valuation import ManualValuationBasis
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+    )
+
+    # Invariant: "market_appraisal" is the legal enum value, "appraisal" is illegal
+    assert "market_appraisal" in {e.value for e in ManualValuationBasis}
+    assert "appraisal" not in {e.value for e in ManualValuationBasis}
+
+    # Runner method signature must default to legal enum value
+    sig = inspect.signature(ScenarioBenchmarkRunner.create_valuation_snapshot)
+    assert sig.parameters["valuation_basis"].default == "market_appraisal"

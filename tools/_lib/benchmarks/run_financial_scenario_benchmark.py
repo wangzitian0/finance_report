@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -34,12 +35,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from tools._lib.benchmarks.benchmark_html_reporter import (
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tools._lib.benchmarks.benchmark_html_reporter import (  # noqa: E402
     extract_summary_data,
     generate_html_report,
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass
@@ -371,7 +374,7 @@ class ScenarioBenchmarkRunner:
         value: str,
         currency: str,
         source: str,
-        valuation_basis: str = "appraisal",
+        valuation_basis: str = "market_appraisal",
         liquidity_class: str = "illiquid",
         notes: str | None = None,
     ) -> dict[str, Any]:
@@ -1014,95 +1017,99 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         m1_institution = m1_refreshed.get("institution") or "Standard Chartered Bank"
         print(f"        M1 Account ID: {m1_account_id} (Institution: {m1_institution})")
 
-        # --- Month 2 (Feb 2025) ---
-        m1_closing = Decimal(m1_data["closing_balance"])
-        m2_tmp_pdf = Path("/tmp/case1_m2_scb.pdf")
-        m2_bytes = generate_consecutive_month2_pdf(
-            m2_tmp_pdf, opening_balance=m1_closing
-        )
+        # --- Month 2, 3, 4 with isolated tempdir ---
+        with tempfile.TemporaryDirectory() as td:
+            temp_dir = Path(td)
 
-        print(
-            f"  [3/9] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
-        )
-        m2_id = runner.upload_statement(
-            client,
-            m2_bytes,
-            "scb_month2_chained.pdf",
-            account_id=m1_account_id,
-            institution=m1_institution,
-        )
-        m2_data = runner.wait_for_statement_parsed(client, m2_id)
-        print(
-            f"        M2 parsed: Opening={m2_data['opening_balance']}, Closing={m2_data['closing_balance']}, Txns={len(m2_data.get('transactions', []))}"
-        )
+            # --- Month 2 (Feb 2025) ---
+            m1_closing = Decimal(m1_data["closing_balance"])
+            m2_tmp_pdf = temp_dir / "case1_m2_scb.pdf"
+            m2_bytes = generate_consecutive_month2_pdf(
+                m2_tmp_pdf, opening_balance=m1_closing
+            )
 
-        m2_opening = Decimal(m2_data["opening_balance"])
-        assert m2_opening == m1_closing, (
-            f"Balance chain break: M1 closing ({m1_closing}) != M2 opening ({m2_opening})"
-        )
-        assert m2_data.get("balance_validated") is True, (
-            f"M2 balance not validated: {m2_data}"
-        )
+            print(
+                f"  [3/9] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
+            )
+            m2_id = runner.upload_statement(
+                client,
+                m2_bytes,
+                "scb_month2_chained.pdf",
+                account_id=m1_account_id,
+                institution=m1_institution,
+            )
+            m2_data = runner.wait_for_statement_parsed(client, m2_id)
+            print(
+                f"        M2 parsed: Opening={m2_data['opening_balance']}, Closing={m2_data['closing_balance']}, Txns={len(m2_data.get('transactions', []))}"
+            )
 
-        runner.adjudicate_unmatched_items(client, m2_id)
-        m2_app = runner.approve_statement(client, m2_id)
-        print(f"        M2 approved successfully (status={m2_app['status']})")
+            m2_opening = Decimal(m2_data["opening_balance"])
+            assert m2_opening == m1_closing, (
+                f"Balance chain break: M1 closing ({m1_closing}) != M2 opening ({m2_opening})"
+            )
+            assert m2_data.get("balance_validated") is True, (
+                f"M2 balance not validated: {m2_data}"
+            )
 
-        # --- Month 3 (Mar 2025 - Q1 Close) ---
-        m2_closing = Decimal(m2_data["closing_balance"])
-        m3_tmp_pdf = Path("/tmp/case1_m3_scb.pdf")
-        m3_bytes = generate_consecutive_month3_pdf(
-            m3_tmp_pdf, opening_balance=m2_closing
-        )
+            runner.adjudicate_unmatched_items(client, m2_id)
+            m2_app = runner.approve_statement(client, m2_id)
+            print(f"        M2 approved successfully (status={m2_app['status']})")
 
-        print(
-            f"  [4/9] Uploading Month 3 (Mar 2025) chained statement linked to account {m1_account_id}..."
-        )
-        m3_id = runner.upload_statement(
-            client,
-            m3_bytes,
-            "scb_month3_chained.pdf",
-            account_id=m1_account_id,
-            institution=m1_institution,
-        )
-        m3_data = runner.wait_for_statement_parsed(client, m3_id)
-        print(
-            f"        M3 parsed: Opening={m3_data['opening_balance']}, Closing={m3_data['closing_balance']}, Txns={len(m3_data.get('transactions', []))}"
-        )
+            # --- Month 3 (Mar 2025 - Q1 Close) ---
+            m2_closing = Decimal(m2_data["closing_balance"])
+            m3_tmp_pdf = temp_dir / "case1_m3_scb.pdf"
+            m3_bytes = generate_consecutive_month3_pdf(
+                m3_tmp_pdf, opening_balance=m2_closing
+            )
 
-        m3_opening = Decimal(m3_data["opening_balance"])
-        assert m3_opening == m2_closing, (
-            f"Balance chain break: M2 closing ({m2_closing}) != M3 opening ({m3_opening})"
-        )
-        assert m3_data.get("balance_validated") is True, (
-            f"M3 balance not validated: {m3_data}"
-        )
+            print(
+                f"  [4/9] Uploading Month 3 (Mar 2025) chained statement linked to account {m1_account_id}..."
+            )
+            m3_id = runner.upload_statement(
+                client,
+                m3_bytes,
+                "scb_month3_chained.pdf",
+                account_id=m1_account_id,
+                institution=m1_institution,
+            )
+            m3_data = runner.wait_for_statement_parsed(client, m3_id)
+            print(
+                f"        M3 parsed: Opening={m3_data['opening_balance']}, Closing={m3_data['closing_balance']}, Txns={len(m3_data.get('transactions', []))}"
+            )
 
-        runner.adjudicate_unmatched_items(client, m3_id)
-        m3_app = runner.approve_statement(client, m3_id)
-        print(f"        M3 approved successfully (status={m3_app['status']})")
+            m3_opening = Decimal(m3_data["opening_balance"])
+            assert m3_opening == m2_closing, (
+                f"Balance chain break: M2 closing ({m2_closing}) != M3 opening ({m3_opening})"
+            )
+            assert m3_data.get("balance_validated") is True, (
+                f"M3 balance not validated: {m3_data}"
+            )
 
-        # --- Month 4 (Apr 2025 - Q2 Transition) ---
-        m3_closing = Decimal(m3_data["closing_balance"])
-        m4_tmp_pdf = Path("/tmp/case1_m4_scb.pdf")
-        m4_bytes = generate_consecutive_month4_pdf(
-            m4_tmp_pdf, opening_balance=m3_closing
-        )
+            runner.adjudicate_unmatched_items(client, m3_id)
+            m3_app = runner.approve_statement(client, m3_id)
+            print(f"        M3 approved successfully (status={m3_app['status']})")
 
-        print(
-            f"  [5/9] Uploading Month 4 (Apr 2025) chained statement linked to account {m1_account_id}..."
-        )
-        m4_id = runner.upload_statement(
-            client,
-            m4_bytes,
-            "scb_month4_chained.pdf",
-            account_id=m1_account_id,
-            institution=m1_institution,
-        )
-        m4_data = runner.wait_for_statement_parsed(client, m4_id)
-        print(
-            f"        M4 parsed: Opening={m4_data['opening_balance']}, Closing={m4_data['closing_balance']}, Txns={len(m4_data.get('transactions', []))}"
-        )
+            # --- Month 4 (Apr 2025 - Q2 Transition) ---
+            m3_closing = Decimal(m3_data["closing_balance"])
+            m4_tmp_pdf = temp_dir / "case1_m4_scb.pdf"
+            m4_bytes = generate_consecutive_month4_pdf(
+                m4_tmp_pdf, opening_balance=m3_closing
+            )
+
+            print(
+                f"  [5/9] Uploading Month 4 (Apr 2025) chained statement linked to account {m1_account_id}..."
+            )
+            m4_id = runner.upload_statement(
+                client,
+                m4_bytes,
+                "scb_month4_chained.pdf",
+                account_id=m1_account_id,
+                institution=m1_institution,
+            )
+            m4_data = runner.wait_for_statement_parsed(client, m4_id)
+            print(
+                f"        M4 parsed: Opening={m4_data['opening_balance']}, Closing={m4_data['closing_balance']}, Txns={len(m4_data.get('transactions', []))}"
+            )
 
         m4_opening = Decimal(m4_data["opening_balance"])
         m4_closing = Decimal(m4_data["closing_balance"])
@@ -1512,13 +1519,14 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
         # 3. Bank Statement Payment Outflow
         print("  [4/6] Uploading Bank Statement with 1,200.00 SGD Card Payment...")
-        pdf_tmp = Path("/tmp/case3_cc_repay_bank.pdf")
-        pdf_bytes = generate_credit_card_repayment_bank_pdf(
-            pdf_tmp, opening_balance=Decimal("10000.00")
-        )
-        stmt_id = runner.upload_statement(
-            client, pdf_bytes, "dbs_bank_cc_repayment.pdf", institution="DBS Bank"
-        )
+        with tempfile.TemporaryDirectory() as td:
+            pdf_tmp = Path(td) / "case3_cc_repay_bank.pdf"
+            pdf_bytes = generate_credit_card_repayment_bank_pdf(
+                pdf_tmp, opening_balance=Decimal("10000.00")
+            )
+            stmt_id = runner.upload_statement(
+                client, pdf_bytes, "dbs_bank_cc_repayment.pdf", institution="DBS Bank"
+            )
         stmt_data = runner.wait_for_statement_parsed(client, stmt_id)
         print(
             f"        Bank Statement Parsed: Opening={stmt_data['opening_balance']}, Closing={stmt_data['closing_balance']}"
@@ -1864,7 +1872,23 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
         assert "AAPL" in symbols, f"Expected AAPL in holdings: {symbols}"
         assert "VT" in symbols, f"Expected VT in holdings: {symbols}"
 
-        # 4. Register Real Estate Property Valuation Snapshot (DocuBench FHA 1004)
+        # 4. Verify Tax Statement Fixtures (Form W-2 & Payslip)
+        w2_fixture = (
+            REPO_ROOT
+            / "common/testing/fixtures/benchmarks/docubench/phovuuuk_w2_tax_statement.pdf"
+        )
+        payslip_fixture = (
+            REPO_ROOT
+            / "common/testing/fixtures/benchmarks/docubench/Oe7iRM1G_payslip_statement.pdf"
+        )
+        assert w2_fixture.exists(), (
+            f"Form W-2 tax statement fixture missing: {w2_fixture}"
+        )
+        assert payslip_fixture.exists(), (
+            f"Earnings payslip statement fixture missing: {payslip_fixture}"
+        )
+
+        # 5. Register Real Estate Property Valuation Snapshot (DocuBench FHA 1004)
         print(
             "  [5/6] Registering Real Estate Property Appraisal from DocuBench (350,000.00 USD)..."
         )
@@ -1875,7 +1899,7 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
             value="350000.00",
             currency="USD",
             source="DocuBench FHA 1004 Appraisal (KpewWz3R)",
-            valuation_basis="appraisal",
+            valuation_basis="market_appraisal",
             liquidity_class="illiquid",
             notes="Residential property appraisal from DocuBench fixture KpewWz3R.pdf",
         )
@@ -2019,27 +2043,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         base_url=args.app_url, timeout=args.timeout, verify=not args.insecure
     )
 
-    requested = [c.strip().lower() for c in args.case.split(",")]
+    requested = [c.strip().lower() for c in args.case.split(",") if c.strip()]
     run_all = "all" in requested
+
+    def _should_run(case_num: str) -> bool:
+        return (
+            run_all
+            or case_num in requested
+            or f"case_{case_num}" in requested
+            or f"case{case_num}" in requested
+        )
 
     results: list[CaseResult] = []
 
-    if run_all or "1" in requested:
+    if _should_run("1"):
         results.append(execute_case_1(runner))
 
-    if run_all or "2" in requested:
+    if _should_run("2"):
         results.append(execute_case_2(runner))
 
-    if run_all or "3" in requested:
+    if _should_run("3"):
         results.append(execute_case_3(runner))
 
-    if run_all or "4" in requested:
+    if _should_run("4"):
         results.append(execute_case_4(runner))
 
-    if run_all or "5" in requested:
+    if _should_run("5"):
         results.append(execute_case_5(runner))
 
-    all_passed = all(r.status == "PASS" for r in results)
+    if not results:
+        print("❌ Error: No valid benchmark cases selected.", file=sys.stderr)
+        return 2
+
+    all_passed = bool(results) and all(r.status == "PASS" for r in results)
 
     # Save JSON report
     report_data = {
