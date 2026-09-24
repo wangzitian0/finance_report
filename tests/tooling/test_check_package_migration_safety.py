@@ -5,10 +5,8 @@ from __future__ import annotations
 import pytest
 
 from common.meta.base.gate_cli import REPO_ROOT
-from common.meta.extension import (
-    check_package_migration_safety as safety_gate,
-    check_tier_ast_literal,
-)
+from common.meta.extension import check_tier_ast_literal
+from common.testing import check_package_migration_safety as safety_gate
 
 
 def test_clean_tree_package_migration_safety_passes() -> None:
