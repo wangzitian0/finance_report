@@ -4,14 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiOperation } from "@/lib/api-client";
 import { BackLink } from "@/components/ui/BackLink";
-
-interface AiSuggestion {
-  suggestion_id: string;
-  transaction: string;
-  suggested_category_or_match: string;
-  ai_score: number;
-  ai_reasoning: string;
-}
+import type { AiSuggestion } from "@/lib/types";
 
 type FeedbackAction = "accept" | "reject" | "edit_accept";
 

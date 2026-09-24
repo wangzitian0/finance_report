@@ -18,6 +18,8 @@ vi.mock("next/link", () => ({
 const baseStatement: BankStatement = {
     id: "s1",
     user_id: "u1",
+    account_id: null,
+    account_last4: null,
     file_path: "/tmp/s1.pdf",
     original_filename: "statement-jan.pdf",
     institution: "DBS",

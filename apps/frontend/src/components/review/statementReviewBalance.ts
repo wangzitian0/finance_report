@@ -1,16 +1,8 @@
 import Decimal from "decimal.js";
 import { formatAmount, isAmountZero } from "@/lib/audit/money";
+import type { BalanceValidationResult } from "@/lib/types";
 
-export interface BalanceValidationResult {
-  opening_balance: string;
-  closing_balance: string | null;
-  calculated_closing: string;
-  opening_delta: string;
-  closing_delta: string;
-  opening_match: boolean;
-  closing_match: boolean;
-  validated_at: string;
-}
+export type { BalanceValidationResult };
 
 export interface ReviewBalanceTransaction {
   amount: string;

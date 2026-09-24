@@ -3,17 +3,7 @@
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { MoneyValue } from "@/lib/types";
 
-interface BalanceValidationResult {
-    opening_balance: string;
-    // null when the statement has no declared closing balance (#1390).
-    closing_balance: string | null;
-    calculated_closing: string;
-    opening_delta: string;
-    closing_delta: string;
-    opening_match: boolean;
-    closing_match: boolean;
-    validated_at: string;
-}
+import type { BalanceValidationResult } from "./statementReviewBalance";
 
 interface BalanceIndicatorProps {
     openingBalance: MoneyValue | null;

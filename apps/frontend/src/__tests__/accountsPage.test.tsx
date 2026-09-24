@@ -11,6 +11,20 @@ import type { Account, AccountListResponse } from "@/lib/types"
 import { accountsListVector } from "./fixtures/apiVectors"
 import { createInvalidationProbe } from "./fixtures/invalidationProbe"
 
+function mockAccount(overrides: Partial<Account> & { id: string; name: string }): Account {
+  return {
+    type: "ASSET",
+    currency: "SGD",
+    is_active: true,
+    balance: "1000",
+    is_system: false,
+    user_id: "u1",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  }
+}
+
 const showToastMock = vi.fn()
 
 vi.mock("@/components/ui/Toast", () => ({
@@ -114,7 +128,7 @@ describe("AccountsPage", () => {
   it("AC16.15.3 delete action confirms and calls delete API with success toast", async () => {
     mockedApiFetch
       .mockResolvedValueOnce({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
       .mockResolvedValueOnce(undefined)
@@ -144,7 +158,7 @@ describe("AccountsPage", () => {
       if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
       if (opts?.method === "DELETE") return Promise.resolve(undefined)
       return Promise.resolve({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
     })
@@ -168,7 +182,7 @@ describe("AccountsPage", () => {
       if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
       if (opts?.method === "DELETE") return Promise.reject(new Error("Cannot delete account with transactions"))
       return Promise.resolve({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
     })
@@ -201,7 +215,7 @@ describe("AccountsPage", () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
       return Promise.resolve({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
     })
@@ -221,7 +235,7 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts-journal.4
   it("AC16.15.7 edit button opens modal with account data", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      items: [mockAccount({ id: "a1", name: "Cash" })],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -235,7 +249,7 @@ describe("AccountsPage", () => {
   // AC-meta.fe-app-shell.24
   it("AC16.28.2 AC16.28.3 exposes account row icon actions with accessible labels", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      items: [mockAccount({ id: "a1", name: "Cash" })],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -249,7 +263,7 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts-journal.5
   it("AC16.15.8 Add Account button opens create modal", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      items: [mockAccount({ id: "a1", name: "Cash" })],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -266,11 +280,9 @@ describe("AccountsPage", () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
       accountsCall += 1
-      const items: Account[] = [
-        { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" },
-      ]
+      const items: Account[] = [mockAccount({ id: "a1", name: "Cash" })]
       if (accountsCall > 1) {
-        items.push({ id: "a2", name: "Savings", type: "ASSET", currency: "SGD", is_active: true, balance: "5000" })
+        items.push(mockAccount({ id: "a2", name: "Savings", balance: "5000" }))
       }
       return Promise.resolve({ items, total: items.length } satisfies AccountListResponse)
     })
@@ -289,7 +301,7 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts-journal.7
   it("AC16.15.10 modal onClose closes modal and clears editing state", async () => {
     mockedApiFetch.mockResolvedValueOnce({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      items: [mockAccount({ id: "a1", name: "Cash" })],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -310,16 +322,12 @@ describe("AccountsPage", () => {
       if (path.startsWith("/api/accounts")) {
         return Promise.resolve({
           items: [
-            {
+            mockAccount({
               id: "a1",
               name: "Cash",
-              type: "ASSET",
-              currency: "SGD",
-              is_active: true,
-              balance: "1000",
               code: "1000",
               description: "Operating cash",
-            },
+            }),
           ],
           total: 1,
         } satisfies AccountListResponse)
@@ -345,7 +353,7 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts2.2
   it("AC2.15.8 opens the guided opening-balance modal and refreshes on success", async () => {
     mockedApiFetch.mockResolvedValue({
-      items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+      items: [mockAccount({ id: "a1", name: "Cash" })],
       total: 1,
     } satisfies AccountListResponse)
 
@@ -369,7 +377,7 @@ describe("AccountsPage", () => {
         return Promise.resolve({ needs_opening_balance: true, earliest_activity_date: "2026-01-15" })
       }
       return Promise.resolve({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
     })
@@ -392,7 +400,7 @@ describe("AccountsPage", () => {
         return Promise.resolve({ needs_opening_balance: false, earliest_activity_date: null })
       }
       return Promise.resolve({
-        items: [{ id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true, balance: "1000" }],
+        items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
       } satisfies AccountListResponse)
     })

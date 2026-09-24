@@ -10,11 +10,23 @@ vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 
 const mockedApi = vi.mocked(apiFetch);
 
+const baseAccount: Account = {
+    id: "a1",
+    name: "Cash",
+    type: "ASSET",
+    currency: "SGD",
+    is_active: true,
+    is_system: false,
+    user_id: "u1",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+};
+
 const accounts: Account[] = [
-    { id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true },
-    { id: "a2", name: "Credit Card", type: "LIABILITY", currency: "SGD", is_active: true },
-    { id: "a3", name: "Salary", type: "INCOME", currency: "SGD", is_active: true },
-    { id: "a4", name: "Closed", type: "ASSET", currency: "SGD", is_active: false },
+    { ...baseAccount, id: "a1", name: "Cash", type: "ASSET", currency: "SGD", is_active: true },
+    { ...baseAccount, id: "a2", name: "Credit Card", type: "LIABILITY", currency: "SGD", is_active: true },
+    { ...baseAccount, id: "a3", name: "Salary", type: "INCOME", currency: "SGD", is_active: true },
+    { ...baseAccount, id: "a4", name: "Closed", type: "ASSET", currency: "SGD", is_active: false },
 ];
 
 describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {

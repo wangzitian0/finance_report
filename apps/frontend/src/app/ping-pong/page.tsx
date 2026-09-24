@@ -3,12 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 import { apiOperation } from "@/lib/api-client";
-
-interface PingState {
-  state: string;
-  toggle_count: number;
-  updated_at?: string | null;
-}
+import type { PingState } from "@/lib/types";
 
 export default function PingPongPage() {
   const [pingState, setPingState] = useState<PingState | null>(null);

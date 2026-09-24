@@ -19,28 +19,11 @@ export interface ListResponse<T> {
   total: number;
 }
 
-export interface Account {
-  id: string;
-  name: string;
-  code?: string | null;
-  type: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
-  currency: string;
-  description?: string | null;
-  parent_id?: string | null;
-  is_active: boolean;
-  balance?: MoneyValue | null;
-}
+export type Account = Schemas["AccountResponse"];
 
 export type AccountListResponse = ListResponse<Account>;
 
-export interface JournalLine {
-  id: string;
-  account_id: string;
-  direction: "DEBIT" | "CREDIT";
-  amount: MoneyValue;
-  currency: string;
-  fx_rate?: DecimalValue | null;
-}
+export type JournalLine = Schemas["JournalLineResponse"];
 
 import type {
   BankStatementTransactionViewModel,
@@ -68,40 +51,21 @@ export type BankStatementTransaction = BankStatementTransactionViewModel;
 export type BankStatementTransactionResponse =
   Schemas["AtomicTransactionResponse"];
 
-export interface BankStatementTransactionSummary {
-  id: string;
-  statement_id?: string | null;
-  txn_date: string;
-  description: string;
-  amount: MoneyValue;
-  direction: string;
-  currency?: string | null;
-  reference?: string | null;
-  status?: "pending" | "matched" | "unmatched";
-  confidence_tier?: string;
-}
+export type BankTransactionSummary = Schemas["BankTransactionSummary"];
 
-export interface BankStatement {
-  id: string;
-  user_id: string;
-  account_id?: string | null;
-  file_path: string;
-  original_filename: string;
-  institution: string;
-  account_last4?: string | null;
+export type BankStatementTransactionSummary = BankTransactionSummary & {
   currency?: string | null;
-  period_start?: string | null;
-  period_end?: string | null;
-  opening_balance?: MoneyValue | null;
-  closing_balance?: MoneyValue | null;
-  status: Schemas["BankStatementStatus"];
-  confidence_score?: number | null;
-  balance_validated?: boolean | null;
-  validation_error?: string | null;
-  created_at: string;
-  updated_at: string;
+  status?: "pending" | "matched" | "unmatched";
+};
+
+export type BalanceValidationResult = Schemas["BalanceValidationResult"];
+
+export interface BankStatementViewModel
+  extends Omit<Schemas["BankStatementResponse"], "transactions"> {
   transactions: BankStatementTransaction[];
 }
+
+export type BankStatement = BankStatementViewModel;
 
 export type BankStatementListResponse = ListResponse<BankStatement>;
 
@@ -288,6 +252,9 @@ export type ChatResponseMetadata = ChatMetadata;
 
 export type ChatSuggestionsResponse = Schemas["ChatSuggestionsResponse"];
 
+export type AiSuggestion = Schemas["AiSuggestionResponse"];
+export type AiSuggestionListResponse = Schemas["AiSuggestionListResponse"];
+
 export type PersonalReportPackageNote = Schemas["PersonalReportPackageNote"];
 
 export type PersonalReportPackageNotesResponse =
@@ -410,45 +377,22 @@ export function normalizePersonalReportPackageSnapshot(
   };
 }
 
-export type WorkflowPrimaryState =
-  "empty" | "processing" | "needs_action" | "blocked" | "ready";
+export type WorkflowPrimaryState = Schemas["WorkflowPrimaryState"];
 
-export type WorkflowNextActionType =
-  | "upload"
-  | "wait"
-  | "review_required"
-  | "resolve_blocker"
-  | "open_report"
-  | "none";
+export type WorkflowNextActionType = Schemas["WorkflowNextActionType"];
 
 export type WorkflowReportReadinessState =
-  "none" | "processing" | "ready" | "blocked" | "stale";
+  Schemas["WorkflowReportReadinessState"];
 
-export type WorkflowEventFamily =
-  | "source.uploaded"
-  | "source.parsing.started"
-  | "source.parsing.completed"
-  | "source.parsing.failed"
-  | "record.validation.passed"
-  | "record.validation.failed"
-  | "ledger.auto_posted"
-  | "review.required"
-  | "review.completed"
-  | "reconciliation.blocked"
-  | "report.processing"
-  | "report.ready"
-  | "report.blocked"
-  | "report.generated";
+export type WorkflowEventFamily = Schemas["WorkflowEventFamily"];
 
-export type WorkflowEventSeverity =
-  "info" | "success" | "warning" | "action_required" | "blocked";
+export type WorkflowEventSeverity = Schemas["WorkflowEventSeverity"];
 
-export type WorkflowEventStatus = "unread" | "read" | "archived";
+export type WorkflowEventStatus = Schemas["WorkflowEventStatus"];
 
-export type WorkflowReportImpact =
-  "none" | "processing" | "ready" | "blocked" | "stale";
+export type WorkflowReportImpact = Schemas["WorkflowReportImpact"];
 
-export type WorkflowSessionStatus = "active" | "generated" | "archived";
+export type WorkflowSessionStatus = Schemas["WorkflowSessionStatus"];
 
 export type WorkflowNextActionResponse = Schemas["WorkflowNextActionResponse"];
 
@@ -532,35 +476,12 @@ export type ManagedPositionListResponse = ListResponse<ManagedPosition>;
 export type ReconcilePositionsResponse = Schemas["ReconcilePositionsResponse"];
 
 export type ManualValuationComponentType =
-  | "property_value"
-  | "mortgage_balance"
-  | "cpf_balance"
-  | "retirement_account"
-  | "social_security_personal_account"
-  | "long_term_benefit_asset"
-  | "long_term_savings"
-  | "tax_payable"
-  | "tax_refund"
-  | "insurance_cash_value"
-  | "esop"
-  | "rsu"
-  | "stock_options"
-  | "other_asset"
-  | "other_liability";
+  Schemas["ManualValuationComponentType"];
 
 export type ManualValuationLiquidityClass =
-  "liquid" | "restricted" | "illiquid" | "liability";
+  Schemas["ManualValuationLiquidityClass"];
 
-// Structured evidence basis for a manual valuation (EPIC-011 AC11.9.5/#706).
-// Mirrors the backend `ManualValuationBasis` enum.
-export type ManualValuationBasis =
-  | "market_appraisal"
-  | "broker_statement"
-  | "employer_grant_document"
-  | "bank_statement"
-  | "government_statement"
-  | "insurer_statement"
-  | "self_estimate";
+export type ManualValuationBasis = Schemas["ManualValuationBasis"];
 
 export type ManualValuationSource =
   | "manual"
@@ -660,6 +581,9 @@ export interface CurrentUser {
   name: string | null;
   created_at: string;
 }
+
+export type PingStateResponse = Schemas["PingStateResponse"];
+export type PingState = PingStateResponse;
 
 // ── LLM configuration (EPIC-023 PR4) ───────────────────────────────────────
 //

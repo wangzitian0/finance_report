@@ -42,55 +42,6 @@ import {
   type BalanceValidationResult,
 } from "@/components/review/statementReviewBalance";
 
-interface StatementReview {
-  id: string;
-  account_id: string | null;
-  original_filename: string;
-  institution: string;
-  account_last4: string | null;
-  currency: string | null;
-  period_start: string | null;
-  period_end: string | null;
-  opening_balance: MoneyValue | null;
-  closing_balance: MoneyValue | null;
-  status: string;
-  stage1_status: string | null;
-  balance_validation_result: BalanceValidationResult | null;
-  pdf_url: string | null;
-  transactions: Transaction[];
-  source_result_digest?: string | null;
-  source_missing_facts?: string[];
-  source_envelope_reviewable?: boolean;
-  validation_error?: string | null;
-  reviewed_envelope?: {
-    id: string;
-    source_result_digest: string;
-    account_id: string;
-    currency: string;
-    period_start: string;
-    period_end: string;
-    opening_balance: MoneyValue;
-    closing_balance: MoneyValue;
-    rationale: string;
-    review_trace_record_id: string;
-    created_at: string;
-  } | null;
-}
-
-interface ConflictCandidate {
-  id: string;
-  description: string;
-  txn_date: string;
-  amount: MoneyValue;
-}
-
-interface ReviewConflicts {
-  duplicates: ConflictCandidate[];
-  transfer_pairs: ConflictCandidate[];
-  // #962: persisted resolution marker, so the blocked state survives a refresh.
-  resolved?: boolean;
-}
-
 type Stage1ApprovalResponse = Schemas["Stage1ApprovalResponse"];
 
 export default function StatementReviewPage() {
