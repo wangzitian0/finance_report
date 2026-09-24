@@ -288,6 +288,9 @@ async def test_logging_middleware_tags_unhandled_exception(monkeypatch) -> None:
         raise RuntimeError("boom")
 
     request = MagicMock(spec=Request)
+    request.method = "GET"
+    request.url = MagicMock()
+    request.url.path = "/test"
     request.scope = {"type": "http", "method": "GET", "path": "/test"}
 
     with pytest.raises(RuntimeError, match="boom"):

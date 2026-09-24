@@ -76,13 +76,21 @@ def _select_renderer() -> Processor:
 
 def _build_otlp_logs_endpoint(endpoint: str) -> str:
     """Build the full OTLP logs endpoint URL with /v1/logs suffix."""
-    from infra2_sdk.runtime.otel import _signal_endpoint
+    try:
+        from infra2_sdk.runtime.otel import _signal_endpoint
 
-    return _signal_endpoint(endpoint, "logs")
+        return _signal_endpoint(endpoint, "logs")
+    except (ImportError, AttributeError):
+        trimmed = endpoint.rstrip("/")
+        if trimmed.endswith("/v1/logs"):
+            return trimmed
+        return f"{trimmed}/v1/logs"
 
 
 def _build_otel_resource() -> Any:
     """Build OTEL resource with service name and attributes via infra2_sdk contract."""
+    import os
+
     from infra2_sdk.runtime.environment import resolve_environment_tier
     from infra2_sdk.runtime.otel import OtelSettings, resource_attributes as sdk_resource_attributes
     from opentelemetry.sdk.resources import Resource
@@ -90,7 +98,12 @@ def _build_otel_resource() -> Any:
     parsed_attrs = parse_key_value_pairs(settings.otel_resource_attributes)
     dep_env = parsed_attrs.get("deployment.environment") or settings.environment
     try:
-        env_tier = resolve_environment_tier(dep_env, unknown="production").value
+        is_github_actions = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+        env_tier = resolve_environment_tier(
+            dep_env,
+            github_actions=is_github_actions,
+            unknown="production",
+        ).value
         otel_settings = OtelSettings(
             service_name=settings.otel_service_name,
             endpoint=settings.otel_exporter_otlp_endpoint,

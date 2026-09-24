@@ -488,3 +488,15 @@ def test_build_otlp_metrics_endpoint_preserves_metrics_path() -> None:
         telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
         == "http://collector:4318/v1/metrics"
     )
+
+
+def test_build_otlp_metrics_endpoint_fallback(monkeypatch) -> None:
+    """Metrics endpoint fallback when SDK helper is unavailable."""
+    import infra2_sdk.runtime.otel as otel_mod
+
+    monkeypatch.delattr(otel_mod, "_signal_endpoint", raising=False)
+    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://collector:4318/v1/metrics"
+    assert (
+        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
+        == "http://collector:4318/v1/metrics"
+    )

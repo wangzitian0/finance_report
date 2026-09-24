@@ -22,6 +22,15 @@ def test_build_otlp_logs_endpoint_preserves_logs_path() -> None:
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
 
 
+def test_build_otlp_logs_endpoint_fallback(monkeypatch) -> None:
+    """AC-observability.2.3: OTEL logs endpoint fallback when SDK helper is unavailable."""
+    import infra2_sdk.runtime.otel as otel_mod
+
+    monkeypatch.delattr(otel_mod, "_signal_endpoint", raising=False)
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318") == "http://collector:4318/v1/logs"
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
+
+
 def test_select_renderer_uses_console_in_debug(monkeypatch) -> None:
     """AC-observability.1.4: AC12.2.1: Debug mode uses ConsoleRenderer."""
     monkeypatch.setattr(logger_module.settings, "debug", True)
