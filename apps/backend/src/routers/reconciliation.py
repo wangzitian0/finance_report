@@ -180,17 +180,18 @@ async def _load_entry_summaries(
 async def _load_transactions(
     db: AsyncSession,
     matches: Sequence[ReconciliationMatch],
-    user_id: UUID,
+    user_id: UUID | None = None,
 ) -> dict[UUID, AtomicTransaction]:
     """Batch-fetch each match's ``AtomicTransaction`` by id (#1675 D4: no
     relationship() eager-load across the reconciliation -> extraction
-    boundary), scoped strictly to user_id for tenant defense-in-depth."""
+    boundary), scoped strictly to user_id when provided for tenant defense-in-depth."""
     txn_ids = {match.atomic_txn_id for match in matches}
     if not txn_ids:
         return {}
-    result = await db.execute(
-        select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)).where(AtomicTransaction.user_id == user_id)
-    )
+    query = select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids))
+    if user_id is not None:
+        query = query.where(AtomicTransaction.user_id == user_id)
+    result = await db.execute(query)
     return {txn.id: txn for txn in result.scalars().all()}
 
 
