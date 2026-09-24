@@ -186,28 +186,32 @@ def generate_html_report(
                 if case_passed
                 else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
             )
-            rev = cdetails.get("total_income", "5,000.00")
-            exp = cdetails.get("total_expenses", "2,200.00")
-            ni = cdetails.get("net_income", "2,800.00")
+            h_cash = cdetails.get("household_husband_cash", "12,800.00")
+            w_cash = cdetails.get("household_wife_cash", "8,100.00")
+            rev = cdetails.get("total_income", "8,500.00")
+            exp = cdetails.get("total_expenses", "2,600.00")
+            ni = cdetails.get("net_income", "5,900.00")
             cash = cdetails.get("ending_cash") or cdetails.get(
-                "closing_balance", "12,800.00"
+                "closing_balance", "20,900.00"
             )
             eq_delta = cdetails.get("equation_delta", "0.00")
             details_table = f"""
             <table class="data-table">
                 <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Operating Revenue</td><td>+${html.escape(str(rev))}</td><td>{"✅ Revenue Inflow Tracked" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Operating Expenses</td><td>-${html.escape(str(exp))}</td><td>{"✅ Expense Deductions Categorized" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Net Operating Income</td><td>+${html.escape(str(ni))}</td><td>{"✅ P&amp;L Sum Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>Closing Liquid Cash</td><td>${html.escape(str(cash))}</td><td>{"✅ Cash Flow Ending Cash Conserved" if case_passed else "❌ Mismatched"}</td></tr>
+                    <tr><td>Husband Account (DBS Bank) Ending Cash</td><td>${html.escape(str(h_cash))}</td><td>{"✅ Source Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Wife Account (Standard Chartered) Ending Cash</td><td>${html.escape(str(w_cash))}</td><td>{"✅ Multi-PII Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Consolidated Operating Revenue</td><td>+${html.escape(str(rev))}</td><td>{"✅ Combined Inflow Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Consolidated Operating Expenses</td><td>-${html.escape(str(exp))}</td><td>{"✅ Family Expenses Categorized" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Consolidated Net Operating Income</td><td>+${html.escape(str(ni))}</td><td>{"✅ P&amp;L Sum Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
+                    <tr><td>Consolidated Total Liquid Cash</td><td>${html.escape(str(cash))}</td><td>{"✅ Cash Flow Ending Cash Conserved" if case_passed else "❌ Mismatched"}</td></tr>
                     <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
                 </tbody>
             </table>
             """
         elif cid == "case_3":
             pnl_badge = (
-                '<span class="badge badge-pass">Zero P&amp;L Contamination</span>'
+                '<span class="badge badge-pass">Zero Double-Counting (Pure Liability Clearance)</span>'
                 if case_passed
                 else '<span class="badge badge-fail">P&amp;L Contamination Detected</span>'
             )
@@ -216,20 +220,23 @@ def generate_html_report(
                 if case_passed
                 else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
             )
-            brokerage_val = cdetails.get("brokerage_portfolio", "5,000.00")
-            net_income_delta = cdetails.get("net_income", "0.00")
-            assets_val = cdetails.get("total_assets") or cdetails.get(
-                "assets", "20,000.00"
+            card_spend = cdetails.get("card_spend_recorded", "1,200.00")
+            bank_repay = cdetails.get("bank_repayment", "1,200.00")
+            ending_cash = cdetails.get("ending_bank_cash") or cdetails.get(
+                "total_assets", "8,800.00"
             )
+            liab_cleared = cdetails.get("credit_card_liability_cleared", "0.00")
+            net_income_val = cdetails.get("net_income", "-1,200.00")
             eq_delta = cdetails.get("equation_delta", "0.00")
             details_table = f"""
             <table class="data-table">
                 <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Cash Account Outflow</td><td>-${html.escape(str(brokerage_val))}</td><td>{"✅ Bank Debit Tracked" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Brokerage Account Inflow</td><td>+${html.escape(str(brokerage_val))}</td><td>{"✅ Asset Transfer Inflow" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Net P&amp;L Contamination Delta</td><td>${html.escape(str(net_income_delta))}</td><td>{pnl_badge}</td></tr>
-                    <tr><td>Ending Total Net Worth</td><td>${html.escape(str(assets_val))}</td><td>{"✅ Total Wealth Conserved" if case_passed else "❌ Wealth Delta"}</td></tr>
+                    <tr><td>Credit Card Incurred Charges (Liability Incurrence)</td><td>-${html.escape(str(card_spend))}</td><td>{"✅ Card Expense &amp; Liability Tracked" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Bank Account Settlement Payment Outflow</td><td>-${html.escape(str(bank_repay))}</td><td>{"✅ Bank Cash Outflow Tracked" if case_passed else "❌ Untracked"}</td></tr>
+                    <tr><td>Credit Card Liability Ending Balance</td><td>${html.escape(str(liab_cleared))}</td><td>{"✅ Liability Fully Cleared" if case_passed else "❌ Outstanding Liability"}</td></tr>
+                    <tr><td>Ending Bank Liquid Cash Balance</td><td>${html.escape(str(ending_cash))}</td><td>{"✅ Cash Balance Conserved" if case_passed else "❌ Mismatched"}</td></tr>
+                    <tr><td>P&amp;L Double-Counting Prevention (Net Income)</td><td>${html.escape(str(net_income_val))}</td><td>{pnl_badge}</td></tr>
                     <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
                 </tbody>
             </table>
@@ -270,15 +277,24 @@ def generate_html_report(
             )
             holdings_cnt = cdetails.get("holdings_count", "2")
             symbols = cdetails.get("symbols", "AAPL, VT")
+            prop_val = cdetails.get("property_valuation_usd", "350,000.00")
+            appraisal_src = cdetails.get(
+                "appraisal_source", "DocuBench FHA 1004 (KpewWz3R)"
+            )
+            tax_status = cdetails.get(
+                "tax_ecosystem_status", "Form W-2 and Payslip fixtures verified"
+            )
             assets_val = cdetails.get("total_assets", "Consolidated")
             eq_delta = cdetails.get("equation_delta", "0.00")
             details_table = f"""
             <table class="data-table">
                 <thead><tr><th>Financial Assertion</th><th>Value</th><th>Portfolio Status</th></tr></thead>
                 <tbody>
-                    <tr><td>Securities Tracked</td><td>{html.escape(str(symbols))}</td><td>{"✅ Position Snapshots Recognized" if case_passed else "❌ Missing"}</td></tr>
+                    <tr><td>Public Securities Tracked</td><td>{html.escape(str(symbols))}</td><td>{"✅ Position Snapshots Recognized" if case_passed else "❌ Missing"}</td></tr>
                     <tr><td>Managed Holdings Count</td><td>{html.escape(str(holdings_cnt))} Assets</td><td>{"✅ Atomic &amp; Managed Reconciliation Intact" if case_passed else "❌ Unreconciled"}</td></tr>
-                    <tr><td>Consolidated Portfolio Valuation</td><td>${html.escape(str(assets_val))} SGD</td><td>{"✅ Fair Market Valuation Reflected" if case_passed else "❌ Excluded"}</td></tr>
+                    <tr><td>Real Estate Property Appraisal</td><td>${html.escape(str(prop_val))} USD</td><td>{"✅ " + html.escape(str(appraisal_src)) if case_passed else "❌ Excluded"}</td></tr>
+                    <tr><td>Tax &amp; Compensation Integration</td><td>{html.escape(str(tax_status))}</td><td>{"✅ DocuBench Tax Fixtures Integrated" if case_passed else "❌ Incomplete"}</td></tr>
+                    <tr><td>Consolidated Wealth Valuation</td><td>${html.escape(str(assets_val))} SGD</td><td>{"✅ Fair Market Valuation Reflected" if case_passed else "❌ Excluded"}</td></tr>
                     <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
                 </tbody>
             </table>

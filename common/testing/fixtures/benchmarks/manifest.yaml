@@ -128,3 +128,42 @@ fixtures:
     local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_004_silk_road.pdf"
     cases:
       - "case_4_multicurrency"
+
+  - id: "docubench_w2_tax_statement"
+    name: "Form W-2 Wage and Tax Statement"
+    doc_type: "tax_statement"
+    institution: "Internal Revenue Service / Employer"
+    currency: "USD"
+    pages: 3
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/phovuuuk.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/phovuuuk.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/phovuuuk.json"
+    sha256: "7d3fb063fd2f8e1d49e60ccd4c7ddae7ecb8f56cb021012df29c73e498e60e94"
+    file_size_bytes: 1512470
+    license: "vendor sample / public form"
+    local_path: "common/testing/fixtures/benchmarks/docubench/phovuuuk_w2_tax_statement.pdf"
+    cases:
+      - "case_5_holistic_multi_asset_tax"
+
+  - id: "docubench_payslip_statement"
+    name: "Earnings / Payslip Statement"
+    doc_type: "payslip"
+    institution: "Corporate Payroll"
+    currency: "USD"
+    pages: 1
+    source_platform: "huggingface"
+    source_repo: "DocuPipe/DocuBench"
+    commit_sha: "8143f06f8e40a5412b5bc6e05879d6013ca2bf29"
+    source_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/blob/main/documents/Oe7iRM1G.pdf"
+    download_url: "https://huggingface.co/datasets/DocuPipe/DocuBench/resolve/8143f06f8e40a5412b5bc6e05879d6013ca2bf29/documents/Oe7iRM1G.pdf"
+    upstream_ground_truth_url: "https://raw.githubusercontent.com/DocuPipe/DocuBench/main/labels/Oe7iRM1G.json"
+    sha256: "89f8b803c66027555833f013960348b2459f3d834dbe98abf69187d8f09d4472"
+    file_size_bytes: 18959
+    license: "vendor sample"
+    local_path: "common/testing/fixtures/benchmarks/docubench/Oe7iRM1G_payslip_statement.pdf"
+    cases:
+      - "case_2_household_multi_pii"
+      - "case_5_holistic_multi_asset_tax"

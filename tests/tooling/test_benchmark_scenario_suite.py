@@ -9,6 +9,8 @@ from pathlib import Path
 
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
 from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    generate_credit_card_repayment_bank_pdf,
+    generate_household_wife_operations_csv,
     generate_standard_operations_csv,
 )
 
@@ -48,6 +50,42 @@ def test_generate_standard_operations_csv_identity() -> None:
     assert total_delta == Decimal("2800.00")
     expected_closing = opening + total_delta
     assert expected_closing == Decimal("12800.00")
+
+
+def test_generate_household_wife_operations_csv_identity() -> None:
+    """Benchmark Case 2: wife's operating CSV generation maintains strict mathematical reconciliation."""
+    opening = Decimal("5000.00")
+    csv_bytes = generate_household_wife_operations_csv(opening_balance=opening)
+    assert isinstance(csv_bytes, bytes)
+    text = csv_bytes.decode("utf-8")
+
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+    assert len(rows) == 3
+
+    total_delta = Decimal("0.00")
+    for row in rows:
+        assert row["Statement Currency"] == "SGD"
+        assert row["Statement Period Start"] == "2025-04-01"
+        assert row["Statement Period End"] == "2025-04-30"
+        assert Decimal(row["Statement Opening Balance"]) == opening
+        assert Decimal(row["Statement Closing Balance"]) == opening + Decimal("3100.00")
+        total_delta += Decimal(row["Amount"])
+
+    assert total_delta == Decimal("3100.00")
+    expected_closing = opening + total_delta
+    assert expected_closing == Decimal("8100.00")
+
+
+def test_generate_credit_card_repayment_bank_pdf(tmp_path: Path) -> None:
+    """Benchmark Case 3: credit card debt clearance bank PDF generates valid ReportLab document."""
+    pdf_path = tmp_path / "cc_repay.pdf"
+    pdf_bytes = generate_credit_card_repayment_bank_pdf(
+        pdf_path, opening_balance=Decimal("10000.00")
+    )
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 1000
+    assert pdf_path.exists()
 
 
 def test_generate_consecutive_month3_and_month4_pdf(tmp_path: Path) -> None:
@@ -115,6 +153,8 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
         "docubench_carson_bank",
         "docubench_fidelity_brokerage",
         "docubench_fha_appraisal",
+        "docubench_w2_tax_statement",
+        "docubench_payslip_statement",
     }
     assert expected_ids.issubset(fixture_ids)
 
@@ -166,27 +206,32 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
             },
             {
                 "case_id": "case_2",
-                "case_name": "Case 2: Standard CSV Statement Flow",
+                "case_name": "Case 2: Multi-PII Household Operations",
                 "status": "PASS",
                 "duration_seconds": 5.1,
                 "details": {
-                    "total_income": "5,000.00",
-                    "total_expenses": "2,200.00",
-                    "net_income": "2,800.00",
-                    "ending_cash": "12,800.00",
+                    "household_husband_cash": "12,800.00",
+                    "household_wife_cash": "8,100.00",
+                    "total_income": "8,500.00",
+                    "total_expenses": "2,600.00",
+                    "net_income": "5,900.00",
+                    "ending_cash": "20,900.00",
                     "equation_delta": "0.00",
                     "is_balanced": True,
                 },
             },
             {
                 "case_id": "case_3",
-                "case_name": "Case 3: Bank-Brokerage Asset Swap",
+                "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
                 "status": "PASS",
                 "duration_seconds": 8.0,
                 "details": {
-                    "brokerage_portfolio": "5,000.00",
-                    "net_income": "0.00",
-                    "total_assets": "20,000.00",
+                    "card_spend_recorded": "1,200.00",
+                    "bank_repayment": "1,200.00",
+                    "ending_bank_cash": "8,800.00",
+                    "credit_card_liability_cleared": "0.00",
+                    "net_income": "-1,200.00",
+                    "total_assets": "8,800.00",
                     "equation_delta": "0.00",
                     "is_balanced": True,
                 },
@@ -208,13 +253,16 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
             },
             {
                 "case_id": "case_5",
-                "case_name": "Case 5: Multi-Asset Portfolio Integration",
+                "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
                 "status": "PASS",
                 "duration_seconds": 9.4,
                 "details": {
                     "symbols": "AAPL, VT",
                     "holdings_count": 2,
-                    "total_assets": "55,000.00",
+                    "property_valuation_usd": "350,000.00",
+                    "appraisal_source": "DocuBench FHA 1004 (KpewWz3R)",
+                    "tax_ecosystem_status": "Form W-2 and Payslip fixtures verified",
+                    "total_assets": "385,000.00",
                     "equation_delta": "0.00",
                     "is_balanced": True,
                 },
@@ -240,6 +288,9 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     assert "CASE_3" in html_out
     assert "CASE_4" in html_out
     assert "CASE_5" in html_out
+    assert "Husband Account (DBS Bank) Ending Cash" in html_out
+    assert "Wife Account (Standard Chartered) Ending Cash" in html_out
+    assert "Credit Card Incurred Charges" in html_out
+    assert "Real Estate Property Appraisal" in html_out
     assert "Singapore Jurisdiction (SGD Account)" in html_out
-    assert "Securities Tracked" in html_out
     assert len(html_out) > 5000
