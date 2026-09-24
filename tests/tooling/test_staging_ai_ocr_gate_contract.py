@@ -718,3 +718,226 @@ def test_AC_testing_deploy_gates_38_main_dispatches_classify_and_preflight(
 
     monkeypatch.setattr(sys, "argv", ["staging_ai_ocr_gate_contract.py", "--preflight"])
     assert contract.main() == 2
+
+
+def test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_corpus_close(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    """AC-testing.deploy-gates.45: green gate runs auto-close alerts only when
+    the run's corpus satisfies the alert's corpus, preventing false-green closes
+    across partitioned corpora; every run emits a canonical TraceRecord
+    observation and structured evidence manifest."""
+    from common.audit.base.trace import TraceRecord, TraceResult
+    from common.audit.extension.trace_codec import TraceRecordCodec
+
+    # 1. can_close_alert truth table
+    audit_alert = "Post-merge staging AI/OCR gate failed (`regression-failed`) [corpus=audit_replay]"
+    canary_alert = (
+        "Post-merge staging AI/OCR gate failed (`regression-failed`) [corpus=canary]"
+    )
+    all_alert = (
+        "Post-merge staging AI/OCR gate failed (`regression-failed`) [corpus=all]"
+    )
+
+    # 'all' satisfies everything
+    assert contract.can_close_alert(audit_alert, current_corpus="all") is True
+    assert contract.can_close_alert(canary_alert, current_corpus="all") is True
+    assert contract.can_close_alert(all_alert, current_corpus="all") is True
+
+    # 'canary' only satisfies canary alerts
+    assert contract.can_close_alert(canary_alert, current_corpus="canary") is True
+    assert contract.can_close_alert(audit_alert, current_corpus="canary") is False
+    assert contract.can_close_alert(all_alert, current_corpus="canary") is False
+
+    # 'audit_replay' only satisfies audit_replay alerts
+    assert contract.can_close_alert(audit_alert, current_corpus="audit_replay") is True
+    assert (
+        contract.can_close_alert(canary_alert, current_corpus="audit_replay") is False
+    )
+    assert contract.can_close_alert(all_alert, current_corpus="audit_replay") is False
+
+    # Unmarked legacy alert with audit test
+    legacy_audit = "failed: test_statement_full_journey::test_parse"
+    assert contract.can_close_alert(legacy_audit, current_corpus="canary") is False
+    assert contract.can_close_alert(legacy_audit, current_corpus="audit_replay") is True
+
+    # 2. Evidence manifest and TraceRecord observation creation & codec roundtrip
+    manifest = contract.build_evidence_manifest(
+        app_url="https://report-staging.zitian.party",
+        run_id="359000",
+        expected_sha="v0.1.42",
+        corpus="canary",
+        status="passed",
+        exit_code=0,
+    )
+    assert manifest["status"] == "passed"
+    assert manifest["corpus"] == "canary"
+    assert contract.to_trace_result("passed") == TraceResult.PASS
+    assert contract.to_trace_result("regression-failed") == TraceResult.FAIL
+
+    observation = contract.build_trace_observation(manifest)
+    assert isinstance(observation, TraceRecord)
+    assert observation.result == TraceResult.PASS
+    assert observation.execution_id == "359000"
+
+    encoded = TraceRecordCodec.encode(observation)
+    decoded = TraceRecordCodec.decode(encoded)
+    assert decoded.record_id == observation.record_id
+    assert decoded.result == TraceResult.PASS
+
+    # 3. CLI options: --manifest-out, --observation-out, --can-close-alert, --status
+    manifest_file = tmp_path / "manifest.json"
+    observation_file = tmp_path / "observation.json"
+    alert_file = tmp_path / "alert.md"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--status",
+            "passed",
+            "--corpus",
+            "canary",
+            "--run-id",
+            "8888",
+            "--expected-sha",
+            "v0.1.42",
+            "--manifest-out",
+            str(manifest_file),
+            "--observation-out",
+            str(observation_file),
+        ],
+    )
+    assert contract.main() == 0
+    assert manifest_file.exists()
+    assert observation_file.exists()
+    parsed_record = TraceRecordCodec.decode(
+        observation_file.read_text(encoding="utf-8")
+    )
+    assert parsed_record.result == TraceResult.PASS
+
+    # CLI --can-close-alert
+    alert_file.write_text(audit_alert, encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--can-close-alert",
+            str(alert_file),
+            "--corpus",
+            "canary",
+        ],
+    )
+    assert contract.main() == 1  # canary cannot close audit_replay
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--can-close-alert",
+            str(alert_file),
+            "--corpus",
+            "audit_replay",
+        ],
+    )
+    assert contract.main() == 0  # audit_replay can close audit_replay
+
+    # Edge cases: can_close_alert fails closed on unknown/generic alerts, canary indicator passes canary
+    assert (
+        contract.can_close_alert("unknown issue title", current_corpus="canary")
+        is False
+    )
+    assert (
+        contract.can_close_alert(
+            "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+            current_corpus="canary",
+        )
+        is True
+    )
+    assert (
+        contract.can_close_alert(
+            "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
+            current_corpus="audit_replay",
+        )
+        is False
+    )
+    assert (
+        contract.can_close_alert("anything", current_corpus="unknown_corpus") is False
+    )
+
+    # Failure subtyping extraction fallback and unknown trace result
+    assert contract._classify_failure_text("ValueError: bad payload") == (
+        "regression",
+        "extraction",
+    )
+    assert contract.to_trace_result("custom-status") == TraceResult.ERROR
+
+    # Evidence manifest with preflight details
+    manifest_preflight = contract.build_evidence_manifest(
+        preflight_details={"healthy": False}
+    )
+    assert manifest_preflight["preflight"] == {"healthy": False}
+
+    # CLI --status with --alert-body-out without --classify-junit
+    alert_body_file = tmp_path / "alert_body.md"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--status",
+            "version-check-failed",
+            "--alert-body-out",
+            str(alert_body_file),
+        ],
+    )
+    assert contract.main() == 0
+    assert alert_body_file.exists()
+
+    # CLI --status with --classify-junit and --alert-body-out
+    test_junit = _junit(tmp_path, "failed.xml", _ASSERTION_CASE)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--status",
+            "regression-failed",
+            "--classify-junit",
+            str(test_junit),
+            "--alert-body-out",
+            str(alert_body_file),
+        ],
+    )
+    assert contract.main() == 0
+
+    # CLI --classify-junit with --manifest-out and --observation-out (without --status)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "staging_ai_ocr_gate_contract.py",
+            "--classify-junit",
+            str(test_junit),
+            "--manifest-out",
+            str(manifest_file),
+            "--observation-out",
+            str(observation_file),
+        ],
+    )
+    assert contract.main() == 0
+
+    # 4. Workflow script integrity: verify outcome truth gap is fixed and auto-close calls check
+    script_text = _GATE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    script_text.index(
+        "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status ||"
+    )
+    script_text.index(
+        "ai_ocr_exit_code=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code ||"
+    )
+    script_text.index("--can-close-alert")
+    script_text.index("--manifest-out test-results/staging-ai-ocr-manifest.json")
+    script_text.index("--observation-out test-results/staging-ai-ocr-observation.json")

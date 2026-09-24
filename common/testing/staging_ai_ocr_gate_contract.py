@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -15,6 +18,17 @@ from xml.etree import ElementTree as ET
 ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+from common.audit.base.trace import (  # noqa: E402
+    TraceAuthorityProfile,
+    TraceRecord,
+    TraceResult,
+    TraceScope,
+    TraceScopeKind,
+    TraceTargetClass,
+    VersionedTraceRef,
+)
+from common.audit.extension.trace_codec import TraceRecordCodec  # noqa: E402
 
 
 REPO_ROOT = ROOT_DIR
@@ -240,13 +254,15 @@ FAILURE_CLASS_STATUS = {
 }
 
 
-def _classify_failure_text(text: str) -> str:
+def _classify_failure_text(text: str) -> tuple[str, str]:
     lowered = text.lower()
     if any(pattern in lowered for pattern in PRECONDITION_FAILURE_PATTERNS):
-        return "precondition"
+        return "precondition", "environment-gap"
     if any(pattern in lowered for pattern in TRANSIENT_FAILURE_PATTERNS):
-        return "transient"
-    return "regression"
+        return "transient", "provider-latency"
+    if "assertionerror" in lowered or "assert " in lowered:
+        return "regression", "app-assertion"
+    return "regression", "extraction"
 
 
 def _case_file(case: ET.Element) -> str | None:
@@ -286,10 +302,12 @@ def classify_junit(xml_paths: list[Path]) -> dict[str, Any]:
                 text = f"{report.get('message', '')}\n{report.text or ''}"
                 name = case.get("classname", "")
                 case_name = case.get("name", "<unknown>")
+                failure_class, subtype = _classify_failure_text(text)
                 cases.append(
                     {
                         "test": f"{name}::{case_name}" if name else case_name,
-                        "class": _classify_failure_text(text),
+                        "class": failure_class,
+                        "subtype": subtype,
                         "file": _case_file(case) or "",
                     }
                 )
@@ -330,6 +348,7 @@ def render_alert_body(
     run_id: str = "?",
     expected_sha: str = "?",
     app_url: str = "?",
+    corpus: str = "canary",
 ) -> str:
     """Alert-issue body generated from the JUnit attribution (#1806).
 
@@ -338,7 +357,7 @@ def render_alert_body(
     """
     lines = [
         f"Post-merge staging AI/OCR gate failed (`{classification['status']}`) "
-        f"on {app_url} at run {run_id} ({expected_sha}).",
+        f"on {app_url} at run {run_id} ({expected_sha}) [corpus={corpus}].",
         "",
         "Machine attribution of every failed case (from JUnit output):",
         "",
@@ -348,13 +367,160 @@ def render_alert_body(
         if not cases:
             continue
         lines.append(f"- **{key}** — {_CLASS_EXPLANATIONS[key]}:")
-        lines.extend(f"  - `{case['test']}`" for case in cases)
+        for case in cases:
+            subtype_str = f" [{case.get('subtype')}]" if case.get("subtype") else ""
+            lines.append(f"  - `{case['test']}`{subtype_str}")
     lines += [
         "",
         "See the run's step summary for full counts. A green gate run "
         "auto-closes this issue.",
     ]
     return "\n".join(lines)
+
+
+def to_trace_result(status: str) -> TraceResult:
+    """Map gate status string to canonical TraceResult."""
+    if status == "passed":
+        return TraceResult.PASS
+    if status in (
+        "regression-failed",
+        "precondition-failed",
+        "provider-transient",
+        "version-check-failed",
+        "gate-timeout",
+    ):
+        return TraceResult.FAIL
+    return TraceResult.ERROR
+
+
+def build_evidence_manifest(
+    *,
+    environment: str = "staging",
+    app_url: str = "?",
+    run_id: str = "?",
+    expected_sha: str = "?",
+    corpus: str = "canary",
+    status: str = "passed",
+    exit_code: int = 0,
+    classification: dict[str, Any] | None = None,
+    preflight_details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Construct structured evidence manifest for staging AI/OCR gate run."""
+    manifest: dict[str, Any] = {
+        "version": 1,
+        "environment": environment,
+        "app_url": app_url,
+        "run_id": str(run_id),
+        "expected_sha": expected_sha,
+        "corpus": corpus,
+        "status": status,
+        "exit_code": exit_code,
+    }
+    if classification:
+        manifest["cases"] = classification.get("cases", [])
+        manifest["by_class"] = classification.get("by_class", {})
+        manifest["retry_targets"] = classification.get("retry_targets", [])
+    if preflight_details:
+        manifest["preflight"] = preflight_details
+    return manifest
+
+
+def build_trace_observation(
+    manifest: dict[str, Any],
+    *,
+    contract_path: Path | None = None,
+) -> TraceRecord:
+    """Build canonical TraceRecord observation for staging AI/OCR gate run (#1906)."""
+    path = contract_path or (ROOT_DIR / "common" / "testing" / "contract.py")
+    owner_digest = sha256(path.read_bytes()).hexdigest() if path.exists() else "0" * 64
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    manifest_digest = sha256(manifest_bytes).hexdigest()
+
+    status = manifest.get("status", "passed")
+    result = to_trace_result(status)
+    corpus = manifest.get("corpus", "canary")
+    expected_sha = manifest.get("expected_sha", "?")
+    run_id = str(manifest.get("run_id", "?"))
+
+    return TraceRecord.observation(
+        scope=TraceScope(kind=TraceScopeKind.ENVIRONMENT, id="staging"),
+        target=VersionedTraceRef(
+            kind="staging_corpus", id=corpus, version=expected_sha
+        ),
+        target_class=TraceTargetClass.GENERAL,
+        assertion=VersionedTraceRef(
+            kind="ai_ocr_replay", id=status, version=owner_digest
+        ),
+        authority=TraceAuthorityProfile(
+            package="testing",
+            tier="CODE-ONLY",
+            proof_kind="exact",
+            provenance="deterministic",
+            execution_stage="staging.provider_regression",
+            assertion_owner_digest=owner_digest,
+            producer_version="staging_ai_ocr_gate_contract@1.0",
+        ),
+        result=result,
+        execution_id=run_id,
+        evidence_manifest_digest=manifest_digest,
+        occurred_at=datetime.now(UTC),
+        score=None,
+        reason_code=status.replace("-", "_"),
+    )
+
+
+def can_close_alert(
+    alert_body: str,
+    current_corpus: str,
+    current_version: str | None = None,
+) -> bool:
+    """Decide whether a green gate run with current_corpus may auto-close an alert.
+
+    Guarantees (#1806):
+    - 'all' runs both canary and audit_replay, so it can close any alert.
+    - 'canary' only proves minimal liveness (1 test), so it CANNOT close
+      alerts filed for 'audit_replay' or 'all'.
+    - 'audit_replay' only runs comprehensive audit journeys, so it CANNOT close
+      alerts filed for 'canary' (brokerage import journey).
+    - If alert body does not declare a corpus, infer from referenced tests:
+      if any failing test is an audit-replay journey, canary cannot close it.
+    """
+    if current_corpus == "all":
+        return True
+
+    match = re.search(r"corpus=([a-z_]+)", alert_body)
+    if match:
+        alert_corpus = match.group(1)
+        if alert_corpus == "all":
+            return False
+        if current_corpus == alert_corpus:
+            return True
+        return False
+
+    body_lowered = alert_body.lower()
+    canary_indicator = "test_brokerage_upload_to_portfolio_value"
+    audit_indicators = (
+        "test_statement_full_journey",
+        "test_institution_statement_journeys",
+        "test_personal_financial_report_package",
+        "test_four_asset_net_worth_golden_path",
+        "test_statement_upload_e2e",
+    )
+    has_audit_tests = any(ind in body_lowered for ind in audit_indicators)
+    has_canary_test = canary_indicator in body_lowered
+
+    if current_corpus == "canary":
+        if has_canary_test and not has_audit_tests:
+            return True
+        return False
+    elif current_corpus == "audit_replay":
+        if has_audit_tests and not has_canary_test:
+            return True
+        return False
+
+    return False
 
 
 def emit_classification_shell(classification: dict[str, Any]) -> str:
@@ -458,6 +624,37 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--app-url", default="?", help="Gate target URL for the alert body."
     )
     parser.add_argument(
+        "--manifest-out",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Where to write the structured evidence manifest JSON.",
+    )
+    parser.add_argument(
+        "--observation-out",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Where to write the canonical TraceRecord observation JSON.",
+    )
+    parser.add_argument(
+        "--can-close-alert",
+        default=None,
+        metavar="ALERT_BODY_OR_PATH",
+        help="Evaluate whether current --corpus can auto-close this alert body (exit 0=yes, 1=no).",
+    )
+    parser.add_argument(
+        "--status",
+        default=None,
+        help="Explicit gate status to record in manifest/observation.",
+    )
+    parser.add_argument(
+        "--exit-code",
+        type=int,
+        default=0,
+        help="Exit code to record in manifest.",
+    )
+    parser.add_argument(
         "--preflight",
         action="store_true",
         help="Query the deployed /api/health surface; nonzero exit on any miss.",
@@ -477,6 +674,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(emit_shell(corpus_files(args.corpus)))
         return 0
 
+    if args.can_close_alert is not None:
+        body = args.can_close_alert
+        body_path = Path(body)
+        if body_path.is_file():
+            body = body_path.read_text(encoding="utf-8")
+        allowed = can_close_alert(
+            body,
+            current_corpus=args.corpus,
+            current_version=args.expected_sha,
+        )
+        return 0 if allowed else 1
+
     if args.preflight:
         if not args.base_url:
             print("--preflight requires --base-url", file=sys.stderr)
@@ -485,8 +694,81 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"preflight: {reason}", file=sys.stderr)
         return 0 if ok else 1
 
+    if args.status is not None:
+        status = args.status
+        classification = None
+        if args.classify_junit:
+            classification = classify_junit(args.classify_junit)
+            status = classification["status"]
+
+        manifest = build_evidence_manifest(
+            app_url=args.app_url,
+            run_id=args.run_id,
+            expected_sha=args.expected_sha,
+            corpus=args.corpus,
+            status=status,
+            exit_code=args.exit_code,
+            classification=classification,
+        )
+        if args.manifest_out is not None:
+            args.manifest_out.parent.mkdir(parents=True, exist_ok=True)
+            args.manifest_out.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        if args.observation_out is not None:
+            observation = build_trace_observation(manifest)
+            args.observation_out.parent.mkdir(parents=True, exist_ok=True)
+            args.observation_out.write_text(
+                TraceRecordCodec.encode(observation) + "\n",
+                encoding="utf-8",
+            )
+        if args.alert_body_out is not None:
+            args.alert_body_out.parent.mkdir(parents=True, exist_ok=True)
+            if classification:
+                alert_text = render_alert_body(
+                    classification,
+                    run_id=args.run_id,
+                    expected_sha=args.expected_sha,
+                    app_url=args.app_url,
+                    corpus=args.corpus,
+                )
+            else:
+                alert_text = (
+                    f"Post-merge staging AI/OCR gate failed (`{status}`) "
+                    f"on {args.app_url} at run {args.run_id} ({args.expected_sha}) [corpus={args.corpus}].\n\n"
+                    f"Status reason: {status}. See the run's step summary for full counts. "
+                    "A green gate run auto-closes this issue."
+                )
+            args.alert_body_out.write_text(alert_text, encoding="utf-8")
+        return 0
+
     if args.classify_junit:
         classification = classify_junit(args.classify_junit)
+        manifest = build_evidence_manifest(
+            app_url=args.app_url,
+            run_id=args.run_id,
+            expected_sha=args.expected_sha,
+            corpus=args.corpus,
+            status=classification["status"],
+            exit_code=args.exit_code
+            if args.exit_code != 0
+            else (1 if classification["status"] != "passed" else 0),
+            classification=classification,
+        )
+        if args.manifest_out is not None:
+            args.manifest_out.parent.mkdir(parents=True, exist_ok=True)
+            args.manifest_out.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        if args.observation_out is not None:
+            observation = build_trace_observation(manifest)
+            args.observation_out.parent.mkdir(parents=True, exist_ok=True)
+            args.observation_out.write_text(
+                TraceRecordCodec.encode(observation) + "\n",
+                encoding="utf-8",
+            )
         if args.alert_body_out is not None:
             args.alert_body_out.parent.mkdir(parents=True, exist_ok=True)
             args.alert_body_out.write_text(
@@ -495,6 +777,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     run_id=args.run_id,
                     expected_sha=args.expected_sha,
                     app_url=args.app_url,
+                    corpus=args.corpus,
                 ),
                 encoding="utf-8",
             )

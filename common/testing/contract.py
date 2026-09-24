@@ -1710,6 +1710,26 @@ CONTRACT = PackageContract(
             status="done",
             proof_kind="property",
         ),
+        ACRecord(
+            id="AC-testing.deploy-gates.45",
+            statement=(
+                "A green staging AI/OCR gate run auto-closes an open alert only "
+                "when the run's corpus satisfies the alert's corpus (canary "
+                "cannot close audit-replay or all alerts; audit-replay cannot "
+                "close canary alerts), preventing false-green closes across "
+                "partitioned corpora; every gate run emits a canonical "
+                "TraceRecord observation and structured evidence manifest, "
+                "eliminating truth gaps between CI context and evidence bundle "
+                "outcomes (#1806, #1906)."
+            ),
+            test=(
+                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
+                "::test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_corpus_close"
+            ),
+            priority="P0",
+            status="done",
+            proof_kind="property",
+        ),
         # ── group product-gates: product-journey hard gates & fixture
         # contracts (was EPIC-008 AC8.13 subset), migration closeout,
         # #1663 / #1718 ──
