@@ -36,9 +36,24 @@
     },
     "link_dirs": [
       ".claude/skills",
-      ".codex/skills"
+      ".codex/skills",
+      ".agents/skills"
     ],
     "links": {
+      ".agents/skills/ac-workflow": "../../.opencode/skills/domain/ac-workflow",
+      ".agents/skills/accounting": "../../.opencode/skills/domain/accounting",
+      ".agents/skills/development": "../../.opencode/skills/domain/development",
+      ".agents/skills/extraction": "../../.opencode/skills/domain/extraction",
+      ".agents/skills/github-operations": "../../.opencode/skills/domain/github-operations",
+      ".agents/skills/infra-operations": "../../.opencode/skills/domain/infra-operations",
+      ".agents/skills/planning": "../../.opencode/skills/domain/planning",
+      ".agents/skills/preflight": "../../.opencode/skills/domain/preflight",
+      ".agents/skills/reconciliation": "../../.opencode/skills/domain/reconciliation",
+      ".agents/skills/reporting": "../../.opencode/skills/domain/reporting",
+      ".agents/skills/schema": "../../.opencode/skills/domain/schema",
+      ".agents/skills/secrets-management": "../../.opencode/skills/domain/secrets-management",
+      ".agents/skills/staging-qa": "../../.opencode/skills/domain/staging-qa",
+      ".agents/skills/ux-review": "../../.opencode/skills/domain/ux-review",
       ".claude/skills/ac-workflow": "../../.opencode/skills/domain/ac-workflow",
       ".claude/skills/accounting": "../../.opencode/skills/domain/accounting",
       ".claude/skills/development": "../../.opencode/skills/domain/development",
@@ -70,7 +85,7 @@
     },
     "root": ".opencode/skills/domain"
   },
-  "source_revision": "e9d3fe82933d7ff1c2ea37dc5f45eb1a12fcc414",
+  "source_revision": "65dc61957f1b12103577af563b0d342b5a754a98",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
