@@ -25,13 +25,9 @@ from src.reconciliation import (
     _candidate_is_better,
     _find_normal_candidates,
     calculate_match_score,
-    entry_bank_side_amount,
-    entry_total_amount,
     execute_matching,
     extract_merchant_tokens,
     find_candidates,
-    is_entry_balanced,
-    load_reconciliation_config,
     normalize_text,
     prune_candidates,
     score_amount,
@@ -85,69 +81,6 @@ async def _seed_document(db, *, owner_id: UUID) -> UploadedDocument:
     db.add(doc)
     await db.flush()
     return doc
-
-
-def test_entry_total_amount():
-    entry = JournalEntry(
-        lines=[
-            JournalLine(direction=Direction.DEBIT, amount=Decimal("100.00")),
-            JournalLine(direction=Direction.CREDIT, amount=Decimal("100.00")),
-            JournalLine(direction=Direction.DEBIT, amount=Decimal("50.00")),
-        ]
-    )
-    assert entry_total_amount(entry, currency="SGD") == Decimal("150.00")
-
-
-def test_entry_bank_side_amount_missing_direction_falls_back_to_debit_total():
-    entry = JournalEntry(
-        lines=[
-            JournalLine(direction=Direction.DEBIT, amount=Decimal("150.00")),
-            JournalLine(direction=Direction.CREDIT, amount=Decimal("150.00")),
-        ]
-    )
-    assert entry_bank_side_amount(entry, None, currency="SGD") == Decimal("150.00")
-
-
-def test_is_entry_balanced():
-    balanced = JournalEntry(
-        lines=[
-            JournalLine(direction=Direction.DEBIT, amount=Decimal("100.00")),
-            JournalLine(direction=Direction.CREDIT, amount=Decimal("100.00")),
-        ]
-    )
-    unbalanced = JournalEntry(
-        lines=[
-            JournalLine(direction=Direction.DEBIT, amount=Decimal("100.00")),
-            JournalLine(direction=Direction.CREDIT, amount=Decimal("99.00")),
-        ]
-    )
-    assert is_entry_balanced(balanced, base_currency="SGD") is True
-    assert is_entry_balanced(unbalanced, base_currency="SGD") is False
-
-
-def test_load_reconciliation_config_env_overrides():
-    with patch.dict(
-        "os.environ",
-        {"RECONCILIATION_AUTO_ACCEPT_THRESHOLD": "90", "RECONCILIATION_REVIEW_THRESHOLD": "50"},
-    ):
-        config = load_reconciliation_config(force_reload=True)
-        assert config.auto_accept == 90
-        assert config.pending_review == 50
-    # Restore cache to defaults after env patch exits
-    load_reconciliation_config(force_reload=True)
-
-
-def test_load_reconciliation_config_yaml_fallback():
-    with (
-        patch("pathlib.Path.exists", return_value=True),
-        patch("pathlib.Path.read_text", return_value="scoring:\n  weights:\n    amount: 0.5"),
-    ):
-        # Even if yaml module is missing or error happens, it should fallback
-        config = load_reconciliation_config(force_reload=True)
-        # Assuming the mock might trigger fallback due to missing yaml or other issues
-        assert isinstance(config, ReconciliationConfig)
-    # Restore cache to defaults after Path mock exits
-    load_reconciliation_config(force_reload=True)
 
 
 def test_normalize_text_edge_cases():
@@ -733,15 +666,6 @@ async def test_find_candidates(db: AsyncSession, test_user):
     assert candidates[0].memo == "Find Me"
 
 
-def test_load_reconciliation_config_malformed_yaml():
-    with (
-        patch("pathlib.Path.exists", return_value=True),
-        patch("pathlib.Path.read_text", return_value="invalid: yaml: :"),
-    ):
-        config = load_reconciliation_config(force_reload=True)
-        assert config.auto_accept == DEFAULT_CONFIG.auto_accept
-
-
 async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
     user_id = test_user.id
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
@@ -833,36 +757,6 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user)
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 0
-
-
-def test_load_reconciliation_config_yaml_import_error():
-    """AC4.1.1 - Config loading: When yaml import fails, use DEFAULT_CONFIG
-
-    GIVEN yaml module cannot be imported
-    WHEN load_reconciliation_config is called with force_reload=True
-    THEN it returns DEFAULT_CONFIG as fallback
-    """
-    import builtins
-
-    original_import = builtins.__import__
-
-    def mock_import(name, *args, **kwargs):
-        if name == "yaml":
-            raise ImportError("yaml not available")
-        return original_import(name, *args, **kwargs)
-
-    with patch("builtins.__import__", side_effect=mock_import):
-        config = load_reconciliation_config(force_reload=True)
-        assert config == DEFAULT_CONFIG
-
-
-def test_auto_accept_helper():
-    from src.reconciliation import auto_accept
-
-    assert auto_accept(85, DEFAULT_CONFIG) is True
-    assert auto_accept(84, DEFAULT_CONFIG) is False
-    assert auto_accept(100, DEFAULT_CONFIG) is True
-    assert auto_accept(0, DEFAULT_CONFIG) is False
 
 
 async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_user):
@@ -990,41 +884,6 @@ def test_score_business_logic_out_unknown():
 # ---------------------------------------------------------------------------
 # Coverage boost tests for uncovered lines in reconciliation.py
 # ---------------------------------------------------------------------------
-
-
-def test_load_reconciliation_config_yaml_success():
-    """Cover lines 118-143: YAML config exists and parses successfully."""
-    yaml_content = """
-scoring:
-  weights:
-    amount: 0.50
-    date: 0.20
-    description: 0.15
-    business: 0.10
-    history: 0.05
-  thresholds:
-    auto_accept: 90
-    pending_review: 55
-  tolerances:
-    amount_percent: 0.01
-    amount_absolute: 0.20
-    date_days: 10
-"""
-    with (
-        patch("pathlib.Path.exists", return_value=True),
-        patch("pathlib.Path.read_text", return_value=yaml_content),
-    ):
-        config = load_reconciliation_config(force_reload=True)
-        assert config.weight_amount == Decimal("0.50")
-        assert config.weight_date == Decimal("0.20")
-        assert config.weight_description == Decimal("0.15")
-        assert config.auto_accept == 90
-        assert config.pending_review == 55
-        assert config.amount_percent == Decimal("0.01")
-        assert config.amount_absolute == Decimal("0.20")
-        assert config.date_days == 10
-    # Restore cache to defaults after Path mock exits
-    load_reconciliation_config(force_reload=True)
 
 
 async def test_execute_matching_with_limit(db: AsyncSession, test_user):

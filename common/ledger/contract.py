@@ -466,7 +466,7 @@ CONTRACT = PackageContract(
                 "type, code, and ownership. Was EPIC-002 AC2.1.1."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_create_account"
             ),
             priority="P0",
@@ -478,7 +478,7 @@ CONTRACT = PackageContract(
                 "An account is retrievable by id for its owner. Was EPIC-002 AC2.1.2."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_get_account_success"
             ),
             priority="P0",
@@ -491,7 +491,7 @@ CONTRACT = PackageContract(
                 "EPIC-002 AC2.1.3."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_get_account_not_found"
             ),
             priority="P0",
@@ -504,7 +504,7 @@ CONTRACT = PackageContract(
                 "AC2.1.4."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_update_account_success"
             ),
             priority="P0",
@@ -517,7 +517,7 @@ CONTRACT = PackageContract(
                 "EPIC-002 AC2.1.5."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_update_account_not_found"
             ),
             priority="P0",
@@ -529,8 +529,8 @@ CONTRACT = PackageContract(
                 "Listing accounts honours type/active filters. Was EPIC-002 AC2.1.6."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
-                "::test_list_accounts_with_filters"
+                "apps/backend/tests/accounting/test_accounts_service.py"
+                "::test_list_accounts"
             ),
             priority="P1",
             status="done",
@@ -1087,7 +1087,7 @@ CONTRACT = PackageContract(
                 "EPIC-002 AC2.9.1."
             ),
             test=(
-                "apps/backend/tests/accounting/test_account_service_unit.py"
+                "apps/backend/tests/accounting/test_accounts_service.py"
                 "::test_create_account"
             ),
             priority="P0",
