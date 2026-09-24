@@ -2610,6 +2610,21 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-meta.fe-contract-types.6",
+            statement=(
+                "Down-only frontend layer boundaries are enforced: no module under "
+                "`apps/frontend/src/lib/` imports from `components/` or `app/`, no transport "
+                "module under `apps/frontend/src/lib/api.ts` imports React or UI, and no query "
+                "hook under `apps/frontend/src/hooks/` imports from `app/` (issue #2117)."
+            ),
+            test=(
+                "tests/tooling/test_fe_layer_boundaries.py"
+                "::test_AC_fe_layer_boundaries_1_lib_never_imports_components_or_app"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-meta.governance-control.1",
             statement=(
                 "Package contracts own governance initiatives and guarantees, "
