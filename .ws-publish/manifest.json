@@ -3,7 +3,8 @@
   "dirty_inputs": [],
   "inputs": {
     "repo": "210427446d80d41f679a14c11f1efd3bbf5990ba90573c594c23d9c1028a6e39",
-    "root": "f73b8ab7dfd7a7901c5264c7694f32562f780d7fb4a5efc19f51dcee1f071259"
+    "root": "f73b8ab7dfd7a7901c5264c7694f32562f780d7fb4a5efc19f51dcee1f071259",
+    "skills": "b92635cd2e833bb0c7b207923de78256850846941fa9362666056ebc73cd320b"
   },
   "language": "en",
   "outputs": {
@@ -16,7 +17,60 @@
     "runtime"
   ],
   "schema": 2,
-  "source_revision": "3bd08b82cdbc44268e4e3b7234836fd0cbe5275f",
+  "skills": {
+    "files": {
+      ".opencode/skills/domain/ac-workflow/SKILL.md": "391e06071fef3c878ee865660228f8aff0d2c64d093f266eb1a6161cafe96899",
+      ".opencode/skills/domain/accounting/SKILL.md": "e0f4596bd0a3ff475ba55e326c05ca0a1125f59da10475364e10870c9bd3dbb9",
+      ".opencode/skills/domain/development/SKILL.md": "1edccec1a8a06beee64391031d0fa0d557e699cfff95f04739b470741b56580f",
+      ".opencode/skills/domain/extraction/SKILL.md": "623e935bb80528d9ae5960fef11da170b2da1683ba6a893a30f88af3968db5dd",
+      ".opencode/skills/domain/github-operations/SKILL.md": "f56034868109aacdfcbca68fd6a7106fa07e1127fd1ca4651861d51511e4413a",
+      ".opencode/skills/domain/infra-operations/SKILL.md": "34e46fbd67e2fdc327e0886dbad7dc443967e2bcece29e6d73a820ac3f984436",
+      ".opencode/skills/domain/planning/SKILL.md": "a942e82c23f6e54f6586923e9e76d05e21af22fe34c0c954802d9c350a8f329b",
+      ".opencode/skills/domain/preflight/SKILL.md": "ac12752bffb44fa7af80c0c7c83fcafc52314f454b55bb61e3502ac0185ab9a7",
+      ".opencode/skills/domain/reconciliation/SKILL.md": "7e9002bda315d5943fd82b09fbfe5f39537fbf7e723c7c06a2bff6c65310e5f4",
+      ".opencode/skills/domain/reporting/SKILL.md": "4e865c208d3b15ecba7398ff91d40f3e99f6b9f1c09ff8582c586cb2f6308b60",
+      ".opencode/skills/domain/schema/SKILL.md": "0c15fe80fd50d31095121ee50475424e659ff13a173c9cf12c2067aa5724eb0e",
+      ".opencode/skills/domain/secrets-management/SKILL.md": "d00800f58d6b77acfbced45908b6d0293a0b9dac534928d59d65e6efa1afd91a",
+      ".opencode/skills/domain/staging-qa/SKILL.md": "b9a1b3ea5b62658b22da3aeaf048db14849eb488d75be1e2b3901e0bca05c9be",
+      ".opencode/skills/domain/ux-review/SKILL.md": "851c0bfe841b2ff395c0c0e0e4991464e5b0d692dd59ce357933670c7d684086"
+    },
+    "link_dirs": [
+      ".claude/skills",
+      ".codex/skills"
+    ],
+    "links": {
+      ".claude/skills/ac-workflow": "../../.opencode/skills/domain/ac-workflow",
+      ".claude/skills/accounting": "../../.opencode/skills/domain/accounting",
+      ".claude/skills/development": "../../.opencode/skills/domain/development",
+      ".claude/skills/extraction": "../../.opencode/skills/domain/extraction",
+      ".claude/skills/github-operations": "../../.opencode/skills/domain/github-operations",
+      ".claude/skills/infra-operations": "../../.opencode/skills/domain/infra-operations",
+      ".claude/skills/planning": "../../.opencode/skills/domain/planning",
+      ".claude/skills/preflight": "../../.opencode/skills/domain/preflight",
+      ".claude/skills/reconciliation": "../../.opencode/skills/domain/reconciliation",
+      ".claude/skills/reporting": "../../.opencode/skills/domain/reporting",
+      ".claude/skills/schema": "../../.opencode/skills/domain/schema",
+      ".claude/skills/secrets-management": "../../.opencode/skills/domain/secrets-management",
+      ".claude/skills/staging-qa": "../../.opencode/skills/domain/staging-qa",
+      ".claude/skills/ux-review": "../../.opencode/skills/domain/ux-review",
+      ".codex/skills/ac-workflow": "../../.opencode/skills/domain/ac-workflow",
+      ".codex/skills/accounting": "../../.opencode/skills/domain/accounting",
+      ".codex/skills/development": "../../.opencode/skills/domain/development",
+      ".codex/skills/extraction": "../../.opencode/skills/domain/extraction",
+      ".codex/skills/github-operations": "../../.opencode/skills/domain/github-operations",
+      ".codex/skills/infra-operations": "../../.opencode/skills/domain/infra-operations",
+      ".codex/skills/planning": "../../.opencode/skills/domain/planning",
+      ".codex/skills/preflight": "../../.opencode/skills/domain/preflight",
+      ".codex/skills/reconciliation": "../../.opencode/skills/domain/reconciliation",
+      ".codex/skills/reporting": "../../.opencode/skills/domain/reporting",
+      ".codex/skills/schema": "../../.opencode/skills/domain/schema",
+      ".codex/skills/secrets-management": "../../.opencode/skills/domain/secrets-management",
+      ".codex/skills/staging-qa": "../../.opencode/skills/domain/staging-qa",
+      ".codex/skills/ux-review": "../../.opencode/skills/domain/ux-review"
+    },
+    "root": ".opencode/skills/domain"
+  },
+  "source_revision": "e9d3fe82933d7ff1c2ea37dc5f45eb1a12fcc414",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
