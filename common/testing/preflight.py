@@ -230,8 +230,11 @@ CHECKS: tuple[Check, ...] = (
             "apps/backend/src/schemas/*.py",
             "apps/backend/src/main.py",
         ),
-        commands=((PY, "tools/generate_openapi_spec.py", "--check"),),
-        why="router/schema changed: the committed apps/frontend/openapi.json (source for the generated FE api-types) must be regenerated — enforces the FE↔BE contract (#1004)",
+        commands=(
+            (PY, "tools/generate_openapi_spec.py", "--check"),
+            ("npm", "--prefix", "apps/frontend", "run", "check:api-types"),
+        ),
+        why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
     ),
     Check(
         name="package-migration-safety",
@@ -339,14 +342,30 @@ CHECKS: tuple[Check, ...] = (
         "pairs must remain an exact shrink-only baseline",
     ),
     Check(
+        name="frontend-static",
+        globs=(
+            "apps/frontend/src/*",
+            "apps/frontend/package.json",
+            "apps/frontend/tsconfig.json",
+            "apps/frontend/openapi.json",
+        ),
+        commands=(
+            ("npm", "run", "lint"),
+            ("npm", "run", "typecheck"),
+            ("npm", "run", "check:api-types"),
+        ),
+        why="frontend changed: eslint + tsc typecheck + openapi api-types contract sync",
+        cwd="apps/frontend",
+        tier="static",
+    ),
+    Check(
         name="frontend",
         globs=("apps/frontend/*",),
         commands=(
-            ("npm", "run", "lint"),
             ("npm", "run", "test:coverage"),
             ("npm", "run", "build"),
         ),
-        why="frontend changed: eslint + vitest coverage gate + next build (layout/route type rules)",
+        why="frontend changed: vitest coverage gate + next build (layout/route type rules)",
         cwd="apps/frontend",
         tier="heavy",
     ),
@@ -493,20 +512,45 @@ def run(
             "'full' (default) = both."
         ),
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Select all registered checks for the tier regardless of diff.",
+    )
     args = parser.parse_args(argv)
 
-    files = (
-        args.changed if args.changed is not None else changed_files(args.base, git=git)
-    )
-    selected = select_checks(files, tier=args.tier)
+    if args.all:
+        files = ()
+        selected = [
+            check for check in CHECKS if args.tier == "full" or check.tier == args.tier
+        ]
+    else:
+        files = (
+            args.changed
+            if args.changed is not None
+            else changed_files(args.base, git=git)
+        )
+        selected = select_checks(files, tier=args.tier)
+
+    if args.list:
+        if not selected or args.all:
+            inventory = [
+                check
+                for check in CHECKS
+                if args.tier == "full" or check.tier == args.tier
+            ]
+            print(
+                f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):"
+            )
+            for check in inventory:
+                print(f"  [{check.tier}] {check.name}: {check.why}")
+            return 0
+        for check in selected:
+            print(f"  [{check.tier}] {check.name}: {check.why}")
+        return 0
 
     if not selected:
         print("preflight: no relevant gates for the current diff.")
-        return 0
-
-    if args.list:
-        for check in selected:
-            print(f"  [{check.tier}] {check.name}: {check.why}")
         return 0
 
     print(

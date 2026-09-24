@@ -3834,6 +3834,51 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.preflight.2",
+            statement=(
+                "Frontend static gate parity: preflight provides a seconds-level "
+                "frontend-static gate in the static tier running npm run lint and "
+                "npm run typecheck for changed frontend files, and openapi-spec "
+                "additionally runs npm run check:api-types in apps/frontend to "
+                "guarantee frontend-backend OpenAPI contract sync."
+            ),
+            test=(
+                "tests/tooling/test_preflight.py"
+                "::test_AC_testing_preflight_2_frontend_static_gate_parity"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preflight.3",
+            statement=(
+                "Preflight check inventory discovery: running preflight.py --list "
+                "on a clean diff or with --all displays all registered gates for "
+                "the selected tier, and --all runs every check regardless of diff."
+            ),
+            test=(
+                "tests/tooling/test_preflight.py"
+                "::test_AC_testing_preflight_3_list_all_inventory_discovery"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-testing.preflight.4",
+            statement=(
+                "Multi-worker worktree lifecycle doctor: tools/worktree_doctor.py "
+                "inspects all worktrees against PR states, uncommitted changes, "
+                "staged index leakages, and active process file handles, providing "
+                "safe auditing and pruning of merged worktrees."
+            ),
+            test=(
+                "tests/tooling/test_worktree_doctor.py"
+                "::test_AC_testing_preflight_4_worktree_doctor_audit_and_prune"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group diff-coverage: diff-scoped PR coverage gate + ratchet
         # demotion (#1810, metric layer: G-diff-coverage /
         # G-ratchet-backstop). The unit of the blocking PR coverage
