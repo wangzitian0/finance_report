@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 
 export interface EnvelopeDraft {
   accountId: string;

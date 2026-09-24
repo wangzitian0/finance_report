@@ -284,9 +284,10 @@ app routes
   Query.** Primitives stay presentational: they take props and render
   token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
   query hooks, or feature components.
-- **`lib/` must not import React or UI.** Foundational libraries under `lib/`
+- **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/`
   depend only on lower-level utilities and contracts. They must not import
-  React, UI components, or route pages (`test_fe_layer_boundaries.py`,
+  anything under `components/` or `app/`. The transport boundary `lib/api.ts` is
+  framework-agnostic and must additionally never import React (`test_fe_layer_boundaries.py`,
   `AC-meta.fe-contract-types.6`, issue #2117).
 - **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/money` /
   `lib/quantity` when needed) but not on route components.** A hook may call
