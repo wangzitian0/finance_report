@@ -263,13 +263,7 @@ export interface PersonalReportPackageSnapshotViewModel
 export type PersonalReportPackageSnapshotResponse =
   Schemas["PersonalReportPackageSnapshotResponse"];
 
-export interface AdvisorSuggestion {
-  basis: string;
-  confidence_tier: string;
-  source_refs: string[];
-  limitation: string;
-  next_action_href: string;
-}
+export type AdvisorSuggestion = Schemas["AdvisorSuggestion"];
 
 export interface ChatCitation {
   label: string;
@@ -487,14 +481,7 @@ export type AnnualizedIncomeScheduleResponse =
 
 export type AnnualizedIncomeResponse = Schemas["AnnualizedIncomeResponse"];
 
-export interface RestrictedHolding {
-  ticker: string;
-  quantity: DecimalValue;
-  vesting_schedule?: string | null;
-  unlock_date?: string | null;
-  fair_value: MoneyValue;
-  currency: string;
-}
+export type RestrictedHolding = Schemas["RestrictedHoldingResponse"];
 
 export type ValuationComponentsResponse =
   Schemas["ValuationComponentsResponse"];
@@ -538,22 +525,7 @@ export type ReconciliationMatchResponse =
 export type ReconciliationMatchListResponse =
   ListResponse<ReconciliationMatchResponse>;
 
-export interface ManagedPosition {
-  id: string;
-  user_id: string;
-  account_id: string;
-  asset_identifier: string;
-  quantity: string;
-  cost_basis: string;
-  acquisition_date: string;
-  disposal_date?: string | null;
-  status: "active" | "disposed";
-  currency: string;
-  position_metadata?: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
-  account_name?: string | null;
-}
+export type ManagedPosition = Schemas["ManagedPositionResponse"];
 
 export type ManagedPositionListResponse = ListResponse<ManagedPosition>;
 
@@ -601,59 +573,15 @@ export type ManualValuationSource =
   | "property_valuation"
   | "other_document";
 
-export interface ManualValuationSnapshot {
-  id: string;
-  user_id: string;
-  component_type: ManualValuationComponentType;
-  liquidity_class: ManualValuationLiquidityClass;
-  as_of_date: string;
-  value: string;
-  currency: string;
-  source: string;
-  valuation_basis?: ManualValuationBasis | null;
-  notes?: string | null;
-  recurrence_days?: number | null;
-  reminder_date?: string | null;
-  provenance: DataProvenance;
-  created_at: string;
-  updated_at: string;
-}
+export type ManualValuationSnapshot =
+  Schemas["ManualValuationSnapshotResponse"];
 
 export type ManualValuationSnapshotListResponse =
   ListResponse<ManualValuationSnapshot>;
 
 // ── Portfolio Management (EPIC-017) ──────────────────────────────────
 
-export interface PortfolioHolding {
-  id: string;
-  user_id: string;
-  account_id: string;
-  asset_identifier: string;
-  quantity: string;
-  cost_basis: string;
-  market_value: string;
-  unrealized_pnl: string;
-  unrealized_pnl_percent: string;
-  /** Reporting/base-currency view (same as `reporting_currency`). */
-  currency: string;
-  // #1482/#1487: native vs reporting are identically-named on both
-  // /portfolio/holdings and /assets/positions, so the UI can show the native
-  // denomination instead of depending on the endpoint-local `currency`.
-  native_currency?: string;
-  reporting_currency?: string;
-  native_cost_basis?: string;
-  reporting_cost_basis?: string;
-  acquisition_date: string;
-  disposal_date?: string | null;
-  status: "active" | "disposed";
-  cost_basis_method?: "FIFO" | "LIFO" | "AvgCost" | null;
-  account_name?: string | null;
-  asset_type?: string | null;
-  sector?: string | null;
-  geography?: string | null;
-  /** Normalized provenance when known; null when not safely derivable (#888). */
-  provenance?: DataProvenance | null;
-}
+export type PortfolioHolding = Schemas["HoldingResponse"];
 
 /**
  * #1796: /portfolio/holdings responds in the repo-standard items+total wrapper;
@@ -667,32 +595,11 @@ export type PortfolioSummaryDashboardResponse =
 
 export type PortfolioSummaryResponse = PortfolioSummaryDashboardResponse;
 
-export interface DividendEvent {
-  id: string;
-  ex_date: string;
-  pay_date: string;
-  amount: string;
-  currency: string;
-  reinvested: boolean;
-}
+export type DividendEvent = Schemas["DividendEventResponse"];
 
-export interface RealizedLot {
-  lot_id: string;
-  acquired_date?: string | null;
-  sold_date: string;
-  quantity: string;
-  basis: string;
-  proceeds: string;
-  gain_loss: string;
-  holding_period?: number | null;
-  currency: string;
-}
+export type RealizedLot = Schemas["RealizedLotResponse"];
 
-export interface PerformanceMetrics {
-  xirr: string;
-  time_weighted_return: string;
-  money_weighted_return: string;
-}
+export type PerformanceMetrics = Schemas["PerformanceMetricsResponse"];
 
 export type InvestmentPerformanceHoldingRow =
   Schemas["InvestmentPerformanceHoldingRow"];
@@ -703,38 +610,12 @@ export type InvestmentPerformanceAllocationRow =
 export type InvestmentPerformanceDataFreshness =
   Schemas["InvestmentPerformanceDataFreshness"];
 
-export interface InvestmentPerformanceReportSchedule {
-  period_start: string;
-  period_end: string;
-  as_of_date: string;
-  currency: string;
-  xirr: string | null;
-  time_weighted_return: string | null;
-  money_weighted_return: string | null;
-  realized_pnl: string;
-  unrealized_pnl: string;
-  dividend_income: string;
-  dividend_yield: string | null;
-  holdings: InvestmentPerformanceHoldingRow[];
-  allocation: InvestmentPerformanceAllocationRow[];
-  data_freshness: InvestmentPerformanceDataFreshness;
-  source_links: string[];
-  notes: string[];
-}
+export type InvestmentPerformanceReportSchedule =
+  Schemas["InvestmentPerformanceReportScheduleResponse"];
 
-export interface AllocationBreakdown {
-  category: string;
-  value: string;
-  percentage: string;
-  count: number;
-}
+export type AllocationBreakdown = Schemas["AllocationBreakdownResponse"];
 
-export interface PriceUpdate {
-  asset_identifier: string;
-  price: string;
-  currency: string;
-  price_date: string;
-}
+export type PriceUpdate = Schemas["PriceUpdateRequest"];
 
 export type PriceUpdateBatchResponse = Schemas["PriceUpdateBatchResponse"];
 export type PriceUpdateResponse = PriceUpdateBatchResponse;
@@ -757,18 +638,13 @@ export type CorrectionLoopReplayResponse =
 // Mirrors backend `UserAiSettingsResponse` / `UserAiSettingsUpdate`
 // (apps/backend/src/schemas/user.py).
 
-export interface UserAiSettings {
-  enable_ai_reconciliation: boolean;
-  enable_ai_classification: boolean;
-}
+export type UserAiSettings = Schemas["UserAiSettingsResponse"];
 
 export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 
 // Mirrors backend `BaseCurrencyResponse` / `BaseCurrencyUpdate`
 // (apps/backend/src/schemas/app_config.py) — EPIC-012 AC12.39 / #1340.
-export interface BaseCurrency {
-  base_currency: string;
-}
+export type BaseCurrency = Schemas["BaseCurrencyResponse"];
 
 /**
  * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
