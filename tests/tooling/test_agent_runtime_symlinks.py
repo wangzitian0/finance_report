@@ -7,9 +7,9 @@ instructions, skills, and MCP tools:
 * ``AGENTS.md`` is the single source of truth (read natively by Codex and
   OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
   the Gemini CLI.
-* ``.claude/skills`` and ``.codex/skills`` are flat symlinks onto the canonical
-  skill library in ``.opencode/skills`` so every runtime discovers the same
-  SKILL.md files.
+* ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` are flat
+  symlinks onto the canonical skill library in ``.opencode/skills`` so every
+  runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
@@ -31,11 +31,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 OPENCODE_SKILLS = ROOT / ".opencode" / "skills"
 # Runtimes that mirror the canonical .opencode skill library via flat symlinks
-# (Claude Code reads .claude/skills, Codex reads .codex/skills — both project-
-# level and discovered on clone).
+# (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
+# .agents/skills — all project-level and discovered on clone).
 MIRROR_SKILL_DIRS = {
     "claude": ROOT / ".claude" / "skills",
     "codex": ROOT / ".codex" / "skills",
+    "agents": ROOT / ".agents" / "skills",
 }
 
 # Auth plugins that borrow a first-party subscription OAuth seat inside a
