@@ -407,13 +407,13 @@ async def test_void_journal_entry(
     assert posted_entry.void_reversal_entry_id is not None  # Reversal entry ID set
     # Test voiding draft entry (should fail)
     draft_entry = next((e for e in test_entries if e.status == JournalEntryStatus.DRAFT), None)
-    if draft_entry:
-        response = await client.post(
-            f"/journal-entries/{draft_entry.id}/voidings",
-            json=void_request,
-        )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "posted" in response.json()["detail"].lower()
+    assert draft_entry is not None, "test_entries fixture must contain a draft entry"
+    response = await client.post(
+        f"/journal-entries/{draft_entry.id}/voidings",
+        json=void_request,
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "posted" in response.json()["detail"].lower()
     non_existent_id = uuid4()
     response = await client.post(
         f"/journal-entries/{non_existent_id}/voidings",

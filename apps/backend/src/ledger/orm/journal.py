@@ -20,7 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.config import settings
-from src.database import Base
+from src.database import Base, split_postgresql_ddl
 from src.ledger.base.vocabulary import (
     Direction,
     JournalEntryAuthorityState,
@@ -531,38 +531,12 @@ FOR EACH ROW EXECUTE FUNCTION fr_guard_journal_line_immutability();
 """
 
 
-def _split_postgresql_ddl(sql: str) -> tuple[str, ...]:
-    statements: list[str] = []
-    start = 0
-    in_dollar_quote = False
-    index = 0
-
-    while index < len(sql):
-        if sql.startswith("$$", index):
-            in_dollar_quote = not in_dollar_quote
-            index += 2
-            continue
-
-        if sql[index] == ";" and not in_dollar_quote:
-            statement = sql[start : index + 1].strip()
-            if statement:
-                statements.append(statement)
-            start = index + 1
-
-        index += 1
-
-    trailing = sql[start:].strip()
-    if trailing:
-        statements.append(trailing)
-    return tuple(statements)
-
-
 def _install_ledger_invariant_ddl(target: Any, connection: Any, **_: Any) -> None:
     if connection.dialect.name != "postgresql":
         return
 
     # asyncpg rejects multi-command prepared statements during metadata create_all().
-    for statement in _split_postgresql_ddl(_LEDGER_INVARIANT_SQL):
+    for statement in split_postgresql_ddl(_LEDGER_INVARIANT_SQL):
         connection.exec_driver_sql(statement)
 
 

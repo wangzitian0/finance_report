@@ -117,3 +117,32 @@ async def test_create_session_maker_invalid_bind():
             create_session_maker_from_db(mock_session)
     finally:
         database.set_test_session_maker(original_test_maker)
+
+
+def test_split_postgresql_ddl_respects_dollar_quotes():
+    """Verify split_postgresql_ddl splits SQL statements on semicolons while
+    preserving internal semicolons inside $$ ... $$ dollar quotes.
+    """
+    from src.database import split_postgresql_ddl
+
+    sql = """
+    CREATE OR REPLACE FUNCTION test_func() RETURNS trigger AS $$
+    BEGIN
+        IF NEW.val IS NULL THEN
+            RAISE EXCEPTION 'cannot be null';
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS trg_test ON my_table;
+    CREATE TRIGGER trg_test BEFORE INSERT ON my_table FOR EACH ROW EXECUTE FUNCTION test_func();
+    """
+
+    statements = split_postgresql_ddl(sql)
+    assert len(statements) == 3
+    assert statements[0].startswith("CREATE OR REPLACE FUNCTION")
+    assert "RAISE EXCEPTION 'cannot be null';" in statements[0]
+    assert statements[0].endswith("$$ LANGUAGE plpgsql;")
+    assert statements[1] == "DROP TRIGGER IF EXISTS trg_test ON my_table;"
+    assert statements[2].startswith("CREATE TRIGGER trg_test")

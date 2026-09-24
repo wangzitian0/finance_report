@@ -62,6 +62,8 @@ def test_AC_ledger_api_vectors_1_accounts_list_matches_committed_vector():
     )
     response = committed["endpoints"]["accounts_list"]["response"]
     assert response["total"] == len(response["items"])
+    assert len(response["items"]) > 0, "accounts_list vector items must not be empty"
+    assert any(item["balance"] is not None for item in response["items"]), "at least one account must have a balance"
     for item in response["items"]:
         if item["balance"] is not None:
             assert isinstance(item["balance"], str), "balance must serialize as a decimal string"
@@ -83,6 +85,7 @@ def test_AC_extraction_api_vectors_1_statement_upload_matches_committed_vector()
     # validation semantics it advertises: open + sum(IN) - sum(OUT) == close.
     from decimal import Decimal
 
+    assert len(parsed["transactions"]) > 0, "statement_parsed vector transactions must not be empty"
     delta = sum(
         (Decimal(t["amount"]) if t["direction"] == "IN" else -Decimal(t["amount"])) for t in parsed["transactions"]
     )

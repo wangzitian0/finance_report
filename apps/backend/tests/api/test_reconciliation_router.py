@@ -1060,9 +1060,9 @@ class TestReconciliationEndpoints:
         assert len(data["items"]) >= 1
         match_data = data["items"][0]
         assert "entries" in match_data
-        if match_data["entries"]:
-            assert "id" in match_data["entries"][0]
-            assert "total_amount" in match_data["entries"][0]
+        assert len(match_data["entries"]) > 0, "Expected entry summaries to be populated"
+        assert "id" in match_data["entries"][0]
+        assert "total_amount" in match_data["entries"][0]
 
     async def test_list_matches_with_invalid_entry_id(self, client: AsyncClient, db, test_user: User):
         """AC4.3.15: Test listing matches with invalid journal entry UUID."""

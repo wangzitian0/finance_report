@@ -102,10 +102,12 @@ class TestDirtyAccountLast4Integration:
                 user_id=uuid4(),
             )
 
-        assert result.account_last4 == expected_sanitized
         if expected_sanitized is not None:
+            assert result.account_last4 == expected_sanitized
             assert len(expected_sanitized) <= 4
             assert all(c in string.ascii_letters + string.digits for c in expected_sanitized)
+        else:
+            assert result.account_last4 is None
 
     async def test_dirty_account_last4_persists_to_db(self, db, test_user):
         """End-to-end: AI returns "553-3" → sanitized → saved to real DB → read back OK."""
