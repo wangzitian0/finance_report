@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import GeneralSettingsPage from "@/app/(main)/settings/general/page";
-import AiSettingsPage from "@/app/(main)/settings/ai/page";
-import LlmSettingsPage from "@/app/(main)/settings/llm/page";
+import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel";
+import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
+import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
 
 type SettingsTab = "general" | "ai" | "llm";
 
@@ -88,9 +88,9 @@ export default function SettingsPage() {
                 tabIndex={0}
                 className="mt-2"
             >
-                {tab === "general" && <GeneralSettingsPage />}
-                {tab === "ai" && <AiSettingsPage />}
-                {tab === "llm" && <LlmSettingsPage />}
+                {tab === "general" && <GeneralSettingsPanel />}
+                {tab === "ai" && <AiSettingsPanel />}
+                {tab === "llm" && <LlmSettingsPanel />}
             </div>
         </div>
     );

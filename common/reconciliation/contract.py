@@ -2015,9 +2015,9 @@ CONTRACT = PackageContract(
         ),
         ACRecord(
             id="AC-reconciliation.fe-stage2-review.28",
-            statement="The dedicated `/review` route renders the Stage-2 review queue standalone",
+            statement="The dedicated `/reconciliation/review-queue` route renders the Stage-2 review queue standalone",
             # was AC16.36.1
-            test="apps/frontend/src/__tests__/reviewLandingPage.test.tsx::AC16.36.1 renders the Stage-2 review queue as a standalone page",
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.36.1 renders the Stage-2 review queue as a standalone page",
             priority="P1",
             status="done",
         ),
@@ -2025,7 +2025,7 @@ CONTRACT = PackageContract(
             id="AC-reconciliation.fe-stage2-review.29",
             statement="The dedicated route loads the global queue (no run filter)",
             # was AC16.36.2
-            test="apps/frontend/src/__tests__/reviewLandingPage.test.tsx::AC16.36.2 loads the global queue (no run filter) on the dedicated route",
+            test="apps/frontend/src/__tests__/reviewQueuePage.test.tsx::AC16.36.2 loads the global queue (no run filter) on the dedicated route",
             priority="P2",
             status="done",
         ),

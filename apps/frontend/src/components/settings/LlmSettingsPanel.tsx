@@ -51,7 +51,7 @@ function serialize(bindings: LlmSceneBindingItem[]): string {
   );
 }
 
-export default function LlmSettingsPage() {
+export default function LlmSettingsPanel() {
   const { showToast } = useToast();
 
   const [providers, setProviders] = useState<LlmProviderResponse[]>([]);
@@ -421,3 +421,5 @@ export default function LlmSettingsPage() {
     </div>
   );
 }
+
+export { LlmSettingsPanel as LlmSettingsPage };

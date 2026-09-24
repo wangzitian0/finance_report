@@ -3,7 +3,7 @@ import {
   calculateEffectiveBalanceValidation,
   type BalanceValidationResult,
   type ReviewBalanceTransaction,
-} from "../statementReviewBalance";
+} from "@/components/review/statementReviewBalance";
 
 // AC-extraction.fe-stage1-review.7
 describe("statementReviewBalance", () => {

@@ -331,4 +331,61 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             );
         });
     });
+
+    // AC-reconciliation.fe-stage2-review.28
+    it("AC16.36.1 renders the Stage-2 review queue as a standalone page", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path.startsWith("/api/statements/stage2/queue")) {
+                return Promise.resolve(queueData as never);
+            }
+            if (path === "/api/accounts/processing/summary") {
+                return Promise.resolve({
+                    pending_count: 0,
+                    pending_total: "0",
+                    currency: "SGD",
+                    oldest_pending_date: null,
+                } as never);
+            }
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] } as never);
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        expect(await screen.findByText("Review queue")).toBeInTheDocument();
+        await waitFor(() => expect(screen.getAllByText("Transfer").length).toBeGreaterThan(0));
+    });
+
+    // AC-reconciliation.fe-stage2-review.29
+    it("AC16.36.2 loads the global queue (no run filter) on the dedicated route", async () => {
+        mockedApi.mockImplementation((path: string) => {
+            if (path.startsWith("/api/statements/stage2/queue")) {
+                return Promise.resolve(queueData as never);
+            }
+            if (path === "/api/accounts/processing/summary") {
+                return Promise.resolve({
+                    pending_count: 0,
+                    pending_total: "0",
+                    currency: "SGD",
+                    oldest_pending_date: null,
+                } as never);
+            }
+            if (path.startsWith("/api/statements/consistency-checks/list")) {
+                return Promise.resolve({ items: [] } as never);
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<ReviewQueuePage /> as never);
+
+        await waitFor(() => {
+            const queueCall = mockedApi.mock.calls.find((call) =>
+                String(call[0]).startsWith("/api/statements/stage2/queue")
+            );
+            expect(queueCall).toBeDefined();
+            expect(String(queueCall?.[0])).not.toContain("run_id");
+        });
+    });
 });

@@ -7,7 +7,7 @@ import { useSettingsForm } from "@/hooks/useSettingsForm";
 // EPIC-012 AC12.39 / #1340: edit the effective base reporting currency.
 // The backend validates the ISO 4217 code (HTTP 422 on invalid), so this
 // control stays minimal — a text input normalized to upper-case.
-export default function GeneralSettingsPage() {
+export default function GeneralSettingsPanel() {
   const { showToast } = useToast();
   const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<string>({
     load: async () => (await fetchBaseCurrency()).base_currency,
@@ -81,3 +81,5 @@ export default function GeneralSettingsPage() {
     </div>
   );
 }
+
+export { GeneralSettingsPanel as GeneralSettingsPage };

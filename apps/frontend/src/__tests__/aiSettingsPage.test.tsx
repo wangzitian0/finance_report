@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import AiSettingsPage from "@/app/(main)/settings/ai/page"
+import AiSettingsPage from "@/components/settings/AiSettingsPanel"
 import { fetchUserSettings, patchUserSettings } from "@/lib/api"
 
 vi.mock("next/link", () => ({

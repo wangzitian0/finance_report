@@ -12,7 +12,7 @@ const DEFAULT_SETTINGS: UserAiSettings = {
   enable_ai_classification: false,
 };
 
-export default function AiSettingsPage() {
+export default function AiSettingsPanel() {
   const { showToast } = useToast();
   // `saved` is the last value persisted by the backend; `draft` is the
   // in-progress edit. A dirty form is any divergence between the two.
@@ -125,3 +125,5 @@ export default function AiSettingsPage() {
     </div>
   );
 }
+
+export { AiSettingsPanel as AiSettingsPage };
