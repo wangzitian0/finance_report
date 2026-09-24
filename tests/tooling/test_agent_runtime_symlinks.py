@@ -79,10 +79,18 @@ def _all_opencode_model_refs() -> dict[str, str]:
 
 
 def _opencode_leaf_skill_dirs() -> dict[str, Path]:
-    """Map skill name -> leaf directory for every SKILL.md under .opencode."""
+    """Map skill name -> leaf directory for every SKILL.md under .opencode.
+
+    The mirrors are flat, so a name is the whole address: two leaves sharing one
+    would make the mirror checks silently require only whichever was seen last.
+    """
     leaves: dict[str, Path] = {}
-    for skill_file in OPENCODE_SKILLS.rglob("SKILL.md"):
+    for skill_file in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
         leaf = skill_file.parent
+        assert leaf.name not in leaves, (
+            f".opencode skills {leaves.get(leaf.name)} and {leaf} share the name "
+            f"{leaf.name!r}; the flat mirrors can link only one of them"
+        )
         leaves[leaf.name] = leaf
     return leaves
 
