@@ -76,7 +76,8 @@ describe("ChatPageClient", () => {
     expect(screen.getByText(/Ask about spending trends/)).toBeInTheDocument()
   })
 
-  it("AC16.20.2 renders navigation links", () => {
+  // AC-advisor.fe-chat.3
+  it("AC16.19.6 AC16.20.2 renders navigation links", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 
@@ -108,7 +109,8 @@ describe("ChatPageClient", () => {
     expect(sessionStorage.getItem("ai_chat_pending_prompt")).toBeNull()
   })
 
-  it("AC16.20.2 shows consent modal when not accepted", () => {
+  // AC-advisor.fe-chat.2
+  it("AC16.19.5 AC16.20.2 shows consent modal when not accepted", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 

@@ -1164,15 +1164,15 @@ CONTRACT = PackageContract(
             id="AC-advisor.fe-chat.2",
             statement="Chat page client enforces disclaimer consent and passes initial prompt into chat panel",
             # was AC16.19.5
-            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.5 enforces disclaimer consent and passes initial prompt",
+            test="apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.5 AC16.20.2 shows consent modal when not accepted",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-advisor.fe-chat.3",
-            statement="Chat widget hides on chat route and toggles panel visibility elsewhere",
+            statement="Chat page client renders primary navigation links and first-class conversational IA",
             # was AC16.19.6
-            test="apps/frontend/src/__tests__/chatComponents.test.tsx::AC16.19.6 hides widget on chat route and toggles elsewhere",
+            test="apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.6 AC16.20.2 renders navigation links",
             priority="P2",
             status="done",
         ),

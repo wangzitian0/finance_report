@@ -125,7 +125,6 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/allocationChart.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/api-urls.test.ts` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/api.test.ts` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/auth_ssr.test.ts` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `common/llm/readme.md` |
