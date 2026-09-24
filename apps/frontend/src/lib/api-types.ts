@@ -2391,7 +2391,7 @@ export interface paths {
         post?: never;
         /**
          * Delete User
-         * @description Delete the authenticated user's own account.
+         * @description Delete the authenticated user's own account (soft delete).
          */
         delete: operations["delete_user_users__user_id__delete"];
         options?: never;
@@ -2741,6 +2741,9 @@ export interface components {
         /**
          * AccountType
          * @description Account type classification.
+         *
+         *     Follows the fundamental accounting equation:
+         *     Assets = Liabilities + Equity + (Income - Expenses)
          * @enum {string}
          */
         AccountType: "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
@@ -3929,7 +3932,7 @@ export interface components {
         };
         /**
          * Direction
-         * @description Debit or credit direction.
+         * @description Debit or credit direction in double-entry bookkeeping.
          * @enum {string}
          */
         Direction: "DEBIT" | "CREDIT";
@@ -4532,7 +4535,7 @@ export interface components {
         };
         /**
          * JournalEntryAuthorityState
-         * @description Whether this row has a decision that can be used as accounting authority.
+         * @description Whether a journal row has a decision that can be used as accounting authority.
          * @enum {string}
          */
         JournalEntryAuthorityState: "anchored" | "legacy_unproven";
@@ -4613,7 +4616,7 @@ export interface components {
         JournalEntrySourceType: "manual" | "user_confirmed" | "auto_matched" | "auto_parsed" | "system" | "fx_revaluation";
         /**
          * JournalEntryStatus
-         * @description Status of a journal entry.
+         * @description Status lifecycle of a journal entry.
          * @enum {string}
          */
         JournalEntryStatus: "draft" | "posted" | "reconciled" | "void";
