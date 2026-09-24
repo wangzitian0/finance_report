@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from common.testing.ac_proof import ac_proof
@@ -68,11 +69,12 @@ def _frontend_source_files(*, include_lib: bool = True) -> list[Path]:
     return files
 
 
-def _openapi_schemas() -> set[str]:
+@lru_cache(maxsize=1)
+def _openapi_schemas() -> frozenset[str]:
     if not OPENAPI_SPEC.exists():
-        return set()
+        return frozenset()
     data = json.loads(OPENAPI_SPEC.read_text(encoding="utf-8"))
-    return set(data.get("components", {}).get("schemas", {}).keys())
+    return frozenset(data.get("components", {}).get("schemas", {}).keys())
 
 
 @ac_proof(
