@@ -76,8 +76,8 @@ def test_iter_periods_rejects_invalid_period() -> None:
 
 
 def test_validate_internal_action_href_parity() -> None:
-    """AC-reporting-workflow-href-parity: Validate that reporting and workflow
-    internal action href validation logic are strictly aligned.
+    """Validate that reporting and workflow internal action href validation logic
+    are strictly aligned.
     """
     from src.schemas.reporting import _validate_internal_action_href as reporting_val
     from src.workflow.base.types import _validate_internal_action_href as workflow_val
