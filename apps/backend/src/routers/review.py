@@ -6,21 +6,23 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from src.audit.money import InvalidCurrencyError
+from src.audit import InvalidCurrencyError
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    AtomicTransaction,
     BankStatementStatus,
+    StatementSummary,
     resolve_statement_conflicts,
     resolve_statement_transactions,
     resolve_transaction_currency,
 )
-from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 from src.platform import get_owned_or_404, raise_conflict, raise_not_found
 from src.reconciliation import (
     CheckResolutionAction,
+    CheckStatus,
+    CheckType,
     ReconciliationError,
     ReconciliationMatch,
     ReconciliationStatus,
@@ -32,7 +34,6 @@ from src.reconciliation import (
     resolve_check,
     run_all_consistency_checks,
 )
-from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
 from src.schemas.review import (
     BatchApproveRequest,
     BatchApproveResponse,

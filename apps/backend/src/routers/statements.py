@@ -28,6 +28,7 @@ from src.extraction import (
     ReviewedStatementEnvelopeConflict,
     StatementPostingOutcome,
     StatementPostingStatus,
+    StatementSummary,
     UploadedDocument,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
@@ -51,7 +52,6 @@ from src.extraction import (
     supports_reviewed_statement_envelope,
     validate_balance_chain,
 )
-from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import (
     Account,
     AccountType,

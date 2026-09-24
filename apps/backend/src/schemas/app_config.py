@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, field_validator
 
-from src.audit.money import Currency, InvalidCurrencyError
+from src.audit import Currency, InvalidCurrencyError
 
 
 class BaseCurrencyResponse(BaseModel):

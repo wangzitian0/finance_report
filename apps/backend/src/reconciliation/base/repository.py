@@ -6,15 +6,10 @@ from datetime import date
 from typing import TYPE_CHECKING, Protocol
 from uuid import UUID
 
-from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntry
-
 if TYPE_CHECKING:
-    # Not `from src.reconciliation import ReconciliationMatch`: this module is
-    # reached from the package root's own init (base -> base.repository), so
-    # importing back from the root at runtime would be circular. Postponed
-    # annotations (above) make this annotation-only import safe to defer.
-    from src.reconciliation.orm.reconciliation import ReconciliationMatch
+    from src.extraction import AtomicTransaction
+    from src.ledger import JournalEntry
+    from src.reconciliation import ReconciliationMatch
 
 
 class ReconciliationRepository(Protocol):

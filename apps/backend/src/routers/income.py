@@ -6,7 +6,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from src.audit.money import to_money
+from src.audit import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine

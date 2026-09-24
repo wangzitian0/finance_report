@@ -9,11 +9,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
-from src.reporting import CashFlowResponse, ReportType
-from src.reporting.base.types import (
+from src.reporting import (
+    CashFlowResponse,
     PersonalReportingFrameworkId,
     PolicyDimension,
-    ReportLineId as ReportLineId,
+    ReportLineId,
+    ReportType,
 )
 from src.schemas.base import CurrencyCode
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse

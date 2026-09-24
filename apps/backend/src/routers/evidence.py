@@ -8,11 +8,12 @@ from fastapi import APIRouter, HTTPException, Query, status
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     DEFAULT_MAX_DEPTH,
+    EvidenceEdge,
     EvidenceGraphMaterializationService,
     EvidenceLineageService,
+    EvidenceNode,
     EvidenceTraversalStep,
 )
-from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.schemas.evidence import (
     EvidenceLineageBlocker,
     EvidenceLineageDirection,

@@ -27,11 +27,34 @@ from __future__ import annotations
 from common.meta.package_contract import (
     ACRecord,
     ConceptRecord,
+    ContextRelation,
+    ContextScope,
     Invariant,
     PackageContract,
 )
 
 CONTRACT = PackageContract(
+    context=ContextScope(
+        purpose="Own the app-to-external-world dependency contract: environment tiers, declared backends, substitutes, and fail-closed presence evidence.",
+        in_scope=[
+            "dependency manifest and environment-tier vocabulary",
+            "dependency probes, smoke checks, and release evidence transport",
+            "external service substitution and presence assertions",
+        ],
+        out_of_scope=[
+            "telemetry emission, logging policy, or observability query ownership",
+            "business-domain state, financial policy, and domain events",
+            "in-process workflow or cross-domain application orchestration",
+        ],
+    ),
+    relationships=[
+        ContextRelation(
+            provider="observability",
+            consumer="runtime",
+            mode="published-language",
+            reason="Uses observability's published logger and health-status language when reporting dependency probe and storage outcomes.",
+        ),
+    ],
     name="runtime",
     status="active",
     tier="CODE-ONLY",
