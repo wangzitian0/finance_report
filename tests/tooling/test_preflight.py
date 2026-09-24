@@ -399,8 +399,8 @@ class TestTierSelection:
         selected = preflight.select_checks(
             ["apps/frontend/src/app/layout.tsx"], tier="static"
         )
-        names = [c.name for c in selected]
-        assert "frontend-static" in names
+        selected_names = {c.name for c in selected}
+        assert selected_names >= {"frontend-static"}
 
         # 2. Check commands in frontend-static
         check = next(c for c in preflight.CHECKS if c.name == "frontend-static")
@@ -425,8 +425,8 @@ class TestTierSelection:
         rc = preflight.run(["--list", "--changed"], runner=lambda argv, cwd: 0)
         assert rc == 0
         out = capsys.readouterr().out
-        assert "Registered preflight gate inventory" in out
-        assert "ac-traceability" in out
+        assert out.find("Registered preflight gate inventory") != -1
+        assert out.find("ac-traceability") != -1
 
         # With --tier=static and empty diff, lists all static gates
         rc = preflight.run(
@@ -434,8 +434,8 @@ class TestTierSelection:
         )
         assert rc == 0
         out = capsys.readouterr().out
-        assert "frontend-static" in out
-        assert "  [heavy] frontend:" not in out  # heavy frontend excluded
+        assert out.find("frontend-static") != -1
+        assert out.find("  [heavy] frontend:") == -1  # heavy frontend excluded
 
         # --all runs all selected checks regardless of diff
         rc = preflight.run(
@@ -444,8 +444,8 @@ class TestTierSelection:
         )
         assert rc == 0
         out = capsys.readouterr().out
-        assert "Registered preflight gate inventory" in out
-        assert "frontend-static" in out
+        assert out.find("Registered preflight gate inventory") != -1
+        assert out.find("frontend-static") != -1
 
     def test_heavy_tier_selects_only_matching_heavy_checks(self):
         selected = preflight.select_checks(
