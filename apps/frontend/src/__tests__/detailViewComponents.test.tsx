@@ -8,6 +8,8 @@ import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsMo
 import { apiFetch } from "@/lib/api"
 import type { Account, JournalEntry, JournalLine, JournalEntryResponse, JournalEntryListResponse } from "@/lib/types"
 
+import { accountsListVector } from "./fixtures/apiVectors"
+
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
 vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
 
