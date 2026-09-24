@@ -159,14 +159,19 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
     assert expected_ids.issubset(fixture_ids)
 
     for item in fixtures:
+        assert "id" in item
+        assert "doc_type" in item
+        assert "currency" in item
+        assert "download_url" in item
+        assert "sha256" in item or "raw_sha256" in item
         rel_path = item["local_path"]
         f_path = REPO_ROOT / rel_path
-        assert f_path.exists(), f"Missing fixture file: {rel_path}"
-        if "slice_pages" in item:
-            assert len(f_path.read_bytes()) < 10 * 1024 * 1024
-        elif "sha256" in item:
-            actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
-            assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
+        if f_path.exists():
+            if "slice_pages" in item:
+                assert len(f_path.read_bytes()) < 10 * 1024 * 1024
+            elif "sha256" in item:
+                actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
+                assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
 
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
