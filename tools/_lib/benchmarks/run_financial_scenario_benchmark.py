@@ -966,7 +966,7 @@ def generate_multicurrency_hkd_csv(
 
 def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
     r"""
-    Case 1: Consecutive 4-Month Rollforward & Q1 Articulation (连续4月滚续与季度结转)
+    Case 1: Consecutive 4-Month Rollforward & Q1 Articulation
     - Month 1: Jan 2025 (Straits Capital Bank Statement) -> Opening: 15450.75, Closing: 15271.23, Net: -179.52.
     - Month 2: Feb 2025 (Chained Standard Chartered Statement) -> Opening: 15271.23, Closing: 18250.00, Net: +2978.77.
     - Month 3: Mar 2025 (Chained Standard Chartered Statement) -> Opening: 18250.00, Closing: 21300.00, Net: +3050.00.
@@ -1260,7 +1260,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
-    Case 2: Multi-PII Household Operations & Category Reconciliation (家庭多账户多PII协同)
+    Case 2: Multi-PII Household Operations & Category Reconciliation
     - Multi-PII Household Operations:
       * Husband Account (DBS Bank): Opening 10,000.00 SGD, Consulting Revenue +5,000.00 SGD,
         Rent -1,500.00 SGD, SaaS -500.00 SGD, Dining -200.00 SGD -> Closing 12,800.00 SGD.
@@ -1443,7 +1443,7 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
-    Case 3: Credit Card Liability & Non-P&L Repayment Clearance (信用卡负债与非损益清偿)
+    Case 3: Credit Card Liability & Non-P&L Repayment Clearance
     - Credit Card Incurrence:
       * User incurs 1,200.00 SGD in operating expenses on a credit card.
       * Creates 1,200.00 SGD in credit card liabilities (Citi Rewards Card).
@@ -1628,7 +1628,7 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
-    Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet (跨国多币种合并资产负债表)
+    Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet
     - Base Currency: SGD (user default).
     - Statements uploaded across 3 sovereign jurisdictions:
       * Singapore (SGD): Opening 10,000.00 SGD, Closing 12,800.00 SGD, Net +2,800.00 SGD.
@@ -1778,7 +1778,7 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
     """
-    Case 5: Holistic Multi-Asset & Tax Ecosystem (全景多资产与税务生态)
+    Case 5: Holistic Multi-Asset & Tax Ecosystem
     - Comprehensive Household Wealth Snapshot:
       1. Liquid Brokerage Equities & ETFs:
          - Imports Interactive Brokers positions: AAPL (10 shares @ 200.00 = 2,000.00 USD),

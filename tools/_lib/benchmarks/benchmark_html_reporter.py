@@ -51,24 +51,16 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         "max_equation_delta": str(max_delta),
         "zero_pnl_contamination": any(
             r.get("case_id") == "case_3" and r.get("status") == "PASS" for r in results
-        )
-        if any(r.get("case_id") == "case_3" for r in results)
-        else summary.get("success", False),
+        ),
         "rollforward_balanced": any(
             r.get("case_id") == "case_1" and r.get("status") == "PASS" for r in results
-        )
-        if any(r.get("case_id") == "case_1" for r in results)
-        else summary.get("success", False),
+        ),
         "multicurrency_consolidated": any(
             r.get("case_id") == "case_4" and r.get("status") == "PASS" for r in results
-        )
-        if any(r.get("case_id") == "case_4" for r in results)
-        else summary.get("success", False),
+        ),
         "portfolio_holdings_verified": any(
             r.get("case_id") == "case_5" and r.get("status") == "PASS" for r in results
-        )
-        if any(r.get("case_id") == "case_5" for r in results)
-        else summary.get("success", False),
+        ),
         "report_url": f"{version_ref}/report.html",
     }
 
