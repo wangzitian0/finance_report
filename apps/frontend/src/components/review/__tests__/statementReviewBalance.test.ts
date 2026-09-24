@@ -5,6 +5,7 @@ import {
   type ReviewBalanceTransaction,
 } from "../statementReviewBalance";
 
+// AC-extraction.fe-stage1-review.7
 describe("statementReviewBalance", () => {
   const baseOriginalResult: BalanceValidationResult = {
     opening_balance: "100.00",
