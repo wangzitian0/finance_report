@@ -1,8 +1,14 @@
 import { compareAmounts } from "@/lib/audit/money";
-import type { BadgeVariant } from "@/components/ui";
 
 // Text labels that back colour-coded financial status, so state is never
 // conveyed by colour alone (WCAG 1.4.1, issue #1609).
+
+/**
+ * Visual status tone corresponding to semantic status colors.
+ * Defined in lib/ to avoid reverse dependency from lib -> components/ui.
+ * Structurally compatible with BadgeVariant.
+ */
+export type StatusTone = "success" | "error" | "warning" | "muted" | "info";
 
 /**
  * Report-readiness state -> Badge color, the union of the two report-package
@@ -17,7 +23,7 @@ import type { BadgeVariant } from "@/components/ui";
  */
 const READINESS_VARIANTS: Record<
     "ready" | "generated" | "blocked" | "stale" | "processing" | "draft" | "none",
-    BadgeVariant
+    StatusTone
 > = {
     ready: "success",
     generated: "success",
@@ -28,7 +34,7 @@ const READINESS_VARIANTS: Record<
     none: "info",
 };
 
-export function readinessVariant(state: keyof typeof READINESS_VARIANTS): BadgeVariant {
+export function readinessVariant(state: keyof typeof READINESS_VARIANTS): StatusTone {
     return READINESS_VARIANTS[state];
 }
 

@@ -283,20 +283,35 @@ app routes
 - **`components/ui/*` must not import business features, API clients, or React
   Query.** Primitives stay presentational: they take props and render
   token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
-  hooks, or feature components.
-- **`lib/api` must not import React or UI.** The transport layer is
-  framework-agnostic; it depends only on `lib/auth` and `lib/types`. It must not
-  import React, hooks, or anything under `components/`.
+  query hooks, or feature components.
+- **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/`
+  depend only on lower-level utilities and contracts. They must not import
+  anything under `components/` or `app/`. The transport boundary `lib/api.ts` is
+  framework-agnostic and must additionally never import React (`test_fe_layer_boundaries.py`,
+  `AC-meta.fe-contract-types.6`, issue #2117).
 - **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/money` /
   `lib/quantity` when needed) but not on route components.** A hook may call
-  `apiFetch` and shape data, but it must not import `app/**/page.tsx` or
-  otherwise depend on a specific route.
+  `apiFetch` or `apiOperation` and shape data, but it must not import `app/**/page.tsx`
+  or otherwise depend on a specific route.
 - **Feature modules compose UI primitives, query hooks, and domain logic.** This
   is where `components/ui/*`, `hooks/*`, and `lib/money` / `lib/quantity` are
   wired together for a concrete workflow.
 - **Route pages stay thin.** Pages should compose feature modules and express
-  page-level intent. They should not own raw endpoint construction or repeated
-  loading/error/empty/retry markup — push those into hooks and primitives.
+  page-level intent. They should not own raw endpoint construction, complex inline
+  review forms (e.g. `SourceEnvelopeConfirmation`), or repeated
+  loading/error/empty/retry markup — push those into hooks and feature components.
+- **Direct `apiFetch` in components/app is retired (locked at 0).**
+  `common/testing/fe_fetch_ratchet.py` enforces a strict shrink-only baseline of 0
+  call sites under `components/` and `app/`. Production calls use `apiOperation`
+  or domain hooks.
+
+### Automated Layer Boundary Enforcement
+
+Layer rules are enforced by CI gates:
+- `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`).
+- `tests/tooling/test_fe_fetch_ratchet.py`: guards the 0-callsite baseline for raw client methods in components.
+- `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases.
+- `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions.
 
 ### Why no `shared/*` or `packages/*` directory yet
 
