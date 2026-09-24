@@ -535,9 +535,11 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(
         "report_section:investment_performance",
     }
     assert any(link.startswith("price_source:atomic_position:AAPL:") for link in data["source_links"])
-    assert data["notes"]
     if data["time_weighted_return"] is None:
         assert any("TWR unavailable" in note for note in data["notes"])
+    else:
+        assert isinstance(data["time_weighted_return"], str)
+        assert Decimal(data["time_weighted_return"]).is_finite()
 
 
 async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observation_it_uses(
