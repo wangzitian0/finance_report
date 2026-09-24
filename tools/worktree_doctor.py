@@ -22,9 +22,10 @@ from common.testing.extension.worktree_doctor import (  # noqa: E402
     audit_worktrees,
     main,
     prune_worktrees,
+    run_doctor,
 )
 
-__all__ = ["audit_worktrees", "main", "prune_worktrees"]
+__all__ = ["audit_worktrees", "main", "prune_worktrees", "run_doctor"]
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -221,7 +221,13 @@ def prune_worktrees(
     return pruned
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def run_doctor(
+    argv: Sequence[str] | None = None,
+    *,
+    runner: Runner = _default_runner,
+    pr_resolver: PrResolver = _default_pr_resolver,
+    path_exists: Callable[[str], bool] = os.path.exists,
+) -> int:
     parser = argparse.ArgumentParser(
         description="Audit git worktrees for orphan states, open file locks, and staged index leakages."
     )
@@ -243,7 +249,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    report = audit_worktrees()
+    report = audit_worktrees(
+        runner=runner,
+        pr_resolver=pr_resolver,
+        path_exists=path_exists,
+    )
 
     if args.json:
         data = {
@@ -295,7 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.prune or args.dry_run:
-        pruned = prune_worktrees(report, dry_run=args.dry_run)
+        pruned = prune_worktrees(report, runner=runner, dry_run=args.dry_run)
         action = "Would prune" if args.dry_run else "Pruned"
         print(f"\n{action} {len(pruned)} orphan worktree(s):")
         for p in pruned:
@@ -305,6 +315,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if report.staged_leakage or (report.orphans and not args.prune):
             return 1
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    return run_doctor(argv)
 
 
 if __name__ == "__main__":

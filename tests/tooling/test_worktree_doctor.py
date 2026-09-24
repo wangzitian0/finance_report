@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from common.testing.extension import worktree_doctor
 
 
@@ -120,3 +122,157 @@ def test_AC_testing_preflight_4_lsof_error_blocks_prune():
     assert merged_wt.locks_unknown is True
     assert merged_wt.is_orphan is False
     assert merged_wt.safe_to_prune is False
+
+
+def test_AC_testing_preflight_4_doctor_report_properties_and_porcelain_parsing():
+    """AC-testing.preflight.4: tests DoctorReport helper properties and diverse git worktree porcelain outputs."""
+    raw = (
+        "worktree /repo/bare\nbare\n\n"
+        "worktree /repo/detached\nHEAD dddddddd\ndetached\n\n"
+    )
+    parsed = worktree_doctor.parse_worktree_porcelain(raw)
+    assert len(parsed) == 2
+    assert parsed[0].get("bare") == "true"
+    assert parsed[1].get("branch") == "detached"
+
+    report = worktree_doctor.DoctorReport(
+        worktrees=[
+            worktree_doctor.WorktreeInfo(
+                path="/p1", head="h1", branch="b1", is_orphan=True
+            ),
+            worktree_doctor.WorktreeInfo(
+                path="/p2", head="h2", branch="b2", is_orphan=False
+            ),
+        ]
+    )
+    assert len(report.orphans) == 1
+    assert len(report.active) == 1
+
+
+def test_AC_testing_preflight_4_cli_flags_and_formatting(capsys):
+    """AC-testing.preflight.4: tests CLI execution with --json, --dry-run, --prune, and --check."""
+    import tools.worktree_doctor as tools_shim
+
+    porcelain_output = (
+        "worktree /repo/main\n"
+        "HEAD 11111111\n"
+        "branch refs/heads/main\n\n"
+        "worktree /repo/wt_merged\n"
+        "HEAD 22222222\n"
+        "branch refs/heads/feature_merged\n"
+    )
+
+    def fake_runner(cmd, cwd=None):
+        cmd_str = " ".join(cmd)
+        if "worktree list --porcelain" in cmd_str:
+            return 0, porcelain_output
+        if "status --porcelain" in cmd_str:
+            return 0, ""
+        if "lsof" in cmd_str:
+            return 1, ""
+        if "merge-base" in cmd_str:
+            return 0, ""
+        if "worktree remove" in cmd_str:
+            return 0, ""
+        return 0, ""
+
+    def fake_pr(b):
+        return {"number": 101, "state": "MERGED"}
+
+    # 1. Test --json
+    rc = worktree_doctor.run_doctor(
+        ["--json"],
+        runner=fake_runner,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 0
+    out_json = capsys.readouterr().out
+    assert out_json.find('"safe_to_prune": true') != -1
+
+    # 2. Test plain output
+    rc = worktree_doctor.run_doctor(
+        [],
+        runner=fake_runner,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 0
+    out_text = capsys.readouterr().out
+    assert out_text.find("=== Worktree Doctor Audit ===") != -1
+    assert out_text.find("[ORPHAN]") != -1
+
+    # 3. Test --dry-run and --prune
+    rc = worktree_doctor.run_doctor(
+        ["--dry-run"],
+        runner=fake_runner,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 0
+    out_dry = capsys.readouterr().out
+    assert out_dry.find("Would prune 1 orphan worktree(s)") != -1
+
+    rc = worktree_doctor.run_doctor(
+        ["--prune"],
+        runner=fake_runner,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 0
+    out_prune = capsys.readouterr().out
+    assert out_prune.find("Pruned 1 orphan worktree(s)") != -1
+
+    # 4. Test --check fails when unpruned orphan exists
+    rc = worktree_doctor.run_doctor(
+        ["--check"],
+        runner=fake_runner,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 1
+
+    # 5. Test plain output with staged leakage
+    def fake_runner_with_leak(cmd, cwd=None):
+        cmd_str = " ".join(cmd)
+        if "status --porcelain" in cmd_str and "/repo/main" in str(cwd):
+            return 0, "M  apps/frontend/src/lib/api-types.ts\n"
+        return fake_runner(cmd, cwd)
+
+    rc = worktree_doctor.run_doctor(
+        [],
+        runner=fake_runner_with_leak,
+        pr_resolver=fake_pr,
+        path_exists=lambda p: True,
+    )
+    assert rc == 0
+    out_leak = capsys.readouterr().out
+    assert out_leak.find("STAGED INDEX LEAKAGE DETECTED IN MAIN") != -1
+
+    # 6. Test standard main wrapper
+    with pytest.raises(SystemExit) as exc:
+        worktree_doctor.main(["--help"])
+    assert exc.value.code == 0
+    assert tools_shim.main is worktree_doctor.main
+    assert tools_shim.run_doctor is worktree_doctor.run_doctor
+
+
+def test_AC_testing_preflight_4_runner_and_pr_resolver_edge_cases(monkeypatch):
+    """AC-testing.preflight.4: tests default runner error handling and pr resolver filter."""
+    import runpy
+
+    # Test tools/worktree_doctor.py __main__ entrypoint
+    monkeypatch.setattr(worktree_doctor, "main", lambda argv=None: 0)
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path("tools/worktree_doctor.py", run_name="__main__")
+    assert exc.value.code == 0
+
+    # Test _default_runner catches FileNotFoundError
+    rc, out = worktree_doctor._default_runner(["nonexistent-command-xyz-987"])
+    assert rc == 127
+
+    # Test _default_pr_resolver ignores main and detached branches without spawning gh
+    assert worktree_doctor._default_pr_resolver("main") is None
+    assert worktree_doctor._default_pr_resolver("refs/heads/main") is None
+    assert worktree_doctor._default_pr_resolver("detached") is None
+    assert worktree_doctor._default_pr_resolver("HEAD") is None
