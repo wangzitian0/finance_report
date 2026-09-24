@@ -181,7 +181,7 @@ class TestSelectChecks:
             c.name
             for c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])
         ]
-        assert names == ["frontend"]
+        assert names == ["frontend-static", "frontend"]
 
     def test_config_edit_selects_env_reference_and_backend_format(self):
         names = [
@@ -393,13 +393,59 @@ class TestTierSelection:
             changed, tier="full"
         )
 
-    def test_frontend_diff_has_no_static_gates(self):
-        # The frontend gate is heavy-only, so a frontend-only diff selects
-        # nothing under --tier=static (nothing static maps to that path).
+    def test_AC_testing_preflight_2_frontend_static_gate_parity(self):
+        """AC-testing.preflight.2: frontend changes run fast static checks in tier=static."""
+        # 1. Changing a frontend component selects frontend-static in tier=static
         selected = preflight.select_checks(
             ["apps/frontend/src/app/layout.tsx"], tier="static"
         )
-        assert selected == []
+        names = [c.name for c in selected]
+        assert "frontend-static" in names
+
+        # 2. Check commands in frontend-static
+        check = next(c for c in preflight.CHECKS if c.name == "frontend-static")
+        assert check.tier == "static"
+        assert check.cwd == "apps/frontend"
+        cmds = check.commands
+        assert ("npm", "run", "lint") in cmds
+        assert ("npm", "run", "typecheck") in cmds
+        assert ("npm", "run", "check:api-types") in cmds
+
+        # 3. openapi-spec gate also verifies frontend api-types sync
+        openapi_check = next(c for c in preflight.CHECKS if c.name == "openapi-spec")
+        has_api_types_check = any(
+            "check:api-types" in " ".join(cmd) or "check_api_types" in " ".join(cmd)
+            for cmd in openapi_check.commands
+        )
+        assert has_api_types_check
+
+    def test_AC_testing_preflight_3_list_all_inventory_discovery(self, capsys):
+        """AC-testing.preflight.3: running --list on empty diff or with --all prints gate inventory."""
+        # Empty diff with --list prints registered inventory rather than exiting empty
+        rc = preflight.run(["--list", "--changed"], runner=lambda argv, cwd: 0)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Registered preflight gate inventory" in out
+        assert "ac-traceability" in out
+
+        # With --tier=static and empty diff, lists all static gates
+        rc = preflight.run(
+            ["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "frontend-static" in out
+        assert "  [heavy] frontend:" not in out  # heavy frontend excluded
+
+        # --all runs all selected checks regardless of diff
+        rc = preflight.run(
+            ["--all", "--tier=static", "--list"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Registered preflight gate inventory" in out
+        assert "frontend-static" in out
 
     def test_heavy_tier_selects_only_matching_heavy_checks(self):
         selected = preflight.select_checks(
