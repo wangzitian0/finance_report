@@ -299,29 +299,10 @@ jobs:
           uv run --with pyyaml python tools/check_ac_proof_kind.py
       - name: Package-Model Migration-Safety Gates
         run: |
-          # EPIC-026 phase 5 (issue #1355): the cross-source gates that must hold
-          # before migrating legacy EPIC ACs into package roadmaps. All AST/text
-          # (no pydantic), so they run in this lightweight lint env.
-          # 1b: a shipped package's tier must be an AST-readable literal (else the
-          #     registry untags it while the model keeps a tier).
-          uv run --with pyyaml python tools/check_tier_ast_literal.py
-          # 1c: an AC id must not be defined in both an EPIC table and a package
-          #     roadmap (move ⇒ delete the EPIC row, else the stale tier wins).
-          uv run --with pyyaml python tools/check_epic_package_dual.py
-          # 1e: a draft package must carry no done ACs and must be registered.
-          uv run --with pyyaml python tools/check_draft_packages.py
-          # reconcile: a package's DECLARED tier must agree with its DETECTED
-          # CODE/LLM band at the enforceable ends (CODE-ONLY ⟹ no LLM test;
-          # LLM-ONLY ⟹ no deterministic test). Makes the declared tier checkable.
-          uv run --with pyyaml python tools/check_authority_reconcile.py
-          # #1867 S4: every new gate uses the shared CLI/main contract, while
-          # legacy entry-point debt is locked behind a shrink-only baseline.
-          uv run python tools/check_gate_main_contract.py
-          # Baseline mutation flags state whether updates are monotonic or a
-          # deliberate full rewrite; generic --update may never adopt debt.
-          uv run python tools/check_baseline_update_contract.py
-          # Top-level tools stay thin; historical fat entry points may only shrink.
-          uv run python tools/check_tool_shim_contract.py
+          # EPIC-026 phase 5 (#1355) & #2133: consolidated package-model migration safety
+          # and contract gates (tier AST literal, dual definition, draft registration,
+          # authority reconcile, gate main contract, baseline update contract, tool shim contract).
+          uv run --with pyyaml python tools/check_package_migration_safety.py
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule

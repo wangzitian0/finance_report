@@ -102,12 +102,12 @@ CHECKS: tuple[Check, ...] = (
         # docs/ssot/ is retired (#1823); the concept registry lives at
         # common/meta/data/MANIFEST.yaml now, so that path (not the dead
         # directory) is what should re-trigger this gate.
-        globs=("common/meta/data/MANIFEST.yaml",),
+        globs=("common/meta/data/MANIFEST.yaml", "common/*/contract.py"),
         commands=(
             (PY, "tools/check_ssot_ownership.py"),
             (PY, "tools/check_manifest.py"),
         ),
-        why="Concept registry changed: enforce single-owner + manifest integrity",
+        why="Concept registry or contract changed: enforce single-owner + manifest integrity",
     ),
     Check(
         name="authority-reconcile",
@@ -234,14 +234,34 @@ CHECKS: tuple[Check, ...] = (
         why="router/schema changed: the committed apps/frontend/openapi.json (source for the generated FE api-types) must be regenerated — enforces the FE↔BE contract (#1004)",
     ),
     Check(
-        name="gate-contracts",
+        name="package-migration-safety",
         globs=("common/*", "tools/*", "tests/tooling/*.py"),
-        commands=(
-            (PY, "tools/check_gate_main_contract.py"),
-            (PY, "tools/check_baseline_update_contract.py"),
-            (PY, "tools/check_tool_shim_contract.py"),
+        commands=((PY, "tools/check_package_migration_safety.py"),),
+        why="gate source or proof changed: validate consolidated package migration safety gates",
+    ),
+    Check(
+        name="workflow-contract",
+        globs=(
+            ".github/workflows/*.yml",
+            ".github/ISSUE_TEMPLATE/*.yml",
+            "common/testing/ci-cd.md",
+            "common/runtime/deployment.md",
+            "common/runtime/environments.md",
+            "tools/check_workflow_contract.py",
+            "common/meta/extension/workflow_contract.py",
         ),
-        why="gate source or proof changed: prevent new gate, baseline-mutation, and fat-tool entry-point debt",
+        commands=((PY, "tools/check_workflow_contract.py"),),
+        why="CI workflows, deployment/environment docs, or issue templates changed: validate workflow contract and taxonomy",
+    ),
+    Check(
+        name="governance-exceptions",
+        globs=(
+            "common/meta/data/governance-exceptions.yaml",
+            "tools/check_governance_exceptions.py",
+            "common/meta/extension/check_governance_exceptions.py",
+        ),
+        commands=((PY, "tools/check_governance_exceptions.py"),),
+        why="governance exceptions changed: validate bottom-up proof-exception registry",
     ),
     Check(
         name="context-contract",

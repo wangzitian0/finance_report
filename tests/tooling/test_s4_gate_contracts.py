@@ -76,6 +76,7 @@ MIGRATED_GATE_MODULES = (
     "common.testing.check_critical_value_proof",
     "common.testing.check_e2e_epic_traceability",
     "common.testing.check_llm_" + "cas" + "settes",
+    "common.testing.check_package_migration_safety",
     "common.testing.check_pr_ci_evidence",
     "common.testing.check_pr_review_threads",
     "common.testing.coverage.check_policy",

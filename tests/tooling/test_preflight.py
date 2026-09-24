@@ -49,14 +49,27 @@ class TestSelectChecks:
         names = [c.name for c in preflight.select_checks([changed_path])]
         assert "authority-reconcile" in names
 
-    def test_AC_testing_preflight_1_proof_test_selects_baseline_contract(self):
+    def test_AC_testing_preflight_1_proof_test_selects_package_migration_safety(self):
         names = [
             c.name
             for c in preflight.select_checks(
                 ["tests/tooling/test_s4_gate_contracts.py"], tier="static"
             )
         ]
-        assert "gate-contracts" in names
+        assert "package-migration-safety" in names
+
+    def test_workflow_edit_selects_workflow_contract(self):
+        names = {c.name for c in preflight.select_checks([".github/workflows/ci.yml"])}
+        assert {"workflow-contract"}.issubset(names)
+
+    def test_governance_exceptions_edit_selects_governance_exceptions(self):
+        names = {
+            c.name
+            for c in preflight.select_checks(
+                ["common/meta/data/governance-exceptions.yaml"]
+            )
+        }
+        assert {"governance-exceptions"}.issubset(names)
 
     def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
         """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
