@@ -41,13 +41,6 @@ def check_database_ready() -> bool:
     # But since we want to run migrations, let's just try to run alembic check/upgrade
     # If that works, the DB is ready.
 
-    try:
-        # Check connectivity first to fail fast with a good message
-        # (Optional: could use socket here, but alembic is the ultimate test)
-        pass
-    except Exception:
-        pass
-
     # Try running migrations
     print("  🚀 Running migrations...")
     try:

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import html
 import json
-from datetime import datetime
-from decimal import Decimal
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
@@ -32,12 +32,12 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
                 d_val = abs(Decimal(str(eq_delta)))
                 if d_val > max_delta:
                     max_delta = d_val
-            except Exception:
+            except (InvalidOperation, TypeError, ValueError):
                 pass
 
     return {
         "version": version_ref,
-        "run_at": report_data.get("run_at", datetime.now().isoformat()),
+        "run_at": report_data.get("run_at", datetime.now(UTC).isoformat()),
         "app_url": report_data.get("app_url", ""),
         "status": "PASS" if summary.get("success", False) else "FAIL",
         "cases_total": summary.get("total", len(results)),
@@ -71,7 +71,7 @@ def generate_html_report(
     app_url = html.escape(
         str(report_data.get("app_url", "https://report-staging.zitian.party"))
     )
-    run_at = html.escape(str(report_data.get("run_at", datetime.now().isoformat())))
+    run_at = html.escape(str(report_data.get("run_at", datetime.now(UTC).isoformat())))
     summary = report_data.get("summary", {})
     results = report_data.get("results", [])
     all_passed = summary.get("success", False)

@@ -23,7 +23,7 @@ import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Sequence
@@ -1038,7 +1038,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Target Environment: {args.app_url}")
     print(f"Version Ref:        {args.version_ref}")
     print(f"Cases Selected:     {args.case}")
-    print(f"Started At:         {datetime.now().isoformat()}")
+    print(f"Started At:         {datetime.now(UTC).isoformat()}")
     print("======================================================================")
 
     runner = ScenarioBenchmarkRunner(
@@ -1066,7 +1066,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "suite": "financial_reporting_temporal_scenarios",
         "version_ref": args.version_ref,
         "app_url": args.app_url,
-        "run_at": datetime.now().isoformat(),
+        "run_at": datetime.now(UTC).isoformat(),
         "summary": {
             "total": len(results),
             "passed": sum(1 for r in results if r.status == "PASS"),

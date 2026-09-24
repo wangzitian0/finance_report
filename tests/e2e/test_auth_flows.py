@@ -127,11 +127,18 @@ async def test_login_api_path(page: Page):
     # Wait for request
     await page.wait_for_timeout(2000)
 
-    # Verify no double /api prefix
-    if api_request_path:
-        assert "/api/api/" not in api_request_path, (
-            f"Double /api prefix detected: {api_request_path}"
-        )
+    # Verify request was captured and has no double /api prefix
+    assert api_request_path is not None, (
+        "Login request was never captured; cannot verify API path"
+    )
+    assert "/api/api/" not in api_request_path, (
+        f"Double /api prefix detected: {api_request_path}"
+    )
+
+    # Verify expected path format
+    assert "/api/auth/login" in api_request_path or "/auth/login" in api_request_path, (
+        f"Unexpected API path: {api_request_path}"
+    )
 
 
 @pytest.mark.asyncio

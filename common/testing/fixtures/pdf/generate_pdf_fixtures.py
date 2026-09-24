@@ -20,7 +20,7 @@ Requires: reportlab, pyyaml
 
 import argparse
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 try:
@@ -91,7 +91,7 @@ def generate_legacy_dbs_pdf(output_path: Path):
         return txns
 
     # Generate period
-    now = datetime.now()
+    now = datetime.now(UTC)
     start_date = now - timedelta(days=30)
     period_str = f"{start_date.strftime('%d %b %Y')} - {now.strftime('%d %b %Y')}"
 
@@ -202,7 +202,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     templates_dir = Path(__file__).parent / "templates"
 
     # Generate period (last 30 days)
-    now = datetime.now()
+    now = datetime.now(UTC)
     period_start = now - timedelta(days=30)
     period_end = now
 

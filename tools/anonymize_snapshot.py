@@ -95,7 +95,7 @@ def _get_anonymizer_sha() -> str:
         )
         if res.returncode == 0 and len(res.stdout.strip()) == 40:
             return res.stdout.strip()
-    except Exception:
+    except (subprocess.SubprocessError, OSError, RuntimeError):
         pass
     return "0" * 40
 
