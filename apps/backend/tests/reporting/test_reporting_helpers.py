@@ -73,3 +73,30 @@ def test_iter_periods_daily_weekly_monthly() -> None:
 def test_iter_periods_rejects_invalid_period() -> None:
     with pytest.raises(ReportError, match="Unsupported period"):
         _iter_periods(date(2024, 1, 1), date(2024, 1, 2), "yearly")
+
+
+def test_validate_internal_action_href_parity() -> None:
+    """Validate that reporting and workflow internal action href validation logic
+    are strictly aligned.
+    """
+    from src.schemas.reporting import _validate_internal_action_href as reporting_val
+    from src.workflow.base.types import _validate_internal_action_href as workflow_val
+
+    valid_cases = ["/reports/balance-sheet", "/workflow/session/1", "/api/v1/export?format=csv"]
+    invalid_cases = [
+        "https://external.example.com",
+        "http://malicious.org",
+        "//protocol-relative.com",
+        "relative/path/without/slash",
+        "javascript://alert(1)",
+    ]
+
+    for case in valid_cases:
+        assert reporting_val(case) == case
+        assert workflow_val(case) == case
+
+    for case in invalid_cases:
+        with pytest.raises(ValueError, match="action_href must be an internal relative path"):
+            reporting_val(case)
+        with pytest.raises(ValueError, match="action_href must be an internal relative path"):
+            workflow_val(case)

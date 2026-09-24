@@ -4556,3 +4556,55 @@ async def test_rejected_statement_transactions_excluded_from_effective_filter(db
         await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))
     ).all()
     assert txn.id not in global_txns, "Rejected statement transaction leaked into global effective filter"
+
+
+async def test_resolve_uploaded_document_enforces_user_isolation(db, test_user):
+    """F-01: _resolve_uploaded_document must not return another user's UploadedDocument."""
+    from src.identity import User
+    from src.routers.statements import _resolve_uploaded_document
+
+    other_user = User(
+        id=uuid4(),
+        email=f"other_{uuid4().hex[:8]}@example.com",
+        name="Other User",
+        hashed_password="test_hashed_password",
+    )
+    db.add(other_user)
+    await db.flush()
+
+    other_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=other_user.id,
+        file_path="other_path.pdf",
+        file_hash="other_hash_123",
+        original_filename="other.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(other_doc)
+    await db.flush()
+
+    # Statement belongs to test_user, but uploaded_document_id mistakenly points to other_user's doc
+    statement = build_statement(test_user.id, "statement_hash_456", 80)
+    statement.uploaded_document_id = other_doc.id
+    db.add(statement)
+    await db.commit()
+
+    resolved = await _resolve_uploaded_document(db, statement, test_user.id)
+    assert resolved is None, "Cross-user document must never be returned by _resolve_uploaded_document"
+
+    # Happy path: when document belongs to test_user, it IS returned
+    user_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="user_path.pdf",
+        file_hash="statement_hash_456",
+        original_filename="user.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(user_doc)
+    statement.uploaded_document_id = user_doc.id
+    await db.commit()
+
+    resolved_own = await _resolve_uploaded_document(db, statement, test_user.id)
+    assert resolved_own is not None
+    assert resolved_own.id == user_doc.id

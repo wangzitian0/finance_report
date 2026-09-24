@@ -122,7 +122,7 @@ async def _resolve_uploaded_document(
     """
     if statement.uploaded_document_id is not None:
         document = await db.get(UploadedDocument, statement.uploaded_document_id)
-        if document is not None:
+        if document is not None and document.user_id == user_id:
             return document
 
     result = await db.execute(

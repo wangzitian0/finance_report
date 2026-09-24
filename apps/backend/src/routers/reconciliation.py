@@ -394,10 +394,10 @@ async def accept_match(
         status=match.status.value,
     )
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
-    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
+    txn_map = await _load_transactions(db, [match], user_id=user_id)
     return _build_match_response(
         match,
-        transaction=txn,
+        transaction=txn_map.get(match.atomic_txn_id),
         entry_summaries=entry_summaries,
     )
 
@@ -417,10 +417,10 @@ async def reject_match(
     except ReconciliationError as exc:
         raise_bad_request(str(exc), cause=exc)
     entry_summaries = await _load_entry_summaries(db, [match], user_id)
-    txn = await db.get(AtomicTransaction, match.atomic_txn_id)
+    txn_map = await _load_transactions(db, [match], user_id=user_id)
     return _build_match_response(
         match,
-        transaction=txn,
+        transaction=txn_map.get(match.atomic_txn_id),
         entry_summaries=entry_summaries,
     )
 

@@ -122,3 +122,30 @@ async def init_db() -> None:
 
     logger = get_logger(__name__)
     logger.info("Database initialized (schema managed by migrations)")
+
+
+def split_postgresql_ddl(sql: str) -> tuple[str, ...]:
+    """Split PostgreSQL DDL script by semicolon while respecting $$ dollar quotes."""
+    statements: list[str] = []
+    start = 0
+    in_dollar_quote = False
+    index = 0
+
+    while index < len(sql):
+        if sql.startswith("$$", index):
+            in_dollar_quote = not in_dollar_quote
+            index += 2
+            continue
+
+        if sql[index] == ";" and not in_dollar_quote:
+            statement = sql[start : index + 1].strip()
+            if statement:
+                statements.append(statement)
+            start = index + 1
+
+        index += 1
+
+    trailing = sql[start:].strip()
+    if trailing:
+        statements.append(trailing)
+    return tuple(statements)
