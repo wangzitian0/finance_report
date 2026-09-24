@@ -11,7 +11,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from common.meta.base.gate_cli import REPO_ROOT, run_gate
+from common.meta.base.gate_cli import REPO_ROOT, escape_workflow_command, run_gate
 from common.meta.extension import (
     check_authority_reconcile,
     check_draft_packages,
@@ -61,8 +61,16 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     findings = violations(args.repo_root.resolve())
     if findings:
+        title = escape_workflow_command("Package Migration Safety")
         for finding in findings:
-            print(f"::error title=Package Migration Safety::{finding}", file=sys.stderr)
+            print(
+                f"::error title={title}::{escape_workflow_command(finding)}",
+                file=sys.stderr,
+            )
+        print(
+            f"[PACKAGE-MIGRATION-SAFETY] FAILED: {len(findings)} violation(s).",
+            file=sys.stderr,
+        )
         return 1
     print("[PACKAGE-MIGRATION-SAFETY] PASSED: all 7 migration safety gates satisfied.")
     return 0

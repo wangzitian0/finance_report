@@ -234,7 +234,7 @@ CHECKS: tuple[Check, ...] = (
         why="router/schema changed: the committed apps/frontend/openapi.json (source for the generated FE api-types) must be regenerated — enforces the FE↔BE contract (#1004)",
     ),
     Check(
-        name="gate-contracts",
+        name="package-migration-safety",
         globs=("common/*", "tools/*", "tests/tooling/*.py"),
         commands=((PY, "tools/check_package_migration_safety.py"),),
         why="gate source or proof changed: validate consolidated package migration safety gates",
