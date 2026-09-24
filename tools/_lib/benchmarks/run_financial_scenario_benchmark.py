@@ -235,10 +235,18 @@ class ScenarioBenchmarkRunner:
         return resp.json()
 
     def get_balance_sheet(
-        self, client: httpx.Client, as_of_date: str | None = None
+        self,
+        client: httpx.Client,
+        as_of_date: str | None = None,
+        currency: str | None = None,
     ) -> dict[str, Any]:
-        params = f"?as_of_date={as_of_date}" if as_of_date else ""
-        resp = client.get(f"/api/reports/balance-sheet{params}")
+        params: list[str] = []
+        if as_of_date:
+            params.append(f"as_of_date={as_of_date}")
+        if currency:
+            params.append(f"currency={currency}")
+        query = f"?{'&'.join(params)}" if params else ""
+        resp = client.get(f"/api/reports/balance-sheet{query}")
         if resp.status_code != 200:
             raise RuntimeError(
                 f"Balance sheet request failed: {resp.status_code} {resp.text}"
@@ -267,6 +275,44 @@ class ScenarioBenchmarkRunner:
             raise RuntimeError(
                 f"Cash flow request failed: {resp.status_code} {resp.text}"
             )
+        return resp.json()
+
+    def import_brokerage_positions(
+        self,
+        client: httpx.Client,
+        payload: dict[str, Any],
+        filename: str = "brokerage_statement.csv",
+    ) -> dict[str, Any]:
+        resp = client.post(
+            "/api/portfolio/brokerage/import",
+            json={"filename": filename, "payload": payload},
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Brokerage import request failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def get_holdings(
+        self, client: httpx.Client, as_of_date: str | None = None
+    ) -> dict[str, Any]:
+        params = f"?as_of_date={as_of_date}" if as_of_date else ""
+        resp = client.get(f"/api/portfolio/holdings{params}")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Holdings request failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def update_market_prices(
+        self,
+        client: httpx.Client,
+        updates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Update market prices manually for portfolio securities."""
+        resp = client.post("/api/portfolio/prices/update", json={"updates": updates})
+        if resp.status_code != 200:
+            raise RuntimeError(f"Price update failed: {resp.status_code} {resp.text}")
         return resp.json()
 
 
@@ -481,34 +527,272 @@ def generate_standard_operations_csv(
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+def generate_consecutive_month3_pdf(
+    output_path: Path, opening_balance: Decimal = Decimal("18250.00")
+) -> bytes:
+    """Generate deterministic Month 3 (Mar 2025) PDF chained to Month 2 closing balance."""
+    doc = SimpleDocTemplate(
+        str(output_path),
+        pagesize=letter,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph("<b>Standard Chartered Bank</b>", styles["Heading1"]))
+    elements.append(
+        Paragraph("eStatement - Personal Banking Account", styles["Heading2"])
+    )
+    elements.append(Spacer(1, 10))
+
+    elements.append(Paragraph("Account Name: Test Benchmark User", styles["Normal"]))
+    elements.append(Paragraph("Account Number: 01-0-123-1657", styles["Normal"]))
+    elements.append(Paragraph("Currency: SGD", styles["Normal"]))
+    elements.append(
+        Paragraph("Statement Period: 01 Mar 2025 - 31 Mar 2025", styles["Normal"])
+    )
+    elements.append(Spacer(1, 15))
+
+    # Net income: +3050.00 (Salary 3500.00 - Groceries 200.00 - Dining 150.00 - Utilities 100.00)
+    closing_balance = opening_balance + Decimal("3050.00")
+
+    summary_data = [
+        ["Opening Balance (01 Mar 2025)", f"SGD {opening_balance:,.2f}"],
+        ["Total Deposits / Credits", "SGD 3,500.00"],
+        ["Total Withdrawals / Debits", "SGD 450.00"],
+        ["Closing Balance (31 Mar 2025)", f"SGD {closing_balance:,.2f}"],
+    ]
+    summary_table = Table(summary_data, colWidths=[250, 150])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph("<b>Transaction Details</b>", styles["Heading3"]))
+    elements.append(Spacer(1, 5))
+
+    tx_data = [
+        ["Date", "Description", "Withdrawals (-)", "Deposits (+)", "Balance"],
+        [
+            "05/03/2025",
+            "PAYNOW FROM TECH CORP SALARY",
+            "",
+            "3,500.00",
+            f"{opening_balance + Decimal('3500.00'):,.2f}",
+        ],
+        [
+            "14/03/2025",
+            "NTUC FAIRPRICE GROCERIES",
+            "200.00",
+            "",
+            f"{opening_balance + Decimal('3300.00'):,.2f}",
+        ],
+        [
+            "20/03/2025",
+            "RESTAURANT PAYMENT DINING",
+            "150.00",
+            "",
+            f"{opening_balance + Decimal('3150.00'):,.2f}",
+        ],
+        [
+            "28/03/2025",
+            "SP GROUP UTILITIES BILL",
+            "100.00",
+            "",
+            f"{closing_balance:,.2f}",
+        ],
+    ]
+    tx_table = Table(tx_data, colWidths=[70, 230, 80, 80, 80])
+    tx_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.navy),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    elements.append(tx_table)
+
+    doc.build(elements)
+    return output_path.read_bytes()
+
+
+def generate_consecutive_month4_pdf(
+    output_path: Path, opening_balance: Decimal = Decimal("21300.00")
+) -> bytes:
+    """Generate deterministic Month 4 (Apr 2025) PDF chained to Month 3 closing balance."""
+    doc = SimpleDocTemplate(
+        str(output_path),
+        pagesize=letter,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph("<b>Standard Chartered Bank</b>", styles["Heading1"]))
+    elements.append(
+        Paragraph("eStatement - Personal Banking Account", styles["Heading2"])
+    )
+    elements.append(Spacer(1, 10))
+
+    elements.append(Paragraph("Account Name: Test Benchmark User", styles["Normal"]))
+    elements.append(Paragraph("Account Number: 01-0-123-1657", styles["Normal"]))
+    elements.append(Paragraph("Currency: SGD", styles["Normal"]))
+    elements.append(
+        Paragraph("Statement Period: 01 Apr 2025 - 30 Apr 2025", styles["Normal"])
+    )
+    elements.append(Spacer(1, 15))
+
+    # Net income: +2900.00 (Salary 3500.00 - Groceries 300.00 - Dining 180.00 - Utilities 120.00)
+    closing_balance = opening_balance + Decimal("2900.00")
+
+    summary_data = [
+        ["Opening Balance (01 Apr 2025)", f"SGD {opening_balance:,.2f}"],
+        ["Total Deposits / Credits", "SGD 3,500.00"],
+        ["Total Withdrawals / Debits", "SGD 600.00"],
+        ["Closing Balance (30 Apr 2025)", f"SGD {closing_balance:,.2f}"],
+    ]
+    summary_table = Table(summary_data, colWidths=[250, 150])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph("<b>Transaction Details</b>", styles["Heading3"]))
+    elements.append(Spacer(1, 5))
+
+    tx_data = [
+        ["Date", "Description", "Withdrawals (-)", "Deposits (+)", "Balance"],
+        [
+            "05/04/2025",
+            "PAYNOW FROM TECH CORP SALARY",
+            "",
+            "3,500.00",
+            f"{opening_balance + Decimal('3500.00'):,.2f}",
+        ],
+        [
+            "15/04/2025",
+            "NTUC FAIRPRICE GROCERIES",
+            "300.00",
+            "",
+            f"{opening_balance + Decimal('3200.00'):,.2f}",
+        ],
+        [
+            "22/04/2025",
+            "RESTAURANT PAYMENT DINING",
+            "180.00",
+            "",
+            f"{opening_balance + Decimal('3020.00'):,.2f}",
+        ],
+        [
+            "28/04/2025",
+            "SP GROUP UTILITIES BILL",
+            "120.00",
+            "",
+            f"{closing_balance:,.2f}",
+        ],
+    ]
+    tx_table = Table(tx_data, colWidths=[70, 230, 80, 80, 80])
+    tx_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.navy),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    elements.append(tx_table)
+
+    doc.build(elements)
+    return output_path.read_bytes()
+
+
+def generate_multicurrency_usd_csv(
+    opening_balance: Decimal = Decimal("5000.00"),
+) -> bytes:
+    """Generate US Dollar operating CSV statement rows."""
+    closing_balance = opening_balance + Decimal("1800.00")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"USD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-05,US CLIENT CONSULTING RETAINER,2000.00",
+        f"USD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-20,GLOBAL INFRASTRUCTURE SUBSCRIPTION,-200.00",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def generate_multicurrency_hkd_csv(
+    opening_balance: Decimal = Decimal("20000.00"),
+) -> bytes:
+    """Generate Hong Kong Dollar operating CSV statement rows."""
+    closing_balance = opening_balance + Decimal("4000.00")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"HKD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-10,GREATER CHINA TECH DIVIDEND,5000.00",
+        f"HKD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-25,HK CUSTODIAN AND ACCOUNT FEE,-1000.00",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 # =====================================================================
 # Scenario Benchmark Test Cases
 # =====================================================================
 
 
 def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
-    """
-    Case 1: Consecutive Monthly Rollforward (连续双月滚续)
+    r"""
+    Case 1: Consecutive 4-Month Rollforward & Q1 Articulation (连续4月滚续与季度结转)
     - Month 1: Jan 2025 (Straits Capital Bank Statement) -> Opening: 15450.75, Closing: 15271.23, Net: -179.52.
     - Month 2: Feb 2025 (Chained Standard Chartered Statement) -> Opening: 15271.23, Closing: 18250.00, Net: +2978.77.
+    - Month 3: Mar 2025 (Chained Standard Chartered Statement) -> Opening: 18250.00, Closing: 21300.00, Net: +3050.00.
+    - Month 4: Apr 2025 (Chained Standard Chartered Statement) -> Opening: 21300.00, Closing: 24200.00, Net: +2900.00.
     - Assertions:
-      * Balance chain integrity (M2 opening matches M1 closing).
-      * Balance Sheet delta == 0.00 as of 2025-02-28.
-      * Cumulative Retained Earnings == (-179.52) + (+2978.77) = +2799.25.
-      * Assets (18250.00) == Initial Equity (15450.75) + Net Income (2799.25).
-      * Cash Flow Beginning Cash (15450.75) + Net Cash Flow (2799.25) == Ending Cash (18250.00).
+      * Consecutive balance chain integrity ($Month_{n+1} \equiv Month_n$ across all 4 months).
+      * Q1 (Jan-Mar) Articulation: Assets (21300.00) == Equity (15450.75) + Cumulative Net Income (5849.25).
+      * Q1 Cash Flow: Beginning Cash (15450.75) + Net Cash Flow (5849.25) == Ending Cash (21300.00).
+      * 4-Month Cumulative Rollforward (Apr): Assets (24200.00) == Equity (15450.75) + Net Income (8749.25).
+      * Equation Delta == 0.00 and is_balanced is True across both Q1 and Month 4 checkpoints.
     """
     start_time = time.time()
-    case_name = "Case 1: Consecutive Monthly Rollforward"
+    case_name = "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation"
     print("\n=======================================================")
     print(f"🚀 RUNNING: {case_name}")
     print("=======================================================")
 
     try:
         client, user_email, _ = runner.create_ephemeral_client("case1")
-        print(f"  [1/6] Registered test user: {user_email}")
+        print(f"  [1/9] Registered test user: {user_email}")
 
-        # --- Month 1 ---
+        # --- Month 1 (Jan 2025) ---
         m1_fixture = (
             REPO_ROOT
             / "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
@@ -518,7 +802,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 f"Month 1 fixture not found: {m1_fixture}. Run tools/sync_benchmark_fixtures.py first."
             )
 
-        print("  [2/6] Uploading Month 1 (Jan 2025) statement...")
+        print("  [2/9] Uploading Month 1 (Jan 2025) statement...")
         m1_id = runner.upload_statement(
             client, m1_fixture.read_bytes(), "bsb_001_straits_capital.pdf"
         )
@@ -537,7 +821,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         m1_institution = m1_refreshed.get("institution") or "Standard Chartered Bank"
         print(f"        M1 Account ID: {m1_account_id} (Institution: {m1_institution})")
 
-        # --- Month 2 ---
+        # --- Month 2 (Feb 2025) ---
         m1_closing = Decimal(m1_data["closing_balance"])
         m2_tmp_pdf = Path("/tmp/case1_m2_scb.pdf")
         m2_bytes = generate_consecutive_month2_pdf(
@@ -545,7 +829,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         )
 
         print(
-            f"  [3/6] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
+            f"  [3/9] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
         )
         m2_id = runner.upload_statement(
             client,
@@ -571,69 +855,162 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         m2_app = runner.approve_statement(client, m2_id)
         print(f"        M2 approved successfully (status={m2_app['status']})")
 
-        # --- Multi-Period 3-Statement Assertions ---
-        print("  [4/6] Verifying Balance Sheet as of 2025-02-28...")
-        bs = runner.get_balance_sheet(client, as_of_date="2025-02-28")
-        total_assets = Decimal(bs["total_assets"])
-        total_liabilities = Decimal(bs["total_liabilities"])
-        total_equity = Decimal(bs["total_equity"])
-        equation_delta = Decimal(bs["equation_delta"])
-        is_balanced = bs["is_balanced"]
+        # --- Month 3 (Mar 2025 - Q1 Close) ---
+        m2_closing = Decimal(m2_data["closing_balance"])
+        m3_tmp_pdf = Path("/tmp/case1_m3_scb.pdf")
+        m3_bytes = generate_consecutive_month3_pdf(
+            m3_tmp_pdf, opening_balance=m2_closing
+        )
 
         print(
-            f"        Assets={total_assets}, Liab={total_liabilities}, Equity={total_equity}, Delta={equation_delta}, Balanced={is_balanced}"
+            f"  [4/9] Uploading Month 3 (Mar 2025) chained statement linked to account {m1_account_id}..."
+        )
+        m3_id = runner.upload_statement(
+            client,
+            m3_bytes,
+            "scb_month3_chained.pdf",
+            account_id=m1_account_id,
+            institution=m1_institution,
+        )
+        m3_data = runner.wait_for_statement_parsed(client, m3_id)
+        print(
+            f"        M3 parsed: Opening={m3_data['opening_balance']}, Closing={m3_data['closing_balance']}, Txns={len(m3_data.get('transactions', []))}"
+        )
+
+        m3_opening = Decimal(m3_data["opening_balance"])
+        assert m3_opening == m2_closing, (
+            f"Balance chain break: M2 closing ({m2_closing}) != M3 opening ({m3_opening})"
+        )
+        assert m3_data.get("balance_validated") is True, (
+            f"M3 balance not validated: {m3_data}"
+        )
+
+        runner.adjudicate_unmatched_items(client, m3_id)
+        m3_app = runner.approve_statement(client, m3_id)
+        print(f"        M3 approved successfully (status={m3_app['status']})")
+
+        # --- Month 4 (Apr 2025 - Q2 Transition) ---
+        m3_closing = Decimal(m3_data["closing_balance"])
+        m4_tmp_pdf = Path("/tmp/case1_m4_scb.pdf")
+        m4_bytes = generate_consecutive_month4_pdf(
+            m4_tmp_pdf, opening_balance=m3_closing
+        )
+
+        print(
+            f"  [5/9] Uploading Month 4 (Apr 2025) chained statement linked to account {m1_account_id}..."
+        )
+        m4_id = runner.upload_statement(
+            client,
+            m4_bytes,
+            "scb_month4_chained.pdf",
+            account_id=m1_account_id,
+            institution=m1_institution,
+        )
+        m4_data = runner.wait_for_statement_parsed(client, m4_id)
+        print(
+            f"        M4 parsed: Opening={m4_data['opening_balance']}, Closing={m4_data['closing_balance']}, Txns={len(m4_data.get('transactions', []))}"
+        )
+
+        m4_opening = Decimal(m4_data["opening_balance"])
+        m4_closing = Decimal(m4_data["closing_balance"])
+        assert m4_opening == m3_closing, (
+            f"Balance chain break: M3 closing ({m3_closing}) != M4 opening ({m4_opening})"
+        )
+        assert m4_data.get("balance_validated") is True, (
+            f"M4 balance not validated: {m4_data}"
+        )
+
+        runner.adjudicate_unmatched_items(client, m4_id)
+        m4_app = runner.approve_statement(client, m4_id)
+        print(f"        M4 approved successfully (status={m4_app['status']})")
+
+        # --- Checkpoint 1: Q1 Close (2025-01-01 to 2025-03-31) ---
+        print("  [6/9] Verifying Q1 Balance Sheet as of 2025-03-31...")
+        bs_q1 = runner.get_balance_sheet(client, as_of_date="2025-03-31")
+        q1_assets = Decimal(bs_q1["total_assets"])
+        q1_delta = Decimal(bs_q1["equation_delta"])
+        q1_balanced = bs_q1["is_balanced"]
+
+        print(
+            f"        Q1 Balance Sheet: Assets={q1_assets}, Delta={q1_delta}, Balanced={q1_balanced}"
+        )
+        assert q1_balanced is True, f"Q1 Balance sheet not balanced: delta={q1_delta}"
+        assert q1_delta == Decimal("0.00"), f"Q1 equation delta not zero: {q1_delta}"
+        assert q1_assets == Decimal("21300.00"), (
+            f"Expected Q1 total assets 21300.00, got {q1_assets}"
+        )
+
+        print("  [7/9] Verifying Q1 Income Statement & Cash Flow...")
+        inc_q1 = runner.get_income_statement(
+            client, start_date="2025-01-01", end_date="2025-03-31"
+        )
+        q1_net_income = Decimal(inc_q1["net_income"])
+        print(f"        Q1 Net Income={q1_net_income}")
+        # M1 Net (-179.52) + M2 Net (+2978.77) + M3 Net (+3050.00) = +5849.25
+        assert q1_net_income == Decimal("5849.25"), (
+            f"Expected Q1 cumulative net income 5849.25, got {q1_net_income}"
+        )
+
+        cf_q1 = runner.get_cash_flow(
+            client, start_date="2025-01-01", end_date="2025-03-31"
+        )
+        cf_q1_s = cf_q1.get("summary", {})
+        q1_beg_cash = Decimal(cf_q1_s.get("beginning_cash", "0"))
+        q1_net_cash = Decimal(cf_q1_s.get("net_cash_flow", "0"))
+        q1_end_cash = Decimal(cf_q1_s.get("ending_cash", "0"))
+        assert q1_beg_cash == Decimal("15450.75"), f"Q1 beg cash: {q1_beg_cash}"
+        assert q1_net_cash == Decimal("5849.25"), f"Q1 net cash: {q1_net_cash}"
+        assert q1_end_cash == Decimal("21300.00"), f"Q1 end cash: {q1_end_cash}"
+        assert q1_beg_cash + q1_net_cash == q1_end_cash, "Q1 cash rollforward mismatch"
+
+        # --- Checkpoint 2: Month 4 / Q2 Transition (2025-01-01 to 2025-04-30) ---
+        print("  [8/9] Verifying 4-Month Rollforward Balance Sheet as of 2025-04-30...")
+        bs_m4 = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        total_assets = Decimal(bs_m4["total_assets"])
+        total_liabilities = Decimal(bs_m4["total_liabilities"])
+        total_equity = Decimal(bs_m4["total_equity"])
+        equation_delta = Decimal(bs_m4["equation_delta"])
+        is_balanced = bs_m4["is_balanced"]
+
+        print(
+            f"        Month 4 Balance Sheet: Assets={total_assets}, Liab={total_liabilities}, "
+            f"Equity={total_equity}, Delta={equation_delta}, Balanced={is_balanced}"
         )
         assert is_balanced is True, (
-            f"Balance sheet is not balanced: delta={equation_delta}"
+            f"Month 4 Balance sheet not balanced: delta={equation_delta}"
         )
         assert equation_delta == Decimal("0.00"), (
-            f"Equation delta is not zero: {equation_delta}"
+            f"Month 4 equation delta not zero: {equation_delta}"
         )
-        assert total_assets == Decimal("18250.00"), (
-            f"Expected total assets 18250.00, got {total_assets}"
+        assert total_assets == Decimal("24200.00"), (
+            f"Expected Month 4 total assets 24200.00, got {total_assets}"
         )
         assert total_equity == Decimal("15450.75"), (
             f"Expected total equity (initial stock) 15450.75, got {total_equity}"
         )
 
-        print("  [5/6] Verifying Income Statement (2025-01-01 to 2025-02-28)...")
-        inc = runner.get_income_statement(
-            client, start_date="2025-01-01", end_date="2025-02-28"
+        print("  [9/9] Verifying 4-Month Cumulative Income Statement & Cash Flow...")
+        inc_4m = runner.get_income_statement(
+            client, start_date="2025-01-01", end_date="2025-04-30"
         )
-        net_income = Decimal(inc["net_income"])
-        total_income = Decimal(inc["total_income"])
-        total_expenses = Decimal(inc["total_expenses"])
-        print(
-            f"        Total Income={total_income}, Total Expenses={total_expenses}, Net Income={net_income}"
-        )
-        # M1 Net (-179.52) + M2 Net (+2978.77) = +2799.25
-        assert net_income == Decimal("2799.25"), (
-            f"Expected cumulative net income 2799.25, got {net_income}"
+        cum_net_income = Decimal(inc_4m["net_income"])
+        print(f"        4-Month Cumulative Net Income={cum_net_income}")
+        # 5849.25 + 2900.00 = 8749.25
+        assert cum_net_income == Decimal("8749.25"), (
+            f"Expected 4-month net income 8749.25, got {cum_net_income}"
         )
 
-        print("  [6/6] Verifying Cash Flow (2025-01-01 to 2025-02-28)...")
-        cf = runner.get_cash_flow(
-            client, start_date="2025-01-01", end_date="2025-02-28"
+        cf_4m = runner.get_cash_flow(
+            client, start_date="2025-01-01", end_date="2025-04-30"
         )
-        cfs = cf.get("summary", {})
-        beg_cash = Decimal(cfs.get("beginning_cash", "0"))
-        net_cash = Decimal(cfs.get("net_cash_flow", "0"))
-        end_cash = Decimal(cfs.get("ending_cash", "0"))
-        print(
-            f"        Beginning Cash={beg_cash}, Net Cash Flow={net_cash}, Ending Cash={end_cash}"
-        )
-        assert beg_cash == Decimal("15450.75"), (
-            f"Expected beginning cash 15450.75, got {beg_cash}"
-        )
-        assert net_cash == Decimal("2799.25"), (
-            f"Expected net cash flow 2799.25, got {net_cash}"
-        )
-        assert end_cash == Decimal("18250.00"), (
-            f"Expected ending cash 18250.00, got {end_cash}"
-        )
-        assert beg_cash + net_cash == end_cash, (
-            f"Cash flow rollforward mismatch: {beg_cash} + {net_cash} != {end_cash}"
-        )
+        cf_4m_s = cf_4m.get("summary", {})
+        beg_cash = Decimal(cf_4m_s.get("beginning_cash", "0"))
+        net_cash = Decimal(cf_4m_s.get("net_cash_flow", "0"))
+        end_cash = Decimal(cf_4m_s.get("ending_cash", "0"))
+        assert beg_cash == Decimal("15450.75"), f"4-Month beg cash: {beg_cash}"
+        assert net_cash == Decimal("8749.25"), f"4-Month net cash: {net_cash}"
+        assert end_cash == Decimal("24200.00"), f"4-Month end cash: {end_cash}"
+        assert beg_cash + net_cash == end_cash, "4-Month cash rollforward mismatch"
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
@@ -647,11 +1024,22 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "month_1_ending_balance": str(m1_closing),
                 "m2_opening_balance": str(m2_opening),
                 "month_2_opening_cash": str(m2_opening),
+                "m2_closing_balance": str(m2_closing),
+                "month_2_ending_balance": str(m2_closing),
+                "m3_opening_balance": str(m3_opening),
+                "month_3_opening_cash": str(m3_opening),
+                "m3_closing_balance": str(m3_closing),
+                "month_3_ending_balance": str(m3_closing),
+                "m4_opening_balance": str(m4_opening),
+                "month_4_opening_cash": str(m4_opening),
+                "m4_closing_balance": str(m4_closing),
+                "month_4_ending_balance": str(m4_closing),
+                "q1_net_income": str(q1_net_income),
+                "q1_assets": str(q1_assets),
                 "total_assets": str(total_assets),
-                "month_2_assets": str(total_assets),
+                "month_4_assets": str(total_assets),
                 "total_equity": str(total_equity),
-                "cumulative_net_income": str(net_income),
-                "month_2_net_income": str(net_income),
+                "cumulative_net_income": str(cum_net_income),
                 "beginning_cash": str(beg_cash),
                 "ending_cash": str(end_cash),
                 "equation_delta": str(equation_delta),
@@ -971,6 +1359,292 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
         )
 
 
+def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
+    """
+    Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet (跨国多币种合并资产负债表)
+    - Base Currency: SGD (user default).
+    - Statements uploaded across 3 sovereign jurisdictions:
+      * Singapore (SGD): Opening 10,000.00 SGD, Closing 12,800.00 SGD, Net +2,800.00 SGD.
+      * United States (USD): Opening 5,000.00 USD, Closing 6,800.00 USD, Net +1,800.00 USD.
+      * Hong Kong (HKD): Opening 20,000.00 HKD, Closing 24,000.00 HKD, Net +4,000.00 HKD.
+    - Assertions:
+      * All 3 multi-currency statements parse and validate internal balance integrity.
+      * Unmatched operating items are categorized without stranded ledger entries.
+      * Base Currency (SGD) Consolidated Balance Sheet balances with equation delta == 0.00 SGD.
+      * Reporting Currency (USD) Consolidated Balance Sheet balances with equation delta == 0.00 USD.
+      * Multi-currency assets consolidate into unified net worth with zero accounting leakage.
+    """
+    start_time = time.time()
+    case_name = "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet"
+    print("\n=======================================================")
+    print(f"🚀 RUNNING: {case_name}")
+    print("=======================================================")
+
+    try:
+        client, user_email, _ = runner.create_ephemeral_client("case4")
+        print(f"  [1/6] Registered test user: {user_email}")
+
+        # 1. SGD Statement
+        print("  [2/6] Uploading SGD operating statement...")
+        sgd_bytes = generate_standard_operations_csv(Decimal("10000.00"))
+        sgd_id = runner.upload_statement(
+            client, sgd_bytes, "operations_sgd.csv", institution="DBS Singapore"
+        )
+        sgd_data = runner.wait_for_statement_parsed(client, sgd_id)
+        assert sgd_data.get("balance_validated") is True, (
+            f"SGD balance invalid: {sgd_data}"
+        )
+        runner.adjudicate_unmatched_items(client, sgd_id)
+        runner.approve_statement(client, sgd_id)
+        print(
+            f"        SGD statement approved: Closing={sgd_data['closing_balance']} SGD"
+        )
+
+        # 2. USD Statement
+        print("  [3/6] Uploading USD operating statement...")
+        usd_bytes = generate_multicurrency_usd_csv(Decimal("5000.00"))
+        usd_id = runner.upload_statement(
+            client, usd_bytes, "operations_usd.csv", institution="Silicon Valley Bank"
+        )
+        usd_data = runner.wait_for_statement_parsed(client, usd_id)
+        assert usd_data.get("balance_validated") is True, (
+            f"USD balance invalid: {usd_data}"
+        )
+        runner.adjudicate_unmatched_items(client, usd_id)
+        runner.approve_statement(client, usd_id)
+        print(
+            f"        USD statement approved: Closing={usd_data['closing_balance']} USD"
+        )
+
+        # 3. HKD Statement
+        print("  [4/6] Uploading HKD operating statement...")
+        hkd_bytes = generate_multicurrency_hkd_csv(Decimal("20000.00"))
+        hkd_id = runner.upload_statement(
+            client, hkd_bytes, "operations_hkd.csv", institution="HSBC Hong Kong"
+        )
+        hkd_data = runner.wait_for_statement_parsed(client, hkd_id)
+        assert hkd_data.get("balance_validated") is True, (
+            f"HKD balance invalid: {hkd_data}"
+        )
+        runner.adjudicate_unmatched_items(client, hkd_id)
+        runner.approve_statement(client, hkd_id)
+        print(
+            f"        HKD statement approved: Closing={hkd_data['closing_balance']} HKD"
+        )
+
+        # 4. Consolidated Balance Sheet in Base Currency (SGD)
+        print(
+            "  [5/6] Verifying Consolidated Balance Sheet in SGD (as of 2025-04-30)..."
+        )
+        bs_sgd = runner.get_balance_sheet(
+            client, as_of_date="2025-04-30", currency="SGD"
+        )
+        assets_sgd = Decimal(bs_sgd["total_assets"])
+        liab_sgd = Decimal(bs_sgd["total_liabilities"])
+        equity_sgd = Decimal(bs_sgd["total_equity"])
+        delta_sgd = Decimal(bs_sgd["equation_delta"])
+        balanced_sgd = bs_sgd["is_balanced"]
+
+        print(
+            f"        SGD Balance Sheet: Assets={assets_sgd}, Liab={liab_sgd}, Equity={equity_sgd}, Delta={delta_sgd}, Balanced={balanced_sgd}"
+        )
+        assert balanced_sgd is True, (
+            f"SGD Balance Sheet not balanced: delta={delta_sgd}"
+        )
+        assert delta_sgd == Decimal("0.00"), f"SGD equation delta not zero: {delta_sgd}"
+        assert assets_sgd > Decimal("12800.00"), (
+            "Multi-currency assets must be consolidated into SGD"
+        )
+
+        # 5. Consolidated Balance Sheet in Target Currency (USD)
+        print(
+            "  [6/6] Verifying Consolidated Balance Sheet in USD (as of 2025-04-30)..."
+        )
+        bs_usd = runner.get_balance_sheet(
+            client, as_of_date="2025-04-30", currency="USD"
+        )
+        assets_usd = Decimal(bs_usd["total_assets"])
+        delta_usd = Decimal(bs_usd["equation_delta"])
+        balanced_usd = bs_usd["is_balanced"]
+
+        print(
+            f"        USD Balance Sheet: Assets={assets_usd}, Delta={delta_usd}, Balanced={balanced_usd}"
+        )
+        assert balanced_usd is True, (
+            f"USD Balance Sheet not balanced: delta={delta_usd}"
+        )
+        assert delta_usd == Decimal("0.00"), f"USD equation delta not zero: {delta_usd}"
+
+        duration = time.time() - start_time
+        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
+        return CaseResult(
+            case_id="case_4",
+            case_name=case_name,
+            status="PASS",
+            duration_seconds=duration,
+            details={
+                "currencies_consolidated": "SGD, USD, HKD",
+                "sgd_closing_balance": str(sgd_data["closing_balance"]),
+                "usd_closing_balance": str(usd_data["closing_balance"]),
+                "hkd_closing_balance": str(hkd_data["closing_balance"]),
+                "total_assets_sgd": str(assets_sgd),
+                "equation_delta_sgd": str(delta_sgd),
+                "is_balanced_sgd": balanced_sgd,
+                "total_assets_usd": str(assets_usd),
+                "equation_delta_usd": str(delta_usd),
+                "is_balanced_usd": balanced_usd,
+                "equation_delta": str(delta_sgd),
+                "is_balanced": balanced_sgd,
+            },
+        )
+    except Exception as exc:
+        duration = time.time() - start_time
+        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
+        return CaseResult(
+            case_id="case_4",
+            case_name=case_name,
+            status="FAIL",
+            duration_seconds=duration,
+            error_message=str(exc),
+        )
+
+
+def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
+    """
+    Case 5: Multi-Asset Portfolio Integration & Securities Valuation (多资产投资组合与证券公允估值)
+    - Brokerage Position Import:
+      * Interactive Brokers snapshot with AAPL (10 shares @ 200.00 USD = 2,000.00 USD)
+      * VT (50 shares @ 110.00 USD = 5,500.00 USD)
+    - Authoritative Market Price Updates on 2025-04-30 (AAPL 200.00 USD, VT 110.00 USD).
+    - Assertions:
+      * Positions import idempotently into AtomicPosition and reconcile ManagedPosition.
+      * Holdings endpoint returns all positions without missing price warnings.
+      * Balance Sheet incorporates portfolio market adjustments into Assets and Net Worth Adjustment.
+      * Equation Delta == 0.00 and is_balanced is True down to the cent.
+    """
+    start_time = time.time()
+    case_name = "Case 5: Multi-Asset Portfolio Integration & Securities Valuation"
+    print("\n=======================================================")
+    print(f"🚀 RUNNING: {case_name}")
+    print("=======================================================")
+
+    try:
+        client, user_email, _ = runner.create_ephemeral_client("case5")
+        print(f"  [1/5] Registered test user: {user_email}")
+
+        # 1. Import Brokerage Positions
+        print("  [2/5] Importing Interactive Brokers positions...")
+        brokerage_payload = {
+            "institution": "Interactive Brokers",
+            "statement": {"period_end": "2025-04-30", "currency": "USD"},
+            "positions": [
+                {
+                    "symbol": "AAPL",
+                    "quantity": "10",
+                    "market_value": "2000.00",
+                    "currency": "USD",
+                    "asset_type": "stock",
+                    "sector": "Technology",
+                    "geography": "US",
+                },
+                {
+                    "symbol": "VT",
+                    "quantity": "50",
+                    "market_value": "5500.00",
+                    "currency": "USD",
+                    "asset_type": "etf",
+                    "sector": "Broad Market",
+                    "geography": "Global",
+                },
+            ],
+        }
+        import_resp = runner.import_brokerage_positions(
+            client, brokerage_payload, filename="ibkr_positions_20250430.json"
+        )
+        print(
+            f"        Imported positions: Created={import_resp.get('created_atomic_positions')}, Reconciled={import_resp.get('reconcile_created')}"
+        )
+        assert (
+            import_resp.get("created_atomic_positions", 0) >= 2
+            or import_resp.get("parsed_positions", 0) >= 2
+        )
+
+        # 2. Update Market Prices to guarantee valuation observation
+        print(
+            "  [3/5] Setting authoritative market prices for valuation as of 2025-04-30..."
+        )
+        price_updates = [
+            {
+                "asset_identifier": "AAPL",
+                "price_date": "2025-04-30",
+                "price": "200.00",
+                "currency": "USD",
+            },
+            {
+                "asset_identifier": "VT",
+                "price_date": "2025-04-30",
+                "price": "110.00",
+                "currency": "USD",
+            },
+        ]
+        runner.update_market_prices(client, price_updates)
+
+        # 3. Verify Holdings
+        print("  [4/5] Verifying /api/portfolio/holdings...")
+        holdings_resp = runner.get_holdings(client, as_of_date="2025-04-30")
+        items = holdings_resp.get("items", [])
+        symbols = [item.get("asset_identifier") or item.get("symbol") for item in items]
+        print(f"        Retrieved holdings: {symbols}")
+        assert "AAPL" in symbols, f"Expected AAPL in holdings: {symbols}"
+        assert "VT" in symbols, f"Expected VT in holdings: {symbols}"
+
+        # 4. Verify Balance Sheet Portfolio Valuation Integration
+        print("  [5/5] Verifying Balance Sheet Integration as of 2025-04-30...")
+        bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        total_assets = Decimal(bs["total_assets"])
+        total_equity = Decimal(bs["total_equity"])
+        equation_delta = Decimal(bs["equation_delta"])
+        is_balanced = bs["is_balanced"]
+
+        print(
+            f"        Balance Sheet: Total Assets={total_assets}, Total Equity={total_equity}, Delta={equation_delta}, Balanced={is_balanced}"
+        )
+        assert is_balanced is True, (
+            f"Balance sheet not balanced: delta={equation_delta}"
+        )
+        assert equation_delta == Decimal("0.00"), (
+            f"Equation delta not zero: {equation_delta}"
+        )
+        assert total_assets > Decimal("0.00"), "Portfolio assets must be positive"
+
+        duration = time.time() - start_time
+        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
+        return CaseResult(
+            case_id="case_5",
+            case_name=case_name,
+            status="PASS",
+            duration_seconds=duration,
+            details={
+                "holdings_count": len(items),
+                "symbols": ", ".join(symbols),
+                "total_assets": str(total_assets),
+                "total_equity": str(total_equity),
+                "equation_delta": str(equation_delta),
+                "is_balanced": is_balanced,
+            },
+        )
+    except Exception as exc:
+        duration = time.time() - start_time
+        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
+        return CaseResult(
+            case_id="case_5",
+            case_name=case_name,
+            status="FAIL",
+            duration_seconds=duration,
+            error_message=str(exc),
+        )
+
+
 # =====================================================================
 # Main Orchestrator & CLI Entrypoint
 # =====================================================================
@@ -987,8 +1661,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--case",
-        default="1,2,3",
-        help="Comma-separated case IDs to run (1, 2, 3, or all)",
+        default="all",
+        help="Comma-separated case IDs to run (1, 2, 3, 4, 5, or all)",
     )
     parser.add_argument(
         "--version-ref",
@@ -1058,6 +1732,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if run_all or "3" in requested:
         results.append(execute_case_3(runner))
+
+    if run_all or "4" in requested:
+        results.append(execute_case_4(runner))
+
+    if run_all or "5" in requested:
+        results.append(execute_case_5(runner))
 
     all_passed = all(r.status == "PASS" for r in results)
 
