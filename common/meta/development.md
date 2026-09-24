@@ -45,12 +45,11 @@ development, GitHub Actions, and Docker/Compose:
 | Backend base image | `python:3.12.12-slim` |
 | Frontend base image | `node:20.19.0-alpine` |
 | Postgres test image | `postgres:15.14-alpine` |
-| MinIO image | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e` |
-| MinIO client image | `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727` |
+| MinIO image | `cgr.dev/chainguard/minio:latest-dev@sha256:4b862594d23cb20ae0fbeb93311ed312a5b566ecba2293220b204c89ef3c1fe2` |
+| MinIO client image | `cgr.dev/chainguard/minio-client:latest-dev@sha256:614e083a12c6dc779f13f97e01b13afda4021a8ce3f4021a2fcf23ec86f46837` |
 
-MinIO server and client use the upstream Quay mirror with immutable digests
-(#2037; provenance: [TrueAlpha #825](https://github.com/wangzitian0/truealpha/pull/825)).
-The release versions are unchanged. The toolchain gate checks both Compose
+MinIO server and client use the hardened Chainguard distribution with immutable digests
+after Docker Hub and Quay.io upstream removals. The toolchain gate checks both Compose
 files and each CI acquisition step against `toolchain.toml` before tests run.
 
 Local tool-manager files mirror the same versions for compatibility:
