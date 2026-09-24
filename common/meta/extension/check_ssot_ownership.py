@@ -60,48 +60,8 @@ MUST_BE_ABSENT: list[Path] = [
     REPO_ROOT / "docs" / "project" / "archive",
     # EPIC-016 implementation plan merged into EPIC-016.two-stage-review-ui.md
     REPO_ROOT / "docs" / "project" / "EPIC-016-IMPLEMENTATION-PLAN.md",
-    # coverage-verification.md merged into common/testing/coverage.md
-    REPO_ROOT / "docs" / "ssot" / "coverage-verification.md",
-    # observability.logging-improvements.md renamed to observability-logging.md
-    REPO_ROOT / "docs" / "ssot" / "observability.logging-improvements.md",
-    # authority-tiers.md internalized into the owning package (common/meta since #1626)
-    # (common/meta/readme.md) per migration-standard step 3 "SSOT internalized".
-    REPO_ROOT / "docs" / "ssot" / "authority-tiers.md",
-    # extraction.md internalized into the extraction package
-    # (common/extraction/readme.md) per migration-standard step 3 "SSOT internalized"
-    # (Stage-2 precursor to the code cutover #1421).
-    REPO_ROOT / "docs" / "ssot" / "extraction.md",
-    # extraction-audit-failed-cases.yaml moved into the extraction package
-    # (common/extraction/audit-failed-cases.yaml) as extraction-owned data.
-    REPO_ROOT / "docs" / "ssot" / "extraction-audit-failed-cases.yaml",
-    # llm.md internalized into the llm package (common/llm/readme.md) per
-    # migration-standard step 3 "SSOT internalized" (Stage-2 precursor to the
-    # code cutover #1426).
-    REPO_ROOT / "docs" / "ssot" / "llm.md",
-    # accounting.md internalized into the ledger package (common/ledger/readme.md):
-    # the double-entry sections per migration-standard step 3 "SSOT internalized"
-    # (Stage-2 of the ledger cutover #1420). The #money-type section moved into
-    # common/audit/money/readme.md (the money kernel owns it).
-    REPO_ROOT / "docs" / "ssot" / "accounting.md",
-    # processing_account.md internalized into the ledger package
-    # (common/ledger/readme.md) — the processing (in-transit) account belongs to
-    # ledger (its EPIC-015 too) per migration-standard step 3 (#1420).
-    REPO_ROOT / "docs" / "ssot" / "processing_account.md",
-    # base-packages.md internalized into the audit package
-    # (common/audit/readme.md#base-packages) — audit is the number-governor that
-    # declares the value-package family, per migration-standard step 3 "SSOT
-    # internalized" (#1419 / umbrella #1416).
-    REPO_ROOT / "docs" / "ssot" / "base-packages.md",
-    # cassette-graded-eval.md internalized into the llm package
-    # (common/llm/readme.md#cassette-graded-eval) — the graded accuracy oracle
-    # over the llm package's cassette layer, per migration-standard step 3
-    # "SSOT internalized" (Stage-2 precursor to the code cutover #1426).
-    REPO_ROOT / "docs" / "ssot" / "cassette-graded-eval.md",
-    # source-type-priority.md was already a pointer stub (content internalized
-    # into common/audit/readme.md#source-type-trust-hierarchy-provenance in
-    # migration closeout wave 3, #1664); the stub itself was retired in #1822
-    # (SSOT dissolution, Package-ization 3/4).
-    REPO_ROOT / "docs" / "ssot" / "source-type-priority.md",
+    # docs/ssot/ directory is retired (Package-ization 4/4, #1823); concepts live in package readmes / MANIFEST.yaml
+    REPO_ROOT / "docs" / "ssot",
 ]
 
 # ---------------------------------------------------------------------------
