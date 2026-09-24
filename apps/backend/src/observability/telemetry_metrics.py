@@ -23,22 +23,16 @@ logger = get_logger(__name__)
 
 
 def _build_otel_resource() -> Any:
-    from opentelemetry.sdk.resources import Resource
+    from src.observability.logger import _build_otel_resource as _shared_build_resource
 
-    attributes = {
-        "service.name": settings.otel_service_name,
-        "service.version": settings.git_commit_sha,
-        "git.commit": settings.git_commit_sha,
-    }
-    attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
-    return Resource.create(attributes)
+    return _shared_build_resource()
 
 
 def _build_otlp_metrics_endpoint(endpoint: str) -> str:
-    trimmed = endpoint.rstrip("/")
-    if trimmed.endswith("/v1/metrics"):
-        return trimmed
-    return f"{trimmed}/v1/metrics"
+    """Build the full OTLP metrics endpoint URL with /v1/metrics suffix."""
+    from infra2_sdk.runtime.otel import _signal_endpoint
+
+    return _signal_endpoint(endpoint, "metrics")
 
 
 def mark_metrics_export_active(active: bool = True) -> None:

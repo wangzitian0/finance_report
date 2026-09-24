@@ -455,3 +455,11 @@ def test_AC10_4_3_instrument_app_skips_without_endpoint(monkeypatch) -> None:
     main_module._instrument_fastapi_app(FastAPI())
 
     assert observability_module.is_fastapi_instrumentation_active() is False
+
+
+def test_system_and_runtime_error_ids() -> None:
+    """AC-observability: System and runtime error IDs are defined for active alerting."""
+    from src.observability import ErrorIds
+
+    assert ErrorIds.HEALTH_CHECK_FAILED == "ERR_SYS_001"
+    assert ErrorIds.UNHANDLED_EXCEPTION == "ERR_SYS_002"

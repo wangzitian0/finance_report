@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.boot import Bootloader
 from src.config import settings
 from src.database import get_db
-from src.observability import get_logger, get_observability_status
+from src.observability import ErrorIds, get_logger, get_observability_status
 from src.runtime.base.tiers import resolve_env_tier
 
 router = APIRouter()
@@ -84,6 +84,7 @@ async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -
         logger.error(
             "Health check: Unexpected error in endpoint",
             error=str(exc),
+            error_id=ErrorIds.HEALTH_CHECK_FAILED,
             error_type=type(exc).__name__,
             error_module=type(exc).__module__,
         )

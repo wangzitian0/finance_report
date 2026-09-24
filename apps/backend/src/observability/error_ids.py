@@ -36,3 +36,7 @@ class ErrorIds:
     # Reporting (ERR_RPT_xxx)
     REPORT_GENERATION_FAILED = "ERR_RPT_001"
     REPORT_FX_FALLBACK = "ERR_RPT_002"
+
+    # System & Runtime (ERR_SYS_xxx)
+    HEALTH_CHECK_FAILED = "ERR_SYS_001"
+    UNHANDLED_EXCEPTION = "ERR_SYS_002"

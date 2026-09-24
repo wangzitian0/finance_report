@@ -269,3 +269,29 @@ class TestConfig:
 
         settings = Settings()
         assert "postgresql" in settings.database_url or "sqlite" in settings.database_url
+
+
+async def test_logging_middleware_tags_unhandled_exception(monkeypatch) -> None:
+    """Unhandled exception in HTTP request tags log with ErrorIds.UNHANDLED_EXCEPTION."""
+    from unittest.mock import MagicMock
+
+    import pytest
+    from fastapi import Request
+
+    from src import main as main_module
+    from src.observability import ErrorIds
+
+    mock_logger = MagicMock()
+    monkeypatch.setattr(main_module, "logger", mock_logger)
+
+    async def failing_call_next(_req):
+        raise RuntimeError("boom")
+
+    request = MagicMock(spec=Request)
+    request.scope = {"type": "http", "method": "GET", "path": "/test"}
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await main_module.logging_middleware(request, failing_call_next)
+
+    mock_logger.exception.assert_called_once()
+    assert mock_logger.exception.call_args.kwargs.get("error_id") == ErrorIds.UNHANDLED_EXCEPTION

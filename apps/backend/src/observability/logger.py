@@ -75,25 +75,43 @@ def _select_renderer() -> Processor:
 
 
 def _build_otlp_logs_endpoint(endpoint: str) -> str:
-    trimmed = endpoint.rstrip("/")
-    if trimmed.endswith("/v1/logs"):
-        return trimmed
-    return f"{trimmed}/v1/logs"
+    """Build the full OTLP logs endpoint URL with /v1/logs suffix."""
+    from infra2_sdk.runtime.otel import _signal_endpoint
+
+    return _signal_endpoint(endpoint, "logs")
 
 
 def _build_otel_resource() -> Any:
-    """Build OTEL resource with service name and attributes."""
+    """Build OTEL resource with service name and attributes via infra2_sdk contract."""
+    from infra2_sdk.runtime.environment import resolve_environment_tier
+    from infra2_sdk.runtime.otel import OtelSettings, resource_attributes as sdk_resource_attributes
     from opentelemetry.sdk.resources import Resource
 
-    resource_attributes = {
-        "service.name": settings.otel_service_name,
-        # Version correlation: every span/log carries the deployed commit so a
-        # CI/CD run can pivot directly to this version's traces in the observability backend.
-        "service.version": settings.git_commit_sha,
+    parsed_attrs = parse_key_value_pairs(settings.otel_resource_attributes)
+    dep_env = parsed_attrs.get("deployment.environment") or settings.environment
+    try:
+        env_tier = resolve_environment_tier(dep_env, unknown="production").value
+        otel_settings = OtelSettings(
+            service_name=settings.otel_service_name,
+            endpoint=settings.otel_exporter_otlp_endpoint,
+            service_version=settings.git_commit_sha,
+            environment=env_tier,
+            deployment_environment=dep_env,
+            resource_attributes=parsed_attrs,
+            enabled=bool(settings.otel_exporter_otlp_endpoint),
+        )
+        attrs = sdk_resource_attributes(otel_settings)
+    except Exception:
+        attrs = {
+            "service.name": settings.otel_service_name,
+            "service.version": settings.git_commit_sha,
+            **parsed_attrs,
+        }
+    final_attrs = {
+        **attrs,
         "git.commit": settings.git_commit_sha,
     }
-    resource_attributes.update(parse_key_value_pairs(settings.otel_resource_attributes))
-    return Resource.create(resource_attributes)
+    return Resource.create(final_attrs)
 
 
 def _configure_otel_tracing() -> None:
