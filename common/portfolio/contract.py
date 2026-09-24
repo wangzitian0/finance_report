@@ -1915,7 +1915,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.4",
             statement="([#706](https://github.com/wangzitian0/finance_report/issues/706)): a valid guided evidence submission persists through the existing `POST /api/assets/valuation-snapshots` endpoint via the typed `lib/api.ts` client (never raw `fetch`), mapping the chosen source class to its `component_type`, `valuation_basis`, source label, anchor, and notes, with the monetary `value` sent as a string. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 *`.",
             # was AC11.9.7
-            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
             priority="P2",
             status="done",
         ),
@@ -1971,7 +1971,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.11",
             statement="Import to Portfolio button visible for parsed/approved statements",
             # was AC17.8.1
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),
@@ -1979,7 +1979,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.12",
             statement="Import result banner with stats and portfolio link shown on success",
             # was AC17.8.2
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),
@@ -1995,7 +1995,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.14",
             statement="Portfolio page shows total portfolio value prominently after import",
             # was AC17.8.4
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),
