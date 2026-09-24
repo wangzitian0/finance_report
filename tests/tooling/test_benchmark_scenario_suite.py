@@ -158,12 +158,10 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
     }
     assert expected_ids.issubset(fixture_ids)
 
+    required_fixture_keys = {"id", "doc_type", "currency", "download_url"}
     for item in fixtures:
-        assert "id" in item
-        assert "doc_type" in item
-        assert "currency" in item
-        assert "download_url" in item
-        assert "sha256" in item or "raw_sha256" in item
+        assert required_fixture_keys.issubset(item.keys())
+        assert bool({"sha256", "raw_sha256"} & set(item.keys()))
         rel_path = item["local_path"]
         f_path = REPO_ROOT / rel_path
         if f_path.exists():
@@ -287,16 +285,20 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     assert summary["max_equation_delta"] == "0.00"
 
     html_out = generate_html_report(mock_report)
-    assert "ALL 5 SCENARIOS BALANCED" in html_out
-    assert "CASE_1" in html_out
-    assert "CASE_2" in html_out
-    assert "CASE_3" in html_out
-    assert "CASE_4" in html_out
-    assert "CASE_5" in html_out
-    assert "Husband Account (DBS Bank) Ending Cash" in html_out
-    assert "Wife Account (Standard Chartered) Ending Cash" in html_out
-    assert "Credit Card Incurred Charges" in html_out
-    assert "Real Estate Property Appraisal" in html_out
+    expected_snippets = [
+        "ALL 5 SCENARIOS BALANCED",
+        "CASE_1",
+        "CASE_2",
+        "CASE_3",
+        "CASE_4",
+        "CASE_5",
+        "Husband Account (DBS Bank) Ending Cash",
+        "Wife Account (Standard Chartered) Ending Cash",
+        "Credit Card Incurred Charges",
+        "Real Estate Property Appraisal",
+    ]
+    for snippet in expected_snippets:
+        assert html_out.find(snippet) != -1, f"Missing {snippet} in html output"
     assert len(html_out) > 5000
 
 
@@ -322,8 +324,9 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     )
 
     # Invariant: "market_appraisal" is the legal enum value, "appraisal" is illegal
-    assert "market_appraisal" in {e.value for e in ManualValuationBasis}
-    assert "appraisal" not in {e.value for e in ManualValuationBasis}
+    valid_basis_values = {e.value for e in ManualValuationBasis}
+    assert ManualValuationBasis.MARKET_APPRAISAL.value == "market_appraisal"
+    assert not ({"appraisal"} & valid_basis_values)
 
     # Runner method signature must default to legal enum value
     sig = inspect.signature(ScenarioBenchmarkRunner.create_valuation_snapshot)
