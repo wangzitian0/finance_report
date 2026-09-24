@@ -65,7 +65,7 @@ export function calculateEffectiveBalanceValidation(
     const declaredClosing = safeDecimal(declaredClosingBalance);
     const delta = calculatedClosing.minus(declaredClosing);
     closingDelta = formatAmount(delta, 2);
-    closingMatch = isAmountZero(delta);
+    closingMatch = isAmountZero(delta, 0);
   }
 
   return {

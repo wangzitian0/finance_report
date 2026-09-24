@@ -95,4 +95,20 @@ describe("statementReviewBalance", () => {
     expect(result?.closing_delta).toBe("0.00");
     expect(result?.closing_match).toBe(true);
   });
+
+  it("treats 1-cent discrepancy as not matching (exact zero tolerance)", () => {
+    const txns: ReviewBalanceTransaction[] = [
+      { amount: "50.00", direction: "IN" },
+    ];
+    // opening 100 + 50 = 150 calculated, declared 150.01 -> delta -0.01
+    const result = calculateEffectiveBalanceValidation(
+      baseOriginalResult,
+      "100.00",
+      "150.01",
+      txns,
+    );
+    expect(result?.calculated_closing).toBe("150.00");
+    expect(result?.closing_delta).toBe("-0.01");
+    expect(result?.closing_match).toBe(false);
+  });
 });
