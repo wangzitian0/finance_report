@@ -84,10 +84,13 @@ def test_dependency_field_aliases_are_all_declared() -> None:
     """No alias smuggling: every env alias of a dependency-owned field is declared
     in the manifest — a new alias cannot ride in on an already-declared sibling."""
     declared = {env_var for dep in DEPENDENCY_MANIFEST for env_var in dep.env_vars}
+    matched_count = 0
     for field_name in Settings.model_fields:
         keys = settings_env_keys(Settings, field_name)
         if keys & declared:
             assert keys <= declared, f"{field_name}: undeclared aliases {sorted(keys - declared)}"
+            matched_count += 1
+    assert matched_count > 0, "Expected at least one Settings field bound to dependency manifest env vars"
 
 
 def test_classification_categories_are_the_documented_set() -> None:

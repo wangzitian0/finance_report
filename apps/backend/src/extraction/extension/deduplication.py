@@ -488,41 +488,6 @@ class DeduplicationService:
             existing.ordinal = ordinal
         await db.flush()
 
-    async def create_uploaded_document(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        file_path: str,
-        file_hash: str,
-        original_filename: str,
-        document_type: DocumentType,
-        extraction_metadata: dict[str, Any] | None = None,
-    ) -> UploadedDocument:
-        """Create Layer 1 document metadata record.
-
-        Raises IntegrityError if file_hash already exists for this user.
-        """
-        doc = UploadedDocument(
-            user_id=user_id,
-            file_path=file_path,
-            file_hash=file_hash,
-            original_filename=original_filename,
-            document_type=document_type,
-            extraction_metadata=extraction_metadata,
-        )
-        db.add(doc)
-        await db.flush()
-
-        logger.info(
-            f"Created uploaded document {doc.id}",
-            extra={
-                "file_hash": file_hash,
-                "document_type": document_type.value,
-                "original_filename": original_filename,
-            },
-        )
-        return doc
-
 
 async def dual_write_layer2(
     db: AsyncSession,

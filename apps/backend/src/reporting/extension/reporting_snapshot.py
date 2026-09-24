@@ -1,6 +1,6 @@
 """Layer 4: Reporting Snapshot Service."""
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -74,7 +74,7 @@ class ReportingSnapshotService:
             for snap in existing:
                 snap.is_latest = False
 
-            ttl = datetime.now() + timedelta(seconds=ttl_seconds)
+            ttl = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
             snapshot = ReportSnapshot(
                 user_id=user_id,
                 report_type=report_type,

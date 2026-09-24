@@ -593,7 +593,7 @@
         "type": "object"
       },
       "AccountType": {
-        "description": "Account type classification.",
+        "description": "Account type classification.\n\nFollows the fundamental accounting equation:\nAssets = Liabilities + Equity + (Income - Expenses)",
         "enum": [
           "ASSET",
           "LIABILITY",
@@ -3206,7 +3206,7 @@
         "type": "object"
       },
       "Direction": {
-        "description": "Debit or credit direction.",
+        "description": "Debit or credit direction in double-entry bookkeeping.",
         "enum": [
           "DEBIT",
           "CREDIT"
@@ -4563,7 +4563,7 @@
         "type": "object"
       },
       "JournalEntryAuthorityState": {
-        "description": "Whether this row has a decision that can be used as accounting authority.",
+        "description": "Whether a journal row has a decision that can be used as accounting authority.",
         "enum": [
           "anchored",
           "legacy_unproven"
@@ -4755,7 +4755,7 @@
         "type": "string"
       },
       "JournalEntryStatus": {
-        "description": "Status of a journal entry.",
+        "description": "Status lifecycle of a journal entry.",
         "enum": [
           "draft",
           "posted",
@@ -27721,7 +27721,7 @@
     },
     "/users/{user_id}": {
       "delete": {
-        "description": "Delete the authenticated user's own account.",
+        "description": "Delete the authenticated user's own account (soft delete).",
         "operationId": "delete_user_users__user_id__delete",
         "parameters": [
           {

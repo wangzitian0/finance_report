@@ -14,13 +14,11 @@ from src.extraction import (
     DocumentSource,
     DocumentStatus,
     DocumentType,
-    ExtractedTransactionRow,
     Stage1Status,
     TransactionDirection,
     UploadedDocument,
     register_statement_source,
 )
-from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -374,71 +372,6 @@ class TestDualWriteLayer2:
 
         assert extraction_result is not None
         assert len(extraction_result.transactions) == 2
-
-    async def test_dual_write_integrity_error_silent(self, db, test_user, sample_file_content, monkeypatch):
-        """Test that IntegrityError (duplicate upload) is silently handled."""
-        from sqlalchemy.exc import IntegrityError
-
-        from src.extraction.extension.deduplication import dual_write_layer2
-        from tests.factories import StatementSummaryFactory
-
-        file_hash = hashlib.sha256(sample_file_content).hexdigest()
-
-        statement = StatementSummaryFactory.build(
-            user_id=test_user.id,
-            file_hash=file_hash,
-            institution="DBS",
-            account_last4="1234",
-            currency="SGD",
-            period_start=date(2024, 1, 1),
-            period_end=date(2024, 1, 31),
-            opening_balance=Decimal("1000.00"),
-            closing_balance=Decimal("1500.00"),
-        )
-        txn_date = date(2024, 1, 15)
-        amount = Decimal("3000.00")
-        direction = TransactionDirection.IN
-        description = "Salary Deposit"
-        reference = "SAL001"
-        txn = ExtractedTransactionRow(
-            user_id=test_user.id,
-            txn_date=txn_date,
-            description=description,
-            amount=amount,
-            direction=direction.value,
-            reference=reference,
-            currency="SGD",
-            currency_unresolved=False,
-            balance_after=None,
-            occurrence_index=0,
-            dedup_hash=DeduplicationService.calculate_transaction_hash(
-                test_user.id,
-                txn_date,
-                amount,
-                direction,
-                description,
-                reference,
-            ),
-        )
-        transactions = [txn]
-
-        # Mock create_uploaded_document to raise IntegrityError
-        with patch(
-            "src.extraction.extension.deduplication.DeduplicationService.create_uploaded_document",
-            side_effect=IntegrityError("INSERT", [], Exception("duplicate")),
-        ):
-            # Should not raise - IntegrityError is silently handled
-            result = await dual_write_layer2(
-                db=db,
-                user_id=test_user.id,
-                statement=statement,
-                transactions=transactions,
-                file_path=Path("test_statement.pdf"),
-                original_filename="test_statement.pdf",
-            )
-
-        # Function should return None on IntegrityError
-        assert result is None
 
     async def test_AC13_22_2_page_boundary_duplicate_deposit_survives(self, db, test_user):
         """AC-extraction.122.2: a statement with two distinct same-date/same-amount deposits separated by a

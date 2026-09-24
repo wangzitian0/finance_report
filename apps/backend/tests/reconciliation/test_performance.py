@@ -346,8 +346,9 @@ class TestBatchPerformance:
         # Run explicitly with: pytest -m slow
         assert elapsed < 5.0, f"Matching {txn_count} transactions took {elapsed:.2f}s (> 5s limit)"
 
-        # Should have processed all transactions
-        assert len(matches) >= 0  # May or may not have matches
+        # Should have processed transactions and found matches
+        assert isinstance(matches, list)
+        assert len(matches) > 0, f"Expected matching transactions, got {len(matches)}"
 
 
 # =============================================================================
