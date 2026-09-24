@@ -15,6 +15,7 @@ These tests exist because the ORIGINAL test suite failed to catch this bug. Spec
 Each test class below closes one specific gap.
 """
 
+import re
 import string
 from datetime import date
 from decimal import Decimal
@@ -609,6 +610,11 @@ class TestSanitizeAccountLast4Exhaustive:
     def test_output_never_exceeds_4_chars(self, random_input):
         """Combinatorial: no combination of alphanumeric + hyphens exceeds 4 chars."""
         result = ExtractionService._sanitize_account_last4(random_input)
-        if result is not None:
+        expected_alnum = re.sub(r"[^a-zA-Z0-9]", "", random_input)
+        if expected_alnum:
+            assert result is not None, f"Expected sanitized output for input '{random_input}'"
             assert len(result) <= 4
             assert result.isalnum()
+            assert result == expected_alnum[-4:]
+        else:
+            assert result is None, f"Expected None for non-alphanumeric input '{random_input}'"

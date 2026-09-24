@@ -915,11 +915,11 @@ async def test_get_sector_allocation_with_data(client: AsyncClient, portfolio_wi
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    if len(data) > 0:
-        assert "category" in data[0]
-        assert "value" in data[0]
-        assert "percentage" in data[0]
-        assert "count" in data[0]
+    assert len(data) > 0, "Expected non-empty sector allocation breakdown for portfolio_with_data"
+    assert "category" in data[0]
+    assert "value" in data[0]
+    assert "percentage" in data[0]
+    assert "count" in data[0]
 
 
 async def test_get_geography_allocation_empty(client: AsyncClient):
@@ -941,6 +941,11 @@ async def test_get_geography_allocation_with_data(client: AsyncClient, portfolio
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+    assert len(data) > 0, "Expected non-empty geography allocation breakdown for portfolio_with_data"
+    assert "category" in data[0]
+    assert "value" in data[0]
+    assert "percentage" in data[0]
+    assert "count" in data[0]
 
 
 async def test_get_asset_class_allocation_empty(client: AsyncClient):

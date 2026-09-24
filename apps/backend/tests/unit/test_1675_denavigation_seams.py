@@ -54,3 +54,4 @@ async def test_account_names_lookup_short_circuits_on_no_ids() -> None:
 @pytest.mark.asyncio
 async def test_match_transaction_fetch_short_circuits_on_no_matches() -> None:
     assert await _load_transactions(_ExplodingSession(), []) == {}
+    assert await _load_transactions(_ExplodingSession(), [], uuid4()) == {}

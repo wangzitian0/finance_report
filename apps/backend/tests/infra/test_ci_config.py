@@ -56,12 +56,16 @@ def test_docker_compose_integrity():
         config = yaml.safe_load(f)
 
     services = config.get("services") or {}
+    assert len(services) > 0, "docker-compose.yml must declare services"
+    build_contexts_checked = 0
     for service_name, service in services.items():
         if "build" in service:
             context = service["build"].get("context")
-            if context:
-                full_path = compose_path.parent / context
-                assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"
+            assert context, f"Service '{service_name}' declared build but missing context"
+            full_path = compose_path.parent / context
+            assert full_path.exists(), f"Service '{service_name}' has non-existent build context: {context}"
+            build_contexts_checked += 1
+    assert build_contexts_checked > 0, "docker-compose.yml must have at least one service with build context"
 
 
 def test_docker_compose_pr_s3_endpoint_is_explicit():

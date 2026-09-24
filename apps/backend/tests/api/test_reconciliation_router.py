@@ -1093,3 +1093,24 @@ class TestReconciliationEndpoints:
         # Invalid UUIDs should be skipped, entries should be empty
         match_data = data["items"][0]
         assert match_data["entries"] == []
+
+    async def test_load_transactions_enforces_user_isolation(self, db, test_user: User):
+        """AC-reconciliation.tenant.1: _load_transactions must filter by user_id and exclude other users' transactions."""
+        other_user_id = uuid4()
+        statement = await create_test_statement(db, test_user)
+        db.add(statement)
+        await db.commit()
+
+        transaction = create_test_transaction(db, statement)
+        db.add(transaction)
+        await db.commit()
+
+        match = create_test_match(db, transaction)
+
+        # When called with owner's user_id, transaction is loaded
+        loaded_owner = await reconciliation_router._load_transactions(db, [match], user_id=test_user.id)
+        assert transaction.id in loaded_owner
+
+        # When called with another user_id, transaction is NOT loaded (user isolation enforced)
+        loaded_other = await reconciliation_router._load_transactions(db, [match], user_id=other_user_id)
+        assert transaction.id not in loaded_other

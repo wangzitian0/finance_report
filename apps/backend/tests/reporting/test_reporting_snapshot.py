@@ -226,3 +226,18 @@ class TestReportingSnapshotService:
             as_of_date=date(2024, 3, 31),
         )
         assert missing is None
+
+    async def test_create_snapshot_ttl_is_utc_aware(self, db, test_user):
+        """AC-reporting.snapshot.1: snapshot.ttl must be timezone-aware with UTC timezone."""
+        service = ReportingSnapshotService()
+        snapshot = await service.create_snapshot(
+            db,
+            user_id=test_user.id,
+            report_type=ReportType.BALANCE_SHEET,
+            as_of_date=date(2024, 1, 31),
+            rule_version_id=None,
+            report_data={"assets": 1000},
+        )
+        assert snapshot.ttl is not None
+        assert snapshot.ttl.tzinfo is not None, "snapshot.ttl must be timezone-aware"
+        assert snapshot.ttl.tzinfo == UTC, f"snapshot.ttl timezone must be UTC, got {snapshot.ttl.tzinfo}"

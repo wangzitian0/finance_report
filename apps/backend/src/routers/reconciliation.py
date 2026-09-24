@@ -180,14 +180,18 @@ async def _load_entry_summaries(
 async def _load_transactions(
     db: AsyncSession,
     matches: Sequence[ReconciliationMatch],
+    user_id: UUID | None = None,
 ) -> dict[UUID, AtomicTransaction]:
     """Batch-fetch each match's ``AtomicTransaction`` by id (#1675 D4: no
     relationship() eager-load across the reconciliation -> extraction
-    boundary)."""
+    boundary), scoped strictly to user_id when provided for tenant defense-in-depth."""
     txn_ids = {match.atomic_txn_id for match in matches}
     if not txn_ids:
         return {}
-    result = await db.execute(select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids)))
+    query = select(AtomicTransaction).where(AtomicTransaction.id.in_(txn_ids))
+    if user_id is not None:
+        query = query.where(AtomicTransaction.user_id == user_id)
+    result = await db.execute(query)
     return {txn.id: txn for txn in result.scalars().all()}
 
 
@@ -307,7 +311,7 @@ async def list_matches(
     result = await db.execute(query)
     matches = result.scalars().all()
     entry_summaries = await _load_entry_summaries(db, matches, user_id)
-    txn_map = await _load_transactions(db, matches)
+    txn_map = await _load_transactions(db, matches, user_id=user_id)
     items = [
         _build_match_response(
             match,
@@ -340,7 +344,7 @@ async def pending_review_queue(
 ) -> ReconciliationMatchListResponse:
     matches = await get_pending_items(db, limit=limit, offset=offset, user_id=user_id)
     entry_summaries = await _load_entry_summaries(db, matches, user_id)
-    txn_map = await _load_transactions(db, matches)
+    txn_map = await _load_transactions(db, matches, user_id=user_id)
     items = [
         _build_match_response(
             match,
@@ -454,7 +458,7 @@ async def batch_accept(
     result = await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.id.in_(match_ids)))
     loaded_matches = result.scalars().all()
     entry_summaries = await _load_entry_summaries(db, loaded_matches, user_id)
-    txn_map = await _load_transactions(db, loaded_matches)
+    txn_map = await _load_transactions(db, loaded_matches, user_id=user_id)
     items = [
         _build_match_response(
             match,
