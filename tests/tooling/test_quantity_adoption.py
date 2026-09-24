@@ -30,7 +30,6 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
 
     call_sites = [
         Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
-        Path("apps/frontend/src/app/(main)/assets/page.tsx"),
         Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
     ]
     for path in call_sites:
