@@ -27,6 +27,7 @@ class WorktreeInfo:
     is_dirty: bool = False
     uncommitted_lines: list[str] = field(default_factory=list)
     open_files_count: int = 0
+    locks_unknown: bool = False
     pr_info: dict | None = None
     is_orphan: bool = False
     safe_to_prune: bool = False
@@ -47,8 +48,13 @@ class DoctorReport:
 
 
 def _default_runner(cmd: list[str], cwd: str | None = None) -> tuple[int, str]:
-    res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
-    return res.returncode, res.stdout
+    try:
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
+        return res.returncode, res.stdout
+    except FileNotFoundError:
+        return 127, ""
+    except Exception as e:
+        return 1, str(e)
 
 
 def _default_pr_resolver(branch: str) -> dict | None:
@@ -110,6 +116,7 @@ def audit_worktrees(
     *,
     runner: Runner = _default_runner,
     pr_resolver: PrResolver = _default_pr_resolver,
+    path_exists: Callable[[str], bool] = os.path.exists,
     main_root: str | None = None,
 ) -> DoctorReport:
     rc, wt_out = runner(["git", "worktree", "list", "--porcelain"], main_root)
@@ -121,9 +128,9 @@ def audit_worktrees(
     # Check main worktree status specifically for staged leakage
     rc, status_main = runner(["git", "status", "--porcelain"], detected_main_root)
     for line in status_main.splitlines():
-        if line.strip() and (
-            line.startswith("M ") or line.startswith("A ") or line.startswith("D ")
-        ):
+        # In git status --porcelain, the first column represents index (staged) state.
+        # Characters 'M', 'A', 'D', 'R', 'C' indicate index modifications.
+        if len(line) >= 2 and line[0] in ("M", "A", "D", "R", "C"):
             staged_leakage.append(line.strip())
 
     results: list[WorktreeInfo] = []
@@ -143,14 +150,19 @@ def audit_worktrees(
 
         # Check file locks via lsof if path exists
         open_files = 0
-        if os.path.exists(path):
+        locks_unknown = False
+        if path_exists(path):
             rc_lsof, lsof_out = runner(["lsof", "+D", path], None)
-            open_lines = [
-                line_str
-                for line_str in lsof_out.splitlines()
-                if line_str.strip() and not line_str.startswith("COMMAND")
-            ]
-            open_files = len(open_lines)
+            if rc_lsof in (0, 1):
+                open_lines = [
+                    line_str
+                    for line_str in lsof_out.splitlines()
+                    if line_str.strip() and not line_str.startswith("COMMAND")
+                ]
+                open_files = len(open_lines)
+            else:
+                # lsof failed (missing binary or error) -> locks are unknown
+                locks_unknown = True
 
         pr_info = pr_resolver(branch_name) if not is_main else None
 
@@ -161,13 +173,14 @@ def audit_worktrees(
         is_merged_to_main = rc_anc == 0
 
         # Orphan criteria:
-        # Non-main, PR merged AND head is ancestor of main, not dirty, and no open file handles
+        # Non-main, PR merged AND head is ancestor of main, not dirty, and locks known to be 0
         is_merged_pr = bool(pr_info and pr_info.get("state") == "MERGED")
         is_orphan = (
             (not is_main)
             and is_merged_pr
             and is_merged_to_main
             and (not is_dirty)
+            and (not locks_unknown)
             and (open_files == 0)
         )
         safe_to_prune = is_orphan
@@ -180,6 +193,7 @@ def audit_worktrees(
             is_dirty=is_dirty,
             uncommitted_lines=status_lines,
             open_files_count=open_files,
+            locks_unknown=locks_unknown,
             pr_info=pr_info,
             is_orphan=is_orphan,
             safe_to_prune=safe_to_prune,
@@ -242,6 +256,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "is_main": w.is_main,
                     "is_dirty": w.is_dirty,
                     "open_files_count": w.open_files_count,
+                    "locks_unknown": w.locks_unknown,
                     "is_orphan": w.is_orphan,
                     "safe_to_prune": w.safe_to_prune,
                     "pr_number": w.pr_info.get("number") if w.pr_info else None,
@@ -271,9 +286,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             if w.pr_info
             else "No PR"
         )
+        locks_disp = (
+            "unknown (lsof error)" if w.locks_unknown else str(w.open_files_count)
+        )
         print(f"  [{role}] {w.path}")
         print(
-            f"         Branch: {w.branch} ({w.head[:8]}) | {pr_str} | Locks: {w.open_files_count} | Dirty: {w.is_dirty}"
+            f"         Branch: {w.branch} ({w.head[:8]}) | {pr_str} | Locks: {locks_disp} | Dirty: {w.is_dirty}"
         )
 
     if args.prune or args.dry_run:
