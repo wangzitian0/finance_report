@@ -20,6 +20,8 @@ from src.ledger import (
     validate_journal_balance,
 )
 
+pytestmark = pytest.mark.no_db
+
 
 def _make_line(
     *,

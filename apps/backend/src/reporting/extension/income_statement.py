@@ -13,12 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
 from src.observability import ErrorIds, get_logger
+from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _REPORT_STATUSES,
     _build_account_lines,
-    _line_total,
     _load_accounts,
 )
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -299,9 +299,10 @@ async def generate_income_statement(
             }
         )
 
-    total_income = _line_total(income_lines)
-    total_expenses = _line_total(expense_lines)
-    net_income = _quantize_money(total_income - total_expenses)
+    totals = calculate_income_statement_totals(income_lines, expense_lines)
+    total_income = totals.total_income
+    total_expenses = totals.total_expenses
+    net_income = totals.net_income
 
     # Add the fee into the correct monthly trend/period bucket so the trends and the
     # expense totals stay coherent (#1162 CR2). Bucket by the earliest contributing
