@@ -319,8 +319,9 @@ async def list_checks(
         query = query.where(ConsistencyCheck.severity == severity)
         count_query = count_query.where(ConsistencyCheck.severity == severity)
     if run_id:
-        query = query.where(ConsistencyCheck.run_id == run_id)
-        count_query = count_query.where(ConsistencyCheck.run_id == run_id)
+        run_filter = or_(ConsistencyCheck.run_id == run_id, ConsistencyCheck.run_id.is_(None))
+        query = query.where(run_filter)
+        count_query = count_query.where(run_filter)
 
     result = await db.execute(query)
     checks = list(result.scalars().all())

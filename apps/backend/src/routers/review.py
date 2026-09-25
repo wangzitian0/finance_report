@@ -215,6 +215,7 @@ async def get_stage2_review_queue(
         user_id,
         status=CheckStatus.PENDING,
         run_id=run_id,
+        include_unassociated=True,
         limit=None,
     )
 

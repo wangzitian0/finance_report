@@ -385,6 +385,50 @@ class TestGetPendingChecks:
         result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING)
         assert result == []
 
+    async def test_get_pending_filters_by_run_id_with_unassociated(self, db, user_id):
+        """list_checks respects include_unassociated flag when run_id is passed."""
+        scoped_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id="run-test-1",
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-run-1"],
+            details={},
+        )
+        null_run_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id=None,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-null-run"],
+            details={},
+        )
+        other_run_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id="run-test-2",
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-run-2"],
+            details={},
+        )
+        db.add_all([scoped_check, null_run_check, other_run_check])
+        await db.flush()
+
+        # Strict run_id filtering (default): returns only scoped_check
+        strict_results, strict_total = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id="run-test-1")
+        assert strict_total == 1
+        assert [c.id for c in strict_results] == [scoped_check.id]
+
+        # With include_unassociated=True: returns scoped_check + null_run_check
+        broad_results, broad_total = await list_checks(
+            db, user_id, status=CheckStatus.PENDING, run_id="run-test-1", include_unassociated=True
+        )
+        assert broad_total == 2
+        assert {c.id for c in broad_results} == {scoped_check.id, null_run_check.id}
+
 
 class TestDetectDuplicatesEdgeCases:
     async def test_global_scan_no_statement_id(self, db, user_id, approved_statement):
