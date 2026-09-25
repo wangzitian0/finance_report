@@ -71,6 +71,15 @@ class TestSelectChecks:
         }
         assert {"governance-exceptions"}.issubset(names)
 
+    def test_cassette_fixture_edit_selects_llm_cassettes(self):
+        names = {
+            c.name
+            for c in preflight.select_checks(
+                ["common/testing/fixtures/llm_cassettes/example.json"]
+            )
+        }
+        assert {"llm-cassettes", "cassette-graded-eval"}.issubset(names)
+
     def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
         """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
         names = [

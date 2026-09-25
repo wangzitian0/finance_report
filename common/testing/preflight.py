@@ -421,10 +421,9 @@ CHECKS: tuple[Check, ...] = (
     Check(
         name="llm-cassettes",
         globs=(
-            "tests/cassettes/*.yaml",
-            "tests/cassettes/*.json",
+            "common/testing/fixtures/llm_cassettes/**.json",
             "tools/check_llm_cassettes.py",
-            "common/testing/llm_cassettes.py",
+            "common/testing/check_llm_cassettes.py",
         ),
         commands=((PY, "tools/check_llm_cassettes.py"),),
         why="statement extraction cassettes must satisfy balance-chain invariant",
@@ -432,10 +431,9 @@ CHECKS: tuple[Check, ...] = (
     Check(
         name="cassette-graded-eval",
         globs=(
-            "tests/cassettes/*.yaml",
-            "tests/cassettes/*.json",
+            "common/testing/fixtures/llm_cassettes/**.json",
             "tools/check_cassette_graded_eval.py",
-            "common/testing/cassette_graded_eval.py",
+            "common/testing/check_cassette_graded_eval.py",
         ),
         commands=((PY, "tools/check_cassette_graded_eval.py"),),
         why="cassette graded accuracy eval ratchet",
