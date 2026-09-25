@@ -68,7 +68,7 @@ async def test_full_navigation(authenticated_page: Page):
     """EPIC-001 EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify main routes for authenticated session."""
     page = authenticated_page
     routes = [
-        ("/dashboard", lambda p: p.get_by_label("Dashboard analytics")),
+        ("/dashboard", lambda p: p.get_by_label("Dashboard analytics", exact=True)),
         ("/accounts", lambda p: p.get_by_role("heading", name="Accounts")),
         ("/journal", lambda p: p.get_by_role("heading", name="Journal Entries")),
         ("/upload", lambda p: p.get_by_role("heading", name="Upload")),

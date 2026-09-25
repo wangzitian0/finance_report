@@ -50,7 +50,9 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
     # 1. Dashboard: Verify 4-month final asset and net worth amounts
     await page.goto(f"{APP_URL}/dashboard", wait_until="domcontentloaded")
     assert "/login" not in page.url
-    await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=15_000)
+    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
+        timeout=15_000
+    )
 
     # Assets & Net Worth cards both reflect 24,200 (Dashboard KPI cards format with max fraction digits 0)
     assets_card = page.locator(".card").filter(has_text="Total Assets")
