@@ -39,16 +39,6 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
     invalidates: [["accounts"]],
   },
   {
-    flow: "assets.reconcile",
-    file: "app/(main)/assets/page.tsx",
-    invalidates: [["positions"]],
-  },
-  {
-    flow: "assets.create-valuation",
-    file: "app/(main)/assets/page.tsx",
-    invalidates: [["valuation-snapshots"]],
-  },
-  {
     flow: "statements.review.approve",
     file: "app/(main)/statements/[id]/review/page.tsx",
     invalidates: [],

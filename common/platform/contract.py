@@ -1126,7 +1126,7 @@ CONTRACT = PackageContract(
             id="AC-platform.fe-workflow.3",
             statement="Event inbox groups events by workflow session timeline, keeps blocked/action-required events prominent, and supports read/archive actions and direct action links",
             # was AC19.3.5
-            test="apps/frontend/src/__tests__/eventsPage.test.tsx::AC19.3.5 renders the workflow events content surface",
+            test="apps/frontend/src/__tests__/notificationsPage.test.tsx::AC19.3.5 AC22.1.5 renders the workflow event center surface at /notifications",
             priority="P0",
             status="done",
         ),

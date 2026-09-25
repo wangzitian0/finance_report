@@ -11,13 +11,13 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: replaceMock }),
 }));
 
-vi.mock("@/app/(main)/settings/general/page", () => ({
+vi.mock("@/components/settings/GeneralSettingsPanel", () => ({
     default: () => <div data-testid="general-settings">GeneralMock</div>,
 }));
-vi.mock("@/app/(main)/settings/ai/page", () => ({
+vi.mock("@/components/settings/AiSettingsPanel", () => ({
     default: () => <div data-testid="ai-settings">AiMock</div>,
 }));
-vi.mock("@/app/(main)/settings/llm/page", () => ({
+vi.mock("@/components/settings/LlmSettingsPanel", () => ({
     default: () => <div data-testid="llm-settings">LlmMock</div>,
 }));
 

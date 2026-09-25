@@ -283,7 +283,7 @@ The above analysis is for reference only.
 - [x] `apps/backend/src/advisor/extension/service.py` - AI advisor service (moved from `src/services/ai_advisor.py` in #1671)
 - [x] `apps/backend/src/routers/chat.py`
 - [x] `apps/frontend/src/app/chat/page.tsx`
-- [x] `apps/frontend/src/components/ChatWidget.tsx`
+- [x] ~~`apps/frontend/src/components/ChatWidget.tsx`~~ (retired in favor of first-class `/chat` route & bottom tab per EPIC-022)
 - [x] Prompt template documentation
 - [x] User guide
 

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import GeneralSettingsPage from "@/app/(main)/settings/general/page"
+import GeneralSettingsPage from "@/components/settings/GeneralSettingsPanel"
 import { fetchBaseCurrency, updateBaseCurrency } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({

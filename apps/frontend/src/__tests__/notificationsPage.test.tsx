@@ -8,7 +8,8 @@ vi.mock("@/components/workflow/WorkflowNotifications", () => ({
 }))
 
 describe("NotificationsPage", () => {
-  it("AC22.1.5 renders the workflow event center surface at /notifications", () => {
+  // AC-platform.fe-workflow.3
+  it("AC19.3.5 AC22.1.5 renders the workflow event center surface at /notifications", () => {
     render(<NotificationsPage />)
     expect(screen.getByText("Workflow events page content")).toBeInTheDocument()
   })

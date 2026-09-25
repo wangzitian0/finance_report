@@ -1829,25 +1829,25 @@ CONTRACT = PackageContract(
         # (two-stage-review-ui) ──
         ACRecord(
             id="AC-portfolio.fe-assets.1",
-            statement="Assets page renders loading and error retry states",
+            statement="Portfolio page renders loading and error retry states",
             # was AC16.15.4
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.4 renders loading and error retry states",
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC16.15.4 renders loading and error retry states while fetching holdings",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-portfolio.fe-assets.2",
-            statement="Assets page renders grouped positions and status filters on successful fetch",
+            statement="Portfolio page renders grouped positions and status filters on successful fetch",
             # was AC16.15.5
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.5 renders grouped positions and supports status filters",
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC16.15.5 renders grouped positions and supports status filters",
             priority="P2",
             status="done",
         ),
         ACRecord(
             id="AC-portfolio.fe-assets.3",
-            statement="Assets page reconcile action calls API and shows toast summary",
+            statement="Brokerage import completion and portfolio value navigation",
             # was AC16.15.6
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC16.15.6 reconcile action calls API and shows toast summary",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P2",
             status="done",
         ),
@@ -1865,7 +1865,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-ia-portfolio.2",
             statement="Manual valuation capture uses a controlled source enum instead of free-text provenance, while existing historical source strings remain displayable in snapshot history",
             # was AC22.10.2
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation",
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
             priority="P1",
             status="done",
         ),
@@ -1889,17 +1889,17 @@ CONTRACT = PackageContract(
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ACRecord(
             id="AC-portfolio.fe-assets2.1",
-            statement="The assets page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value",
+            statement="The portfolio page labels retirement and benefit asset entry options as assets, with insurance represented only by cash value",
             # was AC11.20.3
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.20.3 test_AC11_20_3_assets_page_surfaces_retirement_and_benefit_asset_labels",
+            test="apps/frontend/src/__tests__/portfolioPage.test.tsx::AC11.20.3 labels retirement and benefit assets in net-worth allocation",
             priority="P1",
             status="done",
         ),
         ACRecord(
             id="AC-portfolio.fe-assets2.2",
-            statement="`/assets` exposes a manual valuation entry form and recent snapshot list using the shared API client.",
+            statement="`/portfolio/evidence` exposes a manual valuation entry form using the shared API client.",
             # was AC11.9.4
-            test="apps/frontend/src/__tests__/assetsPage.test.tsx::AC11.9.4 AC22.10.2 renders manual valuation snapshots and creates a new property valuation",
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
             priority="P2",
             status="done",
         ),
@@ -1915,7 +1915,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.4",
             statement="([#706](https://github.com/wangzitian0/finance_report/issues/706)): a valid guided evidence submission persists through the existing `POST /api/assets/valuation-snapshots` endpoint via the typed `lib/api.ts` client (never raw `fetch`), mapping the chosen source class to its `component_type`, `valuation_basis`, source label, anchor, and notes, with the monetary `value` sent as a string. Proven by `apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 *`.",
             # was AC11.9.7
-            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
+            test="apps/frontend/src/__tests__/guidedEvidenceForm.test.tsx::AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client",
             priority="P2",
             status="done",
         ),
@@ -1971,7 +1971,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.11",
             statement="Import to Portfolio button visible for parsed/approved statements",
             # was AC17.8.1
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),
@@ -1979,7 +1979,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.12",
             statement="Import result banner with stats and portfolio link shown on success",
             # was AC17.8.2
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),
@@ -1995,7 +1995,7 @@ CONTRACT = PackageContract(
             id="AC-portfolio.fe-assets2.14",
             statement="Portfolio page shows total portfolio value prominently after import",
             # was AC17.8.4
-            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
+            test="apps/frontend/src/__tests__/brokerageImportCompletionFlow.test.tsx::AC16.15.6 AC17.8.1 AC17.8.2 AC17.8.4 completes parsed statement import and portfolio value navigation",
             priority="P0",
             status="done",
         ),

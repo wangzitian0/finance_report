@@ -3,8 +3,8 @@
 SSOT Flow 5:
 - Name: Alternative Asset Appraisal & Valuation Ingestion
 - Title: 不动产/车辆/私募等另类资产凭证录入
-- UI Surface: /assets
-- Frontend Component: AssetsPage
+- UI Surface: /portfolio/evidence
+- Frontend Component: GuidedEvidenceForm
 - Backend Endpoint: POST /assets/valuation-snapshots
 - Invariant: Valuation creates journal entry adjusting Asset and UnrealizedGain (or audited valuation snapshot)
 - Reference: apps/backend/tests/api/test_assets_valuation_api.py

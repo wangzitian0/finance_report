@@ -237,8 +237,8 @@ def test_AC_meta_governance_ratchet_6_unused_operation_honesty() -> None:
         f"Discrepancy: {total} != {consumed} + {api_only}"
     )
     assert total == 136
-    assert consumed == 99
-    assert api_only == 37
+    assert consumed == 97
+    assert api_only == 39
 
     consumed_set = set(usage["consumed_operation_ids"])
     api_only_set = set(usage["api_only_operation_ids"])

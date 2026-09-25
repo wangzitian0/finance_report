@@ -125,7 +125,6 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/TransactionTable.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/allocationChart.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/api-urls.test.ts` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/api.test.ts` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/auth_ssr.test.ts` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/detailViewComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/firstRunModal.test.tsx` | `common/llm/readme.md` |
@@ -147,10 +146,10 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `apps/frontend/frontend-patterns.md` (#1487 base-currency hook) |
 | `apps/frontend/src/__tests__/useBodyScrollLock.test.tsx` | `apps/frontend/frontend-patterns.md` (#1608 modal/sheet body-scroll lock) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
-| `apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx` | `common/ledger/readme.md` |
-| `apps/frontend/src/components/review/__tests__/ConflictResolutionDialog.keydown.test.tsx` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/components/review/__tests__/TransactionTable.keyEvents.test.tsx` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/hooks/__tests__/useFocusTrap.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/processingSummaryCard.test.tsx` | `common/ledger/readme.md` |
+| `apps/frontend/src/__tests__/conflictResolutionDialogKeydown.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/transactionTableKeyEvents.test.tsx` | `apps/frontend/frontend-patterns.md` |
+| `apps/frontend/src/__tests__/useFocusTrap.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
 | `tests/tooling/test_csp_script_src_contract.py` | `common/testing/ci-cd.md` (#1623 CSP script-src allowlist contract) |

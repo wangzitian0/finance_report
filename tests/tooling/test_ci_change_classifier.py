@@ -211,7 +211,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("apps/frontend/src/lib/api.test.ts") is False
     assert (
         is_pr_preview_relevant(
-            "apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx"
+            "apps/frontend/src/__tests__/processingSummaryCard.test.tsx"
         )
         is False
     )
@@ -403,7 +403,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/backend/tests/reporting/test_reports.py",
         "apps/backend/README.md",
         "apps/frontend/src/lib/api.test.ts",
-        "apps/frontend/src/components/__tests__/ProcessingSummaryCard.test.tsx",
+        "apps/frontend/src/__tests__/processingSummaryCard.test.tsx",
         "apps/frontend/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "docs/ssot/README.md",

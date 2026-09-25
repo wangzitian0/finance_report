@@ -327,7 +327,8 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("Loading holdings...")).toBeInTheDocument();
   });
 
-  it("renders error state with retry button", async () => {
+  // AC-portfolio.fe-assets.1
+  it("AC16.15.4 renders loading and error retry states while fetching holdings", async () => {
     mockedApiFetch.mockRejectedValue(new Error("network error"));
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
@@ -365,7 +366,8 @@ describe("PortfolioPage", () => {
     expect(screen.getByText("IBKR")).toBeInTheDocument();
   });
 
-  it("toggles show disposed checkbox and refetches with include_disposed", async () => {
+  // AC-portfolio.fe-assets.2
+  it("AC16.15.5 renders grouped positions and supports status filters", async () => {
     mockPortfolioApi();
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
@@ -502,6 +504,7 @@ describe("PortfolioPage", () => {
     ).toBeGreaterThanOrEqual(1);
   });
 
+  // AC-portfolio.fe-assets2.1
   it("AC11.20.3 labels retirement and benefit assets in net-worth allocation", async () => {
     mockPortfolioApi([mockHolding], "100.00", "USD", "retirement_benefit");
 

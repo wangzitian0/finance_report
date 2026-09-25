@@ -267,8 +267,8 @@ describe("GuidedEvidenceForm", () => {
 
   // ── AC11.9.7 — typed manual-valuation persistence ───────────────────
   describe("AC11.9.7 typed persistence", () => {
-    // AC-portfolio.fe-assets2.4
-    it("AC11.9.7 valid submit posts a Decimal-safe payload through the typed client", async () => {
+    // AC-portfolio.fe-ia-portfolio.2 / AC-portfolio.fe-assets2.2 / AC-portfolio.fe-assets2.4
+    it("AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client", async () => {
       mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
         if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
           return Promise.resolve(emptyList) as never
