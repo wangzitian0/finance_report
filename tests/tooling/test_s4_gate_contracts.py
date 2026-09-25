@@ -579,6 +579,9 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         == 1
     )
 
+
+def test_AC_testing_governance_21_monotonic_update_paths_registered() -> None:
+    """AC-testing.governance.21: every monotonic update path has registered proofs and no violations."""
     update_paths = baseline_update_contract.monotonic_update_paths(ROOT)
     assert update_paths == {
         "common/meta/extension/check_ac_tier_baseline.py",
@@ -601,6 +604,12 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     ) == baseline_update_contract.monotonic_update_commands(ROOT)
     assert baseline_update_contract.proof_violations(ROOT) == []
 
+
+def test_AC_testing_governance_21_proof_violations_rejects_missing_and_unexercised_proofs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.governance.21: proof_violations rejects absent or non-exercising behavioral proofs."""
     synthetic_root = tmp_path / "proof-contract"
     synthetic_updater = synthetic_root / "common/testing/synthetic.py"
     synthetic_updater.parent.mkdir(parents=True)
@@ -666,6 +675,33 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "vacuous regression-debt observers: "
         "tests/tooling/test_missing.py::test_missing"
     ]
+
+
+def test_AC_testing_governance_21_proof_violations_rejects_vacuous_observers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.governance.21: AST check identifies constant, vacuous, or trivial debt observers."""
+    synthetic_root = tmp_path / "proof-contract"
+    synthetic_updater = synthetic_root / "common/testing/synthetic.py"
+    synthetic_updater.parent.mkdir(parents=True)
+    synthetic_updater.write_text(
+        'UPDATE_FLAG = "--" + "update"\n'
+        'BASELINE_UPDATE_MODE = "shrink-only"\n'
+        "parser.add_argument(UPDATE_FLAG)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/synthetic.py", "--update"): (
+                "tests/tooling/test_missing.py::test_missing"
+            )
+        },
+    )
+    proof_file = synthetic_root / "tests/tooling/test_missing.py"
+    proof_file.parent.mkdir(parents=True)
 
     for debt_observer, baseline_observer in (
         ("lambda: True or debt", "lambda: b'fixed' if debt else b'fixed'"),
@@ -860,7 +896,33 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
         "    ) == 1\n",
         encoding="utf-8",
     )
-    assert baseline_update_contract.proof_violations(synthetic_root) == []
+
+
+def test_AC_testing_governance_21_proof_violations_rejects_vacuous_assignment_observers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.governance.21: AST check identifies constant or destructured assignment observers."""
+    synthetic_root = tmp_path / "proof-contract"
+    synthetic_updater = synthetic_root / "common/testing/synthetic.py"
+    synthetic_updater.parent.mkdir(parents=True)
+    synthetic_updater.write_text(
+        'UPDATE_FLAG = "--" + "update"\n'
+        'BASELINE_UPDATE_MODE = "shrink-only"\n'
+        "parser.add_argument(UPDATE_FLAG)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        baseline_update_contract,
+        "MONOTONIC_UPDATE_PROOFS",
+        {
+            ("common/testing/synthetic.py", "--update"): (
+                "tests/tooling/test_missing.py::test_missing"
+            )
+        },
+    )
+    proof_file = synthetic_root / "tests/tooling/test_missing.py"
+    proof_file.parent.mkdir(parents=True)
 
     for assignment in (
         "    always, baseline = True, b'baseline'\n",

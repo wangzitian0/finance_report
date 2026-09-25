@@ -13,8 +13,10 @@ Validates:
    - cash_bridge.reconciles is True and proof_state == "proven"
 """
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +31,15 @@ from src.ledger import (
     post_entry,
 )
 from src.reporting import generate_cash_flow
+
+
+@dataclass(frozen=True)
+class DirectMethodScenario:
+    user_id: UUID
+    period_start: date
+    period_end: date
+    cash_accounts: list[Account]
+    cash_account_ids: frozenset[UUID]
 
 
 async def _create_account(
@@ -52,16 +63,10 @@ async def _create_account(
     return account
 
 
-@pytest.mark.asyncio
-async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_user: User):
-    """Flow 26: Complete Direct Method cash flow verification across three activities.
-
-    Invariants tested:
-    1. net_operating + net_investing + net_financing == net_cash_change
-    2. beginning_cash + net_cash_change == ending_cash
-    3. ending_cash == sum of period-end balances of all cash & equivalent accounts (1000, 1001)
-    """
-    user_id = test_user.id
+async def _seed_direct_method_scenario_ledger(
+    db: AsyncSession,
+    user_id: UUID,
+) -> DirectMethodScenario:
     period_start = date(2026, 1, 1)
     period_end = date(2026, 1, 31)
 
@@ -152,7 +157,6 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
         base_currency="SGD",
         operation="operating-expense",
     )
-    # Expected net operating = +6000 - 1800 = +4200.00
 
     # 4. Investing Activities within period:
     # 4a. Fixed asset purchase outflow: -$3,500 paid from cash_bank
@@ -199,7 +203,6 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
         base_currency="SGD",
         operation="investing-securities-sale",
     )
-    # Expected net investing = -3500 + 2500 = -1000.00
 
     # 5. Financing Activities within period:
     # 5a. Bank loan borrowed inflow: +$10,000 into cash_bank
@@ -232,21 +235,37 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
         base_currency="SGD",
         operation="financing-loan-repayment",
     )
-    # Expected net financing = +10000 - 4000 = +6000.00
 
     await db.commit()
 
-    # 6. Execute REAL generate_cash_flow
-    cash_accounts = [cash_hand, cash_bank]
-    cash_account_ids = frozenset(acc.id for acc in cash_accounts)
+    return DirectMethodScenario(
+        user_id=user_id,
+        period_start=period_start,
+        period_end=period_end,
+        cash_accounts=[cash_hand, cash_bank],
+        cash_account_ids=frozenset(acc.id for acc in (cash_hand, cash_bank)),
+    )
 
+
+@pytest.mark.asyncio
+async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_user: User):
+    """Flow 26: Complete Direct Method cash flow verification across three activities.
+
+    Invariants tested:
+    1. net_operating + net_investing + net_financing == net_cash_change
+    2. beginning_cash + net_cash_change == ending_cash
+    3. ending_cash == sum of period-end balances of all cash & equivalent accounts (1000, 1001)
+    """
+    scenario = await _seed_direct_method_scenario_ledger(db, test_user.id)
+
+    # 6. Execute REAL generate_cash_flow
     report = await generate_cash_flow(
         db,
-        user_id,
-        start_date=period_start,
-        end_date=period_end,
+        scenario.user_id,
+        start_date=scenario.period_start,
+        end_date=scenario.period_end,
         currency="SGD",
-        cash_account_ids=cash_account_ids,
+        cash_account_ids=scenario.cash_account_ids,
     )
 
     # 7. Extract real summary values
@@ -281,7 +300,9 @@ async def test_flow26_cash_flow_direct_method_invariants(db: AsyncSession, test_
     assert beginning_cash + net_cash_change == ending_cash
 
     # 12. Core Invariant 3: Ending cash strictly equals sum of all cash account balances in general ledger
-    ledger_cash_balances = [await calculate_account_balance(db, acc.id, user_id) for acc in cash_accounts]
+    ledger_cash_balances = [
+        await calculate_account_balance(db, acc.id, scenario.user_id) for acc in scenario.cash_accounts
+    ]
     total_ledger_ending_cash = sum(ledger_cash_balances, Decimal("0.00"))
     assert ending_cash == total_ledger_ending_cash, (
         f"Ending cash {ending_cash} deviates from ledger balances {total_ledger_ending_cash}"
