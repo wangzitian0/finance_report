@@ -23,6 +23,7 @@ from src.ledger import (
     ProcessingAccount,
 )
 from src.observability import ErrorIds, get_logger
+from src.reporting.base.cash_flow_calculator import calculate_cash_flow_bridge
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _REPORT_STATUSES, _line_total
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency, _quantize_money
@@ -388,6 +389,18 @@ async def generate_cash_flow(
     bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
     discrepancy = _quantize_money(cash_delta - bridge_total)
     reconciles = discrepancy == Decimal("0.00")
+
+    # Pure DDD domain calculation core validation
+    _ = calculate_cash_flow_bridge(
+        beginning_cash=beginning_cash,
+        ending_cash=ending_cash,
+        operating_total=operating_total,
+        investing_total=investing_total,
+        financing_total=financing_total,
+        unclassified_cash=unclassified_cash,
+        opening_stock_adjustment=opening_stock_adjustment,
+        fx_effect=fx_effect,
+    )
 
     return {
         "start_date": start_date,

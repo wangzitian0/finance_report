@@ -350,6 +350,24 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "registers ephemeral tenant sessions and verifies browser UI."
         ),
     ),
+    E2ERow(
+        "tests/e2e/test_journal_ui_journey.py",
+        needs=(NEEDS_STATE_SENSITIVE,),
+        audited=True,
+        reason=(
+            "Audited (#2158): Journal entry interactive browser UI journey; "
+            "verifies form validation, debit/credit balance, and immediate posting."
+        ),
+    ),
+    E2ERow(
+        "tests/e2e/test_reconciliation_ui_journey.py",
+        needs=(NEEDS_STATE_SENSITIVE,),
+        audited=True,
+        reason=(
+            "Audited (#2158): Reconciliation workbench and review queue interactive browser journey; "
+            "verifies workbench KPI surface, unmatched studio, and review queue navigation."
+        ),
+    ),
 )
 
 

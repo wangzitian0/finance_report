@@ -11,9 +11,10 @@ Executes Bench V2 multi-period financial accounting scenarios against the live
 application and bridges the resulting user tenant session directly into a Playwright
 browser page, asserting that the rendered UI accurately reflects:
 1. Case 1: 4-Month Rollforward Trend & Q1 3-Statement Articulation (Dashboard & Balance Sheet).
-2. Case 3: Credit Card Liability Clearance & Non-P&L Repayment Zero Double-Counting (Income Statement & Balance Sheet).
-3. Case 4: Multi-Currency Consolidated Balance Sheet with IAS 21 CTA Rendering (Balance Sheet in SGD & USD).
-4. Case 5: Multi-Asset & Property Appraisal Net Worth Integration (Portfolio & Balance Sheet).
+2. Case 2: Multi-PII Household Operations & Consolidated Reporting (Balance Sheet & Income Statement).
+3. Case 3: Credit Card Liability Clearance & Non-P&L Repayment Zero Double-Counting (Income Statement & Balance Sheet).
+4. Case 4: Multi-Currency Consolidated Balance Sheet with IAS 21 CTA Rendering (Balance Sheet in SGD & USD).
+5. Case 5: Multi-Asset & Property Appraisal Net Worth Integration (Portfolio & Balance Sheet).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from tests.e2e.conftest import TestConfig
 from tools._lib.benchmarks.run_financial_scenario_benchmark import (
     ScenarioBenchmarkRunner,
     execute_case_1,
+    execute_case_2,
     execute_case_3,
     execute_case_4,
     execute_case_5,
@@ -76,6 +78,49 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
         page.locator(".card").filter(has_text="Balance Equation Detail")
     ).to_contain_text("5,849.25")
     await expect(page.get_by_text("Balanced")).to_be_visible()
+
+
+@pytest.mark.e2e
+async def test_case_2_family_multi_pii_household_ui(page: Page):
+    """EPIC-005 EPIC-007 EPIC-008 EPIC-016 / AC-reporting.balance-sheet.1 / AC-reporting.income-statement.1: Case 2 - Multi-PII household operations & consolidated reporting."""
+    runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
+    result = execute_case_2(runner)
+    assert result.status == "PASS", f"Case 2 benchmark failed: {result.error_message}"
+    assert runner.last_auth_context is not None
+
+    await BenchUiBridge.inject_runner_session_to_browser(
+        page, runner.last_auth_context, APP_URL
+    )
+
+    # 1. Balance Sheet: Consolidated liquid cash assets 20,900.00, equity 15,000.00
+    await page.goto(
+        f"{APP_URL}/reports/balance-sheet?as_of_date=2025-04-30&currency=SGD",
+        wait_until="domcontentloaded",
+    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
+    await expect(page.locator("#assets")).to_contain_text("20,900.00", timeout=15_000)
+    await expect(page.locator("#equity")).to_contain_text("15,000.00", timeout=15_000)
+    await expect(page.get_by_text("Balanced")).to_be_visible()
+
+    # 2. Income Statement: Consolidated revenue 8,500.00, expenses 2,600.00, net income 5,900.00
+    await page.goto(
+        f"{APP_URL}/reports/income-statement?start_date=2025-04-01&end_date=2025-04-30&currency=SGD",
+        wait_until="domcontentloaded",
+    )
+    await expect(
+        page.get_by_role("heading", name="Income Statement", exact=True)
+    ).to_be_visible(timeout=15_000)
+    await expect(
+        page.locator(".card").filter(has_text="Total Revenue")
+    ).to_contain_text("8,500.00", timeout=15_000)
+    await expect(
+        page.locator(".card").filter(has_text="Total Expenses")
+    ).to_contain_text("2,600.00", timeout=15_000)
+    await expect(page.locator(".card").filter(has_text="Net Income")).to_contain_text(
+        "5,900.00", timeout=15_000
+    )
 
 
 @pytest.mark.e2e
