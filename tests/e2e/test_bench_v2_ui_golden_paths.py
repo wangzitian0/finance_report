@@ -37,7 +37,7 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 
 @pytest.mark.e2e
 async def test_case_1_four_month_rollforward_ui(page: Page):
-    """AC-reporting.balance-sheet.1 / AC8.13.9: Case 1 - 4-month rollforward & Q1 articulation on UI."""
+    """EPIC-005 EPIC-008 EPIC-016 / AC-reporting.balance-sheet.1 / AC8.13.9: Case 1 - 4-month rollforward & Q1 articulation on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_1(runner)
     assert result.status == "PASS", f"Case 1 benchmark failed: {result.error_message}"
@@ -80,7 +80,7 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
-    """AC-reporting.income-statement.1: Case 3 - Verify credit card liability clearance and zero double-counting on UI."""
+    """EPIC-005 EPIC-008 EPIC-016 / AC-reporting.income-statement.1: Case 3 - Verify credit card liability clearance and zero double-counting on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_3(runner)
     assert result.status == "PASS", f"Case 3 benchmark failed: {result.error_message}"
@@ -120,7 +120,7 @@ async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
-    """AC-reporting.fe-viz-reports.10 / AC-reporting.balance-sheet.3: Case 4 - Multi-currency CTA balance sheet UI."""
+    """EPIC-005 EPIC-008 EPIC-016 / AC-reporting.fe-viz-reports.10 / AC-reporting.balance-sheet.3: Case 4 - Multi-currency CTA balance sheet UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_4(runner)
     assert result.status == "PASS", f"Case 4 benchmark failed: {result.error_message}"
@@ -159,7 +159,7 @@ async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_5_multi_asset_portfolio_and_appraisal_ui(page: Page):
-    """AC-reporting.balance-sheet.1: Case 5 - Verify multi-asset equities and property appraisal on UI."""
+    """EPIC-005 EPIC-008 EPIC-011 EPIC-017 / AC-reporting.balance-sheet.1: Case 5 - Verify multi-asset equities and property appraisal on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_5(runner)
     assert result.status == "PASS", f"Case 5 benchmark failed: {result.error_message}"

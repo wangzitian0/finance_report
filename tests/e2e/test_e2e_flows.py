@@ -56,7 +56,7 @@ async def setup_e2e(page: Page):
 @pytest.mark.smoke
 @pytest.mark.e2e
 async def test_unauthenticated_protected_route_redirect(page: Page):
-    """Verify unauthenticated access to protected routes redirects to /login."""
+    """EPIC-001 EPIC-008 / AC8.13.9: Verify unauthenticated access to protected routes redirects to /login."""
     await page.goto(get_url("/dashboard"), wait_until="domcontentloaded")
     await wait_for_optional_login_redirect(page)
     assert "/login" in page.url
