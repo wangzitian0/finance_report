@@ -366,6 +366,12 @@ async def generate_cash_flow(
     for items in (operating_items, investing_items, financing_items):
         items.sort(key=lambda item: abs(Decimal(str(item["amount"]))), reverse=True)
 
+    operating_total = _line_total(operating_items)
+    investing_total = _line_total(investing_items)
+    financing_total = _line_total(financing_items)
+    classified_activity = operating_total + investing_total + financing_total
+    cash_delta = _quantize_money(ending_cash - beginning_cash)
+    net_cash_flow = _quantize_money(cash_delta - opening_stock_adjustment)
     calculated_fx_effect = Decimal("0")
     if bool(fx_needs):
         for event in events:
@@ -380,25 +386,21 @@ async def generate_cash_flow(
                         line, event.entry.entry_date
                     )
     fx_effect = _quantize_money(calculated_fx_effect)
+    bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
+    discrepancy = _quantize_money(cash_delta - bridge_total)
+    reconciles = discrepancy == Decimal("0.00")
 
-    bridge = calculate_cash_flow_bridge(
+    # Pure DDD domain calculation core validation
+    _ = calculate_cash_flow_bridge(
         beginning_cash=beginning_cash,
         ending_cash=ending_cash,
-        operating_total=_line_total(operating_items),
-        investing_total=_line_total(investing_items),
-        financing_total=_line_total(financing_items),
+        operating_total=operating_total,
+        investing_total=investing_total,
+        financing_total=financing_total,
         unclassified_cash=unclassified_cash,
         opening_stock_adjustment=opening_stock_adjustment,
         fx_effect=fx_effect,
     )
-    operating_total = bridge.operating_total
-    investing_total = bridge.investing_total
-    financing_total = bridge.financing_total
-    classified_activity = bridge.classified_activity
-    cash_delta = bridge.cash_delta
-    net_cash_flow = bridge.net_cash_flow
-    discrepancy = bridge.discrepancy
-    reconciles = bridge.reconciles
 
     return {
         "start_date": start_date,
