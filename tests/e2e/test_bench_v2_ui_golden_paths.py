@@ -52,12 +52,12 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
     assert "/login" not in page.url
     await expect(page.get_by_label("Dashboard analytics")).to_be_visible(timeout=15_000)
 
-    # Assets & Net Worth cards should both reflect 24,200.00
+    # Assets & Net Worth cards both reflect 24,200 (Dashboard KPI cards format with max fraction digits 0)
     assets_card = page.locator(".card").filter(has_text="Total Assets")
-    await expect(assets_card).to_contain_text("24,200.00", timeout=15_000)
+    await expect(assets_card).to_contain_text("24,200", timeout=15_000)
 
     net_worth_card = page.locator(".card").filter(has_text="Net Worth")
-    await expect(net_worth_card).to_contain_text("24,200.00", timeout=15_000)
+    await expect(net_worth_card).to_contain_text("24,200", timeout=15_000)
 
     # 2. Balance Sheet: Verify Q1 checkpoint (as of 2025-03-31) articulation
     await page.goto(

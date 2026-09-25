@@ -68,22 +68,23 @@ async def test_full_navigation(authenticated_page: Page):
     """EPIC-001 EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify main routes for authenticated session."""
     page = authenticated_page
     routes = [
-        ("/dashboard", "Dashboard"),
-        ("/accounts", "Accounts"),
-        ("/journal", "Journal"),
-        ("/upload", "Upload"),
-        ("/reconciliation", "Reconciliation"),
-        ("/reports", "Reports"),
+        ("/dashboard", lambda p: p.get_by_label("Dashboard analytics")),
+        ("/accounts", lambda p: p.get_by_role("heading", name="Accounts")),
+        ("/journal", lambda p: p.get_by_role("heading", name="Journal Entries")),
+        ("/upload", lambda p: p.get_by_role("heading", name="Upload")),
+        (
+            "/reconciliation",
+            lambda p: p.get_by_role("heading", name="Reconciliation Workbench"),
+        ),
+        ("/reports", lambda p: p.get_by_role("heading", name="Reports")),
     ]
 
-    for path, expected_text in routes:
+    for path, locator_fn in routes:
         await page.goto(get_url(path), wait_until="domcontentloaded")
         assert "/login" not in page.url, f"Unexpected redirect to login for {path}"
         await assert_no_visible_error_page(page)
         await expect(page.locator("body")).to_be_visible()
-        await expect(page.get_by_text(expected_text, exact=False).first).to_be_visible(
-            timeout=15_000
-        )
+        await expect(locator_fn(page)).to_be_visible(timeout=15_000)
 
 
 @pytest.mark.e2e

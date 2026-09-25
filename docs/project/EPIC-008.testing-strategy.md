@@ -722,6 +722,7 @@ Product E2E ownership index:
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
+| `tests/e2e/test_bench_v2_ui_golden_paths.py` | Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10; blocking value oracle `AC-portfolio.valuation.1` (`common/portfolio/contract.py`, #1826) |
 | `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
 | `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |

@@ -18,10 +18,20 @@ class BenchUiBridge:
         app_url: str,
     ) -> None:
         """Inject access token and user storage metadata directly into Playwright browser context."""
-        user_data = auth_context["user_data"]
-        user_email = auth_context["user_email"]
-        token = user_data["access_token"]
-        user_id = user_data.get("id") or user_data.get("user", {}).get("id")
+        user_data = auth_context.get("user_data") or {}
+        user_email = auth_context.get("user_email")
+        token = user_data.get("access_token")
+        user_id = user_data.get("id") or (
+            user_data.get("user", {}).get("id")
+            if isinstance(user_data.get("user"), dict)
+            else None
+        )
+
+        if not token or not user_id or not user_email:
+            raise ValueError(
+                f"Invalid auth context for browser session injection: "
+                f"user_id={user_id}, has_token={bool(token)}, user_email={user_email}"
+            )
 
         # 1. Inject HTTP auth cookie
         await page.context.add_cookies([build_auth_cookie(app_url, token)])
