@@ -1,0 +1,18 @@
+{
+  "fingerprint": "c3fe94c1a4d4970f5f68bae86bef75a84ddefb56abcd3c32d2439d7fcbfd96f9",
+  "request": {
+    "decode_params": {},
+    "messages": [
+      {
+        "content": "You are a financial CSV parser.\nGiven a CSV header row and up to 5 sample data rows, identify which columns contain:\n- date: Transaction date\n- description: Transaction description/narrative\n- amount: Transaction amount (single column with +/- or absolute value)\n- debit: Debit/withdrawal amount (if separate columns)\n- credit: Credit/deposit amount (if separate columns)\n- balance: Running balance after transaction\n- reference: Transaction reference number\n- currency: Transaction currency\n\nCRITICAL: Return ONLY a JSON object, no markdown, no extra text:\n{\n  \"date\": \"Column Name\",\n  \"description\": \"Column Name\",\n  \"amount\": \"Column Name or null if separate debit/credit\",\n  \"debit\": \"Column Name or null\",\n  \"credit\": \"Column Name or null\",\n  \"balance\": \"Column Name or null\",\n  \"reference\": \"Column Name or null\",\n  \"currency\": \"Column Name or null\",\n  \"date_format\": \"auto-detected format like %d/%m/%Y or %Y-%m-%d\",\n  \"has_header\": true,\n  \"institution_guess\": \"Best guess of the institution name\"\n}\n\nRules:\n- If amounts are in a single column (positive=credit, negative=debit), set \"amount\" and leave debit/credit null\n- If amounts are in separate debit/credit columns, set those and leave \"amount\" null\n- Set columns to null if not found\n- Use exact column header names from the CSV\n\n\nCSV Headers: Date | Description | Reference\n\nSample Data:\n2025-01-15 | Some transaction | REF001\n\nReturn your JSON mapping:",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\"date\": \"Date\", \"description\": \"Description\", \"amount\": null, \"debit\": null, \"credit\": null, \"balance\": null, \"reference\": \"Reference\", \"currency\": null, \"date_format\": \"%Y-%m-%d\", \"has_header\": true, \"institution_guess\": \"Unknown\"}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}

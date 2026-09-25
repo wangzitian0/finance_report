@@ -320,3 +320,47 @@ class TestCSVEdgeCases:
         )
         with pytest.raises(ExtractionError, match="No valid transactions found in CSV"):
             await self.service._parse_csv_content(csv_content, "DBS")
+
+    # --- Characterization: institution edge semantics pinned for the #2161
+    #     G-001 profile-table refactor (each test fails under a relevant
+    #     mutation of _BankCsvProfile flags).
+
+    async def test_ocbc_empty_description_stays_empty(self):
+        """OCBC family keeps a present-but-empty description as "" (no fallback).
+
+        Mutation guard: flipping the OCBC profile's desc_fallback_on_empty to
+        True would launder "" into "Transaction".
+        """
+        csv_content = b"Transaction Date,Debit,Credit,Description\n15 Jan 2025,,100.00,\n16 Jan 2025,,50.00,Valid"
+
+        result = await self.service._parse_csv_content(csv_content, "OCBC")
+
+        assert [t["description"] for t in result["transactions"]] == ["", "Valid"]
+
+    async def test_generic_rows_have_no_reference_key(self):
+        """Generic fallback rows never carry a reference key.
+
+        Mutation guard: flipping the generic profile's include_reference to
+        True would add a null-valued key every consumer now distinguishes
+        from an absent one.
+        """
+        csv_content = b"Date,Amount,Description\n2025-01-15,100.00,Test income"
+
+        result = await self.service._parse_csv_content(csv_content, "Unknown Bank")
+
+        assert len(result["transactions"]) == 1
+        assert "reference" not in result["transactions"][0]
+
+    async def test_wise_iso_datetime_date_part_used(self):
+        """Wise T-joined datetime values parse by their pre-T date part.
+
+        Mutation guard: dropping the Wise profile's date_time_split makes the
+        tolerant parser see "1/5/2025T10" (unparseable) and skip the row; the
+        split path yields 2025-05-01 (DD/MM/YYYY).
+        """
+        csv_content = b"Created on,Source amount (after fees),Direction,Reference\n1/5/2025T10:30:00,100.00,IN,TRF-1"
+
+        result = await self.service._parse_csv_content(csv_content, "Wise")
+
+        assert len(result["transactions"]) == 1
+        assert result["transactions"][0]["date"] == "2025-05-01"

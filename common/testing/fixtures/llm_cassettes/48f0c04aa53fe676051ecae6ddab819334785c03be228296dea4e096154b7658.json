@@ -1,0 +1,18 @@
+{
+  "fingerprint": "48f0c04aa53fe676051ecae6ddab819334785c03be228296dea4e096154b7658",
+  "request": {
+    "decode_params": {},
+    "messages": [
+      {
+        "content": "You are a financial CSV parser.\nGiven a CSV header row and up to 5 sample data rows, identify which columns contain:\n- date: Transaction date\n- description: Transaction description/narrative\n- amount: Transaction amount (single column with +/- or absolute value)\n- debit: Debit/withdrawal amount (if separate columns)\n- credit: Credit/deposit amount (if separate columns)\n- balance: Running balance after transaction\n- reference: Transaction reference number\n- currency: Transaction currency\n\nCRITICAL: Return ONLY a JSON object, no markdown, no extra text:\n{\n  \"date\": \"Column Name\",\n  \"description\": \"Column Name\",\n  \"amount\": \"Column Name or null if separate debit/credit\",\n  \"debit\": \"Column Name or null\",\n  \"credit\": \"Column Name or null\",\n  \"balance\": \"Column Name or null\",\n  \"reference\": \"Column Name or null\",\n  \"currency\": \"Column Name or null\",\n  \"date_format\": \"auto-detected format like %d/%m/%Y or %Y-%m-%d\",\n  \"has_header\": true,\n  \"institution_guess\": \"Best guess of the institution name\"\n}\n\nRules:\n- If amounts are in a single column (positive=credit, negative=debit), set \"amount\" and leave debit/credit null\n- If amounts are in separate debit/credit columns, set those and leave \"amount\" null\n- Set columns to null if not found\n- Use exact column header names from the CSV\n\n\nCSV Headers: Transaction Date | Debit Amount | Credit Amount | Description\n\nSample Data:\nBAD DATE |  |  | Row 1 bad date\nALSO BAD |  |  | Row 2 bad date\n\nReturn your JSON mapping:",
+        "role": "user"
+      }
+    ],
+    "role": "text"
+  },
+  "response": {
+    "stream_text": "{\n  \"date\": \"Transaction Date\",\n  \"description\": \"Description\",\n  \"amount\": null,\n  \"debit\": \"Debit Amount\",\n  \"credit\": \"Credit Amount\",\n  \"balance\": null,\n  \"reference\": null,\n  \"currency\": null,\n  \"date_format\": \"unknown\",\n  \"has_header\": true,\n  \"institution_guess\": \"Unknown\"\n}"
+  },
+  "role": "text",
+  "tag": "flow-only"
+}
