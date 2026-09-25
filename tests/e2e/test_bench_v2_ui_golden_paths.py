@@ -1,5 +1,12 @@
 """End-to-End Browser verification of Bench V2 financial reporting scenarios.
 
+Covers:
+- AC-reporting.balance-sheet.1: Balance sheet satisfies accounting equation.
+- AC-reporting.balance-sheet.3: Multi-currency account balance aggregation.
+- AC-reporting.income-statement.1: Single-counted operating expenses and net income.
+- AC-reporting.fe-viz-reports.10: CTA adjustment and equation delta UI presentation.
+- AC8.13.9: Authenticated UI route verification.
+
 Executes Bench V2 multi-period financial accounting scenarios against the live
 application and bridges the resulting user tenant session directly into a Playwright
 browser page, asserting that the rendered UI accurately reflects:
@@ -30,7 +37,7 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 
 @pytest.mark.e2e
 async def test_case_1_four_month_rollforward_ui(page: Page):
-    """Case 1: Verify 4-month continuous rollforward & Q1 articulation on Dashboard and Balance Sheet UI."""
+    """AC-reporting.balance-sheet.1 / AC8.13.9: Case 1 - 4-month rollforward & Q1 articulation on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_1(runner)
     assert result.status == "PASS", f"Case 1 benchmark failed: {result.error_message}"
@@ -71,7 +78,7 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
-    """Case 3: Verify credit card liability clearance and zero double-counting on UI."""
+    """AC-reporting.income-statement.1: Case 3 - Verify credit card liability clearance and zero double-counting on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_3(runner)
     assert result.status == "PASS", f"Case 3 benchmark failed: {result.error_message}"
@@ -111,7 +118,7 @@ async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
-    """Case 4: Verify multi-currency consolidated balance sheet and IAS 21 CTA display on UI."""
+    """AC-reporting.fe-viz-reports.10 / AC-reporting.balance-sheet.3: Case 4 - Multi-currency CTA balance sheet UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_4(runner)
     assert result.status == "PASS", f"Case 4 benchmark failed: {result.error_message}"
@@ -150,7 +157,7 @@ async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
 
 @pytest.mark.e2e
 async def test_case_5_multi_asset_portfolio_and_appraisal_ui(page: Page):
-    """Case 5: Verify multi-asset equities and property appraisal on Portfolio and Balance Sheet UI."""
+    """AC-reporting.balance-sheet.1: Case 5 - Verify multi-asset equities and property appraisal on UI."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
     result = execute_case_5(runner)
     assert result.status == "PASS", f"Case 5 benchmark failed: {result.error_message}"
