@@ -144,7 +144,7 @@ describe("ReconciliationWorkbench", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/runs", { method: "POST", body: JSON.stringify({}) }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
+    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 85" }))
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/batch-accept", {
         method: "POST",
@@ -250,7 +250,7 @@ describe("ReconciliationWorkbench", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
     expect(await screen.findByText("run failed")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
+    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 85" }))
     expect(await screen.findByText("Batch accept failed: batch failed")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
@@ -381,7 +381,7 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
 
   it("AC-testing.fe-async.2 batch-accept flow invalidates the matrix-declared query keys", async () => {
     const probe = await renderWithProbe("reconciliation.batch-accept")
-    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 80" }))
+    fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 85" }))
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/batch-accept", {
         method: "POST",

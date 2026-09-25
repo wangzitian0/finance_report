@@ -8,12 +8,20 @@ from uuid import UUID
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.observability import get_logger
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
+
+__all__ = [
+    "RECONCILIATION_AUTO_ACCEPT_SCORE",
+    "RECONCILIATION_REVIEW_SCORE",
+    "ReconciliationStats",
+    "get_reconciliation_stats",
+]
 
 
 @dataclass(frozen=True)

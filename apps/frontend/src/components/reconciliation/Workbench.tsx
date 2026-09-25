@@ -159,7 +159,7 @@ export default function ReconciliationWorkbench() {
 
   const queue = pendingData?.items ?? [];
   const highScoreIds = queue
-    .filter((m) => m.match_score >= 80)
+    .filter((m) => m.match_score >= 85)
     .map((m) => m.id);
 
   const distribution = useMemo(
@@ -204,7 +204,7 @@ export default function ReconciliationWorkbench() {
             >
               {batchAcceptMutation.isPending
                 ? "Batching..."
-                : "Batch Accept ≥ 80"}
+                : "Batch Accept ≥ 85"}
             </button>
             <Link href="/reconciliation/unmatched" className="btn-secondary">
               Unmatched Studio

@@ -75,6 +75,7 @@ async def _add_txn(
     txn_date: date,
     description: str,
     source_doc_id=None,
+    currency: str = "USD",
 ) -> AtomicTransaction:
     txn = AtomicTransaction(
         id=uuid4(),
@@ -83,7 +84,7 @@ async def _add_txn(
         description=description,
         amount=amount,
         direction=direction,
-        currency="USD",
+        currency=currency,
         dedup_hash=uuid4().hex + uuid4().hex,
         source_documents=[
             {
@@ -151,7 +152,32 @@ class TestDetectTransferPairs:
         checks = await detect_transfer_pairs(db, user_id)
         assert len(checks) == 1
         assert checks[0].check_type == CheckType.TRANSFER_PAIR
+        assert checks[0].details.get("currency") == "USD"
         assert set(checks[0].related_txn_ids) == {str(txn_out.id), str(txn_in.id)}
+
+    async def test_detect_transfer_pairs_ignores_cross_currency(self, db, user_id):
+        """Cross-currency transactions with identical amounts must NOT be paired."""
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Transfer out USD",
+            currency="USD",
+        )
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            txn_date=date(2024, 1, 16),
+            description="Transfer in EUR",
+            currency="EUR",
+        )
+
+        checks = await detect_transfer_pairs(db, user_id)
+        assert len(checks) == 0
 
 
 class TestDetectAnomalies:
@@ -206,6 +232,40 @@ class TestResolveCheck:
 
         assert await has_unresolved_checks(db, user_id) is False
 
+    async def test_has_unresolved_checks_prevents_phantom_run_id_bypass(self, db, user_id):
+        """Ensure has_unresolved_checks matches NULL run_id checks when run_id is passed."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id=None,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_null_run"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        # Without fix, passing run_id="run-active" bypassed the check because run_id was NULL
+        assert await has_unresolved_checks(db, user_id, run_id="run-active") is True
+
+    async def test_has_unresolved_checks_matches_specific_run_id(self, db, user_id):
+        """Check with specific run_id matches when query has matching run_id, but not other run_id."""
+        check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id="run-alpha",
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_alpha"],
+            details={},
+        )
+        db.add(check)
+        await db.flush()
+
+        assert await has_unresolved_checks(db, user_id, run_id="run-alpha") is True
+        assert await has_unresolved_checks(db, user_id, run_id="run-beta") is False
+
 
 class TestRunAllConsistencyChecks:
     async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
@@ -238,6 +298,29 @@ class TestRunAllConsistencyChecks:
         # No transactions -> no checks
         checks = await run_all_consistency_checks(db, user_id, approved_statement.id)
         assert checks == []
+
+    async def test_run_all_propagates_run_id(self, db, user_id, approved_statement):
+        """run_all_consistency_checks stamps created checks with run_id if provided."""
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("15.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Lunch",
+        )
+        await _add_txn(
+            db,
+            user_id,
+            amount=Decimal("15.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date(2024, 1, 15),
+            description="Lunch",
+        )
+
+        checks = await run_all_consistency_checks(db, user_id, approved_statement.id, run_id="run-tagged")
+        assert len(checks) >= 1
+        assert all(c.run_id == "run-tagged" for c in checks)
 
 
 class TestGetPendingChecks:
@@ -301,6 +384,42 @@ class TestGetPendingChecks:
         """list_checks returns empty when no pending checks exist."""
         result, _ = await list_checks(db, user_id, status=CheckStatus.PENDING)
         assert result == []
+
+    async def test_get_pending_filters_by_run_id_includes_unassociated(self, db, user_id):
+        """list_checks includes both run-scoped checks and unassociated (NULL run_id) checks."""
+        scoped_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id="run-test-1",
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-run-1"],
+            details={},
+        )
+        null_run_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id=None,
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-null-run"],
+            details={},
+        )
+        other_run_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            run_id="run-test-2",
+            check_type=CheckType.DUPLICATE,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn-run-2"],
+            details={},
+        )
+        db.add_all([scoped_check, null_run_check, other_run_check])
+        await db.flush()
+
+        results, total = await list_checks(db, user_id, status=CheckStatus.PENDING, run_id="run-test-1")
+        assert total == 2
+        assert {c.id for c in results} == {scoped_check.id, null_run_check.id}
 
 
 class TestDetectDuplicatesEdgeCases:

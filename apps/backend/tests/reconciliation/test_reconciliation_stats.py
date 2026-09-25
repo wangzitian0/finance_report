@@ -234,3 +234,11 @@ async def test_get_reconciliation_stats_with_distribution(db, test_user):
     assert stats.score_distribution["90-100"] == 3  # 92, 95, 100
     total_scored = sum(stats.score_distribution.values())
     assert total_scored == 10
+
+
+def test_stats_reexports_ssot_confidence_thresholds():
+    """Verify stats module re-exports SSOT reconciliation confidence thresholds."""
+    from src.reconciliation.data import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
+
+    assert RECONCILIATION_AUTO_ACCEPT_SCORE == 85
+    assert RECONCILIATION_REVIEW_SCORE == 60
