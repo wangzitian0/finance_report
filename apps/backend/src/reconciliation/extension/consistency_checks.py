@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import TransactionDirection
@@ -23,6 +23,7 @@ async def detect_duplicates(
     db: AsyncSession,
     user_id: UUID,
     statement_id: UUID | None = None,
+    run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
@@ -65,6 +66,7 @@ async def detect_duplicates(
 
                 check = ConsistencyCheck(
                     user_id=user_id,
+                    run_id=run_id,
                     check_type=CheckType.DUPLICATE,
                     status=CheckStatus.PENDING,
                     related_txn_ids=txn_ids,
@@ -89,6 +91,7 @@ async def detect_transfer_pairs(
     db: AsyncSession,
     user_id: UUID,
     statement_id: UUID | None = None,
+    run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
@@ -96,7 +99,6 @@ async def detect_transfer_pairs(
     all_txns = list(all_result.scalars().all())
     anchor_txns = all_txns
 
-    out_txns = [t for t in anchor_txns if t.direction == TransactionDirection.OUT]
     in_txns_by_key: dict[tuple[str, Decimal], list[AtomicTransaction]] = {}
     for t in all_txns:
         if t.direction == TransactionDirection.IN:
@@ -134,6 +136,7 @@ async def detect_transfer_pairs(
 
                 check = ConsistencyCheck(
                     user_id=user_id,
+                    run_id=run_id,
                     check_type=CheckType.TRANSFER_PAIR,
                     status=CheckStatus.PENDING,
                     related_txn_ids=txn_ids,
@@ -161,6 +164,7 @@ async def detect_anomalies_batch(
     db: AsyncSession,
     user_id: UUID,
     statement_id: UUID | None = None,
+    run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
@@ -192,6 +196,7 @@ async def detect_anomalies_batch(
 
             check = ConsistencyCheck(
                 user_id=user_id,
+                run_id=run_id,
                 check_type=CheckType.ANOMALY,
                 status=CheckStatus.PENDING,
                 related_txn_ids=txn_ids,
@@ -215,11 +220,12 @@ async def run_all_consistency_checks(
     db: AsyncSession,
     user_id: UUID,
     statement_id: UUID,
+    run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     checks: list[ConsistencyCheck] = []
-    checks.extend(await detect_duplicates(db, user_id, statement_id))
-    checks.extend(await detect_transfer_pairs(db, user_id, statement_id))
-    checks.extend(await detect_anomalies_batch(db, user_id, statement_id))
+    checks.extend(await detect_duplicates(db, user_id, statement_id, run_id=run_id))
+    checks.extend(await detect_transfer_pairs(db, user_id, statement_id, run_id=run_id))
+    checks.extend(await detect_anomalies_batch(db, user_id, statement_id, run_id=run_id))
     return checks
 
 
@@ -269,7 +275,12 @@ async def has_unresolved_checks(
         .limit(1)
     )
     if run_id:
-        query = query.where(ConsistencyCheck.run_id == run_id)
+        query = query.where(
+            or_(
+                ConsistencyCheck.run_id == run_id,
+                ConsistencyCheck.run_id.is_(None),
+            )
+        )
 
     result = await db.execute(query)
     return result.scalar_one_or_none() is not None
