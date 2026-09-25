@@ -97,7 +97,7 @@ async def detect_transfer_pairs(
 
     all_result = await db.execute(base_query)
     all_txns = list(all_result.scalars().all())
-    anchor_txns = all_txns
+    out_txns = [t for t in all_txns if t.direction == TransactionDirection.OUT]
 
     in_txns_by_key: dict[tuple[str, Decimal], list[AtomicTransaction]] = {}
     for t in all_txns:
