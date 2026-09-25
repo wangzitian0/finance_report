@@ -51,12 +51,9 @@ def calculate_currency_translation_adjustment(
     if not is_multicurrency:
         return Decimal("0.00")
 
-    if pnl_translation_variance is not None:
-        eq_var = equity_translation_variance or Decimal("0.00")
-        ufx = unrealized_fx or Decimal("0.00")
-        return to_money(pnl_translation_variance + eq_var - ufx)
+    if total_assets is None and pnl_translation_variance is not None:
+        return to_money(pnl_translation_variance + (equity_translation_variance or Decimal("0.00")))
 
-    # Legacy fallback when only balance totals are passed
     liab = total_liabilities or Decimal("0.00")
     eq = total_equity or Decimal("0.00")
     ni = net_income or Decimal("0.00")
