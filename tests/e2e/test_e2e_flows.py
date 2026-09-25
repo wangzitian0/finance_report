@@ -55,31 +55,41 @@ async def setup_e2e(page: Page):
 
 @pytest.mark.smoke
 @pytest.mark.e2e
-async def test_full_navigation(page: Page):
-    """EPIC-001 EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify main routes."""
-    pages = [
-        "/dashboard",
-        "/accounts",
-        "/journal",
-        "/statements",
-        "/reconciliation",
-        "/reports",
+async def test_unauthenticated_protected_route_redirect(page: Page):
+    """EPIC-001 EPIC-008 / AC8.13.9: Verify unauthenticated access to protected routes redirects to /login."""
+    await page.goto(get_url("/dashboard"), wait_until="domcontentloaded")
+    await wait_for_optional_login_redirect(page)
+    assert "/login" in page.url
+
+
+@pytest.mark.smoke
+@pytest.mark.e2e
+async def test_full_navigation(authenticated_page: Page):
+    """EPIC-001 EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify main routes for authenticated session."""
+    page = authenticated_page
+    routes = [
+        ("/dashboard", lambda p: p.get_by_label("Dashboard analytics", exact=True)),
+        ("/accounts", lambda p: p.get_by_role("heading", name="Accounts", exact=True)),
+        (
+            "/journal",
+            lambda p: p.get_by_role("heading", name="Journal Entries", exact=True),
+        ),
+        ("/upload", lambda p: p.get_by_role("heading", name="Upload", exact=True)),
+        (
+            "/reconciliation",
+            lambda p: p.get_by_role(
+                "heading", name="Reconciliation Workbench", exact=True
+            ),
+        ),
+        ("/reports", lambda p: p.get_by_role("heading", name="Reports", exact=True)),
     ]
 
-    for path in pages:
+    for path, locator_fn in routes:
         await page.goto(get_url(path), wait_until="domcontentloaded")
-        await wait_for_optional_login_redirect(page)
-
-        # Since we are not logged in, we expect either the page or a redirect to login
-        # We check that the body is visible and we didn't hit a 500 error.
-        await expect(page.locator("body")).to_be_visible()
-
-        # Allow being on the login page as a successful "protection" check
-        if "/login" in page.url:
-            continue
-
-        # If not redirected, ensure no visible Next.js error page.
+        assert "/login" not in page.url, f"Unexpected redirect to login for {path}"
         await assert_no_visible_error_page(page)
+        await expect(page.locator("body")).to_be_visible()
+        await expect(locator_fn(page)).to_be_visible(timeout=15_000)
 
 
 @pytest.mark.e2e

@@ -62,6 +62,7 @@ class ScenarioBenchmarkRunner:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.verify = verify
+        self.last_auth_context: dict[str, Any] | None = None
 
     def create_ephemeral_client(
         self, prefix: str = "qa_bench"
@@ -90,6 +91,11 @@ class ScenarioBenchmarkRunner:
             raise RuntimeError(f"No access token returned: {user_data}")
 
         client.headers.update({"Authorization": f"Bearer {token}"})
+        self.last_auth_context = {
+            "client": client,
+            "user_email": user_email,
+            "user_data": user_data,
+        }
         return client, user_email, user_data
 
     def upload_statement(

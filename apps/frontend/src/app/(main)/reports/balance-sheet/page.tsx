@@ -302,7 +302,7 @@ export default function BalanceSheetPage() {
 
       <div className="card p-5 mb-6">
         <h2 className="font-semibold mb-3">Balance Equation Detail</h2>
-        <dl className="grid gap-3 text-sm md:grid-cols-5">
+        <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
           <div>
             <dt className="text-xs text-muted uppercase">Net Income</dt>
             <dd className="mt-1 font-medium">
@@ -330,6 +330,20 @@ export default function BalanceSheetPage() {
               {report
                 ? formatCurrencyLocale(
                     report.net_worth_adjustment_gain_loss ?? 0,
+                    report.currency,
+                  )
+                : "—"}
+            </dd>
+          </div>
+          <div data-testid="equation-detail-cta">
+            <dt className="text-xs text-muted uppercase">CTA Adjustment</dt>
+            <dd
+              className="mt-1 font-medium"
+              aria-label="Currency translation adjustment"
+            >
+              {report
+                ? formatCurrencyLocale(
+                    report.cta_adjustment ?? "0.00",
                     report.currency,
                   )
                 : "—"}
