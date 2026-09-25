@@ -522,3 +522,59 @@ def test_changed_files_unions_committed_staged_unstaged_and_untracked():
         "c.py",
         "new_untracked.py",
     ]
+
+
+class TestCiLogging:
+    """GitHub Actions ::group:: folding and ::error:: annotation formatting."""
+
+    def test_run_checks_with_ci_formatting_on_success(self, capsys):
+        test_check = preflight.Check(
+            name="test-pass",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "ok"),),
+            why="test passing check",
+        )
+        results = preflight.run_checks(
+            [test_check],
+            changed_files=["foo.py"],
+            runner=lambda argv, cwd: 0,
+            ci=True,
+        )
+        assert len(results) == 1
+        assert results[0].ok is True
+        out = capsys.readouterr().out
+        assert "::group::Gate [static] test-pass" in out
+        assert "::endgroup::" in out
+        assert "::error::" not in out
+
+    def test_run_checks_with_ci_formatting_on_failure(self, capsys):
+        test_check = preflight.Check(
+            name="test-fail",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "fail"),),
+            why="test failing check",
+        )
+        results = preflight.run_checks(
+            [test_check],
+            changed_files=["foo.py"],
+            runner=lambda argv, cwd: 1,
+            ci=True,
+        )
+        assert len(results) == 1
+        assert results[0].ok is False
+        out = capsys.readouterr().out
+        assert "::group::Gate [static] test-fail" in out
+        assert "::endgroup::" in out
+        assert "::error::Gate test-fail failed: test failing check" in out
+
+    def test_run_cli_with_ci_flag(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "--ci", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "::group::" in out
+        assert "::endgroup::" in out
