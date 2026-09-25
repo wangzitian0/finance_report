@@ -36,7 +36,10 @@ from common.meta.package_contract import (
     TIER_VALID_PROOF_KINDS,
     ACRecord,
     Invariant,
+    PackageClass,
     PackageContract,
+    PackageStatus,
+    PackageTier,
 )
 
 
@@ -44,15 +47,15 @@ def _write_package(
     repo_root: Path,
     name: str,
     *,
-    klass: str,
+    klass: PackageClass,
     all_names: list[str],
     interface: list[str],
     depends_on: list[str] | None = None,
     invariants: list[Invariant] | None = None,
     roadmap: list[ACRecord] | None = None,
     extra_module: tuple[str, str] | None = None,
-    tier: str = "CODE-ONLY",
-    status: str = "active",
+    tier: PackageTier = "CODE-ONLY",
+    status: PackageStatus = "active",
 ) -> DiscoveredPackage:
     """Materialize a package in the package model: a ``common/<name>/contract.py``
     spec pointing at a BE implementation under ``apps/backend/src/<name>``.
@@ -74,9 +77,9 @@ def _write_package(
 
     contract = PackageContract(
         name=name,
-        klass=klass,  # type: ignore[arg-type]
-        tier=tier,  # type: ignore[arg-type]
-        status=status,  # type: ignore[arg-type]
+        klass=klass,
+        tier=tier,
+        status=status,
         depends_on=depends_on or [],
         interface=interface,
         events=[],
@@ -592,10 +595,12 @@ def test_common_prefix_edge_is_detected_as_undeclared(synthetic_repo: Path) -> N
     low_dir = src / "common" / "commonlow"
     low_dir.mkdir(parents=True)
     (low_dir / "__init__.py").write_text("__all__ = ['L']\n", encoding="utf-8")
+    infra_class: PackageClass = "infra"
+    code_only_tier: PackageTier = "CODE-ONLY"
     low_contract = PackageContract(
         name="commonlow",
-        klass="infra",  # type: ignore[arg-type]
-        tier="CODE-ONLY",  # type: ignore[arg-type]
+        klass=infra_class,
+        tier=code_only_tier,
         depends_on=[],
         interface=["L"],
         events=[],
@@ -615,8 +620,8 @@ def test_common_prefix_edge_is_detected_as_undeclared(synthetic_repo: Path) -> N
     )
     hi_contract = PackageContract(
         name="commonhi",
-        klass="infra",  # type: ignore[arg-type]
-        tier="CODE-ONLY",  # type: ignore[arg-type]
+        klass=infra_class,
+        tier=code_only_tier,
         depends_on=[],  # undeclared on purpose
         interface=["H"],
         events=[],
@@ -863,7 +868,7 @@ def _ac(**overrides: object) -> ACRecord:
         "status": "open",
     }
     kwargs.update(overrides)
-    return ACRecord(**kwargs)  # type: ignore[arg-type]
+    return ACRecord.model_validate(kwargs)
 
 
 def _pkg(**overrides: object) -> PackageContract:
@@ -880,7 +885,7 @@ def _pkg(**overrides: object) -> PackageContract:
         "tier": "CODE-ONLY",
     }
     kwargs.update(overrides)
-    return PackageContract(**kwargs)  # type: ignore[arg-type]
+    return PackageContract.model_validate(kwargs)
 
 
 def test_active_package_must_declare_a_tier() -> None:
