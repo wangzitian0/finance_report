@@ -27,9 +27,9 @@ def _copy_contract_inputs(target_root: Path) -> None:
         "apps/frontend/package.json",
         ".github/workflows/ci.yml",
         ".github/workflows/deploy.yml",
-        ".github/workflows/deploy.yml",
         ".github/workflows/docs.yml",
         ".github/actions/setup-e2e-tests/action.yml",
+        ".github/actions/setup-minio/action.yml",
         "apps/backend/Dockerfile",
         "apps/frontend/Dockerfile",
         "docker-compose.yml",
@@ -112,9 +112,8 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("path", "image_key", "occurrence"),
     [
-        (".github/workflows/ci.yml", image, occurrence)
+        (".github/actions/setup-minio/action.yml", image, 0)
         for image in ("minio", "minio_client")
-        for occurrence in (0, 1)
     ]
     + [
         ("docker-compose.pr-preview.yml", image, 0)
@@ -157,12 +156,31 @@ def test_AC8_13_39_cli_accepts_explicit_repo_root(
 def test_renamed_minio_step_cannot_hide_image_drift(tmp_path: Path) -> None:
     """AC-testing.toolchain.1: Display names do not determine acquisition coverage."""
     _copy_contract_inputs(tmp_path)
-    target = tmp_path / ".github/workflows/ci.yml"
+    target = tmp_path / ".github/actions/setup-minio/action.yml"
     image = contract.load_toolchain(tmp_path)["images"]["minio"]
     content = target.read_text(encoding="utf-8").replace(
         "name: Start MinIO", "name: Start object storage", 1
     )
     target.write_text(content.replace(image, "invalid.example/minio:drift", 1))
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_omitted_setup_minio_in_ci_fails(tmp_path: Path) -> None:
+    """AC-testing.toolchain.1: CI integration and tier1 lanes must invoke setup-minio."""
+    _copy_contract_inputs(tmp_path)
+    target = tmp_path / ".github/workflows/ci.yml"
+    content = target.read_text(encoding="utf-8").replace(
+        "./.github/actions/setup-minio", "./.github/actions/setup-dummy", 1
+    )
+    target.write_text(content, encoding="utf-8")
+    assert contract.run_contract(tmp_path) == 1
+
+
+def test_missing_setup_minio_action_fails(tmp_path: Path) -> None:
+    """AC-testing.toolchain.1: Missing setup-minio composite action file fails."""
+    _copy_contract_inputs(tmp_path)
+    action_file = tmp_path / ".github/actions/setup-minio/action.yml"
+    action_file.unlink()
     assert contract.run_contract(tmp_path) == 1
 
 
