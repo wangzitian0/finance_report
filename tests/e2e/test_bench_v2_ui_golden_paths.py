@@ -66,9 +66,9 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-03-31&currency=SGD",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(page.locator("#assets")).to_contain_text("21,300.00", timeout=15_000)
     await expect(page.locator("#equity")).to_contain_text("15,450.75", timeout=15_000)
     await expect(page.get_by_text("Balance Equation Detail")).to_be_visible()
@@ -95,9 +95,9 @@ async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-04-30&currency=SGD",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(page.locator("#liabilities")).to_contain_text("0.00", timeout=15_000)
     await expect(page.locator("#assets")).to_contain_text("8,800.00", timeout=15_000)
     await expect(page.get_by_text("Balanced")).to_be_visible()
@@ -107,9 +107,9 @@ async def test_case_3_credit_card_repayment_non_pnl_ui(page: Page):
         f"{APP_URL}/reports/income-statement?start_date=2025-04-01&end_date=2025-04-30&currency=SGD",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Income Statement")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Income Statement", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(
         page.locator(".card").filter(has_text="Total Expenses")
     ).to_contain_text("1,200.00", timeout=15_000)
@@ -135,9 +135,9 @@ async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-04-30&currency=SGD",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(page.get_by_test_id("equation-detail-cta")).to_be_visible(
         timeout=15_000
     )
@@ -148,9 +148,9 @@ async def test_case_4_multicurrency_cta_balance_sheet_ui(page: Page):
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-04-30&currency=USD",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(page.get_by_test_id("equation-detail-cta")).to_be_visible(
         timeout=15_000
     )
@@ -180,7 +180,7 @@ async def test_case_5_multi_asset_portfolio_and_appraisal_ui(page: Page):
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-04-30&currency=USD&include_restricted=true",
         wait_until="domcontentloaded",
     )
-    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_role("heading", name="Balance Sheet", exact=True)
+    ).to_be_visible(timeout=15_000)
     await expect(page.get_by_text("Balanced")).to_be_visible()

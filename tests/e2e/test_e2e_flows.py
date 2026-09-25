@@ -69,14 +69,19 @@ async def test_full_navigation(authenticated_page: Page):
     page = authenticated_page
     routes = [
         ("/dashboard", lambda p: p.get_by_label("Dashboard analytics", exact=True)),
-        ("/accounts", lambda p: p.get_by_role("heading", name="Accounts")),
-        ("/journal", lambda p: p.get_by_role("heading", name="Journal Entries")),
-        ("/upload", lambda p: p.get_by_role("heading", name="Upload")),
+        ("/accounts", lambda p: p.get_by_role("heading", name="Accounts", exact=True)),
+        (
+            "/journal",
+            lambda p: p.get_by_role("heading", name="Journal Entries", exact=True),
+        ),
+        ("/upload", lambda p: p.get_by_role("heading", name="Upload", exact=True)),
         (
             "/reconciliation",
-            lambda p: p.get_by_role("heading", name="Reconciliation Workbench"),
+            lambda p: p.get_by_role(
+                "heading", name="Reconciliation Workbench", exact=True
+            ),
         ),
-        ("/reports", lambda p: p.get_by_role("heading", name="Reports")),
+        ("/reports", lambda p: p.get_by_role("heading", name="Reports", exact=True)),
     ]
 
     for path, locator_fn in routes:
