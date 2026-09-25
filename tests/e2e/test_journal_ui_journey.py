@@ -25,7 +25,7 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 async def test_journal_unbalanced_entry_falsification(page: Page):
     """EPIC-001 EPIC-008 / AC-ledger.journal-entry.1: Falsification - Unbalanced debit/credit blocks submission."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
-    client, user_email, _ = runner.create_ephemeral_client("journal_falsify")
+    client, _user_email, _ = runner.create_ephemeral_client("journal_falsify")
     runner.create_account(client, name="Operating Cash", type="ASSET", currency="SGD")
     runner.create_account(client, name="Owner Capital", type="EQUITY", currency="SGD")
     assert runner.last_auth_context is not None
@@ -73,7 +73,7 @@ async def test_journal_unbalanced_entry_falsification(page: Page):
 async def test_journal_balanced_entry_creation_and_post(page: Page):
     """EPIC-001 EPIC-008 / AC-ledger.journal-entry.1 AC-ledger.journal-entry.2: Balanced entry creation and immediate posting."""
     runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
-    client, user_email, _ = runner.create_ephemeral_client("journal_create")
+    client, _user_email, _ = runner.create_ephemeral_client("journal_create")
     runner.create_account(client, name="Operating Cash", type="ASSET", currency="SGD")
     runner.create_account(client, name="Owner Capital", type="EQUITY", currency="SGD")
     assert runner.last_auth_context is not None
