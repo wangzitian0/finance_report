@@ -1,0 +1,53 @@
+name: 'Setup Backend Environment'
+description: 'Install uv, configure Python, cache venv, and optionally run uv sync for apps/backend'
+
+inputs:
+  uv-version:
+    description: 'uv version to install'
+    required: false
+    default: '0.9.18'
+  python-version:
+    description: 'Python version to set up'
+    required: false
+    default: '3.12.12'
+  cache-venv:
+    description: 'Whether to restore/save apps/backend/.venv cache'
+    required: false
+    default: 'true'
+  save-uv-cache:
+    description: 'Whether to save uv package cache'
+    required: false
+    default: 'false'
+  sync:
+    description: 'Whether to run uv sync in apps/backend'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install uv
+      uses: ./.github/actions/setup-uv-retry
+      with:
+        version: ${{ inputs.uv-version }}
+        enable-cache: true
+        save-cache: ${{ inputs.save-uv-cache }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Cache Python venv
+      if: inputs.cache-venv == 'true'
+      uses: actions/cache@v5
+      with:
+        path: apps/backend/.venv
+        key: venv-${{ runner.os }}-${{ hashFiles('apps/backend/uv.lock') }}
+        restore-keys: |
+          venv-${{ runner.os }}-
+
+    - name: Install dependencies
+      if: inputs.sync == 'true'
+      shell: bash
+      run: cd apps/backend && uv sync

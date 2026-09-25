@@ -31,9 +31,31 @@ def _step_names(job: dict) -> list[str]:
     return [str(step.get("name", "")) for step in job.get("steps", [])]
 
 
+def _step_effective_run(step: dict) -> str:
+    run = str(step.get("run", ""))
+    uses = str(step.get("uses", ""))
+    if uses.startswith("./.github/actions/"):
+        action_file = REPO_ROOT / uses.removeprefix("./") / "action.yml"
+        if action_file.exists():
+            action_data = yaml.safe_load(action_file.read_text(encoding="utf-8"))
+            runs = [
+                str(st.get("run", ""))
+                for st in action_data.get("runs", {}).get("steps", [])
+            ]
+            with_inputs = " ".join(f"{k}: {v}" for k, v in step.get("with", {}).items())
+            return run + " " + " ".join(runs) + " " + with_inputs
+    return run
+
+
 def _secret_scan_step(job: dict) -> dict:
     for step in job.get("steps", []):
-        text = (str(step.get("name", "")) + " " + str(step.get("run", ""))).lower()
+        text = (
+            str(step.get("name", ""))
+            + " "
+            + str(step.get("run", ""))
+            + " "
+            + str(step.get("uses", ""))
+        ).lower()
         if "gitleaks" in text and "secret" in text:
             return step
     raise AssertionError(
@@ -45,7 +67,7 @@ def test_AC7_18_1_container_images_job_has_build_context_secret_scan() -> None:
     """AC-testing.secret-scan.2: AC7.18.1: container-images job runs a build-context secret scan, fail-closed."""
     job = _container_images_job()
     step = _secret_scan_step(job)
-    run = str(step.get("run", ""))
+    run = _step_effective_run(step)
     assert "gitleaks" in run, "secret-scan step must invoke gitleaks"
     # Scans the per-component build context directory, not just the repo root.
     assert "apps/" in run or "matrix.component" in run, (
@@ -56,7 +78,7 @@ def test_AC7_18_1_container_images_job_has_build_context_secret_scan() -> None:
 def test_AC7_18_1_build_secret_scan_is_fail_closed_before_build() -> None:
     job = _container_images_job()
     step = _secret_scan_step(job)
-    run = str(step.get("run", ""))
+    run = _step_effective_run(step)
 
     # Fail-closed: gitleaks must exit non-zero on detection and scan the working
     # tree (--no-git so it is not tripped by history), and the step must not be
