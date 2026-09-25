@@ -472,3 +472,31 @@ def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> Non
     telemetry_metrics.record_rate_limit_rejected(scope="global_api")
 
     assert meter.counters["finance.rate_limit.rejected"].add_calls == [(1, {"scope": "global_api"})]
+
+
+def test_build_otlp_metrics_endpoint_adds_suffix() -> None:
+    """Metrics endpoint appends /v1/metrics."""
+    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://collector:4318/v1/metrics"
+    assert (
+        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/") == "http://collector:4318/v1/metrics"
+    )
+
+
+def test_build_otlp_metrics_endpoint_preserves_metrics_path() -> None:
+    """Metrics endpoint preserves /v1/metrics path if already present."""
+    assert (
+        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
+        == "http://collector:4318/v1/metrics"
+    )
+
+
+def test_build_otlp_metrics_endpoint_fallback(monkeypatch) -> None:
+    """Metrics endpoint fallback when SDK helper is unavailable."""
+    import infra2_sdk.runtime.otel as otel_mod
+
+    monkeypatch.delattr(otel_mod, "_signal_endpoint", raising=False)
+    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://collector:4318/v1/metrics"
+    assert (
+        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
+        == "http://collector:4318/v1/metrics"
+    )

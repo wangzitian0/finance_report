@@ -216,3 +216,22 @@ async def test_guard_proofs_plain_health_omits_vault_secrets_info(client: AsyncC
     response = await client.get("/health")
 
     assert "vault_secrets" not in response.json()
+
+
+async def test_health_unexpected_failure_logs_error_id(client: AsyncClient, monkeypatch) -> None:
+    """Unexpected exception in /health logs with ErrorIds.HEALTH_CHECK_FAILED."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import src.runtime.extension.api.health as health_api
+    from src.boot import Bootloader
+    from src.observability import ErrorIds
+
+    mock_logger = MagicMock()
+    monkeypatch.setattr(health_api, "logger", mock_logger)
+    monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(side_effect=RuntimeError("catastrophic failure")))
+
+    response = await client.get("/health")
+    assert response.status_code == 503
+    assert response.json()["status"] == "error"
+    mock_logger.error.assert_called_once()
+    assert mock_logger.error.call_args.kwargs.get("error_id") == ErrorIds.HEALTH_CHECK_FAILED

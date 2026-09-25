@@ -58,7 +58,7 @@ flowchart LR
 **Signal Types**
 - **Logs**: Structured JSON logs emitted by structlog and exported via OTLP.
 - **Traces**: FastAPI, SQLAlchemy, and HTTPX spans are exported when the OTLP endpoint is configured.
-- **Metrics**: Not configured here unless explicitly enabled later.
+- **Metrics**: Emitted via OpenTelemetry MeterProvider when OTLP endpoint is configured (HTTP RED metrics, DB connection pool observer, statement parsing tracking).
 - **Alerts**: Backend error logs follow `component -> OTLP -> observability backend -> Lark`; the app owns the service name and safe runtime contract, while infra2 owns shared observability-backend/Lark automation.
 
 ---

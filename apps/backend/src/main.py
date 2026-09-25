@@ -35,6 +35,7 @@ from src.extraction import (
 from src.identity import auth_router, register_in_flight_parse_checker, users_router
 from src.ledger import register_fx_revaluation_provider, register_statement_coverage_reader
 from src.observability import (
+    ErrorIds,
     configure_database_pool_metrics,
     configure_logging,
     configure_otel_metrics,
@@ -353,6 +354,7 @@ async def logging_middleware(request: Request, call_next: Any) -> Response:
             "HTTP Request Failed",
             duration_ms=round(duration * 1000, 2),
             error=str(exc),
+            error_id=ErrorIds.UNHANDLED_EXCEPTION,
         )
         raise
 
