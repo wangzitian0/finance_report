@@ -192,14 +192,12 @@ class ScenarioBenchmarkRunner:
         def get_or_create_counter_account(acc_type: str, curr: str) -> str:
             key = (acc_type, curr)
             if key not in accounts_cache:
-                acc = client.post(
-                    "/api/accounts",
-                    json={
-                        "name": f"{acc_type.capitalize()} - Other {curr}",
-                        "type": acc_type,
-                        "currency": curr,
-                    },
-                ).json()
+                acc = self.create_account(
+                    client,
+                    name=f"{acc_type.capitalize()} - Other {curr}",
+                    type=acc_type,
+                    currency=curr,
+                )
                 accounts_cache[key] = acc["id"]
             return accounts_cache[key]
 
@@ -260,7 +258,12 @@ class ScenarioBenchmarkRunner:
                 rev = review_resp.json()
                 digest = rev.get("source_result_digest")
                 account_id = rev.get("account_id")
-                stmt = client.get(f"/api/statements/{statement_id}").json()
+                stmt_resp = client.get(f"/api/statements/{statement_id}")
+                if stmt_resp.status_code != 200:
+                    raise RuntimeError(
+                        f"Failed to fetch statement {statement_id}: {stmt_resp.status_code} {stmt_resp.text}"
+                    )
+                stmt = stmt_resp.json()
                 env_payload = {
                     "source_result_digest": digest,
                     "account_id": account_id or stmt.get("account_id"),
@@ -1781,8 +1784,11 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
         assert assets_sgd > Decimal("12800.00"), (
             "Multi-currency assets must be consolidated into SGD"
         )
-        assert abs(delta_sgd) < Decimal("50.00"), (
-            f"SGD equation delta exceeds FX translation tolerance: {delta_sgd}"
+        assert balanced_sgd is True, (
+            f"SGD balance sheet must be balanced under IAS 21 CTA: delta={delta_sgd}"
+        )
+        assert abs(delta_sgd) < Decimal("0.05"), (
+            f"SGD equation delta exceeds tolerance: {delta_sgd}"
         )
 
         # 5. Consolidated Balance Sheet in Target Currency (USD)
@@ -1800,8 +1806,11 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
             f"        USD Balance Sheet: Assets={assets_usd}, Delta={delta_usd}, Balanced={balanced_usd}"
         )
         assert assets_usd > Decimal("0.00"), "Consolidated USD assets must be positive"
-        assert abs(delta_usd) < Decimal("200.00"), (
-            f"USD equation delta exceeds FX translation tolerance: {delta_usd}"
+        assert balanced_usd is True, (
+            f"USD balance sheet must be balanced under IAS 21 CTA: delta={delta_usd}"
+        )
+        assert abs(delta_usd) < Decimal("0.05"), (
+            f"USD equation delta exceeds tolerance: {delta_usd}"
         )
 
         duration = time.time() - start_time
@@ -1825,8 +1834,8 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "equation_delta": str(delta_sgd),
                 "is_balanced": balanced_sgd,
                 "cta_variance_explained": (
-                    "Translation variance arises from spot rate asset translation vs period-average "
-                    "net income translation; backend currently awaits CTA equity reserve allocation under IAS 21."
+                    "Translation variance between spot rate balance sheet items and period-average "
+                    "net income is fully absorbed by the IAS 21 CTA equity reserve."
                 ),
             },
         )

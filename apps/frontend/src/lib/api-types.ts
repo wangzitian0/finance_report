@@ -3125,6 +3125,12 @@ export interface components {
             /** Assets */
             assets: components["schemas"]["ReportLine"][];
             /**
+             * Cta Adjustment
+             * @description Foreign currency cumulative translation adjustment (CTA) reserve under IAS 21 / ASC 830.
+             * @default 0.00
+             */
+            cta_adjustment: string;
+            /**
              * Currency
              * @description Report presentation currency.
              */

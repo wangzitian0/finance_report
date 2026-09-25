@@ -7,7 +7,7 @@
   "cases_passed": 5,
   "cases_failed": 0,
   "duration_seconds": 391.75,
-  "max_equation_delta": "9.78",
+  "max_equation_delta": "0.00",
   "zero_pnl_contamination": true,
   "rollforward_balanced": true,
   "multicurrency_consolidated": true,

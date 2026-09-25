@@ -90,6 +90,7 @@ const packageDocument = {
       portfolio_warnings: [],
       opening_balance_warnings: [],
       equation_delta: "0.00",
+      cta_adjustment: "0.00",
       is_balanced: true,
     },
     income_statement: {
