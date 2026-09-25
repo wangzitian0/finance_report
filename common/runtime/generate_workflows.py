@@ -28,23 +28,29 @@ def project_env_header(
 ) -> str:
     """Project PYTHON_VERSION, NODE_VERSION, UV_VERSION in top-level env: block."""
     if python_version is not None:
-        content = re.sub(
+        content, count = re.subn(
             r'(?m)^(\s*PYTHON_VERSION:\s*)[\x27"][^\x27"]+[\x27"]',
             r"\g<1>" + f'"{python_version}"',
             content,
         )
+        if count == 0:
+            raise ValueError("missing required PYTHON_VERSION pin in env block")
     if node_version is not None:
-        content = re.sub(
+        content, count = re.subn(
             r'(?m)^(\s*NODE_VERSION:\s*)[\x27"][^\x27"]+[\x27"]',
             r"\g<1>" + f'"{node_version}"',
             content,
         )
+        if count == 0:
+            raise ValueError("missing required NODE_VERSION pin in env block")
     if uv_version is not None:
-        content = re.sub(
+        content, count = re.subn(
             r'(?m)^(\s*UV_VERSION:\s*)[\x27"][^\x27"]+[\x27"]',
             r"\g<1>" + f'"{uv_version}"',
             content,
         )
+        if count == 0:
+            raise ValueError("missing required UV_VERSION pin in env block")
     return content
 
 
@@ -59,11 +65,13 @@ def project_ci_workflow(content: str, toolchain: dict) -> str:
         uv_version=runtime.get("uv"),
     )
     postgres_img = images["postgres"]
-    content = re.sub(
+    content, count = re.subn(
         r"(?m)^(\s*postgres:\s*\n\s*image:\s*)[\S]+",
         r"\g<1>" + postgres_img,
         content,
     )
+    if count == 0:
+        raise ValueError("missing required postgres service image pin in ci.yml")
     return content
 
 
@@ -316,7 +324,6 @@ def project_all(
 
     errors: list[str] = []
     projected_map: dict[str, str] = {}
-    modified_paths: list[str] = []
 
     for rel_path, (projector, is_required) in PROJECTORS.items():
         file_path = repo_root / rel_path
@@ -331,11 +338,15 @@ def project_all(
             errors.append(f"{rel_path}: failed to read: {exc}")
             continue
 
-        projected = projector(original, toolchain)
+        try:
+            projected = projector(original, toolchain)
+        except Exception as exc:
+            errors.append(f"{rel_path}: projection error: {exc}")
+            continue
+
         projected_map[rel_path] = projected
 
         if original != projected:
-            modified_paths.append(rel_path)
             diff = diff_text(rel_path, original, projected)
             if check_only:
                 errors.append(

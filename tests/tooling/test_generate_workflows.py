@@ -57,10 +57,12 @@ def test_AC_testing_toolchain_1_detects_drift_when_toolchain_runtime_changes(
 ) -> None:
     """AC-testing.toolchain.1: toolchain.toml runtime changes are detected as drift."""
     _copy_projection_inputs(tmp_path)
+    tc = generate_workflows.load_toolchain(tmp_path)
+    current_uv = tc["runtime"]["uv"]
     tc_file = tmp_path / "toolchain.toml"
     tc_content = tc_file.read_text(encoding="utf-8")
     tc_file.write_text(
-        tc_content.replace('uv = "0.9.18"', 'uv = "0.9.99"'),
+        tc_content.replace(f'uv = "{current_uv}"', 'uv = "0.9.99"'),
         encoding="utf-8",
     )
 
@@ -74,16 +76,40 @@ def test_AC_testing_toolchain_1_detects_drift_when_workflow_env_changes(
 ) -> None:
     """AC-testing.toolchain.1: Workflow env header drift is detected."""
     _copy_projection_inputs(tmp_path)
+    tc = generate_workflows.load_toolchain(tmp_path)
+    current_py = tc["runtime"]["python"]
     ci_file = tmp_path / ".github/workflows/ci.yml"
     ci_content = ci_file.read_text(encoding="utf-8")
     ci_file.write_text(
-        ci_content.replace('PYTHON_VERSION: "3.12.12"', 'PYTHON_VERSION: "3.11.0"'),
+        ci_content.replace(
+            f'PYTHON_VERSION: "{current_py}"', 'PYTHON_VERSION: "3.11.0"'
+        ),
         encoding="utf-8",
     )
 
     status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
     assert status == 1
     assert len(errors) > 0
+
+
+def test_AC_testing_toolchain_1_missing_required_env_pin_fails(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Deletion of required version pin causes projection failure."""
+    _copy_projection_inputs(tmp_path)
+    tc = generate_workflows.load_toolchain(tmp_path)
+    current_py = tc["runtime"]["python"]
+    ci_file = tmp_path / ".github/workflows/ci.yml"
+    ci_content = ci_file.read_text(encoding="utf-8")
+    ci_file.write_text(
+        ci_content.replace(f'PYTHON_VERSION: "{current_py}"\n', ""),
+        encoding="utf-8",
+    )
+
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    pin_error_needle = "missing required PYTHON_VERSION pin"
+    assert any(pin_error_needle in err for err in errors)
 
 
 def test_AC_testing_toolchain_1_detects_drift_when_minio_image_changes(
@@ -110,10 +136,12 @@ def test_AC_testing_toolchain_1_detects_drift_when_postgres_image_changes(
 ) -> None:
     """AC-testing.toolchain.1: Postgres service container image drift is detected."""
     _copy_projection_inputs(tmp_path)
+    tc = generate_workflows.load_toolchain(tmp_path)
+    current_pg = tc["images"]["postgres"]
     tc_file = tmp_path / "toolchain.toml"
     tc_content = tc_file.read_text(encoding="utf-8")
     tc_file.write_text(
-        tc_content.replace("postgres:15.14-alpine", "postgres:16-alpine"),
+        tc_content.replace(current_pg, "postgres:16-alpine"),
         encoding="utf-8",
     )
 
@@ -127,11 +155,13 @@ def test_AC_testing_toolchain_1_synchronization_updates_files_cleanly(
 ) -> None:
     """AC-testing.toolchain.1: Synchronizing writes projected changes and restores zero drift."""
     _copy_projection_inputs(tmp_path)
+    tc = generate_workflows.load_toolchain(tmp_path)
+    current_uv = tc["runtime"]["uv"]
     tc_file = tmp_path / "toolchain.toml"
     tc_content = tc_file.read_text(encoding="utf-8")
     new_uv_version = "0.9.99"
     tc_file.write_text(
-        tc_content.replace('uv = "0.9.18"', f'uv = "{new_uv_version}"'),
+        tc_content.replace(f'uv = "{current_uv}"', f'uv = "{new_uv_version}"'),
         encoding="utf-8",
     )
 

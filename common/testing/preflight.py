@@ -361,14 +361,15 @@ CHECKS: tuple[Check, ...] = (
     Check(
         name="workflow-projection",
         globs=(
-            "toolchain.toml",
             ".github/workflows/*.yml",
             ".github/actions/**/*.yml",
+            "docker-compose*.yml",
+            "apps/*/Dockerfile",
             "tools/generate_workflows.py",
             "common/runtime/generate_workflows.py",
         ),
         commands=((PY, "tools/generate_workflows.py", "--check"),),
-        why="workflows and actions must match toolchain SSOT projection",
+        why="projected workflows, actions, and container files must match toolchain SSOT",
     ),
     Check(
         name="ci-metrics-contract",
