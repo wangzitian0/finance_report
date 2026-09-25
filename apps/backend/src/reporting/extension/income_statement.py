@@ -165,54 +165,17 @@ async def generate_income_statement(
             provenance_inputs_by_account.setdefault(account.id, []).append(
                 _provenance_from_source_type(entry.source_type)
             )
-            # Use pre-fetched rates
-            rate_total = fx_rates.get_rate(line.currency, target_currency, end_date, start_date, end_date)
-            if rate_total is None:
-                # Fallback to slow path if not pre-fetched (should be rare)
-                try:
-                    converted_total = (
-                        await convert_money(
-                            db,
-                            line.money,
-                            target_currency,
-                            end_date,
-                            average_start=start_date,
-                            average_end=end_date,
-                            fx_warnings=fx_warnings,
-                            lazy_load=True,
-                        )
-                    ).amount
-                except fx_gateway.FxRateError as exc:
-                    logger.warning(
-                        "Average FX rate unavailable, falling back to spot",
-                        error_id=ErrorIds.REPORT_FX_FALLBACK,
-                        account_id=str(account.id),
-                        currency=line.currency,
-                        start_date=start_date,
-                        end_date=end_date,
-                        error=str(exc),
-                    )
-                    # Fallback to spot rate at end_date
-                    try:
-                        converted_total = (
-                            await convert_money(
-                                db,
-                                line.money,
-                                target_currency,
-                                end_date,
-                                lazy_load=True,
-                            )
-                        ).amount
-                    except fx_gateway.FxRateError as final_exc:
-                        logger.error(
-                            "All FX rate fallbacks failed for income statement",
-                            error_id=ErrorIds.REPORT_GENERATION_FAILED,
-                            account_id=str(account.id),
-                            error=str(final_exc),
-                        )
-                        raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
-            else:
-                converted_total = line.amount * rate_total
+            # Resolve converted line total (pre-fetched rate with fallbacks)
+            converted_total = await _convert_line_total_with_fallback(
+                db,
+                line=line,
+                account=account,
+                target_currency=target_currency,
+                start_date=start_date,
+                end_date=end_date,
+                fx_rates=fx_rates,
+                fx_warnings=fx_warnings,
+            )
 
             signed_total = _signed_amount(account.type, line.direction, converted_total)
             balances[account.id] += signed_total
@@ -313,16 +276,8 @@ async def generate_income_statement(
         fee_bucket["expense"] += transfer_adjustment.fee_total
 
     # Calculate Unrealized FX Gain/Loss for the period
-    # This requires balance sheets at both points
-    bs_start = await generate_balance_sheet(
-        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency, include_trust_signals=False
-    )
-    bs_end = await generate_balance_sheet(
-        db, user_id, as_of_date=end_date, currency=target_currency, include_trust_signals=False
-    )
-
-    unrealized_fx_change = _quantize_money(
-        Decimal(str(bs_end["unrealized_fx_gain_loss"])) - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
+    unrealized_fx_change = await _calculate_unrealized_fx_change(
+        db, user_id=user_id, start_date=start_date, end_date=end_date, target_currency=target_currency
     )
 
     trend_items: list[dict[str, Any]] = []
@@ -341,6 +296,119 @@ async def generate_income_statement(
         )
 
     # EPIC-018 Phase 4: Layer 3 classification breakdown
+    classification_breakdown = await _load_classification_breakdown(
+        db, user_id=user_id, account_types=account_types, start_date=start_date, end_date=end_date
+    )
+
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "currency": target_currency,
+        "income": income_lines,
+        "expenses": expense_lines,
+        "total_income": total_income,
+        "total_expenses": total_expenses,
+        "net_income": net_income,
+        "unrealized_fx_gain_loss": unrealized_fx_change,
+        "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
+        "fx_warnings": fx_warnings,
+        "trends": trend_items,
+        "classification_breakdown": classification_breakdown,
+        "filters_applied": {
+            "tags": tags,
+            "account_type": account_type.value if account_type else None,
+        },
+    }
+
+
+async def _convert_line_total_with_fallback(
+    db: AsyncSession,
+    *,
+    line: JournalLine,
+    account: Account,
+    target_currency: str,
+    start_date: date,
+    end_date: date,
+    fx_rates: fx_gateway.PrefetchedFxRatesPort,
+    fx_warnings: list[FxWarning],
+) -> Decimal:
+    """Resolve total converted amount for a journal line, falling back from pre-fetched average to spot rate."""
+    rate_total = fx_rates.get_rate(line.currency, target_currency, end_date, start_date, end_date)
+    if rate_total is not None:
+        return line.amount * rate_total
+
+    # Fallback to slow path if not pre-fetched (should be rare)
+    try:
+        converted_money = await convert_money(
+            db,
+            line.money,
+            target_currency,
+            end_date,
+            average_start=start_date,
+            average_end=end_date,
+            fx_warnings=fx_warnings,
+            lazy_load=True,
+        )
+        return converted_money.amount
+    except fx_gateway.FxRateError as exc:
+        logger.warning(
+            "Average FX rate unavailable, falling back to spot",
+            error_id=ErrorIds.REPORT_FX_FALLBACK,
+            account_id=str(account.id),
+            currency=line.currency,
+            start_date=start_date,
+            end_date=end_date,
+            error=str(exc),
+        )
+        # Fallback to spot rate at end_date
+        try:
+            converted_money = await convert_money(
+                db,
+                line.money,
+                target_currency,
+                end_date,
+                lazy_load=True,
+            )
+            return converted_money.amount
+        except fx_gateway.FxRateError as final_exc:
+            logger.error(
+                "All FX rate fallbacks failed for income statement",
+                error_id=ErrorIds.REPORT_GENERATION_FAILED,
+                account_id=str(account.id),
+                error=str(final_exc),
+            )
+            raise ReportError(f"FX conversion failed: {final_exc}") from final_exc
+
+
+async def _calculate_unrealized_fx_change(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    start_date: date,
+    end_date: date,
+    target_currency: str,
+) -> Decimal:
+    """Calculate Unrealized FX Gain/Loss change for the period across balance sheets."""
+    bs_start = await generate_balance_sheet(
+        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency, include_trust_signals=False
+    )
+    bs_end = await generate_balance_sheet(
+        db, user_id, as_of_date=end_date, currency=target_currency, include_trust_signals=False
+    )
+    return _quantize_money(
+        Decimal(str(bs_end["unrealized_fx_gain_loss"])) - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
+    )
+
+
+async def _load_classification_breakdown(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    account_types: tuple[AccountType, ...],
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """Build classification breakdown for applied layer-3 categorizations."""
     classification_breakdown: list[dict[str, Any]] = []
     try:
         from src.extraction import ClassificationStatus
@@ -370,9 +438,9 @@ async def generate_income_statement(
             classification_breakdown.append(
                 {
                     "account_name": row.account_name,
-                    "account_type": row.account_type.value
-                    if hasattr(row.account_type, "value")
-                    else str(row.account_type),
+                    "account_type": (
+                        row.account_type.value if hasattr(row.account_type, "value") else str(row.account_type)
+                    ),
                     "classified_count": row.count,
                     "avg_confidence": round(float(row.avg_confidence or 0), 1),
                 }
@@ -383,23 +451,4 @@ async def generate_income_statement(
             error=str(e),
             error_type=type(e).__name__,
         )
-
-    return {
-        "start_date": start_date,
-        "end_date": end_date,
-        "currency": target_currency,
-        "income": income_lines,
-        "expenses": expense_lines,
-        "total_income": total_income,
-        "total_expenses": total_expenses,
-        "net_income": net_income,
-        "unrealized_fx_gain_loss": unrealized_fx_change,
-        "comprehensive_income": _quantize_money(net_income + unrealized_fx_change),
-        "fx_warnings": fx_warnings,
-        "trends": trend_items,
-        "classification_breakdown": classification_breakdown,
-        "filters_applied": {
-            "tags": tags,
-            "account_type": account_type.value if account_type else None,
-        },
-    }
+    return classification_breakdown
