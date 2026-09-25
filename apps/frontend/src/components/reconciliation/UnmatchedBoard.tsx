@@ -11,7 +11,7 @@ import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { components } from "@/lib/api-types";
 import type {
   Account,
-  BankStatementTransactionSummary,
+  BankTransactionSummary,
   JournalEntrySummary,
 } from "@/lib/types";
 
@@ -44,7 +44,7 @@ const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> =
   ];
 
 function newReviewedDispositionDraft(
-  transaction: BankStatementTransactionSummary,
+  transaction: BankTransactionSummary,
 ): ReviewedDispositionDraft {
   return {
     transactionId: transaction.id,
@@ -132,11 +132,11 @@ export default function UnmatchedBoard() {
     statementReviewHref && requestedReturnTo === statementReviewHref
       ? requestedReturnTo
       : statementReviewHref;
-  const [items, setItems] = useState<BankStatementTransactionSummary[]>([]);
+  const [items, setItems] = useState<BankTransactionSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountCreationType, setAccountCreationType] = useState<Account["type"] | null>(null);
   const [selected, setSelected] =
-    useState<BankStatementTransactionSummary | null>(null);
+    useState<BankTransactionSummary | null>(null);
   const [draft, setDraft] = useState<ReviewedDispositionDraft | null>(null);
   const [posting, setPosting] = useState(false);
   const [postedEntry, setPostedEntry] = useState<JournalEntrySummary | null>(
@@ -275,7 +275,7 @@ export default function UnmatchedBoard() {
     }
   };
 
-  const formatTxnAmount = (item: BankStatementTransactionSummary) =>
+  const formatTxnAmount = (item: BankTransactionSummary) =>
     formatCurrencyLocale(item.amount, item.currency || "SGD");
   const summary = useMemo(
     () => ({ total: items.length, flagged: flagged.size }),

@@ -1222,6 +1222,18 @@
             "title": "Amount",
             "type": "string"
           },
+          "balance_after": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance After"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1824,6 +1836,11 @@
           "confidence_tier": {
             "default": "LOW",
             "title": "Confidence Tier",
+            "type": "string"
+          },
+          "currency": {
+            "default": "SGD",
+            "title": "Currency",
             "type": "string"
           },
           "description": {
@@ -15617,7 +15634,7 @@
     },
     "/health": {
       "get": {
-        "description": "Return light or manifest-complete dependency health.",
+        "description": "Return fast liveness (default) or manifest-complete dependency health (?full=1).",
         "operationId": "health_check_health_get",
         "parameters": [
           {

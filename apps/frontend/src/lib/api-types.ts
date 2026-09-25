@@ -637,7 +637,7 @@ export interface paths {
         };
         /**
          * Health Check
-         * @description Return light or manifest-complete dependency health.
+         * @description Return fast liveness (default) or manifest-complete dependency health (?full=1).
          */
         get: operations["health_check_health_get"];
         put?: never;
@@ -3022,6 +3022,8 @@ export interface components {
         AtomicTransactionResponse: {
             /** Amount */
             amount: string;
+            /** Balance After */
+            balance_after?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3290,6 +3292,11 @@ export interface components {
              * @default LOW
              */
             confidence_tier: string;
+            /**
+             * Currency
+             * @default SGD
+             */
+            currency: string;
             /** Description */
             description: string;
             /** Direction */

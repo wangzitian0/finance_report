@@ -82,6 +82,7 @@ class AtomicTransactionResponse(BaseModel):
     direction: str
     reference: str | None = None
     currency: str | None = None
+    balance_after: Decimal | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -98,6 +99,7 @@ class AtomicTransactionResponse(BaseModel):
             direction=txn.direction.value if hasattr(txn.direction, "value") else txn.direction,
             reference=txn.reference,
             currency=txn.currency,
+            balance_after=txn.balance_after,
             created_at=txn.created_at,
             updated_at=txn.updated_at,
         )
