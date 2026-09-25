@@ -64,14 +64,14 @@ async def test_full_health_503_when_a_declared_dep_is_absent(client: AsyncClient
 
 
 async def test_plain_health_stays_light(client: AsyncClient, monkeypatch) -> None:
-    """The frequent Docker healthcheck form still checks only database + s3."""
+    """The frequent Docker healthcheck / liveness form checks liveness without dependency overhead."""
     _stub_probes(monkeypatch)
 
     response = await client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body["checks"]) == {"database", "s3"}
+    assert body["checks"] == {"liveness": True}
     assert "tier" not in body
 
 
@@ -230,8 +230,40 @@ async def test_health_unexpected_failure_logs_error_id(client: AsyncClient, monk
     monkeypatch.setattr(health_api, "logger", mock_logger)
     monkeypatch.setattr(Bootloader, "_check_s3", AsyncMock(side_effect=RuntimeError("catastrophic failure")))
 
-    response = await client.get("/health")
+    response = await client.get("/health?full=1")
     assert response.status_code == 503
     assert response.json()["status"] == "error"
     mock_logger.error.assert_called_once()
     assert mock_logger.error.call_args.kwargs.get("error_id") == ErrorIds.HEALTH_CHECK_FAILED
+
+
+async def test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io(
+    client: AsyncClient, monkeypatch
+) -> None:
+    """AC-runtime.7.3: plain /health is a fast liveness check without DB or S3 roundtrips."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import src.runtime.extension.api.health as health_api
+    from src.boot import Bootloader, ServiceStatus
+
+    mock_s3 = AsyncMock(return_value=ServiceStatus("minio", "ok", "OK"))
+    monkeypatch.setattr(Bootloader, "_check_s3", mock_s3)
+
+    mock_db_maker = MagicMock(side_effect=AssertionError("DB session maker invoked on plain liveness"))
+    monkeypatch.setattr(health_api, "_test_session_maker", mock_db_maker)
+    monkeypatch.setattr(health_api, "async_session_maker", mock_db_maker)
+
+    response = await client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert "timestamp" in body
+    assert "git_sha" in body
+    assert "checks" in body
+    assert body["checks"].get("liveness") is True
+    # Crucial: S3 and external dependencies must NOT be called on plain liveness
+    assert mock_s3.call_count == 0
+    assert mock_db_maker.call_count == 0
+    assert "s3" not in body["checks"]
+    assert "database" not in body["checks"]

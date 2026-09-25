@@ -368,7 +368,7 @@ async def test_AC10_9_3_health_response_includes_redacted_observability_status(m
         "deployment.environment=production",
     )
 
-    response = await health_check(db=mock_db)
+    response = await health_check(full=True, db=mock_db)
     payload = json.loads(response.body)
 
     assert response.status_code == 200
