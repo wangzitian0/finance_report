@@ -241,12 +241,17 @@ async def test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io(
     client: AsyncClient, monkeypatch
 ) -> None:
     """AC-runtime.7.3: plain /health is a fast liveness check without DB or S3 roundtrips."""
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, MagicMock
 
+    import src.runtime.extension.api.health as health_api
     from src.boot import Bootloader, ServiceStatus
 
     mock_s3 = AsyncMock(return_value=ServiceStatus("minio", "ok", "OK"))
     monkeypatch.setattr(Bootloader, "_check_s3", mock_s3)
+
+    mock_db_maker = MagicMock(side_effect=AssertionError("DB session maker invoked on plain liveness"))
+    monkeypatch.setattr(health_api, "_test_session_maker", mock_db_maker)
+    monkeypatch.setattr(health_api, "async_session_maker", mock_db_maker)
 
     response = await client.get("/health")
 
@@ -259,5 +264,6 @@ async def test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io(
     assert body["checks"].get("liveness") is True
     # Crucial: S3 and external dependencies must NOT be called on plain liveness
     assert mock_s3.call_count == 0
+    assert mock_db_maker.call_count == 0
     assert "s3" not in body["checks"]
     assert "database" not in body["checks"]

@@ -15,12 +15,14 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
         AsyncMock(return_value=ServiceStatus("s3", "ok", "Reachable")),
     )
 
-    response = await client.get("/health")
+    response = await client.get("/health?full=1")
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
     assert "timestamp" in data
     assert "checks" in data
+    assert data["checks"]["database"] is True
+    assert data["checks"]["s3"] is True
 
 
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
