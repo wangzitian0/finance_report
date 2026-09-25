@@ -363,7 +363,7 @@ def test_description_similarity_has_one_owner_and_both_consumers_agree() -> None
         for path in package.rglob("*.py"):
             if "SequenceMatcher" in path.read_text():
                 imports.append(path.relative_to(BACKEND_SRC).as_posix())
-    assert imports == ["reconciliation/extension/scoring.py"]
+    assert imports == ["reconciliation/base/scoring_engine.py"]
 
     score = score_description("Transfer to Savings", "transfer to savings")
     processing_id = SimpleNamespace()
