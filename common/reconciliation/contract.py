@@ -1639,6 +1639,20 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-reconciliation.consistency-checks.11",
+            statement=(
+                "Consistency check detection (detect_duplicates and detect_transfer_pairs) "
+                "strictly partitions by transaction currency, preventing false duplicate and "
+                "cross-currency transfer pair collisions."
+            ),
+            test=(
+                "apps/backend/tests/review/test_falsifiable_consistency.py"
+                "::test_consistency_checks_strictly_partition_by_currency"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group stage2-batch (continued): reconcile-referenced-entry /
         # idempotent-retry half not yet covered by .1-.4 (was EPIC-016
         # AC16.24.4, #1821 Wave A pending-package move) ──

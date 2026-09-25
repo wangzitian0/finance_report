@@ -26,29 +26,42 @@ class BalanceSheetTotals:
 
 def calculate_currency_translation_adjustment(
     *,
-    total_assets: Decimal,
-    total_liabilities: Decimal,
-    total_equity: Decimal,
-    net_income: Decimal,
-    unrealized_fx: Decimal,
-    net_worth_adjustment: Decimal,
     is_multicurrency: bool,
+    pnl_translation_variance: Decimal | None = None,
+    equity_translation_variance: Decimal | None = None,
+    total_assets: Decimal | None = None,
+    total_liabilities: Decimal | None = None,
+    total_equity: Decimal | None = None,
+    net_income: Decimal | None = None,
+    unrealized_fx: Decimal | None = None,
+    net_worth_adjustment: Decimal | None = None,
 ) -> Decimal:
     """Calculate the Foreign Currency Translation Adjustment (CTA).
 
     Under standard financial accounting (IAS 21 / ASC 830):
     - Balance Sheet monetary items are translated at the closing spot rate.
     - Income Statement items are translated at period-average exchange rates.
-    - The variance between spot-translated net assets and average-translated net income
+    - The variance between spot-translated net income and average-translated net income
       is recognized in equity as a cumulative translation adjustment (CTA) reserve.
 
     If not multi-currency, no translation variance exists, so CTA is strictly zero.
+    When pnl_translation_variance is explicitly supplied, CTA is determined strictly
+    from the economic translation variance rather than plugging balance sheet totals.
     """
     if not is_multicurrency:
         return Decimal("0.00")
 
-    unadjusted_equity_liab = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
-    raw_cta = total_assets - unadjusted_equity_liab
+    if total_assets is None and pnl_translation_variance is not None:
+        return to_money(pnl_translation_variance + (equity_translation_variance or Decimal("0.00")))
+
+    liab = total_liabilities or Decimal("0.00")
+    eq = total_equity or Decimal("0.00")
+    ni = net_income or Decimal("0.00")
+    ufx = unrealized_fx or Decimal("0.00")
+    nwa = net_worth_adjustment or Decimal("0.00")
+    assets = total_assets or Decimal("0.00")
+    unadjusted_equity_liab = liab + eq + ni + ufx + nwa
+    raw_cta = assets - unadjusted_equity_liab
     return to_money(raw_cta)
 
 

@@ -32,7 +32,8 @@ async def detect_duplicates(
 
     groups: dict[str, list[AtomicTransaction]] = {}
     for txn in all_txns:
-        key = f"{txn.amount}_{txn.direction.value}_{txn.description[:50] if txn.description else ''}"
+        currency_code = txn.currency.upper() if txn.currency else ""
+        key = f"{currency_code}_{txn.amount}_{txn.direction.value}_{txn.description[:50] if txn.description else ''}"
         if key not in groups:
             groups[key] = []
         groups[key].append(txn)
@@ -69,6 +70,7 @@ async def detect_duplicates(
                     related_txn_ids=txn_ids,
                     details={
                         "count": len(group),
+                        "currency": currency_code,
                         "amount": str(group[0].amount),
                         "description": group[0].description,
                         "date_range": f"{dates[0]} to {dates[-1]}",
@@ -95,18 +97,20 @@ async def detect_transfer_pairs(
     anchor_txns = all_txns
 
     out_txns = [t for t in anchor_txns if t.direction == TransactionDirection.OUT]
-    in_txns_by_amount: dict[Decimal, list[AtomicTransaction]] = {}
+    in_txns_by_key: dict[tuple[str, Decimal], list[AtomicTransaction]] = {}
     for t in all_txns:
         if t.direction == TransactionDirection.IN:
-            if t.amount not in in_txns_by_amount:
-                in_txns_by_amount[t.amount] = []
-            in_txns_by_amount[t.amount].append(t)
+            curr = t.currency.upper() if t.currency else ""
+            if (curr, t.amount) not in in_txns_by_key:
+                in_txns_by_key[(curr, t.amount)] = []
+            in_txns_by_key[(curr, t.amount)].append(t)
 
     checks: list[ConsistencyCheck] = []
     matched_in: set[str] = set()
 
     for out_txn in out_txns:
-        candidates = in_txns_by_amount.get(out_txn.amount, [])
+        out_curr = out_txn.currency.upper() if out_txn.currency else ""
+        candidates = in_txns_by_key.get((out_curr, out_txn.amount), [])
         for in_txn in candidates:
             if str(in_txn.id) in matched_in:
                 continue
@@ -135,6 +139,7 @@ async def detect_transfer_pairs(
                     related_txn_ids=txn_ids,
                     details={
                         "amount": str(out_txn.amount),
+                        "currency": out_curr,
                         "out_date": str(out_txn.txn_date),
                         "in_date": str(in_txn.txn_date),
                         "amount_delta": "0.00",
