@@ -174,6 +174,20 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
         ),
+        ACRecord(
+            id="AC-runtime.7.3",
+            statement=(
+                "Fast liveness path: plain GET /health returns 200 with process "
+                "liveness in <50ms without executing external network or database IO, "
+                "keeping dependency probe execution strictly in ?full=1."
+            ),
+            test=(
+                "apps/backend/tests/runtime/test_health_parity.py"
+                "::test_AC_runtime_7_3_plain_health_is_fast_liveness_without_external_io"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── folded in from the retired config package (#1669) — group numbers
         # preserved from the original EPIC-012 lineage (AC12.18.* / AC12.20.*
         # -> AC-config.18.*/.20.* -> AC-runtime.18.*/.20.*) so the history stays

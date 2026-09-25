@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from infra2_sdk.runtime.environment import resolve_environment_tier
 from sqlalchemy import text
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.boot import Bootloader
 from src.config import settings
-from src.database import get_db
+from src.database import _test_session_maker, async_session_maker, get_db
 from src.observability import ErrorIds, get_logger, get_observability_status
 from src.runtime.base.tiers import resolve_env_tier
 
@@ -22,22 +23,63 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+async def _get_health_db(
+    request: Request,
+    full: bool = False,
+) -> AsyncGenerator[AsyncSession | None, None]:
+    """Provide a database session only when full readiness health check is requested."""
+    if not full:
+        yield None
+        return
+
+    # Check if get_db was overridden in test fixture
+    if get_db in request.app.dependency_overrides:
+        override = request.app.dependency_overrides[get_db]
+        res = override()
+        if hasattr(res, "__anext__"):
+            async for s in res:
+                yield s
+                return
+        elif hasattr(res, "__next__"):
+            for s in res:
+                yield s
+                return
+        else:
+            session = await res if asyncio.iscoroutine(res) else res
+            yield session
+            return
+
+    maker = _test_session_maker or async_session_maker
+    async with maker() as session:
+        yield session
+
+
 @router.get("/health")
-async def health_check(full: bool = False, db: AsyncSession = Depends(get_db)) -> Response:
-    """Return light or manifest-complete dependency health."""
+async def health_check(
+    full: bool = False,
+    db: AsyncSession | None = Depends(_get_health_db),
+) -> Response:
+    """Return fast liveness (default) or manifest-complete dependency health (?full=1)."""
     try:
         checks: dict[str, bool] = {}
-        try:
-            await db.execute(text("SELECT 1"))
-            checks["database"] = True
-        except Exception:
-            checks["database"] = False
-
-        s3_result = await Bootloader._check_s3()
-        checks["s3"] = s3_result.status == "ok"
-
         tier = None
-        if full:
+        if not full:
+            # Cheap liveness path: zero external I/O, fast return (<10ms)
+            checks["liveness"] = True
+        else:
+            # Full readiness path: probe database, s3, and tier-manifest dependencies
+            if db is not None:
+                try:
+                    await db.execute(text("SELECT 1"))
+                    checks["database"] = True
+                except Exception:
+                    checks["database"] = False
+            else:
+                checks["database"] = False
+
+            s3_result = await Bootloader._check_s3()
+            checks["s3"] = s3_result.status == "ok"
+
             tier = resolve_env_tier(
                 settings.environment,
                 github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",

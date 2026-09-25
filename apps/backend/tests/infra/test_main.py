@@ -25,7 +25,7 @@ async def test_health_when_all_services_healthy(client: AsyncClient, monkeypatch
 
 async def test_health_endpoint_structure(client: AsyncClient) -> None:
     """AC-runtime.7.1: Health endpoint returns proper structure with checks."""
-    response = await client.get("/health")
+    response = await client.get("/health?full=1")
     assert response.status_code in [200, 503]
     data = response.json()
 
@@ -60,7 +60,7 @@ async def test_health_returns_503_on_database_failure(public_client: AsyncClient
     app.dependency_overrides[get_db] = mock_get_db
 
     try:
-        response = await public_client.get("/health")
+        response = await public_client.get("/health?full=1")
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "unhealthy"
@@ -79,7 +79,7 @@ async def test_health_returns_503_on_s3_failure(public_client: AsyncClient, monk
         AsyncMock(return_value=ServiceStatus("minio", "error", "Bucket missing")),
     )
 
-    response = await public_client.get("/health")
+    response = await public_client.get("/health?full=1")
 
     assert response.status_code == 503
     data = response.json()
