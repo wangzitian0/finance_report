@@ -132,30 +132,58 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         for needle in needles:
             expect_contains(errors, path, content, needle)
 
-    # This gate runs before dependency installation, so keep it stdlib-only.
-    # Check each acquisition step separately: a correct integration job must
-    # never conceal a stale image in the Tier-1 job (or vice versa).
+    # MinIO acquisition contract:
+    # 1. .github/actions/setup-minio/action.yml must use governed images from toolchain.toml.
+    # 2. .github/workflows/ci.yml must invoke ./.github/actions/setup-minio in backend-integration
+    #    and backend-e2e-tier1 jobs.
+    minio_action_path = ".github/actions/setup-minio/action.yml"
+    try:
+        minio_action_content = read_text(repo_root, minio_action_path)
+    except FileNotFoundError:
+        errors.append(f"{minio_action_path}: file not found")
+        minio_action_content = ""
+
+    action_lines = [
+        line
+        for line in minio_action_content.splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    for key in ("minio", "minio_client"):
+        image = toolchain["images"][key]
+        if not any(image in line for line in action_lines):
+            errors.append(
+                f"{minio_action_path}: MinIO setup action must use {key}={image!r}"
+            )
+
     ci_path = ".github/workflows/ci.yml"
+    ci_content = read_text(repo_root, ci_path)
+    for job_name in ("backend-integration", "backend-e2e-tier1"):
+        job_pattern = (
+            rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
+        )
+        match = re.search(job_pattern, ci_content, re.DOTALL)
+        if match:
+            job_body = match.group(1)
+            if job_body.count("./.github/actions/setup-minio") < 2:
+                errors.append(
+                    f"{ci_path}: job {job_name} must invoke ./.github/actions/setup-minio (start and wait)"
+                )
+        else:
+            errors.append(f"{ci_path}: job {job_name} not found")
+
     minio_steps = [
         block
-        for block in re.split(
-            r"(?m)^\s*- (?=(?:name|id|run|uses):)", read_text(repo_root, ci_path)
-        )
+        for block in re.split(r"(?m)^\s*- (?=(?:name|id|run|uses):)", ci_content)
         if "docker run" in block
         and ("MINIO_ROOT_USER" in block or "mc alias set" in block)
     ]
-    if not minio_steps:
-        errors.append(f"{ci_path}: no governed MinIO acquisition steps found")
     for index, block in enumerate(minio_steps, start=1):
-        tokens = {
-            token
-            for line in block.splitlines()
-            if not line.lstrip().startswith("#")
-            for token in line.split()
-        }
+        block_lines = [
+            line for line in block.splitlines() if not line.lstrip().startswith("#")
+        ]
         for key in ("minio", "minio_client"):
             image = toolchain["images"][key]
-            if image not in tokens:
+            if not any(image in line for line in block_lines):
                 errors.append(
                     f"{ci_path}: MinIO acquisition step {index} must use {key}={image!r}"
                 )

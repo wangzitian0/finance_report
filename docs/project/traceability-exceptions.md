@@ -195,6 +195,7 @@ explicit AC IDs for the behavior.
 | `tests/tooling/test_env_contract_boundary.py` | `common/observability/observability.md`, `common/runtime/environments.md` |
 | `tests/tooling/test_github_workflow_timing_summary.py` | `common/testing/ci-cd.md` |
 | `tests/tooling/test_infra2_pin_is_release_tag.py` | `common/runtime/deployment.md` |
+| `tests/tooling/test_merge_junit.py` | `common/testing/coverage.md` |
 | `tests/tooling/test_merge_lcov.py` | `common/testing/coverage.md` |
 | `tests/tooling/test_preflight.py` | `common/testing/ci-cd.md` |
 | `tests/tooling/test_seed_fx_rates.py` | `common/pricing/market_data.md` |

@@ -1,0 +1,79 @@
+name: 'Setup MinIO'
+description: 'Start MinIO container in the background and wait for readiness'
+
+inputs:
+  step:
+    description: "Execution step: 'start' to launch background container and bucket setup, 'wait' to poll readiness"
+    required: false
+    default: 'start'
+  container-name:
+    description: 'Docker container name for MinIO'
+    required: false
+    default: 'finance-report-minio'
+  bucket-name:
+    description: 'MinIO bucket to ensure created'
+    required: false
+    default: 'statements'
+  root-user:
+    description: 'MinIO root user'
+    required: false
+    default: 'minio'
+  root-password:
+    description: 'MinIO root password'
+    required: false
+    default: 'minio_local_secret'
+  port:
+    description: 'Port to bind for S3 API'
+    required: false
+    default: '9000'
+  console-port:
+    description: 'Port to bind for console'
+    required: false
+    default: '9001'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Start MinIO
+      if: inputs.step == 'start'
+      shell: bash
+      run: |
+        cat > "$RUNNER_TEMP/start-minio.sh" <<'SH'
+        set -euo pipefail
+        docker run -d \
+          --name "${{ inputs.container-name }}" \
+          -p ${{ inputs.port }}:9000 \
+          -e MINIO_ROOT_USER=${{ inputs.root-user }} \
+          -e MINIO_ROOT_PASSWORD=${{ inputs.root-password }} \
+          cgr.dev/chainguard/minio:latest-dev@sha256:4b862594d23cb20ae0fbeb93311ed312a5b566ecba2293220b204c89ef3c1fe2 \
+          server /data --console-address ":${{ inputs.console-port }}"
+        for _ in {1..60}; do
+          if curl -fsS http://127.0.0.1:${{ inputs.port }}/minio/health/live >/dev/null; then
+            break
+          fi
+          sleep 1
+        done
+        curl -fsS http://127.0.0.1:${{ inputs.port }}/minio/health/live
+        docker run --rm --network host --entrypoint /bin/sh cgr.dev/chainguard/minio-client:latest-dev@sha256:614e083a12c6dc779f13f97e01b13afda4021a8ce3f4021a2fcf23ec86f46837 \
+          -c 'mc alias set local http://127.0.0.1:${{ inputs.port }} ${{ inputs.root-user }} ${{ inputs.root-password }} && mc mb local/${{ inputs.bucket-name }} --ignore-existing'
+        SH
+        {
+          if bash "$RUNNER_TEMP/start-minio.sh"; then
+            touch "$RUNNER_TEMP/minio-ready"
+          else
+            touch "$RUNNER_TEMP/minio-failed"
+          fi
+        } > "$RUNNER_TEMP/minio-setup.log" 2>&1 &
+
+    - name: Wait for MinIO
+      if: inputs.step == 'wait'
+      shell: bash
+      run: |
+        for _ in {1..120}; do
+          if [ -f "$RUNNER_TEMP/minio-ready" ] || [ -f "$RUNNER_TEMP/minio-failed" ]; then
+            break
+          fi
+          sleep 1
+        done
+        cat "$RUNNER_TEMP/minio-setup.log"
+        test -f "$RUNNER_TEMP/minio-ready"
