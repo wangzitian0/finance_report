@@ -56,7 +56,13 @@ export const APP_ROUTES = {
     REPORTS_BALANCE_SHEET: "/reports/balance-sheet",
     REPORTS_INCOME_STATEMENT: "/reports/income-statement",
     REPORTS_CASH_FLOW: "/reports/cash-flow",
+    REPORTS_PACKAGE: "/reports/package",
     SETTINGS: "/settings",
+    ATTENTION: "/attention",
+    ACCOUNTS_PROCESSING: "/accounts/processing",
+    REVIEW_AI_SUGGESTIONS: "/review/ai-suggestions",
+    PING_PONG: "/ping-pong",
+    LOGIN: "/login",
 } as const;
 
 export type AppRoute = (typeof APP_ROUTES)[keyof typeof APP_ROUTES];
@@ -124,9 +130,12 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reports/balance-sheet": { label: "Balance Sheet", Icon: BarChart3 },
     "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
     "/reports/cash-flow": { label: "Cash Flow", Icon: BarChart3 },
+    "/reports/package": { label: "Personal Report Package", Icon: FileText },
+    "/accounts/processing": { label: "Processing Accounts", Icon: Landmark },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
     "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
+    "/review/ai-suggestions": { label: "AI Suggestions", Icon: ClipboardCheck },
     "/processing": { label: "Processing", Icon: Clock },
     "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
@@ -135,6 +144,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/settings/ai": { label: "AI Settings", Icon: SlidersHorizontal },
     "/settings/llm": { label: "LLM Models", Icon: Cpu },
     "/ping-pong": { label: "Ping-Pong", Icon: Zap },
+    "/login": { label: "Login", Icon: Landmark },
 };
 
 export const DEFAULT_ROUTE_ICON = UploadCloud;

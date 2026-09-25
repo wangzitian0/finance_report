@@ -3022,6 +3022,8 @@ export interface components {
         AtomicTransactionResponse: {
             /** Amount */
             amount: string;
+            /** Balance After */
+            balance_after?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3290,6 +3292,8 @@ export interface components {
              * @default LOW
              */
             confidence_tier: string;
+            /** Currency */
+            currency: string;
             /** Description */
             description: string;
             /** Direction */

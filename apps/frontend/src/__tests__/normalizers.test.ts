@@ -42,6 +42,7 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
         id: "summary-1",
         description: "Coffee",
         amount: "5.50",
+        currency: "SGD",
         direction: "DEBIT",
         txn_date: "2026-03-02",
         reference: "COFFEE-REF",
@@ -62,7 +63,7 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       expect(vm.statement_id).toBe("stmt-1");
       expect(vm.txn_date).toBe("2026-03-02");
       expect(vm.reference).toBe("COFFEE-REF");
-      expect(vm.currency).toBeNull();
+      expect(vm.currency).toBe("SGD");
       expect(vm.balance_after).toBe("500.00");
       expect(vm.status).toBe("matched");
       expect(vm.confidence).toBe("high");

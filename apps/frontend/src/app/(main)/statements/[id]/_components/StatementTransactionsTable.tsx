@@ -96,15 +96,22 @@ export function StatementTransactionsTable({
                   </td>
                   <td className="px-4 py-3 text-center">
                     <StatusBadge
-                      status={txn.confidence ?? "unavailable"}
-                      variants={{ high: "success", medium: "warning" }}
+                      status={
+                        txn.confidence ??
+                        (txn.confidence_tier === "TRUSTED"
+                          ? "high"
+                          : txn.confidence_tier
+                            ? txn.confidence_tier.toLowerCase()
+                            : "unavailable")
+                      }
+                      variants={{ high: "success", medium: "warning", low: "muted" }}
                       fallback="error"
                     />
                   </td>
                   <td className="px-4 py-3 text-center">
                     <StatusBadge
-                      status={txn.status ?? "unavailable"}
-                      variants={{ matched: "success", unmatched: "error" }}
+                      status={txn.status ?? "pending"}
+                      variants={{ pending: "warning", matched: "success", unmatched: "error" }}
                     />
                   </td>
                 </tr>

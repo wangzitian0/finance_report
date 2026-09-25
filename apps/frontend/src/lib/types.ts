@@ -25,14 +25,16 @@ export type AccountListResponse = ListResponse<Account>;
 
 export type JournalLine = Schemas["JournalLineResponse"];
 
-import type {
-  BankStatementTransactionViewModel,
-  JournalEntryViewModel,
+import {
+  type BankStatementTransactionViewModel,
+  type JournalEntryViewModel,
+  toTransactionViewModel,
+  toJournalEntryViewModel,
 } from "./normalizers";
 export {
   toTransactionViewModel,
   toJournalEntryViewModel,
-} from "./normalizers";
+};
 export type {
   BankStatementTransactionViewModel,
   JournalEntryViewModel,
@@ -53,10 +55,7 @@ export type BankStatementTransactionResponse =
 
 export type BankTransactionSummary = Schemas["BankTransactionSummary"];
 
-export type BankStatementTransactionSummary = BankTransactionSummary & {
-  currency?: string | null;
-  status?: "pending" | "matched" | "unmatched";
-};
+export type BankStatementTransactionSummary = BankTransactionSummary;
 
 export type BalanceValidationResult = Schemas["BalanceValidationResult"];
 
@@ -74,7 +73,9 @@ export function normalizeBankStatement(
 ): BankStatement {
   return {
     ...statement,
-    transactions: statement.transactions ?? [],
+    transactions: (statement.transactions ?? []).map((t) =>
+      toTransactionViewModel(t),
+    ),
   };
 }
 

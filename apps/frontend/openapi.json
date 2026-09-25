@@ -1222,6 +1222,18 @@
             "title": "Amount",
             "type": "string"
           },
+          "balance_after": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance After"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1826,6 +1838,10 @@
             "title": "Confidence Tier",
             "type": "string"
           },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -1874,7 +1890,8 @@
           "description",
           "amount",
           "direction",
-          "reference"
+          "reference",
+          "currency"
         ],
         "title": "BankTransactionSummary",
         "type": "object"

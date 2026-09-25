@@ -43,6 +43,18 @@ export function toTransactionViewModel(
 ): BankStatementTransactionViewModel {
   const isAtomic = "created_at" in raw;
   const rawConfidence = "confidence_tier" in raw ? raw.confidence_tier : undefined;
+  const derivedConfidence: "high" | "medium" | "low" | undefined =
+    rawConfidence === "HIGH" || rawConfidence === "TRUSTED"
+      ? "high"
+      : rawConfidence === "MEDIUM"
+        ? "medium"
+        : rawConfidence === "LOW"
+          ? "low"
+          : undefined;
+  const rawBalanceAfter =
+    "balance_after" in raw
+      ? (raw as { balance_after?: MoneyValue | null }).balance_after
+      : null;
   return {
     id: raw.id,
     statement_id: raw.statement_id ?? null,
@@ -52,12 +64,13 @@ export function toTransactionViewModel(
     direction: raw.direction,
     reference: ("reference" in raw ? raw.reference : null) ?? null,
     currency: ("currency" in raw ? raw.currency : null) ?? null,
-    balance_after: overrides?.balance_after ?? null,
+    balance_after: overrides?.balance_after ?? rawBalanceAfter ?? null,
     status: overrides?.status ?? "pending",
-    confidence: overrides?.confidence,
+    confidence: overrides?.confidence ?? derivedConfidence ?? "low",
     confidence_tier:
       overrides?.confidence_tier ??
-      (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | undefined),
+      (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | undefined) ??
+      "LOW",
     confidence_reason: overrides?.confidence_reason ?? null,
     raw_text: overrides?.raw_text ?? null,
     created_at: isAtomic
