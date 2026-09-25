@@ -32,20 +32,9 @@ async def _get_health_db(
         yield None
         return
 
-    # Check if get_db was overridden in test fixture
     if get_db in request.app.dependency_overrides:
         override = request.app.dependency_overrides[get_db]
-        res = override()
-        if hasattr(res, "__anext__"):
-            async for s in res:
-                yield s
-                return
-        elif hasattr(res, "__next__"):
-            for s in res:
-                yield s
-                return
-        else:
-            session = await res if asyncio.iscoroutine(res) else res
+        async for session in override():
             yield session
             return
 
@@ -68,13 +57,11 @@ async def health_check(
             checks["liveness"] = True
         else:
             # Full readiness path: probe database, s3, and tier-manifest dependencies
-            if db is not None:
-                try:
-                    await db.execute(text("SELECT 1"))
-                    checks["database"] = True
-                except Exception:
-                    checks["database"] = False
-            else:
+            try:
+                assert db is not None
+                await db.execute(text("SELECT 1"))
+                checks["database"] = True
+            except Exception:
                 checks["database"] = False
 
             s3_result = await Bootloader._check_s3()
