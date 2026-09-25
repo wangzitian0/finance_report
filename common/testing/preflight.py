@@ -342,6 +342,103 @@ CHECKS: tuple[Check, ...] = (
         "pairs must remain an exact shrink-only baseline",
     ),
     Check(
+        name="toolchain-contract",
+        globs=(
+            "toolchain.toml",
+            ".python-version",
+            ".node-version",
+            ".tool-versions",
+            ".moon/toolchain.yml",
+            "apps/frontend/package.json",
+            "tools/check_toolchain_contract.py",
+            "common/runtime/check_toolchain_contract.py",
+        ),
+        commands=((PY, "tools/check_toolchain_contract.py"),),
+        why="toolchain contracts and version declarations must not drift",
+    ),
+    Check(
+        name="ci-metrics-contract",
+        globs=(
+            ".github/workflows/ci.yml",
+            "common/testing/ci-cd.md",
+            "tools/check_ci_metrics_contract.py",
+            "common/meta/extension/metrics_contract.py",
+        ),
+        commands=((PY, "tools/check_ci_metrics_contract.py"),),
+        why="CI workflow metrics contract must not drift",
+    ),
+    Check(
+        name="detached-owner-shortcuts",
+        globs=(
+            "apps/backend/tests/**.py",
+            "tools/check_detached_owner_shortcuts.py",
+            "common/testing/detached_owner_guard.py",
+        ),
+        commands=((PY, "tools/check_detached_owner_shortcuts.py"),),
+        why="backend tests must not reintroduce un-baselined detached owner uuid4 shortcuts",
+    ),
+    Check(
+        name="epic-status",
+        globs=(
+            "README.md",
+            "docs/project/EPIC*.md",
+            "tools/generate_epic_status.py",
+            "common/meta/extension/epic_status.py",
+        ),
+        commands=((PY, "tools/generate_epic_status.py", "--check"),),
+        why="EPIC status pointer block in README must not drift",
+    ),
+    Check(
+        name="ac-tier-baseline",
+        globs=(
+            "common/meta/data/ac-tier-baseline.json",
+            "tools/check_ac_tier_baseline.py",
+            "common/meta/extension/check_ac_tier_baseline.py",
+        ),
+        commands=((PY, "tools/check_ac_tier_baseline.py"),),
+        why="AC authority tier debt only shrinks",
+    ),
+    Check(
+        name="ac-proof-kind",
+        globs=(
+            "docs/project/EPIC*.md",
+            "tools/check_ac_proof_kind.py",
+            "common/meta/extension/check_ac_proof_kind.py",
+        ),
+        commands=((PY, "tools/check_ac_proof_kind.py"),),
+        why="enforce tier -> valid proof kind matrix",
+    ),
+    Check(
+        name="tier-imports",
+        globs=(
+            "apps/backend/src/*.py",
+            "tools/check_tier_imports.py",
+            "common/meta/extension/tier_imports.py",
+        ),
+        commands=((PY, "tools/check_tier_imports.py"),),
+        why="CODE-ONLY financial core must not import LLM layer",
+    ),
+    Check(
+        name="llm-cassettes",
+        globs=(
+            "common/testing/fixtures/llm_cassettes/**.json",
+            "tools/check_llm_cassettes.py",
+            "common/testing/check_llm_cassettes.py",
+        ),
+        commands=((PY, "tools/check_llm_cassettes.py"),),
+        why="statement extraction cassettes must satisfy balance-chain invariant",
+    ),
+    Check(
+        name="cassette-graded-eval",
+        globs=(
+            "common/testing/fixtures/llm_cassettes/**.json",
+            "tools/check_cassette_graded_eval.py",
+            "common/testing/check_cassette_graded_eval.py",
+        ),
+        commands=((PY, "tools/check_cassette_graded_eval.py"),),
+        why="cassette graded accuracy eval ratchet",
+    ),
+    Check(
         name="frontend-static",
         globs=(
             "apps/frontend/src/*",
@@ -458,6 +555,7 @@ def run_checks(
     changed_files: Sequence[str] = (),
     runner: Runner = _default_runner,
     python: str | None = None,
+    ci: bool = False,
 ) -> list[CheckResult]:
     """Run each check's commands; a check fails fast on the first non-zero command."""
     python = python or sys.executable
@@ -469,6 +567,8 @@ def run_checks(
             for path in changed_files
             if any(_matches(path, glob) for glob in check.globs)
         )
+        if ci:
+            print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
         ok = True
         for command in check.commands:
             if (
@@ -477,6 +577,10 @@ def run_checks(
             ):
                 ok = False
                 break
+        if ci:
+            print("::endgroup::", flush=True)
+            if not ok:
+                print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
         results.append(CheckResult(check.name, ok))
     return results
 
@@ -517,6 +621,11 @@ def run(
         action="store_true",
         help="Select all registered checks for the tier regardless of diff.",
     )
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        help="Format logs with GitHub Actions ::group:: folding and ::error:: annotations.",
+    )
     args = parser.parse_args(argv)
 
     if args.all:
@@ -556,7 +665,7 @@ def run(
     print(
         f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
     )
-    results = run_checks(selected, changed_files=files, runner=runner)
+    results = run_checks(selected, changed_files=files, runner=runner, ci=args.ci)
     for result in results:
         print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
     failed = [r.name for r in results if not r.ok]

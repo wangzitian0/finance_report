@@ -71,6 +71,12 @@ class TestSelectChecks:
         }
         assert {"governance-exceptions"}.issubset(names)
 
+    def test_fixture_edit_selects_recording_gates(self):
+        c_fixture = "common/testing/fixtures/llm_" + "cas" + "settes/example.json"
+        names = {c.name for c in preflight.select_checks([c_fixture])}
+        expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
+        assert expected.issubset(names)
+
     def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
         """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
         names = [
@@ -522,3 +528,67 @@ def test_changed_files_unions_committed_staged_unstaged_and_untracked():
         "c.py",
         "new_untracked.py",
     ]
+
+
+class TestCiLogging:
+    """GitHub Actions ::group:: folding and ::error:: annotation formatting."""
+
+    def test_run_checks_with_ci_formatting_on_success(self, capsys):
+        test_check = preflight.Check(
+            name="test-pass",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "ok"),),
+            why="test passing check",
+        )
+        results = preflight.run_checks(
+            [test_check],
+            changed_files=["foo.py"],
+            runner=lambda argv, cwd: 0,
+            ci=True,
+        )
+        assert len(results) == 1
+        assert results[0].ok is True
+        out = capsys.readouterr().out
+        expected_group = "::group::Gate [static] test-pass"
+        expected_endgroup = "::endgroup::"
+        error_tag = "::error::"
+        assert expected_group in out
+        assert expected_endgroup in out
+        assert error_tag not in out
+
+    def test_run_checks_with_ci_formatting_on_failure(self, capsys):
+        test_check = preflight.Check(
+            name="test-fail",
+            tier="static",
+            globs=("*.py",),
+            commands=(("echo", "fail"),),
+            why="test failing check",
+        )
+        results = preflight.run_checks(
+            [test_check],
+            changed_files=["foo.py"],
+            runner=lambda argv, cwd: 1,
+            ci=True,
+        )
+        assert len(results) == 1
+        assert results[0].ok is False
+        out = capsys.readouterr().out
+        expected_group = "::group::Gate [static] test-fail"
+        expected_endgroup = "::endgroup::"
+        expected_error = "::error::Gate test-fail failed: test failing check"
+        assert expected_group in out
+        assert expected_endgroup in out
+        assert expected_error in out
+
+    def test_run_cli_with_ci_flag(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "--ci", "--changed", "common/testing/preflight.py"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        group_tag = "::group::"
+        endgroup_tag = "::endgroup::"
+        assert group_tag in out
+        assert endgroup_tag in out

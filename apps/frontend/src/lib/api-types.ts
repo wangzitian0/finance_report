@@ -637,7 +637,7 @@ export interface paths {
         };
         /**
          * Health Check
-         * @description Return light or manifest-complete dependency health.
+         * @description Return fast liveness (default) or manifest-complete dependency health (?full=1).
          */
         get: operations["health_check_health_get"];
         put?: never;
