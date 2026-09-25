@@ -352,9 +352,23 @@ CHECKS: tuple[Check, ...] = (
             "apps/frontend/package.json",
             "tools/check_toolchain_contract.py",
             "common/runtime/check_toolchain_contract.py",
+            "tools/generate_workflows.py",
+            "common/runtime/generate_workflows.py",
         ),
         commands=((PY, "tools/check_toolchain_contract.py"),),
         why="toolchain contracts and version declarations must not drift",
+    ),
+    Check(
+        name="workflow-projection",
+        globs=(
+            "toolchain.toml",
+            ".github/workflows/*.yml",
+            ".github/actions/**/*.yml",
+            "tools/generate_workflows.py",
+            "common/runtime/generate_workflows.py",
+        ),
+        commands=((PY, "tools/generate_workflows.py", "--check"),),
+        why="workflows and actions must match toolchain SSOT projection",
     ),
     Check(
         name="ci-metrics-contract",

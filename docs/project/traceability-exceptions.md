@@ -71,6 +71,7 @@ explicit AC IDs for the behavior.
 |---|---|
 | `tests/tooling/test_smoke_min_checks.py` | `common/runtime/readme.md` (env_smoke_test owned by the runtime package) |
 | `tests/tooling/test_runtime_ssot_internalized.py` | `common/runtime/readme.md` (guards that the env-smoke-test SSOT stays internalized in the runtime package — the retired central doc is not resurrected) |
+| `tests/tooling/test_generate_workflows.py` | `common/runtime/readme.md` (guards deterministic workflow projection from toolchain SSOT) |
 | `apps/backend/tests/audit/money/test_money.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/ledger/test_processing_account_endpoints.py` | `common/ledger/readme.md` |
 | `apps/backend/tests/api/test_ai_feedback_router_extra.py` | `common/llm/ai.md` |
