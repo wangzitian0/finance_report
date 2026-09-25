@@ -371,10 +371,20 @@ async def generate_cash_flow(
     classified_activity = operating_total + investing_total + financing_total
     cash_delta = _quantize_money(ending_cash - beginning_cash)
     net_cash_flow = _quantize_money(cash_delta - opening_stock_adjustment)
+    calculated_fx_effect = Decimal("0")
     if bool(fx_needs):
-        fx_effect = _quantize_money(net_cash_flow - classified_activity - unclassified_cash)
-    else:
-        fx_effect = Decimal("0.00")
+        for event in events:
+            for line, _account in event.cash_lines:
+                source = line.currency.upper()
+                if source == target_currency:
+                    continue
+                if event.entry.entry_date < start_date:
+                    calculated_fx_effect += converted_delta(line, end_date) - converted_delta(line, start_date)
+                elif start_date <= event.entry.entry_date <= end_date:
+                    calculated_fx_effect += converted_delta(line, end_date) - converted_delta(
+                        line, event.entry.entry_date
+                    )
+    fx_effect = _quantize_money(calculated_fx_effect)
     bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
     discrepancy = _quantize_money(cash_delta - bridge_total)
     reconciles = discrepancy == Decimal("0.00")

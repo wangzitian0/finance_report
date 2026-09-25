@@ -800,6 +800,20 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-reporting.balance-sheet.7",
+            statement=(
+                "Balance sheet equation evaluation does not use circular plugging for CTA, "
+                "correctly reports is_balanced=False when assets are corrupted or dropped, "
+                "and excludes FX_REVALUATION entries from SQL aggregate balances to prevent double-counting."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_falsifiable_balance_sheet.py"
+                "::test_balance_sheet_equation_fails_when_asset_dropped_in_multicurrency"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group income-statement (was EPIC-005 AC5.2.1-3, migration
         # closeout continuation, #1663 / #1716) ──
         ACRecord(
@@ -3158,6 +3172,20 @@ CONTRACT = PackageContract(
             priority="P0",
             status="done",
             proof_kind="exact",
+        ),
+        ACRecord(
+            id="AC-reporting.cash-events.11",
+            statement=(
+                "Cash flow bridge fx_effect is calculated independently from foreign-currency "
+                "cash rate variances without circular plugging, exposing discrepancy and failing "
+                "reconciliation when cash activities are omitted or corrupted."
+            ),
+            test=(
+                "apps/backend/tests/reporting/test_falsifiable_cash_flow.py"
+                "::test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity"
+            ),
+            priority="P1",
+            status="done",
         ),
     ],
     governance=[

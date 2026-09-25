@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
 from src.reporting.base.balance_sheet_calculator import (
@@ -198,13 +199,18 @@ async def generate_balance_sheet(
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
     # Uses period-average FX rates for consistency with the income statement
     try:
-        net_income = await _aggregate_net_income_sql(
+        net_income_res = await _aggregate_net_income_sql(
             db,
             user_id,
             target_currency,
             as_of_date,
             fx_warnings=fx_warnings,
+            return_translation_variance=True,
         )
+        if isinstance(net_income_res, tuple):
+            net_income_raw, pnl_translation_variance = net_income_res
+        else:
+            net_income_raw, pnl_translation_variance = net_income_res, Decimal("0.00")
     except ReportError:
         raise
     except SQLAlchemyError as exc:
@@ -215,11 +221,29 @@ async def generate_balance_sheet(
         )
         raise ReportError(str(exc)) from exc
 
-    net_income = _quantize_money(net_income)
+    net_income = _quantize_money(net_income_raw)
 
     try:
         fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
-        unrealized_fx = _quantize_money(fx_revaluation.total_unrealized_gain_loss)
+        raw_unrealized = fx_revaluation.total_unrealized_gain_loss
+        base_curr = settings.base_currency.upper()
+        if target_currency.upper() != base_curr:
+            try:
+                rate = await fx_gateway.get_exchange_rate(
+                    db,
+                    base_curr,
+                    target_currency.upper(),
+                    as_of_date,
+                    lazy_load=True,
+                )
+                raw_unrealized = raw_unrealized * rate
+            except fx_gateway.FxRateError as exc:
+                logger.warning(
+                    "Failed to convert unrealized FX to target currency",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    error=str(exc),
+                )
+        unrealized_fx = _quantize_money(raw_unrealized)
     except RevaluationError as exc:
         if "Missing FX rate" not in str(exc):
             raise ReportError(str(exc)) from exc
@@ -242,13 +266,14 @@ async def generate_balance_sheet(
     )
     is_multicurrency = bool(included_ledger_currencies - {target_currency})
     cta_adjustment = calculate_currency_translation_adjustment(
+        is_multicurrency=is_multicurrency,
+        pnl_translation_variance=pnl_translation_variance,
         total_assets=total_assets,
         total_liabilities=total_liabilities,
         total_equity=total_equity,
         net_income=net_income,
         unrealized_fx=unrealized_fx,
         net_worth_adjustment=net_worth_adjustment,
-        is_multicurrency=is_multicurrency,
     )
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,
