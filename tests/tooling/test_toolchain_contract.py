@@ -200,6 +200,21 @@ def test_compose_image_formatting_is_not_drift(tmp_path: Path, quote: str) -> No
     assert contract.run_contract(tmp_path) == 0
 
 
+@pytest.mark.parametrize("quote", ["", "'", '"'])
+def test_action_image_formatting_is_not_drift(tmp_path: Path, quote: str) -> None:
+    """AC-testing.toolchain.1: Action YAML quoting style is non-semantic."""
+    _copy_contract_inputs(tmp_path)
+    image = contract.load_toolchain(tmp_path)["images"]["minio"]
+    target = tmp_path / ".github/actions/setup-minio/action.yml"
+    target.write_text(
+        target.read_text().replace(
+            image,
+            f"{quote}{image}{quote}",
+        )
+    )
+    assert contract.run_contract(tmp_path) == 0
+
+
 def test_AC8_13_39_module_entrypoint_exits_with_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

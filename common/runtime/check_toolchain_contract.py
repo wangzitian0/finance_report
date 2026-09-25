@@ -143,15 +143,14 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         errors.append(f"{minio_action_path}: file not found")
         minio_action_content = ""
 
-    action_tokens = {
-        token
+    action_lines = [
+        line
         for line in minio_action_content.splitlines()
         if not line.lstrip().startswith("#")
-        for token in line.split()
-    }
+    ]
     for key in ("minio", "minio_client"):
         image = toolchain["images"][key]
-        if image not in action_tokens:
+        if not any(image in line for line in action_lines):
             errors.append(
                 f"{minio_action_path}: MinIO setup action must use {key}={image!r}"
             )
@@ -179,15 +178,12 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         and ("MINIO_ROOT_USER" in block or "mc alias set" in block)
     ]
     for index, block in enumerate(minio_steps, start=1):
-        tokens = {
-            token
-            for line in block.splitlines()
-            if not line.lstrip().startswith("#")
-            for token in line.split()
-        }
+        block_lines = [
+            line for line in block.splitlines() if not line.lstrip().startswith("#")
+        ]
         for key in ("minio", "minio_client"):
             image = toolchain["images"][key]
-            if image not in tokens:
+            if not any(image in line for line in block_lines):
                 errors.append(
                     f"{ci_path}: MinIO acquisition step {index} must use {key}={image!r}"
                 )
