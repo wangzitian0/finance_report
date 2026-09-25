@@ -52,6 +52,7 @@
         "net_income": "1000.00",
         "unrealized_fx_gain_loss": "0.00",
         "net_worth_adjustment_gain_loss": "0.00",
+        "cta_adjustment": "0.00",
         "fx_warnings": [
           {
             "type": "missing_fx_rate_partial_skip",

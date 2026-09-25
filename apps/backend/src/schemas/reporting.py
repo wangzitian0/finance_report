@@ -89,6 +89,10 @@ class BalanceSheetResponse(BaseModel):
     net_income: Decimal = Decimal("0.00")
     unrealized_fx_gain_loss: Decimal = Decimal("0.00")
     net_worth_adjustment_gain_loss: Decimal = Decimal("0.00")
+    cta_adjustment: Decimal = Field(
+        default=Decimal("0.00"),
+        description="Foreign currency cumulative translation adjustment (CTA) reserve under IAS 21 / ASC 830.",
+    )
     fx_warnings: list[dict[str, str]] = Field(default_factory=list, description="Foreign-exchange conversion warnings.")
     # Point-in-time gap (#1791 follow-up): non-empty when a portfolio position
     # was excluded from total_assets because no price snapshot exists on or

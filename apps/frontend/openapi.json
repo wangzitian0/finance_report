@@ -1441,6 +1441,13 @@
             "title": "Assets",
             "type": "array"
           },
+          "cta_adjustment": {
+            "default": "0.00",
+            "description": "Foreign currency cumulative translation adjustment (CTA) reserve under IAS 21 / ASC 830.",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cta Adjustment",
+            "type": "string"
+          },
           "currency": {
             "description": "Report presentation currency.",
             "maxLength": 3,

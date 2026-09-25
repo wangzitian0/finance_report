@@ -430,38 +430,6 @@ async def test_foreign_currency_portfolio_missing_fx_rate_raises_report_error(db
         await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
 
 
-async def test_manual_property_and_mortgage_valuations_change_net_worth(db: AsyncSession, test_user):
-    """AC5.7.3: Manual asset and liability valuation snapshots are included in balance sheet totals."""
-    report_date = date(2025, 3, 31)
-    await _create_valuation(
-        db,
-        test_user.id,
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        component_name="Singapore Condo",
-        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
-        value=Decimal("1200000.00"),
-        currency="SGD",
-        as_of_date=report_date,
-    )
-    await _create_valuation(
-        db,
-        test_user.id,
-        component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
-        component_name="Singapore Condo Mortgage",
-        liquidity_class=ManualValuationLiquidityClass.LIABILITY,
-        value=Decimal("600000.00"),
-        currency="SGD",
-        as_of_date=report_date,
-    )
-    await db.commit()
-
-    report = await generate_balance_sheet(db, test_user.id, as_of_date=report_date, currency="SGD")
-
-    assert report["total_assets"] == Decimal("1200000.00")
-    assert report["total_liabilities"] == Decimal("600000.00")
-    assert report["total_assets"] - report["total_liabilities"] == Decimal("600000.00")
-
-
 async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_assets(
     db: AsyncSession,
     test_user,

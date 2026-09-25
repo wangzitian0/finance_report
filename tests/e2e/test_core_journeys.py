@@ -20,6 +20,7 @@ Covers:
 """
 
 import os
+import re
 import pytest
 import httpx
 from playwright.async_api import Page, expect
@@ -85,15 +86,15 @@ async def test_homepage_loads(app_url):
 @SKIP_UI
 async def test_dashboard_ui_load(page: Page, app_url):
     """EPIC-005 EPIC-007 EPIC-008 / AC8.13.9: Verify dashboard route smoke."""
-    await page.goto(f"{app_url}/dashboard")
+    await page.goto(f"{app_url}/dashboard", wait_until="domcontentloaded")
 
-    # We expect some key element to be present.
-    # Use Regex for title check as Playwright doesn't accept lambdas here.
-    try:
-        await expect(page).to_have_title(r"(Finance|Dashboard)", timeout=5000)
-    except AssertionError:
-        # Fallback if title check fails
-        await expect(page.locator("body")).to_be_visible()
+    # Verify title or redirect to login (never allow silent empty pass on error 500)
+    await expect(page).to_have_title(
+        re.compile(r"(Finance|Dashboard|Login)"), timeout=10_000
+    )
+    next_error = page.locator("h1.next-error-h1")
+    if await next_error.count() > 0:
+        await expect(next_error.first).not_to_contain_text("500")
 
 
 # --- API Integration Tests ---

@@ -25,6 +25,7 @@ function balanceWith(assets: BalanceSheetResponse["assets"]): BalanceSheetRespon
     net_worth_adjustment_gain_loss: "0",
     unrealized_fx_gain_loss: "0",
     equation_delta: "0",
+    cta_adjustment: "0",
     is_balanced: true,
   };
 }

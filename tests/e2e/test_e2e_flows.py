@@ -83,19 +83,18 @@ async def test_full_navigation(page: Page):
 
 
 @pytest.mark.e2e
-async def test_reports_view(page: Page):
+async def test_reports_view(authenticated_page: Page):
     """EPIC-005 EPIC-008 EPIC-016 / AC8.13.9 AC16.12.11: Reports route."""
+    page = authenticated_page
     await page.goto(get_url("/reports"), wait_until="domcontentloaded")
 
-    # Wait a moment for potential AuthGuard redirect
-    await wait_for_optional_login_redirect(page)
-
-    if "/login" in page.url:
-        # If redirected to login, verify login page basic visibility
-        await expect(page.locator("body")).to_be_visible()
-        return
-
-    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible()
+    # Authenticated user should land on /reports, never get redirected to /login
+    assert "/login" not in page.url, (
+        f"Authenticated user was unexpectedly redirected to login: {page.url}"
+    )
+    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(
+        timeout=15_000
+    )
 
 
 @pytest.mark.e2e

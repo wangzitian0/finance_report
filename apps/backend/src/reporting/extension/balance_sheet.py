@@ -12,6 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
+from src.reporting.base.balance_sheet_calculator import (
+    calculate_balance_sheet_equation,
+    calculate_currency_translation_adjustment,
+)
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_provenance,
@@ -236,8 +240,25 @@ async def generate_balance_sheet(
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )
-    total_liab_equity_inc = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
-    equation_delta = _quantize_money(total_assets - total_liab_equity_inc)
+    is_multicurrency = bool(included_ledger_currencies - {target_currency})
+    cta_adjustment = calculate_currency_translation_adjustment(
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
+        net_income=net_income,
+        unrealized_fx=unrealized_fx,
+        net_worth_adjustment=net_worth_adjustment,
+        is_multicurrency=is_multicurrency,
+    )
+    totals = calculate_balance_sheet_equation(
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
+        net_income=net_income,
+        unrealized_fx=unrealized_fx,
+        net_worth_adjustment=net_worth_adjustment,
+        cta_adjustment=cta_adjustment,
+    )
 
     # Source provenance is display metadata. Reporting does not infer assurance
     # from source labels; package authority is represented by TraceRecord.
@@ -283,15 +304,16 @@ async def generate_balance_sheet(
         "liabilities": response_liabilities,
         "equity": response_equity,
         "provenance": aggregate_provenance,
-        "total_assets": total_assets,
-        "total_liabilities": total_liabilities,
-        "total_equity": total_equity,
-        "net_income": net_income,
-        "unrealized_fx_gain_loss": unrealized_fx,
-        "net_worth_adjustment_gain_loss": net_worth_adjustment,
+        "total_assets": totals.total_assets,
+        "total_liabilities": totals.total_liabilities,
+        "total_equity": totals.total_equity,
+        "net_income": totals.net_income,
+        "unrealized_fx_gain_loss": totals.unrealized_fx,
+        "net_worth_adjustment_gain_loss": totals.net_worth_adjustment,
+        "cta_adjustment": totals.cta_adjustment,
         "fx_warnings": fx_warnings,
         "portfolio_warnings": portfolio_warnings,
         "opening_balance_warnings": opening_balance_warnings,
-        "equation_delta": equation_delta,
-        "is_balanced": abs(equation_delta) < Decimal("0.01"),
+        "equation_delta": totals.equation_delta,
+        "is_balanced": totals.is_balanced,
     }
