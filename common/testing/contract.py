@@ -3879,6 +3879,21 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-testing.preflight.5",
+            statement=(
+                "Worktree doctor recognizes squash-merged PR branches: an un-dirty "
+                "worktree with zero active file locks whose PR state is MERGED is "
+                "identified as safe to prune even when git merge-base --is-ancestor "
+                "returns non-zero due to GitHub squash-merge commit isolation."
+            ),
+            test=(
+                "tests/tooling/test_worktree_doctor.py"
+                "::test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs"
+            ),
+            priority="P1",
+            status="done",
+        ),
         # ── group diff-coverage: diff-scoped PR coverage gate + ratchet
         # demotion (#1810, metric layer: G-diff-coverage /
         # G-ratchet-backstop). The unit of the blocking PR coverage
