@@ -66,11 +66,11 @@ export function toTransactionViewModel(
     currency: ("currency" in raw ? raw.currency : null) ?? null,
     balance_after: overrides?.balance_after ?? rawBalanceAfter ?? null,
     status: overrides?.status ?? "pending",
-    confidence: overrides?.confidence ?? derivedConfidence ?? "high",
+    confidence: overrides?.confidence ?? derivedConfidence ?? "low",
     confidence_tier:
       overrides?.confidence_tier ??
       (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | undefined) ??
-      "HIGH",
+      "LOW",
     confidence_reason: overrides?.confidence_reason ?? null,
     raw_text: overrides?.raw_text ?? null,
     created_at: isAtomic

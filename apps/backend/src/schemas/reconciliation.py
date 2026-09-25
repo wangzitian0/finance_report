@@ -38,7 +38,7 @@ class BankTransactionSummary(BaseModel):
     amount: Decimal
     direction: str
     reference: str | None
-    currency: str = "SGD"
+    currency: str
     confidence_tier: str = "LOW"
 
 

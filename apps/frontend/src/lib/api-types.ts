@@ -3292,10 +3292,7 @@ export interface components {
              * @default LOW
              */
             confidence_tier: string;
-            /**
-             * Currency
-             * @default SGD
-             */
+            /** Currency */
             currency: string;
             /** Description */
             description: string;

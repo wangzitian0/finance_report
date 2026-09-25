@@ -1839,7 +1839,6 @@
             "type": "string"
           },
           "currency": {
-            "default": "SGD",
             "title": "Currency",
             "type": "string"
           },
@@ -1891,7 +1890,8 @@
           "description",
           "amount",
           "direction",
-          "reference"
+          "reference",
+          "currency"
         ],
         "title": "BankTransactionSummary",
         "type": "object"
