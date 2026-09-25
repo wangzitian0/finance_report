@@ -238,11 +238,19 @@ async def generate_balance_sheet(
                 )
                 raw_unrealized = raw_unrealized * rate
             except fx_gateway.FxRateError as exc:
+                fx_warnings.append(
+                    {
+                        "type": "missing_fx_rate_target_currency",
+                        "as_of_date": as_of_date.isoformat(),
+                        "message": str(exc),
+                    }
+                )
                 logger.warning(
                     "Failed to convert unrealized FX to target currency",
                     error_id=ErrorIds.REPORT_FX_FALLBACK,
                     error=str(exc),
                 )
+                raw_unrealized = Decimal("0.00")
         unrealized_fx = _quantize_money(raw_unrealized)
     except RevaluationError as exc:
         if "Missing FX rate" not in str(exc):

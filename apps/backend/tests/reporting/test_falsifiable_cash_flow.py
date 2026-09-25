@@ -23,7 +23,7 @@ from src.reporting.extension.cash_flow import generate_cash_flow
 async def test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity(
     db: AsyncSession, test_user, monkeypatch
 ):
-    """AC-reporting.cash-events.9: Dropping an activity in multi-currency cash flow MUST expose discrepancy.
+    """AC-reporting.cash-events.11: Dropping an activity in multi-currency cash flow MUST expose discrepancy.
 
     Proves that fx_effect does not blind plug and mask missing/corrupted cash flow activities.
     """

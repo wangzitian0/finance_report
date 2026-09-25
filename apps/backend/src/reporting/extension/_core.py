@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from sqlalchemy import case, func, literal, select
@@ -286,6 +286,45 @@ async def _aggregate_account_provenance(
         account_id: _combine_provenance(provenance_values)
         for account_id, provenance_values in provenance_inputs.items()
     }
+
+
+@overload
+async def _aggregate_net_income_sql(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    return_translation_variance: Literal[False] = False,
+) -> Decimal: ...
+
+
+@overload
+async def _aggregate_net_income_sql(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    return_translation_variance: Literal[True],
+) -> tuple[Decimal, Decimal]: ...
+
+
+@overload
+async def _aggregate_net_income_sql(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    start_date: date | None = None,
+    fx_warnings: list[FxWarning] | None = None,
+    return_translation_variance: bool = False,
+) -> Decimal | tuple[Decimal, Decimal]: ...
 
 
 async def _aggregate_net_income_sql(

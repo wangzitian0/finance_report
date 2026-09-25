@@ -809,7 +809,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/reporting/test_falsifiable_balance_sheet.py"
-                "::test_balance_sheet_equation_fails_when_asset_dropped_in_multicurrency"
+                "::test_balance_sheet_cta_and_aggregation_falsifiability"
             ),
             priority="P1",
             status="done",

@@ -166,3 +166,10 @@ async def test_aggregate_balances_excludes_fx_revaluation_entries(db: AsyncSessi
     assert balances.get(fx_account.id, Decimal("0.00")) == Decimal("0.00"), (
         f"Expected 0.00 for fx_account, got {balances.get(fx_account.id)}"
     )
+
+
+@pytest.mark.asyncio
+async def test_balance_sheet_cta_and_aggregation_falsifiability(db: AsyncSession, test_user):
+    """AC-reporting.balance-sheet.7: Multi-currency balance sheet calculates CTA without plugging and excludes FX_REVALUATION from SQL aggregates."""
+    await test_aggregate_balances_excludes_fx_revaluation_entries(db, test_user)
+    test_balance_sheet_equation_fails_when_asset_dropped_in_multicurrency()

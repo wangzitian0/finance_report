@@ -1648,7 +1648,7 @@ CONTRACT = PackageContract(
             ),
             test=(
                 "apps/backend/tests/review/test_falsifiable_consistency.py"
-                "::test_detect_duplicates_does_not_flag_different_currencies"
+                "::test_consistency_checks_strictly_partition_by_currency"
             ),
             priority="P1",
             status="done",
