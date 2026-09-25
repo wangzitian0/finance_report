@@ -79,6 +79,7 @@ describe("BalanceSheetPage", () => {
     // from_currency/to_currency had silently drifted from the backend.
     expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Balance Equation Detail")).toBeInTheDocument()
+    expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
     expect(screen.getByText("Excluded by default")).toBeInTheDocument()
     // Vector value assertions: the wire keeps decimal STRINGS end to end.
     expect(vector.total_assets).toBe("9500.00")
@@ -235,6 +236,24 @@ describe("BalanceSheetPage", () => {
     // Warning banner + CTA are shown on the report surface, not just /accounts.
     expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts")
+    expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
+  })
+
+  // AC-reporting.fe-viz-reports.10
+  it("renders non-zero CTA adjustment in multicurrency scenario", async () => {
+    const vector = {
+      ...balanceSheetVector(),
+      cta_adjustment: "142.50",
+      equation_delta: "0.00",
+      is_balanced: true,
+    }
+    mockedApiFetch.mockResolvedValue(vector)
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
+    expect(screen.getByTestId("equation-detail-cta")).toHaveTextContent("142.50")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
   })
 })
