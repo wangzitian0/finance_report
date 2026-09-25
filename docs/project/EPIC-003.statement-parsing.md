@@ -161,16 +161,6 @@ or HK-like report classification, measurement, presentation, or disclosure.
 
 ---
 
-## 📝 Technical Debt
-
-| Item | Priority | Planned Resolution |
-|------|--------|--------------|
-| Local PDF parsing fallback | P2 | Future iteration |
-| Additional bank support (UOB, Citi) | P3 | Future iteration |
-| OCR preprocessing (scanned docs) | P3 | Future iteration |
-
----
-
 ## 🛡️ Post-Release Fixes
 
 | Fix | PR | Root Cause |
@@ -196,25 +186,6 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 
 ---
 
-## ❓ Q&A (Clarification Required)
-
-### Q5: Bank Priority Support
-> **Decision**: Adopt highly extensible statement model (Core fields + Extension JSONB). Supported: DBS, CMB, Maybank, Wise, Generic.
-
-### Q6: Gemini API Cost Control
-> **Decision**: Use OpenRouter limits ($2 daily). App handles quota exhaustion gracefully.
-
-### Q7: Parsing Failure Handling
-> **Decision**: Manual retry with explicit model selection.
-
-### Q8: Statement-Account Linking
-> **Decision**: Parse first, then AI recommends linking, user confirms.
-
-### Q9: Historical Statement Import
-> **Decision**: Async ETL task queue architecture (Upload -> Task -> Process -> Result).
-
----
-
 ## 📅 Timeline
 
 | Phase | Content | Status |
@@ -223,14 +194,3 @@ These non-EPIC docs are part of this EPIC's maintained surface:
 | Week 2 | Validation layer + API + Prompt tuning | ✅ Done |
 | Week 3 | Frontend UI + Multi-bank testing | ✅ Done |
 | Week 4 | ETL queue + Manual retry + Integration | ✅ Done |
-
-## Acceptance Criteria
-
-> **Migrated (2026-07-03, #1421 Stage-2 cutover):** all 73 ACs moved to
-> the `extraction` package roadmap in
-> [`common/extraction/contract.py`](../../common/extraction/contract.py) as
-> `AC-extraction.<group>.<seq>` — this EPIC's rows occupy the reserved
-> groups 1–12 (leading epic number dropped), per Decision A (standard-preserving move — every AC kept its
-> statement, anchored test, and priority; the package tier is LLM-LED with
-> per-AC `proof_kind`). This table intentionally holds no rows; the contract
-> roadmap is the single source.

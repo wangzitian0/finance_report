@@ -1,10 +1,22 @@
 """Dokploy API client + compose CRUD + deployment rollout.
 
 @deprecated-host-adapter
-Architectural Notice:
+Architectural Notice (origin: #2070):
 Dokploy API operations belong to the platform/workspace layer (infra2). This module
 is retained strictly to maintain backward-compatible manual preview deployment and
 existing AC8.13 gate contracts. Do NOT introduce new callers to this module.
+
+Deletion exit conditions (cleanup campaign: #2161; no dedicated migration issue
+exists yet — mint one before starting the cutover):
+1. Every ``cli.py`` call site here (``get_or_create_compose_with_status``,
+   ``deploy_compose``, ``delete_compose``, ...) moves to the infra2 dispatch
+   flow (preview teardown already moved, see #2070) or an in-repo replacement.
+2. The AC8.13 gate contracts anchored on this module are re-anchored or
+   retired together with their call sites.
+3. The ``_dokploy.*`` monkeypatches in
+   ``tests/tooling/test_pr_preview_lifecycle.py`` migrate with the callers.
+Until all three hold this module is load-bearing: deleting it breaks the PR
+preview lifecycle.
 """
 
 from __future__ import annotations
