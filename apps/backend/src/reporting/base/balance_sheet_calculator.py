@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from src.audit.money import to_money
+
 
 @dataclass(frozen=True)
 class BalanceSheetTotals:
@@ -47,7 +49,7 @@ def calculate_currency_translation_adjustment(
 
     unadjusted_equity_liab = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
     raw_cta = total_assets - unadjusted_equity_liab
-    return raw_cta.quantize(Decimal("0.01"))
+    return to_money(raw_cta)
 
 
 def calculate_balance_sheet_equation(
@@ -65,21 +67,21 @@ def calculate_balance_sheet_equation(
 
     Assets == Liabilities + Equity + NetIncome + UnrealizedFX + NetWorthAdjustment + CTA
     """
-    total_liabilities_and_equity = (
+    total_liabilities_and_equity = to_money(
         total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment + cta_adjustment
-    ).quantize(Decimal("0.01"))
+    )
 
-    delta = (total_assets - total_liabilities_and_equity).quantize(Decimal("0.01"))
+    delta = to_money(total_assets - total_liabilities_and_equity)
     is_balanced = abs(delta) < balance_tolerance
 
     return BalanceSheetTotals(
-        total_assets=total_assets.quantize(Decimal("0.01")),
-        total_liabilities=total_liabilities.quantize(Decimal("0.01")),
-        total_equity=total_equity.quantize(Decimal("0.01")),
-        net_income=net_income.quantize(Decimal("0.01")),
-        unrealized_fx=unrealized_fx.quantize(Decimal("0.01")),
-        net_worth_adjustment=net_worth_adjustment.quantize(Decimal("0.01")),
-        cta_adjustment=cta_adjustment.quantize(Decimal("0.01")),
+        total_assets=to_money(total_assets),
+        total_liabilities=to_money(total_liabilities),
+        total_equity=to_money(total_equity),
+        net_income=to_money(net_income),
+        unrealized_fx=to_money(unrealized_fx),
+        net_worth_adjustment=to_money(net_worth_adjustment),
+        cta_adjustment=to_money(cta_adjustment),
         total_liabilities_and_equity=total_liabilities_and_equity,
         equation_delta=delta,
         is_balanced=is_balanced,
