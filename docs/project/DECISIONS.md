@@ -1,5 +1,10 @@
 # 📋 EPIC Q&A Decision Summary
 
+> **Historical**: Frozen 2026-01-09 — this is the planning-phase decision
+> record for EPIC-002 through EPIC-006, not a living specification. Current
+> sources of truth are `vision.md` and each package's contract/readme; do not
+> cite this file as the current standard.
+
 > **Completion Date**: 2026-01-09  
 > **Branch**: `feat/epic-planning`  
 > **Status**: ✅ All 24 questions answered and documented

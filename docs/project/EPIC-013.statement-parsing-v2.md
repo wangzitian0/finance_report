@@ -119,19 +119,12 @@ The following item was identified during the vision.md recovery audit as a featu
 
 ## 🗄️ Archive Integration Notes
 
-The useful EPIC-013 items from the removed `EPIC-ENCODING-SUMMARY.md` archive
-snapshot are consolidated as current proof gaps. The removed inventory is
-retained in [#548](https://github.com/wangzitian0/finance_report/issues/548):
-
-- Institution auto-detection accepts omitted `institution` for PDF/image flows,
-  but still needs provider-backed integration evidence that real document
-  headers/logos produce the expected institution.
-- Currency and running-balance display are delivered as V2 objectives, but UI
-  tests should continue to prove the transaction table keeps those columns
-  visible.
-- V1 and V2 confidence scoring tests coexist; production paths should keep
-  proving that V2 factors, including balance progression and currency
-  consistency, are the active scoring path.
+The three proof gaps formerly consolidated here (institution auto-detection
+integration evidence, V2 currency/balance column visibility, V2 scoring path
+being the active one) are tracked in
+[#2162](https://github.com/wangzitian0/finance_report/issues/2162); the
+removed `EPIC-ENCODING-SUMMARY.md` inventory is retained in
+[#548](https://github.com/wangzitian0/finance_report/issues/548).
 
 ## 📏 Acceptance Criteria
 
