@@ -49,6 +49,7 @@ from src.extraction.extension.brokerage_positions import (
 from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.custody_binding import (
+    BankCustodyAllocation,
     release_rejected_custody,
     resolve_bank_custody,
     validate_custody_account,
@@ -244,55 +245,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             sanitized_account_last4 = self._sanitize_account_last4(extracted.get("account_last4"))
             # Auto-create and link the physical bank account so a high-confidence,
             # balance-validated statement can reach APPROVED and auto-post without
-            # the everyday user having to map an account first (#1444). The account
-            # is a *factual* asset account keyed on institution + last4 + currency
-            # (mirrors the brokerage auto-account path); category (counter-account)
-            # classification stays a separate, user-adjustable layer. Skipped for
-            # brokerage payloads (they own a broker account at import) and when no
-            # db, real institution, or last4 is available to key a stable account.
-            bank_allocation = None
-            if db is not None and account_id is not None and not is_brokerage_payload:
-                await validate_custody_account(db, user_id=user_id, account_id=account_id, currency=statement_currency)
-            if db is not None and not is_brokerage_payload and final_institution and statement_currency:
-                if sanitized_account_last4:
-                    bank_allocation = await resolve_bank_custody(
-                        db,
-                        user_id=user_id,
-                        institution=final_institution,
-                        account_last4=sanitized_account_last4,
-                        currency=statement_currency,
-                        account_id=account_id,
-                    )
-                    account_id = bank_allocation.account.id
-                elif account_id is None:
-                    from sqlalchemy import select
-
-                    from src.extraction.orm.bank_custody_binding import BankCustodyBinding
-
-                    bindings = (
-                        (
-                            await db.execute(
-                                select(BankCustodyBinding)
-                                .where(
-                                    BankCustodyBinding.user_id == user_id,
-                                    BankCustodyBinding.institution == final_institution,
-                                    BankCustodyBinding.currency == statement_currency,
-                                )
-                                .limit(2)
-                            )
-                        )
-                        .scalars()
-                        .all()
-                    )
-                    if len(bindings) == 1:
-                        await validate_custody_account(
-                            db,
-                            user_id=user_id,
-                            account_id=bindings[0].account_id,
-                            currency=statement_currency,
-                        )
-                        account_id = bindings[0].account_id
-                        sanitized_account_last4 = bindings[0].account_last4
+            # the everyday user having to map an account first (#1444). The
+            # factual-account rules live in _resolve_bank_account_binding.
+            account_id, sanitized_account_last4, bank_allocation = await self._resolve_bank_account_binding(
+                db=db,
+                user_id=user_id,
+                account_id=account_id,
+                institution=final_institution,
+                statement_currency=statement_currency,
+                sanitized_account_last4=sanitized_account_last4,
+                is_brokerage_payload=is_brokerage_payload,
+            )
 
             statement = StatementSummary(
                 user_id=user_id,
@@ -308,116 +271,20 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 extraction_metadata=None,
             )
 
-            # Per-currency brokerage NAV (#1139 AC-B3): a multi-currency brokerage
-            # statement holds positions in several currencies at once. Persisting
-            # only the scalar opening/closing would cross-sum unrelated currencies
-            # into a meaningless NAV. Instead derive the per-currency balance array
-            # (each currency an independent closed loop) and persist it additively
-            # to the scalar columns; reconciliation then runs per currency.
-            # When per-currency brokerage reconciliation fails we must not stamp the
-            # statement as balance-valid (mirrors the scalar invalid-balance path
-            # below). Capture the failure note here so it propagates into
-            # ``balance_validated`` / ``validation_error`` after the scalar check.
-            per_currency_invalid_note: str | None = None
-            if is_brokerage_payload:
-                brokerage_balances = brokerage_currency_balances(
-                    extracted,
-                    filename=original_filename or (file_path.name if file_path else None),
-                    institution=final_institution,
-                )
-                if brokerage_balances:
-                    # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
-                    # close per currency); never cross-sum. A snapshot has no cash
-                    # flow, so each currency is a zero-net closed loop and must
-                    # reconcile before we trust it.
-                    per_currency_result = validate_balance_per_currency(
-                        {"balances": brokerage_balances, "transactions": []}
-                    )
-                    if not per_currency_result["balance_valid"]:
-                        # Respect the self-check result: surface the failing
-                        # currencies so the persisted statement carries the invalid
-                        # flag rather than silently looking reconciled (#1160 CR1).
-                        failed = [
-                            f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
-                            for r in per_currency_result.get("per_currency", [])
-                            if not r.get("balance_valid")
-                        ]
-                        per_currency_invalid_note = (
-                            "Per-currency NAV self-check failed: " + ", ".join(failed)
-                            if failed
-                            else "Per-currency NAV self-check failed"
-                        )
-                        logger.warning(
-                            "Per-currency brokerage NAV failed self-check",
-                            per_currency=per_currency_result["per_currency"],
-                        )
-                        # Observability (EPIC-026 AC26.8.1): promote this invariant
-                        # violation to a structured, queryable counter. Pure
-                        # detection — the per_currency_invalid_note above already
-                        # owns the (unchanged) status/balance_validated behavior.
-                        record_financial_invariant_violation(
-                            kind="per_currency_nav",
-                            institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                        )
-                    # Serialize Decimal -> str for the JSONB column (no float). The
-                    # scalar opening/closing columns stay populated for the
-                    # single-currency degenerate case and backward compatibility;
-                    # this array is additive and never cross-sums currencies. The
-                    # array is still persisted (it is the per-currency evidence), but
-                    # the invalid flag above ensures it is not mistaken for valid.
-                    statement.currency_balances = [
-                        {
-                            "currency": bucket["currency"],
-                            "opening": str(bucket["opening"]),
-                            "closing": str(bucket["closing"]),
-                        }
-                        for bucket in brokerage_balances
-                    ]
-
-            # AC4.13.9 (#1502): bank parity with the brokerage per-currency path.
-            # A multi-currency BANK statement (e.g. a DBS consolidated / multi-
-            # currency account) holds several currencies at once. Collapsing them
-            # into one scalar opening/closing — or worse, cross-summing the per-
-            # currency transaction nets — is meaningless. When the bank payload
-            # declares per-currency ``balances`` for >1 currency, persist the array
-            # and reconcile each currency independently; ``is_valid`` is then
-            # governed by that per-currency self-check below. Single-currency bank
-            # statements keep ``bank_balances=None`` and the unchanged scalar path.
-            bank_balances = None
-            if not is_brokerage_payload:
-                # A malformed multi-currency payload (duplicate currency, non-numeric
-                # amount) must not crash the whole extraction: degrade to a flagged,
-                # reviewable statement instead of a 500. The deterministic invalid
-                # note routes it through the existing quarantine path.
-                try:
-                    bank_balances = bank_currency_balances(extracted)
-                except (ValueError, InvalidOperation, TypeError) as exc:
-                    bank_balances = None
-                    per_currency_invalid_note = f"Per-currency balances could not be parsed: {exc}"
-                    record_financial_invariant_violation(
-                        kind="per_currency_balance",
-                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                    )
-                if bank_balances:
-                    bank_per_currency = validate_balance_per_currency(
-                        {"balances": bank_balances, "transactions": extracted.get("transactions", [])}
-                    )
-                    if not bank_per_currency["balance_valid"]:
-                        failed = [
-                            f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
-                            for r in bank_per_currency.get("per_currency", [])
-                            if not r.get("balance_valid")
-                        ]
-                        per_currency_invalid_note = (
-                            "Per-currency balance self-check failed: " + ", ".join(failed)
-                            if failed
-                            else "Per-currency balance self-check failed"
-                        )
-                        record_financial_invariant_violation(
-                            kind="per_currency_balance",
-                            institution_class=_institution_class(is_brokerage=is_brokerage_payload),
-                        )
-                    statement.currency_balances = bank_balances
+            # Per-currency balance derivation + self-check for both payload
+            # classes (brokerage NAV #1139 AC-B3; bank parity #1502 AC4.13.9):
+            # never cross-sum currencies; a failing per-currency self-check
+            # invalidates the statement. Full rationale in
+            # _compute_per_currency_balances.
+            bank_balances, currency_balances_value, per_currency_invalid_note = self._compute_per_currency_balances(
+                extracted=extracted,
+                statement=statement,
+                is_brokerage_payload=is_brokerage_payload,
+                filename=original_filename or (file_path.name if file_path else None),
+                institution=final_institution,
+            )
+            if currency_balances_value is not None:
+                statement.currency_balances = currency_balances_value
 
             transactions: list[ExtractedTransactionRow] = []
             net_transactions = Decimal("0.00")
@@ -430,106 +297,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             occurrence_counts: dict[tuple, int] = {}
             custody_scope = f"account:{account_id}" if account_id is not None else f"source:{source.content_hash}"
             for txn in extracted.get("transactions", []):
-                if not txn.get("date") or txn.get("amount") is None:
-                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
-                        logger.info(
-                            "Skipping non-bank transaction row in brokerage payload",
-                            filename=original_filename or (file_path.name if file_path else "unknown"),
-                        )
-                        continue
-                    raise ExtractionError("Transaction missing required fields: date or amount")
-
-                # Handle case where the model returns date as non-string
-                txn_date_val = txn["date"]
-                if not isinstance(txn_date_val, str):
-                    txn_date_val = str(txn_date_val)
-
-                # Every declared transaction must become a fact or an explicit
-                # source failure; aggregate balance equality cannot prove recall.
-                parsed_date = _tolerant_parse_date(txn_date_val)
-                if parsed_date is None:
-                    raise ExtractionError(
-                        "Transaction date could not be parsed. No partial transaction set was imported; "
-                        "retry extraction or review the original source."
-                    )
-
-                try:
-                    amount = Decimal(str(txn["amount"]))
-                except (ValueError, TypeError, InvalidOperation) as exc:
-                    if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
-                        logger.info(
-                            "Skipping brokerage transaction row with non-bank amount",
-                            filename=original_filename or (file_path.name if file_path else "unknown"),
-                        )
-                        continue
-                    raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
-                amount, direction = normalize_amount_direction(amount, txn.get("direction"))
-                if direction == "IN":
-                    net_transactions += amount
-                else:
-                    net_transactions -= amount
-
-                # EPIC-012 AC12.40.1/.2: establish the currency at the ingest boundary from
-                # the parsed transaction then the statement's RAW extracted currency. When
-                # neither is a valid ISO-4217 code, flag the row ``currency_unresolved`` so it
-                # is routed to human review instead of silently defaulting to the base currency.
-                resolved_currency = resolve_ingest_currency(txn.get("currency"), raw_statement_currency)
-                txn_currency = resolved_currency.code
-                txn_balance_after = self._safe_decimal(txn.get("balance_after"))
-                txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
-                txn_description = txn.get("description", "Unknown")
-                txn_reference = txn.get("reference")
-
-                # Dedup disambiguator (see calculate_transaction_hash): the running balance
-                # (when present) paired with a per-document occurrence ordinal among rows that
-                # would otherwise hash identically. The ordinal is counted over the FULL hash
-                # key — including balance_after — so two genuinely-distinct same-date/same-amount
-                # rows that share one running balance (#1254: a deposit before a carried-forward
-                # row and an identical deposit after the brought-forward row across a page
-                # boundary) stay distinct instead of the second collapsing into the first. Rows
-                # with a different running balance get their own independent ordinal-0 counter, so
-                # this never merges rows that the balance already separates. 🚨 The extracted
-                # balance_after / occurrence_index are stashed on transient attributes that
-                # dual_write_layer2 reuses to keep its upsert hash identical.
-                occ_key = (
-                    parsed_date,
-                    _decimal_key(amount),
-                    txn_direction.value,
-                    txn_description.strip().lower(),
-                    txn_reference or "",
-                    txn_currency,
-                    _decimal_key(txn_balance_after) if txn_balance_after is not None else "",
-                )
-                occurrence_index = occurrence_counts.get(occ_key, 0)
-                occurrence_counts[occ_key] = occurrence_index + 1
-
-                dedup_hash = self.deduplication_service.calculate_transaction_hash(
-                    user_id,
-                    parsed_date,
-                    amount,
-                    txn_direction,
-                    txn_description,
-                    reference=txn_reference,
-                    balance_after=txn_balance_after,
-                    occurrence_index=occurrence_index,
-                    currency=txn_currency,
-                    custody_scope=custody_scope,
-                )
-
-                transaction = ExtractedTransactionRow(
+                built = self._build_transaction_row(
+                    txn=txn,
+                    evidence_type=evidence_type,
+                    filename=original_filename or (file_path.name if file_path else "unknown"),
+                    raw_statement_currency=raw_statement_currency,
                     user_id=user_id,
-                    txn_date=parsed_date,
-                    amount=amount,
-                    direction=txn_direction.value,
-                    description=txn_description,
-                    reference=txn_reference,
-                    currency=txn_currency,
-                    currency_unresolved=resolved_currency.unresolved,
-                    balance_after=txn_balance_after,
-                    occurrence_index=occurrence_index,
-                    dedup_hash=dedup_hash,
+                    occurrence_counts=occurrence_counts,
                     custody_scope=custody_scope,
                 )
+                if built is None:
+                    continue
+                transaction, signed_delta = built
+                net_transactions += signed_delta
                 transactions.append(transaction)
 
             # Within-document dedup-collapse signal (EPIC-026 AC26.8.1; #1254 class).
@@ -844,6 +624,316 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 logger.exception("Failed to parse document")
                 raise ExtractionError(f"Failed to parse document: {e}") from e
             raise
+
+    async def _resolve_bank_account_binding(
+        self,
+        *,
+        db: AsyncSession | None,
+        user_id: UUID,
+        account_id: UUID | None,
+        institution: str | None,
+        statement_currency: str | None,
+        sanitized_account_last4: str | None,
+        is_brokerage_payload: bool,
+    ) -> tuple[UUID | None, str | None, BankCustodyAllocation | None]:
+        """Auto-create/link the physical bank custody account (#1444).
+
+        A *factual* asset account keyed on institution + last4 + currency
+        (mirrors the brokerage auto-account path); category (counter-account)
+        classification stays a separate, user-adjustable layer. Skipped for
+        brokerage payloads (they own a broker account at import) and when no
+        db, real institution, or last4 is available to key a stable account.
+        Behavior-preserving extraction from ``parse_document`` (#2161 G-002).
+        """
+        bank_allocation = None
+        if db is not None and account_id is not None and not is_brokerage_payload:
+            await validate_custody_account(db, user_id=user_id, account_id=account_id, currency=statement_currency)
+        if db is not None and not is_brokerage_payload and institution and statement_currency:
+            if sanitized_account_last4:
+                bank_allocation = await resolve_bank_custody(
+                    db,
+                    user_id=user_id,
+                    institution=institution,
+                    account_last4=sanitized_account_last4,
+                    currency=statement_currency,
+                    account_id=account_id,
+                )
+                account_id = bank_allocation.account.id
+            elif account_id is None:
+                from sqlalchemy import select
+
+                from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+
+                bindings = (
+                    (
+                        await db.execute(
+                            select(BankCustodyBinding)
+                            .where(
+                                BankCustodyBinding.user_id == user_id,
+                                BankCustodyBinding.institution == institution,
+                                BankCustodyBinding.currency == statement_currency,
+                            )
+                            .limit(2)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                if len(bindings) == 1:
+                    await validate_custody_account(
+                        db,
+                        user_id=user_id,
+                        account_id=bindings[0].account_id,
+                        currency=statement_currency,
+                    )
+                    account_id = bindings[0].account_id
+                    sanitized_account_last4 = bindings[0].account_last4
+        return account_id, sanitized_account_last4, bank_allocation
+
+    def _compute_per_currency_balances(
+        self,
+        *,
+        extracted: dict[str, Any],
+        statement: StatementSummary,
+        is_brokerage_payload: bool,
+        filename: str | None,
+        institution: str | None,
+    ) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]] | None, str | None]:
+        """Per-currency balance derivation + self-check for both payload classes.
+
+        Brokerage NAV (#1139 AC-B3) and bank parity (#1502 AC4.13.9): a
+        multi-currency statement holds positions/transactions in several
+        currencies at once; cross-summing them into one scalar is meaningless,
+        so each currency is reconciled as an independent closed loop. Returns
+        ``(bank_balances, currency_balances_to_persist, invalid_note)``:
+        ``bank_balances`` feeds the later balance-evaluability logic,
+        ``currency_balances_to_persist`` is the value for
+        ``statement.currency_balances`` (``None`` = leave unset), and
+        ``invalid_note`` propagates into ``balance_validated`` /
+        ``validation_error`` after the scalar check. Behavior-preserving
+        extraction from ``parse_document`` (#2161 G-002).
+        """
+        per_currency_invalid_note: str | None = None
+        currency_balances_value: list[dict[str, Any]] | None = None
+        if is_brokerage_payload:
+            brokerage_balances = brokerage_currency_balances(
+                extracted,
+                filename=filename,
+                institution=institution,
+            )
+            if brokerage_balances:
+                # Reconcile each currency independently (open + ΣIN − ΣOUT ≈
+                # close per currency); never cross-sum. A snapshot has no cash
+                # flow, so each currency is a zero-net closed loop and must
+                # reconcile before we trust it.
+                per_currency_result = validate_balance_per_currency(
+                    {"balances": brokerage_balances, "transactions": []}
+                )
+                if not per_currency_result["balance_valid"]:
+                    # Respect the self-check result: surface the failing
+                    # currencies so the persisted statement carries the invalid
+                    # flag rather than silently looking reconciled (#1160 CR1).
+                    failed = [
+                        f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
+                        for r in per_currency_result.get("per_currency", [])
+                        if not r.get("balance_valid")
+                    ]
+                    per_currency_invalid_note = (
+                        "Per-currency NAV self-check failed: " + ", ".join(failed)
+                        if failed
+                        else "Per-currency NAV self-check failed"
+                    )
+                    logger.warning(
+                        "Per-currency brokerage NAV failed self-check",
+                        per_currency=per_currency_result["per_currency"],
+                    )
+                    # Observability (EPIC-026 AC26.8.1): promote this invariant
+                    # violation to a structured, queryable counter. Pure
+                    # detection — the per_currency_invalid_note above already
+                    # owns the (unchanged) status/balance_validated behavior.
+                    record_financial_invariant_violation(
+                        kind="per_currency_nav",
+                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                    )
+                # Serialize Decimal -> str for the JSONB column (no float). The
+                # scalar opening/closing columns stay populated for the
+                # single-currency degenerate case and backward compatibility;
+                # this array is additive and never cross-sums currencies. The
+                # array is still persisted (it is the per-currency evidence), but
+                # the invalid flag above ensures it is not mistaken for valid.
+                currency_balances_value = [
+                    {
+                        "currency": bucket["currency"],
+                        "opening": str(bucket["opening"]),
+                        "closing": str(bucket["closing"]),
+                    }
+                    for bucket in brokerage_balances
+                ]
+
+        # AC4.13.9 (#1502): bank parity with the brokerage per-currency path.
+        # A multi-currency BANK statement (e.g. a DBS consolidated / multi-
+        # currency account) holds several currencies at once. Collapsing them
+        # into one scalar opening/closing — or worse, cross-summing the per-
+        # currency transaction nets — is meaningless. When the bank payload
+        # declares per-currency ``balances`` for >1 currency, persist the array
+        # and reconcile each currency independently; ``is_valid`` is then
+        # governed by that per-currency self-check below. Single-currency bank
+        # statements keep ``bank_balances=None`` and the unchanged scalar path.
+        bank_balances = None
+        if not is_brokerage_payload:
+            # A malformed multi-currency payload (duplicate currency, non-numeric
+            # amount) must not crash the whole extraction: degrade to a flagged,
+            # reviewable statement instead of a 500. The deterministic invalid
+            # note routes it through the existing quarantine path.
+            try:
+                bank_balances = bank_currency_balances(extracted)
+            except (ValueError, InvalidOperation, TypeError) as exc:
+                bank_balances = None
+                per_currency_invalid_note = f"Per-currency balances could not be parsed: {exc}"
+                record_financial_invariant_violation(
+                    kind="per_currency_balance",
+                    institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                )
+            if bank_balances:
+                bank_per_currency = validate_balance_per_currency(
+                    {"balances": bank_balances, "transactions": extracted.get("transactions", [])}
+                )
+                if not bank_per_currency["balance_valid"]:
+                    failed = [
+                        f"{r['currency']} (expected {r.get('expected_closing')}, got {r.get('actual_closing')})"
+                        for r in bank_per_currency.get("per_currency", [])
+                        if not r.get("balance_valid")
+                    ]
+                    per_currency_invalid_note = (
+                        "Per-currency balance self-check failed: " + ", ".join(failed)
+                        if failed
+                        else "Per-currency balance self-check failed"
+                    )
+                    record_financial_invariant_violation(
+                        kind="per_currency_balance",
+                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                    )
+                currency_balances_value = bank_balances
+        return bank_balances, currency_balances_value, per_currency_invalid_note
+
+    def _build_transaction_row(
+        self,
+        *,
+        txn: dict[str, Any],
+        evidence_type: StatementEvidenceType,
+        filename: str | None,
+        raw_statement_currency: str | None,
+        user_id: UUID,
+        occurrence_counts: dict[tuple, int],
+        custody_scope: str,
+    ) -> tuple[ExtractedTransactionRow, Decimal] | None:
+        """Build one ExtractedTransactionRow, or skip a brokerage non-bank row.
+
+        Returns ``(row, signed_delta)`` where signed_delta is ``+amount`` for
+        IN and ``-amount`` for OUT, or ``None`` for a brokerage row
+        deliberately skipped (POSITION_SNAPSHOT payloads may carry non-bank
+        rows). Raises ``ExtractionError`` for genuinely malformed rows.
+        ``occurrence_counts`` is the per-document dedup disambiguator
+        accumulator (#1254), mutated in place. Behavior-preserving extraction
+        from ``parse_document`` (#2161 G-002).
+        """
+        if not txn.get("date") or txn.get("amount") is None:
+            if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
+                logger.info(
+                    "Skipping non-bank transaction row in brokerage payload",
+                    filename=filename,
+                )
+                return None
+            raise ExtractionError("Transaction missing required fields: date or amount")
+
+        # Handle case where the model returns date as non-string
+        txn_date_val = txn["date"]
+        if not isinstance(txn_date_val, str):
+            txn_date_val = str(txn_date_val)
+
+        # Every declared transaction must become a fact or an explicit
+        # source failure; aggregate balance equality cannot prove recall.
+        parsed_date = _tolerant_parse_date(txn_date_val)
+        if parsed_date is None:
+            raise ExtractionError(
+                "Transaction date could not be parsed. No partial transaction set was imported; "
+                "retry extraction or review the original source."
+            )
+
+        try:
+            amount = Decimal(str(txn["amount"]))
+        except (ValueError, TypeError, InvalidOperation) as exc:
+            if evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
+                logger.info(
+                    "Skipping brokerage transaction row with non-bank amount",
+                    filename=filename,
+                )
+                return None
+            raise ExtractionError(f"Invalid transaction amount: {txn.get('amount')}") from exc
+        amount, direction = normalize_amount_direction(amount, txn.get("direction"))
+        # EPIC-012 AC12.40.1/.2: establish the currency at the ingest boundary from
+        # the parsed transaction then the statement's RAW extracted currency. When
+        # neither is a valid ISO-4217 code, flag the row ``currency_unresolved`` so it
+        # is routed to human review instead of silently defaulting to the base currency.
+        resolved_currency = resolve_ingest_currency(txn.get("currency"), raw_statement_currency)
+        txn_currency = resolved_currency.code
+        txn_balance_after = self._safe_decimal(txn.get("balance_after"))
+        txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
+        txn_description = txn.get("description", "Unknown")
+        txn_reference = txn.get("reference")
+
+        # Dedup disambiguator (see calculate_transaction_hash): the running balance
+        # (when present) paired with a per-document occurrence ordinal among rows that
+        # would otherwise hash identically. The ordinal is counted over the FULL hash
+        # key — including balance_after — so two genuinely-distinct same-date/same-amount
+        # rows that share one running balance (#1254: a deposit before a carried-forward
+        # row and an identical deposit after the brought-forward row across a page
+        # boundary) stay distinct instead of the second collapsing into the first. Rows
+        # with a different running balance get their own independent ordinal-0 counter, so
+        # this never merges rows that the balance already separates. 🚨 The extracted
+        # balance_after / occurrence_index are stashed on transient attributes that
+        # dual_write_layer2 reuses to keep its upsert hash identical.
+        occ_key = (
+            parsed_date,
+            _decimal_key(amount),
+            txn_direction.value,
+            txn_description.strip().lower(),
+            txn_reference or "",
+            txn_currency,
+            _decimal_key(txn_balance_after) if txn_balance_after is not None else "",
+        )
+        occurrence_index = occurrence_counts.get(occ_key, 0)
+        occurrence_counts[occ_key] = occurrence_index + 1
+
+        dedup_hash = self.deduplication_service.calculate_transaction_hash(
+            user_id,
+            parsed_date,
+            amount,
+            txn_direction,
+            txn_description,
+            reference=txn_reference,
+            balance_after=txn_balance_after,
+            occurrence_index=occurrence_index,
+            currency=txn_currency,
+            custody_scope=custody_scope,
+        )
+
+        transaction = ExtractedTransactionRow(
+            user_id=user_id,
+            txn_date=parsed_date,
+            amount=amount,
+            direction=txn_direction.value,
+            description=txn_description,
+            reference=txn_reference,
+            currency=txn_currency,
+            currency_unresolved=resolved_currency.unresolved,
+            balance_after=txn_balance_after,
+            occurrence_index=occurrence_index,
+            dedup_hash=dedup_hash,
+            custody_scope=custody_scope,
+        )
+
+        return transaction, (amount if direction == "IN" else -amount)
 
     async def _extract_with_balance_retry(
         self,
