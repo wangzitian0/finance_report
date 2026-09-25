@@ -276,3 +276,49 @@ def test_AC_testing_preflight_4_runner_and_pr_resolver_edge_cases(monkeypatch):
     assert worktree_doctor._default_pr_resolver("refs/heads/main") is None
     assert worktree_doctor._default_pr_resolver("detached") is None
     assert worktree_doctor._default_pr_resolver("HEAD") is None
+
+
+def test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs():
+    """AC-testing.preflight.5: a clean worktree for a MERGED PR is recognized as safe to prune even when git merge-base --is-ancestor fails (squash merge isolation)."""
+    porcelain_output = (
+        "worktree /repo/main\n"
+        "HEAD 11111111\n"
+        "branch refs/heads/main\n"
+        "\n"
+        "worktree /repo/wt_squash_merged\n"
+        "HEAD 33333333\n"
+        "branch refs/heads/feature_squash_merged\n"
+    )
+
+    def fake_runner_squash(cmd, cwd=None):
+        cmd_str = " ".join(cmd)
+        if "worktree list --porcelain" in cmd_str:
+            return 0, porcelain_output
+        if "status --porcelain" in cmd_str:
+            return 0, ""
+        if "lsof" in cmd_str:
+            return 1, ""  # 0 open files
+        if "merge-base" in cmd_str:
+            # git merge-base --is-ancestor returns 1 because the commit was squashed into main
+            return 1, ""
+        if "worktree remove" in cmd_str:
+            return 0, ""
+        if "branch -D" in cmd_str:
+            return 0, ""
+        return 0, ""
+
+    report = worktree_doctor.audit_worktrees(
+        runner=fake_runner_squash,
+        pr_resolver=lambda b: {"number": 105, "state": "MERGED"},
+        path_exists=lambda p: True,
+        main_root="/repo/main",
+    )
+
+    squash_wt = next(w for w in report.worktrees if w.path == "/repo/wt_squash_merged")
+    assert squash_wt.is_orphan is True
+    assert squash_wt.safe_to_prune is True
+
+    removed = worktree_doctor.prune_worktrees(
+        report, runner=fake_runner_squash, dry_run=False
+    )
+    assert removed == ["/repo/wt_squash_merged"]

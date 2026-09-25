@@ -173,12 +173,12 @@ def audit_worktrees(
         is_merged_to_main = rc_anc == 0
 
         # Orphan criteria:
-        # Non-main, PR merged AND head is ancestor of main, not dirty, and locks known to be 0
+        # Non-main, (PR is MERGED or head is ancestor of main), not dirty, and locks known to be 0
         is_merged_pr = bool(pr_info and pr_info.get("state") == "MERGED")
+        is_merged = is_merged_pr or is_merged_to_main
         is_orphan = (
             (not is_main)
-            and is_merged_pr
-            and is_merged_to_main
+            and is_merged
             and (not is_dirty)
             and (not locks_unknown)
             and (open_files == 0)
