@@ -550,9 +550,12 @@ class TestCiLogging:
         assert len(results) == 1
         assert results[0].ok is True
         out = capsys.readouterr().out
-        assert "::group::Gate [static] test-pass" in out
-        assert "::endgroup::" in out
-        assert "::error::" not in out
+        expected_group = "::group::Gate [static] test-pass"
+        expected_endgroup = "::endgroup::"
+        error_tag = "::error::"
+        assert expected_group in out
+        assert expected_endgroup in out
+        assert error_tag not in out
 
     def test_run_checks_with_ci_formatting_on_failure(self, capsys):
         test_check = preflight.Check(
@@ -571,9 +574,12 @@ class TestCiLogging:
         assert len(results) == 1
         assert results[0].ok is False
         out = capsys.readouterr().out
-        assert "::group::Gate [static] test-fail" in out
-        assert "::endgroup::" in out
-        assert "::error::Gate test-fail failed: test failing check" in out
+        expected_group = "::group::Gate [static] test-fail"
+        expected_endgroup = "::endgroup::"
+        expected_error = "::error::Gate test-fail failed: test failing check"
+        assert expected_group in out
+        assert expected_endgroup in out
+        assert expected_error in out
 
     def test_run_cli_with_ci_flag(self, capsys):
         rc = preflight.run(
@@ -582,5 +588,7 @@ class TestCiLogging:
         )
         assert rc == 0
         out = capsys.readouterr().out
-        assert "::group::" in out
-        assert "::endgroup::" in out
+        group_tag = "::group::"
+        endgroup_tag = "::endgroup::"
+        assert group_tag in out
+        assert endgroup_tag in out
