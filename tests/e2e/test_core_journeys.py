@@ -20,6 +20,7 @@ Covers:
 """
 
 import os
+import re
 import pytest
 import httpx
 from playwright.async_api import Page, expect
@@ -88,7 +89,9 @@ async def test_dashboard_ui_load(page: Page, app_url):
     await page.goto(f"{app_url}/dashboard", wait_until="domcontentloaded")
 
     # Verify title or redirect to login (never allow silent empty pass on error 500)
-    await expect(page).to_have_title(r"(Finance|Dashboard|Login)", timeout=10_000)
+    await expect(page).to_have_title(
+        re.compile(r"(Finance|Dashboard|Login)"), timeout=10_000
+    )
     next_error = page.locator("h1.next-error-h1")
     if await next_error.count() > 0:
         await expect(next_error.first).not_to_contain_text("500")
