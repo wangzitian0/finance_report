@@ -232,3 +232,27 @@ main pushes.
 
 - Changing branch-protection required contexts.
 - Reworking Docker image build topology.
+
+## Implemented follow-ups
+
+### retire per-env legacy scalar classifier outputs
+
+The classifier no longer emits the per-env `pr_preview_required`,
+`staging_required`, and `staging_ai_ocr_required` step outputs. The structured
+Env x Stage / provider-gate JSON (plus the top-level `heavy_required` / `reason`
+scalars) is the sole machine-readable gate contract; every workflow consumer
+derives its own scalar from that matrix, and the per-env values survive only in
+the human-readable job summary (AC8.13.110, AC8.13.112).
+
+### workflow_run staging trigger
+
+- `workflow_run` staging trigger: automatic staging now starts only after the
+  matching main CI workflow succeeds, checks out `workflow_run.head_sha`, and no
+  longer waits for CI inside the deploy job.
+
+### Coveralls status publication removal
+
+- Coveralls status publication was removed from the required CI job. The active
+  repository ruleset requires `finish`, not external Coveralls contexts, so local
+  deterministic gates remain the merge/deploy boundary without synthetic status
+  overrides.
