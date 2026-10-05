@@ -17,7 +17,7 @@ REPO = Path(__file__).resolve().parents[2]
 BACKEND_RATIO_ADOPTION_FILES = [
     Path("apps/backend/src/portfolio/extension/performance.py"),
     Path("apps/backend/src/portfolio/extension/holdings.py"),
-    Path("apps/backend/src/portfolio/extension/allocation.py"),
+    Path("apps/backend/src/portfolio/base/valuation_calculator.py"),
     Path("apps/backend/src/portfolio/extension/performance_report.py"),
     Path("apps/backend/src/reporting"),
     Path("apps/backend/src/reconciliation/data/stats.py"),

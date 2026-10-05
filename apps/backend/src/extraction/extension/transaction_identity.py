@@ -1,11 +1,11 @@
 """Versioned custody identity and conservative adoption of legacy atomic facts."""
 
-import hashlib
 from uuid import UUID
 
 from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction.base.normalization_engine import compute_transaction_identity_hash
 from src.extraction.extension._base import ExtractionError
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
@@ -19,7 +19,7 @@ class TransactionIdentityReviewRequired(ExtractionError):
 
 def versioned_transaction_hash(legacy_hash: str, currency: str, custody_scope: str) -> str:
     """Version salt prevents v1/v2 ambiguity without changing historical hashes."""
-    return hashlib.sha256(f"v2|{currency.strip().upper()}|{custody_scope}|{legacy_hash}".encode()).hexdigest()
+    return compute_transaction_identity_hash(legacy_hash, currency, custody_scope)
 
 
 async def source_custody_scope(
