@@ -1,6 +1,6 @@
 """Compatibility exports plus the shared user-list wire envelope."""
 
-from src.identity.base.types.user import (
+from src.identity import (
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
     UserBase,

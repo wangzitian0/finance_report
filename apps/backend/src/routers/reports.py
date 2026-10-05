@@ -26,8 +26,7 @@ from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols
-from src.pricing import ensure_market_data_fresh
-from src.pricing.orm.market_data import FxRate
+from src.pricing import FxRate, ensure_market_data_fresh
 from src.reporting import (
     EquationDiagnosticResult,
     PackageAssembler,

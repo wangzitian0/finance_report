@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction import Stage1Status
-from src.reconciliation.orm.consistency_check import CheckStatus, CheckType
+from src.reconciliation import CheckStatus, CheckType
 from src.schemas.extraction import (
     AtomicTransactionResponse,
     BankStatementResponse,

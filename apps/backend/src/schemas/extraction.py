@@ -13,9 +13,7 @@ from src.extraction import BankStatementStatus
 from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
-    from src.extraction import UploadedDocument
-    from src.extraction.orm.layer2 import AtomicTransaction
-    from src.extraction.orm.statement_summary import StatementSummary
+    from src.extraction import AtomicTransaction, StatementSummary, UploadedDocument
 
 # Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus

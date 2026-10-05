@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.extraction.base.disposition import EconomicIntent
+from src.extraction import EconomicIntent
 from src.schemas.base import ListResponse
 
 

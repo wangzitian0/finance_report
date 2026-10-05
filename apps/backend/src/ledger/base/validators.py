@@ -68,6 +68,7 @@ JournalLinePostingProtocol = JournalLine
 class JournalEntry(Protocol):
     """Structural protocol for journal entry header in posting invariants."""
 
+    id: Any
     lines: Sequence[JournalLine] | Any  # Mapped[list[JournalLine]] on ORM instances
     user_id: Any  # Mapped[UUID] on ORM instances
     source_type: Any

@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from src.audit.money import to_money
+from src.audit import to_money
 from src.composition import post_guided_opening_balances
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession
