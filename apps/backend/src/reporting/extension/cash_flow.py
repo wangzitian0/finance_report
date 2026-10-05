@@ -369,9 +369,6 @@ async def generate_cash_flow(
     operating_total = _line_total(operating_items)
     investing_total = _line_total(investing_items)
     financing_total = _line_total(financing_items)
-    classified_activity = operating_total + investing_total + financing_total
-    cash_delta = _quantize_money(ending_cash - beginning_cash)
-    net_cash_flow = _quantize_money(cash_delta - opening_stock_adjustment)
     calculated_fx_effect = Decimal("0")
     if bool(fx_needs):
         for event in events:
@@ -386,12 +383,8 @@ async def generate_cash_flow(
                         line, event.entry.entry_date
                     )
     fx_effect = _quantize_money(calculated_fx_effect)
-    bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)
-    discrepancy = _quantize_money(cash_delta - bridge_total)
-    reconciles = discrepancy == Decimal("0.00")
 
-    # Pure DDD domain calculation core validation
-    _ = calculate_cash_flow_bridge(
+    bridge = calculate_cash_flow_bridge(
         beginning_cash=beginning_cash,
         ending_cash=ending_cash,
         operating_total=operating_total,
@@ -410,21 +403,21 @@ async def generate_cash_flow(
         "investing": investing_items,
         "financing": financing_items,
         "summary": {
-            "operating_activities": operating_total,
-            "investing_activities": investing_total,
-            "financing_activities": financing_total,
-            "net_cash_flow": net_cash_flow,
+            "operating_activities": bridge.operating_total,
+            "investing_activities": bridge.investing_total,
+            "financing_activities": bridge.financing_total,
+            "net_cash_flow": bridge.net_cash_flow,
             "beginning_cash": _quantize_money(beginning_cash),
             "ending_cash": _quantize_money(ending_cash),
         },
         "cash_bridge": {
-            "classified_activity": _quantize_money(classified_activity),
+            "classified_activity": bridge.classified_activity,
             "unclassified_cash": _quantize_money(unclassified_cash),
-            "fx_effect": fx_effect,
+            "fx_effect": bridge.fx_effect,
             "opening_stock_adjustment": _quantize_money(opening_stock_adjustment),
-            "cash_delta": cash_delta,
-            "discrepancy": discrepancy,
-            "reconciles": reconciles,
+            "cash_delta": bridge.cash_delta,
+            "discrepancy": bridge.discrepancy,
+            "reconciles": bridge.reconciles,
         },
         "event_lineage": event_lineage,
         "proof_state": "proven" if not proof_reasons else "unproven",

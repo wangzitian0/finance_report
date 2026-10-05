@@ -28,13 +28,8 @@ def calculate_currency_translation_adjustment(
     *,
     is_multicurrency: bool,
     pnl_translation_variance: Decimal | None = None,
-    equity_translation_variance: Decimal | None = None,
-    total_assets: Decimal | None = None,
-    total_liabilities: Decimal | None = None,
-    total_equity: Decimal | None = None,
-    net_income: Decimal | None = None,
     unrealized_fx: Decimal | None = None,
-    net_worth_adjustment: Decimal | None = None,
+    equity_translation_variance: Decimal | None = None,
 ) -> Decimal:
     """Calculate the Foreign Currency Translation Adjustment (CTA).
 
@@ -43,26 +38,21 @@ def calculate_currency_translation_adjustment(
     - Income Statement items are translated at period-average exchange rates.
     - The variance between spot-translated net income and average-translated net income
       is recognized in equity as a cumulative translation adjustment (CTA) reserve.
+    - When balance sheet presentation separates unrealized FX revaluation, CTA represents
+      the net translation adjustment required so the accounting equation holds without
+      circularly plugging balance sheet totals.
 
     If not multi-currency, no translation variance exists, so CTA is strictly zero.
-    When pnl_translation_variance is explicitly supplied, CTA is determined strictly
-    from the economic translation variance rather than plugging balance sheet totals.
+    CTA is determined strictly from translation variances and unrealized FX rather
+    than circularly plugging balance sheet totals.
     """
-    if not is_multicurrency:
+    if not is_multicurrency or not pnl_translation_variance:
         return Decimal("0.00")
 
-    if total_assets is None and pnl_translation_variance is not None:
-        return to_money(pnl_translation_variance + (equity_translation_variance or Decimal("0.00")))
-
-    liab = total_liabilities or Decimal("0.00")
-    eq = total_equity or Decimal("0.00")
-    ni = net_income or Decimal("0.00")
+    pnl_var = pnl_translation_variance
     ufx = unrealized_fx or Decimal("0.00")
-    nwa = net_worth_adjustment or Decimal("0.00")
-    assets = total_assets or Decimal("0.00")
-    unadjusted_equity_liab = liab + eq + ni + ufx + nwa
-    raw_cta = assets - unadjusted_equity_liab
-    return to_money(raw_cta)
+    eq_var = equity_translation_variance or Decimal("0.00")
+    return to_money(pnl_var - ufx + eq_var)
 
 
 def calculate_balance_sheet_equation(

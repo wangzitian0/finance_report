@@ -43,8 +43,8 @@ COUNTERFACTUALS = (
     (
         "cash-bridge",
         "apps/backend/src/reporting/extension/cash_flow.py",
-        "bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)",
-        "bridge_total = classified_activity",
+        "bridge = calculate_cash_flow_bridge(",
+        "bridge = None  # calculate_cash_flow_bridge(",
     ),
     (
         "dual-tenant-isolation",

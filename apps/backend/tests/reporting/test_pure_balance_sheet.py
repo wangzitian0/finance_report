@@ -52,13 +52,8 @@ def test_multicurrency_cta_resolution():
     # Net Worth Adjustment: 0.00
     # Variance due to Spot vs Average rate on foreign currency: 9.78 SGD
     cta = calculate_currency_translation_adjustment(
-        total_assets=Decimal("25737.69"),
-        total_liabilities=Decimal("0.00"),
-        total_equity=Decimal("10000.00"),
-        net_income=Decimal("15727.91"),
-        unrealized_fx=Decimal("0.00"),
-        net_worth_adjustment=Decimal("0.00"),
         is_multicurrency=True,
+        pnl_translation_variance=Decimal("9.78"),
     )
     assert cta == Decimal("9.78")
 
@@ -79,13 +74,8 @@ def test_multicurrency_cta_resolution():
 def test_single_currency_ignores_cta():
     """Single currency transactions strictly do not synthesize CTA adjustment."""
     cta = calculate_currency_translation_adjustment(
-        total_assets=Decimal("1000.00"),
-        total_liabilities=Decimal("200.00"),
-        total_equity=Decimal("700.00"),
-        net_income=Decimal("100.00"),
-        unrealized_fx=Decimal("0.00"),
-        net_worth_adjustment=Decimal("0.00"),
         is_multicurrency=False,
+        pnl_translation_variance=Decimal("100.00"),
     )
     assert cta == Decimal("0.00")
 

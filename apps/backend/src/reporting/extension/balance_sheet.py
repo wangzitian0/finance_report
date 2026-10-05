@@ -276,12 +276,7 @@ async def generate_balance_sheet(
     cta_adjustment = calculate_currency_translation_adjustment(
         is_multicurrency=is_multicurrency,
         pnl_translation_variance=pnl_translation_variance,
-        total_assets=total_assets,
-        total_liabilities=total_liabilities,
-        total_equity=total_equity,
-        net_income=net_income,
         unrealized_fx=unrealized_fx,
-        net_worth_adjustment=net_worth_adjustment,
     )
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,
