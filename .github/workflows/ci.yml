@@ -1251,7 +1251,7 @@ jobs:
             -o "$GITHUB_WORKSPACE/coverage/backend-tooling-${{ matrix.shard }}.lcov" \
             --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py')
 
-      - name: Upload tooling coverage shard context
+      - name: Upload tooling coverage context
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
@@ -1263,55 +1263,9 @@ jobs:
             coverage/tooling-junit-${{ matrix.shard }}.xml
           retention-days: 14
 
-  tooling-coverage-merge:
-    name: Tooling/Common Coverage
-    needs: [changes, tooling-coverage]
-    if: needs.changes.outputs.pr_required == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Download tooling coverage shards
-        uses: actions/download-artifact@v8
-        with:
-          pattern: coverage-tooling-*
-          merge-multiple: true
-          path: coverage-tooling-shards
-
-      - name: Merge tooling coverage
-        run: |
-          mkdir -p coverage
-          python tools/merge_lcov.py coverage/common.lcov coverage-tooling-shards/common-*.lcov
-          python tools/merge_lcov.py coverage/tools.lcov coverage-tooling-shards/tools-*.lcov
-          python tools/merge_lcov.py coverage/backend-tooling.lcov coverage-tooling-shards/backend-tooling-*.lcov
-          # JUnit has no numeric union to compute (unlike LCOV): concatenate
-          # every shard's <testsuite> under one <testsuites> root so the
-          # combined coverage-tooling artifact still carries exactly one
-          # tooling-junit.xml, byte-equivalent in content (all 8 shards' cases)
-          # to what the single un-sharded job used to emit.
-          python tools/merge_junit.py coverage/tooling-junit.xml coverage-tooling-shards/tooling-junit-*.xml
-
-      - name: Upload tooling coverage context
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-tooling
-          path: |
-            coverage/common.lcov
-            coverage/tools.lcov
-            coverage/backend-tooling.lcov
-            coverage/tooling-junit.xml
-          retention-days: 14
-
   unified-coverage:
     name: Calculate Unified Coverage
-    needs: [changes, backend, frontend-vitest, tooling-coverage-merge]
+    needs: [changes, backend, frontend-vitest, tooling-coverage]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1346,7 +1300,8 @@ jobs:
       - name: Download tooling coverage
         uses: actions/download-artifact@v8
         with:
-          name: coverage-tooling
+          pattern: coverage-tooling-*
+          merge-multiple: true
           path: coverage-tooling
 
       - name: Merge coverage reports
@@ -1356,7 +1311,9 @@ jobs:
           if ls coverage-backend/*.lcov 1> /dev/null 2>&1; then
             backend_inputs+=(coverage-backend/*.lcov)
           fi
-          if [ -f coverage-tooling/backend-tooling.lcov ]; then
+          if ls coverage-tooling/backend-tooling-*.lcov 1> /dev/null 2>&1; then
+            backend_inputs+=(coverage-tooling/backend-tooling-*.lcov)
+          elif [ -f coverage-tooling/backend-tooling.lcov ]; then
             backend_inputs+=(coverage-tooling/backend-tooling.lcov)
           fi
           if [ ${#backend_inputs[@]} -gt 0 ]; then
@@ -1369,12 +1326,16 @@ jobs:
           else
             echo "No frontend coverage found"
           fi
-          if [ -f coverage-tooling/common.lcov ]; then
+          if ls coverage-tooling/common-*.lcov 1> /dev/null 2>&1; then
+            python tools/merge_lcov.py coverage/common.lcov coverage-tooling/common-*.lcov
+          elif [ -f coverage-tooling/common.lcov ]; then
             cp coverage-tooling/common.lcov coverage/common.lcov
           else
             echo "No common coverage found"
           fi
-          if [ -f coverage-tooling/tools.lcov ]; then
+          if ls coverage-tooling/tools-*.lcov 1> /dev/null 2>&1; then
+            python tools/merge_lcov.py coverage/tools.lcov coverage-tooling/tools-*.lcov
+          elif [ -f coverage-tooling/tools.lcov ]; then
             cp coverage-tooling/tools.lcov coverage/tools.lcov
           else
             echo "No tools coverage found"
@@ -1531,7 +1492,7 @@ jobs:
 
   ac-traceability:
     name: AC Traceability Check
-    needs: [changes, lint, tooling-coverage-merge, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
+    needs: [changes, lint, tooling-coverage, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1579,7 +1540,8 @@ jobs:
         if: needs.changes.outputs.pr_required == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: coverage-tooling
+          pattern: coverage-tooling-*
+          merge-multiple: true
           path: governance-inputs/junit/tooling
 
       - name: Build current package governance observations
@@ -1771,7 +1733,7 @@ jobs:
           retention-days: 90
 
   finish:
-    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage-merge, unified-coverage, ac-traceability, ac-behavioral-ratchet]
+    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1882,7 +1844,7 @@ jobs:
           echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
           echo "Verify Commit Image Published: ${{ needs.verify-sha-image-published.result }}"
-          echo "Tooling/Common Coverage: ${{ needs.tooling-coverage-merge.result }}"
+          echo "Tooling/Common Coverage: ${{ needs.tooling-coverage.result }}"
           echo "Unified Coverage: ${{ needs.unified-coverage.result }}"
           echo "Lint: ${{ needs.lint.result }}"
           echo "AC Traceability: ${{ needs.ac-traceability.result }}"
@@ -1941,7 +1903,7 @@ jobs:
               echo "::error::Frontend telemetry E2E failed"
               exit 1
             fi
-            if [[ "${{ needs.tooling-coverage-merge.result }}" != "success" ]]; then
+            if [[ "${{ needs.tooling-coverage.result }}" != "success" ]]; then
               echo "::error::Tooling/common coverage failed"
               exit 1
             fi

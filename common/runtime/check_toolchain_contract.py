@@ -121,23 +121,6 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
         else:
             errors.append(f"{ci_path}: job {job_name} not found")
 
-    minio_steps = [
-        block
-        for block in re.split(r"(?m)^\s*- (?=(?:name|id|run|uses):)", ci_content)
-        if "docker run" in block
-        and ("MINIO_ROOT_USER" in block or "mc alias set" in block)
-    ]
-    for index, block in enumerate(minio_steps, start=1):
-        block_lines = [
-            line for line in block.splitlines() if not line.lstrip().startswith("#")
-        ]
-        for key in ("minio", "minio_client"):
-            image = toolchain["images"][key]
-            if not any(image in line for line in block_lines):
-                errors.append(
-                    f"{ci_path}: MinIO acquisition step {index} must use {key}={image!r}"
-                )
-
 
 def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     images = toolchain["images"]

@@ -125,50 +125,107 @@ def project_benchmark_workflow(content: str, toolchain: dict) -> str:
     )
 
 
+def project_audit_replay_workflow(content: str, toolchain: dict) -> str:
+    """Project python-version into audit-replay.yml."""
+    py_version = toolchain["runtime"]["python"]
+    lines = content.splitlines(keepends=True)
+    new_lines = []
+    in_setup_py = False
+    updated = False
+    for line in lines:
+        if re.match(r"^[ \t]*-[ \t]*name:[ \t]*['\"]?Set up Python['\"]?", line):
+            in_setup_py = True
+        elif in_setup_py and re.match(r"^[ \t]*-", line):
+            in_setup_py = False
+        elif in_setup_py and re.match(
+            r"^[ \t]*python-version:[ \t]*['\"][^'\"]+['\"]", line
+        ):
+            line = re.sub(
+                r"^([ \t]*python-version:[ \t]*)['\"][^'\"]+['\"]",
+                r"\g<1>" + f'"{py_version}"',
+                line,
+            )
+            updated = True
+            in_setup_py = False
+        new_lines.append(line)
+    if not updated:
+        raise ValueError("missing required python-version in audit-replay.yml")
+    return "".join(new_lines)
+
+
 def project_setup_minio_action(content: str, toolchain: dict) -> str:
     """Project MinIO container images into setup-minio composite action."""
     images = toolchain["images"]
     minio_img = images["minio"]
     minio_client_img = images["minio_client"]
 
-    def replace_minio_server(match: re.Match[str]) -> str:
-        indent = match.group(1)
-        cur_img = match.group(2)
-        end = match.group(3)
-        if cur_img.strip("\x22\x27") == minio_img:
-            return match.group(0)
-        return f"{indent}{minio_img}{end}"
+    lines = content.splitlines(keepends=True)
+    server_updated = False
+    client_updated = False
+    new_lines = []
+    for i, line in enumerate(lines):
+        if i + 1 < len(lines) and "server /data" in lines[i + 1]:
+            m = re.match(
+                r"^([ \t]*)[\x22\x27]?([^\s\\\x22\x27]+)[\x22\x27]?([ \t]*\\\s*)$",
+                line,
+            )
+            if m:
+                indent, cur_img, suffix = m.groups()
+                if cur_img != minio_img:
+                    line = f"{indent}{minio_img}{suffix}"
+                server_updated = True
+        elif "--entrypoint /bin/sh" in line:
+            m = re.match(
+                r"^([ \t]*docker run [^\n]*?--entrypoint /bin/sh[ \t]+)[\x22\x27]?([^\s\\\x22\x27]+)[\x22\x27]?([ \t]*\\\s*)$",
+                line,
+            )
+            if m:
+                prefix, cur_img, suffix = m.groups()
+                if cur_img != minio_client_img:
+                    line = f"{prefix}{minio_client_img}{suffix}"
+                client_updated = True
+        new_lines.append(line)
 
-    content = re.sub(
-        r"(?m)^(\s*)[\x22\x27]?([^\s\\\x22\x27]+)[\x22\x27]?(\s*\\\n\s*server /data)",
-        replace_minio_server,
-        content,
-    )
+    if not server_updated:
+        raise ValueError(
+            "missing required minio server image pin in setup-minio/action.yml"
+        )
+    if not client_updated:
+        raise ValueError(
+            "missing required minio-client image pin in setup-minio/action.yml"
+        )
 
-    def replace_minio_client(match: re.Match[str]) -> str:
-        prefix = match.group(1)
-        cur_img = match.group(2)
-        end = match.group(3)
-        if cur_img.strip("\x22\x27") == minio_client_img:
-            return match.group(0)
-        return f"{prefix}{minio_client_img}{end}"
-
-    content = re.sub(
-        r"(?m)(docker run [^\n]*?--entrypoint /bin/sh\s+)[\x22\x27]?([^\s\\\x22\x27]+)[\x22\x27]?(\s*\\)",
-        replace_minio_client,
-        content,
-    )
-    return content
+    return "".join(new_lines)
 
 
 def project_setup_e2e_tests_action(content: str, toolchain: dict) -> str:
     """Project uv version into setup-e2e-tests composite action."""
     uv_version = toolchain["runtime"]["uv"]
-    pattern = (
-        r"(?m)(name:\s*[\x22\x27]?Install uv[\x22\x27]?\s*\n"
-        r"(?:\s+.*\n)*?\s+version:\s*)[\x22\x27][^\x22\x27]+[\x22\x27]"
-    )
-    return re.sub(pattern, r"\g<1>" + f'"{uv_version}"', content)
+    lines = content.splitlines(keepends=True)
+    in_install_uv = False
+    updated = False
+    new_lines = []
+    for line in lines:
+        if re.match(r"^[ \t]*-[ \t]*name:[ \t]*['\"]?Install uv['\"]?", line):
+            in_install_uv = True
+        elif in_install_uv and re.match(r"^[ \t]*-", line):
+            in_install_uv = False
+        elif in_install_uv and re.match(
+            r"^[ \t]*version:[ \t]*['\"][^'\"]+['\"]", line
+        ):
+            line = re.sub(
+                r"^([ \t]*version:[ \t]*)['\"][^'\"]+['\"]",
+                r"\g<1>" + f'"{uv_version}"',
+                line,
+            )
+            updated = True
+            in_install_uv = False
+        new_lines.append(line)
+    if not updated:
+        raise ValueError(
+            "missing required Install uv version pin in setup-e2e-tests/action.yml"
+        )
+    return "".join(new_lines)
 
 
 def project_setup_backend_env_action(content: str, toolchain: dict) -> str:
@@ -176,98 +233,139 @@ def project_setup_backend_env_action(content: str, toolchain: dict) -> str:
     runtime = toolchain["runtime"]
     uv_version = runtime["uv"]
     python_version = runtime["python"]
-    content = re.sub(
-        r"(?m)^(\s+uv-version:\s*\n(?:\s+.*\n)*?\s+default:\s*)[\x22\x27][^\x22\x27]+[\x22\x27]",
-        r"\g<1>" + f"'{uv_version}'",
-        content,
-    )
-    content = re.sub(
-        r"(?m)^(\s+python-version:\s*\n(?:\s+.*\n)*?\s+default:\s*)[\x22\x27][^\x22\x27]+[\x22\x27]",
-        r"\g<1>" + f"'{python_version}'",
-        content,
-    )
-    return content
+    lines = content.splitlines(keepends=True)
+    new_lines = []
+    current_input = None
+    uv_updated = False
+    py_updated = False
+    for line in lines:
+        m_input = re.match(r"^[ \t]{2}([a-zA-Z0-9_-]+):[ \t]*$", line)
+        if m_input:
+            current_input = m_input.group(1)
+        elif re.match(r"^[ \t]{0,1}[a-zA-Z0-9_-]+:", line):
+            current_input = None
+
+        if current_input == "uv-version":
+            m_def = re.match(r"^([ \t]+default:[ \t]*)['\"][^'\"]+['\"]", line)
+            if m_def:
+                prefix = m_def.group(1)
+                line = f"{prefix}'{uv_version}'\n"
+                uv_updated = True
+                current_input = None
+        elif current_input == "python-version":
+            m_def = re.match(r"^([ \t]+default:[ \t]*)['\"][^'\"]+['\"]", line)
+            if m_def:
+                prefix = m_def.group(1)
+                line = f"{prefix}'{python_version}'\n"
+                py_updated = True
+                current_input = None
+        new_lines.append(line)
+
+    if not uv_updated:
+        raise ValueError(
+            "missing required uv-version default in setup-backend-env/action.yml"
+        )
+    if not py_updated:
+        raise ValueError(
+            "missing required python-version default in setup-backend-env/action.yml"
+        )
+
+    return "".join(new_lines)
 
 
 def project_compose(content: str, toolchain: dict) -> str:
     """Project service images and ARG defaults into docker-compose files."""
     images = toolchain["images"]
+    lines = content.splitlines(keepends=True)
+    new_lines = []
+    current_service = None
+    counts = {"postgres": 0, "minio": 0, "minio-init": 0}
 
-    def make_replacer(expected: str) -> Callable[[re.Match[str]], str]:
-        def repl(m: re.Match[str]) -> str:
-            prefix = m.group(1)
-            cur = m.group(2)
-            suffix = m.group(3)
-            if cur.strip("\x22\x27") == expected:
-                return m.group(0)
-            return f"{prefix}{expected}{suffix}"
+    for line in lines:
+        service_match = re.match(r"^([ \t]{2})([a-zA-Z0-9_-]+):[ \t]*(?:#.*)?$", line)
+        if service_match:
+            current_service = service_match.group(2)
+        elif re.match(r"^[ \t]{0,1}[a-zA-Z0-9_-]+:", line):
+            current_service = None
 
-        return repl
+        if current_service in counts:
+            img_match = re.match(
+                r"^([ \t]{4}image:[ \t]*)[\x22\x27]?([^\s#\x22\x27]+)[\x22\x27]?([ \t]*(?:#.*)?\n?)$",
+                line,
+            )
+            if img_match:
+                prefix, cur_img, suffix = img_match.groups()
+                target_key = (
+                    "postgres"
+                    if current_service == "postgres"
+                    else ("minio" if current_service == "minio" else "minio_client")
+                )
+                target_img = images[target_key]
+                if cur_img != target_img:
+                    line = f"{prefix}{target_img}{suffix}"
+                counts[current_service] += 1
+                current_service = None
 
-    # postgres service
-    content = re.sub(
-        r"(?m)^(\s{2}postgres:\s*\n(?:\s{4}[^\n]*\n)*?\s{4}image:\s*)[\x22\x27]?([^\s#\x22\x27]+)[\x22\x27]?(.*)$",
-        make_replacer(images["postgres"]),
-        content,
-    )
-    # minio service
-    content = re.sub(
-        r"(?m)^(\s{2}minio:\s*\n(?:\s{4}[^\n]*\n)*?\s{4}image:\s*)[\x22\x27]?([^\s#\x22\x27]+)[\x22\x27]?(.*)$",
-        make_replacer(images["minio"]),
-        content,
-    )
-    # minio-init service
-    content = re.sub(
-        r"(?m)^(\s{2}minio-init:\s*\n(?:\s{4}[^\n]*\n)*?\s{4}image:\s*)[\x22\x27]?([^\s#\x22\x27]+)[\x22\x27]?(.*)$",
-        make_replacer(images["minio_client"]),
-        content,
-    )
+        new_lines.append(line)
 
-    if "frontend_node" in images:
-        content = re.sub(
-            r"\$\{NODE_IMAGE:-[^}]+}",
-            f"${{NODE_IMAGE:-{images['frontend_node']}}}",
-            content,
+    for svc, cnt in counts.items():
+        if cnt == 0:
+            raise ValueError(f"missing required {svc} image pin in compose file")
+
+    res = "".join(new_lines)
+    node_img = images.get("frontend_node")
+    if node_img:
+        res, cnt = re.subn(
+            r"\$\{NODE_IMAGE:-[^}]+}", f"${{NODE_IMAGE:-{node_img}}}", res
         )
-    if "backend_uv" in images:
-        content = re.sub(
-            r"\$\{UV_IMAGE:-[^}]+}",
-            f"${{UV_IMAGE:-{images['backend_uv']}}}",
-            content,
+        if cnt == 0:
+            raise ValueError("missing required NODE_IMAGE default in compose file")
+    uv_img = images.get("backend_uv")
+    if uv_img:
+        res, cnt = re.subn(r"\$\{UV_IMAGE:-[^}]+}", f"${{UV_IMAGE:-{uv_img}}}", res)
+        if cnt == 0:
+            raise ValueError("missing required UV_IMAGE default in compose file")
+    py_img = images.get("backend_python")
+    if py_img:
+        res, cnt = re.subn(
+            r"\$\{PYTHON_IMAGE:-[^}]+}", f"${{PYTHON_IMAGE:-{py_img}}}", res
         )
-    if "backend_python" in images:
-        content = re.sub(
-            r"\$\{PYTHON_IMAGE:-[^}]+}",
-            f"${{PYTHON_IMAGE:-{images['backend_python']}}}",
-            content,
-        )
-    return content
+        if cnt == 0:
+            raise ValueError("missing required PYTHON_IMAGE default in compose file")
+    return res
 
 
 def project_backend_dockerfile(content: str, toolchain: dict) -> str:
     """Project base images into backend Dockerfile."""
     images = toolchain["images"]
-    content = re.sub(
+    content, py_count = re.subn(
         r"(?m)^ARG PYTHON_IMAGE=.*$",
         f"ARG PYTHON_IMAGE={images['backend_python']}",
         content,
     )
-    content = re.sub(
+    if py_count == 0:
+        raise ValueError("missing required ARG PYTHON_IMAGE in apps/backend/Dockerfile")
+    content, uv_count = re.subn(
         r"(?m)^ARG UV_IMAGE=.*$",
         f"ARG UV_IMAGE={images['backend_uv']}",
         content,
     )
+    if uv_count == 0:
+        raise ValueError("missing required ARG UV_IMAGE in apps/backend/Dockerfile")
     return content
 
 
 def project_frontend_dockerfile(content: str, toolchain: dict) -> str:
     """Project base node image into frontend Dockerfile."""
     images = toolchain["images"]
-    return re.sub(
+    content, count = re.subn(
         r"(?m)^ARG NODE_IMAGE=.*$",
         f"ARG NODE_IMAGE={images['frontend_node']}",
         content,
     )
+    if count == 0:
+        raise ValueError("missing required ARG NODE_IMAGE in apps/frontend/Dockerfile")
+    return content
 
 
 # Registry of governed files: relative path -> (projector_function, required_in_repo)
@@ -286,14 +384,15 @@ PROJECTORS: dict[str, tuple[Callable[[str, dict], str], bool]] = {
         False,
     ),
     ".github/workflows/benchmark.yml": (project_benchmark_workflow, False),
+    ".github/workflows/audit-replay.yml": (project_audit_replay_workflow, False),
     ".github/actions/setup-backend-env/action.yml": (
         project_setup_backend_env_action,
         False,
     ),
-    "docker-compose.yml": (project_compose, False),
-    "docker-compose.pr-preview.yml": (project_compose, False),
-    "apps/backend/Dockerfile": (project_backend_dockerfile, False),
-    "apps/frontend/Dockerfile": (project_frontend_dockerfile, False),
+    "docker-compose.yml": (project_compose, True),
+    "docker-compose.pr-preview.yml": (project_compose, True),
+    "apps/backend/Dockerfile": (project_backend_dockerfile, True),
+    "apps/frontend/Dockerfile": (project_frontend_dockerfile, True),
 }
 
 
@@ -307,6 +406,18 @@ def diff_text(label: str, original: str, projected: str) -> str:
             tofile=f"{label} (projected from toolchain.toml)",
         )
     )
+
+
+def atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write text atomically using a temporary file and replace."""
+    tmp_path = path.with_name(f".{path.name}.tmp")
+    try:
+        tmp_path.write_text(content, encoding=encoding, newline="\n")
+        tmp_path.replace(path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def project_all(
@@ -324,6 +435,7 @@ def project_all(
 
     errors: list[str] = []
     projected_map: dict[str, str] = {}
+    pending_writes: list[tuple[Path, str]] = []
 
     for rel_path, (projector, is_required) in PROJECTORS.items():
         file_path = repo_root / rel_path
@@ -353,10 +465,17 @@ def project_all(
                     f"{rel_path} has drifted from toolchain.toml projection:\n{diff}"
                 )
             else:
-                try:
-                    file_path.write_text(projected, encoding="utf-8")
-                except OSError as exc:
-                    errors.append(f"{rel_path}: failed to write: {exc}")
+                pending_writes.append((file_path, projected))
+
+    if errors:
+        return 1, errors, projected_map
+
+    if not check_only:
+        for file_path, projected in pending_writes:
+            try:
+                atomic_write_text(file_path, projected, encoding="utf-8")
+            except OSError as exc:
+                errors.append(f"{file_path}: failed to write: {exc}")
 
     if errors:
         return 1, errors, projected_map
