@@ -4,7 +4,6 @@ Moved from ``services/allocation.py`` (#1643, standard-preserving move): FX
 conversion now goes through ``pricing``'s published ``convert_amount``.
 """
 
-from collections import defaultdict
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
@@ -14,11 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
 from src.ledger import Account
 from src.observability import get_logger
+from src.portfolio.base.valuation_calculator import AllocationItem, calculate_allocation_breakdown
 from src.portfolio.extension.performance import batch_latest_atomic_positions
 from src.pricing import convert_amount
 
@@ -96,30 +95,17 @@ def _build_allocation(
     key_fn: Callable[[AtomicPosition], str],
 ) -> list[AllocationBreakdown]:
     """Build allocation breakdowns from enriched position data."""
-    category_values: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-    category_counts: dict[str, int] = defaultdict(int)
-    total_value = Decimal("0")
-
-    for atomic, value_base in enriched:
-        category = key_fn(atomic)
-        category_values[category] += value_base
-        category_counts[category] += 1
-        total_value += value_base
-
-    breakdowns = []
-    for category, value in category_values.items():
-        allocation_ratio = Ratio.fraction_or_zero(value, total_value)
-        breakdowns.append(
-            AllocationBreakdown(
-                category=category,
-                value=value,
-                percentage=allocation_ratio.to_percent(),
-                count=category_counts[category],
-            )
+    items = [AllocationItem(category=key_fn(atomic), value=value_base) for atomic, value_base in enriched]
+    breakdown_results = calculate_allocation_breakdown(items)
+    return [
+        AllocationBreakdown(
+            category=r.category,
+            value=r.value,
+            percentage=r.percentage,
+            count=r.count,
         )
-
-    breakdowns.sort(key=lambda x: x.value, reverse=True)
-    return breakdowns
+        for r in breakdown_results
+    ]
 
 
 async def get_sector_allocation(

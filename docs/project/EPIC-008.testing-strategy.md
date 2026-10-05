@@ -733,7 +733,9 @@ Product E2E ownership index:
 | `tests/e2e/test_market_data_price_paths.py` | Critical proof; ACs live in the `pricing` package roadmap (`AC-pricing.marketdata.7`, `AC-pricing.marketdata.11`, `AC-pricing.marketdata.13`, `common/pricing/contract.py`) |
 | `tests/e2e/test_personal_financial_report_package.py` | Critical proof: AC-reporting.balance-sheet.1, AC-reporting.balance-sheet.4, AC-reporting.income-statement.3, AC-reporting.cash-flow.1, AC-reporting.fe-viz-reports.2, AC-reporting.package-notes.3, AC-reporting.package-traceability.3, AC-reporting.package-traceability.4, AC-reporting.annualized-dashboard.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-reporting.package-annualized.3, AC-reporting.package-annualized.4, AC-portfolio.report-schedule.1, AC-portfolio.report-schedule.2, AC-portfolio.fixtures.1, AC-portfolio.fixtures.2, AC-portfolio.fixtures.3, AC-testing.product-gates.8, AC-testing.product-gates.9, AC-testing.product-gates.10, AC-testing.product-gates.11, AC-testing.product-gates.12 |
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
-| `tests/e2e/test_reconciliation_ui_journey.py` | Reconciliation workbench and review queue browser E2E; AC references live in the test file (#2158) |
+| `tests/e2e/test_accounts_and_statements_ui_journey.py` | Accounts registry and statements review browser E2E; AC references live in the test file (#2171) |
+| `tests/e2e/test_reconciliation_ui_journey.py` | Reconciliation workbench, unmatched studio, and interactive disposition browser E2E; AC references live in the test file (#2158, #2171) |
+
 | `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |

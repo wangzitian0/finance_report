@@ -364,8 +364,17 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         needs=(NEEDS_STATE_SENSITIVE,),
         audited=True,
         reason=(
-            "Audited (#2158): Reconciliation workbench and review queue interactive browser journey; "
-            "verifies workbench KPI surface, unmatched studio, and review queue navigation."
+            "Audited (#2158, #2171): Reconciliation workbench and unmatched studio interactive journey; "
+            "verifies workbench KPI surface, unmatched studio, and interactive disposition drawer posting."
+        ),
+    ),
+    E2ERow(
+        "tests/e2e/test_accounts_and_statements_ui_journey.py",
+        needs=(NEEDS_STATE_SENSITIVE,),
+        audited=True,
+        reason=(
+            "Audited (#2171): Accounts and statements interactive browser UI journey; "
+            "verifies account list, filter tabs, statement details, and review surface."
         ),
     ),
 )

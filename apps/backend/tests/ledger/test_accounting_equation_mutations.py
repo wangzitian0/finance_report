@@ -107,3 +107,32 @@ def test_foreign_currency_missing_fx_rate_rejected():
     ]
     with pytest.raises(ValidationError, match="fx_rate required for currency USD"):
         validate_fx_rates(lines_missing_fx, base_currency="SGD")
+
+
+def test_concurrent_journal_line_mutation_race():
+    """Concurrency: Verify that concurrent validation across threads/coroutines does not leak state or pass imbalanced mutations."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _worker(worker_id: int) -> bool:
+        # Alternating balanced and imbalanced entries
+        is_balanced = worker_id % 2 == 0
+        amt_credit = Decimal("100.00") if is_balanced else Decimal("90.00")
+        lines = [
+            _make_line(direction=Direction.DEBIT, amount=Decimal("100.00")),
+            _make_line(direction=Direction.CREDIT, amount=amt_credit),
+        ]
+        try:
+            validate_journal_balance(lines)
+            return True
+        except ValidationError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(_worker, range(100)))
+
+    # Even worker_ids (50 total) were balanced -> must be True
+    # Odd worker_ids (50 total) were imbalanced -> must be False
+    assert sum(results) == 50
+    for idx, passed in enumerate(results):
+        expected = idx % 2 == 0
+        assert passed is expected, f"Worker {idx} expectation mismatch: got {passed}, expected {expected}"
