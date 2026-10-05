@@ -97,9 +97,7 @@ def _cash_bridge(repo_root: Path) -> list[str]:
         repo_root,
         _CASH_FLOW,
         (
-            "bridge_total = _quantize_money(classified_activity + unclassified_cash + fx_effect + opening_stock_adjustment)",
-            "discrepancy = _quantize_money(cash_delta - bridge_total)",
-            'reconciles = discrepancy == Decimal("0.00")',
+            "calculate_cash_flow_bridge(",
             '"cash_bridge": {',
         ),
     )

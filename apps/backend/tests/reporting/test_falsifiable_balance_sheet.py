@@ -63,6 +63,15 @@ def test_balance_sheet_equation_fails_when_asset_dropped_in_multicurrency():
     assert corrupted_totals.equation_delta == Decimal("-100.00")
 
 
+def test_cta_calculation_rejects_legacy_plug_arguments():
+    """AC-reporting.balance-sheet.7: calculate_currency_translation_adjustment strictly rejects legacy circular plug arguments."""
+    with pytest.raises(TypeError, match="unexpected keyword argument 'total_assets'"):
+        calculate_currency_translation_adjustment(
+            is_multicurrency=True,
+            total_assets=Decimal("1000.00"),  # type: ignore[call-arg]
+        )
+
+
 @pytest.mark.asyncio
 async def test_aggregate_balances_excludes_fx_revaluation_entries(db: AsyncSession, test_user):
     """AC-reporting.balance-sheet.7: _aggregate_balances_sql excludes FX_REVALUATION entries to avoid double-counting."""
