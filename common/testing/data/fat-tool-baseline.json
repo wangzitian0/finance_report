@@ -1,13 +1,3 @@
 {
-  "legacy_fat_tools": [
-    "tools/anonymize_snapshot.py",
-    "tools/api_response_vectors.py",
-    "tools/app_deploy_request.py",
-    "tools/app_deploy_transport.py",
-    "tools/generate_env_reference.py",
-    "tools/generate_sla_manifest.py",
-    "tools/purge_test_accounts.py",
-    "tools/reverify_real_corpus.py",
-    "tools/test_selection.py"
-  ]
+  "legacy_fat_tools": []
 }
