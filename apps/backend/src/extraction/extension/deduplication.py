@@ -546,55 +546,8 @@ async def dual_write_layer2(
         statement.extraction_metadata = effective_metadata
 
     try:
-        # Changing an already-posted source needs the explicit correction/void
-        # lifecycle. Preserving old atomic facts must never double-post R1 + R2.
-        prior = await db.scalar(
-            select(StatementSummary).where(StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash)
-        )
-        if prior is not None and prior.uploaded_document_id is not None:
-            old_payload = (prior.extraction_metadata or {}).get("statement_extraction_result")
-            new_payload = (effective_metadata or {}).get("statement_extraction_result")
-            if old_payload != new_payload:
-                source_record = (
-                    await db.get(StatementExtractionResultRecord, prior.current_extraction_result_id)
-                    if prior.current_extraction_result_id
-                    else None
-                )
-                if (
-                    source_record is not None
-                    and source_record.user_id == user_id
-                    and source_record.statement_id == prior.id
-                ):
-                    for position in await list_opening_positions(db, user_id=user_id, as_of=date.max):
-                        source_decision = position.source_decision
-                        if (
-                            position.account_id == prior.account_id
-                            and source_decision is not None
-                            and source_decision.target.kind
-                            in {"statement_extraction_result", "reviewed_statement_envelope"}
-                            and source_decision.target.id == source_record.payload.get("result_id")
-                        ):
-                            raise TransactionIdentityReviewRequired(
-                                "Changed source-backed opening requires correction review before reparse; existing source and stock were preserved"
-                            )
-                prior_ids = select(AtomicTransaction.id).where(
-                    AtomicTransaction.user_id == user_id,
-                    AtomicTransaction.source_documents.contains([{"doc_id": str(prior.uploaded_document_id)}]),
-                )
-                posted = await db.scalar(
-                    select(JournalEntry.id)
-                    .where(
-                        JournalEntry.user_id == user_id,
-                        JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
-                        JournalEntry.source_id.in_(prior_ids),
-                        JournalEntry.status == JournalEntryStatus.POSTED,
-                    )
-                    .limit(1)
-                )
-                if posted is not None:
-                    raise TransactionIdentityReviewRequired(
-                        "Changed posted source requires correction review before reparse; existing journal entries were preserved"
-                    )
+        await _check_reparse_identity_conflicts(db, user_id, file_hash, effective_metadata)
+
         # Get-or-create the ODS document. Reparse re-runs ingestion for the same
         # (user_id, file_hash), so the document already exists; reuse it instead of
         # raising on the unique key. Current-result membership selects effective
@@ -618,92 +571,33 @@ async def dual_write_layer2(
             uploaded_doc.document_type = doc_type
             if effective_metadata is not None:
                 uploaded_doc.extraction_metadata = effective_metadata
-            # ``envelope_only`` persists just the terminal envelope status (a
-            # quarantined/rejected re-parse, #1452): it must NOT detach the
-            # document's previously-ingested Layer-2 facts, or a re-parse that
-            # ends in quarantine would delete a prior good parse's transactions.
-            # Atomic history and source links are append-only. Current-result
-            # membership, rather than deletion, governs statement transaction reads.
+
         # Lazily import to avoid an import cycle (evidence_graph_integration imports
         # models that transitively reach back here).
         from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         evidence_graph = EvidenceGraphIntegrationService()
 
-        layer2_count = 0
-        for txn in transactions:
-            upserted_txn = await dedup_service.upsert_scoped_atomic_transaction(
-                db=db,
-                row=txn,
-                source_doc_id=uploaded_doc.id,
-                source_doc_type=doc_type,
-                custody_account_id=statement.account_id,
-            )
-            layer2_count += 1
+        layer2_count = await _upsert_layer2_transactions(
+            db=db,
+            user_id=user_id,
+            transactions=transactions,
+            uploaded_doc=uploaded_doc,
+            doc_type=doc_type,
+            statement_account_id=statement.account_id,
+            dedup_service=dedup_service,
+            evidence_graph=evidence_graph,
+        )
 
-            # Eager evidence-graph lineage (UploadedDocument --deduped_into-->
-            # AtomicTransaction). Best-effort: provenance must never break the
-            # money/atomic write, which is the priority.
-            try:
-                await evidence_graph.record_layer2_dual_write(
-                    db,
-                    user_id=user_id,
-                    uploaded_document=uploaded_doc,
-                    atomic_transaction=upserted_txn,
-                    document_type=doc_type,
-                )
-            except Exception as evidence_exc:
-                logger.warning(
-                    "Evidence-graph dual-write lineage failed (ingestion continues)",
-                    error=str(evidence_exc),
-                    error_type=type(evidence_exc).__name__,
-                    user_id=str(user_id),
-                    atomic_transaction_id=str(upserted_txn.id),
-                )
+        canonical_statement = await _persist_conform_statement_summary(
+            db=db,
+            user_id=user_id,
+            file_hash=file_hash,
+            statement=statement,
+            effective_metadata=effective_metadata,
+            uploaded_doc=uploaded_doc,
+        )
 
-        # DWD conform: bind the confirmed envelope to its ODS document and persist.
-        # The ingestion pipeline (statement upload) pre-creates the ``StatementSummary``
-        # envelope in PARSING state keyed on ``(user_id, file_hash)``; reuse that row so
-        # the confirmed parse result updates a single conform record (its id is the one
-        # the API/router exposes) instead of colliding on the unique key.
-        existing = (
-            await db.execute(
-                select(StatementSummary)
-                .where(StatementSummary.user_id == user_id)
-                .where(StatementSummary.file_hash == file_hash)
-            )
-        ).scalar_one_or_none()
-        if existing is not None and existing is not statement:
-            existing.account_id = statement.account_id if statement.account_id is not None else existing.account_id
-            existing.institution = statement.institution
-            existing.account_last4 = statement.account_last4
-            existing.currency = statement.currency
-            existing.period_start = statement.period_start
-            existing.period_end = statement.period_end
-            existing.opening_balance = statement.opening_balance
-            existing.closing_balance = statement.closing_balance
-            existing.extraction_metadata = effective_metadata
-            existing.confidence_score = statement.confidence_score
-            existing.balance_validated = statement.balance_validated
-            existing.validation_error = statement.validation_error
-            existing.status = statement.status
-            # parse_document builds a fresh StatementSummary and sets stage1_status there, but this
-            # reused envelope is the row that gets persisted. Mirror the freshly-computed
-            # pending-review marker onto it, without clobbering a state that was already reviewed
-            # (approved/rejected) on a re-parse.
-            if existing.stage1_status is None:
-                existing.stage1_status = statement.stage1_status
-            existing.uploaded_document_id = uploaded_doc.id
-            db.add(existing)
-        else:
-            statement.uploaded_document_id = uploaded_doc.id
-            db.add(statement)
-        # Reaching here means the parse succeeded and its facts are persisted, so the ODS document
-        # advances out of 'uploaded'. Without this the status never progresses and every document
-        # appears perpetually un-processed.
-        uploaded_doc.status = DocumentStatus.COMPLETED
-        db.add(uploaded_doc)
-        canonical_statement = existing if existing is not None and existing is not statement else statement
         try:
             # The artifact exists before parse dispatch, including brokerage
             # statements with zero cash rows. Refresh its node independently of
@@ -746,3 +640,154 @@ async def dual_write_layer2(
         )
         # Re-raise to ensure caller knows dual-write failed
         raise RuntimeError(f"Failed to write to Layer 2: {e}") from e
+
+
+async def _check_reparse_identity_conflicts(
+    db: AsyncSession,
+    user_id: UUID,
+    file_hash: str,
+    effective_metadata: dict[str, Any] | None,
+) -> None:
+    """Changing an already-posted source needs the explicit correction/void lifecycle."""
+    prior = await db.scalar(
+        select(StatementSummary).where(StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash)
+    )
+    if prior is None or prior.uploaded_document_id is None:
+        return
+
+    old_payload = (prior.extraction_metadata or {}).get("statement_extraction_result")
+    new_payload = (effective_metadata or {}).get("statement_extraction_result")
+    if old_payload == new_payload:
+        return
+
+    source_record = (
+        await db.get(StatementExtractionResultRecord, prior.current_extraction_result_id)
+        if prior.current_extraction_result_id
+        else None
+    )
+    if source_record is not None and source_record.user_id == user_id and source_record.statement_id == prior.id:
+        for position in await list_opening_positions(db, user_id=user_id, as_of=date.max):
+            source_decision = position.source_decision
+            if (
+                position.account_id == prior.account_id
+                and source_decision is not None
+                and source_decision.target.kind in {"statement_extraction_result", "reviewed_statement_envelope"}
+                and source_decision.target.id == source_record.payload.get("result_id")
+            ):
+                raise TransactionIdentityReviewRequired(
+                    "Changed source-backed opening requires correction review before reparse; existing source and stock were preserved"
+                )
+    prior_ids = select(AtomicTransaction.id).where(
+        AtomicTransaction.user_id == user_id,
+        AtomicTransaction.source_documents.contains([{"doc_id": str(prior.uploaded_document_id)}]),
+    )
+    posted = await db.scalar(
+        select(JournalEntry.id)
+        .where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+            JournalEntry.source_id.in_(prior_ids),
+            JournalEntry.status == JournalEntryStatus.POSTED,
+        )
+        .limit(1)
+    )
+    if posted is not None:
+        raise TransactionIdentityReviewRequired(
+            "Changed posted source requires correction review before reparse; existing journal entries were preserved"
+        )
+
+
+async def _upsert_layer2_transactions(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    transactions: list[ExtractedTransactionRow],
+    uploaded_doc: UploadedDocument,
+    doc_type: DocumentType,
+    statement_account_id: UUID | None,
+    dedup_service: DeduplicationService,
+    evidence_graph: Any,
+) -> int:
+    """Upsert atomic transactions and record best-effort lineage into evidence graph."""
+    layer2_count = 0
+    for txn in transactions:
+        upserted_txn = await dedup_service.upsert_scoped_atomic_transaction(
+            db=db,
+            row=txn,
+            source_doc_id=uploaded_doc.id,
+            source_doc_type=doc_type,
+            custody_account_id=statement_account_id,
+        )
+        layer2_count += 1
+
+        # Eager evidence-graph lineage (UploadedDocument --deduped_into-->
+        # AtomicTransaction). Best-effort: provenance must never break the
+        # money/atomic write, which is the priority.
+        try:
+            await evidence_graph.record_layer2_dual_write(
+                db,
+                user_id=user_id,
+                uploaded_document=uploaded_doc,
+                atomic_transaction=upserted_txn,
+                document_type=doc_type,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph dual-write lineage failed (ingestion continues)",
+                error=str(evidence_exc),
+                error_type=type(evidence_exc).__name__,
+                user_id=str(user_id),
+                atomic_transaction_id=str(upserted_txn.id),
+            )
+    return layer2_count
+
+
+async def _persist_conform_statement_summary(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    file_hash: str,
+    statement: StatementSummary,
+    effective_metadata: dict[str, Any] | None,
+    uploaded_doc: UploadedDocument,
+) -> StatementSummary:
+    """DWD conform: bind the confirmed envelope to its ODS document and persist."""
+    existing = (
+        await db.execute(
+            select(StatementSummary)
+            .where(StatementSummary.user_id == user_id)
+            .where(StatementSummary.file_hash == file_hash)
+        )
+    ).scalar_one_or_none()
+    if existing is not None and existing is not statement:
+        existing.account_id = statement.account_id if statement.account_id is not None else existing.account_id
+        existing.institution = statement.institution
+        existing.account_last4 = statement.account_last4
+        existing.currency = statement.currency
+        existing.period_start = statement.period_start
+        existing.period_end = statement.period_end
+        existing.opening_balance = statement.opening_balance
+        existing.closing_balance = statement.closing_balance
+        existing.extraction_metadata = effective_metadata
+        existing.confidence_score = statement.confidence_score
+        existing.balance_validated = statement.balance_validated
+        existing.validation_error = statement.validation_error
+        existing.status = statement.status
+        # parse_document builds a fresh StatementSummary and sets stage1_status there, but this
+        # reused envelope is the row that gets persisted. Mirror the freshly-computed
+        # pending-review marker onto it, without clobbering a state that was already reviewed
+        # (approved/rejected) on a re-parse.
+        if existing.stage1_status is None:
+            existing.stage1_status = statement.stage1_status
+        existing.uploaded_document_id = uploaded_doc.id
+        db.add(existing)
+    else:
+        statement.uploaded_document_id = uploaded_doc.id
+        db.add(statement)
+
+    # Reaching here means the parse succeeded and its facts are persisted, so the ODS document
+    # advances out of 'uploaded'. Without this the status never progresses and every document
+    # appears perpetually un-processed.
+    uploaded_doc.status = DocumentStatus.COMPLETED
+    db.add(uploaded_doc)
+    return existing if existing is not None and existing is not statement else statement
