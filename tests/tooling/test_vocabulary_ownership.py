@@ -60,7 +60,7 @@ def test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums() -> None
         },
         owner="apps/backend/src/reporting/base/types.py",
         compatibility_module="apps/backend/src/schemas/reporting.py",
-        owner_module="src.reporting.base.types",
+        owner_module="src.reporting",
     )
 
 
@@ -105,7 +105,7 @@ def test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos() -> None:
         },
         owner="apps/backend/src/identity/base/types/user.py",
         compatibility_module="apps/backend/src/schemas/user.py",
-        owner_module="src.identity.base.types.user",
+        owner_module="src.identity",
     )
 
     assert "UserListResponse" not in _defined_classes(
