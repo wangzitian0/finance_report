@@ -3,12 +3,12 @@
   "dirty_inputs": [],
   "inputs": {
     "repo": "210427446d80d41f679a14c11f1efd3bbf5990ba90573c594c23d9c1028a6e39",
-    "root": "1acee297b012a40616ebdaa23b5622ee67fa2495e42eea5eac09e404b617aa92",
-    "skills": "98f158044bc0a640a6e9b5a50ecae70a244d0405f5106e88eaa824936560b5ed"
+    "root": "77a0f07f693247f372f94c6905d5e29e2fc30706cb3bb5221d054d202b495ba9",
+    "skills": "486a39bc75323b4007abd850b1aef302e47f08647c81fde558d03b91be9bd50f"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "05f04155f87d9fa8230f3cca48e4ce6a06cd6d09b50c9369199207740a2712fe",
+    "AGENTS.md": "921599a0af3c548350ba19712d1941d2e0039d5ebc2f53520265e66847cd834e",
     "CLAUDE.md": "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
   },
   "profiles": [
@@ -22,7 +22,7 @@
       ".opencode/skills/domain/ac-workflow/SKILL.md": "391e06071fef3c878ee865660228f8aff0d2c64d093f266eb1a6161cafe96899",
       ".opencode/skills/domain/accounting/SKILL.md": "e0f4596bd0a3ff475ba55e326c05ca0a1125f59da10475364e10870c9bd3dbb9",
       ".opencode/skills/domain/audit/SKILL.md": "50f721df45da65f421032c7b7bc3890a7a6a25380c34684c1366dc4cfc65d39a",
-      ".opencode/skills/domain/close/SKILL.md": "4dca0217d2aba9144489403bbec22d95f4ec8c0687d022062278414d9bc67021",
+      ".opencode/skills/domain/close/SKILL.md": "39173a95b0a18473fe818c772b57ea4d369ff42722f6c0e7c751c3f0678af9d9",
       ".opencode/skills/domain/codegraph/SKILL.md": "846a10e24f95f87ebf4a6f8a2f9cb715476dcde4f3ac06de3bd29d0d4dda32fc",
       ".opencode/skills/domain/development/SKILL.md": "1edccec1a8a06beee64391031d0fa0d557e699cfff95f04739b470741b56580f",
       ".opencode/skills/domain/extraction/SKILL.md": "623e935bb80528d9ae5960fef11da170b2da1683ba6a893a30f88af3968db5dd",
@@ -117,7 +117,7 @@
     },
     "root": ".opencode/skills/domain"
   },
-  "source_revision": "42b59501ee21c72a57899a5202060c49acec6020",
+  "source_revision": "8415c3c8268f1569da72c517a7ab80fc713d8b9d",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
