@@ -1740,7 +1740,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage-merge, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
+        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1978,7 +1978,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "changes",
         "backend",
         "frontend-vitest",
-        "tooling-coverage-merge",
+        "tooling-coverage",
     ]
     assert jobs["ac-behavioral-ratchet"]["needs"] == [
         "changes",
@@ -2000,7 +2000,7 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "container-images",
         "verify-sha-image-published",
         "lint",
-        "tooling-coverage-merge",
+        "tooling-coverage",
         "unified-coverage",
         "ac-traceability",
         "ac-behavioral-ratchet",
@@ -2283,7 +2283,7 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
         "changes",
         "backend",
         "frontend-vitest",
-        "tooling-coverage-merge",
+        "tooling-coverage",
     ]
     assert "Install uv" not in unified_block
     assert "uv run python tools/merge_lcov.py" not in unified_block
@@ -3235,7 +3235,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert traceability_needs == {
         "changes",
         "lint",
-        "tooling-coverage-merge",
+        "tooling-coverage",
         "backend",
         "backend-integration",
         "backend-e2e-tier1",
@@ -3245,7 +3245,7 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
     assert (
         "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
         "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
-        "verify-sha-image-published, lint, tooling-coverage-merge, "
+        "verify-sha-image-published, lint, tooling-coverage, "
         "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
     )
     assert "late evidence consumer" in ci_cd
@@ -3282,7 +3282,7 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
     assert set(workflow_data["jobs"]["ac-traceability"]["needs"]) == {
         "changes",
         "lint",
-        "tooling-coverage-merge",
+        "tooling-coverage",
         "backend",
         "backend-integration",
         "backend-e2e-tier1",

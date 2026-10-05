@@ -25,6 +25,7 @@ def _copy_projection_inputs(target_root: Path) -> None:
         ".github/workflows/release.yml",
         ".github/workflows/deploy-freshness.yml",
         ".github/workflows/benchmark.yml",
+        ".github/workflows/audit-replay.yml",
         ".github/actions/setup-minio/action.yml",
         ".github/actions/setup-e2e-tests/action.yml",
         ".github/actions/setup-backend-env/action.yml",
@@ -234,3 +235,120 @@ def test_AC_testing_toolchain_1_main_entrypoint_exits_cleanly(
             Path(generate_workflows.__file__).as_posix(), run_name="__main__"
         )
     assert exc_info.value.code == 0
+
+
+def test_AC_testing_toolchain_1_detects_drift_when_backend_dockerfile_changes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Backend Dockerfile base image drift is detected."""
+    _copy_projection_inputs(tmp_path)
+    dockerfile = tmp_path / "apps/backend/Dockerfile"
+    content = dockerfile.read_text(encoding="utf-8")
+    dockerfile.write_text(
+        content.replace("ARG PYTHON_IMAGE=", "ARG PYTHON_IMAGE=python:3.11-slim\n# "),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("apps/backend/Dockerfile has drifted" in err for err in errors)
+
+
+def test_AC_testing_toolchain_1_detects_drift_when_frontend_dockerfile_changes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Frontend Dockerfile base image drift is detected."""
+    _copy_projection_inputs(tmp_path)
+    dockerfile = tmp_path / "apps/frontend/Dockerfile"
+    content = dockerfile.read_text(encoding="utf-8")
+    dockerfile.write_text(
+        content.replace("ARG NODE_IMAGE=", "ARG NODE_IMAGE=node:18-alpine\n# "),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("apps/frontend/Dockerfile has drifted" in err for err in errors)
+
+
+def test_AC_testing_toolchain_1_detects_drift_when_compose_changes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Compose file service image drift is detected."""
+    _copy_projection_inputs(tmp_path)
+    compose_file = tmp_path / "docker-compose.yml"
+    content = compose_file.read_text(encoding="utf-8")
+    compose_file.write_text(
+        content.replace("postgres:15.14-alpine", "postgres:16-alpine"),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("docker-compose.yml has drifted" in err for err in errors)
+
+
+def test_AC_testing_toolchain_1_detects_drift_when_setup_backend_env_changes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: setup-backend-env default uv version drift is detected."""
+    _copy_projection_inputs(tmp_path)
+    action_file = tmp_path / ".github/actions/setup-backend-env/action.yml"
+    content = action_file.read_text(encoding="utf-8")
+    action_file.write_text(
+        content.replace("default: '0.9.18'", "default: '0.9.99'"),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any(
+        ".github/actions/setup-backend-env/action.yml has drifted" in err
+        for err in errors
+    )
+
+
+def test_AC_testing_toolchain_1_detects_drift_when_audit_replay_workflow_changes(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: audit-replay workflow python-version drift is detected."""
+    _copy_projection_inputs(tmp_path)
+    wf_file = tmp_path / ".github/workflows/audit-replay.yml"
+    content = wf_file.read_text(encoding="utf-8")
+    wf_file.write_text(
+        content.replace('python-version: "3.12.12"', 'python-version: "3.11.0"'),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any(
+        ".github/workflows/audit-replay.yml has drifted" in err for err in errors
+    )
+
+
+def test_AC_testing_toolchain_1_missing_required_dockerfile_pin_fails(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Missing required Dockerfile ARG fails projection with ValueError."""
+    _copy_projection_inputs(tmp_path)
+    dockerfile = tmp_path / "apps/backend/Dockerfile"
+    content = dockerfile.read_text(encoding="utf-8")
+    dockerfile.write_text(
+        content.replace("ARG PYTHON_IMAGE=", "ARG OTHER_IMAGE="),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("missing required ARG PYTHON_IMAGE" in err for err in errors)
+
+
+def test_AC_testing_toolchain_1_missing_required_compose_pin_fails(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.toolchain.1: Missing required Compose service image fails projection with ValueError."""
+    _copy_projection_inputs(tmp_path)
+    compose_file = tmp_path / "docker-compose.yml"
+    content = compose_file.read_text(encoding="utf-8")
+    compose_file.write_text(
+        content.replace("    image: postgres:15.14-alpine\n", ""),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("missing required postgres image pin" in err for err in errors)
