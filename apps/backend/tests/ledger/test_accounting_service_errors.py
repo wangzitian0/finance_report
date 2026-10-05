@@ -18,9 +18,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.ledger import (
     Account,
     AccountType,
+    DecisionAnchorError,
     Direction,
     JournalEntry,
     JournalEntryStatus,
@@ -33,7 +35,7 @@ from src.ledger import (
     void_journal_entry,
 )
 from tests.factories import UserFactory
-from tests.ledger._ledger_helpers import create_valid_posted_entry
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry, create_valid_posted_entry
 
 
 async def test_calculate_account_balance_errors(db: AsyncSession, test_user_id):
@@ -216,26 +218,59 @@ async def test_post_journal_entry_success(db: AsyncSession, test_user_id):
     db.add_all([asset, income])
     await db.flush()
 
-    entry = JournalEntry(
+    entry = await create_anchored_test_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "Draft to Post",
+        [
+            {"account_id": asset.id, "direction": Direction.DEBIT, "amount": Decimal("100"), "currency": "SGD"},
+            {"account_id": income.id, "direction": Direction.CREDIT, "amount": Decimal("100"), "currency": "SGD"},
+        ],
+    )
+
+    posted_entry = await post_journal_entry(db, entry.id, test_user_id)
+    assert posted_entry.status == JournalEntryStatus.POSTED
+
+
+async def test_post_journal_entry_rejects_unanchored_manual_entry(db: AsyncSession, test_user_id):
+    """Ensure post_journal_entry enforces decision anchor validation and fails closed on unanchored manual entries."""
+    asset = Account(
+        user_id=test_user_id,
+        name="Cash Unanchored",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    income = Account(
+        user_id=test_user_id,
+        name="Income Unanchored",
+        type=AccountType.INCOME,
+        currency="SGD",
+    )
+    db.add_all([asset, income])
+    await db.flush()
+
+    unanchored_entry = JournalEntry(
         user_id=test_user_id,
         entry_date=date.today(),
-        memo="Draft to Post",
+        memo="Unanchored draft",
+        source_type=JournalEntrySourceType.MANUAL,
         status=JournalEntryStatus.DRAFT,
     )
-    db.add(entry)
+    db.add(unanchored_entry)
     await db.flush()
 
     db.add_all(
         [
             JournalLine(
-                journal_entry_id=entry.id,
+                journal_entry_id=unanchored_entry.id,
                 account_id=asset.id,
                 direction=Direction.DEBIT,
                 amount=Decimal("100"),
                 currency="SGD",
             ),
             JournalLine(
-                journal_entry_id=entry.id,
+                journal_entry_id=unanchored_entry.id,
                 account_id=income.id,
                 direction=Direction.CREDIT,
                 amount=Decimal("100"),
@@ -245,8 +280,46 @@ async def test_post_journal_entry_success(db: AsyncSession, test_user_id):
     )
     await db.commit()
 
-    posted_entry = await post_journal_entry(db, entry.id, test_user_id)
-    assert posted_entry.status == JournalEntryStatus.POSTED
+    with pytest.raises(DecisionAnchorError, match="legacy-unproven journal entries cannot be posted"):
+        await post_journal_entry(db, unanchored_entry.id, test_user_id)
+
+
+async def test_validate_journal_balance_rejects_zero_plug_lines():
+    """Ensure validate_journal_balance rejects zero-amount plug lines even if total debits equal credits."""
+    from uuid import uuid4
+
+    from src.ledger import validate_journal_balance
+
+    # Balanced entry with a zero plug line
+    lines_with_zero_plug = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        ),
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.CREDIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        ),
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=uuid4(),
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("0.00"),
+            currency="SGD",
+        ),
+    ]
+
+    with pytest.raises(ValidationError, match="amount must be positive"):
+        validate_journal_balance(lines_with_zero_plug)
 
 
 async def test_void_journal_entry_success(db: AsyncSession, test_user_id):

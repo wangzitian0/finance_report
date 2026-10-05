@@ -34,6 +34,7 @@ from src.ledger import (
     validate_journal_balance,
     verify_accounting_equation,
 )
+from tests.ledger._ledger_helpers import create_anchored_test_journal_entry
 
 
 @pytest.fixture
@@ -307,35 +308,26 @@ async def test_posted_entry_cannot_be_reposted(db: AsyncSession, test_user_id, a
     Attempting to post an already-posted entry should fail.
     """
     # Create and post an entry
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="Test entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+    entry = await create_anchored_test_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "Test entry",
+        [
+            {
+                "account_id": asset_account.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+            {
+                "account_id": income_account.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+        ],
     )
-    db.add(entry)
-    await db.flush()
-
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=asset_account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100.00"),
-            currency="SGD",
-        )
-    )
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=income_account.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100.00"),
-            currency="SGD",
-        )
-    )
-    await db.commit()
 
     # Post the entry
     await post_journal_entry(db, entry.id, test_user_id)
@@ -355,35 +347,26 @@ async def test_posted_entry_status_immutable_via_direct_update(
     The only way to "modify" is through void + recreate flow.
     """
     # Create and post an entry
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="Original memo",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+    entry = await create_anchored_test_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "Original memo",
+        [
+            {
+                "account_id": asset_account.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+            {
+                "account_id": income_account.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
+        ],
     )
-    db.add(entry)
-    await db.flush()
-
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=asset_account.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100.00"),
-            currency="SGD",
-        )
-    )
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=income_account.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100.00"),
-            currency="SGD",
-        )
-    )
-    await db.commit()
 
     posted_entry = await post_journal_entry(db, entry.id, test_user_id)
     assert posted_entry.status == JournalEntryStatus.POSTED
@@ -569,54 +552,22 @@ async def test_many_lines_complex_salary_correct(db: AsyncSession, test_user_id,
 
     bank, cpf, tax, health, salary, bonus = accounts
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="Salary with breakdown (gross)",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
-    )
-    db.add(entry)
-    await db.flush()
-
-    # This represents: receiving salary where employer records gross
-    # Bank gets net, but we also record employer contributions as expenses
-    # Actually for personal finance, let's do a simpler balanced entry:
-    #
-    # Gross: 5500 (salary 5000 + bonus 500)
-    # Net to bank: 3800
-    # CPF (employer side deducted): treated as expense here
-    #
-    # Simpler model - from employee perspective:
-    # DEBIT Bank (Asset): 3800 (net received)
-    # DEBIT CPF Special Account (Asset): 1000 (goes to CPF)
-    # DEBIT Tax Prepaid (Asset): 500 (withheld)
-    # DEBIT Health Insurance (Expense): 200 (employee pays)
-    # CREDIT Salary Income: 5000
-    # CREDIT Bonus Income: 500
-
     lines_data = [
-        (bank.id, Direction.DEBIT, "3300.00"),  # Net to bank (5500 - 1000 - 500 - 200 - 500)
-        (cpf.id, Direction.DEBIT, "1000.00"),  # CPF contribution
-        (tax.id, Direction.DEBIT, "500.00"),  # Tax withheld
-        (health.id, Direction.DEBIT, "200.00"),  # Health
-        (salary.id, Direction.CREDIT, "4500.00"),  # Base salary
-        (bonus.id, Direction.CREDIT, "500.00"),  # Bonus
+        {"account_id": bank.id, "direction": Direction.DEBIT, "amount": Decimal("3300.00"), "currency": "SGD"},
+        {"account_id": cpf.id, "direction": Direction.DEBIT, "amount": Decimal("1000.00"), "currency": "SGD"},
+        {"account_id": tax.id, "direction": Direction.DEBIT, "amount": Decimal("500.00"), "currency": "SGD"},
+        {"account_id": health.id, "direction": Direction.DEBIT, "amount": Decimal("200.00"), "currency": "SGD"},
+        {"account_id": salary.id, "direction": Direction.CREDIT, "amount": Decimal("4500.00"), "currency": "SGD"},
+        {"account_id": bonus.id, "direction": Direction.CREDIT, "amount": Decimal("500.00"), "currency": "SGD"},
     ]
 
-    # Verify balance before adding: DEBIT = 3300+1000+500+200 = 5000, CREDIT = 4500+500 = 5000 ✓
-
-    for acc_id, direction, amount in lines_data:
-        db.add(
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=acc_id,
-                direction=direction,
-                amount=Decimal(amount),
-                currency="SGD",
-            )
-        )
-    await db.commit()
+    entry = await create_anchored_test_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "Salary with breakdown (gross)",
+        lines_data,
+    )
 
     # Post should succeed
     posted = await post_journal_entry(db, entry.id, test_user_id)

@@ -122,6 +122,10 @@ def validate_journal_balance(lines: Sequence[JournalLine], *, base_currency: str
     if len(lines) < 2:
         raise ValidationError("Journal entry must have at least 2 lines")
 
+    for line in lines:
+        if line.amount is None or line.amount <= Decimal("0"):
+            raise ValidationError(f"Journal line amount must be positive, got {line.amount}")
+
     # All per-line amounts are in base currency here, so Money.sum is single-currency;
     # a cross-currency mix would raise instead of silently summing.
     normalized_base = _effective_base_currency(base_currency)

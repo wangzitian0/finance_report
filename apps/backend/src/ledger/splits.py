@@ -21,14 +21,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.audit.money import to_money
+from src.ledger.base.vocabulary import DEFAULT_BASE_CURRENCY, AccountType, Direction
+
+AccountKind = AccountType
 
 __all__ = [
+    "DEFAULT_BASE_CURRENCY",
     "Direction",
+    "AccountType",
     "AccountKind",
     "SplitLine",
     "DividendSplit",
@@ -58,28 +62,20 @@ def quantize_rate(v: Decimal) -> Decimal:
     return v.quantize(RATE_Q, rounding=ROUND_HALF_UP)
 
 
-class Direction(str, Enum):
-    DEBIT = "debit"
-    CREDIT = "credit"
-
-
-class AccountKind(str, Enum):
-    ASSET = "asset"
-    LIABILITY = "liability"
-    INCOME = "income"
-    EXPENSE = "expense"
-
-
 class SplitLine(BaseModel):
     """One double-entry line in a composite split."""
 
     model_config = ConfigDict(frozen=True)
 
     role: str
-    account_kind: AccountKind
+    account_kind: AccountType
     direction: Direction
-    amount: Decimal = Field(ge=ZERO)
+    amount: Decimal = Field(gt=ZERO)
     account_code: str | None = None
+
+    @property
+    def account_type(self) -> AccountType:
+        return self.account_kind
 
     @field_validator("amount")
     @classmethod
@@ -88,10 +84,16 @@ class SplitLine(BaseModel):
 
 
 def _assert_balanced(lines: Sequence[SplitLine]) -> None:
+    if not lines:
+        return
+    if len(lines) < 2:
+        raise ValueError(f"split must have at least 2 lines, got {len(lines)}")
     debits = ZERO
     credits = ZERO
     for item in lines:
-        if item.direction is Direction.DEBIT:
+        if item.amount <= ZERO:
+            raise ValueError(f"split line amount must be > 0, got {item.amount}")
+        if item.direction == Direction.DEBIT:
             debits += item.amount
         else:
             credits += item.amount
@@ -166,32 +168,42 @@ def calculate_dividend_split(
 
     effective_rate = quantize_rate(tax / gross) if gross > ZERO else ZERO
 
+    div_lines: list[SplitLine] = []
+    if net > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="net_cash_received",
+                account_kind=AccountKind.ASSET,
+                direction=Direction.DEBIT,
+                amount=net,
+            )
+        )
+    if tax > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="withholding_tax_expense",
+                account_kind=AccountKind.EXPENSE,
+                direction=Direction.DEBIT,
+                amount=tax,
+            )
+        )
+    if gross > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="dividend_income",
+                account_kind=AccountKind.INCOME,
+                direction=Direction.CREDIT,
+                amount=gross,
+            )
+        )
+
     return DividendSplit(
         gross_amount=gross,
         net_amount=net,
         tax_amount=tax,
         requested_tax_rate=withholding_tax_rate,
         effective_tax_rate=effective_rate,
-        lines=(
-            SplitLine(
-                role="net_cash_received",
-                account_kind=AccountKind.ASSET,
-                direction=Direction.DEBIT,
-                amount=net,
-            ),
-            SplitLine(
-                role="withholding_tax_expense",
-                account_kind=AccountKind.EXPENSE,
-                direction=Direction.DEBIT,
-                amount=tax,
-            ),
-            SplitLine(
-                role="dividend_income",
-                account_kind=AccountKind.INCOME,
-                direction=Direction.CREDIT,
-                amount=gross,
-            ),
-        ),
+        lines=tuple(div_lines),
     )
 
 
@@ -221,30 +233,40 @@ def calculate_mortgage_split(
     if interest + principal != total:
         raise ValueError(f"interest + principal ({interest} + {principal}) != total ({total})")
 
-    return MortgageSplit(
-        total_payment=total,
-        interest_amount=interest,
-        principal_amount=principal,
-        lines=(
+    mort_lines: list[SplitLine] = []
+    if interest > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="interest_expense",
                 account_kind=AccountKind.EXPENSE,
                 direction=Direction.DEBIT,
                 amount=interest,
-            ),
+            )
+        )
+    if principal > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="principal_reduction",
                 account_kind=AccountKind.LIABILITY,
                 direction=Direction.DEBIT,
                 amount=principal,
-            ),
+            )
+        )
+    if total > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="cash_paid",
                 account_kind=AccountKind.ASSET,
                 direction=Direction.CREDIT,
                 amount=total,
-            ),
-        ),
+            )
+        )
+
+    return MortgageSplit(
+        total_payment=total,
+        interest_amount=interest,
+        principal_amount=principal,
+        lines=tuple(mort_lines),
     )
 
 
@@ -295,32 +317,43 @@ def calculate_payroll_split(
     if actual_net + tax + ee_ded != gross:
         raise ValueError(f"net payout + tax + deductions ({actual_net + tax + ee_ded}) != gross salary ({gross})")
 
-    lines_list = [
-        SplitLine(
-            role="gross_salary_expense",
-            account_kind=AccountKind.EXPENSE,
-            direction=Direction.DEBIT,
-            amount=gross,
-        ),
-        SplitLine(
-            role="net_cash_payout",
-            account_kind=AccountKind.ASSET,
-            direction=Direction.CREDIT,
-            amount=actual_net,
-        ),
-        SplitLine(
-            role="income_tax_withholding",
-            account_kind=AccountKind.LIABILITY,
-            direction=Direction.CREDIT,
-            amount=tax,
-        ),
-        SplitLine(
-            role="employee_pension_deduction",
-            account_kind=AccountKind.LIABILITY,
-            direction=Direction.CREDIT,
-            amount=ee_ded,
-        ),
-    ]
+    lines_list: list[SplitLine] = []
+    if gross > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="gross_salary_expense",
+                account_kind=AccountKind.EXPENSE,
+                direction=Direction.DEBIT,
+                amount=gross,
+            )
+        )
+    if actual_net > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="net_cash_payout",
+                account_kind=AccountKind.ASSET,
+                direction=Direction.CREDIT,
+                amount=actual_net,
+            )
+        )
+    if tax > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="income_tax_withholding",
+                account_kind=AccountKind.LIABILITY,
+                direction=Direction.CREDIT,
+                amount=tax,
+            )
+        )
+    if ee_ded > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="employee_pension_deduction",
+                account_kind=AccountKind.LIABILITY,
+                direction=Direction.CREDIT,
+                amount=ee_ded,
+            )
+        )
 
     if er_contrib > ZERO:
         lines_list.extend(
@@ -453,9 +486,14 @@ def calculate_transfer_fx_split(
     target_amount: Decimal,
     target_currency: str,
     target_to_base_rate: Decimal,
-    base_currency: str = "USD",
+    base_currency: str = DEFAULT_BASE_CURRENCY,
 ) -> TransferFxSplit:
     """Calculate multi-currency transfer with realized FX gain or loss."""
+    if source_amount <= ZERO or target_amount <= ZERO:
+        raise ValueError("source_amount and target_amount must be > 0")
+    if source_to_base_rate <= ZERO or target_to_base_rate <= ZERO:
+        raise ValueError("source_to_base_rate and target_to_base_rate must be > 0")
+
     src_amt = quantize_money(source_amount)
     tgt_amt = quantize_money(target_amount)
     src_val = quantize_money(src_amt * source_to_base_rate)

@@ -35,7 +35,9 @@ from src.ledger import (
     void_journal_entry,
 )
 from tests.factories import UserFactory
-from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
+from tests.ledger._ledger_helpers import (
+    create_anchored_test_journal_entry as create_journal_entry,
+)
 
 
 @pytest.fixture
@@ -157,34 +159,26 @@ async def test_calculate_balance_for_income_account(db: AsyncSession, bank_accou
 
 async def test_post_journal_entry_success(db: AsyncSession, bank_account, salary_account, test_user_id):
     """Test posting a draft journal entry."""
-    # Create draft entry
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="Test draft entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.DRAFT,
+    entry = await create_journal_entry(
+        db,
+        test_user_id,
+        date.today(),
+        "Test draft entry",
+        [
+            {
+                "account_id": bank_account.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("1000.00"),
+                "currency": "SGD",
+            },
+            {
+                "account_id": salary_account.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("1000.00"),
+                "currency": "SGD",
+            },
+        ],
     )
-    db.add(entry)
-    await db.flush()
-
-    line1 = JournalLine(
-        journal_entry_id=entry.id,
-        account_id=bank_account.id,
-        direction=Direction.DEBIT,
-        amount=Decimal("1000.00"),
-        currency="SGD",
-    )
-    line2 = JournalLine(
-        journal_entry_id=entry.id,
-        account_id=salary_account.id,
-        direction=Direction.CREDIT,
-        amount=Decimal("1000.00"),
-        currency="SGD",
-    )
-    db.add(line1)
-    db.add(line2)
-    await db.commit()
 
     # Post the entry
     posted_entry = await post_journal_entry(db, entry.id, test_user_id)
