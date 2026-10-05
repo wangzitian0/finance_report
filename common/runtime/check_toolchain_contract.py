@@ -95,68 +95,18 @@ def check_moon_toolchain(repo_root: Path, toolchain: dict, errors: list[str]) ->
 
 
 def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
-    python_version = toolchain["runtime"]["python"]
-    node_version = toolchain["runtime"]["node"]
-    uv_version = toolchain["runtime"]["uv"]
-    postgres_image = toolchain["images"]["postgres"]
+    from common.runtime.generate_workflows import project_all
 
-    workflow_expectations = {
-        ".github/workflows/ci.yml": (
-            f'PYTHON_VERSION: "{python_version}"',
-            f'NODE_VERSION: "{node_version}"',
-            f'UV_VERSION: "{uv_version}"',
-            f"image: {postgres_image}",
-            "python-version: ${{ env.PYTHON_VERSION }}",
-            "node-version: ${{ env.NODE_VERSION }}",
-            "version: ${{ env.UV_VERSION }}",
-            "python tools/check_toolchain_contract.py",
-        ),
-        ".github/workflows/deploy.yml": (
-            f'PYTHON_VERSION: "{python_version}"',
-            f'NODE_VERSION: "{node_version}"',
-            f'UV_VERSION: "{uv_version}"',
-            "python-version: ${{ env.PYTHON_VERSION }}",
-            "version: ${{ env.UV_VERSION }}",
-        ),
-        ".github/workflows/docs.yml": (
-            f'PYTHON_VERSION: "{python_version}"',
-            "python-version: ${{ env.PYTHON_VERSION }}",
-        ),
-        ".github/actions/setup-e2e-tests/action.yml": (
-            f'version: "{uv_version}"',
-            "python-version-file: .python-version",
-        ),
-    }
-    for path, needles in workflow_expectations.items():
-        content = read_text(repo_root, path)
-        for needle in needles:
-            expect_contains(errors, path, content, needle)
-
-    # MinIO acquisition contract:
-    # 1. .github/actions/setup-minio/action.yml must use governed images from toolchain.toml.
-    # 2. .github/workflows/ci.yml must invoke ./.github/actions/setup-minio in backend-integration
-    #    and backend-e2e-tier1 jobs.
-    minio_action_path = ".github/actions/setup-minio/action.yml"
-    try:
-        minio_action_content = read_text(repo_root, minio_action_path)
-    except FileNotFoundError:
-        errors.append(f"{minio_action_path}: file not found")
-        minio_action_content = ""
-
-    action_lines = [
-        line
-        for line in minio_action_content.splitlines()
-        if not line.lstrip().startswith("#")
-    ]
-    for key in ("minio", "minio_client"):
-        image = toolchain["images"][key]
-        if not any(image in line for line in action_lines):
-            errors.append(
-                f"{minio_action_path}: MinIO setup action must use {key}={image!r}"
-            )
+    status, proj_errors, _ = project_all(repo_root, check_only=True)
+    if status != 0:
+        errors.extend(proj_errors)
 
     ci_path = ".github/workflows/ci.yml"
-    ci_content = read_text(repo_root, ci_path)
+    try:
+        ci_content = read_text(repo_root, ci_path)
+    except FileNotFoundError:
+        errors.append(f"{ci_path}: file not found")
+        return
     for job_name in ("backend-integration", "backend-e2e-tier1"):
         job_pattern = (
             rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
