@@ -63,10 +63,11 @@ def test_clean_statement_description():
 
 
 def test_sanitize_account_last4():
-    """Extracts exactly the last 4 alphanumeric digits or returns None."""
+    """Extracts up to the last 4 alphanumeric characters or returns None."""
     assert sanitize_account_last4("123-456-7890") == "7890"
     assert sanitize_account_last4("ACC*9876") == "9876"
-    assert sanitize_account_last4("12") is None
+    assert sanitize_account_last4("12") == "12"
+    assert sanitize_account_last4("---") is None
     assert sanitize_account_last4(None) is None
 
 

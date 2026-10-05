@@ -4,6 +4,7 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension._base import (
     _tolerant_parse_date,
     logger,
@@ -45,15 +46,9 @@ class _CoerceMixin:
     def _sanitize_account_last4(value: str | None) -> str | None:
         """Sanitize account_last4 to up to the last 4 alphanumeric characters.
 
-        Strips all non-alphanumeric characters (hyphens, spaces, etc.)
-        and returns only the last 4 characters. Returns None for empty
-        or non-alphanumeric input. This prevents
-        StringDataRightTruncationError from the VARCHAR(4) DB column.
+        Delegates to pure normalization core src.extraction.base.normalization_engine.
         """
-        if not value:
-            return None
-        alphanumeric_only = re.sub(r"[^a-zA-Z0-9]", "", value)
-        return alphanumeric_only[-4:] if alphanumeric_only else None
+        return sanitize_account_last4(value)
 
     def _extract_status_code(self, error_msg: str) -> str | None:
         match = re.search(r"HTTP (\d{3})", error_msg)

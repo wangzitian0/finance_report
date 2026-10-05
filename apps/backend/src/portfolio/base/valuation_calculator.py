@@ -9,17 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
+from src.audit.money import to_money
 from src.audit.ratio import Ratio
-
-
-@dataclass(frozen=True)
-class PositionValuationInput:
-    """Input parameters for valuing a single holding position."""
-
-    quantity: Decimal
-    unit_cost_basis: Decimal
-    market_price: Decimal
-    currency: str = "SGD"
 
 
 @dataclass(frozen=True)
@@ -74,9 +65,9 @@ def calculate_position_valuation(
     if unit_cost_basis < Decimal("0"):
         raise ValueError("Cost basis cannot be negative")
 
-    market_value = (quantity * market_price).quantize(Decimal("0.01"))
-    cost_basis = (quantity * unit_cost_basis).quantize(Decimal("0.01"))
-    unrealized_pnl = (market_value - cost_basis).quantize(Decimal("0.01"))
+    market_value = to_money(quantity * market_price)
+    cost_basis = to_money(quantity * unit_cost_basis)
+    unrealized_pnl = to_money(market_value - cost_basis)
     ratio = Ratio.fraction_or_zero(unrealized_pnl, cost_basis)
 
     return PositionValuationResult(
@@ -91,9 +82,9 @@ def calculate_portfolio_valuation_totals(
     positions: Sequence[PositionValuationResult],
 ) -> PortfolioValuationTotals:
     """Aggregate totals and net unrealized PnL percentage across all positions."""
-    total_market_value = sum((p.market_value for p in positions), Decimal("0.00")).quantize(Decimal("0.01"))
-    total_cost_basis = sum((p.cost_basis for p in positions), Decimal("0.00")).quantize(Decimal("0.01"))
-    total_unrealized_pnl = sum((p.unrealized_pnl for p in positions), Decimal("0.00")).quantize(Decimal("0.01"))
+    total_market_value = to_money(sum((p.market_value for p in positions), Decimal("0.00")))
+    total_cost_basis = to_money(sum((p.cost_basis for p in positions), Decimal("0.00")))
+    total_unrealized_pnl = to_money(sum((p.unrealized_pnl for p in positions), Decimal("0.00")))
     total_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
 
     return PortfolioValuationTotals(
@@ -124,7 +115,7 @@ def calculate_allocation_breakdown(
         results.append(
             AllocationBreakdownResult(
                 category=cat,
-                value=val.quantize(Decimal("0.01")),
+                value=to_money(val),
                 percentage=ratio.to_percent(),
                 count=category_counts[cat],
             )
