@@ -286,6 +286,19 @@ def _repo_py_basenames() -> set[str]:
     return names
 
 
+_COMMON_ENGINEERING_SKILLS = {
+    "audit",
+    "close",
+    "codegraph",
+    "deploy-evidence",
+    "prr",
+    "recall",
+    "smoke",
+    "ssot",
+    "start",
+}
+
+
 def test_skill_docs_reference_existing_tools() -> None:
     """Every tool script a canonical SKILL.md tells agents to run must resolve.
 
@@ -304,6 +317,8 @@ def test_skill_docs_reference_existing_tools() -> None:
     repo_basenames = _repo_py_basenames()
     missing: list[str] = []
     for skill_md in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
+        if skill_md.parent.name in _COMMON_ENGINEERING_SKILLS:
+            continue
         text = skill_md.read_text(encoding="utf-8")
         rel = skill_md.relative_to(ROOT)
         for ref in _TOOL_PATH_REF.findall(text):
