@@ -30,15 +30,9 @@ def _build_otel_resource() -> Any:
 
 def _build_otlp_metrics_endpoint(endpoint: str) -> str:
     """Build the full OTLP metrics endpoint URL with /v1/metrics suffix."""
-    try:
-        from infra2_sdk.runtime.otel import _signal_endpoint
+    from infra2_sdk.runtime.otel import signal_endpoint
 
-        return _signal_endpoint(endpoint, "metrics")
-    except (ImportError, AttributeError):
-        trimmed = endpoint.rstrip("/")
-        if trimmed.endswith("/v1/metrics"):
-            return trimmed
-        return f"{trimmed}/v1/metrics"
+    return signal_endpoint(endpoint, "metrics")
 
 
 def mark_metrics_export_active(active: bool = True) -> None:

@@ -22,13 +22,20 @@ def test_build_otlp_logs_endpoint_preserves_logs_path() -> None:
     assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
 
 
-def test_build_otlp_logs_endpoint_fallback(monkeypatch) -> None:
-    """AC-observability.2.3: OTEL logs endpoint fallback when SDK helper is unavailable."""
+def test_build_otlp_logs_endpoint_delegates_to_public_sdk_helper(monkeypatch) -> None:
+    """OTEL logs endpoint is derived by the SDK's public ``signal_endpoint`` (infra2-sdk >= 2.4.0)."""
     import infra2_sdk.runtime.otel as otel_mod
 
-    monkeypatch.delattr(otel_mod, "_signal_endpoint", raising=False)
-    assert logger_module._build_otlp_logs_endpoint("http://collector:4318") == "http://collector:4318/v1/logs"
-    assert logger_module._build_otlp_logs_endpoint("http://collector:4318/v1/logs") == "http://collector:4318/v1/logs"
+    calls: list[tuple[str, str]] = []
+
+    def fake_endpoint_builder(base: str, signal: str) -> str:
+        calls.append((base, signal))
+        return "http://sentinel/logs"
+
+    monkeypatch.setattr(otel_mod, "signal_endpoint", fake_endpoint_builder)
+
+    assert logger_module._build_otlp_logs_endpoint("http://collector:4318") == "http://sentinel/logs"
+    assert calls == [("http://collector:4318", "logs")]
 
 
 def test_select_renderer_uses_console_in_debug(monkeypatch) -> None:
