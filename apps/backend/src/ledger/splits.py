@@ -168,32 +168,42 @@ def calculate_dividend_split(
 
     effective_rate = quantize_rate(tax / gross) if gross > ZERO else ZERO
 
+    div_lines: list[SplitLine] = []
+    if net > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="net_cash_received",
+                account_kind=AccountKind.ASSET,
+                direction=Direction.DEBIT,
+                amount=net,
+            )
+        )
+    if tax > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="withholding_tax_expense",
+                account_kind=AccountKind.EXPENSE,
+                direction=Direction.DEBIT,
+                amount=tax,
+            )
+        )
+    if gross > ZERO:
+        div_lines.append(
+            SplitLine(
+                role="dividend_income",
+                account_kind=AccountKind.INCOME,
+                direction=Direction.CREDIT,
+                amount=gross,
+            )
+        )
+
     return DividendSplit(
         gross_amount=gross,
         net_amount=net,
         tax_amount=tax,
         requested_tax_rate=withholding_tax_rate,
         effective_tax_rate=effective_rate,
-        lines=(
-            SplitLine(
-                role="net_cash_received",
-                account_kind=AccountKind.ASSET,
-                direction=Direction.DEBIT,
-                amount=net,
-            ),
-            SplitLine(
-                role="withholding_tax_expense",
-                account_kind=AccountKind.EXPENSE,
-                direction=Direction.DEBIT,
-                amount=tax,
-            ),
-            SplitLine(
-                role="dividend_income",
-                account_kind=AccountKind.INCOME,
-                direction=Direction.CREDIT,
-                amount=gross,
-            ),
-        ),
+        lines=tuple(div_lines),
     )
 
 
@@ -223,30 +233,40 @@ def calculate_mortgage_split(
     if interest + principal != total:
         raise ValueError(f"interest + principal ({interest} + {principal}) != total ({total})")
 
-    return MortgageSplit(
-        total_payment=total,
-        interest_amount=interest,
-        principal_amount=principal,
-        lines=(
+    mort_lines: list[SplitLine] = []
+    if interest > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="interest_expense",
                 account_kind=AccountKind.EXPENSE,
                 direction=Direction.DEBIT,
                 amount=interest,
-            ),
+            )
+        )
+    if principal > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="principal_reduction",
                 account_kind=AccountKind.LIABILITY,
                 direction=Direction.DEBIT,
                 amount=principal,
-            ),
+            )
+        )
+    if total > ZERO:
+        mort_lines.append(
             SplitLine(
                 role="cash_paid",
                 account_kind=AccountKind.ASSET,
                 direction=Direction.CREDIT,
                 amount=total,
-            ),
-        ),
+            )
+        )
+
+    return MortgageSplit(
+        total_payment=total,
+        interest_amount=interest,
+        principal_amount=principal,
+        lines=tuple(mort_lines),
     )
 
 
@@ -297,32 +317,43 @@ def calculate_payroll_split(
     if actual_net + tax + ee_ded != gross:
         raise ValueError(f"net payout + tax + deductions ({actual_net + tax + ee_ded}) != gross salary ({gross})")
 
-    lines_list = [
-        SplitLine(
-            role="gross_salary_expense",
-            account_kind=AccountKind.EXPENSE,
-            direction=Direction.DEBIT,
-            amount=gross,
-        ),
-        SplitLine(
-            role="net_cash_payout",
-            account_kind=AccountKind.ASSET,
-            direction=Direction.CREDIT,
-            amount=actual_net,
-        ),
-        SplitLine(
-            role="income_tax_withholding",
-            account_kind=AccountKind.LIABILITY,
-            direction=Direction.CREDIT,
-            amount=tax,
-        ),
-        SplitLine(
-            role="employee_pension_deduction",
-            account_kind=AccountKind.LIABILITY,
-            direction=Direction.CREDIT,
-            amount=ee_ded,
-        ),
-    ]
+    lines_list: list[SplitLine] = []
+    if gross > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="gross_salary_expense",
+                account_kind=AccountKind.EXPENSE,
+                direction=Direction.DEBIT,
+                amount=gross,
+            )
+        )
+    if actual_net > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="net_cash_payout",
+                account_kind=AccountKind.ASSET,
+                direction=Direction.CREDIT,
+                amount=actual_net,
+            )
+        )
+    if tax > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="income_tax_withholding",
+                account_kind=AccountKind.LIABILITY,
+                direction=Direction.CREDIT,
+                amount=tax,
+            )
+        )
+    if ee_ded > ZERO:
+        lines_list.append(
+            SplitLine(
+                role="employee_pension_deduction",
+                account_kind=AccountKind.LIABILITY,
+                direction=Direction.CREDIT,
+                amount=ee_ded,
+            )
+        )
 
     if er_contrib > ZERO:
         lines_list.extend(

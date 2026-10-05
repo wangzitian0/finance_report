@@ -375,3 +375,25 @@ def test_split_line_rejects_zero_amount_plug():
             direction=Direction.DEBIT,
             amount=Decimal("0.00"),
         )
+
+
+def test_calculators_omit_zero_amount_split_lines():
+    """Ensure calculators omit zero-amount components to honor zero-plug invariant without failing."""
+    # Dividend with 0% withholding tax
+    div = calculate_dividend_split(gross_amount=Decimal("100"), withholding_tax_rate=Decimal("0"))
+    assert len(div.lines) == 2
+    assert {line.role for line in div.lines} == {"net_cash_received", "dividend_income"}
+
+    # Mortgage with 0 interest (e.g. principal-only payment)
+    mort = calculate_mortgage_split(total_payment=Decimal("500"), interest_amount=Decimal("0"))
+    assert len(mort.lines) == 2
+    assert {line.role for line in mort.lines} == {"principal_reduction", "cash_paid"}
+
+    # Payroll with 0 tax and 0 employee deductions
+    payroll = calculate_payroll_split(
+        gross_salary=Decimal("5000"),
+        income_tax=Decimal("0"),
+        employee_deductions=Decimal("0"),
+    )
+    assert len(payroll.lines) == 2
+    assert {line.role for line in payroll.lines} == {"gross_salary_expense", "net_cash_payout"}
