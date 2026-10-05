@@ -26,13 +26,26 @@ async def create_anchored_test_journal_entry(
     base_currency: str | None = None,
 ) -> JournalEntry:
     """Create a draft through the production anchored boundary for low-level tests."""
+    effective_base = base_currency or settings.base_currency
+    if source_type == JournalEntrySourceType.MANUAL:
+        from src.ledger.extension.anchored_posting import submit_manual_journal_entry
+
+        return await submit_manual_journal_entry(
+            db,
+            user_id=user_id,
+            entry_date=entry_date,
+            memo=memo,
+            rationale="Test manual entry",
+            lines_data=lines_data,
+            base_currency=effective_base,
+        )
     return await submit_system_journal_entry(
         db,
         user_id=user_id,
         entry_date=entry_date,
         memo=memo,
         lines_data=lines_data,
-        base_currency=base_currency or settings.base_currency,
+        base_currency=effective_base,
         operation=f"test-{uuid4().hex[:8]}",
         source_id=source_id,
         source_type=source_type,

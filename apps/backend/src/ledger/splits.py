@@ -21,14 +21,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.audit.money import to_money
+from src.ledger.base.vocabulary import DEFAULT_BASE_CURRENCY, AccountType, Direction
+
+AccountKind = AccountType
 
 __all__ = [
+    "DEFAULT_BASE_CURRENCY",
     "Direction",
+    "AccountType",
     "AccountKind",
     "SplitLine",
     "DividendSplit",
@@ -58,28 +62,20 @@ def quantize_rate(v: Decimal) -> Decimal:
     return v.quantize(RATE_Q, rounding=ROUND_HALF_UP)
 
 
-class Direction(str, Enum):
-    DEBIT = "debit"
-    CREDIT = "credit"
-
-
-class AccountKind(str, Enum):
-    ASSET = "asset"
-    LIABILITY = "liability"
-    INCOME = "income"
-    EXPENSE = "expense"
-
-
 class SplitLine(BaseModel):
     """One double-entry line in a composite split."""
 
     model_config = ConfigDict(frozen=True)
 
     role: str
-    account_kind: AccountKind
+    account_kind: AccountType
     direction: Direction
-    amount: Decimal = Field(ge=ZERO)
+    amount: Decimal = Field(gt=ZERO)
     account_code: str | None = None
+
+    @property
+    def account_type(self) -> AccountType:
+        return self.account_kind
 
     @field_validator("amount")
     @classmethod
@@ -88,10 +84,16 @@ class SplitLine(BaseModel):
 
 
 def _assert_balanced(lines: Sequence[SplitLine]) -> None:
+    if not lines:
+        return
+    if len(lines) < 2:
+        raise ValueError(f"split must have at least 2 lines, got {len(lines)}")
     debits = ZERO
     credits = ZERO
     for item in lines:
-        if item.direction is Direction.DEBIT:
+        if item.amount <= ZERO:
+            raise ValueError(f"split line amount must be > 0, got {item.amount}")
+        if item.direction == Direction.DEBIT:
             debits += item.amount
         else:
             credits += item.amount
@@ -453,9 +455,14 @@ def calculate_transfer_fx_split(
     target_amount: Decimal,
     target_currency: str,
     target_to_base_rate: Decimal,
-    base_currency: str = "USD",
+    base_currency: str = DEFAULT_BASE_CURRENCY,
 ) -> TransferFxSplit:
     """Calculate multi-currency transfer with realized FX gain or loss."""
+    if source_amount <= ZERO or target_amount <= ZERO:
+        raise ValueError("source_amount and target_amount must be > 0")
+    if source_to_base_rate <= ZERO or target_to_base_rate <= ZERO:
+        raise ValueError("source_to_base_rate and target_to_base_rate must be > 0")
+
     src_amt = quantize_money(source_amount)
     tgt_amt = quantize_money(target_amount)
     src_val = quantize_money(src_amt * source_to_base_rate)

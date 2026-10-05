@@ -189,6 +189,10 @@ async def post_journal_entry(
 
     validate_journal_posting_invariants(cast("JournalEntryPostingProtocol", entry), base_currency=base_currency)
 
+    from src.ledger.extension.anchored_posting import validate_manual_journal_entry_for_post
+
+    await validate_manual_journal_entry_for_post(db, user_id=user_id, entry=entry, base_currency=base_currency)
+
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)
     await db.flush()

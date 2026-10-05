@@ -645,11 +645,10 @@ async def post_reconciliation_adjustment(
     lines_data = []
     for split_line in adjustment.lines:
         line_account_id = account.id if split_line.role == "bank_adjustment" else rounding_account.id
-        direction = Direction.DEBIT if split_line.direction.value.lower() == "debit" else Direction.CREDIT
         lines_data.append(
             {
                 "account_id": line_account_id,
-                "direction": direction,
+                "direction": split_line.direction,
                 "amount": split_line.amount,
                 "currency": account.currency,
                 "fx_rate": payload.fx_rate if account.currency != base_currency else None,

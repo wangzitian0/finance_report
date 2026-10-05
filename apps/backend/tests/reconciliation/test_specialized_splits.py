@@ -337,3 +337,41 @@ def test_flow_17_transfer_fx_split_gain():
     src_line = next(item for item in result.lines if item.role == "source_asset")
     assert src_line.direction == Direction.CREDIT
     assert src_line.amount == Decimal("1100.00")
+
+
+def test_flow_17_transfer_fx_split_invalid_inputs():
+    """Flow 17: Transfer FX calculation rejects non-positive amounts and exchange rates."""
+    with pytest.raises(ValueError, match="must be > 0"):
+        calculate_transfer_fx_split(
+            source_amount=Decimal("0.00"),
+            source_currency="EUR",
+            source_to_base_rate=Decimal("1.10"),
+            target_amount=Decimal("100.00"),
+            target_currency="USD",
+            target_to_base_rate=Decimal("1.00"),
+        )
+
+    with pytest.raises(ValueError, match="must be > 0"):
+        calculate_transfer_fx_split(
+            source_amount=Decimal("100.00"),
+            source_currency="EUR",
+            source_to_base_rate=Decimal("-1.10"),
+            target_amount=Decimal("100.00"),
+            target_currency="USD",
+            target_to_base_rate=Decimal("1.00"),
+        )
+
+
+def test_split_line_rejects_zero_amount_plug():
+    """Ensure SplitLine model strictly enforces positive amounts (anti-zero-plug invariant)."""
+    from pydantic import ValidationError as PydanticValidationError
+
+    from src.ledger.splits import AccountType, SplitLine
+
+    with pytest.raises(PydanticValidationError):
+        SplitLine(
+            role="zero_plug",
+            account_kind=AccountType.ASSET,
+            direction=Direction.DEBIT,
+            amount=Decimal("0.00"),
+        )
