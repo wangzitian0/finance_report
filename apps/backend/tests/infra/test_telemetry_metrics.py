@@ -490,13 +490,17 @@ def test_build_otlp_metrics_endpoint_preserves_metrics_path() -> None:
     )
 
 
-def test_build_otlp_metrics_endpoint_fallback(monkeypatch) -> None:
-    """Metrics endpoint fallback when SDK helper is unavailable."""
+def test_build_otlp_metrics_endpoint_delegates_to_public_sdk_helper(monkeypatch) -> None:
+    """Metrics endpoint is derived by the SDK's public ``signal_endpoint`` (infra2-sdk >= 2.4.0)."""
     import infra2_sdk.runtime.otel as otel_mod
 
-    monkeypatch.delattr(otel_mod, "_signal_endpoint", raising=False)
-    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://collector:4318/v1/metrics"
-    assert (
-        telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318/v1/metrics")
-        == "http://collector:4318/v1/metrics"
-    )
+    calls: list[tuple[str, str]] = []
+
+    def fake_endpoint_builder(base: str, signal: str) -> str:
+        calls.append((base, signal))
+        return "http://sentinel/metrics"
+
+    monkeypatch.setattr(otel_mod, "signal_endpoint", fake_endpoint_builder)
+
+    assert telemetry_metrics._build_otlp_metrics_endpoint("http://collector:4318") == "http://sentinel/metrics"
+    assert calls == [("http://collector:4318", "metrics")]

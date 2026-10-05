@@ -76,15 +76,9 @@ def _select_renderer() -> Processor:
 
 def _build_otlp_logs_endpoint(endpoint: str) -> str:
     """Build the full OTLP logs endpoint URL with /v1/logs suffix."""
-    try:
-        from infra2_sdk.runtime.otel import _signal_endpoint
+    from infra2_sdk.runtime.otel import signal_endpoint
 
-        return _signal_endpoint(endpoint, "logs")
-    except (ImportError, AttributeError):
-        trimmed = endpoint.rstrip("/")
-        if trimmed.endswith("/v1/logs"):
-            return trimmed
-        return f"{trimmed}/v1/logs"
+    return signal_endpoint(endpoint, "logs")
 
 
 def _build_otel_resource() -> Any:
