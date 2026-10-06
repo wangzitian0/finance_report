@@ -769,6 +769,18 @@ CONTRACT = PackageContract(
             status="done",
         ),
         ACRecord(
+            id="AC-runtime.deploy-freshness.2",
+            statement=(
+                "The deploy-freshness workflow runs its issue escalation step after the "
+                "check step fails, and only then: a failed check on a scheduled or "
+                "dispatched run reaches the step, while a failed earlier step (the SDK "
+                "download) and a passing check do not (#2201)."
+            ),
+            test="tests/tooling/test_deploy_freshness.py::test_AC_runtime_deploy_freshness_2_a_failed_check_reaches_the_escalation",
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
             id="AC-runtime.deploy-request.1",
             statement=(
                 "Finance Report pins an immutable infra2-sdk release and renders a canonical "
