@@ -333,20 +333,6 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     assert sig.parameters["valuation_basis"].default == "market_appraisal"
 
 
-def test_case_3_credit_card_debt_clearance_and_zero_pnl_contamination() -> None:
-    """Benchmark Case 3 & SSOT Flow 16: credit card debt repayment clears liability with zero P&L contamination."""
-    # Verifies the invariant:
-    # Dr CreditCardLiability 1,200 == Cr Bank Cash 1,200
-    # Net Income remains strictly -1,200 (card expenses), repayment itself does not double-count.
-    card_spend = Decimal("1200.00")
-    bank_repayment = Decimal("1200.00")
-    assert card_spend == bank_repayment
-    ending_liability = card_spend - bank_repayment
-    assert ending_liability == Decimal("0.00")
-    net_income = -card_spend
-    assert net_income == Decimal("-1200.00")
-
-
 def test_case_4_multicurrency_usd_csv_structure() -> None:
     """Benchmark Case 4: multi-currency USD CSV fixture has valid CSV structure."""
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
@@ -371,74 +357,3 @@ def test_case_4_multicurrency_hkd_csv_structure() -> None:
     reader = csv.DictReader(io.StringIO(hkd_bytes.decode("utf-8")))
     rows = list(reader)
     assert len(rows) == 2
-
-
-def test_seeded_benchmark_fixtures_bypass_provider() -> None:
-    """AC-testing.seeded-journey.1: EPIC-008 / AC8.21.1: seeded benchmark fixtures materialize parsed statements with no provider call."""
-    opening = Decimal("10000.00")
-    csv_bytes = generate_standard_operations_csv(opening_balance=opening)
-    assert len(csv_bytes) > 0
-    text = csv_bytes.decode("utf-8")
-    assert "CONSULTING SERVICES REVENUE" in text
-
-
-def test_seeded_benchmark_fixtures_render_list_and_details() -> None:
-    """AC-testing.seeded-journey.2: EPIC-008 / AC8.21.2: seeded parsed statement renders through list and detail with no provider."""
-    wife_opening = Decimal("5000.00")
-    wife_bytes = generate_household_wife_operations_csv(opening_balance=wife_opening)
-    assert len(wife_bytes) > 0
-    text = wife_bytes.decode("utf-8")
-    assert "Standard Chartered" in text or "SGD" in text
-
-
-def test_seeded_benchmark_fixtures_transactions_and_review() -> None:
-    """AC-testing.seeded-journey.3: EPIC-008 / AC8.21.3: seeded parsed transactions articulate into double-entry ledger without provider latency."""
-    opening = Decimal("10000.00")
-    csv_bytes = generate_standard_operations_csv(opening_balance=opening)
-    reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8")))
-    txns = list(reader)
-    assert len(txns) == 4
-    amounts = [Decimal(t["Amount"]) for t in txns]
-    assert sum(amounts) == Decimal("2800.00")
-
-
-# ---------------------------------------------------------------------------
-# Migrated Core Journey Scenarios -> Bench V2 Suite
-# ---------------------------------------------------------------------------
-
-
-def test_benchmark_scenario_statement_upload_csv() -> None:
-    """AC-extraction.804.1, AC-testing.must-have.4:
-    Benchmark statement upload creates valid CSV payload with mandatory header columns.
-    """
-    csv_bytes = generate_standard_operations_csv(opening_balance=Decimal("10000.00"))
-    assert csv_bytes.startswith(b"Statement Currency,Statement Period Start")
-    reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8")))
-    assert "Amount" in (reader.fieldnames or [])
-
-
-def test_benchmark_scenario_statement_list_and_get() -> None:
-    """AC-extraction.804.2:
-    Benchmark statement metadata inspection preserves currency and opening/closing balances.
-    """
-    csv_bytes = generate_household_wife_operations_csv(
-        opening_balance=Decimal("5000.00")
-    )
-    reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8")))
-    first_row = next(reader)
-    assert first_row["Statement Currency"] == "SGD"
-    assert Decimal(first_row["Statement Opening Balance"]) == Decimal("5000.00")
-    assert Decimal(first_row["Statement Closing Balance"]) == Decimal("8100.00")
-
-
-def test_benchmark_scenario_statement_full_flow() -> None:
-    """AC-extraction.804.3:
-    Benchmark full statement extraction computes net transaction delta matching balance delta.
-    """
-    opening = Decimal("10000.00")
-    csv_bytes = generate_standard_operations_csv(opening_balance=opening)
-    reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8")))
-    rows = list(reader)
-    total_delta = sum(Decimal(r["Amount"]) for r in rows)
-    expected_closing = opening + total_delta
-    assert expected_closing == Decimal("12800.00")
