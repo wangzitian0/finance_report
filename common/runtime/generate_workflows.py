@@ -359,8 +359,9 @@ def project_backend_dockerfile(content: str, toolchain: dict) -> str:
         "COPY --from=uv-source /uv /usr/local/bin/uv",
         "FROM ${PYTHON_IMAGE}",
     )
+    lines = [line.strip() for line in content.splitlines()]
     for stage in backend_stages:
-        if stage not in content:
+        if stage not in lines:
             raise ValueError(
                 f"missing required stage '{stage}' in apps/backend/Dockerfile"
             )
@@ -383,8 +384,9 @@ def project_frontend_dockerfile(content: str, toolchain: dict) -> str:
         "FROM ${NODE_IMAGE} AS builder",
         "FROM ${NODE_IMAGE}",
     )
+    lines = [line.strip() for line in content.splitlines()]
     for stage in frontend_stages:
-        if stage not in content:
+        if stage not in lines:
             raise ValueError(
                 f"missing required stage '{stage}' in apps/frontend/Dockerfile"
             )

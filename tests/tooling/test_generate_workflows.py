@@ -373,6 +373,23 @@ def test_AC_testing_toolchain_1_missing_backend_dockerfile_stage_fails(
     )
 
 
+def test_AC_testing_toolchain_1_missing_backend_dockerfile_runtime_stage_fails(
+    tmp_path: Path,
+) -> None:
+    """Missing backend Dockerfile final runtime stage causes projection failure."""
+    _copy_projection_inputs(tmp_path)
+    dockerfile = tmp_path / "apps/backend/Dockerfile"
+    content = dockerfile.read_text(encoding="utf-8")
+    # Remove the runtime stage while keeping the builder stage intact
+    dockerfile.write_text(
+        content.replace("\nFROM ${PYTHON_IMAGE}\n", "\n"),
+        encoding="utf-8",
+    )
+    status, errors, _ = generate_workflows.project_all(tmp_path, check_only=True)
+    assert status == 1
+    assert any("missing required stage 'FROM ${PYTHON_IMAGE}'" in err for err in errors)
+
+
 def test_AC_testing_toolchain_1_missing_frontend_dockerfile_stage_fails(
     tmp_path: Path,
 ) -> None:

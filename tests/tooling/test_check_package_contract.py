@@ -784,6 +784,10 @@ def test_run_caching_and_clear_cache(synthetic_repo: Path) -> None:
     clear_run_cache()
     ok1, msgs1 = run(synthetic_repo)
     assert not ok1
+    assert synthetic_repo.resolve() in cpc._RUN_CACHE
+    cached_ok, cached_msgs = cpc._RUN_CACHE[synthetic_repo.resolve()]
+    assert cached_ok == ok1
+    assert cached_msgs == msgs1
     # Cached run returns the exact same result tuple without re-evaluating
     ok2, msgs2 = run(synthetic_repo)
     assert (ok1, msgs1) == (ok2, msgs2)

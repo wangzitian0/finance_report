@@ -1915,9 +1915,7 @@ def _assert_job_setup_minio_invocations(
     job_name: str, steps: list[dict[str, Any]]
 ) -> None:
     count = sum(
-        1
-        for step in steps
-        if "./.github/actions/setup-minio" in step.get("uses", "")
+        1 for step in steps if "./.github/actions/setup-minio" in step.get("uses", "")
     )
     assert count >= 2, (
         f"job {job_name} invoked setup-minio {count} times (expected >= 2)"
@@ -1930,9 +1928,7 @@ def test_backend_integration_invokes_setup_minio() -> None:
     jobs = workflow.get("jobs", {})
     for job_name in ("backend-integration",):
         assert job_name in jobs, f"job {job_name} not found in ci.yml"
-        _assert_job_setup_minio_invocations(
-            job_name, jobs[job_name].get("steps", [])
-        )
+        _assert_job_setup_minio_invocations(job_name, jobs[job_name].get("steps", []))
 
 
 def test_backend_integration_invoke_setup_minio_falsifiable() -> None:
