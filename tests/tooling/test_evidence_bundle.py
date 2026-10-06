@@ -346,6 +346,19 @@ def test_gate_map_has_no_duplicate_job_entries() -> None:
     assert len(jobs) == len(set(jobs))
 
 
+def test_gate_map_matches_ci_gate_inventory_ssot() -> None:
+    """AC-testing.gate-inventory.2: GATE_MAP is loaded directly from ci-gate-inventory.yaml SSOT."""
+    inventory_path = ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+    inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
+    expected_jobs = [
+        gate["job"]
+        for gate in inventory.get("gates", [])
+        if gate.get("workflow") == ".github/workflows/ci.yml" and "lane" in gate
+    ]
+    gate_map_jobs = [entry["job"] for entry in eb.GATE_MAP]
+    assert gate_map_jobs == expected_jobs
+
+
 def test_evidence_bundle_main_dry_run() -> None:
     rc = eb.main(["--dry-run"])
     assert rc == 0

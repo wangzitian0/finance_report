@@ -47,7 +47,7 @@ class TestSelectChecks:
         self, changed_path: str
     ):
         names = [c.name for c in preflight.select_checks([changed_path])]
-        assert "authority-reconcile" in names
+        assert "package-migration-safety" in names
 
     def test_AC_testing_preflight_1_proof_test_selects_package_migration_safety(self):
         names = [

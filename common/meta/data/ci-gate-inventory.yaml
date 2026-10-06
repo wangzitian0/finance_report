@@ -95,6 +95,7 @@ gates:
   - id: ci.changes
     stage: github_ci.merge_authority
     task_category: classify
+    lane: classification
     workflow: .github/workflows/ci.yml
     job: changes
     owner: tools/ci_change_classifier.py
@@ -109,6 +110,7 @@ gates:
   - id: ci.lint
     stage: github_ci.merge_authority
     task_category: static_contract
+    lane: static
     workflow: .github/workflows/ci.yml
     job: lint
     owner: .github/workflows/ci.yml#lint
@@ -123,6 +125,7 @@ gates:
   - id: ci.schema_migrations
     stage: github_ci.merge_authority
     task_category: backend_integration
+    lane: schema
     workflow: .github/workflows/ci.yml
     job: schema-migrations
     owner: apps/backend/migrations
@@ -137,6 +140,7 @@ gates:
   - id: ci.backend
     stage: github_ci.merge_authority
     task_category: backend_unit
+    lane: backend
     workflow: .github/workflows/ci.yml
     job: backend
     owner: apps/backend/tests
@@ -152,6 +156,7 @@ gates:
   - id: ci.backend_integration
     stage: github_ci.merge_authority
     task_category: backend_integration
+    lane: backend
     workflow: .github/workflows/ci.yml
     job: backend-integration
     owner: apps/backend/tests
@@ -166,6 +171,7 @@ gates:
   - id: ci.backend_e2e_tier1
     stage: github_ci.merge_authority
     task_category: backend_api_e2e
+    lane: backend
     workflow: .github/workflows/ci.yml
     job: backend-e2e-tier1
     owner: tests/e2e/test_core_journeys.py
@@ -181,6 +187,7 @@ gates:
   - id: ci.frontend_build
     stage: github_ci.merge_authority
     task_category: frontend_build
+    lane: frontend
     workflow: .github/workflows/ci.yml
     job: frontend-build
     owner: apps/frontend
@@ -195,6 +202,7 @@ gates:
   - id: ci.frontend_vitest
     stage: github_ci.merge_authority
     task_category: frontend_unit
+    lane: frontend
     workflow: .github/workflows/ci.yml
     job: frontend-vitest
     owner: apps/frontend
@@ -209,6 +217,7 @@ gates:
   - id: ci.frontend_playwright
     stage: github_ci.merge_authority
     task_category: frontend_browser_e2e
+    lane: frontend
     workflow: .github/workflows/ci.yml
     job: frontend-playwright
     owner: apps/frontend/playwright
@@ -223,12 +232,14 @@ gates:
   - id: ci.frontend_telemetry_e2e
     stage: github_ci.merge_authority
     task_category: frontend_browser_e2e
+    lane: frontend
     workflow: .github/workflows/ci.yml
     job: frontend-telemetry-e2e
     owner: apps/frontend/playwright/telemetry-emission.spec.ts
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
+    blocking: conditional
     inputs: [frontend_sources, telemetry_playwright_spec]
     outputs: [telemetry_playwright_report]
     artifacts: [frontend-telemetry-test-context]
@@ -237,12 +248,14 @@ gates:
   - id: ci.container_images
     stage: github_ci.merge_authority
     task_category: image_build
+    lane: images
     workflow: .github/workflows/ci.yml
     job: container-images
     owner: apps/backend/Dockerfile + apps/frontend/Dockerfile
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
+    blocking: conditional
     inputs: [backend_image_context, frontend_image_context]
     outputs: [image_build_status]
     artifacts: []
@@ -268,6 +281,7 @@ gates:
   - id: ci.tooling_coverage
     stage: github_ci.merge_authority
     task_category: tooling_contract
+    lane: tooling
     workflow: .github/workflows/ci.yml
     job: tooling-coverage
     owner: tests/tooling
@@ -283,6 +297,7 @@ gates:
   - id: ci.unified_coverage
     stage: github_ci.merge_authority
     task_category: coverage_fan_in
+    lane: coverage
     workflow: .github/workflows/ci.yml
     job: unified-coverage
     owner: common/meta/extension/coverage/policy.py
@@ -311,6 +326,7 @@ gates:
   - id: ci.ac_traceability
     stage: github_ci.merge_authority
     task_category: ac_traceability
+    lane: static
     workflow: .github/workflows/ci.yml
     job: ac-traceability
     owner: docs/project + tools/build_ac_traceability.py
@@ -325,6 +341,7 @@ gates:
   - id: ci.ac_behavioral_ratchet
     stage: github_ci.merge_authority
     task_category: behavioral_ratchet
+    lane: ac-ratchet
     workflow: .github/workflows/ci.yml
     job: ac-behavioral-ratchet
     owner: common/testing/data/ac-score-baseline.jsonl

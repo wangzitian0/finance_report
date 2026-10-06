@@ -35,30 +35,39 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 BUNDLE_VERSION = 1
 
-# Gate map: lane -> job -> blocking?. Hand-maintained mirror of ci.yml's
-# `finish` job "Check job status" step, the canonical definition of which jobs
-# block merge in this repo (no generator exists for the CI job graph itself,
-# unlike common/testing/data/test-execution-matrix.yaml for test-file selection). Keep in
-# sync when jobs are added/removed there —
-# tests/tooling/test_evidence_bundle.py checks every listed job id still
-# exists in ci.yml.
-GATE_MAP: tuple[dict[str, Any], ...] = (
-    {"lane": "classification", "job": "changes", "blocking": True},
-    {"lane": "static", "job": "lint", "blocking": True},
-    {"lane": "static", "job": "ac-traceability", "blocking": True},
-    {"lane": "schema", "job": "schema-migrations", "blocking": True},
-    {"lane": "backend", "job": "backend", "blocking": True},
-    {"lane": "backend", "job": "backend-integration", "blocking": True},
-    {"lane": "backend", "job": "backend-e2e-tier1", "blocking": True},
-    {"lane": "frontend", "job": "frontend-build", "blocking": True},
-    {"lane": "frontend", "job": "frontend-vitest", "blocking": True},
-    {"lane": "frontend", "job": "frontend-playwright", "blocking": True},
-    {"lane": "frontend", "job": "frontend-telemetry-e2e", "blocking": "conditional"},
-    {"lane": "tooling", "job": "tooling-coverage", "blocking": True},
-    {"lane": "coverage", "job": "unified-coverage", "blocking": True},
-    {"lane": "ac-ratchet", "job": "ac-behavioral-ratchet", "blocking": True},
-    {"lane": "images", "job": "container-images", "blocking": "conditional"},
-)
+
+def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
+    """Load the gate map from the CI gate inventory SSOT."""
+    inventory_path = repo_root / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+    if not inventory_path.exists():
+        inventory_path = (
+            REPO_ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+        )
+    if not inventory_path.exists():
+        return ()
+
+    import yaml
+
+    inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
+    gates = inventory.get("gates", [])
+    result: list[dict[str, Any]] = []
+    for gate in gates:
+        if gate.get("workflow") == ".github/workflows/ci.yml" and "lane" in gate:
+            result.append(
+                {
+                    "lane": gate["lane"],
+                    "job": gate["job"],
+                    "blocking": gate.get(
+                        "blocking", gate.get("required_by_finish", True)
+                    ),
+                }
+            )
+    return tuple(result)
+
+
+# Gate map: lane -> job -> blocking?. Loaded dynamically from the authoritative
+# CI gate inventory SSOT (common/meta/data/ci-gate-inventory.yaml).
+GATE_MAP: tuple[dict[str, Any], ...] = load_gate_map(REPO_ROOT)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -264,9 +273,10 @@ def build_evidence_bundle(
     ``ai_ocr_status``/``ai_ocr_exit_code``); the main-branch CI producer omits
     it (not available in that context — no provider-backed gate runs there).
     """
+    gate_map = load_gate_map(repo_root) or GATE_MAP
     return {
         "version": BUNDLE_VERSION,
-        "gate_map": [dict(entry) for entry in GATE_MAP],
+        "gate_map": [dict(entry) for entry in gate_map],
         "gate_results": dict(gate_results) if gate_results else {},
         "ratchets": {
             "coverage": coverage_water_line(repo_root),

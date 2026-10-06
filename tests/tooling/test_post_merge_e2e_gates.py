@@ -1917,6 +1917,18 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     )
 
 
+def test_backend_integration_and_tier1_invoke_setup_minio() -> None:
+    """CI backend-integration and backend-e2e-tier1 lanes must invoke setup-minio."""
+    workflow = read(".github/workflows/ci.yml")
+    for job_name in ("backend-integration", "backend-e2e-tier1"):
+        job_pattern = (
+            rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
+        )
+        match = re.search(job_pattern, workflow, re.DOTALL)
+        assert match is not None, f"job {job_name} not found in ci.yml"
+        assert match.group(1).count("./.github/actions/setup-minio") >= 2
+
+
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
     """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
     workflow = read(".github/workflows/ci.yml")
