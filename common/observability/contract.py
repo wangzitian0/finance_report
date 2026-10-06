@@ -1104,7 +1104,7 @@ CONTRACT = PackageContract(
             ),
             # was AC10.9.5
             test=(
-                "tests/tooling/test_dokploy_snapshot_retired.py"
+                "tests/tooling/test_public_boundary_control.py"
                 "::test_AC10_9_5_app_side_snapshot_is_retired"
             ),
             priority="P0",

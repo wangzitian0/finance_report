@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useRef } from "react";
+import { useState } from "react";
 
-import { useFocusTrap } from "@/hooks/useFocusTrap";
 import ChatPanel from "@/components/ChatPanel";
 
-const CONSENT_KEY = "ai_advisor_disclaimer_v1";
+export const CONSENT_KEY = "ai_advisor_disclaimer_v1";
 
 export const PENDING_CHAT_PROMPT_KEY = "ai_chat_pending_prompt";
 
@@ -31,7 +30,6 @@ export default function ChatPageClient() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(CONSENT_KEY) === "accepted";
   });
-  const dialogRef = useRef<HTMLDivElement>(null);
 
   const acceptConsent = () => {
     localStorage.setItem(CONSENT_KEY, "accepted");
@@ -53,25 +51,31 @@ export default function ChatPageClient() {
         </div>
       </div>
 
-      <div className="mt-4 sm:mt-6 card p-4 sm:p-6 max-w-full overflow-hidden">
-        <ChatPanel variant="page" initialPrompt={initialPrompt} />
-      </div>
-
       {!consentGiven && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-6">
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Disclaimer" className="w-full max-w-lg card p-6 animate-slide-up">
-            <h2 className="text-xl font-semibold">Disclaimer</h2>
-            <p className="mt-3 text-sm text-muted">
+        <div role="region" aria-label="Disclaimer" className="mt-4 p-4 rounded-lg bg-surface-raised border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Disclaimer</h2>
+            <p className="text-xs text-muted mt-0.5">
               This AI financial advisor provides guidance based on your posted financial data. It
               may contain errors and does not constitute professional financial advice. Please
               consult a licensed advisor before making major decisions.
             </p>
-            <div className="mt-6 flex justify-end">
-              <button onClick={acceptConsent} className="btn-primary">I understand</button>
-            </div>
           </div>
+          <button onClick={acceptConsent} className="btn-primary text-xs shrink-0 py-1.5 px-3">
+            I understand
+          </button>
         </div>
       )}
+
+      <div className="mt-4 sm:mt-6 card p-4 sm:p-6 max-w-full overflow-hidden">
+        <ChatPanel variant="page" initialPrompt={initialPrompt} />
+      </div>
+
+      <div className="mt-3 text-center">
+        <p className="text-xs text-muted">
+          AI Advisor may produce inaccuracies. Verify important financial figures against official statements.
+        </p>
+      </div>
     </div>
   );
 }

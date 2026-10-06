@@ -447,7 +447,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-identity.journeys.1",
             statement="A new user can register and log in end to end through the deployed API.",
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_register_and_login_flow",
+            test="apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification",
             priority="P0",
             status="done",
         ),
@@ -457,21 +457,21 @@ CONTRACT = PackageContract(
                 "API authentication failures (missing/invalid credentials) return a "
                 "clean 401/422, not a 500."
             ),
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_api_authentication_failures",
+            test="apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-identity.journeys.3",
             statement="Unauthenticated requests to protected endpoints are blocked with 401.",
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_unauthorized_access_blocked",
+            test="apps/backend/tests/identity/test_auth_shift_left.py::test_unauthenticated_request_blocked",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-identity.journeys.4",
             statement="A user's session (JWT/cookie) is created, reused, and honored consistently across requests.",
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_user_session_management",
+            test="apps/backend/tests/identity/test_auth_shift_left.py::test_jwt_session_token_lifecycle",
             priority="P1",
             status="done",
         ),

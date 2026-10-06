@@ -1844,7 +1844,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.1",
             statement="The core-journey E2E views the balance sheet end to end.",
             # was AC8.6.1
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_balance_sheet_report",
+            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation",
             priority="P0",
             status="done",
         ),
@@ -1852,7 +1852,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.2",
             statement="The core-journey E2E views the income statement end to end.",
             # was AC8.6.2
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_income_statement_report",
+            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_income_statement_revenues_expenses_net_income",
             priority="P0",
             status="done",
         ),
@@ -1860,7 +1860,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.3",
             statement="The core-journey E2E views the cash-flow report end to end.",
             # was AC8.6.3
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_cash_flow_report",
+            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_cash_flow_bridge_reconciliation",
             priority="P0",
             status="done",
         ),
@@ -1868,7 +1868,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.4",
             statement="The core-journey E2E navigates every reports endpoint.",
             # was AC8.6.4
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_multi_period_reporting",
+            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_multi_period_reporting_and_cta_adjustment",
             priority="P1",
             status="done",
         ),

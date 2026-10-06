@@ -263,7 +263,7 @@ export default function UploadPage() {
         <div className="card-header flex items-center justify-between">
           <h3 className="text-sm font-medium">Uploaded Statements</h3>
           <div className="flex items-center gap-3">
-            {statements.some((s) => s.status === "approved") && (
+            {statements.some((s) => s.status === "approved" || s.status === "parsed") && (
               <Link
                 href="/reports/balance-sheet"
                 className="text-xs font-medium text-[var(--accent)] hover:underline"
@@ -343,15 +343,26 @@ export default function UploadPage() {
                   </div>
                   <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
                     {statement.status === "parsed" && (
-                      <Button
-                        variant="primary"
-                        className="text-sm"
-                        onClick={() =>
-                          router.push(`/statements/${statement.id}/review`)
-                        }
-                      >
-                        Review & Approve →
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="primary"
+                          className="text-sm"
+                          onClick={() =>
+                            router.push(`/statements/${statement.id}/review`)
+                          }
+                        >
+                          Review & Approve →
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="text-xs hidden sm:inline-flex"
+                          onClick={() =>
+                            router.push("/reports/balance-sheet")
+                          }
+                        >
+                          View Report
+                        </Button>
+                      </div>
                     )}
                     {statement.status === "approved" && (
                       <Button

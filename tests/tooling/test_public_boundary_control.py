@@ -664,3 +664,9 @@ def test_AC_meta_public_boundary_8_explicit_defaults_remain_optional(default):
             "after": f"class(BaseModel){{value: int; extra: int={default}}}",
         }
     )
+
+
+def test_AC10_9_5_app_side_snapshot_is_retired() -> None:
+    """AC-observability.9.4: AC10.9.5: the app ships no Dokploy failure-snapshot tool."""
+    root = Path(__file__).resolve().parents[2]
+    assert not (root / "tools" / "dokploy_failure_snapshot.py").exists()
