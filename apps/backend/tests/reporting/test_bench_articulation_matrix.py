@@ -5,6 +5,8 @@ Validates the mathematical core of the Bench V2 accounting scenarios against SQL
 - Case 2: Multi-PII Household Operations & Consolidated Multi-Account Reporting.
 - Case 3: Credit Card Liability Clearance & Non-P&L Repayment Zero Contamination.
 - Case 4: Multi-Currency Consolidated Balance Sheet with IAS 21 CTA Rendering.
+- Case 5: Holistic Multi-Asset & Tax Valuation (W-2 Withholding and Illiquid Appraisals).
+- Case 6: Bank Overdraft (Negative Cash Balance) and Asset Disposal Capital Gains.
 """
 
 from __future__ import annotations
@@ -23,6 +25,12 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.pricing.base.manual_valuation import (
+    ManualValuationBasis,
+    ManualValuationComponentType,
+    ManualValuationLiquidityClass,
+)
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
     generate_balance_sheet,
@@ -681,3 +689,207 @@ async def test_bench_case_4_multicurrency_cta_balance_sheet(db: AsyncSession, te
     assert bs["is_balanced"] is True
     assert bs["equation_delta"] == Decimal("0.00")
     assert bs["cta_adjustment"] is not None
+
+
+async def test_bench_case_5_holistic_multi_asset_and_tax_ecosystem(db: AsyncSession, test_user_id) -> None:
+    """Benchmark Case 5: multi-asset portfolio, illiquid property, and W-2 tax withholding.
+
+    Validates:
+    1. Form W-2 / Payslip tax withholding entry splits gross salary into net cash and tax expense.
+    2. Illiquid property valuation snapshot is properly excluded in liquid-only view (include_restricted=False)
+       and included in comprehensive view (include_restricted=True).
+    3. The balance sheet strictly satisfies Assets == Liabilities + Equity + Net Income + Net Worth Adjustment
+       with zero equation delta.
+    """
+    # 1. Accounts
+    cash_sgd = Account(user_id=test_user_id, name="Cash", type=AccountType.ASSET, currency="SGD")
+    tax_expense = Account(user_id=test_user_id, name="Payroll Taxes", type=AccountType.EXPENSE, currency="SGD")
+    salary_income = Account(user_id=test_user_id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    equity_account = Account(user_id=test_user_id, name="Owner Capital", type=AccountType.EQUITY, currency="SGD")
+    db.add_all([cash_sgd, tax_expense, salary_income, equity_account])
+    await db.commit()
+
+    # 2. FX Rate USD -> SGD on 2025-04-30
+    fx_rate = FxRate(
+        base_currency="USD",
+        quote_currency="SGD",
+        rate=Decimal("1.35"),
+        rate_date=date(2025, 4, 30),
+        source="test",
+    )
+    db.add(fx_rate)
+    await db.commit()
+
+    # 3. Initial Capital: 5,000 SGD cash
+    init_entry = _post_entry(
+        test_user_id,
+        date(2025, 4, 1),
+        "Initial Cash Capital",
+        [
+            (cash_sgd, Direction.DEBIT, Decimal("5000.00"), "SGD"),
+            (equity_account, Direction.CREDIT, Decimal("5000.00"), "SGD"),
+        ],
+    )
+
+    # 4. Form W-2 / Payslip Tax Withholding Entry on 2025-04-15:
+    # Gross: 10,000 SGD, Tax Withheld: 2,000 SGD, Net Pay: 8,000 SGD
+    payroll_entry = _post_entry(
+        test_user_id,
+        date(2025, 4, 15),
+        "Monthly Payroll with Tax Withholding",
+        [
+            (cash_sgd, Direction.DEBIT, Decimal("8000.00"), "SGD"),
+            (tax_expense, Direction.DEBIT, Decimal("2000.00"), "SGD"),
+            (salary_income, Direction.CREDIT, Decimal("10000.00"), "SGD"),
+        ],
+    )
+    db.add_all([init_entry, payroll_entry])
+    await db.commit()
+
+    # 5. Register Real Estate Property Valuation Snapshot (DocuBench FHA 1004: 350,000 USD)
+    prop_snapshot = ManualValuationSnapshot(
+        user_id=test_user_id,
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+        as_of_date=date(2025, 4, 30),
+        value=Decimal("350000.00"),
+        currency="USD",
+        source="DocuBench FHA 1004 (KpewWz3R)",
+        valuation_basis=ManualValuationBasis.MARKET_APPRAISAL,
+        notes="Residential property appraisal from DocuBench fixture",
+    )
+    db.add(prop_snapshot)
+    await db.commit()
+
+    # 6. Verify Liquid-Only Balance Sheet (include_restricted=False)
+    bs_liquid = await generate_balance_sheet(
+        db, test_user_id, as_of_date=date(2025, 4, 30), currency="SGD", include_restricted=False
+    )
+    # Liquid assets: Cash = 5,000 + 8,000 = 13,000 SGD (excludes illiquid 350k USD property)
+    assert bs_liquid["total_assets"] == Decimal("13000.00")
+    assert bs_liquid["total_equity"] == Decimal("5000.00")
+    assert bs_liquid["net_income"] == Decimal("8000.00")
+    assert bs_liquid["is_balanced"] is True
+    assert bs_liquid["equation_delta"] == Decimal("0.00")
+
+    # 7. Verify Comprehensive Balance Sheet (include_restricted=True)
+    bs_comp = await generate_balance_sheet(
+        db, test_user_id, as_of_date=date(2025, 4, 30), currency="SGD", include_restricted=True
+    )
+    # Comprehensive assets: 13,000 Cash + (350,000 * 1.35 = 472,500 Property) = 485,500 SGD
+    expected_property_sgd = Decimal("350000.00") * Decimal("1.35")
+    assert bs_comp["total_assets"] == Decimal("13000.00") + expected_property_sgd
+    assert bs_comp["is_balanced"] is True
+    assert bs_comp["equation_delta"] == Decimal("0.00")
+    assert bs_comp["net_worth_adjustment_gain_loss"] == expected_property_sgd
+
+    # 8. Verify Income Statement: Gross Revenue 10,000 - Tax Expense 2,000 = Net Income 8,000
+    is_report = await generate_income_statement(
+        db, test_user_id, start_date=date(2025, 4, 1), end_date=date(2025, 4, 30), currency="SGD"
+    )
+    assert is_report["total_income"] == Decimal("10000.00")
+    assert is_report["total_expenses"] == Decimal("2000.00")
+    assert is_report["net_income"] == Decimal("8000.00")
+
+
+async def test_bench_case_6_bank_overdraft_and_capital_gain_disposal(db: AsyncSession, test_user_id) -> None:
+    """Benchmark Case 6: bank overdraft (negative cash balance) and asset disposal capital gains.
+
+    Validates:
+    1. Negative cash balance (overdraft) from expenses exceeding balance maintains valid balance sheet equation.
+    2. Capital asset acquisition and subsequent disposal with realized capital gain.
+    3. Three-statement articulation remains exact (delta == 0.00) under negative and zero-asset transitions.
+    """
+    checking = Account(user_id=test_user_id, name="Primary Checking", type=AccountType.ASSET, currency="SGD")
+    emergency_exp = Account(user_id=test_user_id, name="Emergency Expense", type=AccountType.EXPENSE, currency="SGD")
+    owner_equity = Account(user_id=test_user_id, name="Owner Equity", type=AccountType.EQUITY, currency="SGD")
+    art_asset = Account(user_id=test_user_id, name="Collectible Art", type=AccountType.ASSET, currency="SGD")
+    capital_gain = Account(user_id=test_user_id, name="Realized Capital Gain", type=AccountType.INCOME, currency="SGD")
+    db.add_all([checking, emergency_exp, owner_equity, art_asset, capital_gain])
+    await db.commit()
+
+    # 1. Starting position on 2025-05-01: 1,000 SGD checking cash
+    start_entry = _post_entry(
+        test_user_id,
+        date(2025, 5, 1),
+        "Initial Checking Deposit",
+        [
+            (checking, Direction.DEBIT, Decimal("1000.00"), "SGD"),
+            (owner_equity, Direction.CREDIT, Decimal("1000.00"), "SGD"),
+        ],
+    )
+
+    # 2. Overdraft Event on 2025-05-05: 2,500 SGD emergency expense paid from checking
+    # Checking balance becomes: 1,000 - 2,500 = -1,500 SGD
+    overdraft_entry = _post_entry(
+        test_user_id,
+        date(2025, 5, 5),
+        "Emergency Hospital Expense",
+        [
+            (emergency_exp, Direction.DEBIT, Decimal("2500.00"), "SGD"),
+            (checking, Direction.CREDIT, Decimal("2500.00"), "SGD"),
+        ],
+    )
+    db.add_all([start_entry, overdraft_entry])
+    await db.commit()
+
+    # Checkpoint 1: Balance Sheet as of 2025-05-10
+    # Assets: -1,500 SGD
+    # Equity: 1,000 SGD
+    # Net Income: -2,500 SGD
+    # Equation: -1,500 == 1,000 + (-2,500)
+    bs_overdraft = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 5, 10), currency="SGD")
+    assert bs_overdraft["total_assets"] == Decimal("-1500.00")
+    assert bs_overdraft["net_income"] == Decimal("-2500.00")
+    assert bs_overdraft["total_equity"] == Decimal("1000.00")
+    assert bs_overdraft["is_balanced"] is True
+    assert bs_overdraft["equation_delta"] == Decimal("0.00")
+
+    # 3. Capital Injection & Asset Disposal on 2025-05-15:
+    # Inject 10,000 SGD capital
+    capital_inj = _post_entry(
+        test_user_id,
+        date(2025, 5, 15),
+        "Emergency Capital Injection",
+        [
+            (checking, Direction.DEBIT, Decimal("10000.00"), "SGD"),
+            (owner_equity, Direction.CREDIT, Decimal("10000.00"), "SGD"),
+        ],
+    )
+    # Buy Collectible Art on 2025-05-18 for 4,000 SGD
+    art_buy = _post_entry(
+        test_user_id,
+        date(2025, 5, 18),
+        "Purchase Collectible Art",
+        [
+            (art_asset, Direction.DEBIT, Decimal("4000.00"), "SGD"),
+            (checking, Direction.CREDIT, Decimal("4000.00"), "SGD"),
+        ],
+    )
+    # Sell Collectible Art on 2025-05-25 for 6,500 SGD (Realized Gain 2,500 SGD)
+    art_sell = _post_entry(
+        test_user_id,
+        date(2025, 5, 25),
+        "Sell Collectible Art",
+        [
+            (checking, Direction.DEBIT, Decimal("6500.00"), "SGD"),
+            (art_asset, Direction.CREDIT, Decimal("4000.00"), "SGD"),
+            (capital_gain, Direction.CREDIT, Decimal("2500.00"), "SGD"),
+        ],
+    )
+    db.add_all([capital_inj, art_buy, art_sell])
+    await db.commit()
+
+    # Checkpoint 2: Final Month-End Balance Sheet as of 2025-05-31
+    # Checking Cash: -1,500 + 10,000 - 4,000 + 6,500 = 11,000 SGD
+    # Art Asset: 4,000 - 4,000 = 0.00 SGD
+    # Total Assets: 11,000 SGD
+    # Total Equity: 1,000 (initial) + 10,000 (injection) = 11,000 SGD
+    # Net Income: -2,500 (emergency) + 2,500 (capital gain) = 0.00 SGD
+    # Equation: 11,000 == 11,000 + 0.00
+    bs_final = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 5, 31), currency="SGD")
+    assert bs_final["total_assets"] == Decimal("11000.00")
+    assert bs_final["total_equity"] == Decimal("11000.00")
+    assert bs_final["net_income"] == Decimal("0.00")
+    assert bs_final["is_balanced"] is True
+    assert bs_final["equation_delta"] == Decimal("0.00")
