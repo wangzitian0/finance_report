@@ -733,7 +733,7 @@ deferred_candidates:
       maintenance.yml#cleanup is GHCR-image pruning only — two unrelated concerns,
       not a reclaim fallback split.
   - id: backend_pytest_parameters
-    gates: [ci.backend, ci.backend_integration, ci.backend_e2e_tier1]
+    gates: [ci.backend, ci.backend_integration]
     status: observe_only
     reason: Same pytest family, but different failure semantics, services, artifacts, and diagnostic job names. Do not merge until speed and simplicity are proven.
   - id: ac_index_vs_ac_traceability_artifact

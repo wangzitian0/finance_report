@@ -575,3 +575,22 @@ def test_AC8_13_68_main_fails_when_not_report_only(
     captured = capsys.readouterr()
     assert "EPIC-001: no product E2E owner test" in captured.out
     assert "E2E EPIC TRACEABILITY GATE FAILED: 1 issue(s) found." in captured.err
+
+
+def test_discover_e2e_assets_prunes_excluded_directories(tmp_path: Path) -> None:
+    """Verify that discover_e2e_assets prunes excluded directories and discovers valid assets."""
+    valid_e2e = tmp_path / "tests" / "e2e" / "test_valid.py"
+    valid_e2e.parent.mkdir(parents=True, exist_ok=True)
+    valid_e2e.write_text("def test_valid(): pass\n", encoding="utf-8")
+
+    # Asset inside excluded directory must be pruned
+    excluded_node = tmp_path / "node_modules" / "e2e" / "test_ignored.py"
+    excluded_node.parent.mkdir(parents=True, exist_ok=True)
+    excluded_node.write_text("def test_ignored(): pass\n", encoding="utf-8")
+
+    excluded_next = tmp_path / ".next" / "e2e" / "test_next.py"
+    excluded_next.parent.mkdir(parents=True, exist_ok=True)
+    excluded_next.write_text("def test_next(): pass\n", encoding="utf-8")
+
+    assets = checker.discover_e2e_assets(tmp_path)
+    assert assets == ["tests/e2e/test_valid.py"]

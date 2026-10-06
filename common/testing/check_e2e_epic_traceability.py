@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -334,11 +335,14 @@ def _under_any(rel_path: str, roots: tuple[str, ...]) -> bool:
 def discover_e2e_assets(repo_root: Path) -> list[str]:
     if not repo_root.exists():
         return []
-    return sorted(
-        _rel(path, repo_root)
-        for path in repo_root.rglob("*")
-        if _is_e2e_like_asset(path, repo_root)
-    )
+    assets: list[str] = []
+    for root, dirs, files in os.walk(repo_root):
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_SCAN_DIRS]
+        for f in files:
+            path = Path(root) / f
+            if _is_e2e_like_asset(path, repo_root):
+                assets.append(_rel(path, repo_root))
+    return sorted(assets)
 
 
 def find_unclassified_e2e_assets(
