@@ -4811,13 +4811,13 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.fe-stage1-review.17",
             statement=(
-                "Statement review page defaults approval to auto-fill default categories, "
-                "preventing 409 intent_missing error"
+                "Statement review page provides auto-filling default categories via "
+                "autoFill action on classification review"
             ),
             test=(
                 "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
-                "::AC-extraction.fe-stage1-review.17 defaults auto_fill_default_categories "
-                "to true when confirming approval"
+                "::AC-extraction.fe-stage1-review.17 supports auto_fill_default_categories "
+                "via auto-fill action on classification review"
             ),
             priority="P1",
             status="done",

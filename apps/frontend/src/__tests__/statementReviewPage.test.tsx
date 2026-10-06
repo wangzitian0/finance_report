@@ -350,11 +350,14 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     });
 
     // AC-extraction.fe-stage1-review.17
-    it("AC-extraction.fe-stage1-review.17 defaults auto_fill_default_categories to true when confirming approval", async () => {
+    it("AC-extraction.fe-stage1-review.17 supports auto_fill_default_categories via auto-fill action on classification review", async () => {
         let capturedBody: { auto_fill_default_categories?: boolean } | null = null;
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/s1/review") {
-                return Promise.resolve(baseStatement);
+                return Promise.resolve({
+                    ...baseStatement,
+                    validation_error: "Economic review required: intent_missing",
+                });
             }
             if (path === "/api/statements/pending-review") {
                 return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
@@ -371,9 +374,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         renderReviewComponent(<StatementReviewPage /> as never);
 
-        fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
-        const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
-        fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+        const autoFillBtn = await screen.findByRole("button", {
+            name: "Auto-Fill Default Categories & Approve",
+        });
+        fireEvent.click(autoFillBtn);
 
         await waitFor(() => {
             expect(capturedBody).toMatchObject({

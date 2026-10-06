@@ -358,9 +358,7 @@ export default function UploadPage() {
                         variant="secondary"
                         className="text-sm"
                         onClick={() =>
-                          router.push(
-                            `/reports/balance-sheet?statement_id=${statement.id}`,
-                          )
+                          router.push("/reports/balance-sheet")
                         }
                       >
                         View Report →

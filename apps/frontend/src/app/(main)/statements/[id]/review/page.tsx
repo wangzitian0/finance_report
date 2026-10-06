@@ -153,8 +153,7 @@ export default function StatementReviewPage() {
       }
       const body = {
         create_account_if_missing: !data?.account_id,
-        auto_fill_default_categories:
-          variables?.autoFill !== undefined ? Boolean(variables.autoFill) : true,
+        auto_fill_default_categories: Boolean(variables?.autoFill),
       };
       return apiOperation(
         "approve_statement_stage1_statements__statement_id__review_approve_post",

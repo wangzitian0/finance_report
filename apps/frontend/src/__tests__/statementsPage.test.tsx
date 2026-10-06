@@ -596,7 +596,7 @@ describe("StatementsPage", () => {
     const viewReportBtn = screen.getByRole("button", { name: "View Report →" })
     expect(viewReportBtn).toBeInTheDocument()
     fireEvent.click(viewReportBtn)
-    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet?statement_id=s-approved")
+    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
 
     expect(screen.getByRole("link", { name: "Open Reports →" })).toHaveAttribute(
       "href",
