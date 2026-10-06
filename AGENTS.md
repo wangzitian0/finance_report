@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=407b97981de9217d817cedddf7a4a8f1e09501f7cece36ba0d391a29fb5aba74 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=d0ed941ad5fb45dbe501ff741427da0afec9a01fe658afc164fb00ded9092b76 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -24,14 +24,14 @@
 
 - **Reason from the worst case.** For environment changes, wrappers, redirection, or interception rules, check for no-TTY deadlock in CI or child processes, concurrent shared-file truncation/races, and network or cold-start failure cascades. Reject a proposal whose lack of backlash cannot be established.
 - **Treat three hidden green failures as defects:** WRONG FORMULA (an incorrect formula passes assertions), GREEN-WHILE-EMPTY (filtering removes all output but reports success), and STALE-REPORTED-AS-FRESH (old data is labeled fresh). Implausible output is evidence of a defect.
-- **Protect ambient services.** Default unit tests and Executor tasks must not destructively act on host ports, shared background processes, or development databases (`DROP`, `TRUNCATE`, `--clear`, forced restart). Resets require an isolated sandbox/worktree with a dedicated random port, or an explicit `CI=true` or `ALLOW_CLEAR_TEST=1` guard; otherwise skip safely with a warning.
+- **Protect ambient services.** Default unit tests and Junior tasks must not destructively act on host ports, shared background processes, or development databases (`DROP`, `TRUNCATE`, `--clear`, forced restart). Resets require an isolated sandbox/worktree with a dedicated random port, or an explicit `CI=true` or `ALLOW_CLEAR_TEST=1` guard; otherwise skip safely with a warning.
 - **Two triggers:** Every background job or batch process needs both scheduled execution and manual replay.
 - **Do not steal CD locks:** A trigger is instant but publication is delayed. Do not interrupt a running deployment; the next run must coalesce commits accumulated while it was busy.
 
 # Finance Report — Agent & Contributor Guide
 
-> **Prohibition**: AI may NOT modify this file without explicit authorization.
-> **Merge authority**: AI deliverable = CI-passing PR. An agent may merge it only when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds; short of that, the user decides.
+> **Rule source**: This file is generated. Change its dev_env source and pass the rule-text checklist; do not hand-edit it.
+> **Merge authority**: AI deliverable = CI-passing PR. An agent merges it when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. **Production reservation.** The owner approves every production change, for the precise commit or tag in question, and is present when it runs. A production change is anything that alters what production runs or stores: a release, promote or apply; a secret value; a manual data write or deletion; DNS, routes or the host; and whatever this repository's release pipeline names as production. A "deploy" reply authorizes only the release it names, and the dispatching session first hears from the owner directly. An edit that weakens this block, or the gate code and wording behind it, also needs the owner. Until the owner signs off an unbypassable production lock, through the commit of the PR that drops this sentence (tracked in infra2 #1035), the owner also approves edits to any workflow, to merge-gate code or data, and to code that a release workflow runs, even when a gate calls the edit a proven tightening.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 > **Language**: All code, PRs, commits, issues, and repo docs must be in **English**.
 > Conversation with the user follows the **user's language** — answer in the language the question was asked in.
@@ -171,18 +171,18 @@ Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [common
 Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-policy.md)**
 
 - ❌ No direct commits to `main`
-- ✅ User-approved parallel PR branches are allowed
+- ✅ Parallel PR branches are allowed when [branch-policy.md](docs/contributing/branch-policy.md) rule 3 holds
 - ✅ Agents may merge a PR that meets every condition in [branch-policy.md](docs/contributing/branch-policy.md) §4
-- ❌ Agents do not merge a PR that touches a protected file or whose merge reaches **production** — those need the user's approval of that exact head SHA. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4 for exactly which workflows reach which environment.
+- ❌ Agents do not merge a PR whose merge reaches **production**, nor, until the lock in the reservation block exists, a PR that edits a workflow or release code — those need the user's approval of that exact head SHA. A protected-file change merges once the protected-file checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4 passes. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4 for exactly which workflows reach which environment.
 - ✅ Install pre-commit hooks: `make install`
 - ✅ Run `moon run :lint && moon run :test` before pushing
 - ✅ A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Reply on the thread with what changed *before* resolving it, then resolve the thread on GitHub.
 - ✅ For implementation work, the final deliverable is not complete until a ready PR is pushed and the final report includes PR URL, branch, commit SHA, draft status, `mergeable`, `mergeStateStatus`, and required-check summary.
 - ✅ If GitHub does not report `mergeable=MERGEABLE` and `mergeStateStatus=CLEAN`, the task is not a mergeable-PR delivery; report the blocker, the failing/pending check or review thread, and the next action instead of calling the work complete. `mergeStateStatus` can flip from `CLEAN` to `DIRTY`/`BEHIND` the instant a sibling PR merges to `main` — re-check it fresh before every "ready" report, never trust an earlier snapshot; see the playbook in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 - ✅ A "verified against staging/production" claim is only true if the verification mechanism actually targeted the commit you think it did (e.g. a post-merge gate dispatched without an explicit version/commit pin defaults to whatever is *currently deployed*, which may predate your merge) — confirm and state the actual commit/version before reporting a live result.
-- ✅ Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the PR is merged (by you when §4 holds, by the user otherwise) — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
-- ✅ The merge (yours or the user's, announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
-- ✅ Blocked on a decision only the user can make (product judgment, or a merge that fails §4)? Don't stall — state the blocker and start the next independent planned slice.
+- ✅ Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the PR is merged (by you once §4 holds; when §4 fails, fix the cause) — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
+- ✅ The merge (announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
+- ✅ A product judgment is not a reason to stop: decide, record why in the PR or issue, and keep the change reversible. Only production, and the workflow and release-code edits named in the reservation block, wait for the user; while they wait, start the next independent planned slice.
 
 ---
 
@@ -214,8 +214,8 @@ Per-runtime agents & MCP baseline: **[.claude/README.md](.claude/README.md)**
   search agents; reserve the expensive tier for genuinely hard advisory
   reasoning. Parallelism is bounded by write conflicts, not by compute cost
   (vision.md, Good Taste 6).
-- UI work: behavior is proven by tests; **visual quality is judged by human
-  eyes and simulators** — no agent sign-off substitutes for either.
+- UI work: behavior is proven by tests; **visual quality passes the `ux-review`
+  skill** on simulator or browser captures of the changed screens.
 
 Skills: [.opencode/skills/](.opencode/skills/) (canonical library; other
 runtimes symlink into it — see [.claude/README.md](.claude/README.md))
