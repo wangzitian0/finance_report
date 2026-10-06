@@ -57,7 +57,6 @@ _SKIP_DIR_NAMES = frozenset(
         ".next",
     }
 )
-_SKIP_DIRS = tuple(sorted(_SKIP_DIR_NAMES))
 
 
 def band(llm_share: float) -> str:
