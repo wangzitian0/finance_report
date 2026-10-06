@@ -40,19 +40,26 @@ def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
     """Load the gate map from the CI gate inventory SSOT."""
     inventory_path = repo_root / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
     if not inventory_path.exists():
-        inventory_path = (
-            REPO_ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
-        )
-    if not inventory_path.exists():
         return ()
 
-    import yaml
+    try:
+        import yaml
+    except ImportError:
+        return ()
 
     inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
+    if not isinstance(inventory, dict):
+        return ()
     gates = inventory.get("gates", [])
+    if not isinstance(gates, list):
+        return ()
     result: list[dict[str, Any]] = []
     for gate in gates:
-        if gate.get("workflow") == ".github/workflows/ci.yml" and "lane" in gate:
+        if (
+            isinstance(gate, dict)
+            and gate.get("workflow") == ".github/workflows/ci.yml"
+            and "lane" in gate
+        ):
             result.append(
                 {
                     "lane": gate["lane"],
@@ -273,7 +280,9 @@ def build_evidence_bundle(
     ``ai_ocr_status``/``ai_ocr_exit_code``); the main-branch CI producer omits
     it (not available in that context — no provider-backed gate runs there).
     """
-    gate_map = load_gate_map(repo_root) or GATE_MAP
+    gate_map = load_gate_map(repo_root)
+    if not gate_map and repo_root == REPO_ROOT:
+        gate_map = GATE_MAP
     return {
         "version": BUNDLE_VERSION,
         "gate_map": [dict(entry) for entry in gate_map],

@@ -25,6 +25,7 @@ from common.meta.extension.check_package_contract import (
     _package_all,
     _resolve_test,
     check_package,
+    clear_run_cache,
     discover_packages,
     main,
     run,
@@ -116,6 +117,7 @@ def synthetic_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(cpc, "REPO_ROOT", tmp_path)
     (tmp_path / "apps" / "backend" / "src").mkdir(parents=True)
     (tmp_path / "common").mkdir(parents=True)
+    clear_run_cache()
     return tmp_path
 
 
@@ -743,6 +745,7 @@ def test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous(
     )
     package_readme = package.spec_dir / "readme.md"
     package_readme.unlink()
+    clear_run_cache()
     ok, messages = run(synthetic_repo)
     assert not ok
     assert any(
@@ -753,6 +756,7 @@ def test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous(
     package_readme.write_text("# truthful\n", encoding="utf-8")
     wrong_case_readme = package.spec_dir / "README.md"
     package_readme.rename(wrong_case_readme)
+    clear_run_cache()
     ok, messages = run(synthetic_repo)
     assert not ok
     assert any(
@@ -764,13 +768,31 @@ def test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous(
     nested_worklist = package.spec_dir / "data" / "TODO.md"
     nested_worklist.parent.mkdir()
     nested_worklist.write_text("- [ ] hidden work\n", encoding="utf-8")
+    clear_run_cache()
     ok, messages = run(synthetic_repo)
     assert not ok
     assert any("parallel worklist is forbidden" in message for message in messages)
 
     nested_worklist.unlink()
+    clear_run_cache()
     ok, messages = run(synthetic_repo)
     assert ok, messages
+
+
+def test_run_caching_and_clear_cache(synthetic_repo: Path) -> None:
+    """Session caching preserves results and clear_run_cache invalidates them."""
+    clear_run_cache()
+    ok1, msgs1 = run(synthetic_repo)
+    assert not ok1
+    # Cached run returns the exact same result tuple without re-evaluating
+    ok2, msgs2 = run(synthetic_repo)
+    assert (ok1, msgs1) == (ok2, msgs2)
+
+    # Invalidate cache and verify fresh execution
+    clear_run_cache()
+    assert synthetic_repo.resolve() not in cpc._RUN_CACHE
+    ok3, msgs3 = run(synthetic_repo, use_cache=False)
+    assert (ok1, msgs1) == (ok3, msgs3)
 
 
 def test_discover_and_run_pass_for_clean_package(synthetic_repo: Path) -> None:

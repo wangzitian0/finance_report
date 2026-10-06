@@ -1003,8 +1003,23 @@ def _check_authored_truth_surfaces(
     return errors
 
 
-def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
+_RUN_CACHE: dict[Path, tuple[bool, list[str]]] = {}
+
+
+def clear_run_cache() -> None:
+    """Clear session cache for package contract validation results."""
+    _RUN_CACHE.clear()
+
+
+def run(
+    repo_root: Path = REPO_ROOT, *, use_cache: bool = True
+) -> tuple[bool, list[str]]:
     """Validate every discovered package; return (ok, messages)."""
+    resolved = repo_root.resolve()
+    if use_cache and resolved in _RUN_CACHE:
+        ok, msgs = _RUN_CACHE[resolved]
+        return (ok, list(msgs))
+
     packages = discover_packages(repo_root)
     registered = {p.name: p.contract.klass for p in packages}
     # Every registered package's real import prefix (src.<name> or, for a
@@ -1046,7 +1061,11 @@ def run(repo_root: Path = REPO_ROOT) -> tuple[bool, list[str]]:
     all_errors.extend(_check_duplicate_public_function_exports(packages))
     if not packages:
         all_errors.append("no packages discovered (expected at least 'counter')")
-    return (not all_errors, messages + all_errors)
+
+    result = (not all_errors, messages + all_errors)
+    if use_cache:
+        _RUN_CACHE[resolved] = (result[0], list(result[1]))
+    return result
 
 
 def _run_command(argv: Sequence[str] | None = None) -> int:
