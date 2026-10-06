@@ -352,6 +352,20 @@ def project_backend_dockerfile(content: str, toolchain: dict) -> str:
     )
     if uv_count == 0:
         raise ValueError("missing required ARG UV_IMAGE in apps/backend/Dockerfile")
+
+    backend_stages = (
+        "FROM ${UV_IMAGE} AS uv-source",
+        "FROM ${PYTHON_IMAGE} AS builder",
+        "COPY --from=uv-source /uv /usr/local/bin/uv",
+        "FROM ${PYTHON_IMAGE}",
+    )
+    lines = [line.strip() for line in content.splitlines()]
+    for stage in backend_stages:
+        if stage not in lines:
+            raise ValueError(
+                f"missing required stage '{stage}' in apps/backend/Dockerfile"
+            )
+
     return content
 
 
@@ -365,6 +379,18 @@ def project_frontend_dockerfile(content: str, toolchain: dict) -> str:
     )
     if count == 0:
         raise ValueError("missing required ARG NODE_IMAGE in apps/frontend/Dockerfile")
+
+    frontend_stages = (
+        "FROM ${NODE_IMAGE} AS builder",
+        "FROM ${NODE_IMAGE}",
+    )
+    lines = [line.strip() for line in content.splitlines()]
+    for stage in frontend_stages:
+        if stage not in lines:
+            raise ValueError(
+                f"missing required stage '{stage}' in apps/frontend/Dockerfile"
+            )
+
     return content
 
 

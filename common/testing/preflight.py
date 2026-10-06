@@ -229,6 +229,7 @@ CHECKS: tuple[Check, ...] = (
             "apps/frontend/*.test.tsx",
             "apps/frontend/*.spec.ts",
             "apps/frontend/*.spec.tsx",
+            "docs/project/EPIC*.md",
         ),
         commands=((PY, "tools/check_package_migration_safety.py"),),
         why="gate source, contracts, or test proofs changed: validate consolidated package migration safety gates",

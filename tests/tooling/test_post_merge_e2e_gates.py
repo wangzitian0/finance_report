@@ -6,6 +6,7 @@ import sys
 import urllib.error
 from datetime import timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -1910,16 +1911,34 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     )
 
 
+def _assert_job_setup_minio_invocations(
+    job_name: str, steps: list[dict[str, Any]]
+) -> None:
+    count = sum(
+        1 for step in steps if "./.github/actions/setup-minio" in step.get("uses", "")
+    )
+    assert count >= 2, (
+        f"job {job_name} invoked setup-minio {count} times (expected >= 2)"
+    )
+
+
 def test_backend_integration_invokes_setup_minio() -> None:
     """CI backend-integration lane must invoke setup-minio."""
-    workflow = read(".github/workflows/ci.yml")
+    workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+    jobs = workflow.get("jobs", {})
     for job_name in ("backend-integration",):
-        job_pattern = (
-            rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
-        )
-        match = re.search(job_pattern, workflow, re.DOTALL)
-        assert match is not None, f"job {job_name} not found in ci.yml"
-        assert match.group(1).count("./.github/actions/setup-minio") >= 2
+        assert job_name in jobs, f"job {job_name} not found in ci.yml"
+        _assert_job_setup_minio_invocations(job_name, jobs[job_name].get("steps", []))
+
+
+def test_backend_integration_invoke_setup_minio_falsifiable() -> None:
+    """Verify that mock steps with 0 or 1 setup-minio invocations fail the production assertion."""
+    for step_count in (0, 1):
+        mock_steps = [{"uses": "./.github/actions/setup-minio"}] * step_count
+        with pytest.raises(
+            AssertionError, match=r"invoked setup-minio \d times \(expected >= 2\)"
+        ):
+            _assert_job_setup_minio_invocations("mock-job", mock_steps)
 
 
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:

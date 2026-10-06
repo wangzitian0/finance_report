@@ -249,12 +249,14 @@ gates:
   - id: ci.verify_sha_image_published
     stage: github_ci.merge_authority
     task_category: image_build
+    lane: images
     workflow: .github/workflows/ci.yml
     job: verify-sha-image-published
     owner: common/runtime/release_images.py
     triggers: [push]
     required_by_finish: true
     blocks_workflow: true
+    blocking: conditional
     inputs: [container_images_result]
     outputs: [sha_image_publication_verified]
     artifacts: []

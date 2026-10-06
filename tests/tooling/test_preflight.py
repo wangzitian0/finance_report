@@ -21,6 +21,15 @@ class TestSelectChecks:
         ]
         assert "ac-traceability" in names
 
+    def test_epic_edit_selects_package_migration_safety(self):
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["docs/project/EPIC-008.testing-strategy.md"]
+            )
+        ]
+        assert "package-migration-safety" in names
+
     def test_manifest_edit_selects_ownership(self):
         # docs/ssot/ is retired (#1823, Package-ization 4/4); the concept
         # registry lives at common/meta/data/MANIFEST.yaml now.

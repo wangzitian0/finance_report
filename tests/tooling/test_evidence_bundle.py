@@ -33,6 +33,17 @@ def assert_pyyaml_installed_before_generator(
     assert commands.index(install_marker) < commands.index(generator_script)
 
 
+def _copy_gate_inventory(target_root: Path) -> None:
+    dst = target_root / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(
+        (ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Per-water-line readers — each tolerant of a missing/empty baseline.
 # --------------------------------------------------------------------------- #
@@ -136,6 +147,7 @@ def test_AC8_13_164_bundle_assembles_the_four_ratchet_water_lines_and_gate_map(
     """AC-llm.evidence-bundle.1: AC8.13.164: build_evidence_bundle assembles the gate map, all four
     ratchet water-lines, and corpus per-field accuracy from already-computed
     artifacts — never re-running the gates that produced them."""
+    _copy_gate_inventory(tmp_path)
     bundle = eb.build_evidence_bundle(tmp_path)
 
     assert bundle["version"] == eb.BUNDLE_VERSION
@@ -173,6 +185,7 @@ def test_build_evidence_bundle_defaults_are_empty_not_none_for_gate_results(
 # Markdown rendering
 # --------------------------------------------------------------------------- #
 def test_render_markdown_includes_every_gate_map_row(tmp_path: Path) -> None:
+    _copy_gate_inventory(tmp_path)
     lint_result = "success"
     bundle = eb.build_evidence_bundle(tmp_path, gate_results={"lint": lint_result})
     rendered = eb.render_markdown(bundle)
@@ -356,7 +369,25 @@ def test_gate_map_matches_ci_gate_inventory_ssot() -> None:
         if gate.get("workflow") == ".github/workflows/ci.yml" and "lane" in gate
     ]
     gate_map_jobs = [entry["job"] for entry in eb.GATE_MAP]
+    assert len(gate_map_jobs) >= 15
+    assert "verify-sha-image-published" in gate_map_jobs
     assert gate_map_jobs == expected_jobs
+
+
+def test_load_gate_map_sandbox_isolation(tmp_path: Path) -> None:
+    """load_gate_map respects sandbox isolation and empty inventory files."""
+    assert eb.load_gate_map(tmp_path) == ()
+
+    inventory_path = tmp_path / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+    inventory_path.parent.mkdir(parents=True)
+    inventory_path.write_text("gates: []\n", encoding="utf-8")
+    assert eb.load_gate_map(tmp_path) == ()
+
+    inventory_path.write_text("not-a-dict\n", encoding="utf-8")
+    assert eb.load_gate_map(tmp_path) == ()
+
+    inventory_path.write_text("gates: invalid\n", encoding="utf-8")
+    assert eb.load_gate_map(tmp_path) == ()
 
 
 def test_evidence_bundle_main_dry_run() -> None:
