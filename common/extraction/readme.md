@@ -20,7 +20,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-5.3-flash`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.3`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-5.3-flashx`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.3-flash`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Statement ingestion application boundary
 
@@ -533,11 +533,11 @@ ZAI_API_KEY=<YOUR_ZAI_API_KEY>
 AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 AI_CHAT_COMPLETIONS_PATH=/chat/completions
 AI_LAYOUT_PARSING_PATH=/layout_parsing
-PRIMARY_MODEL=glm-5.3
-OCR_MODEL=glm-5.3-flash
-VISION_MODEL=glm-5.3-flash
-FALLBACK_MODELS=glm-5.2,glm-5.1
-VISION_FALLBACK_MODELS=glm-4.6v,glm-4.5v
+PRIMARY_MODEL=glm-5.3-flash
+OCR_MODEL=glm-5.3-flashx
+VISION_MODEL=glm-5.3-flashx
+FALLBACK_MODELS=glm-5.3,glm-5.2
+VISION_FALLBACK_MODELS=glm-5.3-flash,glm-4.6v
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
@@ -657,13 +657,13 @@ slice is registered.
 
 ## Model Selection
 
-- **Default**: Uses `OCR_MODEL=glm-4.6v` on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.
+- **Default**: Uses `OCR_MODEL=glm-5.3-flashx` on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
-- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5-turbo,glm-5`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
-- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-4.5v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
+- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5.3,glm-5.2`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
+- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-5.3-flash,glm-4.6v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
 

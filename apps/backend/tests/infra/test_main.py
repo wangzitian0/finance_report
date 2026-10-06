@@ -260,9 +260,9 @@ class TestConfig:
         monkeypatch.delenv("VISION_MODEL", raising=False)
         settings = Settings(_env_file=None)
         assert settings.ai_provider == "zai"
-        assert settings.primary_model == "glm-5.3"
-        assert settings.ocr_model == "glm-5.3-flash"
-        assert settings.vision_model == "glm-5.3-flash"
+        assert settings.primary_model == "glm-5.3-flash"
+        assert settings.ocr_model == "glm-5.3-flashx"
+        assert settings.vision_model == "glm-5.3-flashx"
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

@@ -112,7 +112,9 @@ def _gemini_provider() -> ProviderRef:
 
 
 @pytest.mark.no_db
-@pytest.mark.parametrize("model_id", ["glm-5.3", "glm-5.3-flash", "openai/GLM-5.3-Flash"])
+@pytest.mark.parametrize(
+    "model_id", ["glm-5.3", "glm-5.3-flash", "openai/GLM-5.3-Flash", "glm-5.3-flashx", "openai/GLM-5.3-FlashX"]
+)
 @pytest.mark.parametrize(
     ("reasoning", "expected"),
     [

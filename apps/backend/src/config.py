@@ -407,19 +407,19 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider"},
     )
     primary_model: str = Field(
-        default="glm-5.3",
+        default="glm-5.3-flash",
         validation_alias="PRIMARY_MODEL",
         description="Primary AI model id.",
         json_schema_extra={"group": "AI Provider"},
     )
     vision_model: str = Field(
-        default="glm-5.3-flash",
+        default="glm-5.3-flashx",
         validation_alias="VISION_MODEL",
         description="Vision AI model id.",
         json_schema_extra={"group": "AI Provider"},
     )
     ocr_model: str = Field(
-        default="glm-5.3-flash",
+        default="glm-5.3-flashx",
         validation_alias="OCR_MODEL",
         description="OCR AI model id.",
         json_schema_extra={"group": "AI Provider"},
@@ -428,7 +428,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FALLBACK_MODELS",
         description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.2,glm-5.1"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.3,glm-5.2"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,
@@ -438,7 +438,7 @@ class Settings(BaseSettings):
             "must be vision-capable because the vision request carries image "
             "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
         ),
-        json_schema_extra={"group": "AI Provider", "example": "glm-4.6v,glm-4.5v"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash,glm-4.6v"},
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
@@ -810,8 +810,8 @@ class Settings(BaseSettings):
         return parse_comma_list(
             self.vision_fallback_models_str,
             [
+                "glm-5.3-flash",
                 "glm-4.6v",
-                "glm-4.5v",
             ],
         )
 
