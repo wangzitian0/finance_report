@@ -199,7 +199,7 @@ git push origin v1.2.3
 # Deploy to staging (manual)
 # -> Actions -> Deploy Staging -> Run workflow -> version_ref=v1.2.3
 
-# Deploy to production (manual, after staging passes)
+# Deploy to production (manual, after staging passes, with the owner's approval and presence)
 # -> Actions -> Release -> Run workflow -> version_ref=v1.2.3
 
 # Dry-run production release proof (manual, no production mutation)

@@ -29,7 +29,7 @@
 | `docker-compose.yml` | Development service containers |
 | `.github/workflows/ci.yml` | GitHub Actions CI |
 | `.github/workflows/deploy.yml` | Staging Build & Deploy |
-| `.github/workflows/deploy.yml` | Production Release |
+| `.github/workflows/release.yml` | Production Release |
 
 ### Toolchain Contract
 

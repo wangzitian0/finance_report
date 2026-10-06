@@ -39,7 +39,7 @@
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
 | **4** | **PR Preview** | Required gate: `http://localhost:8080` inside GitHub runner<br>Preview slot: `report-preview.zitian.party` | PR push — synchronous `pull_request` runner E2E<br>Manual / post-merge preview deployment | Runner compose stack for merge gate<br>Dokploy preview compose | GitHub runner containers for merge gate<br>Dokploy preview compose | Ephemeral Postgres/MinIO | Runner `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>`<br>Dokploy `report-preview` slot |
 | **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
-| **6** | **Production** | `report.zitian.party` | Manual release<br>`deploy.yml` | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+| **6** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`release.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
 Environment taxonomy is not the delivery pipeline stage count. The CI/CD model
 is documented in [ci-cd.md](../testing/ci-cd.md) as a sparse environment x pipeline stage
@@ -140,7 +140,8 @@ PR validation is split into two independent things (issue #839):
 
 **Production** — Manual release process:
 - **Image deployment**: Built from version tags (`v1.2.3`)
-- Manual trigger after Staging validation
+- Manual trigger after Staging validation, through `release.yml`
+- A production deploy needs the owner's approval and presence ([branch-policy.md](../../docs/contributing/branch-policy.md) §4)
 - Most stable environment, persistent data
 - Uses dedicated DB/Redis + shared Platform
 
@@ -180,7 +181,7 @@ PR validation is split into two independent things (issue #839):
 | `.github/workflows/preview.yml` | PR Preview | PR opened/sync; manual dispatch for persistent preview | Run runner-local E2E as merge gate; optionally deploy/cleanup a non-blocking persistent Dokploy preview |
 | `.github/workflows/deploy.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
 | `.github/workflows/deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
-| `.github/workflows/deploy.yml` | Production | Manual (`workflow_dispatch`) | Dry-run or deploy an existing release `version_ref` via deploy_v2 |
+| `.github/workflows/release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run, or deploy an existing release `version_ref` via deploy_v2. A deploy (`dry_run=false`) needs the owner's approval and presence |
 
 ---
 

@@ -9,19 +9,34 @@
 ## 🌿 Branch Management Rules (CRITICAL)
 
 1. **NO commits to `main`**: All changes must go through branches and PRs.
-2. **User-approved parallel PRs are allowed**: Agents may create a new branch while another PR is open when the user explicitly asks for a separate PR.
-3. **Explicit permission required**: Only create a new branch when:
-   - Current PR is merged, OR
-   - User explicitly requests a new branch or PR, OR
-   - Previous task is explicitly completed.
-4. **Conditional agent merge authority**: An agent may merge a PR only when **all** of the following hold. Any one of them unverifiable means fail closed — do not merge.
+2. **Parallel PRs are allowed**: An open PR does not block a new branch. The checklist in rule 3 decides.
+3. **Branch creation is the agent's decision**: A branch is reversible and is not a production action. No permission is needed. Create a branch when all of the following hold:
+   - The branch advances one issue, and the issue is claimed (assignee or start comment).
+   - No other open PR advances the same issue.
+   - Parallel branches do not write the same files or generated outputs.
+4. **Agent merge authority** (owner instruction, 2026-10-06): Only a **production** deployment needs the owner's approval and presence. An agent merges any other PR when **all** of the following hold. If the agent cannot verify one condition, it fails closed and does not merge.
    - Required checks are green on the **exact head SHA being merged**, not on an earlier one.
    - Every actionable review thread is resolved — human reviewer, Copilot, or `/code-review` alike. An actionable finding requests a concrete code, documentation, test, or process change; questions and informational comments do not count.
-   - The PR touches no protected file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`, `vision.md` — the list `common/meta/extension/check_ssot_ownership.py` enforces), UNLESS the PR description quotes the owner instruction it implements (owner standing grant, 2026-09-22).
-   - Merging must not reach **production**, and must trigger no other irreversible side effect. Scoped by environment, not by "any deploy": the automatic `report-branch-main` **preview** redeploy that `.github/workflows/notify-infra2.yml` dispatches after every green `main` CI run is expected and never blocks agent merge; a **staging** deploy (`.github/workflows/deploy.yml`, manual `workflow_dispatch`) is likewise the agent's to trigger. Only **production** is gated — it deploys exclusively through the separate, manual `.github/workflows/release.yml` (`workflow_dispatch` on a pinned `version_ref` release tag) — dispatching that workflow, or any action that otherwise promotes this head SHA to production, needs the owner's approval first.
+   - The protected-file checklist below holds for every protected file the PR touches. No owner quote is needed.
+   - Merging does not reach **production**, and triggers no other irreversible side effect. Scope this by environment, not by "any deploy":
+     - The automatic `report-branch-main` **preview** redeploy never blocks agent merge. `.github/workflows/notify-infra2.yml` dispatches it after every green `main` CI run.
+     - A **staging** deploy (`.github/workflows/deploy.yml`, manual `workflow_dispatch`) is the agent's to trigger.
+     - **Production** is gated. It deploys only through the separate, manual `.github/workflows/release.yml` (`workflow_dispatch` on a pinned `version_ref` release tag).
+     - Dispatching `release.yml` with `dry_run=false` needs the owner's approval and presence for that `version_ref`. Any other action that promotes a head SHA to production needs the same approval.
+     - Approval for one `version_ref` does not carry over to another.
+     - `release.yml` with `dry_run=true` does not mutate production. The agent may run it.
    - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`).
 
-   A PR that fails any condition is still the agent's to prepare and the user's to merge. A PR that modifies a protected file without quoting an owner instruction, or whose merge would reach production, needs the user's **explicit approval of that head SHA** — an approval of an earlier head does not carry over.
+   **Protected-file checklist.** Each protected file has its own checklist instead of an owner quote:
+
+   | File | Checklist |
+   |------|-----------|
+   | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | These files are generated from dev_env. Do not hand-edit them. Change the dev_env rule source, then re-render. The publish manifest `.ws-publish/manifest.json` records the SHA-256 of each generated file. dev_env `ws-check-drift` guards the generated files. This repository has no CI job that compares them with the manifest. |
+   | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and every actionable review thread is resolved. |
+
+   `common/meta/extension/check_ssot_ownership.py` does not enforce this list. That script exempts these files from its rule-keyword cross-reference check (`CHECK4_EXEMPT_PATHS`) and checks nothing else about them.
+
+   A PR that fails a condition is not ready to merge. The agent fixes the cause until every condition holds. Only a production deployment waits for the owner.
 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 
 ---
