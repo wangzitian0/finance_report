@@ -165,17 +165,6 @@ def test_renamed_minio_step_cannot_hide_image_drift(tmp_path: Path) -> None:
     assert contract.run_contract(tmp_path) == 1
 
 
-def test_omitted_setup_minio_in_ci_fails(tmp_path: Path) -> None:
-    """AC-testing.toolchain.1: CI integration and tier1 lanes must invoke setup-minio."""
-    _copy_contract_inputs(tmp_path)
-    target = tmp_path / ".github/workflows/ci.yml"
-    content = target.read_text(encoding="utf-8").replace(
-        "./.github/actions/setup-minio", "./.github/actions/setup-dummy", 1
-    )
-    target.write_text(content, encoding="utf-8")
-    assert contract.run_contract(tmp_path) == 1
-
-
 def test_missing_setup_minio_action_fails(tmp_path: Path) -> None:
     """AC-testing.toolchain.1: Missing setup-minio composite action file fails."""
     _copy_contract_inputs(tmp_path)

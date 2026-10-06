@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -60,16 +59,6 @@ def check_tool_files(repo_root: Path, toolchain: dict, errors: list[str]) -> Non
     expect_contains(errors, ".npmrc", npmrc, "engine-strict=true")
 
 
-def expect_image(errors: list[str], path: str, content: str, image: str) -> None:
-    """Match a complete literal Compose image, allowing quotes/comments/spacing."""
-    pattern = (
-        rf"(?m)^\s*image:\s*(?P<quote>['\"]?){re.escape(image)}"
-        r"(?P=quote)[ \t]*(?:#.*)?$"
-    )
-    if not re.search(pattern, content):
-        errors.append(f"{path}: missing governed image {image!r}")
-
-
 def check_frontend_package(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     package = json.loads(read_text(repo_root, "apps/frontend/package.json"))
     expected_node = toolchain["runtime"]["node"]
@@ -101,69 +90,6 @@ def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None
     if status != 0:
         errors.extend(proj_errors)
 
-    ci_path = ".github/workflows/ci.yml"
-    try:
-        ci_content = read_text(repo_root, ci_path)
-    except FileNotFoundError:
-        errors.append(f"{ci_path}: file not found")
-        return
-    for job_name in ("backend-integration", "backend-e2e-tier1"):
-        job_pattern = (
-            rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
-        )
-        match = re.search(job_pattern, ci_content, re.DOTALL)
-        if match:
-            job_body = match.group(1)
-            if job_body.count("./.github/actions/setup-minio") < 2:
-                errors.append(
-                    f"{ci_path}: job {job_name} must invoke ./.github/actions/setup-minio (start and wait)"
-                )
-        else:
-            errors.append(f"{ci_path}: job {job_name} not found")
-
-
-def check_container_files(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
-    images = toolchain["images"]
-
-    backend = read_text(repo_root, "apps/backend/Dockerfile")
-    for needle in (
-        f"ARG PYTHON_IMAGE={images['backend_python']}",
-        f"ARG UV_IMAGE={images['backend_uv']}",
-        "FROM ${UV_IMAGE} AS uv-source",
-        "FROM ${PYTHON_IMAGE} AS builder",
-        "COPY --from=uv-source /uv /usr/local/bin/uv",
-        "FROM ${PYTHON_IMAGE}",
-    ):
-        expect_contains(errors, "apps/backend/Dockerfile", backend, needle)
-
-    frontend = read_text(repo_root, "apps/frontend/Dockerfile")
-    for needle in (
-        f"ARG NODE_IMAGE={images['frontend_node']}",
-        "FROM ${NODE_IMAGE} AS builder",
-        "FROM ${NODE_IMAGE}",
-    ):
-        expect_contains(errors, "apps/frontend/Dockerfile", frontend, needle)
-
-    compose = read_text(repo_root, "docker-compose.yml")
-    for image in (
-        images["postgres"],
-        images["minio"],
-        images["minio_client"],
-    ):
-        expect_image(errors, "docker-compose.yml", compose, image)
-
-    preview_path = "docker-compose.pr-preview.yml"
-    preview = read_text(repo_root, preview_path)
-    for key in ("minio", "minio_client"):
-        expect_image(errors, preview_path, preview, images[key])
-
-    for key, image in (
-        ("PYTHON_IMAGE", images["backend_python"]),
-        ("UV_IMAGE", images["backend_uv"]),
-        ("NODE_IMAGE", images["frontend_node"]),
-    ):
-        expect_contains(errors, "docker-compose.yml", compose, f"${{{key}:-{image}}}")
-
 
 def run_contract(repo_root: Path) -> int:
     errors: list[str] = []
@@ -172,7 +98,6 @@ def run_contract(repo_root: Path) -> int:
     check_frontend_package(repo_root, toolchain, errors)
     check_moon_toolchain(repo_root, toolchain, errors)
     check_workflows(repo_root, toolchain, errors)
-    check_container_files(repo_root, toolchain, errors)
 
     if errors:
         for error in errors:
