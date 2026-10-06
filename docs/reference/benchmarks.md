@@ -45,10 +45,13 @@ The V2 benchmark test matrix covers end-to-end multi-period accounting sufficien
 4. **Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet**
    Processes statements across 3 sovereign jurisdictions: Singapore (SGD), United States (USD), and Hong Kong (HKD). Mathematically asserts consolidated balance sheet balance in base currency (SGD) and target currency (USD) with $\Delta = 0.00$.
 5. **Case 5: Holistic Multi-Asset & Tax Ecosystem**
-   Combines liquid securities (AAPL, VT) via Interactive Brokers import, illiquid real estate property appraisal (350,000.00 USD) via DocuBench FHA 1004 appraisal fixture (`KpewWz3R.pdf`), and annual compensation/tax withholding verification via Form W-2 (`phovuuuk.pdf`) and Payslip (`Oe7iRM1G.pdf`). Asserts comprehensive wealth valuation integration on the balance sheet with $\Delta = 0.00$.
+   Combines liquid securities (AAPL, VT) via Interactive Brokers import, illiquid real estate property appraisal (350,000.00 USD), and annual compensation / tax withholding verification via Form W-2 and Payslip structured entries. Asserts comprehensive wealth valuation integration on the balance sheet with $\Delta = 0.00$.
+6. **Case 6: Bank Overdraft & Capital Gain Asset Disposal**
+   Validates negative cash balance (overdraft) handling where expenses exceed deposits, followed by emergency capital injection, collectible art acquisition, and profitable asset disposal with realized capital gains. Mathematically asserts three-statement conservation ($Assets \equiv Liabilities + Equity$) across negative and zero-asset transitions.
 
 ---
 
 ## 📜 Benchmark Releases & Observatory History
 
+- [v0.1.64 Detailed Benchmark Report](../benchmarks/v0.1.64/report.html) — 5-scenario comprehensive run (100% balanced, $\Delta = 0.00$).
 - [v0.1.52 Detailed Benchmark Report](../benchmarks/v0.1.52/report.html) — Historical baseline run.

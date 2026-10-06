@@ -44,6 +44,7 @@ from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_3,
     execute_case_4,
     execute_case_5,
+    execute_case_6,
 )
 from tools._lib.benchmarks.statement_generators import (  # noqa: E402
     generate_bank_asset_transfer_pdf,
@@ -530,7 +531,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--case",
         default="all",
-        help="Comma-separated case IDs to run (1, 2, 3, 4, 5, or all)",
+        help="Comma-separated case IDs to run (1, 2, 3, 4, 5, 6, or all)",
     )
     parser.add_argument(
         "--version-ref",
@@ -605,6 +606,8 @@ def _dispatch_cases(runner: ScenarioBenchmarkRunner, case_arg: str) -> list[Case
         results.append(execute_case_4(runner))
     if _should_run("5"):
         results.append(execute_case_5(runner))
+    if _should_run("6"):
+        results.append(execute_case_6(runner))
     return results
 
 
