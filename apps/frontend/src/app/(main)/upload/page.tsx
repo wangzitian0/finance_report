@@ -262,7 +262,17 @@ export default function UploadPage() {
       <div className="card">
         <div className="card-header flex items-center justify-between">
           <h3 className="text-sm font-medium">Uploaded Statements</h3>
-          <span className="text-xs text-muted">{statements.length} total</span>
+          <div className="flex items-center gap-3">
+            {statements.some((s) => s.status === "approved") && (
+              <Link
+                href="/reports/balance-sheet"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+              >
+                Open Reports →
+              </Link>
+            )}
+            <span className="text-xs text-muted">{statements.length} total</span>
+          </div>
         </div>
 
         {loading ? (
@@ -340,7 +350,18 @@ export default function UploadPage() {
                           router.push(`/statements/${statement.id}/review`)
                         }
                       >
-                        Review →
+                        Review & Approve →
+                      </Button>
+                    )}
+                    {statement.status === "approved" && (
+                      <Button
+                        variant="secondary"
+                        className="text-sm"
+                        onClick={() =>
+                          router.push("/reports/balance-sheet")
+                        }
+                      >
+                        View Report →
                       </Button>
                     )}
                     <IconButton

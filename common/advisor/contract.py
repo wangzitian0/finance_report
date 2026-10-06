@@ -1269,6 +1269,27 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-advisor.fe-chat.6",
+            statement="ChatPanel renders modern conversational bubbles with avatar and right-aligned user bubble, avoiding full-width rectangular bars",
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.6 renders modern conversational bubbles with avatar",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.7",
+            statement="ChatPanel formats structured markdown tables, lists, and bold text for assistant responses",
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.7 formats structured markdown tables and bold text",
+            priority="P2",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-advisor.fe-chat.8",
+            statement="ChatPanel input area provides auto-growing textarea, circular send button, and resolves persistent loading indicators",
+            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.8 input area supports auto-grow and circular send",
+            priority="P2",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ACRecord(

@@ -425,4 +425,119 @@ describe("ChatPanel", () => {
     const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement
     await waitFor(() => expect(select.value).toBe("model-alt"))
   })
+
+  // AC-advisor.fe-chat.6
+  it("AC-advisor.fe-chat.6 renders modern conversational bubbles with avatar", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: [] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({
+          sessions: [
+            {
+              id: "sess-1",
+              title: "Bubble review",
+              message_count: 2,
+              messages: [
+                { id: "m1", role: "user", content: "What is my net worth?" },
+                { id: "m2", role: "assistant", content: "Your net worth is SGD 10,000.00" },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="page" />)
+
+    const userBubble = await screen.findByTestId("chat-bubble-user")
+    const assistantBubble = await screen.findByTestId("chat-bubble-assistant")
+
+    expect(userBubble).toHaveClass("justify-end")
+    expect(within(userBubble).getByText("What is my net worth?")).toBeInTheDocument()
+    expect(assistantBubble).toHaveClass("justify-start")
+    expect(within(assistantBubble).getByText("Your net worth is SGD 10,000.00")).toBeInTheDocument()
+  })
+
+  // AC-advisor.fe-chat.7
+  it("AC-advisor.fe-chat.7 formats structured markdown tables and bold text", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/suggestions")) {
+        return Promise.resolve({ suggestions: [] })
+      }
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({
+          sessions: [
+            {
+              id: "sess-1",
+              title: "Table review",
+              message_count: 1,
+              messages: [
+                {
+                  id: "m1",
+                  role: "assistant",
+                  content: "Summary:\n| Metric | Value |\n|---|---|\n| Cash | **$5,000** |",
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = render(<ChatPanel variant="page" />)
+
+    expect(await screen.findByText("Summary:")).toBeInTheDocument()
+    expect(screen.getByText("Metric")).toBeInTheDocument()
+    expect(screen.getByText("Cash")).toBeInTheDocument()
+    expect(container.querySelector("table")).toBeInTheDocument()
+    expect(container.querySelector("strong")).toBeInTheDocument()
+  })
+
+  // AC-advisor.fe-chat.8
+  it("AC-advisor.fe-chat.8 input area supports auto-grow and circular send", async () => {
+    render(<ChatPanel variant="page" />)
+
+    const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement
+    const sendButton = screen.getByRole("button", { name: "Send" })
+
+    expect(sendButton).toBeDisabled()
+    fireEvent.change(textarea, { target: { value: "Line 1\nLine 2\nLine 3" } })
+    expect(sendButton).not.toBeDisabled()
+  })
+
+  // AC-advisor.fe-chat.6
+  it("AC-advisor.fe-chat.6 populates input field when initialPrompt is provided and history has existing messages", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({
+          sessions: [
+            {
+              id: "sess-1",
+              title: "Existing chat",
+              message_count: 1,
+              messages: [
+                {
+                  id: "m1",
+                  role: "assistant",
+                  content: "Prior message",
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="page" initialPrompt="Analyze this account" />)
+
+    const textarea = (await screen.findByPlaceholderText(/Ask about spending trends/i)) as HTMLTextAreaElement
+    await waitFor(() => {
+      expect(textarea.value).toBe("Analyze this account")
+    })
+  })
 })

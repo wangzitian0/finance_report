@@ -547,4 +547,60 @@ describe("StatementsPage", () => {
     expect(showToastMock).not.toHaveBeenCalled()
   })
 
+  // AC-extraction.fe-stage1-review.18
+  it("AC-extraction.fe-stage1-review.18 exposes View Report action for approved statements and Review & Approve for parsed statements", async () => {
+    mockStatementsPageApi({
+      statements: [
+        {
+          items: [
+            {
+              id: "s-parsed",
+              original_filename: "parsed.pdf",
+              institution: "DBS",
+              status: "parsed",
+              period_start: "2026-01-01",
+              period_end: "2026-01-31",
+              currency: "SGD",
+              confidence_score: 95,
+              transactions: [],
+              opening_balance: 100,
+              closing_balance: 200,
+              balance_validated: true,
+              validation_error: null,
+            },
+            {
+              id: "s-approved",
+              original_filename: "approved.pdf",
+              institution: "OCBC",
+              status: "approved",
+              period_start: "2026-01-01",
+              period_end: "2026-01-31",
+              currency: "SGD",
+              confidence_score: 98,
+              transactions: [],
+              opening_balance: 500,
+              closing_balance: 800,
+              balance_validated: true,
+              validation_error: null,
+            },
+          ],
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() => expect(screen.getByText("parsed.pdf")).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Review & Approve →" })).toBeInTheDocument()
+
+    const viewReportBtn = screen.getByRole("button", { name: "View Report →" })
+    expect(viewReportBtn).toBeInTheDocument()
+    fireEvent.click(viewReportBtn)
+    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
+
+    expect(screen.getByRole("link", { name: "Open Reports →" })).toHaveAttribute(
+      "href",
+      "/reports/balance-sheet",
+    )
+  })
 })

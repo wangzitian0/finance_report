@@ -349,6 +349,43 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         });
     });
 
+    // AC-extraction.fe-stage1-review.17
+    it("AC-extraction.fe-stage1-review.17 supports auto_fill_default_categories via auto-fill action on classification review", async () => {
+        let capturedBody: { auto_fill_default_categories?: boolean } | null = null;
+        mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({
+                    ...baseStatement,
+                    validation_error: "Economic review required: intent_missing",
+                });
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/statements/s1/review/approve") {
+                capturedBody = JSON.parse(options?.body as string);
+                return Promise.resolve({ journal_entries_created: 2 });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
+        });
+
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        const autoFillBtn = await screen.findByRole("button", {
+            name: "Auto-Fill Default Categories & Approve",
+        });
+        fireEvent.click(autoFillBtn);
+
+        await waitFor(() => {
+            expect(capturedBody).toMatchObject({
+                auto_fill_default_categories: true,
+            });
+        });
+    });
+
     it("AC22.18.3 tracks REVIEW_APPROVED with the statement id on a successful approve", async () => {
         mockedApi.mockImplementation((path: string, options?: RequestInit) => {
             if (path === "/api/statements/s1/review") {
