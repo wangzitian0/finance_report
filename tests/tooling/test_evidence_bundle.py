@@ -369,7 +369,8 @@ def test_gate_map_matches_ci_gate_inventory_ssot() -> None:
         if gate.get("workflow") == ".github/workflows/ci.yml" and "lane" in gate
     ]
     gate_map_jobs = [entry["job"] for entry in eb.GATE_MAP]
-    assert len(gate_map_jobs) >= 16
+    assert len(gate_map_jobs) >= 15
+    assert "verify-sha-image-published" in gate_map_jobs
     assert gate_map_jobs == expected_jobs
 
 
