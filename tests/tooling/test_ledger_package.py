@@ -15,7 +15,10 @@ import ast
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 LEDGER = REPO / "apps/backend/src/ledger"
@@ -154,5 +157,5 @@ def test_ledger_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: check_package_contract validates ledger (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "ledger" in names, f"ledger not discovered; found {names}"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("ledger", REPO)
     assert ok, "package contract gate failed:\n" + "\n".join(messages)

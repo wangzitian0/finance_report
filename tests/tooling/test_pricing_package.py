@@ -16,7 +16,10 @@ import inspect
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 PRICING = REPO / "apps/backend/src/pricing"
@@ -122,7 +125,7 @@ def test_AC_pricing_1_6_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: the gate validates pricing with no violations."""
     packages = discover_packages(REPO)
     assert any(p.contract.name == "pricing" for p in packages), "pricing not discovered"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("pricing", REPO)
     pricing_errors = [m for m in messages if "[pricing]" in m]
     assert not pricing_errors, f"gate violations for pricing: {pricing_errors}"
-    assert ok, "check_package_contract failed overall"
+    assert ok, "check_package_contract failed for pricing:\n" + "\n".join(messages)
