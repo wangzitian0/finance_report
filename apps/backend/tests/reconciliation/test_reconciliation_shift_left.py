@@ -9,17 +9,27 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction import AtomicTransaction, TransactionDirection
+from src.ledger import AccountType, Direction
+from src.reconciliation import MatchNotFoundError, ReconciliationMatch, ReconciliationStatus, accept_match
 from src.reconciliation.base.config import DEFAULT_CONFIG
 from src.reconciliation.base.scoring_engine import (
     derive_reconciliation_score_tier,
     score_amount,
     score_description,
 )
+from src.routers.accounts import account_service
+from src.routers.journal import create_entry, post_entry
 from src.routers.reconciliation import reconciliation_stats
+from src.schemas.account import AccountCreate
+from src.schemas.journal import JournalEntryCreate, JournalLineCreate
 
 
 def test_reconciliation_scoring_engine_algorithms() -> None:
@@ -59,18 +69,69 @@ async def test_reconciliation_stats_endpoint(db: AsyncSession, test_user) -> Non
     assert stats.match_rate >= 0.0
 
 
-def test_reconciliation_match_state_and_acceptance() -> None:
+async def test_reconciliation_match_state_and_acceptance(db: AsyncSession, test_user) -> None:
     """AC-reconciliation.reconciliation-engine.3:
     Reconciliation match lifecycle validates status transitions and auto-accept threshold.
     """
-    from src.reconciliation import ReconciliationStatus
+    user_id = test_user.id
 
-    # Status transitions
-    pending = ReconciliationStatus.PENDING_REVIEW
-    accepted = ReconciliationStatus.ACCEPTED
-    rejected = ReconciliationStatus.REJECTED
+    # 1. Create asset and expense accounts
+    cash = await account_service.create_account(
+        db, user_id, AccountCreate(name="Checking Cash", type=AccountType.ASSET, currency="SGD")
+    )
+    expense = await account_service.create_account(
+        db, user_id, AccountCreate(name="Software Expense", type=AccountType.EXPENSE, currency="SGD")
+    )
 
-    assert pending.value == "pending_review"
-    assert accepted.value == "accepted"
-    assert rejected.value == "rejected"
-    assert DEFAULT_CONFIG.auto_accept >= 85
+    # 2. Create and post balanced journal entry
+    entry_req = JournalEntryCreate(
+        entry_date=date.today(),
+        memo="SaaS Subscription",
+        lines=[
+            JournalLineCreate(
+                account_id=expense.id, direction=Direction.DEBIT, amount=Decimal("25.00"), currency="SGD"
+            ),
+            JournalLineCreate(account_id=cash.id, direction=Direction.CREDIT, amount=Decimal("25.00"), currency="SGD"),
+        ],
+    )
+    entry = await create_entry(entry_req, db, user_id=user_id)
+    posted = await post_entry(entry.id, db=db, user_id=user_id)
+
+    # 3. Create real AtomicTransaction in database
+    txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date.today(),
+        description="SaaS Subscription",
+        amount=Decimal("25.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    )
+    db.add(txn)
+    await db.flush()
+
+    # 4. Create pending ReconciliationMatch attached to transaction and posted entry
+    match = ReconciliationMatch(
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(posted.id)],
+        match_score=88,
+        score_breakdown={"amount": 90.0, "description": 85.0},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+    db.add(match)
+    await db.flush()
+
+    assert match.status == ReconciliationStatus.PENDING_REVIEW
+
+    # 5. Accept the match via domain service
+    accepted_match = await accept_match(db, match.id, user_id=user_id)
+    assert accepted_match.status == ReconciliationStatus.ACCEPTED
+
+    # 6. Acceptance is idempotent
+    second_accept = await accept_match(db, match.id, user_id=user_id)
+    assert second_accept.status == ReconciliationStatus.ACCEPTED
+
+    # 7. Non-existent match raises MatchNotFoundError
+    with pytest.raises(MatchNotFoundError):
+        await accept_match(db, uuid4(), user_id=user_id)

@@ -311,16 +311,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
-        "tests/e2e/test_llm_provider_abstraction_epic023.py",
-        needs=(),
-        audited=True,
-        reason=(
-            "Audited (#1547 follow-up): static definition/document validation of the "
-            "provider-abstraction contract (types, scenes, rotation) — reads files, "
-            "never invokes the LLM layer."
-        ),
-    ),
-    E2ERow(
         "tests/e2e/test_bench_v2_ui_golden_paths.py",
         needs=(NEEDS_STATE_SENSITIVE,),
         audited=True,

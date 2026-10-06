@@ -23,11 +23,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def test_api_health_endpoint_contract() -> None:
     """AC-runtime.1.1, AC-runtime.1.2, AC-testing.must-have.1, AC-testing.journeys.1:
-    The API health endpoints (/health, /livez, /readyz) are registered on FastAPI application.
+    The API health endpoint (/health) is registered on FastAPI application.
     """
     route_paths = [route.path for route in app.routes]
     assert "/health" in route_paths
-    assert any(p in route_paths for p in ("/livez", "/health", "/api/v1/health"))
 
 
 def test_frontend_api_proxy_routing_contract() -> None:

@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,8 +56,8 @@ class _StubLine:
     direction: Direction
     currency: str | None = "SGD"
     fx_rate: Decimal | None = None
-    account_id: any = None
-    account: any = None
+    account_id: Any = None
+    account: Any = None
 
 
 async def test_account_creation_cash_and_bank(db: AsyncSession, test_user) -> None:
