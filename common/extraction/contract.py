@@ -3831,7 +3831,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.804.1",
             statement="Statement upload (CSV) end-to-end journey.",
             # was AC8.4.1
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_statement_upload_csv",
+            test="apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_upload_csv_direct_parsing",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -3840,7 +3840,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.804.2",
             statement="Statement list and get end-to-end journey.",
             # was AC8.4.2
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_statement_list_and_get",
+            test="apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_list_and_get_details",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -3849,7 +3849,7 @@ CONTRACT = PackageContract(
             id="AC-extraction.804.3",
             statement="Statement full flow (upload -> parse -> approve) end-to-end journey.",
             # was AC8.4.3
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_statement_full_flow",
+            test="apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_full_approval_and_posting_flow",
             priority="P0",
             status="done",
             proof_kind="property",

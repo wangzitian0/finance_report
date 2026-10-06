@@ -521,7 +521,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.must-have.4",
             statement="Statement upload triggers AI (Was EPIC-008 AC8.10.4).",
-            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_statement_upload_csv",
+            test="apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_upload_csv_direct_parsing",
             priority="P0",
             status="done",
         ),
@@ -729,8 +729,8 @@ CONTRACT = PackageContract(
                 "calls, bypassing the extraction/LLM seam (Was EPIC-008 AC8.21.1)."
             ),
             test=(
-                "tests/tooling/test_benchmark_scenario_suite.py"
-                "::test_seeded_benchmark_fixtures_bypass_provider"
+                "apps/backend/tests/extraction/test_statements_shift_left.py"
+                "::test_seeded_statement_materializes_without_llm"
             ),
             priority="P0",
             status="done",
@@ -745,8 +745,8 @@ CONTRACT = PackageContract(
                 "EPIC-008 AC8.21.2)."
             ),
             test=(
-                "tests/tooling/test_benchmark_scenario_suite.py"
-                "::test_seeded_benchmark_fixtures_render_list_and_details"
+                "apps/backend/tests/extraction/test_statements_shift_left.py"
+                "::test_seeded_statement_list_and_details_query"
             ),
             priority="P0",
             status="done",
@@ -760,8 +760,8 @@ CONTRACT = PackageContract(
                 "provider-free (Was EPIC-008 AC8.21.3)."
             ),
             test=(
-                "tests/tooling/test_benchmark_scenario_suite.py"
-                "::test_seeded_benchmark_fixtures_transactions_and_review"
+                "apps/backend/tests/extraction/test_statements_shift_left.py"
+                "::test_seeded_statement_transactions_and_reconciliation"
             ),
             priority="P0",
             status="done",
