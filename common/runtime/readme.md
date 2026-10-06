@@ -87,7 +87,8 @@ while including the workflow entrypoint in the tooling coverage measurement.
   `.github/workflows/deploy-freshness.yml` runs it at 07:00 UTC and files or
   updates one tracking issue per environment and breakage
   (`deploy-freshness: <env> is stale` / `could not be measured`)
-  (AC-runtime.deploy-freshness.1; modelled on truealpha#560).
+  (AC-runtime.deploy-freshness.1; modelled on truealpha#560). The escalation
+  step runs only after the check step itself failed (AC-runtime.deploy-freshness.2).
 
 ## Invariants (the contract)
 

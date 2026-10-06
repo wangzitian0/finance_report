@@ -1,4 +1,5 @@
 """AC-runtime.deploy-freshness.1: a deployed environment serving days-old work is red.
+AC-runtime.deploy-freshness.2: a failed check reaches the issue escalation step.
 
 Production v0.1.50 reached users on 2026-09-10 through a door no workflow
 measured; the last successful release.yml production run before it was v0.1.44
@@ -11,10 +12,14 @@ fields and one exact rendering, never fragments of prose.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from common.runtime.deploy_freshness import (
     DEFAULT_MAX_AGE_DAYS,
@@ -370,3 +375,89 @@ def test_measure_reads_newest_tag_and_undeployed_log_from_git() -> None:
         "v0.1.51",
         False,
     )
+
+
+# ── the workflow: a failed check must reach the escalation step (#2201) ────
+
+WORKFLOW = (
+    Path(__file__).resolve().parents[2] / ".github/workflows/deploy-freshness.yml"
+)
+CHECK_STEP_ID = "check"
+ESCALATION_STEP_NAME = "Escalate a scheduled failure to an issue"
+STATUS_FUNCTION = re.compile(r"\b(success|failure|always|cancelled)\(\)")
+
+
+def _freshness_steps() -> list[dict]:
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return workflow["jobs"]["freshness"]["steps"]
+
+
+def _escalation_runs(
+    condition: str, *, event: str, job_failed: bool, check_outcome: str
+) -> bool:
+    """Evaluate a step `if` the way GitHub Actions does.
+
+    Documented rule: an `if` with no status function gets an implicit
+    `success()`, so the step is skipped once any earlier step of the job failed.
+    """
+    expression = condition.strip().removeprefix("${{").removesuffix("}}").strip()
+    statuses = {
+        "success": lambda: not job_failed,
+        "failure": lambda: job_failed,
+        "always": lambda: True,
+        "cancelled": lambda: False,
+    }
+    context = {
+        **statuses,
+        "github": SimpleNamespace(event_name=event),
+        "steps": SimpleNamespace(
+            **{CHECK_STEP_ID: SimpleNamespace(outcome=check_outcome)}
+        ),
+    }
+    if not STATUS_FUNCTION.search(expression):
+        expression = f"success() && ({expression})"
+    python_expression = expression.replace("&&", " and ").replace("||", " or ")
+    return bool(eval(python_expression, {"__builtins__": {}}, context))  # noqa: S307
+
+
+def test_AC_runtime_deploy_freshness_2_a_failed_check_reaches_the_escalation() -> None:
+    """The issue step runs when the CHECK step failed, and only then.
+
+    Run 37278902633 (2026-10-05) ended with the check red and this step skipped,
+    on eight scheduled runs in a row: the `if` had no status function, so GitHub
+    added `success()`, which is false once the check has failed. A broken SDK
+    download must still not file an issue that claims an environment is stale.
+    """
+    steps = _freshness_steps()
+    condition = next(
+        step["if"] for step in steps if step.get("name") == ESCALATION_STEP_NAME
+    )
+    scenarios = [
+        # (scenario, event, job_failed, check_outcome, runs)
+        ("check failed on schedule", "schedule", True, "failure", True),
+        ("check failed on dispatch", "workflow_dispatch", True, "failure", True),
+        ("SDK download failed, check skipped", "schedule", True, "skipped", False),
+        ("check passed", "schedule", False, "success", False),
+        ("check failed on another event", "push", True, "failure", False),
+    ]
+    for scenario, event, job_failed, check_outcome, expected in scenarios:
+        actual = _escalation_runs(
+            condition, event=event, job_failed=job_failed, check_outcome=check_outcome
+        )
+        assert actual is expected, (
+            f"{scenario}: escalation runs={actual}, expected {expected}; if: {condition}"
+        )
+
+
+def test_the_escalation_step_follows_a_check_step_that_can_fail_the_job() -> None:
+    """AC-runtime.deploy-freshness.2: the check is a plain failing step before the escalation."""
+    steps = _freshness_steps()
+    ids = [step.get("id") for step in steps]
+    names = [step.get("name") for step in steps]
+    assert ids.count(CHECK_STEP_ID) == 1, "exactly one step must have id `check`"
+    assert names.count(ESCALATION_STEP_NAME) == 1, "exactly one escalation step"
+    check = steps[ids.index(CHECK_STEP_ID)]
+    assert check.get("continue-on-error") in (None, False), (
+        "a check that cannot fail the job would make the escalation condition moot"
+    )
+    assert ids.index(CHECK_STEP_ID) < names.index(ESCALATION_STEP_NAME)

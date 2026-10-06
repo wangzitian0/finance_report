@@ -102,18 +102,22 @@ jobs:
             --environment "${{ matrix.environment }}" \
             --max-age-days "${{ github.event_name == 'workflow_dispatch' && github.event.inputs[matrix.bound_input] || matrix.max_age_days }}"
 
-      # Reports, never rescues: the leg is already red when this fires. Keyed on
-      # the CHECK step's outcome, not `failure()`, so a broken SDK download
-      # cannot file an issue that claims an environment is stale. The check
-      # writes `verdict` so the title says what actually happened: a stale
-      # environment and an unmeasurable one need different hands.
+      # Reports, never rescues: the leg is already red when this fires. The
+      # condition needs both halves. `failure()` is required: with no status
+      # function GitHub adds an implicit `success()`, which is false once the
+      # check has failed, so this step was skipped on every red run (#2201).
+      # The CHECK step's own outcome is required too: `failure()` alone is true
+      # after any earlier step fails, so a broken SDK download would file an
+      # issue that claims an environment is stale. The check writes `verdict`
+      # so the title says what actually happened: a stale environment and an
+      # unmeasurable one need different hands.
       # One open issue per environment and breakage, found by exact title: the
       # two matrix legs run in parallel, and an env-agnostic search would let
       # the staging leg comment on production's issue. A failed LIST must not
       # fall through to create -- a rate limit would turn one breakage into
       # duplicates.
       - name: Escalate a scheduled failure to an issue
-        if: steps.check.outcome == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: failure() && steps.check.outcome == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
           ENVIRONMENT: ${{ matrix.environment }}
