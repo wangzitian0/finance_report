@@ -457,7 +457,7 @@ def test_the_escalation_step_follows_a_check_step_that_can_fail_the_job() -> Non
     assert ids.count(CHECK_STEP_ID) == 1, "exactly one step must have id `check`"
     assert names.count(ESCALATION_STEP_NAME) == 1, "exactly one escalation step"
     check = steps[ids.index(CHECK_STEP_ID)]
-    assert "continue-on-error" not in check, (
+    assert check.get("continue-on-error") in (None, False), (
         "a check that cannot fail the job would make the escalation condition moot"
     )
     assert ids.index(CHECK_STEP_ID) < names.index(ESCALATION_STEP_NAME)
