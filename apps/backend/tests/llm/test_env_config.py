@@ -78,9 +78,9 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     source = EnvConfigSource()
     for scene in (Scene.EXTRACTION_JSON, Scene.ADVISOR_CHAT, Scene.STATEMENT_SUMMARY):
         binding = await source.get_binding(scene)
-        assert binding.model_id == "glm-5.3"
+        assert binding.model_id == "glm-5.3-flash"
         assert binding.fallback_model_ids == ("glm-5.2", "glm-5.1")
     for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
         binding = await source.get_binding(scene)
-        assert binding.model_id == "glm-5.3-flash"
-        assert binding.fallback_model_ids == ("glm-4.6v", "glm-4.5v")
+        assert binding.model_id == "glm-5.3-flashx"
+        assert binding.fallback_model_ids == ("glm-5.3-flash", "glm-4.6v")

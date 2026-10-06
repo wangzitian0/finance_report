@@ -139,6 +139,7 @@ def _base_kwargs(
     if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and model_id.removeprefix("openai/").lower() in {
         "glm-5.3",
         "glm-5.3-flash",
+        "glm-5.3-flashx",
     }:
         # GLM 5.3 requires thinking and accepts low/high/max, not disabled or
         # medium. Adapt only live wire kwargs so caller intent/cassette keys
