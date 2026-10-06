@@ -4808,6 +4808,34 @@ CONTRACT = PackageContract(
             priority="P1",
             status="done",
         ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.17",
+            statement=(
+                "Statement review page defaults approval to auto-fill default categories, "
+                "preventing 409 intent_missing error"
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementReviewPage.test.tsx"
+                "::AC-extraction.fe-stage1-review.17 defaults auto_fill_default_categories "
+                "to true when confirming approval"
+            ),
+            priority="P1",
+            status="done",
+        ),
+        ACRecord(
+            id="AC-extraction.fe-stage1-review.18",
+            statement=(
+                "UploadPage exposes View Report action for approved statements and "
+                "Review & Approve for parsed statements"
+            ),
+            test=(
+                "apps/frontend/src/__tests__/statementsPage.test.tsx"
+                "::AC-extraction.fe-stage1-review.18 exposes View Report action for "
+                "approved statements and Review & Approve for parsed statements"
+            ),
+            priority="P2",
+            status="done",
+        ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ACRecord(

@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquareText, PanelLeft } from "lucide-react";
+import { ArrowUp, Bot, Loader2, MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiOperation, apiOperationStream } from "@/lib/api-client";
 import { fetchAiModels } from "@/lib/aiModels";
@@ -20,6 +20,7 @@ import {
   safeAdvisorHref,
 } from "@/components/advisor/AdvisorBrief";
 import Sheet from "@/components/ui/Sheet";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";
 const DISCLAIMER_ZH = "\u4ee5\u4e0a\u5206\u6790\u4ec5\u4f9b\u53c2\u8003\u3002";
@@ -124,7 +125,18 @@ export default function ChatPanel({
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [loadingModels, setLoadingModels] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const language = useMemo(() => getBrowserLanguage(), []);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(
+        Math.max(textareaRef.current.scrollHeight, 40),
+        160,
+      )}px`;
+    }
+  }, [input]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current)
@@ -544,8 +556,11 @@ export default function ChatPanel({
             : "mt-6 flex-1 space-y-4 overflow-y-auto pr-2"
         }
       >
-        {loadingHistory && (
-          <div className="text-sm text-muted">Loading chat history...</div>
+        {loadingHistory && messages.length === 0 && (
+          <div className="flex items-center gap-2 text-sm text-muted py-2" role="status">
+            <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
+            <span>Loading chat history...</span>
+          </div>
         )}
         {!loadingHistory && messages.length === 0 && (
           <div className="p-8 rounded-md border border-dashed border-[var(--border)] text-center text-sm text-muted">
@@ -572,89 +587,109 @@ export default function ChatPanel({
                 }))
                 .filter((action) => action.href !== "/")
             : [];
-          return (
-            <div
-              key={m.id}
-              className={
-                isAssistant
-                  ? "p-4 rounded-md bg-[var(--background-muted)]"
-                  : "p-4 rounded-md bg-[var(--accent)] text-white"
-              }
-            >
-              <p className="text-sm">{body}</p>
-              {m.streaming && (
-                <span className="mt-2 inline-block text-xs text-[var(--accent)]">
-                  Streaming...
-                </span>
-              )}
-              {isAssistant && disclaimer && (
-                <p className="mt-2 text-[10px] text-muted uppercase tracking-wide">
-                  {disclaimer}
-                </p>
-              )}
-              {isAssistant && (citations.length > 0 || actions.length > 0) && (
-                <div className="mt-3 flex flex-col gap-2">
-                  {citations.length > 0 && (
-                    <div
-                      className="flex flex-wrap gap-2"
-                      aria-label="Answer citations"
-                    >
-                      {citations.map((citation) => (
-                        <a
-                          key={`${citation.source_ref}-${citation.href}`}
-                          href={citation.href}
-                          className="badge badge-info"
-                        >
-                          <span>{citation.label}</span>
-                          <span className="ml-1 font-mono">
-                            {citation.confidence_tier}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                  {actions.length > 0 && (
-                    <div
-                      className="flex flex-wrap gap-2"
-                      aria-label="Answer actions"
-                    >
-                      {actions.map((action) => (
-                        <a
-                          key={`${action.kind}-${action.href}`}
-                          href={action.href}
-                          className="btn-secondary text-xs"
-                        >
-                          {action.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
+
+          if (!isAssistant) {
+            return (
+              <div key={m.id} className="flex justify-end" data-testid="chat-bubble-user">
+                <div className="max-w-[80%] rounded-2xl rounded-tr-xs bg-[var(--accent)] text-white px-4 py-2.5 shadow-xs">
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{body}</p>
                 </div>
-              )}
+              </div>
+            );
+          }
+
+          return (
+            <div key={m.id} className="flex justify-start items-start gap-2.5" data-testid="chat-bubble-assistant">
+              <div
+                className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-muted)] border border-[var(--accent)]/30 text-[var(--accent)] shadow-2xs"
+                aria-hidden="true"
+              >
+                <Bot className="h-4 w-4" />
+              </div>
+              <div className="max-w-[85%] rounded-2xl rounded-tl-xs border border-[var(--border)] bg-[var(--background-muted)] px-4 py-3 shadow-2xs">
+                <MarkdownMessage content={body} />
+                {m.streaming && (
+                  <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--accent)]">
+                    <span className="inline-block h-1.5 w-1.5 animate-ping rounded-full bg-[var(--accent)]" />
+                    Streaming...
+                  </span>
+                )}
+                {disclaimer && (
+                  <p className="mt-2 border-t border-[var(--border)]/60 pt-1.5 text-[10px] tracking-wide text-muted uppercase">
+                    {disclaimer}
+                  </p>
+                )}
+                {isAssistant && (citations.length > 0 || actions.length > 0) && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {citations.length > 0 && (
+                      <div
+                        className="flex flex-wrap gap-2"
+                        aria-label="Answer citations"
+                      >
+                        {citations.map((citation) => (
+                          <a
+                            key={`${citation.source_ref}-${citation.href}`}
+                            href={citation.href}
+                            className="badge badge-info"
+                          >
+                            <span>{citation.label}</span>
+                            <span className="ml-1 font-mono">
+                              {citation.confidence_tier}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {actions.length > 0 && (
+                      <div
+                        className="flex flex-wrap gap-2"
+                        aria-label="Answer actions"
+                      >
+                        {actions.map((action) => (
+                          <a
+                            key={`${action.kind}-${action.href}`}
+                            href={action.href}
+                            className="btn-secondary text-xs"
+                          >
+                            {action.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-4 p-3 rounded-md bg-[var(--background-muted)]">
+      <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--background-muted)]/70 p-2.5 shadow-2xs focus-within:border-[var(--accent)] focus-within:ring-1 focus-within:ring-[var(--accent)]/30 transition-all">
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={variant === "widget" ? 2 : 3}
+          rows={variant === "widget" ? 1 : 2}
           placeholder="Ask about spending trends, reports, or reconciliation..."
-          className="w-full resize-none bg-transparent text-sm outline-none"
+          className="w-full resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted/70"
         />
-        <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="mt-1 flex items-center justify-between gap-3 px-1">
           <span className="text-[10px] text-muted">
             Enter to send, Shift+Enter for newline
           </span>
           <button
+            type="button"
             onClick={() => void sendMessage()}
             disabled={isStreaming || !input.trim()}
-            className="btn-primary text-xs px-4 py-1.5"
+            aria-label="Send"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-xs transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isStreaming ? "Sending" : "Send"}
+            {isStreaming ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ArrowUp className="h-3.5 w-3.5 stroke-[2.5]" />
+            )}
           </button>
         </div>
       </div>
