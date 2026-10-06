@@ -92,7 +92,6 @@ def test_epic_001_pre_commit_config_exists() -> None:
     assert "ruff" in config_text
 
 
-@pytest.mark.integration
 def test_epic_001_frontend_moon_tasks_configured() -> None:
     """AC-meta.phase0.16: AC1.5.2 AC1.5.3 AC1.5.4 AC1.5.5: Moon project and app endpoints are configured."""
     moon_bin = shutil.which("moon")
