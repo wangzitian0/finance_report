@@ -75,7 +75,6 @@ def _verify_household_statements(
     Decimal,
     Decimal,
     Decimal,
-    Decimal,
     bool,
 ]:
     # Balance Sheet
@@ -154,7 +153,6 @@ def _verify_household_statements(
         beg_cash,
         end_cash,
         equation_delta,
-        equation_delta,
         is_balanced,
     )
 
@@ -183,7 +181,6 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
             beg_cash,
             end_cash,
             equation_delta,
-            _,
             is_balanced,
         ) = _verify_household_statements(runner, client)
 
