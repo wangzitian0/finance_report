@@ -14,6 +14,11 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from tools._lib.benchmarks._html_templates import (
+    DASHBOARD_HTML_TEMPLATE,
+    REPORT_HTML_TEMPLATE,
+)
+
 
 def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
     """Extract machine-readable summary metrics from full benchmark report data."""
@@ -65,6 +70,269 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _render_diff_section(
+    baseline_data: dict[str, Any] | None,
+    total_dur: float,
+    summary: dict[str, Any],
+) -> str:
+    """Render the baseline comparison card if baseline data is provided."""
+    if not baseline_data:
+        return ""
+    b_summary = baseline_data.get("summary", {})
+    b_dur = b_summary.get(
+        "total_duration_seconds",
+        sum(r.get("duration_seconds", 0.0) for r in baseline_data.get("results", [])),
+    )
+    dur_diff = total_dur - b_dur
+    dur_diff_sign = f"+{dur_diff:.2f}s" if dur_diff > 0 else f"{dur_diff:.2f}s"
+    dur_class = (
+        "metric-diff-worse"
+        if dur_diff > 5
+        else ("metric-diff-better" if dur_diff < -5 else "metric-diff-neutral")
+    )
+    b_version = html.escape(str(baseline_data.get("version_ref", "baseline")))
+    return f"""
+    <div class="card baseline-card">
+        <h3 style="font-size: 1.1rem; margin-bottom: 12px;">⚖️ Baseline Comparison (vs {b_version})</h3>
+        <div class="grid grid-3">
+            <div class="stat-box">
+                <span class="stat-label">Execution Time</span>
+                <span class="stat-value">{total_dur:.2f}s <small class="{dur_class}">({dur_diff_sign})</small></span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Pass Rate</span>
+                <span class="stat-value">{summary.get("passed", 0)}/{summary.get("total", 0)} <small class="metric-diff-better">(100%)</small></span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Max Equation Delta</span>
+                <span class="stat-value">0.00 SGD <small class="metric-diff-better">(Zero Drift)</small></span>
+            </div>
+        </div>
+    </div>
+    """
+
+
+def _render_case_1_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    eq_badge = (
+        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+    )
+    m1_close = cdetails.get("m1_closing_balance") or cdetails.get(
+        "month_1_ending_balance", "15,271.23"
+    )
+    m2_close = cdetails.get("m2_closing_balance") or cdetails.get(
+        "month_2_ending_balance", "18,250.00"
+    )
+    m3_close = cdetails.get("m3_closing_balance") or cdetails.get(
+        "month_3_ending_balance", "21,300.00"
+    )
+    m4_close = cdetails.get("m4_closing_balance") or cdetails.get(
+        "month_4_ending_balance", "24,200.00"
+    )
+    q1_ni = cdetails.get("q1_net_income", "5,849.25")
+    cum_ni = cdetails.get("cumulative_net_income", "8,749.25")
+    eq_delta = cdetails.get("equation_delta", "0.00")
+    return f"""
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
+        <tbody>
+            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>${html.escape(str(m1_close))}</td><td>{"✅ Anchor Confirmed" if case_passed else "❌ Unconfirmed"}</td></tr>
+            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>${html.escape(str(m2_close))}</td><td>{"✅ Exact Continuity Rollforward" if case_passed else "❌ Discontinuous"}</td></tr>
+            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>${html.escape(str(m3_close))}</td><td>{"✅ Q1 Continuity Confirmed" if case_passed else "❌ Discontinuous"}</td></tr>
+            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>${html.escape(str(m4_close))}</td><td>{"✅ 4-Month Rollforward Intact" if case_passed else "❌ Discontinuous"}</td></tr>
+            <tr><td>Q1 Cumulative Net Income</td><td>${html.escape(str(q1_ni))}</td><td>{"✅ Articulated to Q1 Retained Earnings" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>4-Month Cumulative Net Income</td><td>${html.escape(str(cum_ni))}</td><td>{"✅ Articulated to Retained Earnings" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
+def _render_case_2_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    eq_badge = (
+        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+    )
+    h_cash = cdetails.get("household_husband_cash", "12,800.00")
+    w_cash = cdetails.get("household_wife_cash", "8,100.00")
+    rev = cdetails.get("total_income", "8,500.00")
+    exp = cdetails.get("total_expenses", "2,600.00")
+    ni = cdetails.get("net_income", "5,900.00")
+    cash = cdetails.get("ending_cash") or cdetails.get("closing_balance", "20,900.00")
+    eq_delta = cdetails.get("equation_delta", "0.00")
+    return f"""
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
+        <tbody>
+            <tr><td>Husband Account (DBS Bank) Ending Cash</td><td>${html.escape(str(h_cash))}</td><td>{"✅ Source Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Wife Account (Standard Chartered) Ending Cash</td><td>${html.escape(str(w_cash))}</td><td>{"✅ Multi-PII Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Consolidated Operating Revenue</td><td>+${html.escape(str(rev))}</td><td>{"✅ Combined Inflow Reconciled" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Consolidated Operating Expenses</td><td>-${html.escape(str(exp))}</td><td>{"✅ Family Expenses Categorized" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Consolidated Net Operating Income</td><td>+${html.escape(str(ni))}</td><td>{"✅ P&amp;L Sum Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Consolidated Total Liquid Cash</td><td>${html.escape(str(cash))}</td><td>{"✅ Cash Flow Ending Cash Conserved" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
+def _render_case_3_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    pnl_badge = (
+        '<span class="badge badge-pass">Zero Double-Counting (Pure Liability Clearance)</span>'
+        if case_passed
+        else '<span class="badge badge-fail">P&amp;L Contamination Detected</span>'
+    )
+    eq_badge = (
+        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+    )
+    card_spend = cdetails.get("card_spend_recorded", "1,200.00")
+    bank_repay = cdetails.get("bank_repayment", "1,200.00")
+    ending_cash = cdetails.get("ending_bank_cash") or cdetails.get(
+        "total_assets", "8,800.00"
+    )
+    liab_cleared = cdetails.get("credit_card_liability_cleared", "0.00")
+    net_income_val = cdetails.get("net_income", "-1,200.00")
+    eq_delta = cdetails.get("equation_delta", "0.00")
+    return f"""
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
+        <tbody>
+            <tr><td>Credit Card Incurred Charges (Liability Incurrence)</td><td>-${html.escape(str(card_spend))}</td><td>{"✅ Card Expense &amp; Liability Tracked" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Bank Account Settlement Payment Outflow</td><td>-${html.escape(str(bank_repay))}</td><td>{"✅ Bank Cash Outflow Tracked" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Credit Card Liability Ending Balance</td><td>${html.escape(str(liab_cleared))}</td><td>{"✅ Liability Fully Cleared" if case_passed else "❌ Outstanding Liability"}</td></tr>
+            <tr><td>Ending Bank Liquid Cash Balance</td><td>${html.escape(str(ending_cash))}</td><td>{"✅ Cash Balance Conserved" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>P&amp;L Double-Counting Prevention (Net Income)</td><td>${html.escape(str(net_income_val))}</td><td>{pnl_badge}</td></tr>
+            <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
+def _render_case_4_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    eq_badge_sgd = (
+        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_sgd", "Delta")))} SGD Regression</span>'
+    )
+    eq_badge_usd = (
+        '<span class="badge badge-pass">0.00 USD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_usd", "Delta")))} USD Regression</span>'
+    )
+    sgd_bal = cdetails.get("sgd_closing_balance", "12,800.00")
+    usd_bal = cdetails.get("usd_closing_balance", "6,800.00")
+    hkd_bal = cdetails.get("hkd_closing_balance", "24,000.00")
+    total_sgd = cdetails.get("total_assets_sgd", "Consolidated")
+    return f"""
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Amount</th><th>Multi-Currency Status</th></tr></thead>
+        <tbody>
+            <tr><td>Singapore Jurisdiction (SGD Account)</td><td>{html.escape(str(sgd_bal))} SGD</td><td>{"✅ Local Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
+            <tr><td>United States Jurisdiction (USD Account)</td><td>{html.escape(str(usd_bal))} USD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
+            <tr><td>Hong Kong Jurisdiction (HKD Account)</td><td>{html.escape(str(hkd_bal))} HKD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
+            <tr><td>Consolidated Total Assets (SGD Base)</td><td>${html.escape(str(total_sgd))} SGD</td><td>{"✅ Unified Multi-Currency Conversion" if case_passed else "❌ Imbalanced"}</td></tr>
+            <tr><td>SGD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_sgd", "0.00")))}</td><td>{eq_badge_sgd}</td></tr>
+            <tr><td>USD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_usd", "0.00")))}</td><td>{eq_badge_usd}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
+def _render_case_5_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    eq_badge = (
+        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        if case_passed
+        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+    )
+    holdings_cnt = cdetails.get("holdings_count", "2")
+    symbols = cdetails.get("symbols", "AAPL, VT")
+    prop_val = cdetails.get("property_valuation_usd", "350,000.00")
+    appraisal_src = cdetails.get("appraisal_source", "DocuBench FHA 1004 (KpewWz3R)")
+    tax_status = cdetails.get(
+        "tax_ecosystem_status", "Form W-2 and Payslip fixtures verified"
+    )
+    assets_val = cdetails.get("total_assets", "Consolidated")
+    eq_delta = cdetails.get("equation_delta", "0.00")
+    return f"""
+    <table class="data-table">
+        <thead><tr><th>Financial Assertion</th><th>Value</th><th>Portfolio Status</th></tr></thead>
+        <tbody>
+            <tr><td>Public Securities Tracked</td><td>{html.escape(str(symbols))}</td><td>{"✅ Position Snapshots Recognized" if case_passed else "❌ Missing"}</td></tr>
+            <tr><td>Managed Holdings Count</td><td>{html.escape(str(holdings_cnt))} Assets</td><td>{"✅ Atomic &amp; Managed Reconciliation Intact" if case_passed else "❌ Unreconciled"}</td></tr>
+            <tr><td>Real Estate Property Appraisal</td><td>${html.escape(str(prop_val))} USD</td><td>{"✅ " + html.escape(str(appraisal_src)) if case_passed else "❌ Excluded"}</td></tr>
+            <tr><td>Tax &amp; Compensation Integration</td><td>{html.escape(str(tax_status))}</td><td>{"✅ DocuBench Tax Fixtures Integrated" if case_passed else "❌ Incomplete"}</td></tr>
+            <tr><td>Consolidated Wealth Valuation</td><td>${html.escape(str(assets_val))} SGD</td><td>{"✅ Fair Market Valuation Reflected" if case_passed else "❌ Excluded"}</td></tr>
+            <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
+def _render_case_details_table(
+    cid: str, cdetails: dict[str, Any], case_passed: bool
+) -> str:
+    """Dispatch case detail table rendering according to scenario ID."""
+    if cid == "case_1":
+        return _render_case_1_table(cdetails, case_passed)
+    if cid == "case_2":
+        return _render_case_2_table(cdetails, case_passed)
+    if cid == "case_3":
+        return _render_case_3_table(cdetails, case_passed)
+    if cid == "case_4":
+        return _render_case_4_table(cdetails, case_passed)
+    if cid == "case_5":
+        return _render_case_5_table(cdetails, case_passed)
+    return f"<pre class='raw-json'>{html.escape(json.dumps(cdetails, indent=2))}</pre>"
+
+
+def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
+    """Render the list of scenario execution cards."""
+    cards: list[str] = []
+    for r in results:
+        cid = html.escape(str(r.get("case_id", "")))
+        cname = html.escape(str(r.get("case_name", "")))
+        cstatus = r.get("status", "FAIL")
+        cdur = r.get("duration_seconds", 0.0)
+        cbadge = "badge-pass" if cstatus == "PASS" else "badge-fail"
+        cdetails = r.get("details", {})
+        err = r.get("error_message")
+        case_passed = cstatus == "PASS"
+
+        details_table = _render_case_details_table(cid, cdetails, case_passed)
+        err_html = (
+            f"<div class='error-banner'><strong>Error:</strong> {html.escape(str(err))}</div>"
+            if err
+            else ""
+        )
+        cards.append(
+            f"""
+        <div class="card scenario-card">
+            <div class="scenario-header">
+                <div>
+                    <span class="case-tag">{cid.upper()}</span>
+                    <h3 class="scenario-title">{cname}</h3>
+                </div>
+                <div class="scenario-meta">
+                    <span class="duration-tag">⏱️ {cdur:.2f}s</span>
+                    <span class="badge {cbadge}">{cstatus}</span>
+                </div>
+            </div>
+            {err_html}
+            {details_table}
+            <details class="raw-details">
+                <summary>Inspect Raw Adjudication Telemetry</summary>
+                <pre class="raw-json">{html.escape(json.dumps(cdetails, indent=2))}</pre>
+            </details>
+        </div>
+        """
+        )
+    return "".join(cards)
+
+
 def generate_html_report(
     report_data: dict[str, Any], baseline_data: dict[str, Any] | None = None
 ) -> str:
@@ -87,496 +355,25 @@ def generate_html_report(
     )
     total_dur = sum(r.get("duration_seconds", 0.0) for r in results)
 
-    diff_html = ""
-    if baseline_data:
-        b_summary = baseline_data.get("summary", {})
-        b_dur = b_summary.get(
-            "total_duration_seconds",
-            sum(
-                r.get("duration_seconds", 0.0) for r in baseline_data.get("results", [])
-            ),
-        )
-        dur_diff = total_dur - b_dur
-        dur_diff_sign = f"+{dur_diff:.2f}s" if dur_diff > 0 else f"{dur_diff:.2f}s"
-        dur_class = (
-            "metric-diff-worse"
-            if dur_diff > 5
-            else ("metric-diff-better" if dur_diff < -5 else "metric-diff-neutral")
-        )
+    diff_html = _render_diff_section(baseline_data, total_dur, summary)
+    scenarios_html = _render_scenario_cards(results)
 
-        b_version = html.escape(str(baseline_data.get("version_ref", "baseline")))
-        diff_html = f"""
-        <div class="card baseline-card">
-            <h3 style="font-size: 1.1rem; margin-bottom: 12px;">⚖️ Baseline Comparison (vs {b_version})</h3>
-            <div class="grid grid-3">
-                <div class="stat-box">
-                    <span class="stat-label">Execution Time</span>
-                    <span class="stat-value">{total_dur:.2f}s <small class="{dur_class}">({dur_diff_sign})</small></span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Pass Rate</span>
-                    <span class="stat-value">{summary.get("passed", 0)}/{summary.get("total", 0)} <small class="metric-diff-better">(100%)</small></span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Max Equation Delta</span>
-                    <span class="stat-value">0.00 SGD <small class="metric-diff-better">(Zero Drift)</small></span>
-                </div>
-            </div>
-        </div>
-        """
-
-    scenarios_html = ""
-    for r in results:
-        cid = html.escape(str(r.get("case_id", "")))
-        cname = html.escape(str(r.get("case_name", "")))
-        cstatus = r.get("status", "FAIL")
-        cdur = r.get("duration_seconds", 0.0)
-        cbadge = "badge-pass" if cstatus == "PASS" else "badge-fail"
-        cdetails = r.get("details", {})
-        err = r.get("error_message")
-
-        details_table = ""
-        case_passed = r.get("status") == "PASS"
-        if cid == "case_1":
-            eq_badge = (
-                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
-            )
-            m1_close = cdetails.get("m1_closing_balance") or cdetails.get(
-                "month_1_ending_balance", "15,271.23"
-            )
-            m2_close = cdetails.get("m2_closing_balance") or cdetails.get(
-                "month_2_ending_balance", "18,250.00"
-            )
-            m3_close = cdetails.get("m3_closing_balance") or cdetails.get(
-                "month_3_ending_balance", "21,300.00"
-            )
-            m4_close = cdetails.get("m4_closing_balance") or cdetails.get(
-                "month_4_ending_balance", "24,200.00"
-            )
-            q1_ni = cdetails.get("q1_net_income", "5,849.25")
-            cum_ni = cdetails.get("cumulative_net_income", "8,749.25")
-            eq_delta = cdetails.get("equation_delta", "0.00")
-            details_table = f"""
-            <table class="data-table">
-                <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>${html.escape(str(m1_close))}</td><td>{"✅ Anchor Confirmed" if case_passed else "❌ Unconfirmed"}</td></tr>
-                    <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>${html.escape(str(m2_close))}</td><td>{"✅ Exact Continuity Rollforward" if case_passed else "❌ Discontinuous"}</td></tr>
-                    <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>${html.escape(str(m3_close))}</td><td>{"✅ Q1 Continuity Confirmed" if case_passed else "❌ Discontinuous"}</td></tr>
-                    <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>${html.escape(str(m4_close))}</td><td>{"✅ 4-Month Rollforward Intact" if case_passed else "❌ Discontinuous"}</td></tr>
-                    <tr><td>Q1 Cumulative Net Income</td><td>${html.escape(str(q1_ni))}</td><td>{"✅ Articulated to Q1 Retained Earnings" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>4-Month Cumulative Net Income</td><td>${html.escape(str(cum_ni))}</td><td>{"✅ Articulated to Retained Earnings" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
-                </tbody>
-            </table>
-            """
-        elif cid == "case_2":
-            eq_badge = (
-                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
-            )
-            h_cash = cdetails.get("household_husband_cash", "12,800.00")
-            w_cash = cdetails.get("household_wife_cash", "8,100.00")
-            rev = cdetails.get("total_income", "8,500.00")
-            exp = cdetails.get("total_expenses", "2,600.00")
-            ni = cdetails.get("net_income", "5,900.00")
-            cash = cdetails.get("ending_cash") or cdetails.get(
-                "closing_balance", "20,900.00"
-            )
-            eq_delta = cdetails.get("equation_delta", "0.00")
-            details_table = f"""
-            <table class="data-table">
-                <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Husband Account (DBS Bank) Ending Cash</td><td>${html.escape(str(h_cash))}</td><td>{"✅ Source Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Wife Account (Standard Chartered) Ending Cash</td><td>${html.escape(str(w_cash))}</td><td>{"✅ Multi-PII Account Reconciled" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Consolidated Operating Revenue</td><td>+${html.escape(str(rev))}</td><td>{"✅ Combined Inflow Reconciled" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Consolidated Operating Expenses</td><td>-${html.escape(str(exp))}</td><td>{"✅ Family Expenses Categorized" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Consolidated Net Operating Income</td><td>+${html.escape(str(ni))}</td><td>{"✅ P&amp;L Sum Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>Consolidated Total Liquid Cash</td><td>${html.escape(str(cash))}</td><td>{"✅ Cash Flow Ending Cash Conserved" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
-                </tbody>
-            </table>
-            """
-        elif cid == "case_3":
-            pnl_badge = (
-                '<span class="badge badge-pass">Zero Double-Counting (Pure Liability Clearance)</span>'
-                if case_passed
-                else '<span class="badge badge-fail">P&amp;L Contamination Detected</span>'
-            )
-            eq_badge = (
-                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
-            )
-            card_spend = cdetails.get("card_spend_recorded", "1,200.00")
-            bank_repay = cdetails.get("bank_repayment", "1,200.00")
-            ending_cash = cdetails.get("ending_bank_cash") or cdetails.get(
-                "total_assets", "8,800.00"
-            )
-            liab_cleared = cdetails.get("credit_card_liability_cleared", "0.00")
-            net_income_val = cdetails.get("net_income", "-1,200.00")
-            eq_delta = cdetails.get("equation_delta", "0.00")
-            details_table = f"""
-            <table class="data-table">
-                <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Credit Card Incurred Charges (Liability Incurrence)</td><td>-${html.escape(str(card_spend))}</td><td>{"✅ Card Expense &amp; Liability Tracked" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Bank Account Settlement Payment Outflow</td><td>-${html.escape(str(bank_repay))}</td><td>{"✅ Bank Cash Outflow Tracked" if case_passed else "❌ Untracked"}</td></tr>
-                    <tr><td>Credit Card Liability Ending Balance</td><td>${html.escape(str(liab_cleared))}</td><td>{"✅ Liability Fully Cleared" if case_passed else "❌ Outstanding Liability"}</td></tr>
-                    <tr><td>Ending Bank Liquid Cash Balance</td><td>${html.escape(str(ending_cash))}</td><td>{"✅ Cash Balance Conserved" if case_passed else "❌ Mismatched"}</td></tr>
-                    <tr><td>P&amp;L Double-Counting Prevention (Net Income)</td><td>${html.escape(str(net_income_val))}</td><td>{pnl_badge}</td></tr>
-                    <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
-                </tbody>
-            </table>
-            """
-        elif cid == "case_4":
-            eq_badge_sgd = (
-                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_sgd", "Delta")))} SGD Regression</span>'
-            )
-            eq_badge_usd = (
-                '<span class="badge badge-pass">0.00 USD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_usd", "Delta")))} USD Regression</span>'
-            )
-            sgd_bal = cdetails.get("sgd_closing_balance", "12,800.00")
-            usd_bal = cdetails.get("usd_closing_balance", "6,800.00")
-            hkd_bal = cdetails.get("hkd_closing_balance", "24,000.00")
-            total_sgd = cdetails.get("total_assets_sgd", "Consolidated")
-            details_table = f"""
-            <table class="data-table">
-                <thead><tr><th>Financial Assertion</th><th>Amount</th><th>Multi-Currency Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Singapore Jurisdiction (SGD Account)</td><td>{html.escape(str(sgd_bal))} SGD</td><td>{"✅ Local Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
-                    <tr><td>United States Jurisdiction (USD Account)</td><td>{html.escape(str(usd_bal))} USD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
-                    <tr><td>Hong Kong Jurisdiction (HKD Account)</td><td>{html.escape(str(hkd_bal))} HKD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
-                    <tr><td>Consolidated Total Assets (SGD Base)</td><td>${html.escape(str(total_sgd))} SGD</td><td>{"✅ Unified Multi-Currency Conversion" if case_passed else "❌ Imbalanced"}</td></tr>
-                    <tr><td>SGD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_sgd", "0.00")))}</td><td>{eq_badge_sgd}</td></tr>
-                    <tr><td>USD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_usd", "0.00")))}</td><td>{eq_badge_usd}</td></tr>
-                </tbody>
-            </table>
-            """
-        elif cid == "case_5":
-            eq_badge = (
-                '<span class="badge badge-pass">0.00 SGD Balanced</span>'
-                if case_passed
-                else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
-            )
-            holdings_cnt = cdetails.get("holdings_count", "2")
-            symbols = cdetails.get("symbols", "AAPL, VT")
-            prop_val = cdetails.get("property_valuation_usd", "350,000.00")
-            appraisal_src = cdetails.get(
-                "appraisal_source", "DocuBench FHA 1004 (KpewWz3R)"
-            )
-            tax_status = cdetails.get(
-                "tax_ecosystem_status", "Form W-2 and Payslip fixtures verified"
-            )
-            assets_val = cdetails.get("total_assets", "Consolidated")
-            eq_delta = cdetails.get("equation_delta", "0.00")
-            details_table = f"""
-            <table class="data-table">
-                <thead><tr><th>Financial Assertion</th><th>Value</th><th>Portfolio Status</th></tr></thead>
-                <tbody>
-                    <tr><td>Public Securities Tracked</td><td>{html.escape(str(symbols))}</td><td>{"✅ Position Snapshots Recognized" if case_passed else "❌ Missing"}</td></tr>
-                    <tr><td>Managed Holdings Count</td><td>{html.escape(str(holdings_cnt))} Assets</td><td>{"✅ Atomic &amp; Managed Reconciliation Intact" if case_passed else "❌ Unreconciled"}</td></tr>
-                    <tr><td>Real Estate Property Appraisal</td><td>${html.escape(str(prop_val))} USD</td><td>{"✅ " + html.escape(str(appraisal_src)) if case_passed else "❌ Excluded"}</td></tr>
-                    <tr><td>Tax &amp; Compensation Integration</td><td>{html.escape(str(tax_status))}</td><td>{"✅ DocuBench Tax Fixtures Integrated" if case_passed else "❌ Incomplete"}</td></tr>
-                    <tr><td>Consolidated Wealth Valuation</td><td>${html.escape(str(assets_val))} SGD</td><td>{"✅ Fair Market Valuation Reflected" if case_passed else "❌ Excluded"}</td></tr>
-                    <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
-                </tbody>
-            </table>
-            """
-        else:
-            details_table = f"<pre class='raw-json'>{html.escape(json.dumps(cdetails, indent=2))}</pre>"
-
-        err_html = (
-            f"<div class='error-banner'><strong>Error:</strong> {html.escape(str(err))}</div>"
-            if err
-            else ""
-        )
-
-        scenarios_html += f"""
-        <div class="card scenario-card">
-            <div class="scenario-header">
-                <div>
-                    <span class="case-tag">{cid.upper()}</span>
-                    <h3 class="scenario-title">{cname}</h3>
-                </div>
-                <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ {cdur:.2f}s</span>
-                    <span class="badge {cbadge}">{cstatus}</span>
-                </div>
-            </div>
-            {err_html}
-            {details_table}
-            <details class="raw-details">
-                <summary>Inspect Raw Adjudication Telemetry</summary>
-                <pre class="raw-json">{html.escape(json.dumps(cdetails, indent=2))}</pre>
-            </details>
-        </div>
-        """
-
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Reporting Benchmark: {version}</title>
-    <style>
-        :root {{
-            --bg-primary: #0f172a;
-            --bg-card: #1e293b;
-            --border-color: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent: #3b82f6;
-            --success: #10b981;
-            --danger: #ef4444;
-        }}
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            padding: 24px;
-        }}
-        .container {{ max-width: 1080px; margin: 0 auto; }}
-        header {{ margin-bottom: 32px; }}
-        .nav-back {{
-            display: inline-flex;
-            align-items: center;
-            color: var(--accent);
-            text-decoration: none;
-            font-size: 0.9rem;
-            margin-bottom: 16px;
-            font-weight: 500;
-        }}
-        .nav-back:hover {{ text-decoration: underline; }}
-        .header-title-row {{
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 16px;
-        }}
-        .h1-title {{ font-size: 1.85rem; font-weight: 700; color: #fff; }}
-        .meta-text {{ color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px; }}
-        .badge {{
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }}
-        .badge-pass {{ background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .badge-fail {{ background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }}
-        .card {{
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
-        }}
-        .grid {{ display: grid; gap: 16px; }}
-        .grid-4 {{ grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }}
-        .grid-3 {{ grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }}
-        .stat-box {{
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(51, 65, 85, 0.7);
-            border-radius: 8px;
-            padding: 16px;
-        }}
-        .stat-label {{ display: block; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }}
-        .stat-value {{ font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fff; }}
-        .metric-diff-better {{ color: #34d399; font-size: 0.85rem; }}
-        .metric-diff-worse {{ color: #f87171; font-size: 0.85rem; }}
-        .metric-diff-neutral {{ color: var(--text-secondary); font-size: 0.85rem; }}
-        .section-title {{ font-size: 1.25rem; font-weight: 600; margin: 32px 0 16px 0; }}
-        .invariants-table, .data-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.92rem;
-            margin-top: 12px;
-        }}
-        .invariants-table th, .data-table th {{
-            text-align: left;
-            padding: 12px;
-            background: rgba(15, 23, 42, 0.8);
-            color: var(--text-secondary);
-            font-weight: 600;
-            border-bottom: 1px solid var(--border-color);
-        }}
-        .invariants-table td, .data-table td {{
-            padding: 12px;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-        }}
-        .invariants-table tr:hover, .data-table tr:hover {{ background: rgba(51, 65, 85, 0.2); }}
-        .scenario-card {{ margin-bottom: 20px; }}
-        .scenario-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            gap: 8px;
-        }}
-        .case-tag {{
-            font-size: 0.75rem;
-            color: var(--accent);
-            font-weight: 700;
-            letter-spacing: 0.05em;
-        }}
-        .scenario-title {{ font-size: 1.15rem; font-weight: 600; color: #fff; margin-top: 2px; }}
-        .scenario-meta {{ display: flex; align-items: center; gap: 12px; }}
-        .duration-tag {{ color: var(--text-secondary); font-size: 0.85rem; }}
-        .raw-details {{ margin-top: 16px; font-size: 0.85rem; color: var(--text-secondary); }}
-        .raw-details summary {{ cursor: pointer; }}
-        .raw-json {{
-            background: #090d16;
-            border: 1px solid #1e293b;
-            padding: 12px;
-            border-radius: 6px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.8rem;
-            overflow-x: auto;
-            margin-top: 8px;
-            color: #cbd5e1;
-        }}
-        .error-banner {{
-            background: rgba(239, 68, 68, 0.1);
-            border-left: 4px solid var(--danger);
-            color: #fca5a5;
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            font-size: 0.9rem;
-        }}
-        footer {{
-            margin-top: 48px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 24px;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <a href="../index.html" class="nav-back">← All Benchmark Runs</a>
-            <div class="header-title-row">
-                <div>
-                    <h1 class="h1-title">Financial Scenario Benchmark: {version}</h1>
-                    <p class="meta-text">Target: <strong>{app_url}</strong> • Executed: <strong>{run_at}</strong></p>
-                </div>
-                <span class="badge {status_badge_class}">{status_text}</span>
-            </div>
-        </header>
-
-        <div class="grid grid-4 card">
-            <div class="stat-box">
-                <span class="stat-label">Scenarios Evaluated</span>
-                <span class="stat-value">{summary.get("passed", 0)} / {summary.get("total", 0)}</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Total Duration</span>
-                <span class="stat-value">{total_dur:.2f}s</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Accounting Balance Delta</span>
-                <span class="stat-value">0.00 SGD</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">P&amp;L Contamination</span>
-                <span class="stat-value">0.00 SGD</span>
-            </div>
-        </div>
-
-        {diff_html}
-
-        <h2 class="section-title">🛡️ Core Financial Invariants (The Proof)</h2>
-        <div class="card">
-            <table class="invariants-table">
-                <thead>
-                    <tr>
-                        <th>Fundamental Financial Invariant</th>
-                        <th>Mathematical Formalism</th>
-                        <th>Observed Truth</th>
-                        <th>Adjudication</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Balance Sheet Identity</strong></td>
-                        <td><code>Assets ≡ Liabilities + Equity + Net Income</code></td>
-                        <td>Exact Equality (Δ = 0.00 SGD across all snapshots)</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Temporal Multi-Period Rollforward</strong></td>
-                        <td><code>Month_{{n+1}} Opening Cash ≡ Month_n Closing Cash</code></td>
-                        <td>Jan Closing ($15,450.75) ≡ Feb Opening ($15,450.75)</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Asset Reallocation / Swap Non-Contamination</strong></td>
-                        <td><code>Δ Revenue = 0.00, Δ Expense = 0.00, Δ Net Income = 0.00</code></td>
-                        <td>5,000 SGD Bank-to-Brokerage produced 0.00 P&amp;L impact</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Retained Earnings Articulation</strong></td>
-                        <td><code>Closing Equity = Opening Equity + Net Income</code></td>
-                        <td>Net Income rolls without leakage into Retained Earnings</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <h2 class="section-title">🧪 Evaluated Scenario Details</h2>
-        {scenarios_html}
-
-        <footer>
-            <span>Finance-Report System Benchmark Suite • Autonomous Zero-Raster-Image Report</span>
-            <span>Generated from live environment validation</span>
-        </footer>
-    </div>
-</body>
-</html>
-"""
+    rendered = REPORT_HTML_TEMPLATE
+    rendered = rendered.replace("{{VERSION}}", version)
+    rendered = rendered.replace("{{APP_URL}}", app_url)
+    rendered = rendered.replace("{{RUN_AT}}", run_at)
+    rendered = rendered.replace("{{STATUS_BADGE_CLASS}}", status_badge_class)
+    rendered = rendered.replace("{{STATUS_TEXT}}", status_text)
+    rendered = rendered.replace("{{PASSED_COUNT}}", str(summary.get("passed", 0)))
+    rendered = rendered.replace("{{TOTAL_COUNT}}", str(summary.get("total", 0)))
+    rendered = rendered.replace("{{TOTAL_DURATION_STR}}", f"{total_dur:.2f}s")
+    rendered = rendered.replace("{{DIFF_HTML}}", diff_html)
+    rendered = rendered.replace("{{SCENARIOS_HTML}}", scenarios_html)
+    return rendered
 
 
-def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
-    """Generate the root /benchmarks/index.html multi-version dashboard."""
-    sorted_runs = sorted(manifest_data, key=lambda x: x.get("run_at", ""), reverse=True)
-
-    total_runs = len(sorted_runs)
-    latest_run = sorted_runs[0] if sorted_runs else {}
-    latest_ver = html.escape(str(latest_run.get("version", "None")))
-    latest_status = latest_run.get("status", "UNKNOWN")
-    latest_pass_rate = (
-        f"{latest_run.get('cases_passed', 0)}/{latest_run.get('cases_total', 0)}"
-        if latest_run
-        else "N/A"
-    )
-    latest_duration = (
-        f"{latest_run.get('duration_seconds', 0):.2f}s" if latest_run else "N/A"
-    )
-    latest_badge_class = "badge-pass" if latest_status == "PASS" else "badge-fail"
-
+def _render_dashboard_table_rows(sorted_runs: list[dict[str, Any]]) -> str:
+    """Render historical table rows for the multi-version dashboard."""
     table_rows = ""
     for r in sorted_runs:
         v = html.escape(str(r.get("version", "unknown")))
@@ -601,229 +398,83 @@ def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
             <td><a href="{rep_url}" class="btn-view">View Report →</a></td>
         </tr>
         """
+    return table_rows
 
-    chart_svg = ""
-    if sorted_runs:
-        chrono_runs = list(reversed(sorted_runs[-10:]))
-        durations = [r.get("duration_seconds", 0.0) for r in chrono_runs]
-        max_d = max(durations) if durations and max(durations) > 0 else 100.0
-        width, height = 700, 160
-        padding = 40
 
-        pts: list[tuple[float, float]] = []
-        for i, d in enumerate(durations):
-            x = (
-                padding + (i * (width - 2 * padding) / (len(durations) - 1))
-                if len(durations) > 1
-                else width / 2
-            )
-            y = height - padding - ((d / max_d) * (height - 2 * padding))
-            pts.append((x, y))
+def _render_dashboard_trend_svg(sorted_runs: list[dict[str, Any]]) -> str:
+    """Render historical latency SVG trendline."""
+    if not sorted_runs:
+        return ""
+    chrono_runs = list(reversed(sorted_runs[-10:]))
+    durations = [r.get("duration_seconds", 0.0) for r in chrono_runs]
+    max_d = max(durations) if durations and max(durations) > 0 else 100.0
+    width, height = 700, 160
+    padding = 40
 
-        polyline_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    pts: list[tuple[float, float]] = []
+    for i, d in enumerate(durations):
+        x = (
+            padding + (i * (width - 2 * padding) / (len(durations) - 1))
+            if len(durations) > 1
+            else width / 2
+        )
+        y = height - padding - ((d / max_d) * (height - 2 * padding))
+        pts.append((x, y))
 
-        dots_svg = ""
-        labels_svg = ""
-        for i, (x, y) in enumerate(pts):
-            ver_label = chrono_runs[i].get("version", "")
-            dur_val = chrono_runs[i].get("duration_seconds", 0.0)
-            dots_svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>'
-            dots_svg += f'<text x="{x:.1f}" y="{y - 10:.1f}" font-size="11" fill="#94a3b8" text-anchor="middle">{dur_val:.1f}s</text>'
-            labels_svg += f'<text x="{x:.1f}" y="{height - 10}" font-size="11" fill="#cbd5e1" text-anchor="middle">{ver_label}</text>'
+    polyline_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    dots_svg = ""
+    labels_svg = ""
+    for i, (x, y) in enumerate(pts):
+        ver_label = chrono_runs[i].get("version", "")
+        dur_val = chrono_runs[i].get("duration_seconds", 0.0)
+        dots_svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>'
+        dots_svg += f'<text x="{x:.1f}" y="{y - 10:.1f}" font-size="11" fill="#94a3b8" text-anchor="middle">{dur_val:.1f}s</text>'
+        labels_svg += f'<text x="{x:.1f}" y="{height - 10}" font-size="11" fill="#cbd5e1" text-anchor="middle">{ver_label}</text>'
 
-        chart_svg = f"""
-        <svg viewBox="0 0 {width} {height}" class="trend-svg">
-            <line x1="{padding}" y1="{height - padding}" x2="{width - padding}" y2="{height - padding}" stroke="#334155" stroke-width="1"/>
-            <polyline fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="{polyline_pts}"/>
-            {dots_svg}
-            {labels_svg}
-        </svg>
-        """
+    return f"""
+    <svg viewBox="0 0 {width} {height}" class="trend-svg">
+        <line x1="{padding}" y1="{height - padding}" x2="{width - padding}" y2="{height - padding}" stroke="#334155" stroke-width="1"/>
+        <polyline fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="{polyline_pts}"/>
+        {dots_svg}
+        {labels_svg}
+    </svg>
+    """
 
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Reporting Benchmark Observatory</title>
-    <style>
-        :root {{
-            --bg-primary: #0f172a;
-            --bg-card: #1e293b;
-            --border-color: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --accent: #3b82f6;
-            --success: #10b981;
-            --danger: #ef4444;
-        }}
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            padding: 24px;
-        }}
-        .container {{ max-width: 1080px; margin: 0 auto; }}
-        header {{ margin-bottom: 32px; }}
-        .header-title {{ font-size: 2rem; font-weight: 700; color: #fff; }}
-        .header-sub {{ color: var(--text-secondary); margin-top: 6px; font-size: 0.95rem; }}
-        .card {{
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
-        }}
-        .hero-banner {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
-            border: 1px solid #3b82f6;
-        }}
-        .hero-title {{ font-size: 1.35rem; font-weight: 700; }}
-        .hero-meta {{ color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px; }}
-        .btn-latest {{
-            background: #3b82f6;
-            color: #fff;
-            text-decoration: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            display: inline-block;
-            transition: background 0.15s;
-        }}
-        .btn-latest:hover {{ background: #2563eb; }}
-        .grid-4 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }}
-        .stat-box {{
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(51, 65, 85, 0.7);
-            border-radius: 8px;
-            padding: 16px;
-        }}
-        .stat-label {{ display: block; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }}
-        .stat-value {{ font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fff; }}
-        .trend-svg {{ width: 100%; height: auto; display: block; }}
-        .badge {{
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-        }}
-        .badge-pass {{ background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }}
-        .badge-fail {{ background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }}
-        .table-responsive {{ overflow-x: auto; }}
-        .history-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.92rem;
-        }}
-        .history-table th {{
-            text-align: left;
-            padding: 12px;
-            background: rgba(15, 23, 42, 0.8);
-            color: var(--text-secondary);
-            border-bottom: 1px solid var(--border-color);
-        }}
-        .history-table td {{
-            padding: 12px;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
-        }}
-        .history-table tr:hover {{ background: rgba(51, 65, 85, 0.2); }}
-        .version-link {{ color: var(--accent); text-decoration: none; }}
-        .version-link:hover {{ text-decoration: underline; }}
-        .env-code {{ font-size: 0.8rem; color: #94a3b8; }}
-        .btn-view {{
-            color: var(--accent);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.85rem;
-        }}
-        .btn-view:hover {{ text-decoration: underline; }}
-        footer {{
-            margin-top: 48px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 24px;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            text-align: center;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1 class="header-title">📊 Financial Reporting Benchmark Observatory</h1>
-            <p class="header-sub">Continuous Accounting Invariant Tracking across Tagged Releases &amp; Deployments</p>
-        </header>
 
-        <div class="card hero-banner">
-            <div>
-                <span class="badge {latest_badge_class}">{latest_status}</span>
-                <h2 class="hero-title" style="margin-top: 8px;">Latest Deployed Release: {latest_ver}</h2>
-                <p class="hero-meta">All 3-Statement financial invariants reconciled • Zero P&amp;L contamination</p>
-            </div>
-            {f'<a href="{latest_ver}/report.html" class="btn-latest">View Latest Full Report →</a>' if latest_ver != "None" else ""}
-        </div>
+def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
+    """Generate the root /benchmarks/index.html multi-version dashboard."""
+    sorted_runs = sorted(manifest_data, key=lambda x: x.get("run_at", ""), reverse=True)
 
-        <div class="grid-4">
-            <div class="stat-box">
-                <span class="stat-label">Total Releases Tracked</span>
-                <span class="stat-value">{total_runs}</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Latest Pass Rate</span>
-                <span class="stat-value">{latest_pass_rate} (100%)</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Latest Latency</span>
-                <span class="stat-value">{latest_duration}</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Equation Drift Delta</span>
-                <span class="stat-value">0.00 SGD</span>
-            </div>
-        </div>
+    total_runs = len(sorted_runs)
+    latest_run = sorted_runs[0] if sorted_runs else {}
+    latest_ver = html.escape(str(latest_run.get("version", "None")))
+    latest_status = latest_run.get("status", "UNKNOWN")
+    latest_pass_rate = (
+        f"{latest_run.get('cases_passed', 0)}/{latest_run.get('cases_total', 0)}"
+        if latest_run
+        else "N/A"
+    )
+    latest_duration = (
+        f"{latest_run.get('duration_seconds', 0):.2f}s" if latest_run else "N/A"
+    )
+    latest_badge_class = "badge-pass" if latest_status == "PASS" else "badge-fail"
+    latest_report_link = (
+        f'<a href="{latest_ver}/report.html" class="btn-latest">View Latest Full Report →</a>'
+        if latest_ver != "None"
+        else ""
+    )
 
-        <div class="card">
-            <h3 style="font-size: 1.15rem; margin-bottom: 12px;">📈 Historical Latency Trendline (Seconds)</h3>
-            {chart_svg}
-        </div>
+    table_rows = _render_dashboard_table_rows(sorted_runs)
+    chart_svg = _render_dashboard_trend_svg(sorted_runs)
 
-        <div class="card">
-            <h3 style="font-size: 1.15rem; margin-bottom: 16px;">📜 Historical Benchmark Runs</h3>
-            <div class="table-responsive">
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>Version</th>
-                            <th>Status</th>
-                            <th>Execution Date</th>
-                            <th>Environment</th>
-                            <th>Pass Rate</th>
-                            <th>Duration</th>
-                            <th>Eq Delta</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_rows}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <footer>
-            Finance Report Benchmark Suite • Automated Continuous Quality Observatory
-        </footer>
-    </div>
-</body>
-</html>
-"""
+    rendered = DASHBOARD_HTML_TEMPLATE
+    rendered = rendered.replace("{{LATEST_BADGE_CLASS}}", latest_badge_class)
+    rendered = rendered.replace("{{LATEST_STATUS}}", latest_status)
+    rendered = rendered.replace("{{LATEST_VER}}", latest_ver)
+    rendered = rendered.replace("{{LATEST_REPORT_LINK}}", latest_report_link)
+    rendered = rendered.replace("{{TOTAL_RUNS}}", str(total_runs))
+    rendered = rendered.replace("{{LATEST_PASS_RATE}}", latest_pass_rate)
+    rendered = rendered.replace("{{LATEST_DURATION}}", latest_duration)
+    rendered = rendered.replace("{{CHART_SVG}}", chart_svg)
+    rendered = rendered.replace("{{TABLE_ROWS}}", table_rows)
+    return rendered
