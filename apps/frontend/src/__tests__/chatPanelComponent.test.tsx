@@ -508,4 +508,36 @@ describe("ChatPanel", () => {
     fireEvent.change(textarea, { target: { value: "Line 1\nLine 2\nLine 3" } })
     expect(sendButton).not.toBeDisabled()
   })
+
+  // AC-advisor.fe-chat.6
+  it("AC-advisor.fe-chat.6 populates input field when initialPrompt is provided and history has existing messages", async () => {
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path.includes("/api/chat/history")) {
+        return Promise.resolve({
+          sessions: [
+            {
+              id: "sess-1",
+              title: "Existing chat",
+              message_count: 1,
+              messages: [
+                {
+                  id: "m1",
+                  role: "assistant",
+                  content: "Prior message",
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<ChatPanel variant="page" initialPrompt="Analyze this account" />)
+
+    const textarea = (await screen.findByPlaceholderText(/Ask about spending trends/i)) as HTMLTextAreaElement
+    await waitFor(() => {
+      expect(textarea.value).toBe("Analyze this account")
+    })
+  })
 })
