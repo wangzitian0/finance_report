@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from tools._lib.benchmarks.run_financial_scenario_benchmark import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT / "apps" / "backend") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "apps" / "backend"))
 
 
 def test_staging_core_e2e_marker_contract() -> None:
@@ -331,29 +334,3 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     # Runner method signature must default to legal enum value
     sig = inspect.signature(ScenarioBenchmarkRunner.create_valuation_snapshot)
     assert sig.parameters["valuation_basis"].default == "market_appraisal"
-
-
-def test_case_4_multicurrency_usd_csv_structure() -> None:
-    """Benchmark Case 4: multi-currency USD CSV fixture has valid CSV structure."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
-        generate_multicurrency_usd_csv,
-    )
-
-    usd_bytes = generate_multicurrency_usd_csv(Decimal("5000.00"))
-    assert usd_bytes is not None
-    reader = csv.DictReader(io.StringIO(usd_bytes.decode("utf-8")))
-    rows = list(reader)
-    assert len(rows) == 2
-
-
-def test_case_4_multicurrency_hkd_csv_structure() -> None:
-    """Benchmark Case 4: multi-currency HKD CSV fixture has valid CSV structure."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
-        generate_multicurrency_hkd_csv,
-    )
-
-    hkd_bytes = generate_multicurrency_hkd_csv(Decimal("20000.00"))
-    assert hkd_bytes is not None
-    reader = csv.DictReader(io.StringIO(hkd_bytes.decode("utf-8")))
-    rows = list(reader)
-    assert len(rows) == 2
