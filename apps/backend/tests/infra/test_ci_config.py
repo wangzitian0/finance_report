@@ -10,7 +10,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[4]
 
 
-@pytest.mark.integration
 def test_moon_cli_static_contract_available():
     """AC-meta.phase0.19: AC7.8.1: Moon local CLI contract is versioned without CI bootstrap."""
     moon_toolchain = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text())
@@ -24,7 +23,6 @@ def test_moon_cli_static_contract_available():
     assert "moonrepo/setup-toolchain@v0" not in ci_workflow
 
 
-@pytest.mark.integration
 def test_github_actions_lint():
     """AC7.8.2: GitHub Actions workflows pass actionlint validation."""
     workflow_dir = ROOT / ".github" / "workflows"
@@ -99,7 +97,6 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
     assert preview_env["S3_SECRET_KEY"] == "minio_local_secret"
 
 
-@pytest.mark.integration
 def test_moon_project_graph_static_contract():
     """AC-meta.phase0.15: AC7.8.3: Moon project graph contract is declared in repo config."""
     root_project = yaml.safe_load((ROOT / "moon.yml").read_text())
