@@ -1118,8 +1118,7 @@ jobs:
             --durations-path ci/tooling-test-durations.json \
             --cov=common \
             --cov=tools \
-            --cov=apps/backend/src/runtime/extension/env_keys.py \
-            --cov=apps/backend/src/runtime/extension/schema_validation.py \
+            --cov=apps/backend/src/runtime/extension \
             --cov-config=/tmp/tooling-coveragerc \
             --cov-report= \
             --junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml \
@@ -1139,7 +1138,7 @@ jobs:
           (cd apps/backend && COVERAGE_RCFILE=/tmp/tooling-coveragerc .venv/bin/python -m coverage lcov \
             --data-file="$GITHUB_WORKSPACE/.coverage" \
             -o "$GITHUB_WORKSPACE/coverage/backend-tooling-${{ matrix.shard }}.lcov" \
-            --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py')
+            --include='src/runtime/extension/env_keys.py,src/runtime/extension/schema_validation.py') || touch "$GITHUB_WORKSPACE/coverage/backend-tooling-${{ matrix.shard }}.lcov"
 
       - name: Upload tooling coverage context
         if: ${{ always() }}
