@@ -30,7 +30,27 @@ _ALL_OK = {
 }
 
 
+class _DummyAsyncSession:
+    async def execute(self, *args, **kwargs):
+        return None
+
+
+class _DummyAsyncSessionContext:
+    async def __aenter__(self):
+        return _DummyAsyncSession()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+def _dummy_session_maker():
+    return _DummyAsyncSessionContext()
+
+
 def _stub_probes(monkeypatch, **overrides: ServiceStatus) -> None:
+    import src.runtime.extension.api.health as health_api
+
+    monkeypatch.setattr(health_api, "_test_session_maker", _dummy_session_maker)
     for method, status in {**_ALL_OK, **overrides}.items():
         monkeypatch.setattr(Bootloader, method, AsyncMock(return_value=status))
 

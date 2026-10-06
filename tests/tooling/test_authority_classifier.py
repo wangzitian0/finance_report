@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from common.meta.extension.authority_classifier import (
     CODE_LED,
@@ -29,7 +32,9 @@ def test_AC26_9_1_band_boundaries() -> None:
 def test_AC26_9_1_test_shape_classifies_code_vs_llm(tmp_path: Path) -> None:
     """AC26.9.1: a cassette/replay test is LLM; a structured test is CODE; missing is unknown."""
     llm_file = tmp_path / "test_x_replay.py"
-    llm_file.write_text("from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8")
+    llm_file.write_text(
+        "from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8"
+    )
     code_file = tmp_path / "test_y.py"
     code_file.write_text("def test_y():\n    assert 1 + 1 == 2\n", encoding="utf-8")
     index = {"test_x_replay.py": [llm_file], "test_y.py": [code_file]}
@@ -44,14 +49,18 @@ def test_AC26_9_1_test_shape_classifies_code_vs_llm(tmp_path: Path) -> None:
     assert classify_test_files(["test_y.py", "test_x_replay.py"], index, cache) == "LLM"
 
 
-def test_AC26_9_1_basename_collisions_disambiguate_or_stay_unknown(tmp_path: Path) -> None:
+def test_AC26_9_1_basename_collisions_disambiguate_or_stay_unknown(
+    tmp_path: Path,
+) -> None:
     """AC26.9.1: colliding basenames resolve by path suffix; bare-basename ties -> unknown."""
     # Sibling dirs so neither path is a suffix of the other (a true collision).
     a = tmp_path / "apps" / "test_dup.py"
     b = tmp_path / "web" / "test_dup.py"
     a.parent.mkdir(parents=True)
     b.parent.mkdir(parents=True)
-    a.write_text("from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8")  # LLM
+    a.write_text(
+        "from src.llm.extension.cassette import CassetteMode\n", encoding="utf-8"
+    )  # LLM
     b.write_text("def test_dup():\n    assert True\n", encoding="utf-8")  # CODE
     index = {"test_dup.py": [a, b]}
     cache: dict[Path, bool] = {}
@@ -125,3 +134,39 @@ def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
     table = render_table(classify_repo())
     assert "band" in table and "ALL" in table
     assert main([]) == 0  # print-only mode
+
+
+def test_build_test_index_prunes_excluded_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify build_test_index prunes excluded directory roots during traversal."""
+    from common.meta.extension import authority_classifier as ac
+
+    valid_test = tmp_path / "tests" / "test_valid.py"
+    valid_test.parent.mkdir(parents=True, exist_ok=True)
+    valid_test.write_text("def test_valid(): pass\n", encoding="utf-8")
+
+    excluded_node = tmp_path / "node_modules" / "test_ignored.py"
+    excluded_node.parent.mkdir(parents=True, exist_ok=True)
+    excluded_node.write_text("def test_ignored(): pass\n", encoding="utf-8")
+
+    excluded_venv = tmp_path / ".venv" / "test_venv.py"
+    excluded_venv.parent.mkdir(parents=True, exist_ok=True)
+    excluded_venv.write_text("def test_venv(): pass\n", encoding="utf-8")
+
+    visited_roots: list[str] = []
+    real_walk = ac.os.walk
+
+    def spied_walk(top: Path | str, *args: Any, **kwargs: Any):
+        for root, dirs, files in real_walk(top, *args, **kwargs):
+            visited_roots.append(Path(root).name)
+            yield root, dirs, files
+
+    monkeypatch.setattr(ac.os, "walk", spied_walk)
+
+    index = ac.build_test_index(tmp_path)
+    assert index.get("test_valid.py") is not None
+    assert index.get("test_ignored.py") is None
+    assert index.get("test_venv.py") is None
+    assert not any(root == "node_modules" for root in visited_roots)
+    assert not any(root == ".venv" for root in visited_roots)

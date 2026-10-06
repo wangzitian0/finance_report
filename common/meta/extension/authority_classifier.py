@@ -17,6 +17,7 @@ counter. Pure-Python, no key/network/DB — runs in the lint job.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator, Sequence
 from pathlib import Path
@@ -44,13 +45,17 @@ CODE_ONLY, CODE_LED, LLM_LED, LLM_ONLY = BANDS
 _AC_ROW = re.compile(r"\|\s*(AC\d+\.\d+\.\d+)\s*\|")
 _FILE_TOKEN = re.compile(r"([\w./-]+\.(?:py|tsx|ts))")
 # Skip vendored/duplicated trees that would make every basename ambiguous.
-_SKIP_DIRS = (
-    "node_modules",
-    "/.venv",
-    "/.git/",
-    "/dist/",
-    "/build/",
-    "/.claude/",
+_SKIP_DIR_NAMES = frozenset(
+    {
+        "node_modules",
+        ".venv",
+        ".git",
+        "dist",
+        "build",
+        ".claude",
+        "__pycache__",
+        ".next",
+    }
 )
 
 
@@ -68,12 +73,12 @@ def band(llm_share: float) -> str:
 def build_test_index(root: Path = REPO_ROOT) -> dict[str, list[Path]]:
     """Index test files by basename once (basename -> all paths with that name)."""
     index: dict[str, list[Path]] = {}
-    for path in root.rglob("*"):
-        text = str(path)
-        if any(skip in text for skip in _SKIP_DIRS):
-            continue
-        if path.suffix in (".py", ".tsx", ".ts") and path.is_file():
-            index.setdefault(path.name, []).append(path)
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES]
+        for f in files:
+            if f.endswith((".py", ".tsx", ".ts")):
+                path = Path(dirpath) / f
+                index.setdefault(f, []).append(path)
     return index
 
 
