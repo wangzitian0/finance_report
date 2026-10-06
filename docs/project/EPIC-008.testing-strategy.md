@@ -720,7 +720,7 @@ Product E2E ownership index:
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
-| `tests/e2e/test_bench_v2_ui_golden_paths.py` | Critical proof: AC-reconciliation.fx-transfer.9; Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
+| `tests/e2e/test_bench_v2_ui_golden_paths.py` | Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10; blocking value oracle `AC-portfolio.valuation.1` (`common/portfolio/contract.py`, #1826) |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC-reporting.net-worth-timeseries.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-portfolio.valuation.1 |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E |

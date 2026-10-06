@@ -7,7 +7,6 @@ import io
 from decimal import Decimal
 from pathlib import Path
 
-from common.testing.ac_proof import ac_proof
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
 from tools._lib.benchmarks.run_financial_scenario_benchmark import (
     generate_credit_card_repayment_bank_pdf,
@@ -348,17 +347,8 @@ def test_case_3_credit_card_debt_clearance_and_zero_pnl_contamination() -> None:
     assert net_income == Decimal("-1200.00")
 
 
-@ac_proof(
-    "internal-transfer-income-statement-e2e",
-    ac_ids=["AC-reconciliation.fx-transfer.9"],
-    scope="behavioral",
-    ci_tier="pr_ci",
-    trust_mode="deterministic_pr",
-    source_classes=["manual_record"],
-    issue="#1123",
-)
-def test_case_4_internal_transfer_excluded_from_income_statement() -> None:
-    """AC-reconciliation.fx-transfer.9: AC4.14.9: the income statement excludes a recorded internal transfer's legs."""
+def test_case_4_multicurrency_usd_csv_structure() -> None:
+    """Benchmark Case 4: multi-currency USD CSV fixture has valid CSV structure."""
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
         generate_multicurrency_usd_csv,
     )
@@ -370,17 +360,8 @@ def test_case_4_internal_transfer_excluded_from_income_statement() -> None:
     assert len(rows) == 2
 
 
-@ac_proof(
-    "internal-transfer-balance-sheet-net-income-e2e",
-    ac_ids=["AC-reconciliation.fx-transfer.10"],
-    scope="behavioral",
-    ci_tier="pr_ci",
-    trust_mode="deterministic_pr",
-    source_classes=["manual_record"],
-    issue="#1123",
-)
-def test_case_4_internal_transfer_net_income_fee_only() -> None:
-    """AC-reconciliation.fx-transfer.10: AC4.14.10: cumulative balance-sheet net income excludes the transfer, fee only."""
+def test_case_4_multicurrency_hkd_csv_structure() -> None:
+    """Benchmark Case 4: multi-currency HKD CSV fixture has valid CSV structure."""
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
         generate_multicurrency_hkd_csv,
     )

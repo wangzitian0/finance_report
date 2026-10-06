@@ -1345,8 +1345,8 @@ CONTRACT = PackageContract(
                 "drill-downable expense line and in the monthly trend bucket."
             ),
             test=(
-                "tests/e2e/test_bench_v2_ui_golden_paths.py"
-                "::test_case_4_internal_transfer_income_statement_proof"
+                "apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py"
+                "::test_AC3_internal_transfer_excluded_from_income_statement_e2e"
             ),
             priority="P0",
             status="done",
@@ -1359,8 +1359,8 @@ CONTRACT = PackageContract(
                 "contribution."
             ),
             test=(
-                "tests/e2e/test_bench_v2_ui_golden_paths.py"
-                "::test_case_4_internal_transfer_balance_sheet_proof"
+                "apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py"
+                "::test_AC3_internal_transfer_net_income_fee_only_e2e"
             ),
             priority="P0",
             status="done",
