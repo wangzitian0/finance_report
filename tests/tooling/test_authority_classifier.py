@@ -165,8 +165,8 @@ def test_build_test_index_prunes_excluded_directories(
     monkeypatch.setattr(ac.os, "walk", spied_walk)
 
     index = ac.build_test_index(tmp_path)
-    assert "test_valid.py" in index
-    assert "test_ignored.py" not in index
-    assert "test_venv.py" not in index
-    assert "node_modules" not in visited_roots
-    assert ".venv" not in visited_roots
+    assert index.get("test_valid.py") is not None
+    assert index.get("test_ignored.py") is None
+    assert index.get("test_venv.py") is None
+    assert not any(root == "node_modules" for root in visited_roots)
+    assert not any(root == ".venv" for root in visited_roots)

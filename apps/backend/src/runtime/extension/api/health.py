@@ -15,12 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.boot import Bootloader
 from src.config import settings
-from src.database import _test_session_maker, async_session_maker, get_db
+from src.database import async_session_maker, get_db, get_test_session_maker
 from src.observability import ErrorIds, get_logger, get_observability_status
 from src.runtime.base.tiers import resolve_env_tier
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+# Test hook to override session maker
+_test_session_maker = None
 
 
 async def _get_health_db(
@@ -38,7 +41,7 @@ async def _get_health_db(
             yield session
             return
 
-    maker = _test_session_maker or async_session_maker
+    maker = _test_session_maker or get_test_session_maker() or async_session_maker
     async with maker() as session:
         yield session
 
