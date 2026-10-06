@@ -18,7 +18,7 @@ from pathlib import Path
 
 from src.main import app
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_api_health_endpoint_contract() -> None:
@@ -39,12 +39,7 @@ def test_frontend_api_proxy_routing_contract() -> None:
 
     assert config_file.exists(), "Frontend Next.js config must exist"
     content = config_file.read_text(encoding="utf-8")
-    assert (
-        "rewrites" in content
-        or "env" in content
-        or "destination" in content
-        or "BACKEND_URL" in content
-    )
+    assert "rewrites" in content or "env" in content or "destination" in content or "BACKEND_URL" in content
 
 
 def test_database_environment_isolation_contract() -> None:
@@ -64,9 +59,7 @@ def test_ci_workflow_contracts() -> None:
     """AC-testing.ci-integration.1, AC-testing.ci-integration.3:
     CI workflow contains required verification gates.
     """
-    ci_yml = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
-        encoding="utf-8"
-    )
+    ci_yml = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert "ac-traceability:" in ci_yml
     assert "backend:" in ci_yml
     assert "frontend-vitest:" in ci_yml
@@ -87,8 +80,6 @@ def test_accounts_schema_contract() -> None:
     from src.ledger import AccountType
     from src.schemas.account import AccountCreate
 
-    schema = AccountCreate(
-        name="Operating Checking", type=AccountType.ASSET, currency="SGD"
-    )
+    schema = AccountCreate(name="Operating Checking", type=AccountType.ASSET, currency="SGD")
     assert schema.type == AccountType.ASSET
     assert schema.currency == "SGD"

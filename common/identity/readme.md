@@ -100,12 +100,7 @@ Returns the current authenticated user.
 
 ### Legacy `/users` compatibility API
 
-Retained for compatibility only: `POST /users` requires auth and returns a
-migration error pointing at `/auth/register`; `GET /users` returns only the
-authenticated user's profile; `GET|PUT /users/{user_id}` are allowed only when
-`user_id` matches the JWT subject (otherwise not-found, no cross-user leakage);
-`DELETE /users/{user_id}` deletes the caller's own account (refusing while a
-statement parse is in flight, or while posted/reconciled ledger entries exist).
+Retained for compatibility only: `GET /users` returns the authenticated user's profile. `GET|PUT /users/{user_id}` allows access only when `user_id` matches the JWT subject. `DELETE /users/{user_id}` deletes the caller's account, refusing while a statement parse is in flight or ledger entries exist.
 
 ## Internal layering (`base` / `extension`)
 

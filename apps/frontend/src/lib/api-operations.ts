@@ -29,7 +29,6 @@ export const API_OPERATIONS = {
   "create_entry_journal_entries_post": { method: "POST", path: "/api/journal-entries" },
   "create_holding_dividend_portfolio__ticker__dividends_post": { method: "POST", path: "/api/portfolio/{ticker}/dividends" },
   "create_provider_llm_providers_post": { method: "POST", path: "/api/llm/providers" },
-  "create_user_users_post": { method: "POST", path: "/api/users" },
   "create_valuation_snapshot_assets_valuation_snapshots_post": { method: "POST", path: "/api/assets/valuation-snapshots" },
   "delete_account_accounts__account_id__delete": { method: "DELETE", path: "/api/accounts/{account_id}" },
   "delete_journal_entry_journal_entries__entry_id__delete": { method: "DELETE", path: "/api/journal-entries/{entry_id}" },
