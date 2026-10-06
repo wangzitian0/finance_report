@@ -44,7 +44,7 @@ def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
 
     try:
         import yaml
-    except ImportError:
+    except ImportError:  # pragma: no cover
         return ()
 
     inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
@@ -281,8 +281,6 @@ def build_evidence_bundle(
     it (not available in that context — no provider-backed gate runs there).
     """
     gate_map = load_gate_map(repo_root)
-    if not gate_map and repo_root == REPO_ROOT:
-        gate_map = GATE_MAP
     return {
         "version": BUNDLE_VERSION,
         "gate_map": [dict(entry) for entry in gate_map],

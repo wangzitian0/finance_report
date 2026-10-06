@@ -382,6 +382,12 @@ def test_load_gate_map_sandbox_isolation(tmp_path: Path) -> None:
     inventory_path.write_text("gates: []\n", encoding="utf-8")
     assert eb.load_gate_map(tmp_path) == ()
 
+    inventory_path.write_text("not-a-dict\n", encoding="utf-8")
+    assert eb.load_gate_map(tmp_path) == ()
+
+    inventory_path.write_text("gates: invalid\n", encoding="utf-8")
+    assert eb.load_gate_map(tmp_path) == ()
+
 
 def test_evidence_bundle_main_dry_run() -> None:
     rc = eb.main(["--dry-run"])
