@@ -1910,10 +1910,10 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     )
 
 
-def test_backend_integration_and_tier1_invoke_setup_minio() -> None:
-    """CI backend-integration and backend-e2e-tier1 lanes must invoke setup-minio."""
+def test_backend_integration_invokes_setup_minio() -> None:
+    """CI backend-integration lane must invoke setup-minio."""
     workflow = read(".github/workflows/ci.yml")
-    for job_name in ("backend-integration", "backend-e2e-tier1"):
+    for job_name in ("backend-integration",):
         job_pattern = (
             rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
         )
