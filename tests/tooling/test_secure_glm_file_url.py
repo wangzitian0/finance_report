@@ -28,7 +28,16 @@ def test_zai_pdf_fallback_uses_image_url_and_redacts_presigned_urls() -> None:
         in extraction
     )
     assert "def redact_presigned_url" in storage
-    assert "signature=<redacted>" in storage
+    assert "infra2_sdk.runtime.s3" in storage
+
+    from src.runtime.extension.storage import redact_presigned_url
+
+    assert (
+        redact_presigned_url(
+            "https://s3.example.test/bucket/key.pdf?X-Amz-Signature=secret&token=abc#frag"
+        )
+        == "https://s3.example.test/bucket/key.pdf?signature=<redacted>"
+    )
 
 
 def test_statement_storage_keys_do_not_include_original_filename_or_user_id() -> None:

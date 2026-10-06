@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import contextlib
 import threading
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
-import boto3
-from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from infra2_sdk.runtime.s3 import (
+    S3Settings,
+    create_s3_client,
+    is_not_found,
+    read_object_bytes,
+    redact_presigned_url as _sdk_redact_presigned_url,
+)
 
 import src.config
 from src.observability import get_logger
@@ -17,25 +20,16 @@ from src.observability import get_logger
 logger = get_logger(__name__)
 settings = src.config.settings
 
+__all__ = ["StorageError", "StorageService", "redact_presigned_url"]
+
 
 class StorageError(Exception):
     """Raised when storage operations fail."""
 
 
 def redact_presigned_url(url: str | None) -> str | None:
-    """Return a log-safe form of a presigned URL.
-
-    Presigned URLs are bearer credentials. Keep the origin and path for
-    debugging, but never emit the query string or fragment.
-    """
-    if not url:
-        return url
-    try:
-        parsed = urlsplit(url)
-    except ValueError:
-        return "<invalid-url>"
-    redacted_query = "signature=<redacted>" if parsed.query else ""
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, redacted_query, ""))
+    """Return a log-safe form of a presigned URL."""
+    return _sdk_redact_presigned_url(url)
 
 
 class StorageService:
@@ -46,26 +40,30 @@ class StorageService:
 
     def __init__(self, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
-        self.client = boto3.client(
-            "s3",
-            endpoint_url=settings.s3_endpoint,
-            aws_access_key_id=settings.s3_access_key,
-            aws_secret_access_key=settings.s3_secret_key,
-            region_name=settings.s3_region,
-            config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+        self.client = create_s3_client(
+            S3Settings(
+                bucket=self.bucket,
+                endpoint_url=settings.s3_endpoint,
+                access_key_id=settings.s3_access_key,
+                secret_access_key=settings.s3_secret_key,
+                region_name=settings.s3_region,
+                addressing_style="path",
+            )
         )
 
         # Initialize public client if configuration exists
         self.public_client = None
         if settings.s3_public_endpoint:
             self.public_bucket = settings.s3_public_bucket or self.bucket
-            self.public_client = boto3.client(
-                "s3",
-                endpoint_url=settings.s3_public_endpoint,
-                aws_access_key_id=settings.s3_public_access_key or settings.s3_access_key,
-                aws_secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
-                region_name=settings.s3_region,
-                config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+            self.public_client = create_s3_client(
+                S3Settings(
+                    bucket=self.public_bucket,
+                    endpoint_url=settings.s3_public_endpoint,
+                    access_key_id=settings.s3_public_access_key or settings.s3_access_key,
+                    secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
+                    region_name=settings.s3_region,
+                    addressing_style="path",
+                )
             )
 
     def _ensure_bucket(self) -> None:
@@ -75,8 +73,7 @@ class StorageService:
             try:
                 self.client.head_bucket(Bucket=self.bucket)
             except ClientError as exc:
-                code = exc.response.get("Error", {}).get("Code")
-                if code in ("404", "NoSuchBucket", "NotFound"):
+                if is_not_found(exc):
                     try:
                         if settings.s3_region and settings.s3_region != "us-east-1":
                             self.client.create_bucket(
@@ -164,11 +161,7 @@ class StorageService:
         """Download raw object bytes."""
         self._ensure_bucket()
         try:
-            response = self.client.get_object(Bucket=self.bucket, Key=key)
-            # Close the StreamingBody even if .read() fails mid-stream to avoid
-            # leaking connection-pool slots (the reparse path routes through here).
-            with contextlib.closing(response["Body"]) as body:
-                return body.read()
+            return read_object_bytes(self.client, bucket=self.bucket, key=key)
         except (BotoCoreError, ClientError) as exc:
             logger.error("Failed to download from S3", bucket=self.bucket, key=key, error=str(exc))
             raise StorageError(f"Failed to download {key} from {self.bucket}") from exc
