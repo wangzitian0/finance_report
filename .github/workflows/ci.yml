@@ -1680,7 +1680,7 @@ jobs:
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (8-way shard) | contributes to unified line coverage baseline | yes |
+          | backend (4-way shard) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |
           | frontend-vitest | contributes to unified line coverage baseline | yes |

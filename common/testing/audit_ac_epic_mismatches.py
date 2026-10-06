@@ -13,6 +13,7 @@ Outputs a structured report grouped by file with suggested action per ref:
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter, defaultdict
 from collections.abc import Sequence
@@ -52,17 +53,14 @@ def is_test_file(p: Path) -> bool:
 
 
 def walk_tests() -> list[Path]:
-    out = []
-    for p in ROOT.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(ROOT)
-        if any(part in EXCL_DIRS for part in rel.parts):
-            continue
-        if not is_test_file(p):
-            continue
-        out.append(p)
-    return out
+    out: list[Path] = []
+    for root, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in EXCL_DIRS]
+        for f in files:
+            p = Path(root) / f
+            if is_test_file(p):
+                out.append(p)
+    return sorted(out)
 
 
 def is_fixture_test_file(path: Path) -> bool:
