@@ -415,18 +415,31 @@ async def _schema_engine(test_database_url):
     await engine.dispose()
 
 
+_DB_FIXTURES = {
+    "db",
+    "db_engine",
+    "client",
+    "public_client",
+    "test_user",
+    "test_user_id",
+    "db_session",
+}
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_engine(request, _schema_engine):
     """Provide the shared per-worker engine with a pristine database per test.
 
     The schema is built once by `_schema_engine`; here each test only truncates
-    all tables (RESTART IDENTITY CASCADE) so it starts from an empty, pristine
-    state with sequences reset. This replaces the previous per-test
-    DROP SCHEMA + create_all + full reflect, which measured ~205ms/test versus
-    ~49ms for truncate. No test performs its own schema DDL, so a data-only reset
-    is equivalent to the old schema rebuild for isolation purposes.
+    all tables (RESTART IDENTITY CASCADE) when the test actually exercises
+    database operations.
     """
     if request.node.get_closest_marker("no_db"):
+        yield None
+        return
+
+    # Skip expensive table truncation for purely in-memory unit/schema tests
+    if not (_DB_FIXTURES.intersection(request.fixturenames) or request.node.get_closest_marker("db")):
         yield None
         return
 
