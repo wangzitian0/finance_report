@@ -290,7 +290,7 @@ The ratchet is a **hard, only-goes-up CI gate** today, not a deferred spike:
 
 - The dedicated `ac-behavioral-ratchet` job in `.github/workflows/ci.yml` waits
   on every test stage that emits junit (`backend`, `backend-integration`,
-  `backend-e2e-tier1`, `frontend`), downloads their junit artifacts, runs
+  `frontend`), downloads their junit artifacts, runs
   `tools/aggregate_ac_evidence.py` to reduce them per AC, then runs
   `tools/check_ac_score_baseline.py` against the checked-in
   `common/testing/data/ac-score-baseline.jsonl`. It is a **separate** job — not part of

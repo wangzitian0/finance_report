@@ -212,8 +212,8 @@
           "component": "Workbench",
           "backend_endpoint": "POST /reconciliation/matches/{match_id}/accept",
           "invariant": "Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow",
-          "test_ref": "apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py",
-          "backend_test_ref": "apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py",
+          "test_ref": "tests/tooling/test_benchmark_scenario_suite.py",
+          "backend_test_ref": "tests/tooling/test_benchmark_scenario_suite.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/reconciliationWorkbenchComponent.test.tsx"
         },
         {

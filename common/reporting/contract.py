@@ -1844,7 +1844,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.1",
             statement="The core-journey E2E views the balance sheet end to end.",
             # was AC8.6.1
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_balance_sheet_report",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_balance_sheet_report",
             priority="P0",
             status="done",
         ),
@@ -1852,7 +1852,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.2",
             statement="The core-journey E2E views the income statement end to end.",
             # was AC8.6.2
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_income_statement_report",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_income_statement_report",
             priority="P0",
             status="done",
         ),
@@ -1860,7 +1860,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.3",
             statement="The core-journey E2E views the cash-flow report end to end.",
             # was AC8.6.3
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_cash_flow_report",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_cash_flow_report",
             priority="P0",
             status="done",
         ),
@@ -1868,10 +1868,7 @@ CONTRACT = PackageContract(
             id="AC-reporting.journeys.4",
             statement="The core-journey E2E navigates every reports endpoint.",
             # was AC8.6.4
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_report_navigation_all_endpoints"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_multi_period_reporting",
             priority="P1",
             status="done",
         ),

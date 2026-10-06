@@ -256,3 +256,51 @@ async def test_browser_cookie_logout_lifecycle(page: Page, viewport, record_prop
     await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN)
     assert (await page.request.get(get_url("/api/auth/me"))).status == 200
     record_property("browser_logout_viewport", viewport)
+
+
+@pytest.mark.e2e
+async def test_registration_flow(page: Page):
+    """
+    EPIC-001 EPIC-008 EPIC-016 / AC8.10.8 AC16.12.6 AC1.7.1
+
+    User Registration Flow.
+    Verifies that the API URL configuration is correct (no double /api/ issue).
+    """
+    await page.goto(get_url("/login"))
+
+    # Verify we are on the login page
+    await expect(page.locator("body")).to_be_visible()
+
+    # Switch to Register tab - use .first to specify the tab button (not the bottom link)
+    await page.get_by_role("button", name="Register").first.click()
+
+    # Generate unique email for this test
+    unique_email = f"e2e-test-{uuid.uuid4().hex[:8]}@example.com"
+    test_password = "TestPassword123!"
+
+    # Fill registration form
+    await page.get_by_label("Email Address").fill(unique_email)
+    await page.get_by_label("Password", exact=True).fill(test_password)
+
+    # Submit and wait for response
+    async with page.expect_response("**/api/auth/register") as response_info:
+        await page.get_by_role("button", name="Create Account").click()
+
+    response = await response_info.value
+
+    # Verify successful registration (201 or 200 depending on implementation)
+    assert response.status in [200, 201], (
+        f"Registration failed with status {response.status}"
+    )
+
+    # Verify response contains user data (id and email)
+    response_data = await response.json()
+    assert "id" in response_data, "Response should contain user id"
+    assert "access_token" in response_data, "Response should contain access token"
+
+    # Verify we land in the authenticated app shell. `/dashboard` is a legacy route
+    # that currently redirects to `/`, so the auth shell is the stable contract.
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10_000)
+    await expect(page.get_by_role("button", name="Logout")).to_be_visible(
+        timeout=10_000
+    )

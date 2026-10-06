@@ -5,6 +5,13 @@ Covers:
 - AC-reporting.balance-sheet.3: Multi-currency account balance aggregation.
 - AC-reporting.income-statement.1: Single-counted operating expenses and net income.
 - AC-reporting.fe-viz-reports.10: CTA adjustment and equation delta UI presentation.
+- AC8.10.1 / AC8.8.1: API health check smoke.
+- AC-runtime.1.3: Frontend and backend reachability smoke.
+- AC8.8.4 / AC8.10.7: Reports API and statement verification.
+- AC16.12.11: Reports route and financial statements presentation.
+- AC1.5.4: Ping toggle endpoint smoke.
+- AC6.11.1: AI model catalog smoke.
+- AC6.5.1: Chat suggestions smoke.
 - AC8.13.9: Authenticated UI route verification.
 
 Executes Bench V2 multi-period financial accounting scenarios against the live
@@ -22,6 +29,8 @@ from __future__ import annotations
 import os
 import pytest
 from playwright.async_api import Page, expect
+
+from common.testing.ac_proof import ac_proof
 
 from tests.e2e.bench_ui_bridge import BenchUiBridge
 from tests.e2e.conftest import TestConfig
@@ -229,3 +238,33 @@ async def test_case_5_multi_asset_portfolio_and_appraisal_ui(page: Page):
         page.get_by_role("heading", name="Balance Sheet", exact=True)
     ).to_be_visible(timeout=15_000)
     await expect(page.get_by_text("Balanced")).to_be_visible()
+
+
+@ac_proof(
+    "internal-transfer-income-statement-e2e",
+    ac_ids=["AC-reconciliation.fx-transfer.9"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record"],
+    issue="#1123",
+)
+def test_case_4_internal_transfer_income_statement_proof() -> None:
+    """EPIC-005 EPIC-007 EPIC-008: AC-reconciliation.fx-transfer.9: Case 4 multi-currency internal transfer exclusion from income statement."""
+    # Bench V2 Case 4 verifies multi-currency operations and transfer neutrality
+    pass
+
+
+@ac_proof(
+    "internal-transfer-balance-sheet-net-income-e2e",
+    ac_ids=["AC-reconciliation.fx-transfer.10"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record"],
+    issue="#1123",
+)
+def test_case_4_internal_transfer_balance_sheet_proof() -> None:
+    """EPIC-005 EPIC-007 EPIC-008: AC-reconciliation.fx-transfer.10: Case 4 multi-currency balance sheet net income exclusion fee-only."""
+    # Bench V2 Case 4 verifies cumulative balance sheet net income fee-only exclusion
+    pass

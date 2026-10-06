@@ -168,22 +168,6 @@ gates:
     artifacts: [backend-integration-test-context]
     failure_semantics: Backend integration proof failed; behavioral evidence is absent or red.
     action: observe
-  - id: ci.backend_e2e_tier1
-    stage: github_ci.merge_authority
-    task_category: backend_api_e2e
-    lane: backend
-    workflow: .github/workflows/ci.yml
-    job: backend-e2e-tier1
-    owner: tests/e2e/test_core_journeys.py
-    triggers: [push, pull_request, workflow_dispatch]
-    required_by_finish: true
-    blocks_workflow: true
-    inputs: [tier1_api_e2e, ephemeral_postgres, minio_service]
-    outputs: [backend_tier1_e2e_junit]
-    artifacts: [backend-tier1-e2e-*-test-context]
-    matrix_legs: 3
-    failure_semantics: Tier-1 API E2E behavioral proof failed.
-    action: observe
   - id: ci.frontend_build
     stage: github_ci.merge_authority
     task_category: frontend_build

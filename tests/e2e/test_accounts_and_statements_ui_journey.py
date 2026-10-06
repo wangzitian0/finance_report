@@ -3,6 +3,11 @@
 Covers:
 - AC-ledger.account-registry.1: Account list, types, balances, and filter tabs.
 - AC-extraction.statement-summary.1: Statement details, transactions table, and review surface.
+- AC8.8.2 / AC8.10.2: Accounts CRUD and surface displays.
+- AC8.4.2: Statement listing endpoints and detail surfaces.
+- AC-testing.seeded-journey.1: Seeded statement bypasses provider.
+- AC-testing.seeded-journey.2: Seeded statement list and detail rendering.
+- AC-testing.seeded-journey.3: Seeded statement review.
 - AC8.13.9: Authenticated UI route verification.
 """
 

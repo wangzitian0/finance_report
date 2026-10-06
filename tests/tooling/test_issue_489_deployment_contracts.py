@@ -92,7 +92,10 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
     assert "tools/test_selection.py" in e2e_blob
     from common.testing import matrix
 
-    assert "tests/e2e/test_core_journeys.py" in matrix.pr_preview_e2e_selection()
+    assert (
+        "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
+        in matrix.pr_preview_e2e_selection()
+    )
     assert "pr_preview_lifecycle" not in e2e_blob
 
     cleanup_blob = yaml.safe_dump(jobs["cleanup"])

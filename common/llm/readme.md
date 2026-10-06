@@ -436,7 +436,7 @@ cassettes are balance-exempt (`balance_reconciles: false`) and field-graded only
 > seeded end-to-end through the statement pipeline in PR CI. Registered as
 > roadmap group 11 in [`contract.py`](contract.py); tests live in
 > `apps/backend/tests/e2e/test_statement_corpus_journeys.py` and run in the
-> `ci.yml backend-e2e-tier1` merge gate.
+> `ci.yml backend-integration` merge gate.
 
 One corpus, four consuming gates — each answers a different question:
 
@@ -445,7 +445,7 @@ One corpus, four consuming gates — each answers a different question:
 | Cassette integrity (AC23.7, [§5](#cassettes)) | PR CI `lint` | Is each frozen extraction output internally CONSISTENT (balance chain ties)? |
 | Graded field eval (AC23.8, [§6](#cassette-graded-eval)) | PR CI `lint` + `tooling-coverage` | Is each extraction output ACCURATE per field vs ground truth (raise-only floor)? |
 | Extraction-unit replay (AC23.6) | PR CI backend shards (the module defaults itself to replay; text modality — the vision case is gated on re-recording, #1614) | Does the extraction service still produce this output from the frozen provider seam? |
-| **Corpus E2E journeys (AC-llm.11)** | PR CI `backend-e2e-tier1` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet → income statement — with report VALUES tying to the corpus data, not just the flow completing? |
+| **Corpus E2E journeys (AC-llm.11)** | PR CI `backend-integration` | Does each extraction output survive the full downstream pipeline — review → conflict resolution → approve → reconcile → balance sheet → income statement — with report VALUES tying to the corpus data, not just the flow completing? |
 
 The corpus E2E tier seeds a 10-fingerprint maximally-diverse manifest
 (text+vision, real bank/brokerage + synthetic HF, 0→170-transaction scales,

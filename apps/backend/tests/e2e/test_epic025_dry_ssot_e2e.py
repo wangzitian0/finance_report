@@ -1,6 +1,6 @@
 """Product E2E owner test for EPIC-025 (DRY/SSOT simplification).
 
-EPIC-025 is a behavior-preserving refactor; this Tier-1 API E2E proves the
+EPIC-025 is a behavior-preserving refactor; this backend integration test proves the
 refactored reporting path still produces correct numbers end to end
 (request → router → reporting → reporting_calc → DB → response), so the
 extraction cannot silently change financial output.
@@ -10,6 +10,8 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+
+pytestmark = [pytest.mark.integration, pytest.mark.e2e]
 
 TEST_DATE = date(2024, 6, 15)
 

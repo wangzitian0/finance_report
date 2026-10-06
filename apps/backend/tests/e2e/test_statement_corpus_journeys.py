@@ -13,8 +13,8 @@ downstream journey via the real API. The cassette's frozen extraction output is
 the seed source — not the truth file — because only the extraction output
 carries ``direction``; the truth files record unsigned magnitudes.
 
-Provider cost: zero. Tests carry only ``@pytest.mark.e2e`` (never ``llm``) and
-run in ``ci.yml backend-e2e-tier1``.
+Provider cost: zero. Tests carry ``integration`` and ``e2e`` markers (never ``llm``) and
+run in ``ci.yml backend-integration``.
 """
 
 from __future__ import annotations
@@ -34,6 +34,8 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import AccountType
 from tests.factories import AccountFactory, seed_parsed_statement
+
+pytestmark = [pytest.mark.integration, pytest.mark.e2e]
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"

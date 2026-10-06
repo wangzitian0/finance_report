@@ -28,7 +28,7 @@ unified_coverage = total_covered_lines / total_executable_lines
 - Unified coverage is **line-only** and scope-bound: it currently includes backend, frontend, common, and tools LCOV inputs only.
 - Backend unified LCOV coverage in CI is generated from fast shard output:
   `pytest ... -m "not slow and not e2e and not integration"`.
-- `integration` and Tier-1 `e2e` backend tests are now executed as dedicated CI stages (`backend-integration`, `backend-e2e-tier1`) and run as behavior-only gates.
+- `integration` backend tests are executed as a dedicated CI stage (`backend-integration`) and run as behavior-only gates; legacy Tier-1 `e2e` tests have been consolidated into Bench V2 (#2193).
   They are intentionally excluded from unified coverage merge in this PR; LCOV is not collected in these stages until policy explicitly opts in.
 - AC metrics are separate by design: AC pass rate and AC traceability are behavior/reference gates, not line-coverage arithmetic.
 - `common/meta/extension/coverage/policy.py` plus policy-aware auditors ensure these exact four scopes remain the unified denominator.

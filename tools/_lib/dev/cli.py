@@ -90,14 +90,10 @@ def cmd_test(args, extra_args: list[str]):
                 "python",
                 "-m",
                 "pytest",
-                "--override-ini",
-                "addopts=",
-                "tests/e2e/test_core_journeys.py",
-                "-m",
-                "e2e and not slow and not integration and not perf",
+                "tests/tooling/test_benchmark_scenario_suite.py",
             )
             + extra_args,
-            cwd=BACKEND_DIR,
+            cwd=REPO_ROOT,
         )
         return
     if args.e2e:
@@ -237,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_test.add_argument(
         "--backend-e2e",
         action="store_true",
-        help="Backend Tier-1 API E2E tests from apps/backend/tests/e2e/test_core_journeys.py",
+        help="Backend scenario benchmark tests from tests/tooling/test_benchmark_scenario_suite.py",
     )
     p_test.add_argument("--perf", action="store_true", help="Performance tests")
     p_test.add_argument("--frontend", action="store_true", help="Frontend tests")

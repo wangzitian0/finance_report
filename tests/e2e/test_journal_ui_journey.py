@@ -3,6 +3,8 @@
 Covers:
 - AC-ledger.journal-entry.1: Journal entry double-entry balance validation.
 - AC-ledger.journal-entry.2: Immediate posting and draft creation.
+- AC8.8.3 / AC8.10.3: Journal entry lifecycle and transactions display.
+- AC8.3.4 / AC8.10.6: Unbalanced journal entry rejection.
 - AC8.13.9: Authenticated UI route verification.
 """
 

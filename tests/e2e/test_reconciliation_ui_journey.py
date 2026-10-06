@@ -3,6 +3,7 @@
 Covers:
 - AC-reconciliation.workbench.1: Workbench review queue and match statistics.
 - AC-reconciliation.review-queue.1: Confidence tiers and disposition workflow.
+- AC8.8.5 / AC8.10.5: Reconciliation API and workbench displays.
 - AC8.13.9: Authenticated UI route verification.
 """
 

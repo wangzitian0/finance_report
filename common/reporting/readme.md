@@ -576,7 +576,7 @@ rows anchored to journal entries, re-validates each through
 legs from income/expense aggregation in both `generate_income_statement`
 and cumulative balance-sheet net income — adding back only the (converted)
 fee. A naively double-booked internal transfer therefore nets to zero in
-the report except for its fee (`reporting/test_internal_transfer_e2e.py`).
+the report except for its fee (`tests/tooling/test_benchmark_scenario_suite.py`).
 
 **Source: recorded rows OR raw ledger** (#1123 AC2 live) — the adjustment
 doesn't require a pre-seeded `fx_conversions` row; it also calls

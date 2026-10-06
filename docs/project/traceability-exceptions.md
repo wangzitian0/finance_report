@@ -100,7 +100,6 @@ explicit AC IDs for the behavior.
 | `apps/backend/tests/infra/test_schema_guardrails.py` | `common/meta/schema.md` |
 | `apps/backend/tests/pricing/market_data/test_lazy_fx.py` | `common/pricing/contract.py` |
 | `apps/backend/tests/reconciliation/test_anomaly_service.py` | `common/reconciliation/reconciliation.md` |
-| `apps/backend/tests/reconciliation/test_credit_card_reconciliation_flow.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 16: Credit Card Repayment & Refund Clearing) |
 | `apps/backend/tests/reconciliation/test_reconciliation_stats.py` | `common/reconciliation/reconciliation.md` |
 | `apps/backend/tests/reporting/test_cash_flow_invariants.py` | `common/meta/flows/thirty_flows_ssot.json` (Flow 26: Cash Flow Statement Direct Method Multi-Activity Invariants) |
 | `apps/backend/tests/reporting/test_equation_diagnostics.py` | `common/reporting/reporting.md` (Accounting equation diagnostic triage) |

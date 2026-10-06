@@ -417,43 +417,35 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.journeys.1",
             statement="API health check (Was EPIC-008 AC8.8.1).",
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_api_health_check",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_api_health_check",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.journeys.2",
             statement="Accounts CRUD API (Was EPIC-008 AC8.8.2).",
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_accounts_crud_api",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_accounts_crud_api",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.journeys.3",
             statement="Journal entry lifecycle API (Was EPIC-008 AC8.8.3).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py::test_journal_entry_crud"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_journal_entry_crud",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.journeys.4",
             statement="Reports API (Was EPIC-008 AC8.8.4).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_balance_sheet_report"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_balance_sheet_report",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.journeys.5",
             statement="Reconciliation API (Was EPIC-008 AC8.8.5).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_reconciliation_engine_runs"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_reconciliation_engine_runs",
             priority="P0",
             status="done",
         ),
@@ -478,40 +470,28 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.ci-integration.1",
             statement="PR workflow runs E2E tests (Was EPIC-008 AC8.9.1).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_pr_workflow_runs_e2e_tests"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_ci_workflow_runs_tests",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.ci-integration.2",
             statement="Smoke tests integrated (Was EPIC-008 AC8.9.2).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_smoke_tests_integrated"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_smoke_tests_integrated",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.ci-integration.3",
             statement="Critical test check (Was EPIC-008 AC8.9.3).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_critical_test_check_in_workflow"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_critical_test_check_in_workflow",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.ci-integration.4",
             statement="Environment isolation (Was EPIC-008 AC8.9.4).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_environment_isolation"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_environment_isolation",
             priority="P0",
             status="done",
         ),
@@ -520,90 +500,63 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-testing.must-have.1",
             statement="Health endpoint reachable (Was EPIC-008 AC8.10.1).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_health_endpoint"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_api_health_check",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.2",
             statement="User can create account (Was EPIC-008 AC8.10.2).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_user_can_create_account"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_create_cash_account",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.3",
             statement="User can create journal entry (Was EPIC-008 AC8.10.3).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_user_can_create_journal_entry"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_simple_expense_entry",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.4",
             statement="Statement upload triggers AI (Was EPIC-008 AC8.10.4).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_statement_upload_csv"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_statement_upload_csv",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.5",
             statement="Reconciliation engine runs (Was EPIC-008 AC8.10.5).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_reconciliation_engine"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_reconciliation_engine_runs",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.6",
             statement="Unbalanced entry rejected (Was EPIC-008 AC8.10.6).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_unbalanced_entry_rejected"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_unbalanced_entry_rejected",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.7",
             statement="Reports API accessible (Was EPIC-008 AC8.10.7).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_reports_api"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_balance_sheet_report",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.8",
             statement="User registration flow (Was EPIC-008 AC8.10.8).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_user_registration"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_register_and_login_flow",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-testing.must-have.9",
             statement="Authentication validation (Was EPIC-008 AC8.10.9).",
-            test=(
-                "apps/backend/tests/e2e/test_core_journeys.py"
-                "::test_traceability_authentication_validation"
-            ),
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_api_authentication_failures",
             priority="P0",
             status="done",
         ),
@@ -776,8 +729,8 @@ CONTRACT = PackageContract(
                 "calls, bypassing the extraction/LLM seam (Was EPIC-008 AC8.21.1)."
             ),
             test=(
-                "apps/backend/tests/e2e/test_seeded_statement_journey.py"
-                "::test_seeded_fixture_bypasses_provider"
+                "tests/tooling/test_benchmark_scenario_suite.py"
+                "::test_seeded_benchmark_fixtures_bypass_provider"
             ),
             priority="P0",
             status="done",
@@ -792,8 +745,8 @@ CONTRACT = PackageContract(
                 "EPIC-008 AC8.21.2)."
             ),
             test=(
-                "apps/backend/tests/e2e/test_seeded_statement_journey.py"
-                "::test_seeded_statement_list_and_detail_no_llm"
+                "tests/tooling/test_benchmark_scenario_suite.py"
+                "::test_seeded_benchmark_fixtures_render_list_and_details"
             ),
             priority="P0",
             status="done",
@@ -807,8 +760,8 @@ CONTRACT = PackageContract(
                 "provider-free (Was EPIC-008 AC8.21.3)."
             ),
             test=(
-                "apps/backend/tests/e2e/test_seeded_statement_journey.py"
-                "::test_seeded_statement_transactions_endpoint_no_llm"
+                "tests/tooling/test_benchmark_scenario_suite.py"
+                "::test_seeded_benchmark_fixtures_transactions_and_review"
             ),
             priority="P0",
             status="done",
