@@ -8,7 +8,7 @@
 
 ## Agent Deliverable Contract
 
-**What Agent Delivers**: A **mergeable PR**.
+**What Agent Delivers**: A **mergeable PR**. The agent merges it when [branch-policy.md](../contributing/branch-policy.md) §4 holds. Only a production deployment needs the owner's approval and presence.
 
 **Definition of a mergeable PR** — every item must hold:
 - On a branch, never committed to `main`
@@ -16,17 +16,17 @@
 - **CI passing** (all required checks green) — behavior is proven by the tests in CI
   (TDD / root-cause), **not** by manually watching a preview deploy
 - **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — reply on the thread with what changed (or why not) **before** resolving it, so the resolution has a paper trail independent of the commit history
-  - **Escalate for a fresh Copilot pass after a substantial fix round**: if the review round being resolved contained any **high**-severity finding, or **3 or more medium**-severity findings, request a new Copilot review (`request_copilot_review`, or `gh pr comment <n> --body "@copilot review"`) after pushing the fixes, before reporting the PR ready — a diff that changed that much needs a fresh pass, not just its old threads marked resolved
-- **GitHub itself reports `mergeable: MERGEABLE` and `mergeStateStatus: CLEAN`** — a green CI run does not imply this; check both explicitly (see the playbook below) before reporting a PR as ready
+  - **Escalate for a fresh Copilot pass after a substantial fix round**: if the review round being resolved contained any **high**-severity finding, or **3 or more medium**-severity findings, request a new Copilot review (`request_copilot_review`, or `gh pr comment <n> --body "@copilot review"`) after pushing the fixes, before merging or reporting the PR ready — a diff that changed that much needs a fresh pass, not just its old threads marked resolved
+- **GitHub itself reports `mergeable: MERGEABLE` and `mergeStateStatus: CLEAN`** — a green CI run does not imply this; check both explicitly (see the playbook below) before merging or reporting a PR as ready
 - Code/PR/commits in English
 
 **`mergeStateStatus` playbook** — this value can flip at any time a sibling PR
 merges to `main`, independent of anything you did to this branch. Re-check it
-immediately before reporting a PR ready, not just after your last push:
+immediately before merging or reporting a PR ready, not just after your last push:
 
 | `mergeStateStatus` | Meaning | Action |
 |---|---|---|
-| `CLEAN` | Mergeable, checks green, no conflicts | Ready — report it |
+| `CLEAN` | Mergeable, checks green, no conflicts | Ready — merge when [branch-policy.md](../contributing/branch-policy.md) §4 holds |
 | `DIRTY` | Real merge conflict with `main` | Rebase now, don't wait to be told (see below) |
 | `BEHIND` | Base moved, no conflict yet | Rebase or merge `main` in before it becomes `DIRTY` |
 | `BLOCKED` | Required checks/reviews not yet satisfied | Normal in-flight state — watch, don't rebase pre-emptively |
@@ -47,17 +47,18 @@ immediately before reporting a PR ready, not just after your last push:
 6. ✅ **Monitor CI until it passes** (use `gh run watch`)
    - If CI fails: find the root cause, fix, repeat
 7. ✅ **Resolve every Copilot (CR) review comment** — fix or justify each, **reply on the thread** with what changed (or why not), then resolve the thread on GitHub
-8. ✅ **Report: "PR ready for your review"** — with PR URL, branch, commit SHA,
-   draft status, `mergeable`, `mergeStateStatus`, and required-check summary
-9. 🔁 **Keep the PR mergeable while waiting**: watch for
+8. ✅ **Report the PR state** — with PR URL, branch, commit SHA,
+   draft status, `mergeable`, `mergeStateStatus`, required-check summary, and
+   the result of each [branch-policy.md](../contributing/branch-policy.md) §4 condition
+9. 🔁 **Merge when §4 holds, and keep the PR mergeable until then**: watch for
    new CI runs, late CR comments, and conflicts caused by other merges — fix
-   them unprompted; report state changes only. Merge authority: see
-   [branch-policy.md](../contributing/branch-policy.md) §4
-10. ▶️ **On merge** (yours, detected, or announced by the user): resync `main`, rebase
+   them unprompted; report state changes only. If a §4 condition fails, fix
+   the cause or record the blocker on the PR. Do not hand the PR to the owner
+10. ▶️ **On merge** (yours or detected): resync `main`, rebase
     any remaining open branches, and continue the next planned slice — report
     plan progress (done / remaining) instead of asking what to do next
 
-**User Workflow**: Review → Approve / Request changes / Reject → merge, per [branch-policy.md](../contributing/branch-policy.md) §4.
+**Owner Workflow**: The owner may review, request changes on, or reject any PR. The owner's approval and presence are required only for a production deployment (`release.yml` with `dry_run=false`), per [branch-policy.md](../contributing/branch-policy.md) §4.
 
 ---
 
@@ -86,12 +87,14 @@ therefore **part of the deliverable, not aftercare**:
   against (a deploy's own health/version endpoint, a workflow run's resolved
   ref) and say so explicitly, rather than assuming a dispatch you triggered
   necessarily exercised your latest change.
-- **Goals must never require a user-only action.** An agent goal is satisfied
-  by "PR(s) mergeable + reported", never by "PR merged" — a goal phrased on
-  merging deadlocks the session against the agents-never-merge rule.
-- **Post-merge continuation is default-on.** The user's merge is the signal to
-  resync and continue the approved plan. Ask only at a genuine decision point
-  or when the plan is exhausted.
+- **A goal may require a merge. It may not require a production deployment.**
+  An agent goal is satisfied by "PR merged" once
+  [branch-policy.md](../contributing/branch-policy.md) §4 holds. A goal that
+  needs a production deployment waits for the owner's approval and presence:
+  phrase it as "release ready, approval requested".
+- **Post-merge continuation is default-on.** A merge (yours or detected) is the
+  signal to resync and continue the approved plan. Ask only at a genuine
+  decision point or when the plan is exhausted.
 - **A subagent that backgrounds a long command and ends its turn "to wait for
   it" has abandoned the work, not paused it.** Observed repeatedly in a single
   session (2026-07-13): an agent runs a slow verification detached
