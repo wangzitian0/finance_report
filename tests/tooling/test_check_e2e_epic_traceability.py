@@ -5,6 +5,9 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from common.testing import check_e2e_epic_traceability as checker
 
@@ -577,8 +580,10 @@ def test_AC8_13_68_main_fails_when_not_report_only(
     assert "E2E EPIC TRACEABILITY GATE FAILED: 1 issue(s) found." in captured.err
 
 
-def test_discover_e2e_assets_prunes_excluded_directories(tmp_path: Path) -> None:
-    """Verify that discover_e2e_assets prunes excluded directories and discovers valid assets."""
+def test_discover_e2e_assets_prunes_excluded_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that discover_e2e_assets prunes excluded directories during traversal."""
     valid_e2e = tmp_path / "tests" / "e2e" / "test_valid.py"
     valid_e2e.parent.mkdir(parents=True, exist_ok=True)
     valid_e2e.write_text("def test_valid(): pass\n", encoding="utf-8")
@@ -592,5 +597,17 @@ def test_discover_e2e_assets_prunes_excluded_directories(tmp_path: Path) -> None
     excluded_next.parent.mkdir(parents=True, exist_ok=True)
     excluded_next.write_text("def test_next(): pass\n", encoding="utf-8")
 
+    visited_roots: list[str] = []
+    real_walk = checker.os.walk
+
+    def spied_walk(top: Path | str, *args: Any, **kwargs: Any):
+        for root, dirs, files in real_walk(top, *args, **kwargs):
+            visited_roots.append(Path(root).name)
+            yield root, dirs, files
+
+    monkeypatch.setattr(checker.os, "walk", spied_walk)
+
     assets = checker.discover_e2e_assets(tmp_path)
     assert assets == ["tests/e2e/test_valid.py"]
+    assert "node_modules" not in visited_roots
+    assert ".next" not in visited_roots
