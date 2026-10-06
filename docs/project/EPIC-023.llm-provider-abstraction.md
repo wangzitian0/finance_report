@@ -12,5 +12,4 @@
 All 44 ACs, the axes/rotation vocabulary, and the cassette mechanism are owned
 by the `llm` package: [`common/llm/contract.py`](../../common/llm/contract.py)
 (roadmap, `AC-llm.*`) and [`common/llm/readme.md`](../../common/llm/readme.md).
-This file is a goal stub kept as the product E2E anchor
-(`tests/e2e/test_llm_provider_abstraction_epic023.py`); it defines no AC rows.
+This file is a goal stub; it defines no AC rows.

@@ -978,7 +978,7 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-extraction.5.1",
             statement="Full Upload Flow",  # was AC3.5.1
-            test="tests/e2e/test_statement_upload_e2e.py::test_statement_upload_full_flow",
+            test="tests/e2e/test_accounts_and_statements_ui_journey.py::test_statement_detail_and_review_surface",
             priority="P0",
             status="done",
             proof_kind="property",
@@ -2649,8 +2649,8 @@ CONTRACT = PackageContract(
                 "Was EPIC-008 AC8.13.1-.5 / .7 (migration closeout wave 3, #1663)."
             ),
             test=(
-                "tests/e2e/test_statement_full_journey.py"
-                "::test_dbs_statement_full_journey"
+                "tests/e2e/test_bench_v2_ui_golden_paths.py"
+                "::test_case_1_four_month_rollforward_ui"
             ),
             priority="P0",
             status="done",
@@ -2667,8 +2667,8 @@ CONTRACT = PackageContract(
                 "(migration closeout wave 3, #1663)."
             ),
             test=(
-                "tests/e2e/test_statement_upload_e2e.py"
-                "::test_statement_upload_full_flow"
+                "tests/e2e/test_accounts_and_statements_ui_journey.py"
+                "::test_statement_detail_and_review_surface"
             ),
             priority="P0",
             status="done",

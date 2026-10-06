@@ -1396,8 +1396,8 @@ CONTRACT = PackageContract(
                 "Pinned from #1429's 2026-07-12 scope-freeze wording."
             ),
             test=(
-                "tests/e2e/test_statement_full_journey.py"
-                "::test_dbs_statement_full_journey"
+                "tests/e2e/test_bench_v2_ui_golden_paths.py"
+                "::test_case_1_four_month_rollforward_ui"
             ),
             priority="P0",
             status="done",
