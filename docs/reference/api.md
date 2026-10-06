@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `135`
-- Schema count: `261`
+- Endpoint count: `136`
+- Schema count: `262`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -38,7 +38,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `statements` | 15 |
 | `untagged` | 3 |
 | `user-settings` | 2 |
-| `users` | 4 |
+| `users` | 5 |
 | `workflow` | 3 |
 
 ## Endpoints
@@ -291,6 +291,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `GET` | `/users` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_UserResponse_` | List Users |
+| `POST` | `/users` | yes | - | `UserCreate` | `201` `UserResponse` | Create User |
 | `GET` | `/users/{user_id}` | yes | `user_id`* (path) | - | `200` `UserResponse` | Get User |
 | `PUT` | `/users/{user_id}` | yes | `user_id`* (path) | `UserUpdate` | `200` `UserResponse` | Update User |
 | `DELETE` | `/users/{user_id}` | yes | `user_id`* (path) | - | `204` - | Delete User |
