@@ -81,9 +81,9 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     selection = matrix.pr_preview_e2e_selection()
     selected_files = {node.split("::", 1)[0] for node in selection}
 
-    # The original in-runner set is preserved.
-    assert "tests/e2e/test_core_journeys.py" in selected_files
-    assert "tests/e2e/test_e2e_flows.py::test_full_navigation" in selection
+    # The in-runner set contains audited specs without external dependencies.
+    assert "tests/e2e/test_epic022_ia_shell.py" in selected_files
+    assert "tests/e2e/test_version_check.py" in selected_files
     # #1547's ask, delivered: after the double-/api 404 (PR #1587) and the
     # FirstRunModal click interception (#1589) were both root-caused as
     # in-runner STACK bugs and fixed in docker-compose.ci-e2e.yml, the

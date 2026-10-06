@@ -2826,8 +2826,6 @@
     "tests/reporting/test_income_typed_currency.py::test_AC5_32_4_fx_conversion_error_response_model_declared": 1.3500839580083266,
     "tests/reporting/test_income_typed_currency.py::test_AC5_32_5_normalize_currency_code_is_shared_helper": 0.28535820700926706,
     "tests/reporting/test_income_typed_currency.py::test_AC5_32_6_endpoint_returns_normalized_currency_for_soft_base_config": 0.26735049998387694,
-    "tests/reporting/test_internal_transfer_e2e.py::test_AC3_internal_transfer_excluded_from_income_statement_e2e": 1.0149161670124158,
-    "tests/reporting/test_internal_transfer_e2e.py::test_AC3_internal_transfer_net_income_fee_only_e2e": 0.406761166988872,
     "tests/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_framework_balance_sheet_exact_aggregation": 1.1240182489564177,
     "tests/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_portfolio_cost_basis_and_adjustment_stay_on_securities_l1": 0.8872872490028385,
     "tests/reporting/test_l1_registry_aggregation.py::test_framework_income_statement_aggregation": 1.5048705840308685,

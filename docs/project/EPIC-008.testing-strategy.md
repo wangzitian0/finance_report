@@ -78,7 +78,7 @@ Integration tests and E2E tests are intentionally different in this project:
 |---|---|---|---|
 | Unit (Fast/Shard) | Backend tests excluding `slow`, `e2e`, and `integration` markers | Required on `main`/heavy PR after integration/Tier-1 gates pass: `backend` job, 8-way shard, `-m "not slow and not e2e and not integration"` | Contributes to unified line coverage (backend part), AC traceability generation, and baseline no-regression gate |
 | Integration (backend) | Backend tests marked `integration` | Explicit CI stage: `backend-integration` job, marker-scoped and service-backed | Not included in unified coverage by default; AC proof channel only |
-| Tier 1 API E2E (`-m e2e`) | `apps/backend/tests/e2e/test_core_journeys.py` ASGI/API contract flows | Explicit CI stage: `backend-e2e-tier1` job with marker override and explicit Tier-1 scope | Behavioral proof for ACs and regression risk; **not included in unified line coverage** |
+| Tier 1 API E2E (`-m e2e`) | Retired / Consolidated: API contract flows consolidated into Bench V2 scenario suite (`tests/tooling/test_benchmark_scenario_suite.py`) | Consolidated into Bench V2 and `backend-integration` stage (#2193) | Behavioral proof for ACs and regression risk |
 | Frontend Playwright | Provider-free specs under `apps/frontend/playwright` | Explicit CI stage inside the `frontend` job after build and Vitest; env-gated specs are not required proof | Browser UI behavioral proof only, not part of unified line coverage |
 | Tier 2 HTTP E2E | Deploy-aware HTTP-level flows through `tools/tier2_http_e2e.py` | Staging deploy after shell smoke and before broader deployed E2E | Behavioral proof only, not part of unified line coverage |
 | Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
@@ -711,21 +711,17 @@ Product E2E ownership index:
 
 | File | Ownership anchor |
 |---|---|
-| `apps/backend/tests/e2e/test_core_journeys.py` | Backend core journey E2E; AC8.1-AC8.12 references live in the test file |
 | `tests/e2e/test_epic022_ia_shell.py` | EPIC-022 everyday-user IA shell product owner E2E (in-runner preview lane); AC22.1 references live in the test file |
 | `tests/e2e/test_gxs_browser_journey.py` | Fresh-user live-provider browser proof; AC-testing.package-lifecycle.3 is owned by `common/testing/contract.py`. |
 | `tests/e2e/test_institution_statement_journeys.py` | Per-institution live-extraction staging journeys (audit-replay corpus, #1613); ACs live in the `llm` package roadmap (AC-llm.12.1 AC-llm.12.2 AC-llm.12.3 AC-llm.12.4, `common/llm/contract.py`) |
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
 | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
-| `apps/backend/tests/e2e/test_seeded_statement_journey.py` | Seeded no-LLM statement journey (provider-free merge tier); ACs live in the `testing` package roadmap (AC-testing.seeded-journey.1-3, `common/testing/contract.py`) |
 | `tests/e2e/test_ai_provider_connectivity.py` | Staging AI provider connectivity smoke; its AC lives in the `testing` package roadmap (AC-testing.deploy-gates.27, `common/testing/contract.py`) |
 | `tests/e2e/test_ac_authority_tiers_epic026.py` | EPIC-026 authority-tier pipeline product owner E2E; AC-authority.2.1/AC-authority.3.1/AC-authority.4.1 references live in the test file |
 | `tests/e2e/test_application_ai_advisor_epic021.py` | Application AI Advisor product owner E2E; AC21.1 references live in the test file |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
 | `tests/e2e/test_bench_v2_ui_golden_paths.py` | Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10; blocking value oracle `AC-portfolio.valuation.1` (`common/portfolio/contract.py`, #1826) |
-| `tests/e2e/test_core_journeys.py` | Deployed core journey E2E; AC references live in the test file |
-| `tests/e2e/test_e2e_flows.py` | Deployed extended flow E2E; AC references live in the test file |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC-reporting.net-worth-timeseries.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-portfolio.valuation.1 |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E |
 | `tests/e2e/test_journal_ui_journey.py` | Journal entry interactive browser E2E; AC references live in the test file (#2158) |

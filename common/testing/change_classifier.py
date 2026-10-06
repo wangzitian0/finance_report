@@ -153,7 +153,7 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
 # fall under any COMPONENT_PREFIXES prefix, so without this guard a diff that
 # touched ONLY e.g. .github/workflows/ci.yml would report every component
 # unchanged — silently skipping the very component-scoped job(s) (e.g.
-# backend-e2e-tier1, frontend-build/-playwright, AC-testing.ci-structure.11)
+# backend-integration, frontend-build/-playwright, AC-testing.ci-structure.11)
 # that PR just edited. Mirrors the "fail closed on unknown diff" convention
 # below for a diff that IS known but is about the gate itself.
 CI_DEFINITION_PATHS = frozenset(

@@ -180,7 +180,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
     assert is_pr_preview_relevant("apps/frontend/src/app/page.tsx") is True
     assert is_pr_preview_relevant("apps/frontend/src/lib/api.ts") is True
     assert is_pr_preview_relevant("apps/frontend/package-lock.json") is True
-    assert is_pr_preview_relevant("tests/e2e/test_core_journeys.py") is True
+    assert is_pr_preview_relevant("tests/e2e/test_bench_v2_ui_golden_paths.py") is True
     assert is_pr_preview_relevant("docker-compose.yml") is True
     assert is_pr_preview_relevant("docker-compose.pr-preview.yml") is True
     assert is_pr_preview_relevant("tools/generate_pdf_fixtures.py") is True
@@ -382,7 +382,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/src/lib/api.ts",
         "apps/frontend/public/icon.svg",
         "apps/frontend/package-lock.json",
-        "tests/e2e/test_core_journeys.py",
+        "tests/e2e/test_bench_v2_ui_golden_paths.py",
         "docker-compose.yml",
         ".github/workflows/deploy.yml",
         ".github/workflows/ci.yml",
@@ -480,7 +480,7 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     result = classify_changed_paths(
         [
             "apps/frontend/src/app/page.tsx",
-            "tests/e2e/test_core_journeys.py",
+            "tests/e2e/test_bench_v2_ui_golden_paths.py",
         ]
     )
     summary = tmp_path / "github-summary.md"
@@ -490,7 +490,7 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     summary_text = summary.read_text(encoding="utf-8")
     assert "PR preview-triggering files:" in summary_text
     assert "- `apps/frontend/src/app/page.tsx`" in summary_text
-    assert "- `tests/e2e/test_core_journeys.py`" in summary_text
+    assert "- `tests/e2e/test_bench_v2_ui_golden_paths.py`" in summary_text
     assert "Staging-triggering files:" in summary_text
 
 
@@ -828,7 +828,7 @@ def test_AC8_13_161_component_changed_fails_closed_on_ci_definition_change() -> 
     """A change to the CI workflow definition (or the classifier it runs) falls
     under no COMPONENT_PREFIXES prefix, so without this fail-closed rule it
     would report every component unchanged — silently skipping the very
-    component-scoped job(s) that PR just edited (e.g. backend-e2e-tier1,
+    component-scoped job(s) that PR just edited (e.g. backend-integration,
     frontend-build/-playwright's AC-testing.ci-structure.11 gate). Unlike
     test_AC8_13_161_component_changed_is_false_for_root_only_config's
     docker-compose.yml, ci.yml's own change must widen, not narrow."""

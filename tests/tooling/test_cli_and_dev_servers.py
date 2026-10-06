@@ -128,8 +128,8 @@ def test_AC8_13_79_cmd_test_backend_e2e_route(monkeypatch):
         ["--maxfail=1"],
     )
 
-    assert "tests/e2e/test_core_journeys.py" in calls[0][0]
-    assert calls[0][1] == cli.BACKEND_DIR
+    assert "tests/tooling/test_benchmark_scenario_suite.py" in calls[0][0]
+    assert calls[0][1] == cli.REPO_ROOT
 
 
 def test_AC16_11_17_cmd_test_perf_route(monkeypatch):

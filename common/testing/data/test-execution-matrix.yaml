@@ -3,17 +3,11 @@
 # Drift gate: tests/tooling/test_execution_matrix_contract.py (AC8.22.1)
 version: 1
 rules:
-  - path: apps/backend/tests/e2e/test_core_journeys.py
-    stage: backend_tier1_api_e2e
-    ci_required: true
-  - path: apps/backend/tests/e2e/test_seeded_statement_journey.py
-    stage: backend_tier1_api_e2e
-    ci_required: true
   - path: apps/backend/tests/e2e/test_statement_corpus_journeys.py
-    stage: backend_tier1_api_e2e
+    stage: backend_integration
     ci_required: true
   - path: apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py
-    stage: backend_tier1_api_e2e
+    stage: backend_integration
     ci_required: true
   - path: apps/backend/tests/
     stage: backend_ci

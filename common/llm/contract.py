@@ -807,7 +807,7 @@ CONTRACT = PackageContract(
         # the cassette MECHANISM and its ACs live here, see
         # common/testing/contract.py's docstring) is seeded through the
         # provider-free seam into the full downstream statement journey in
-        # ci.yml backend-e2e-tier1. Deterministic replay of frozen artifacts:
+        # ci.yml backend-integration. Deterministic replay of frozen artifacts:
         # proof_kind=property.
         ACRecord(
             id="AC-llm.11.1",

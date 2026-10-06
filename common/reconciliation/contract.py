@@ -1345,7 +1345,7 @@ CONTRACT = PackageContract(
                 "drill-downable expense line and in the monthly trend bucket."
             ),
             test=(
-                "apps/backend/tests/reporting/test_internal_transfer_e2e.py"
+                "apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py"
                 "::test_AC3_internal_transfer_excluded_from_income_statement_e2e"
             ),
             priority="P0",
@@ -1359,7 +1359,7 @@ CONTRACT = PackageContract(
                 "contribution."
             ),
             test=(
-                "apps/backend/tests/reporting/test_internal_transfer_e2e.py"
+                "apps/backend/tests/reporting/test_fx_ledger_autodiscovery_e2e.py"
                 "::test_AC3_internal_transfer_net_income_fee_only_e2e"
             ),
             priority="P0",
@@ -1426,21 +1426,21 @@ CONTRACT = PackageContract(
         ACRecord(
             id="AC-reconciliation.reconciliation-engine.1",
             statement="The reconciliation engine runs end to end through the API.",
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_engine_runs",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_reconciliation_engine_runs",
             priority="P0",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.reconciliation-engine.2",
             statement="The reconciliation stats endpoint returns run statistics.",
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_stats",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_reconciliation_stats",
             priority="P1",
             status="done",
         ),
         ACRecord(
             id="AC-reconciliation.reconciliation-engine.3",
             statement="A reconciliation match can be accepted through the API.",
-            test="apps/backend/tests/e2e/test_core_journeys.py::test_reconciliation_match_acceptance",
+            test="tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_scenario_reconciliation_match_acceptance",
             priority="P1",
             status="done",
         ),

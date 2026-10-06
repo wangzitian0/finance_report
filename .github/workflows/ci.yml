@@ -624,117 +624,6 @@ jobs:
           - Coverage effect: **not included** in unified line coverage baseline for now
           EOF
 
-  backend-e2e-tier1:
-    name: Backend Tier-1 API E2E (Shard ${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
-    # Seeded 3-way least_duration split (ci/backend-tier1-test-durations.json):
-    # four statement-corpus journeys take 38-55 s each, so one 2-worker job was
-    # the slowest leg of the PR pipeline (152 s of tests, #2050).
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
-
-    services:
-      postgres:
-        image: postgres:15.14-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: finance_report_test
-        ports:
-          - 5432:5432
-        options: >-
-          --mount type=tmpfs,destination=/var/lib/postgresql/data
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 30
-
-    steps:
-      - uses: actions/checkout@v7
-
-      # Started in the background right after checkout, so the image pulls
-      # and the MinIO boot overlap uv/Python/venv setup instead of queueing
-      # behind it. "Wait for MinIO" blocks on the outcome before any
-      # test runs, and a setup failure still fails the job there.
-      - name: Start MinIO
-        uses: ./.github/actions/setup-minio
-        with:
-          container-name: finance-report-minio-tier1
-
-      - name: Set up backend environment
-        uses: ./.github/actions/setup-backend-env
-        with:
-          uv-version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Wait for MinIO
-        uses: ./.github/actions/setup-minio
-        with:
-          step: wait
-
-      - name: Run Tier-1 API E2E Tests
-        env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
-          S3_ACCESS_KEY: minio
-          S3_SECRET_KEY: minio_local_secret
-          S3_ENDPOINT: http://127.0.0.1:9000
-          S3_BUCKET: statements
-          ENABLE_STORAGE_SWEEP: "false"
-        run: |
-          cd apps/backend
-          mkdir -p test-results
-          pytest_extra_args=()
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            pytest_extra_args+=(--maxfail=1)
-          fi
-          # -n auto/--dist worksteal (as the `backend` shards already use against
-          # these same services): the 59 tests here have no shared-state hazard --
-          # tests/conftest.py's worker_id/get_test_db_url fixtures already give
-          # each xdist worker its own Postgres database (truncated per test), S3
-          # object keys are namespaced by statement UUID (build_statement_storage_key),
-          # and the LLM-cassette-served log is written per-PID
-          # (test-results/served-cassettes-<pid>.txt), so this was serial only
-          # because it predated -n auto here, not because it needs to be serial.
-          uv run pytest -v \
-            --override-ini addopts="" \
-            tests/e2e/test_core_journeys.py \
-            tests/e2e/test_seeded_statement_journey.py \
-            tests/e2e/test_statement_corpus_journeys.py \
-            tests/e2e/test_epic025_dry_ssot_e2e.py \
-            -m "e2e and not slow and not integration and not perf" \
-            --splits 3 \
-            --group ${{ matrix.shard }} \
-            --splitting-algorithm=least_duration \
-            --durations-path ci/backend-tier1-test-durations.json \
-            -n auto --dist worksteal \
-            "${pytest_extra_args[@]}" \
-            --junit-xml=test-results/backend-tier1-e2e.xml
-
-      - name: Upload backend Tier-1 E2E test context
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: backend-tier1-e2e-${{ matrix.shard }}-test-context
-          path: |
-            apps/backend/test-results/backend-tier1-e2e.xml
-            apps/backend/test-results/served-cassettes*.txt
-          retention-days: 14
-
-      - name: Stage Contribution Summary (Behavioral proof only)
-        if: always()
-        run: |
-          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
-          ## Backend Tier-1 API E2E Stage
-          - Scope: `tests/e2e/test_core_journeys.py` with `-m "e2e and not slow and not integration and not perf"`
-          - Contribution: behavior proof channel only
-          - Coverage effect: **not included** in unified line coverage baseline for now
-          EOF
-
   frontend-build:
     name: Frontend Build & Typecheck
     runs-on: ubuntu-latest
@@ -1184,7 +1073,7 @@ jobs:
           # asyncpg, fastapi, httpx, pdfplumber, reportlab, boto3, pyyaml,
           # structlog, email-validator, anyio transitively, infra2-sdk) -- so
           # this job installs from the SAME lockfile-backed venv/cache the
-          # backend/backend-integration/backend-e2e-tier1 jobs already warm
+          # backend/backend-integration jobs already warm
           # (actions/cache@v5 on apps/backend/uv.lock), instead of an ad hoc
           # `uv run --with <17 packages>` resolve+download every run (#1767
           # measured that ad hoc install at ~7:47-7:59 of the former single-job's
@@ -1492,7 +1381,7 @@ jobs:
 
   ac-traceability:
     name: AC Traceability Check
-    needs: [changes, lint, tooling-coverage, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
+    needs: [changes, lint, tooling-coverage, backend, backend-integration, frontend-vitest]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1639,7 +1528,7 @@ jobs:
     name: AC Behavioral Score Ratchet
     # Wait for every test stage that emits junit (incl. frontend Vitest) so the aggregate is
     # complete and cannot race an in-flight upload.
-    needs: [changes, backend, backend-integration, backend-e2e-tier1, frontend-vitest]
+    needs: [changes, backend, backend-integration, frontend-vitest]
     if: needs.changes.outputs.pr_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1663,12 +1552,6 @@ jobs:
           name: backend-integration-test-context
           path: junit-artifacts/backend-integration-test-context
 
-      - name: Download backend Tier-1 junit artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: backend-tier1-e2e-*-test-context
-          path: junit-artifacts
-
       - name: Download frontend Vitest junit artifact
         uses: actions/download-artifact@v8
         with:
@@ -1677,7 +1560,7 @@ jobs:
 
       - name: Aggregate AC behavioral evidence and ratchet against baseline
         run: |
-          # Collect every junit-xml emitted by the test stages (shards, integration, tier-1).
+          # Collect every junit-xml emitted by the test stages (shards, integration).
           junit_files=$(find junit-artifacts -name '*.xml' -print)
           if [ -z "$junit_files" ]; then
             echo "No junit-xml artifacts found — cannot evaluate AC behavioral evidence." >&2
@@ -1733,7 +1616,7 @@ jobs:
           retention-days: 90
 
   finish:
-    needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
+    needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1799,7 +1682,6 @@ jobs:
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
           | backend (8-way shard) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
-          | backend-e2e-tier1 | not included in unified coverage | yes (marker 'e2e') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |
           | frontend-vitest | contributes to unified line coverage baseline | yes |
           | frontend-playwright | not included in unified coverage | yes (provider-free browser UI) |
@@ -1872,10 +1754,6 @@ jobs:
             fi
             if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
               echo "::error::Backend integration tests failed"
-              exit 1
-            fi
-            if [[ "${{ needs.backend-e2e-tier1.result }}" != "success" ]]; then
-              echo "::error::Backend Tier-1 API E2E tests failed"
               exit 1
             fi
             # AC-testing.ci-structure.11: frontend-build is right-moved off PRs

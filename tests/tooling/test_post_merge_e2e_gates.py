@@ -426,7 +426,7 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
 
 def test_AC8_10_8_registration_flow_accepts_current_landing_route() -> None:
     """AC8.10.8 AC16.12.6 AC1.7.1: registration E2E follows current auth landing route."""
-    flow = read("tests/e2e/test_e2e_flows.py")
+    flow = read("tests/e2e/test_auth_flows.py")
     test_body = flow.split("async def test_registration_flow", 1)[1]
 
     assert 'page.expect_response("**/api/auth/register")' in test_body
@@ -1068,7 +1068,6 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     for token in (
         "backend-shard-${{ matrix.shard }}-test-context",
         "backend-integration-test-context",
-        "backend-tier1-e2e-${{ matrix.shard }}-test-context",
         "frontend-vitest-test-context",
         "frontend-playwright-test-context",
         "frontend-telemetry-test-context",
@@ -1077,7 +1076,6 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         assert token in ci
     assert "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml" in ci
     assert "--junit-xml=test-results/backend-integration.xml" in ci
-    assert "--junit-xml=test-results/backend-tier1-e2e.xml" in ci
     assert "test-results/vitest-junit.xml" in ci
     assert "apps/frontend/playwright-report/" in ci
     assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
@@ -1740,7 +1738,7 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
     assert "name: AC Traceability Check" in workflow
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
+        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
         in workflow
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
@@ -1873,10 +1871,6 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
         1,
     )[0]
     integration_block = workflow.split("  backend-integration:", 1)[1].split(
-        "  backend-e2e-tier1:",
-        1,
-    )[0]
-    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
         "  frontend-build:",
         1,
     )[0]
@@ -1899,7 +1893,6 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
 
     assert "moonrepo/setup-toolchain@v0" not in backend_block
     assert "moonrepo/setup-toolchain@v0" not in integration_block
-    assert "moonrepo/setup-toolchain@v0" not in tier1_block
     for frontend_block in (
         frontend_build_block,
         frontend_vitest_block,
@@ -1917,10 +1910,10 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     )
 
 
-def test_backend_integration_and_tier1_invoke_setup_minio() -> None:
-    """CI backend-integration and backend-e2e-tier1 lanes must invoke setup-minio."""
+def test_backend_integration_invokes_setup_minio() -> None:
+    """CI backend-integration lane must invoke setup-minio."""
     workflow = read(".github/workflows/ci.yml")
-    for job_name in ("backend-integration", "backend-e2e-tier1"):
+    for job_name in ("backend-integration",):
         job_pattern = (
             rf"(?m)^\s\s{re.escape(job_name)}:\s*$(.*?)(?=^\s\s\w[\w-]*:\s*$|\Z)"
         )
@@ -1930,24 +1923,9 @@ def test_backend_integration_and_tier1_invoke_setup_minio() -> None:
 
 
 def test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures() -> None:
-    """AC-testing.ci-structure.6: AC8.13.145: PR Tier-1 E2E is fail-fast; main push reports every failure."""
+    """AC-testing.ci-structure.6: AC8.13.145: Tier-1 API E2E is retired in favor of Bench V2 and backend integration."""
     workflow = read(".github/workflows/ci.yml")
-    ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    inventory = read("common/meta/data/ci-gate-inventory.yaml")
-
-    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
-        "  frontend-build:",
-        1,
-    )[0]
-
-    assert 'if [ "${{ github.event_name }}" = "pull_request" ]; then' in tier1_block
-    assert "pytest_extra_args+=(--maxfail=1)" in tier1_block
-    assert '"${pytest_extra_args[@]}"' in tier1_block
-    assert " --maxfail=1 \\" not in tier1_block
-    assert "--junit-xml=test-results/backend-tier1-e2e.xml" in tier1_block
-    assert "push/main Tier-1 E2E runs without `--maxfail=1`" in ci_cd
-    assert "id: ci.backend_e2e_tier1" in inventory
-    assert "task_category: backend_api_e2e" in inventory
+    assert "backend-e2e-tier1:" not in workflow
 
 
 def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
@@ -1996,7 +1974,6 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "changes",
         "backend",
         "backend-integration",
-        "backend-e2e-tier1",
         "frontend-vitest",
     ]
     assert jobs["finish"]["needs"] == [
@@ -2004,7 +1981,6 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
         "schema-migrations",
         "backend",
         "backend-integration",
-        "backend-e2e-tier1",
         "frontend-build",
         "frontend-vitest",
         "frontend-playwright",
@@ -2161,74 +2137,10 @@ def test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_acti
 
 
 def test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs() -> None:
-    """AC-testing.ci-structure.14: Tier-1 API E2E runs as seeded least_duration matrix
-    legs; every leg uploads its own JUnit context and both evidence consumers
-    read all of them."""
-    workflow_text = read(".github/workflows/ci.yml")
-    workflow = yaml.safe_load(workflow_text)
-    tier1 = workflow["jobs"]["backend-e2e-tier1"]
-    legs = tier1["strategy"]["matrix"]["shard"]
-    splits = len(legs)
-    assert legs == list(range(1, splits + 1))
-    assert splits >= 2
-    assert tier1["strategy"]["fail-fast"] is False
-    assert (
-        tier1["name"]
-        == f"Backend Tier-1 API E2E (Shard ${{{{ matrix.shard }}}}/{splits})"
-    )
-
-    (pytest_line,) = [
-        line
-        for step in tier1["steps"]
-        if isinstance(step, dict)
-        for line in str(step.get("run", "")).replace("\\\n", " ").splitlines()
-        if "uv run pytest" in line
-    ]
-    tokens = pytest_line.replace("${{ matrix.shard }}", "<shard>").split()
-    options = dict(zip(tokens, tokens[1:]))
-    assert (
-        options["--splits"],
-        options["--group"],
-        options["--durations-path"],
-        tokens.count("--splitting-algorithm=least_duration"),
-    ) == (
-        str(splits),
-        "<shard>",
-        "ci/backend-tier1-test-durations.json",
-        1,
-    )
-
-    seed = json.loads(read("apps/backend/ci/backend-tier1-test-durations.json"))
-    tier1_files = (
-        "tests/e2e/test_core_journeys.py",
-        "tests/e2e/test_seeded_statement_journey.py",
-        "tests/e2e/test_statement_corpus_journeys.py",
-        "tests/e2e/test_epic025_dry_ssot_e2e.py",
-    )
-    assert seed
-    assert {node.split("::", 1)[0] for node in seed} <= set(tier1_files)
-    assert all(isinstance(value, (int, float)) for value in seed.values())
-
-    upload = next(
-        step
-        for step in tier1["steps"]
-        if step.get("name") == "Upload backend Tier-1 E2E test context"
-    )
-    assert (
-        upload["with"]["name"] == "backend-tier1-e2e-${{ matrix.shard }}-test-context"
-    )
-
-    ratchet = workflow["jobs"]["ac-behavioral-ratchet"]
-    downloads = [step.get("with", {}) for step in ratchet["steps"]]
-    assert {
-        "pattern": "backend-tier1-e2e-*-test-context",
-        "path": "junit-artifacts",
-    } in (downloads)
-    traceability = workflow["jobs"]["ac-traceability"]
-    assert {
-        "pattern": "backend-*test-context",
-        "path": "governance-inputs/junit/backend",
-    } in [step.get("with", {}) for step in traceability["steps"]]
+    """AC-testing.ci-structure.14: Tier-1 API E2E shard legs are retired and unified into backend integration and Bench V2."""
+    workflow = yaml.safe_load(read(".github/workflows/ci.yml"))
+    assert "backend-e2e-tier1" not in workflow["jobs"]
+    assert "backend-integration" in workflow["jobs"]
 
 
 def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
@@ -2309,13 +2221,12 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
         "changes",
         "backend",
         "backend-integration",
-        "backend-e2e-tier1",
         "frontend-vitest",
     ]
     assert "Download all test junit artifacts" not in ratchet_block
     assert "pattern: backend-shard-*-test-context" in ratchet_block
     assert "name: backend-integration-test-context" in ratchet_block
-    assert "pattern: backend-tier1-e2e-*-test-context" in ratchet_block
+    assert "pattern: backend-tier1-e2e-*-test-context" not in ratchet_block
     assert "name: frontend-vitest-test-context" in ratchet_block
     assert (
         "uv run --with pyyaml python tools/aggregate_ac_evidence.py"
@@ -3250,12 +3161,11 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
         "tooling-coverage",
         "backend",
         "backend-integration",
-        "backend-e2e-tier1",
         "frontend-vitest",
     }
     assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
     assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, backend-e2e-tier1, frontend-build, "
+        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, "
         "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
         "verify-sha-image-published, lint, tooling-coverage, "
         "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
@@ -3297,7 +3207,6 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
         "tooling-coverage",
         "backend",
         "backend-integration",
-        "backend-e2e-tier1",
         "frontend-vitest",
     }
     assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
@@ -3368,38 +3277,23 @@ def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> Non
 
 
 def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
-    """AC8.13.67: Tier-1 backend API E2E does not collect Playwright browser E2E."""
+    """AC8.13.67: Tier-1 backend API E2E is retired and consolidated into Bench V2."""
     workflow = read(".github/workflows/ci.yml")
     pyproject = read("apps/backend/pyproject.toml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     matrix_yaml = yaml.safe_load(read("common/testing/data/test-execution-matrix.yaml"))
 
-    tier1_block = workflow.split("  backend-e2e-tier1:", 1)[1].split(
-        "  frontend-build:",
-        1,
-    )[0]
-
-    assert "tests/e2e/test_core_journeys.py" in tier1_block
-    assert "tests/e2e/test_auth_flows.py" not in tier1_block
-    assert "tests/e2e/test_e2e_flows.py" not in tier1_block
-    assert "playwright install" not in tier1_block
+    assert "backend-e2e-tier1:" not in workflow
     assert (
         "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
         in pyproject
     )
-    # #1682: common/testing/ci-cd.md no longer hand-enumerates the Tier-1 file set
-    # (that duplicated common/testing/matrix.py and drifted); it points at the
-    # generated matrix view instead. Check the doc references that SSOT, and
-    # check the SSOT itself for the actual path + stage — the real fact lives
-    # in one place now, not mirrored into the doc's prose.
     assert "test-execution-matrix.yaml" in ci_cd
-    matrix_rule = next(
-        rule
+    # Legacy apps/backend/tests/e2e/test_core_journeys.py has been consolidated into Bench V2
+    assert not any(
+        rule["path"] == "apps/backend/tests/e2e/test_core_journeys.py"
         for rule in matrix_yaml["rules"]
-        if rule["path"] == "apps/backend/tests/e2e/test_core_journeys.py"
     )
-    assert matrix_rule["stage"] == "backend_tier1_api_e2e"
-    assert matrix_rule["ci_required"] is True
 
 
 def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
@@ -4368,7 +4262,6 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
         "schema-migrations:",
         "backend:",
         "backend-integration:",
-        "backend-e2e-tier1:",
         "frontend-build:",
         "frontend-vitest:",
         "frontend-playwright:",

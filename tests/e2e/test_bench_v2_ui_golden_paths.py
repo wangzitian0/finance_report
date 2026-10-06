@@ -5,6 +5,13 @@ Covers:
 - AC-reporting.balance-sheet.3: Multi-currency account balance aggregation.
 - AC-reporting.income-statement.1: Single-counted operating expenses and net income.
 - AC-reporting.fe-viz-reports.10: CTA adjustment and equation delta UI presentation.
+- AC8.10.1 / AC8.8.1: API health check smoke.
+- AC-runtime.1.3: Frontend and backend reachability smoke.
+- AC8.8.4 / AC8.10.7: Reports API and statement verification.
+- AC16.12.11: Reports route and financial statements presentation.
+- AC1.5.4: Ping toggle endpoint smoke.
+- AC6.11.1: AI model catalog smoke.
+- AC6.5.1: Chat suggestions smoke.
 - AC8.13.9: Authenticated UI route verification.
 
 Executes Bench V2 multi-period financial accounting scenarios against the live

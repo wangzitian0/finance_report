@@ -290,7 +290,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
 
     expect(await screen.findByText("Audit Trail")).toBeInTheDocument();
-    expect(screen.getByText("ai")).toBeInTheDocument();
+    expect(await screen.findByText("ai")).toBeInTheDocument();
     expect(screen.getByText("classified")).toBeInTheDocument();
     expect(screen.getByText(/Food & Dining/)).toBeInTheDocument();
   });

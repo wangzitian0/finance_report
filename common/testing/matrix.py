@@ -50,21 +50,13 @@ class PathRule:
 # longest-prefix semantics in common/testing/check_ac_traceability.py.
 PATH_RULES: tuple[PathRule, ...] = (
     PathRule(
-        "apps/backend/tests/e2e/test_core_journeys.py", "backend_tier1_api_e2e", True
-    ),
-    PathRule(
-        "apps/backend/tests/e2e/test_seeded_statement_journey.py",
-        "backend_tier1_api_e2e",
-        True,
-    ),
-    PathRule(
         "apps/backend/tests/e2e/test_statement_corpus_journeys.py",
-        "backend_tier1_api_e2e",
+        "backend_integration",
         True,
     ),
     PathRule(
         "apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py",
-        "backend_tier1_api_e2e",
+        "backend_integration",
         True,
     ),
     PathRule("apps/backend/tests/", "backend_ci", True),
@@ -190,12 +182,6 @@ class E2ERow:
 
 E2E_ROWS: tuple[E2ERow, ...] = (
     E2ERow(
-        "tests/e2e/test_core_journeys.py",
-        needs=(),
-        audited=True,
-        reason="Fixture-seeded core journeys; original in-runner preview set.",
-    ),
-    E2ERow(
         "tests/e2e/test_epic022_ia_shell.py",
         needs=(),
         audited=True,
@@ -204,13 +190,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "apps/backend/tests/e2e copy (backend_ci marker deselected it); "
             "authenticated browser + frontend shell only, no provider."
         ),
-    ),
-    E2ERow(
-        "tests/e2e/test_e2e_flows.py",
-        needs=(),
-        audited=True,
-        nodes=("tests/e2e/test_e2e_flows.py::test_full_navigation",),
-        reason="Only full-navigation is audited for in-runner; remaining nodes pending audit.",
     ),
     E2ERow(
         "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py",
@@ -481,25 +460,6 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=test-results/backend-integration.xml",
     ),
     WorkflowPytestContract(
-        stage="backend_tier1_api_e2e",
-        workflow=".github/workflows/ci.yml",
-        marker=BACKEND_TIER1_MARKER,
-        # Tier-1 file set: core API journeys + the provider-free seeded
-        # statement journeys (AC8.21) + the extraction-corpus journeys
-        # (AC-llm.11) + the EPIC-025 reporting-extraction API proof.
-        # Browser-dependent specs need a frontend and stay out of this
-        # API-only lane (the local-only backend copies of test_auth_flows /
-        # test_e2e_flows were deleted, #1682 — the root tests/e2e/ versions
-        # are the only ones left, running in the deployment_e2e stage).
-        paths=(
-            "tests/e2e/test_core_journeys.py",
-            "tests/e2e/test_seeded_statement_journey.py",
-            "tests/e2e/test_statement_corpus_journeys.py",
-            "tests/e2e/test_epic025_dry_ssot_e2e.py",
-        ),
-        anchor="--junit-xml=test-results/backend-tier1-e2e.xml",
-    ),
-    WorkflowPytestContract(
         stage="tooling_ci",
         workflow=".github/workflows/ci.yml",
         marker=None,
@@ -573,5 +533,5 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
 # every PR. A behavioral @ac_proof declaring ci_tier="pr_ci" must surface in
 # this evidence — enforced by common/testing/check_pr_ci_evidence.py.
 PR_EVIDENCE_STAGES: frozenset[str] = frozenset(
-    {"backend_ci", "backend_integration", "backend_tier1_api_e2e", "frontend_vitest"}
+    {"backend_ci", "backend_integration", "frontend_vitest"}
 )

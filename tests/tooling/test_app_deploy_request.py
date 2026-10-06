@@ -101,7 +101,7 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     )
     assert "sha256sum --check --status" in tooling_run
     # The verified wheel installs into the lockfile-backed venv the
-    # backend/backend-integration/backend-e2e-tier1 jobs already cache
+    # backend/backend-integration jobs already cache
     # (actions/cache@v5 keyed on apps/backend/uv.lock) rather than an ad hoc
     # `uv run --with <n packages>` resolve+download on every run (#1767
     # measured that ad hoc install as ~7:47-7:59 of this job's ~8:00).

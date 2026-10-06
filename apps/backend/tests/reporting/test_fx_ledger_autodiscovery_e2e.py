@@ -32,6 +32,7 @@ _OUT_SGD = Decimal("1360.00")
 _IN_USD = Decimal("1000.00")
 _RATE_SGD_PER_USD = Decimal("1.360000")
 _SALARY_SGD = Decimal("5000.00")
+_FEE_SGD = Decimal("2.50")
 
 _REPORT_DATE = date(2025, 6, 30)
 _PERIOD_START = date(2025, 6, 1)
@@ -290,4 +291,146 @@ async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: Asy
         metric="same_day_round_trip_nets_zero_realized_pnl_through_live_report",
         provenance="deterministic",
         comment="Same-day SGD->USD->SGD round-trip nets zero realized P&L via generate_income_statement (#1123 AC4 live).",
+    )
+
+
+async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
+    """Seed an internal transfer with legs recorded in the ledger."""
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=_RATE_SGD_PER_USD,
+            rate_date=_TXN_DATE,
+            source="test",
+        )
+    )
+
+    sgd_bank = await _account(db, user_id, name="SGD Bank", account_type=AccountType.ASSET, currency="SGD")
+    usd_bank = await _account(db, user_id, name="USD Bank", account_type=AccountType.ASSET, currency="USD")
+    salary_income = await _account(db, user_id, name="Salary", account_type=AccountType.INCOME, currency="SGD")
+    transfer_income = await _account(
+        db, user_id, name="Misclassified Transfer In", account_type=AccountType.INCOME, currency="USD"
+    )
+    transfer_expense = await _account(
+        db, user_id, name="Misclassified Transfer Out", account_type=AccountType.EXPENSE, currency="SGD"
+    )
+
+    await _post_entry(
+        db,
+        user_id,
+        debit_account=sgd_bank,
+        credit_account=salary_income,
+        amount=_SALARY_SGD,
+        currency="SGD",
+    )
+
+    in_entry = await _post_entry(
+        db,
+        user_id,
+        debit_account=usd_bank,
+        credit_account=transfer_income,
+        amount=_IN_USD,
+        currency="USD",
+    )
+    out_entry = await _post_entry(
+        db,
+        user_id,
+        debit_account=transfer_expense,
+        credit_account=sgd_bank,
+        amount=_OUT_SGD,
+        currency="SGD",
+    )
+
+    db.add(
+        FxConversion(
+            user_id=user_id,
+            from_account_id=sgd_bank.id,
+            to_account_id=usd_bank.id,
+            amount_from=_OUT_SGD,
+            currency_from="SGD",
+            amount_to=_IN_USD,
+            currency_to="USD",
+            rate=_RATE_SGD_PER_USD,
+            fee=_FEE_SGD,
+            fee_currency="SGD",
+            conversion_date=_TXN_DATE,
+            from_journal_entry_id=out_entry.id,
+            to_journal_entry_id=in_entry.id,
+        )
+    )
+    await db.commit()
+
+
+@ac_proof(
+    "internal-transfer-income-statement-e2e",
+    ac_ids=["AC-reconciliation.fx-transfer.9"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record"],
+    issue="#1123",
+)
+async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: AsyncSession, test_user, ac_evidence):
+    """AC-reconciliation.fx-transfer.9: The income statement excludes recorded internal transfer legs fee-only."""
+    await _seed_internal_transfer_scenario(db, test_user.id)
+
+    report = await generate_income_statement(
+        db,
+        test_user.id,
+        start_date=_PERIOD_START,
+        end_date=_REPORT_DATE,
+        currency="SGD",
+    )
+
+    assert report["total_income"] == _SALARY_SGD
+    assert report["total_expenses"] == _FEE_SGD
+    assert report["net_income"] == Decimal("4997.50")
+
+    expense_lines = report["expenses"]
+    expense_line_sum = sum((Decimal(str(line["amount"])) for line in expense_lines), Decimal("0"))
+    assert expense_line_sum == report["total_expenses"]
+    fee_lines = [line for line in expense_lines if Decimal(str(line["amount"])) == _FEE_SGD]
+    assert len(fee_lines) == 1, "internal-transfer fee must appear as a single expense line"
+    assert fee_lines[0]["account_id"] is not None
+    assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
+
+    ac_evidence(
+        ac_id="AC-reconciliation.fx-transfer.9",
+        score=1.0,
+        metric="income_statement_excludes_internal_transfer_legs_fee_only",
+        provenance="deterministic",
+        comment="Live-wired internal-transfer exclusion proven end to end via generate_income_statement (#1123 AC3).",
+    )
+
+
+@ac_proof(
+    "internal-transfer-balance-sheet-net-income-e2e",
+    ac_ids=["AC-reconciliation.fx-transfer.10"],
+    scope="behavioral",
+    ci_tier="pr_ci",
+    trust_mode="deterministic_pr",
+    source_classes=["manual_record"],
+    issue="#1123",
+)
+async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, test_user, ac_evidence):
+    """AC-reconciliation.fx-transfer.10: Cumulative balance sheet net income excludes recorded internal transfer legs fee-only."""
+    await _seed_internal_transfer_scenario(db, test_user.id)
+
+    report = await generate_balance_sheet(
+        db,
+        test_user.id,
+        as_of_date=_REPORT_DATE,
+        currency="SGD",
+        include_trust_signals=False,
+    )
+
+    assert report["net_income"] == Decimal("4997.50")
+
+    ac_evidence(
+        ac_id="AC-reconciliation.fx-transfer.10",
+        score=1.0,
+        metric="balance_sheet_net_income_excludes_internal_transfer_fee_only",
+        provenance="deterministic",
+        comment="Live-wired internal-transfer exclusion proven end to end via generate_balance_sheet (#1123 AC3).",
     )
