@@ -593,6 +593,11 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByText("parsed.pdf")).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Review & Approve →" })).toBeInTheDocument()
 
+    const viewReportSecondary = screen.getByRole("button", { name: "View Report" })
+    expect(viewReportSecondary).toBeInTheDocument()
+    fireEvent.click(viewReportSecondary)
+    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
+
     const viewReportBtn = screen.getByRole("button", { name: "View Report →" })
     expect(viewReportBtn).toBeInTheDocument()
     fireEvent.click(viewReportBtn)
