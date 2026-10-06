@@ -25,6 +25,7 @@ from common.meta.extension.check_package_contract import (
     _package_all,
     _resolve_test,
     check_package,
+    check_single_package,
     clear_run_cache,
     discover_packages,
     main,
@@ -948,3 +949,20 @@ def test_package_ac_proof_kind_defaults_to_the_tier_canonical_kind() -> None:
         pkg = _pkg(tier=tier, roadmap=[_ac()])
         assert pkg.roadmap[0].proof_kind == expected
         assert pkg.roadmap[0].proof_kind in TIER_VALID_PROOF_KINDS[tier]
+
+
+def test_check_single_package_passes_for_clean_package(synthetic_repo: Path) -> None:
+    """check_single_package validates one clean package isolated from full run."""
+    _write_package(
+        _src(synthetic_repo), "clean", klass="infra", all_names=["K"], interface=["K"]
+    )
+    ok, messages = check_single_package("clean", synthetic_repo)
+    assert ok
+    assert any("clean" in msg and "OK" in msg for msg in messages)
+
+
+def test_check_single_package_reports_missing_package(synthetic_repo: Path) -> None:
+    """check_single_package reports failure when package does not exist."""
+    ok, messages = check_single_package("nonexistent", synthetic_repo)
+    assert not ok
+    assert any("not discovered" in msg for msg in messages)

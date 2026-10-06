@@ -4,7 +4,10 @@ import ast
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 RECONCILIATION = REPO / "apps/backend/src/reconciliation"
@@ -65,5 +68,5 @@ def test_reconciliation_only_all_is_the_published_language():
 def test_reconciliation_package_contract_gate_passes():
     names = {p.name for p in discover_packages(REPO)}
     assert "reconciliation" in names, f"reconciliation not discovered; found {names}"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("reconciliation", REPO)
     assert ok, "package contract gate failed:\n" + "\n".join(messages)

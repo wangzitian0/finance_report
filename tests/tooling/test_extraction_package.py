@@ -13,7 +13,10 @@ import ast
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 EXTRACTION = REPO / "apps/backend/src/extraction"
@@ -112,7 +115,7 @@ def test_AC_extraction_1_4_package_contract_gate_passes():
     assert any(p.contract.name == "extraction" for p in packages), (
         "extraction not discovered"
     )
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("extraction", REPO)
     extraction_errors = [m for m in messages if "[extraction]" in m]
     assert not extraction_errors, f"gate violations: {extraction_errors}"
-    assert ok, "check_package_contract failed overall"
+    assert ok, "check_package_contract failed for extraction:\n" + "\n".join(messages)

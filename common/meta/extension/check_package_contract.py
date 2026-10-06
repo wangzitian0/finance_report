@@ -80,6 +80,7 @@ import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
@@ -317,6 +318,22 @@ def _frontend_test_names(text: str) -> set[str]:
     return {m.group("name") for m in _JS_TEST_DECL.finditer(text)}
 
 
+@lru_cache(maxsize=1024)
+def _frontend_test_names_for_path(path: Path) -> set[str]:
+    return _frontend_test_names(path.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1024)
+def _python_test_names(path: Path) -> set[str]:
+    """Parse AST once per test file and return all def/async def names."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
 def _resolve_test(ref: str, repo_root: Path) -> str | None:
     """Return an error string if ``"path::func"`` does not resolve, else None."""
     if "::" not in ref:
@@ -326,16 +343,11 @@ def _resolve_test(ref: str, repo_root: Path) -> str | None:
     if not test_path.exists():
         return f"test file does not exist: {rel_path}"
     if rel_path.endswith(_FRONTEND_TEST_SUFFIXES):
-        names = _frontend_test_names(test_path.read_text(encoding="utf-8"))
+        names = _frontend_test_names_for_path(test_path)
         if func not in names:
             return f"test title {func!r} not found in {rel_path}"
         return None
-    tree = ast.parse(test_path.read_text(encoding="utf-8"))
-    names = {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    names = _python_test_names(test_path)
     if func not in names:
         return f"test function {func!r} not found in {rel_path}"
     return None
@@ -1006,9 +1018,54 @@ def _check_authored_truth_surfaces(
 _RUN_CACHE: dict[Path, tuple[bool, list[str]]] = {}
 
 
-def clear_run_cache() -> None:
+def clear_run_cache(target: Path | None = None) -> None:
     """Clear session cache for package contract validation results."""
-    _RUN_CACHE.clear()
+    _python_test_names.cache_clear()
+    _frontend_test_names_for_path.cache_clear()
+    if target is not None:
+        _RUN_CACHE.pop(target.resolve(), None)
+    else:
+        _RUN_CACHE.clear()
+
+
+def check_single_package(
+    package_name: str,
+    repo_root: Path = REPO_ROOT,
+) -> tuple[bool, list[str]]:
+    """Validate a single discovered package; return (ok, messages)."""
+    packages = discover_packages(repo_root)
+    pkg = next((p for p in packages if p.name == package_name), None)
+    if pkg is None:
+        return False, [f"package '{package_name}' not discovered"]
+    registered = {p.name: p.contract.klass for p in packages}
+    prefixes = _registered_prefixes(packages, repo_root)
+    published = {
+        p.name: _package_all(p.impl_dir)
+        for p in packages
+        if p.impl_dir is not None and (p.impl_dir / "__init__.py").exists()
+    }
+    table_owner, model_owner = _collect_orm_ownership(packages)
+    all_errors = _check_authored_truth_surfaces([pkg], repo_root)
+    errs = check_package(
+        pkg,
+        registered,
+        repo_root,
+        published=published,
+        table_owner=table_owner,
+        model_owner=model_owner,
+        prefixes=prefixes,
+    )
+    if errs:
+        all_errors.extend(errs)
+    messages: list[str] = []
+    if not all_errors:
+        messages.append(
+            f"  {pkg.name} (class {pkg.contract.klass}): "
+            f"{len(pkg.contract.interface)} interface symbol(s), "
+            f"{len(pkg.contract.invariants)} invariant(s), "
+            f"{len(pkg.contract.roadmap)} roadmap AC(s) — OK"
+        )
+    return (not all_errors, messages + all_errors)
 
 
 def run(

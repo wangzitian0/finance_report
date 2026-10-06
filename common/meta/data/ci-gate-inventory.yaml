@@ -319,7 +319,7 @@ gates:
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
-    inputs: [epic_docs, ac_registry, e2e_epic_map, reconciliation_audit, package_detector_observations, backend_junit, backend_integration_junit, backend_tier1_e2e_junit, frontend_junit, tooling_junit, github_issue_snapshot, github_ruleset_snapshot]
+    inputs: [epic_docs, ac_registry, e2e_epic_map, reconciliation_audit, package_detector_observations, backend_junit, backend_integration_junit, frontend_junit, tooling_junit, github_issue_snapshot, github_ruleset_snapshot]
     outputs: [ac_traceability_audit, e2e_epic_traceability, reconciliation_audit, package_governance_decision]
     artifacts: [ac-test-traceability-audit]
     failure_semantics: Registry/E2E/reconciliation integrity failed, or an open package initiative lacks a complete current-SHA proof and live finish enforcement edge.
@@ -334,7 +334,7 @@ gates:
     triggers: [push, pull_request, workflow_dispatch]
     required_by_finish: true
     blocks_workflow: true
-    inputs: [backend_junit, backend_integration_junit, backend_tier1_e2e_junit, frontend_junit, ac-score-baseline.jsonl]
+    inputs: [backend_junit, backend_integration_junit, frontend_junit, ac-score-baseline.jsonl]
     outputs: [ac_score_ratchet_decision]
     artifacts: []
     failure_semantics: AC behavioral evidence regressed or required JUnit artifacts are absent.

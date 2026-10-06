@@ -85,8 +85,9 @@ def test_AC_advisor_txn_1_reads_only_published_interfaces() -> None:
 
 def test_AC_advisor_txn_1_package_contract_gate_passes_for_advisor() -> None:
     """AC-advisor.txn.1: the package-contract gate (interface/DAG/txn honesty) passes for advisor."""
-    from common.meta.extension.check_package_contract import run
+    from common.meta.extension.check_package_contract import check_single_package
 
-    ok, errors = run(ROOT)
+    ok, errors = check_single_package("advisor", ROOT)
     advisor_errors = [e for e in errors if e.startswith("[advisor]")]
     assert advisor_errors == [], "\n".join(advisor_errors)
+    assert ok, "\n".join(errors)

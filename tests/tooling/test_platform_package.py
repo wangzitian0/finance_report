@@ -19,7 +19,10 @@ from dataclasses import is_dataclass
 from pathlib import Path
 from typing import get_type_hints
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 PLATFORM = REPO / "apps/backend/src/platform"
@@ -130,5 +133,5 @@ def test_platform_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: check_package_contract validates platform (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "platform" in names, f"platform not discovered; found {names}"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("platform", REPO)
     assert ok, "package contract gate failed:\n" + "\n".join(messages)

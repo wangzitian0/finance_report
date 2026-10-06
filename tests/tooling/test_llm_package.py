@@ -15,7 +15,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 LLM = REPO / "apps/backend/src/llm"
@@ -151,7 +154,7 @@ def test_AC_llm_1_6_package_contract_gate_passes_for_llm():
     """Invariant passes-own-governance-gate: the gate validates llm with no violations."""
     packages = discover_packages(REPO)
     assert any(p.contract.name == "llm" for p in packages), "llm not discovered"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("llm", REPO)
     llm_errors = [m for m in messages if "[llm]" in m]
     assert not llm_errors, f"gate violations for llm: {llm_errors}"
-    assert ok, "check_package_contract failed overall"
+    assert ok, "check_package_contract failed for llm:\n" + "\n".join(messages)

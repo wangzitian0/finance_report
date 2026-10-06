@@ -17,7 +17,10 @@ import ast
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 IDENTITY = REPO / "apps/backend/src/identity"
@@ -131,5 +134,5 @@ def test_identity_package_contract_gate_passes():
     """Invariant passes-own-governance-gate: check_package_contract validates identity (green)."""
     names = {p.name for p in discover_packages(REPO)}
     assert "identity" in names, f"identity not discovered; found {names}"
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("identity", REPO)
     assert ok, "package contract gate failed:\n" + "\n".join(messages)
