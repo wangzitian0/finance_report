@@ -255,7 +255,6 @@ COVERAGE_EXEMPT_PATTERNS: tuple[str, ...] = (
     "apps/backend/scripts/**",
     # Agent tooling / skills — not shipped product runtime.
     "skills/**",
-    ".opencode/**",
     # Docs build tooling.
     "docs/**",
 )

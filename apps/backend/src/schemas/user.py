@@ -4,7 +4,6 @@ from src.identity import (
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
     UserBase,
-    UserCreate,
     UserResponse,
     UserUpdate,
 )
@@ -16,7 +15,6 @@ __all__ = [
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
     "UserBase",
-    "UserCreate",
     "UserListResponse",
     "UserResponse",
     "UserUpdate",

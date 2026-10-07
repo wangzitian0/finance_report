@@ -105,7 +105,6 @@ CONTRACT = PackageContract(
         Unit(name="LoginRequest", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
         Unit(name="AuthResponse", kind=Kind.VALUE_OBJECT, module="base/types/auth.py"),
         Unit(name="UserBase", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
-        Unit(name="UserCreate", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
         Unit(name="UserUpdate", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
         Unit(name="UserResponse", kind=Kind.VALUE_OBJECT, module="base/types/user.py"),
         Unit(
@@ -211,7 +210,6 @@ CONTRACT = PackageContract(
         "UserAiSettingsResponse",
         "UserAiSettingsUpdate",
         "UserBase",
-        "UserCreate",
         "UserRepository",
         "UserResponse",
         "UserUpdate",

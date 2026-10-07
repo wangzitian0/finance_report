@@ -137,6 +137,7 @@ CHECKS: tuple[Check, ...] = (
         name="api-reference",
         globs=(
             "apps/backend/src/routers/*.py",
+            "apps/backend/src/*/extension/api/*.py",
             "apps/backend/src/schemas/*.py",
             "apps/backend/src/main.py",
         ),

@@ -128,7 +128,6 @@ _LAZY = {
     "UnmatchedTransactionsResponse": ("src.schemas.reconciliation", "UnmatchedTransactionsResponse"),
     "UserAiSettingsResponse": ("src.schemas.user", "UserAiSettingsResponse"),
     "UserAiSettingsUpdate": ("src.schemas.user", "UserAiSettingsUpdate"),
-    "UserCreate": ("src.schemas.user", "UserCreate"),
     "UserListResponse": ("src.schemas.user", "UserListResponse"),
     "UserResponse": ("src.schemas.user", "UserResponse"),
     "UserUpdate": ("src.schemas.user", "UserUpdate"),
@@ -264,7 +263,6 @@ __all__ = [
     "UnmatchedTransactionsResponse",
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
-    "UserCreate",
     "UserListResponse",
     "UserResponse",
     "UserUpdate",
@@ -436,7 +434,6 @@ if TYPE_CHECKING:  # pragma: no cover - static view of the lazy exports
     from src.schemas.user import (
         UserAiSettingsResponse,
         UserAiSettingsUpdate,
-        UserCreate,
         UserListResponse,
         UserResponse,
         UserUpdate,

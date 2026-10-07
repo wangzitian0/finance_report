@@ -181,6 +181,16 @@ class TestSelectChecks:
         assert "api-reference" in names
         assert "router-contract" in names
 
+    def test_package_extension_api_edit_selects_api_reference(self):
+        """Package extension API changes select api-reference check."""
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["apps/backend/src/identity/extension/api/users.py"]
+            )
+        ]
+        assert "api-reference" in names
+
     def test_schema_edit_selects_api_reference(self):
         # Schema changes also move the OpenAPI reference (but not the
         # router-contract scan, which only reads routers/).
