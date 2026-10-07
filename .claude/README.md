@@ -8,17 +8,17 @@ few small committed config files (`.claude/settings.json`, `.mcp.json`,
 
 | Runtime | Instructions | Skills | MCP |
 |---|---|---|---|
-| OpenCode | `AGENTS.md` (native) | `.opencode/skills` (canonical) | `opencode.json` |
-| Claude Code | `CLAUDE.md` → `AGENTS.md` | `.claude/skills/*` → `.opencode/skills/**` | `.mcp.json` |
-| Codex | `AGENTS.md` (native) | `.codex/skills/*` → `.opencode/skills/**` | global only |
-| Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | (via `AGENTS.md`) | `.gemini/settings.json` |
+| OpenCode | `AGENTS.md` (native) | `skills` (canonical) | `opencode.json` |
+| Claude Code | `CLAUDE.md` → `AGENTS.md` | `.claude/skills/*` → `skills/*` | `.mcp.json` |
+| Codex | `AGENTS.md` (native) | `.codex/skills/*` → `skills/*` | global only |
+| Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | `.agents/skills/*` → `skills/*` | `.gemini/settings.json` |
 
 - `../CLAUDE.md` and `../GEMINI.md` are symlinks to `../AGENTS.md` — edit
   `AGENTS.md`, never the symlinks (and note `AGENTS.md` is policy-protected).
-- `.claude/skills/<name>` and `.codex/skills/<name>` are flat symlinks onto the
-  canonical library in `../.opencode/skills`. Add or rename a skill **there
-  only**; the links are each runtime's view of it. Discovery is case-sensitive
-  (`SKILL.md`), and both Claude Code and Codex pick up project skills on clone.
+- `.claude/skills/<name>`, `.codex/skills/<name>`, and `.agents/skills/<name>`
+  are flat symlinks onto the canonical library in `../skills`. Add or rename a skill
+  **there only**; the links are each runtime's view of it. Discovery is case-sensitive
+  (`SKILL.md`), and all runtimes pick up project skills on clone.
 
 Drift (a renamed target, a skill linked on one side only, a re-added ban-risk
 auth plugin or model provider, a dropped MCP server) is caught by

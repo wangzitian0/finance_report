@@ -10,25 +10,15 @@ behavioral entry point is [`AGENTS.md`](../AGENTS.md); the multi-runtime bridge
 ```
 .opencode/
 ├── oh-my-openagent.json   # OpenCode agent/model routing + enabled skills
-├── skills/                # Canonical skill library (other runtimes symlink in)
-│   └── domain/            # Project-specific operational knowledge only
 └── README.md              # This file
 ```
 
 ## Skills
 
-Only **project-specific** skills live here (accounting, reconciliation,
-reporting, extraction, schema, development, preflight, ac-workflow,
-github-operations, secrets-management, infra-operations, planning,
-staging-qa, ux-review). Generic-expertise
-packs (backend/frontend/QA/PM/UI) were removed in #1657: frontier models carry
-that knowledge natively, and version-specific questions route to live docs
-(context7 MCP) rather than frozen snapshots. Before adding a skill, ask: does
-this contain facts *about this repo* that the model cannot read from SSOT/code
-directly? If not, don't add it.
-
-Add or rename skills **here only** — `.claude/skills/` and `.codex/skills/` are
-flat symlinks (guard: `tests/tooling/test_agent_runtime_symlinks.py`).
+The project skill library lives in the top-level `skills/` directory,
+managed via `dev_env` SSOT and published through `ws_publish.py`.
+Multi-runtime mirrors (`.claude/skills/`, `.codex/skills/`, `.agents/skills/`)
+symlink directly into `skills/` (guard: `tests/tooling/test_agent_runtime_symlinks.py`).
 
 ## Agents & models
 
