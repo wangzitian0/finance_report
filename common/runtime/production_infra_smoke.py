@@ -78,7 +78,8 @@ def verify_health(
 ) -> list[str]:
     """Verify production health exposes version plus DB and object-storage checks."""
     payload = _parse_json(
-        "Production health", fetcher(_join_url(base_url, "/api/health"), timeout)
+        "Production health",
+        fetcher(_join_url(base_url, "/api/health?full=1"), timeout),
     )
 
     if payload.get("status") != "healthy":

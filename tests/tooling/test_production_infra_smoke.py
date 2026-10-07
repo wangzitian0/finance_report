@@ -34,7 +34,7 @@ def test_AC8_13_64_production_infra_smoke_requires_db_s3_and_observability() -> 
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
         assert timeout == 5
-        if url.endswith("/api/health"):
+        if url.endswith("/api/health?full=1"):
             return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
@@ -58,7 +58,7 @@ def test_AC8_13_64_production_infra_smoke_fails_when_db_is_down() -> None:
     """AC8.13.64: Production infra smoke fails on unhealthy DB checks."""
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
-        if url.endswith("/api/health"):
+        if url.endswith("/api/health?full=1"):
             return HttpResponse(
                 200,
                 '{"status":"healthy","git_sha":"v0.1.3",'
@@ -146,7 +146,7 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_health_payloads(
     """AC8.13.64: Production infra smoke rejects incomplete health proofs."""
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
-        assert url.endswith("/api/health")
+        assert url.endswith("/api/health?full=1")
         return HttpResponse(200, health_body)
 
     with pytest.raises(SmokeFailure, match=message):
@@ -161,8 +161,8 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_health_payloads(
 @pytest.mark.parametrize(
     ("url_suffix", "response", "message"),
     [
-        ("/api/health", HttpResponse(200, "not-json"), "did not return JSON"),
-        ("/api/health", HttpResponse(200, "[]"), "non-object JSON"),
+        ("/api/health?full=1", HttpResponse(200, "not-json"), "did not return JSON"),
+        ("/api/health?full=1", HttpResponse(200, "[]"), "non-object JSON"),
         (
             "/api/ping",
             HttpResponse(200, '{"state":"ping"}'),
@@ -181,7 +181,7 @@ def test_AC8_13_64_production_infra_smoke_rejects_bad_runtime_responses(
     def fetcher(url: str, timeout: float) -> HttpResponse:
         if url.endswith(url_suffix):
             return response
-        if url.endswith("/api/health"):
+        if url.endswith("/api/health?full=1"):
             return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
@@ -207,7 +207,7 @@ def test_AC8_13_64_production_infra_smoke_retries_frontend_cold_start() -> None:
     calls = {"frontend": 0}
 
     def fetcher(url: str, timeout: float) -> HttpResponse:
-        if url.endswith("/api/health"):
+        if url.endswith("/api/health?full=1"):
             return HttpResponse(200, VALID_HEALTH_BODY)
         if url.endswith("/api/ping"):
             return HttpResponse(200, '{"state":"ping","toggle_count":1}')
