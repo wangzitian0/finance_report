@@ -3,12 +3,12 @@
   "dirty_inputs": [],
   "inputs": {
     "repo": "5fe9c3a2313f65ec72237e46d45782c18201b4bedb7d4bd580640d56c1b6477a",
-    "root": "b0c1243f33abf788e9b08ad8b962004df40f8372faff27d326e6425d93b891cc",
-    "skills": "75e3ea4fe7958bb50a88ef09c6aa696304a4d19df2a1fafffd36b20a8bb56a6f"
+    "root": "b1bad464d5c6bca567caf385cd758d4f59e10c55e02867a811666bea8aacdf08",
+    "skills": "fab92bb6b17d4fabf1fae0e7ec6bbdd1a41af5f5a788750aca46c58aa68768a2"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "6e94e3b25f697dc540a30fcfdb1b76bee97cb5dcf4ce4dc01ae41b7ee31ecb78",
+    "AGENTS.md": "49a3475fd6f399d618469183ee56479fd406ab0aed1fdbeb3519f2da476df6dc",
     "CLAUDE.md": "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
   },
   "profiles": [
@@ -21,12 +21,12 @@
     "files": {
       ".opencode/skills/domain/ac-workflow/SKILL.md": "391e06071fef3c878ee865660228f8aff0d2c64d093f266eb1a6161cafe96899",
       ".opencode/skills/domain/accounting/SKILL.md": "e0f4596bd0a3ff475ba55e326c05ca0a1125f59da10475364e10870c9bd3dbb9",
-      ".opencode/skills/domain/audit/SKILL.md": "e747dba2219e923692ac6561d40e78760f63d50a0c9edc609928d0b9bb29ee77",
+      ".opencode/skills/domain/audit/SKILL.md": "a168e95dd97a444677ca601ebf0431fa43c0f2fd718c1bc569fde9b8d181bd7d",
       ".opencode/skills/domain/auto/SKILL.md": "7448a07fe2313fc05bdaa2456411ccce089075f398701dfdd9639e3e411fb121",
       ".opencode/skills/domain/close/SKILL.md": "f8dfd0ad608df0ce60212aa53572d7778b2109aa6085d17cdd43b73021428534",
-      ".opencode/skills/domain/codegraph/SKILL.md": "974b470fa5d208da9aba8caf99e85fe50aad4f43e758a9058f6505bec057956f",
+      ".opencode/skills/domain/codegraph/SKILL.md": "ab6e81a61e7efb60ff9897c058e668c120ce282ea918b1364ca2b1fb353e7d0f",
       ".opencode/skills/domain/deploy-evidence/SKILL.md": "08cb8a4505bc88a46c5baac03260e97ba0f944b198f5f8d2bf75dd5dd946f368",
-      ".opencode/skills/domain/init/SKILL.md": "b39c661214babd98228c4b76692f5f5c810c1f0a991b8eafc92c86c0253aba6c",
+      ".opencode/skills/domain/init/SKILL.md": "4b0dde837e3f9d64741baec7fd0f520b38b74e3fc35478f0f8686341293eff87",
       ".opencode/skills/domain/prr/SKILL.md": "402e84b362610e044e7a18113ce245f40e437c01362967e47d1e96a31d1ba4e4",
       ".opencode/skills/domain/recall/SKILL.md": "aca4bdbd0d78c56665f92de0fc6d5c8be7a850c6013cb0849beb876f97a23f3e",
       ".opencode/skills/domain/secrets-management/SKILL.md": "b39e62840e3b7372177eabfda0af61d7af16e5d594a06130da11c37bcf786479",
@@ -85,7 +85,7 @@
     },
     "root": ".opencode/skills/domain"
   },
-  "source_revision": "2e2323257d3c8dd24f95b12bc32b05dee47882be",
+  "source_revision": "d487252952700ab78bff3c5bd9277055dfc27d78",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
