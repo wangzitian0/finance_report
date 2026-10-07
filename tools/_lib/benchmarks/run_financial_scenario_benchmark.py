@@ -61,10 +61,19 @@ from tools._lib.benchmarks.statement_generators import (  # noqa: E402
 class ScenarioBenchmarkRunner:
     """Benchmark scenario runner connecting to the target API."""
 
-    def __init__(self, base_url: str, timeout: float = 180.0, verify: bool = True):
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 180.0,
+        verify: bool = True,
+        replay_mode: str = "off",
+        cassette_mode: str | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.verify = verify
+        self.replay_mode = cassette_mode or replay_mode
+        self.cassette_mode = self.replay_mode
         self.last_auth_context: dict[str, Any] | None = None
 
     def create_ephemeral_client(
@@ -564,6 +573,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Disable TLS certificate verification for local development/testing",
     )
+    parser.add_argument(
+        "--cassette",
+        choices=["replay", "off"],
+        default="off",
+        help="Enable cassette replay mode for fast execution without live OCR latency",
+    )
     return parser.parse_args(argv)
 
 
@@ -679,7 +694,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("======================================================================")
 
     runner = ScenarioBenchmarkRunner(
-        base_url=args.app_url, timeout=args.timeout, verify=not args.insecure
+        base_url=args.app_url,
+        timeout=args.timeout,
+        verify=not args.insecure,
+        cassette_mode=args.cassette,
     )
 
     results = _dispatch_cases(runner, args.case)

@@ -1,17 +1,13 @@
-"""Product E2E owner test for EPIC-026 (AC authority tiers).
+"""Tooling gate test for EPIC-026 (AC authority tiers).
 
-EPIC-026 is a docs/governance EPIC: its "product" is the authority-tier pipeline
-itself. This Tier-agnostic E2E drives the REAL repo end to end — EPIC markdown
--> ``generate_ac_registry`` -> registry value -> ``check_ac_tier_baseline``
-ratchet — proving the whole chain works against the actual checked-in EPIC docs
-and baseline, not a fixture. It needs no app/DB/browser, so it is safe anywhere.
+Drives the authority-tier pipeline: EPIC markdown -> generate_ac_registry ->
+registry value -> check_ac_tier_baseline ratchet against checked-in EPIC docs
+and baseline.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-
-import pytest
 
 from common.meta.extension import check_ac_tier_baseline as tier_gate
 from common.meta.extension import generate_ac_registry as gar
@@ -19,8 +15,7 @@ from common.meta.extension import generate_ac_registry as gar
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.e2e
-def test_authority_tier_pipeline_end_to_end_epic026() -> None:
+def test_authority_tier_pipeline_gate_epic026() -> None:
     """EPIC-026 / AC-authority.2.1 + AC-authority.3.1 + AC-authority.4.1: the real tier pipeline holds.
 
     GIVEN the actual EPIC docs and the committed untagged-debt baseline

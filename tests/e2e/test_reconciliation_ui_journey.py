@@ -27,7 +27,7 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 async def test_reconciliation_workbench_surface_and_navigation(
     authenticated_page: Page,
 ):
-    """EPIC-007 EPIC-008 / AC-reconciliation.workbench.1 AC8.13.9: Reconciliation workbench layout and studio navigation."""
+    """EPIC-004 EPIC-007 EPIC-008 / AC-reconciliation.workbench.1 AC8.13.9: Reconciliation workbench layout and studio navigation."""
     page = authenticated_page
     await page.goto(f"{APP_URL}/reconciliation", wait_until="domcontentloaded")
     assert "/login" not in page.url

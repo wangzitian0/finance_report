@@ -30,7 +30,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
-| `FALLBACK_MODELS` |  | `glm-5.3,glm-5.2` |  | AI Provider | Comma-separated fallback AI model ids. |
+| `FALLBACK_MODELS` |  | `glm-5.3-flash,glm-5.2` |  | AI Provider | Comma-separated fallback AI model ids. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
 | `OCR_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | OCR AI model id. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |

@@ -137,6 +137,69 @@ def test_generate_multicurrency_usd_and_hkd_csv() -> None:
     assert Decimal(hkd_rows[0]["Statement Closing Balance"]) == hkd_opening + hkd_delta
 
 
+def test_generate_consecutive_months_replay_csv_identity() -> None:
+    """Benchmark Case 1: Replay CSV generators maintain consecutive opening-closing chain reconciliation."""
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+        generate_consecutive_month1_csv,
+        generate_consecutive_month2_csv,
+        generate_consecutive_month3_csv,
+        generate_consecutive_month4_csv,
+    )
+
+    # Month 1
+    m1_opening = Decimal("15450.75")
+    m1_bytes = generate_consecutive_month1_csv(opening_balance=m1_opening)
+    m1_rows = list(csv.DictReader(io.StringIO(m1_bytes.decode("utf-8"))))
+    assert len(m1_rows) == 2
+    m1_delta = sum(Decimal(r["Amount"]) for r in m1_rows)
+    m1_closing = m1_opening + m1_delta
+    assert m1_closing == Decimal("15271.23")
+    assert Decimal(m1_rows[0]["Statement Closing Balance"]) == m1_closing
+
+    # Month 2
+    m2_bytes = generate_consecutive_month2_csv(opening_balance=m1_closing)
+    m2_rows = list(csv.DictReader(io.StringIO(m2_bytes.decode("utf-8"))))
+    assert len(m2_rows) == 3
+    m2_delta = sum(Decimal(r["Amount"]) for r in m2_rows)
+    m2_closing = m1_closing + m2_delta
+    assert m2_closing == Decimal("18250.00")
+    assert Decimal(m2_rows[0]["Statement Closing Balance"]) == m2_closing
+
+    # Month 3
+    m3_bytes = generate_consecutive_month3_csv(opening_balance=m2_closing)
+    m3_rows = list(csv.DictReader(io.StringIO(m3_bytes.decode("utf-8"))))
+    assert len(m3_rows) == 2
+    m3_delta = sum(Decimal(r["Amount"]) for r in m3_rows)
+    m3_closing = m2_closing + m3_delta
+    assert m3_closing == Decimal("21300.00")
+    assert Decimal(m3_rows[0]["Statement Closing Balance"]) == m3_closing
+
+    # Month 4
+    m4_bytes = generate_consecutive_month4_csv(opening_balance=m3_closing)
+    m4_rows = list(csv.DictReader(io.StringIO(m4_bytes.decode("utf-8"))))
+    assert len(m4_rows) == 2
+    m4_delta = sum(Decimal(r["Amount"]) for r in m4_rows)
+    m4_closing = m3_closing + m4_delta
+    assert m4_closing == Decimal("24200.00")
+    assert Decimal(m4_rows[0]["Statement Closing Balance"]) == m4_closing
+
+
+def test_benchmark_cli_cassette_option_parsing() -> None:
+    """Benchmark CLI supports --cassette=replay and propagates to runner."""
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+        _parse_args,
+    )
+
+    parsed = _parse_args(["--cassette", "replay", "--app-url", "http://localhost:8000"])
+    assert parsed.cassette == "replay"
+
+    runner = ScenarioBenchmarkRunner(
+        base_url="http://localhost:8000", cassette_mode=parsed.cassette
+    )
+    assert runner.cassette_mode == "replay"
+
+
 def test_benchmark_manifest_v2_fixtures_verified() -> None:
     """AC-testing.benchmarks.v2: manifest.yaml is version 2.0 and all registered fixtures exist with valid SHA-256."""
     import hashlib

@@ -292,25 +292,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
-        "tests/e2e/test_ac_authority_tiers_epic026.py",
-        needs=(),
-        audited=True,
-        reason=(
-            "Audited (#1547 follow-up): pure registry/ratchet validation over local "
-            "files — no network, no fixtures, zero external dependencies."
-        ),
-    ),
-    E2ERow(
-        "tests/e2e/test_application_ai_advisor_epic021.py",
-        needs=(),
-        audited=True,
-        reason=(
-            "Audited (#1547 follow-up): despite the name, this validates EPIC/SSOT "
-            "document contracts only — it never exercises the advisor runtime or "
-            "any LLM path."
-        ),
-    ),
-    E2ERow(
         "tests/e2e/test_bench_v2_ui_golden_paths.py",
         needs=(NEEDS_STATE_SENSITIVE,),
         audited=True,
