@@ -8,7 +8,7 @@ instructions, skills, and MCP tools:
   OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
   the Gemini CLI.
 * ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` are flat
-  symlinks onto the canonical skill library in ``.opencode/skills`` so every
+  symlinks onto the canonical skill library in ``skills`` so every
   runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
@@ -29,8 +29,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-OPENCODE_SKILLS = ROOT / ".opencode" / "skills"
-# Runtimes that mirror the canonical .opencode skill library via flat symlinks
+CANONICAL_SKILLS = ROOT / "skills"
+# Runtimes that mirror the canonical skill library via flat symlinks
 # (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
 # .agents/skills — all project-level and discovered on clone).
 MIRROR_SKILL_DIRS = {
@@ -79,17 +79,17 @@ def _all_opencode_model_refs() -> dict[str, str]:
     return refs
 
 
-def _opencode_leaf_skill_dirs() -> dict[str, Path]:
-    """Map skill name -> leaf directory for every SKILL.md under .opencode.
+def _canonical_leaf_skill_dirs() -> dict[str, Path]:
+    """Map skill name -> leaf directory for every SKILL.md under skills.
 
     The mirrors are flat, so a name is the whole address: two leaves sharing one
     would make the mirror checks silently require only whichever was seen last.
     """
     leaves: dict[str, Path] = {}
-    for skill_file in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
+    for skill_file in sorted(CANONICAL_SKILLS.rglob("SKILL.md")):
         leaf = skill_file.parent
         assert leaf.name not in leaves, (
-            f".opencode skills {leaves.get(leaf.name)} and {leaf} share the name "
+            f"Canonical skills {leaves.get(leaf.name)} and {leaf} share the name "
             f"{leaf.name!r}; the flat mirrors can link only one of them"
         )
         leaves[leaf.name] = leaf
@@ -120,10 +120,10 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
         assert (ROOT / entry) in check_ssot_ownership.CHECK4_EXEMPT_PATHS
 
 
-def test_every_opencode_skill_is_mirrored() -> None:
-    """No skill exists on the OpenCode side without a link in each mirror."""
-    leaves = _opencode_leaf_skill_dirs()
-    assert leaves, "expected to discover .opencode/skills/**/SKILL.md leaves"
+def test_every_canonical_skill_is_mirrored() -> None:
+    """No skill exists on the canonical side without a link in each mirror."""
+    leaves = _canonical_leaf_skill_dirs()
+    assert leaves, "expected to discover skills/**/SKILL.md leaves"
 
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for name, leaf in sorted(leaves.items()):
@@ -138,19 +138,14 @@ def test_every_opencode_skill_is_mirrored() -> None:
 
 
 def test_no_orphan_or_broken_mirror_skill_links() -> None:
-    """Every mirror entry is a live symlink onto the .opencode skill of its name.
+    """Every mirror entry is a live symlink onto the canonical skill of its name.
 
-    The forward direction -- every .opencode skill is mirrored everywhere -- is
-    `test_every_opencode_skill_is_mirrored`. This one is the reverse: nothing
+    The forward direction -- every canonical skill is mirrored everywhere -- is
+    `test_every_canonical_skill_is_mirrored`. This one is the reverse: nothing
     sits in a mirror directory that points nowhere, or at something outside the
-    repository, or at a directory that is not an .opencode skill.
-
-    `.claude/skills` once also linked into `skills/`, copies of the owner's
-    machine-level workflow skills (#2099). Those copies are gone (#2124): the
-    machine provides them outside the repository. `.opencode/skills` is the one
-    declared source again, so a link into anything else is drift.
+    repository, or at a directory that is not a canonical skill.
     """
-    leaves = _opencode_leaf_skill_dirs()
+    leaves = _canonical_leaf_skill_dirs()
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for entry in sorted(skills_dir.iterdir()):
             assert entry.is_symlink(), f"{runtime}: {entry} should be a symlink"
@@ -160,7 +155,7 @@ def test_no_orphan_or_broken_mirror_skill_links() -> None:
             resolved = entry.resolve()
             assert entry.name in leaves and resolved == leaves[entry.name].resolve(), (
                 f"{runtime}: {entry.name} resolves to {resolved}, which is not the "
-                ".opencode skill of that name. .opencode/skills is the one declared "
+                "canonical skill of that name. skills/ is the one declared "
                 "source; anything else is drift."
             )
 
@@ -316,7 +311,7 @@ def test_skill_docs_reference_existing_tools() -> None:
     """
     repo_basenames = _repo_py_basenames()
     missing: list[str] = []
-    for skill_md in sorted(OPENCODE_SKILLS.rglob("SKILL.md")):
+    for skill_md in sorted(CANONICAL_SKILLS.rglob("SKILL.md")):
         if skill_md.parent.name in _COMMON_ENGINEERING_SKILLS:
             continue
         text = skill_md.read_text(encoding="utf-8")

@@ -324,7 +324,7 @@ def test_unregistered_guard_exempts_tests_config_and_non_product_trees():
         "apps/frontend/vitest.config.ts",
         "apps/frontend/vitest.setup.ts",
         "apps/backend/migrations/versions/0001_x.py",
-        ".opencode/skills/domain/development/scripts/gen.py",
+        "skills/development/scripts/gen.py",
         "docs/hooks.py",
         "newpkg/foo.go",  # not a tracked source extension we measure
     ]

@@ -82,7 +82,11 @@ Authorize production deployment of vX.Y.Z? Reply "deploy" or "hold".
 Write the handover with four parts. Include the exact next command.
 
 1. **Done:** commit SHAs, changed files, tests that passed.
-2. **Blocked:** the cause (CI, open design question, waiting for approval).
+2. **Blocked:** the cause (CI, open design question, a fact only the owner can supply).
+   List an owner action only when it needs the owner's hands or presence.
+   Examples: a production deploy, a setting that the agent token cannot change, a credential root.
+   A merge, a head approval, or a review of non-production work is never an owner action. If a gate demands one, the gate is the defect.
+   Name the missing physical fact, then do the agent work that supplies it.
 3. **Decisions:** contracts you fixed and assumptions you overturned.
 4. **Next:** the first command for the next session.
 

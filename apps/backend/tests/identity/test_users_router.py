@@ -24,13 +24,12 @@ async def test_AC1_8_1_users_endpoints_require_auth(public_client: AsyncClient, 
     other_id = uuid4()
 
     responses = [
-        await public_client.post("/users", json={"email": "new@example.com", "password": "securepassword123"}),
         await public_client.get("/users"),
         await public_client.get(f"/users/{test_user.id}"),
         await public_client.put(f"/users/{other_id}", json={"email": "updated@example.com"}),
     ]
 
-    assert [response.status_code for response in responses] == [401, 401, 401, 401]
+    assert [response.status_code for response in responses] == [401, 401, 401]
 
 
 async def test_AC1_8_1_create_user_route_no_longer_registers_users(client: AsyncClient) -> None:
@@ -40,8 +39,7 @@ async def test_AC1_8_1_create_user_route_no_longer_registers_users(client: Async
         json={"email": "legacy-create@example.com", "password": "securepassword123"},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Use /auth/register to create users"
+    assert response.status_code == 405
 
 
 async def test_AC1_8_1_list_users_returns_only_current_user(client: AsyncClient, test_user: User) -> None:

@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.deps import CurrentUserId, DbSession
-from src.identity.base.types.user import UserCreate, UserResponse, UserUpdate
+from src.identity.base.types.user import UserResponse, UserUpdate
 from src.identity.extension.sql import User
 from src.platform import raise_bad_request, raise_conflict, raise_not_found
 from src.schemas.user import UserListResponse
@@ -55,21 +55,6 @@ def _require_in_flight_parse_checker() -> InFlightParseChecker:
             "main.py wires it at startup (#1675 D6); a test exercising this path must call it too."
         )
     return _in_flight_parse_checker
-
-
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_data: UserCreate,
-    *,
-    user_id: CurrentUserId,
-) -> UserResponse:
-    """Deprecated user creation route.
-
-    Public registration is owned by /auth/register so this legacy route cannot
-    be used to create arbitrary users.
-    """
-    _ = (user_data, user_id)
-    raise_bad_request("Use /auth/register to create users")
 
 
 @router.get("", response_model=UserListResponse)
