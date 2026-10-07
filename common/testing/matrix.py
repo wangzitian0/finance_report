@@ -60,11 +60,6 @@ PATH_RULES: tuple[PathRule, ...] = (
         True,
     ),
     PathRule("apps/backend/tests/", "backend_ci", True),
-    PathRule(
-        "apps/frontend/playwright/inline-edit-happy-path.spec.ts",
-        "frontend_playwright_env_gated",
-        False,
-    ),
     PathRule("apps/frontend/playwright/", "frontend_playwright_ci", True),
     PathRule("apps/frontend/src/", "frontend_vitest", True),
     PathRule("tests/tooling/", "tooling_ci", True),

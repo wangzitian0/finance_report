@@ -12,9 +12,6 @@ rules:
   - path: apps/backend/tests/
     stage: backend_ci
     ci_required: true
-  - path: apps/frontend/playwright/inline-edit-happy-path.spec.ts
-    stage: frontend_playwright_env_gated
-    ci_required: false
   - path: apps/frontend/playwright/
     stage: frontend_playwright_ci
     ci_required: true
