@@ -540,6 +540,25 @@ def _default_runner(argv: Sequence[str], cwd: str) -> int:
     return subprocess.run(list(argv), cwd=cwd, check=False).returncode
 
 
+def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
+    proc = subprocess.run(
+        list(argv),
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+    )
+    if proc.returncode != 0:
+        if proc.stdout:
+            sys.stdout.write(proc.stdout)
+            sys.stdout.flush()
+        if proc.stderr:
+            sys.stderr.write(proc.stderr)
+            sys.stderr.flush()
+    return proc.returncode
+
+
 def _resolve(
     command: tuple[str, ...],
     python: str,
@@ -564,6 +583,7 @@ def run_checks(
     runner: Runner = _default_runner,
     python: str | None = None,
     ci: bool = False,
+    quiet: bool = False,
 ) -> list[CheckResult]:
     """Run each check's commands; a check fails fast on the first non-zero command."""
     python = python or sys.executable
@@ -575,7 +595,7 @@ def run_checks(
             for path in changed_files
             if any(_matches(path, glob) for glob in check.globs)
         )
-        if ci:
+        if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
         ok = True
         for command in check.commands:
@@ -586,7 +606,8 @@ def run_checks(
                 ok = False
                 break
         if ci:
-            print("::endgroup::", flush=True)
+            if not quiet:
+                print("::endgroup::", flush=True)
             if not ok:
                 print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
         results.append(CheckResult(check.name, ok))
@@ -634,6 +655,12 @@ def run(
         action="store_true",
         help="Format logs with GitHub Actions ::group:: folding and ::error:: annotations.",
     )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print single summary line when checks pass. Print full details when a check fails.",
+    )
     args = parser.parse_args(argv)
 
     if args.all:
@@ -670,17 +697,35 @@ def run(
         print("preflight: no relevant gates for the current diff.")
         return 0
 
-    print(
-        f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+    if not args.quiet:
+        print(
+            f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+        )
+    effective_runner = (
+        _default_quiet_runner if runner is _default_runner and args.quiet else runner
     )
-    results = run_checks(selected, changed_files=files, runner=runner, ci=args.ci)
-    for result in results:
-        print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
+    results = run_checks(
+        selected,
+        changed_files=files,
+        runner=effective_runner,
+        ci=args.ci,
+        quiet=args.quiet,
+    )
+    if not args.quiet:
+        for result in results:
+            print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
+    else:
+        for result in results:
+            if not result.ok:
+                print(f"  [FAIL] {result.name}")
     failed = [r.name for r in results if not r.ok]
     if failed:
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
         return 1
-    print("preflight: all relevant gates passed.")
+    if args.quiet:
+        print(f"preflight: all {len(selected)} gates passed.")
+    else:
+        print("preflight: all relevant gates passed.")
     return 0
 
 

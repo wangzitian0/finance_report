@@ -611,3 +611,59 @@ class TestCiLogging:
         endgroup_tag = "::endgroup::"
         assert group_tag in out
         assert endgroup_tag in out
+
+    def test_run_cli_with_quiet_flag_success(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "--quiet", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "preflight: all" in out
+        assert "gates passed" in out
+        assert "preflight: running" not in out
+        assert "  [ok]" not in out
+
+    def test_run_cli_with_quiet_flag_failure(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "-q", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "FAIL" in out
+        assert "failed" in out
+
+    def test_default_quiet_runner_suppresses_output_on_success(
+        self, capsys, monkeypatch
+    ):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["echo", "clean"],
+            returncode=0,
+            stdout="some clean output\n",
+            stderr="",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["echo", "clean"], cwd="/tmp")
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_default_quiet_runner_dumps_output_on_failure(self, capsys, monkeypatch):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["flake8"],
+            returncode=1,
+            stdout="syntax error on line 42\n",
+            stderr="warning message\n",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["flake8"], cwd="/tmp")
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "syntax error on line 42" in captured.out
+        assert "warning message" in captured.err
