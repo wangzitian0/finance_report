@@ -9,7 +9,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from infra2_sdk.runtime.s3 import (
     S3Settings,
     create_s3_client,
-    is_not_found,
+    ensure_bucket,
     read_object_bytes,
     redact_presigned_url as _sdk_redact_presigned_url,
 )
@@ -40,16 +40,15 @@ class StorageService:
 
     def __init__(self, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
-        self.client = create_s3_client(
-            S3Settings(
-                bucket=self.bucket,
-                endpoint_url=settings.s3_endpoint,
-                access_key_id=settings.s3_access_key,
-                secret_access_key=settings.s3_secret_key,
-                region_name=settings.s3_region,
-                addressing_style="path",
-            )
+        self._s3_settings = S3Settings(
+            bucket=self.bucket,
+            endpoint_url=settings.s3_endpoint,
+            access_key_id=settings.s3_access_key,
+            secret_access_key=settings.s3_secret_key,
+            region_name=settings.s3_region,
+            addressing_style="path",
         )
+        self.client = create_s3_client(self._s3_settings)
 
         # Initialize public client if configuration exists
         self.public_client = None
@@ -71,22 +70,11 @@ class StorageService:
             if self.bucket in self._checked_buckets:
                 return
             try:
-                self.client.head_bucket(Bucket=self.bucket)
-            except ClientError as exc:
-                if is_not_found(exc):
-                    try:
-                        if settings.s3_region and settings.s3_region != "us-east-1":
-                            self.client.create_bucket(
-                                Bucket=self.bucket,
-                                CreateBucketConfiguration={"LocationConstraint": settings.s3_region},
-                            )
-                        else:
-                            self.client.create_bucket(Bucket=self.bucket)
-                    except (BotoCoreError, ClientError) as create_exc:
-                        raise StorageError(f"Failed to create bucket {self.bucket}") from create_exc
-                else:
-                    raise StorageError(f"Failed to access bucket {self.bucket}") from exc
-            except BotoCoreError as exc:
+                ensure_bucket(self._s3_settings, client=self.client, allow_create=True)
+            except (BotoCoreError, ClientError) as exc:
+                op = str(getattr(exc, "operation_name", "") or "").lower()
+                if op in ("create_bucket", "createbucket"):
+                    raise StorageError(f"Failed to create bucket {self.bucket}") from exc
                 raise StorageError(f"Failed to access bucket {self.bucket}") from exc
             self._checked_buckets.add(self.bucket)
 

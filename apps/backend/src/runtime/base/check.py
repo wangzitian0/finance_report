@@ -53,3 +53,10 @@ class DependencyCheck(Protocol):
     name: str
 
     async def probe(self) -> ProbeResult: ...
+
+
+__all__ = [
+    "DependencyCheck",
+    "DependencyStatus",
+    "ProbeResult",
+]

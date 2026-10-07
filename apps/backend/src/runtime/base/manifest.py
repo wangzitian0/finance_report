@@ -15,6 +15,12 @@ from dataclasses import dataclass
 from src.runtime.base.kind import DependencyKind
 from src.runtime.base.tiers import EnvTier
 
+__all__ = [
+    "DEPENDENCY_MANIFEST",
+    "Dependency",
+    "DependencyManifest",
+]
+
 
 @dataclass(frozen=True)
 class Dependency:

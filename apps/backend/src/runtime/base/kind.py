@@ -17,3 +17,6 @@ class DependencyKind(str, Enum):
 
     CODE_DOMINANT = "code_dominant"
     MODEL_DOMINANT = "model_dominant"
+
+
+__all__ = ["DependencyKind"]
