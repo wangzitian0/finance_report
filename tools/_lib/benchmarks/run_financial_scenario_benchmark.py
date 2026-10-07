@@ -533,8 +533,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--version-ref",
-        default="v2.0-dev",
-        help="Release tag or version identifier (default: v2.0-dev)",
+        default="v2.0",
+        help="Release tag or version identifier (default: v2.0)",
     )
     parser.add_argument(
         "--json-report",

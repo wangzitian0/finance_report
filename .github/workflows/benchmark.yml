@@ -88,9 +88,9 @@ jobs:
           import json, os
           try:
               data = json.loads(os.environ.get("RESPONSE", "{}"))
-              print(data.get("git_sha") or data.get("version") or "v2.0-baseline")
+              print(data.get("git_sha") or data.get("version") or "v2.0")
           except Exception:
-              print("v2.0-baseline")
+              print("v2.0")
           PY
             )"
           fi
