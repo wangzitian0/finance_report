@@ -14,8 +14,12 @@ import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
 from tools._lib.benchmarks.statement_generators import (
+    generate_consecutive_month1_csv,
+    generate_consecutive_month2_csv,
     generate_consecutive_month2_pdf,
+    generate_consecutive_month3_csv,
     generate_consecutive_month3_pdf,
+    generate_consecutive_month4_csv,
     generate_consecutive_month4_pdf,
 )
 
@@ -30,19 +34,30 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 def _upload_month1_statement(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[str, dict[str, Any], str, str]:
-    m1_fixture = (
-        REPO_ROOT
-        / "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
-    )
-    if not m1_fixture.exists():
-        raise FileNotFoundError(
-            f"Month 1 fixture not found: {m1_fixture}. Run tools/sync_benchmark_fixtures.py first."
+    if getattr(runner, "cassette_mode", "off") == "replay":
+        print("  [2/9] Uploading Month 1 (Jan 2025) statement via replay cassette...")
+        m1_bytes = generate_consecutive_month1_csv()
+        m1_id = runner.upload_statement(
+            client,
+            m1_bytes,
+            "scb_month1_replay.csv",
+            institution="Standard Chartered Bank",
+        )
+    else:
+        m1_fixture = (
+            REPO_ROOT
+            / "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
+        )
+        if not m1_fixture.exists():
+            raise FileNotFoundError(
+                f"Month 1 fixture not found: {m1_fixture}. Run tools/sync_benchmark_fixtures.py first."
+            )
+
+        print("  [2/9] Uploading Month 1 (Jan 2025) statement...")
+        m1_id = runner.upload_statement(
+            client, m1_fixture.read_bytes(), "bsb_001_straits_capital.pdf"
         )
 
-    print("  [2/9] Uploading Month 1 (Jan 2025) statement...")
-    m1_id = runner.upload_statement(
-        client, m1_fixture.read_bytes(), "bsb_001_straits_capital.pdf"
-    )
     m1_data = runner.wait_for_statement_parsed(client, m1_id)
     print(
         f"        M1 parsed: Opening={m1_data['opening_balance']}, "
@@ -68,16 +83,26 @@ def _ingest_chained_months(
     m1_account_id: str,
     m1_institution: str,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    is_replay = getattr(runner, "cassette_mode", "off") == "replay"
+
     # Month 2
-    m2_tmp_pdf = temp_dir / "case1_m2_scb.pdf"
-    m2_bytes = generate_consecutive_month2_pdf(m2_tmp_pdf, opening_balance=m1_closing)
+    if is_replay:
+        m2_bytes = generate_consecutive_month2_csv(opening_balance=m1_closing)
+        m2_filename = "scb_month2_replay.csv"
+    else:
+        m2_tmp_pdf = temp_dir / "case1_m2_scb.pdf"
+        m2_bytes = generate_consecutive_month2_pdf(
+            m2_tmp_pdf, opening_balance=m1_closing
+        )
+        m2_filename = "scb_month2_chained.pdf"
+
     print(
         f"  [3/9] Uploading Month 2 (Feb 2025) chained statement linked to account {m1_account_id}..."
     )
     m2_id = runner.upload_statement(
         client,
         m2_bytes,
-        "scb_month2_chained.pdf",
+        m2_filename,
         account_id=m1_account_id,
         institution=m1_institution,
     )
@@ -99,15 +124,23 @@ def _ingest_chained_months(
 
     # Month 3
     m2_closing = Decimal(m2_data["closing_balance"])
-    m3_tmp_pdf = temp_dir / "case1_m3_scb.pdf"
-    m3_bytes = generate_consecutive_month3_pdf(m3_tmp_pdf, opening_balance=m2_closing)
+    if is_replay:
+        m3_bytes = generate_consecutive_month3_csv(opening_balance=m2_closing)
+        m3_filename = "scb_month3_replay.csv"
+    else:
+        m3_tmp_pdf = temp_dir / "case1_m3_scb.pdf"
+        m3_bytes = generate_consecutive_month3_pdf(
+            m3_tmp_pdf, opening_balance=m2_closing
+        )
+        m3_filename = "scb_month3_chained.pdf"
+
     print(
         f"  [4/9] Uploading Month 3 (Mar 2025) chained statement linked to account {m1_account_id}..."
     )
     m3_id = runner.upload_statement(
         client,
         m3_bytes,
-        "scb_month3_chained.pdf",
+        m3_filename,
         account_id=m1_account_id,
         institution=m1_institution,
     )
@@ -129,15 +162,23 @@ def _ingest_chained_months(
 
     # Month 4
     m3_closing = Decimal(m3_data["closing_balance"])
-    m4_tmp_pdf = temp_dir / "case1_m4_scb.pdf"
-    m4_bytes = generate_consecutive_month4_pdf(m4_tmp_pdf, opening_balance=m3_closing)
+    if is_replay:
+        m4_bytes = generate_consecutive_month4_csv(opening_balance=m3_closing)
+        m4_filename = "scb_month4_replay.csv"
+    else:
+        m4_tmp_pdf = temp_dir / "case1_m4_scb.pdf"
+        m4_bytes = generate_consecutive_month4_pdf(
+            m4_tmp_pdf, opening_balance=m3_closing
+        )
+        m4_filename = "scb_month4_chained.pdf"
+
     print(
         f"  [5/9] Uploading Month 4 (Apr 2025) chained statement linked to account {m1_account_id}..."
     )
     m4_id = runner.upload_statement(
         client,
         m4_bytes,
-        "scb_month4_chained.pdf",
+        m4_filename,
         account_id=m1_account_id,
         institution=m1_institution,
     )

@@ -24,7 +24,7 @@ def _api_url(path: str) -> str:
 async def test_staging_ai_provider_chat_connectivity(
     authenticated_page_unique: Page,
 ) -> None:
-    """EPIC-006 EPIC-008 / AC8.13.120: one real AI provider chat round trip."""
+    """EPIC-006 EPIC-008 EPIC-021 / AC8.13.120 AC21.1.1: one real AI provider chat round trip."""
     response = await authenticated_page_unique.request.post(
         _api_url("/chat"),
         data={

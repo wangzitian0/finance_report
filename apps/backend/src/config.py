@@ -428,7 +428,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FALLBACK_MODELS",
         description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3,glm-5.2"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash,glm-5.2"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,

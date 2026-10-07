@@ -547,3 +547,56 @@ def generate_multicurrency_hkd_csv(
         f"HKD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-25,HK CUSTODIAN AND ACCOUNT FEE,-1000.00",
     ]
     return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def generate_consecutive_month1_csv(
+    opening_balance: Decimal = Decimal("15450.75"),
+) -> bytes:
+    """Generate Month 1 (Jan 2025) statement rows for fast replay."""
+    closing_balance = opening_balance - Decimal("179.52")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"SGD,2025-01-01,2025-01-31,{opening_balance:.2f},{closing_balance:.2f},2025-01-15,TECH CORP SALARY JAN,5000.00",
+        f"SGD,2025-01-01,2025-01-31,{opening_balance:.2f},{closing_balance:.2f},2025-01-20,LIVING EXPENSES AND UTILITIES,-5179.52",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def generate_consecutive_month2_csv(
+    opening_balance: Decimal = Decimal("15271.23"),
+) -> bytes:
+    """Generate Month 2 (Feb 2025) statement rows for fast replay."""
+    closing_balance = opening_balance + Decimal("2978.77")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"SGD,2025-02-01,2025-02-28,{opening_balance:.2f},{closing_balance:.2f},2025-02-15,TECH CORP SALARY FEB,5000.00",
+        f"SGD,2025-02-01,2025-02-28,{opening_balance:.2f},{closing_balance:.2f},2025-02-20,ANNUAL BONUS PAYMENT,1000.00",
+        f"SGD,2025-02-01,2025-02-28,{opening_balance:.2f},{closing_balance:.2f},2025-02-25,LIVING EXPENSES AND DINING,-3021.23",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def generate_consecutive_month3_csv(
+    opening_balance: Decimal = Decimal("18250.00"),
+) -> bytes:
+    """Generate Month 3 (Mar 2025) statement rows for fast replay."""
+    closing_balance = opening_balance + Decimal("3050.00")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"SGD,2025-03-01,2025-03-31,{opening_balance:.2f},{closing_balance:.2f},2025-03-15,TECH CORP SALARY MAR,5000.00",
+        f"SGD,2025-03-01,2025-03-31,{opening_balance:.2f},{closing_balance:.2f},2025-03-25,LIVING EXPENSES AND RENT,-1950.00",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def generate_consecutive_month4_csv(
+    opening_balance: Decimal = Decimal("21300.00"),
+) -> bytes:
+    """Generate Month 4 (Apr 2025) statement rows for fast replay."""
+    closing_balance = opening_balance + Decimal("2900.00")
+    lines = [
+        "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-15,TECH CORP SALARY APR,5000.00",
+        f"SGD,2025-04-01,2025-04-30,{opening_balance:.2f},{closing_balance:.2f},2025-04-25,LIVING EXPENSES AND BILLS,-2100.00",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")

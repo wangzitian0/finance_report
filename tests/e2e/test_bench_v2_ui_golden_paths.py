@@ -47,7 +47,11 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 @pytest.mark.e2e
 async def test_case_1_four_month_rollforward_ui(page: Page):
     """EPIC-005 EPIC-008 EPIC-016 / AC-reporting.balance-sheet.1 / AC8.13.9: Case 1 - 4-month rollforward & Q1 articulation on UI."""
-    runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0)
+    runner = ScenarioBenchmarkRunner(
+        base_url=APP_URL,
+        timeout=120.0,
+        replay_mode=os.getenv("BENCH_REPLAY_MODE", "replay"),
+    )
     result = execute_case_1(runner)
     assert result.status == "PASS", f"Case 1 benchmark failed: {result.error_message}"
     assert runner.last_auth_context is not None, "Missing runner auth context"
