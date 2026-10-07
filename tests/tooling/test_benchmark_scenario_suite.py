@@ -139,7 +139,7 @@ def test_generate_multicurrency_usd_and_hkd_csv() -> None:
 
 def test_generate_consecutive_months_replay_csv_identity() -> None:
     """Benchmark Case 1: Replay CSV generators maintain consecutive opening-closing chain reconciliation."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    from tools._lib.benchmarks.statement_generators import (
         generate_consecutive_month1_csv,
         generate_consecutive_month2_csv,
         generate_consecutive_month3_csv,
