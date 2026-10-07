@@ -47,7 +47,6 @@ from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_6,
 )
 from tools._lib.benchmarks.statement_generators import (  # noqa: E402
-    generate_bank_asset_transfer_pdf,
     generate_consecutive_month2_pdf,
     generate_consecutive_month3_pdf,
     generate_consecutive_month4_pdf,
@@ -501,7 +500,6 @@ __all__ = [
     "execute_case_3",
     "execute_case_4",
     "execute_case_5",
-    "generate_bank_asset_transfer_pdf",
     "generate_consecutive_month2_pdf",
     "generate_consecutive_month3_pdf",
     "generate_consecutive_month4_pdf",
@@ -535,13 +533,13 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--version-ref",
-        default="v0.1.52",
-        help="Release tag or version identifier (default: v0.1.52)",
+        default="v2.0-dev",
+        help="Release tag or version identifier (default: v2.0-dev)",
     )
     parser.add_argument(
         "--json-report",
         type=Path,
-        default=REPO_ROOT / "benchmark_run_report.json",
+        default=REPO_ROOT / "tmp/benchmark_run_report.json",
         help="Path to output JSON benchmark report",
     )
     parser.add_argument(

@@ -433,3 +433,56 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     # Runner method signature must default to legal enum value
     sig = inspect.signature(ScenarioBenchmarkRunner.create_valuation_snapshot)
     assert sig.parameters["valuation_basis"].default == "market_appraisal"
+
+
+def test_benchmark_statement_generators_zero_orphan_contract() -> None:
+    """AC-testing.benchmarks.v2: All statement generators are mapped to active scenario cases."""
+    import inspect
+    from tools._lib.benchmarks import statement_generators
+
+    all_generators = {
+        name
+        for name, fn in inspect.getmembers(statement_generators, inspect.isfunction)
+        if name.startswith("generate_")
+    }
+
+    # Invariant: dead generator must be deleted
+    assert "generate_bank_asset_transfer_pdf" not in all_generators
+
+    expected_generators = {
+        "generate_consecutive_month2_pdf",
+        "generate_consecutive_month3_pdf",
+        "generate_consecutive_month4_pdf",
+        "generate_credit_card_repayment_bank_pdf",
+        "generate_household_wife_operations_csv",
+        "generate_multicurrency_hkd_csv",
+        "generate_multicurrency_usd_csv",
+        "generate_standard_operations_csv",
+    }
+    assert all_generators == expected_generators, (
+        f"Generator set mismatch (orphaned or missing): {all_generators ^ expected_generators}"
+    )
+
+
+def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
+    """AC-testing.benchmarks.v2: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
+    from tools._lib.benchmarks import sync_benchmark_fixtures
+
+    manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
+    manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
+    assert manifest["version"] == "2.1"
+    assert len(manifest["fixtures"]) == 3
+
+    # Test SHA-256 computation
+    sample_bytes = b"hello finance report benchmark"
+    digest = sync_benchmark_fixtures.compute_sha256(sample_bytes)
+    assert len(digest) == 64
+
+    # Test missing fixture detection
+    dummy_fixture = {
+        "id": "dummy_test_doc",
+        "local_path": "nonexistent/path/to/fixture.pdf",
+    }
+    is_ok, msg = sync_benchmark_fixtures.verify_fixture(dummy_fixture, tmp_path)
+    assert not is_ok
+    assert "Missing file" in msg

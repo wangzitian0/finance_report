@@ -22,7 +22,7 @@ on:
         default: "https://report-staging.zitian.party"
         type: string
       case:
-        description: "Scenarios to run (comma-separated: 1,2,3,4,5 or all)"
+        description: "Scenarios to run (comma-separated: 1,2,3,4,5,6 or all)"
         required: false
         default: "all"
         type: string
@@ -88,9 +88,9 @@ jobs:
           import json, os
           try:
               data = json.loads(os.environ.get("RESPONSE", "{}"))
-              print(data.get("git_sha") or data.get("version") or "v0.1.52")
+              print(data.get("git_sha") or data.get("version") or "v2.0-baseline")
           except Exception:
-              print("v0.1.52")
+              print("v2.0-baseline")
           PY
             )"
           fi
@@ -99,7 +99,7 @@ jobs:
 
       - name: Sync benchmark fixtures
         run: |
-          uv run --with httpx --with pymupdf --with pyyaml python tools/sync_benchmark_fixtures.py
+          uv run --with httpx --with pyyaml python tools/sync_benchmark_fixtures.py
 
       - name: Run Financial Scenario Benchmark Suite
         id: benchmark
