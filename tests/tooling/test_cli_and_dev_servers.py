@@ -190,6 +190,32 @@ def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
         "-m",
         "pytest",
     ]
+    assert calls[0][0][7:] == ["--no-cov", "tests/review/test_x.py"]
+
+
+def test_AC16_11_17_cmd_test_backend_path_route_honors_explicit_cov(monkeypatch):
+    """AC16.11.17: focused backend test paths keep caller explicit coverage args."""
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "run",
+        lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
+    )
+    cli.cmd_test(
+        SimpleNamespace(
+            frontend=False,
+            e2e=False,
+            backend_e2e=False,
+            perf=False,
+            fast=False,
+            smart=False,
+            ephemeral=False,
+        ),
+        ["tests/review/test_x.py", "--cov=src"],
+    )
+    cmd = calls[0][0]
+    assert "--no-cov" not in cmd
+    assert "--cov=src" in cmd
 
 
 def test_AC16_11_17_cmd_test_backend_path_route_honors_fast_mode(monkeypatch):

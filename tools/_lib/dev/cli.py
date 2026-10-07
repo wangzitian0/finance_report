@@ -125,7 +125,15 @@ def cmd_test(args, extra_args: list[str]):
 
     lifecycle_requested = args.fast or args.smart or args.ephemeral
     if extra_args and extra_args[0].startswith("tests/") and not lifecycle_requested:
-        run(uv_run("python", "-m", "pytest") + extra_args, cwd=BACKEND_DIR)
+        cov_override = (
+            []
+            if any(a.startswith("--cov") or a == "--no-cov" for a in extra_args)
+            else ["--no-cov"]
+        )
+        run(
+            uv_run("python", "-m", "pytest") + cov_override + extra_args,
+            cwd=BACKEND_DIR,
+        )
         return
     lifecycle_args = []
     if args.fast:
