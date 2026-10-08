@@ -12,13 +12,13 @@ the journey SKIPPED — the canary proved nothing.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import is_strict_or_ci
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATED_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf" / "generated"
@@ -59,11 +59,7 @@ def generated_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        if os.getenv("CI") == "true" or os.getenv("STRICT_E2E_GATES", "").lower() in {
-            "1",
-            "true",
-            "yes",
-        }:
+        if is_strict_or_ci():
             pytest.fail(
                 f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )

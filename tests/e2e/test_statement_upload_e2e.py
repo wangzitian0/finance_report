@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import _strict_e2e_gates_enabled, fail_or_skip_ai_ocr_gate
+from conftest import fail_or_skip_ai_ocr_gate, is_strict_or_ci
 from playwright.async_api import Page, expect
 
 _APP_URL: str = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or ""
@@ -26,7 +26,7 @@ def _get_url(path: str) -> str:
 
 def _skip_if_no_url() -> None:
     if not _APP_URL:
-        if _strict_e2e_gates_enabled() or os.getenv("CI") == "true":
+        if is_strict_or_ci():
             pytest.fail(
                 "Fatal: APP_URL or FRONTEND_URL must be explicitly provided in CI / strict gates"
             )
@@ -55,7 +55,7 @@ def _get_test_pdf() -> Path:
             if pdfs:
                 return pdfs[-1]
 
-    if _strict_e2e_gates_enabled() or os.getenv("CI") == "true":
+    if is_strict_or_ci():
         pytest.fail(
             "Fatal: No PDF fixture found and generator unavailable in CI/strict gates. "
             "Run: python tools/generate_pdf_fixtures.py --source dbs"
