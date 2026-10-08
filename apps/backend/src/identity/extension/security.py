@@ -62,8 +62,9 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt (per-password salt)."""
-    env = getattr(src.config.settings, "environment", "") or os.environ.get("ENVIRONMENT", "")
-    is_testing = (env == "testing" or "pytest" in sys.modules) and env != "production"
+    raw_env = getattr(src.config.settings, "environment", "") or os.environ.get("ENVIRONMENT", "")
+    env = raw_env.strip().lower()
+    is_testing = (env == "testing" or "pytest" in sys.modules) and env not in src.config.PROTECTED_ENVIRONMENTS
     rounds = 4 if is_testing else 12
     salt = bcrypt.gensalt(rounds=rounds)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
