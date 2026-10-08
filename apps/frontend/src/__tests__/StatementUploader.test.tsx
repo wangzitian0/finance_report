@@ -48,6 +48,11 @@ const baseModels = [
 describe("AC3.5.3 StatementUploader model selection", () => {
   beforeEach(() => {
     vi.mocked(fetchAiModels).mockReset();
+    vi.mocked(fetchAiModels).mockResolvedValue({
+      default_model: "google/gemini-3-flash-preview",
+      fallback_models: [],
+      models: baseModels,
+    });
     vi.mocked(apiOperationUpload).mockReset();
     vi.mocked(track).mockReset();
     if (
@@ -76,12 +81,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("prefers stored user selection when valid", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     localStorage.setItem(
       "statement_model_v1",
       "qwen/qwen-2.5-vl-7b-instruct:free",
@@ -117,12 +116,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("uses default model when no stored selection exists", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
 
     const select = await screen.findByLabelText(/ai model/i);
@@ -132,12 +125,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("AC8.4.1 hides AI model selection for CSV uploads and submits without model", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
 
     const fileInput = screen.getByLabelText(
@@ -200,12 +187,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("handles model change and storage", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
     const select = await screen.findByLabelText(/ai model/i);
     // Wait for models to load (select starts disabled until fetchAiModels resolves)
@@ -220,12 +201,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("handles institution input change", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
     const input = screen.getByLabelText(/bank \/ institution/i);
     await userEvent.type(input, "DBS Bank");
@@ -239,11 +214,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("handles storage write error", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -278,11 +248,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("test_AC8_13_48 falls back to the default model when storage reads fail", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.stubGlobal("localStorage", {
       getItem: () => {
@@ -311,11 +276,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("test_AC8_13_48 removes invalid stored model ids and tolerates removal failures", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     localStorage.setItem("statement_model_v1", "obsolete-model");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const removeSpy = vi
@@ -340,11 +300,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("handles drag events", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     render(<StatementUploader />);
     const dropZone = screen
       .getByText(/drop files here or click to upload/i)
@@ -356,11 +311,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("includes institution in upload", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     render(<StatementUploader />);
     const input = screen.getByLabelText(/bank \/ institution/i);
     await userEvent.type(input, "DBS");
@@ -381,11 +331,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("handles upload failure", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     vi.mocked(apiOperationUpload).mockRejectedValue(new Error("Server Error"));
     render(<StatementUploader />);
     const fileInput = screen.getByLabelText(
@@ -403,12 +348,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("AC8.4.1 rejects unsupported and oversized statement files before upload", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
 
     const fileInput = screen.getByLabelText(
@@ -443,12 +382,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
   // AC-extraction.fe-remainder-extraction.4
   it("AC19.15.3 statement uploader rejects csv and csv uploader rejects non-csv, each enforcing its own kind's extensions", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     const { unmount } = render(<StatementUploader kind="statement" />);
     fireEvent.change(screen.getByTestId("uploader-file-statement"), {
       target: { files: [new File(["a,b"], "data.csv", { type: "text/csv" })] },
@@ -480,11 +413,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("AC8.4.1 requires a file and calls completion callback after successful upload", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     // AC-extraction.api-vectors.2 (#1827): the resolved upload body is the
     // committed backend-owned 202 conformance vector, not hand-written JSON —
     // a regenerated breaking shape reds this test (G-contract-reddens).
@@ -524,12 +452,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("AC8.4.1 accepts dropped statement files", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
-
     render(<StatementUploader />);
 
     const dropZone = screen
@@ -543,11 +465,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
 
   // AC-observability.fe-ia-analytics.2
   it("AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     vi.mocked(apiOperationUpload).mockResolvedValue(
       statementUploadAcceptedVector(),
     );
@@ -583,11 +500,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   });
 
   it("AC22.18.3 tracks UPLOAD_FAILED with an error category on failure", async () => {
-    vi.mocked(fetchAiModels).mockResolvedValue({
-      default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
-      models: baseModels,
-    });
     vi.mocked(apiOperationUpload).mockRejectedValue(new Error("Server Error"));
 
     render(<StatementUploader />);
