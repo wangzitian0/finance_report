@@ -35,8 +35,11 @@ def _load_openapi() -> dict[str, Any]:
 
 
 def render(openapi: dict[str, Any]) -> str:
-    """Serialize the OpenAPI document deterministically (sorted keys + trailing NL)."""
-    return json.dumps(openapi, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    """Serialize the OpenAPI document deterministically (sorted keys + compact + trailing NL)."""
+    return (
+        json.dumps(openapi, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
+        + "\n"
+    )
 
 
 def generate() -> str:
