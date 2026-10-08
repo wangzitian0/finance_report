@@ -102,6 +102,7 @@ jobs:
           else
             EXPECTED_SHA="$EXPECTED_SHA_RAW"
           fi
+          export EXPECTED_SHA
 
           run_timed_phase() {
             local phase_name="$1"

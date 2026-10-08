@@ -327,10 +327,10 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
         await expect(page).to_have_url(
             re.compile(r"/statements/[^/]+/review$"), timeout=15_000
         )
-        await page.get_by_role("button", name="Approve").click()
+        await page.get_by_role("button", name="Approve", exact=True).click()
         dialog = page.locator('[role="dialog"]')
         await expect(dialog).to_be_visible(timeout=5_000)
-        confirm_button = dialog.get_by_role("button", name="Approve")
+        confirm_button = dialog.get_by_role("button", name="Approve", exact=True)
         await expect(confirm_button).to_be_visible(timeout=3_000)
         async with page.expect_response(
             lambda response: response.url.endswith(
