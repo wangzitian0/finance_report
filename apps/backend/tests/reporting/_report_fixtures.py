@@ -7,11 +7,15 @@ are identical (name, type, currency, order) to the inlined originals.
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Account, AccountType
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 # The standard 5-account SGD chart used across reporting tests, in a stable
 # order: (Cash ASSET, Credit Card LIABILITY, Owner Equity EQUITY, Salary INCOME,
@@ -36,3 +40,46 @@ async def build_standard_chart_of_accounts(db: AsyncSession, user_id: UUID, *, c
     for account in accounts:
         await db.refresh(account)
     return accounts
+
+
+def make_pair_entry(
+    user_id: UUID,
+    entry_date: date,
+    memo: str,
+    debit_account: Account,
+    credit_account: Account,
+    amount: Decimal | str,
+    *,
+    currency: str = "SGD",
+    fx_rate: Decimal | None = None,
+    source_type: JournalEntrySourceType = JournalEntrySourceType.MANUAL,
+    tags: dict[str, Any] | None = None,
+) -> JournalEntry:
+    """Create a balanced two-line posted journal entry."""
+    amt = Decimal(str(amount))
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        source_type=source_type,
+        status=JournalEntryStatus.POSTED,
+    )
+    entry.lines = [
+        JournalLine(
+            account_id=debit_account.id,
+            direction=Direction.DEBIT,
+            amount=amt,
+            currency=currency,
+            fx_rate=fx_rate,
+            tags=tags,
+        ),
+        JournalLine(
+            account_id=credit_account.id,
+            direction=Direction.CREDIT,
+            amount=amt,
+            currency=currency,
+            fx_rate=fx_rate,
+            tags=tags,
+        ),
+    ]
+    return entry

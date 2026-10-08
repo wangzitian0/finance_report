@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.ledger import AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import AccountType
 from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
@@ -23,7 +23,7 @@ from src.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
-from tests.reporting._report_fixtures import build_standard_chart_of_accounts
+from tests.reporting._report_fixtures import build_standard_chart_of_accounts, make_pair_entry
 
 
 @pytest.fixture
@@ -36,34 +36,7 @@ async def test_balance_sheet_equation(db: AsyncSession, chart_of_accounts, test_
     """AC-reporting.balance-sheet.1: [AC5.1.1] Balance sheet should satisfy Assets = Liabilities + Equity."""
     cash, _liability, equity, *_rest = chart_of_accounts
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="Owner contribution",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    db.add(make_pair_entry(test_user_id, date.today(), "Owner contribution", cash, equity, "1000.00"))
     await db.commit()
 
     report = await generate_balance_sheet(
@@ -86,27 +59,6 @@ async def test_AC22_13_1_report_amount_lines_expose_normalized_provenance(
     """AC-reporting.provenance.1: AC22.13.1: report amount lines expose Imported/Manual/Derived provenance when known."""
     cash, _liability, equity, income, expense = chart_of_accounts
 
-    manual_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2026, 1, 1),
-        memo="Owner contribution",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    imported_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2026, 1, 15),
-        memo="Imported salary",
-        source_type=JournalEntrySourceType.AUTO_PARSED,
-        status=JournalEntryStatus.POSTED,
-    )
-    derived_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2026, 1, 20),
-        memo="System fee adjustment",
-        source_type=JournalEntrySourceType.SYSTEM,
-        status=JournalEntryStatus.POSTED,
-    )
     manual_valuation = ManualValuationSnapshot(
         user_id=test_user_id,
         component_type=ManualValuationComponentType.PROPERTY_VALUE,
@@ -116,53 +68,36 @@ async def test_AC22_13_1_report_amount_lines_expose_normalized_provenance(
         currency="SGD",
         source="manual appraisal",
     )
-    db.add_all([manual_entry, imported_entry, derived_entry, manual_valuation])
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=manual_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
+            make_pair_entry(
+                test_user_id,
+                date(2026, 1, 1),
+                "Owner contribution",
+                cash,
+                equity,
+                "1000.00",
+                source_type=JournalEntrySourceType.MANUAL,
             ),
-            JournalLine(
-                journal_entry_id=manual_entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
+            make_pair_entry(
+                test_user_id,
+                date(2026, 1, 15),
+                "Imported salary",
+                cash,
+                income,
+                "5000.00",
+                source_type=JournalEntrySourceType.AUTO_PARSED,
             ),
-            JournalLine(
-                journal_entry_id=imported_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
+            make_pair_entry(
+                test_user_id,
+                date(2026, 1, 20),
+                "System fee adjustment",
+                expense,
+                cash,
+                "120.00",
+                source_type=JournalEntrySourceType.SYSTEM,
             ),
-            JournalLine(
-                journal_entry_id=imported_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=derived_entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("120.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=derived_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("120.00"),
-                currency="SGD",
-            ),
+            manual_valuation,
         ]
     )
     await db.commit()
@@ -195,61 +130,10 @@ async def test_income_statement_calculation(db: AsyncSession, chart_of_accounts,
     """AC-reporting.income-statement.1: [AC5.2.1] Income statement should satisfy Net Income = Income - Expenses."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
-    salary_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(salary_entry)
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    expense_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 20),
-        memo="Dinner",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(expense_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("200.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("200.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 15), "Salary", cash, income, "5000.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 20), "Dinner", expense, cash, "200.00"),
         ]
     )
     await db.commit()
@@ -271,95 +155,12 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
     """AC-reporting.kpis.2 · AC-reporting.lineage.2: [AC5.1.1][AC5.2.1][AC5.3.1][AC5.6.5] Deterministic fixture yields exact report totals."""
     cash, liability, equity, income, expense = chart_of_accounts
 
-    owner_contribution = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Owner contribution",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    salary_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 10),
-        memo="Salary",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    rent_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Rent",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    credit_card_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 20),
-        memo="Credit card drawdown",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add_all([owner_contribution, salary_entry, rent_entry, credit_card_entry])
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=owner_contribution.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=owner_contribution.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=rent_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("200.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=rent_entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("200.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=credit_card_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("300.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=credit_card_entry.id,
-                account_id=liability.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("300.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 1), "Owner contribution", cash, equity, "1000.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 10), "Salary", cash, income, "500.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 15), "Rent", expense, cash, "200.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 20), "Credit card drawdown", cash, liability, "300.00"),
         ]
     )
     await db.commit()
@@ -493,35 +294,10 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
 
 async def test_balance_sheet_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash, _liability, equity, *_rest = chart_of_accounts
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="FX entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id, date.today(), "FX entry", cash, equity, "100.00", currency="USD", fx_rate=Decimal("1.00")
+        )
     )
     await db.commit()
 
@@ -545,34 +321,10 @@ async def test_income_statement_invalid_range(db: AsyncSession, test_user_id):
 
 async def test_income_statement_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash, _liability, _equity, income, _expense = chart_of_accounts
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="FX income",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("50.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("50.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id, date(2025, 1, 15), "FX income", cash, income, "50.00", currency="USD", fx_rate=Decimal("1.00")
+        )
     )
     await db.commit()
 
@@ -612,34 +364,10 @@ async def test_account_trend_invalid_period(db: AsyncSession, chart_of_accounts,
 async def test_account_trend_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="FX trend",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("10.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("10.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id, date.today(), "FX trend", account, equity, "10.00", currency="USD", fx_rate=Decimal("1.00")
+        )
     )
     await db.commit()
 
@@ -678,34 +406,10 @@ async def test_category_breakdown_invalid_period(db: AsyncSession, test_user_id)
 async def test_category_breakdown_fx_error(db: AsyncSession, chart_of_accounts, test_user_id):
     cash = chart_of_accounts[0]
     expense = chart_of_accounts[-1]
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="FX expense",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("15.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("15.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id, date.today(), "FX expense", expense, cash, "15.00", currency="USD", fx_rate=Decimal("1.00")
+        )
     )
     await db.commit()
 
@@ -733,34 +437,17 @@ async def test_cash_flow_invalid_range(db: AsyncSession, test_user_id):
 async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="FX before",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "FX before",
+            account,
+            equity,
+            "5.00",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -777,34 +464,17 @@ async def test_cash_flow_fx_error_before(db: AsyncSession, chart_of_accounts, te
 async def test_cash_flow_fx_error_during(db: AsyncSession, chart_of_accounts, test_user_id):
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 2, 10),
-        memo="FX during",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("7.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("7.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 2, 10),
+            "FX during",
+            account,
+            equity,
+            "7.00",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -858,33 +528,7 @@ async def test_category_breakdown_annual(db: AsyncSession, test_user_id):
 async def test_cash_flow_balances_before_period(db: AsyncSession, chart_of_accounts, test_user_id) -> None:
     account = chart_of_accounts[0]
     equity = chart_of_accounts[2]
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Before period",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("20.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("20.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    db.add(make_pair_entry(test_user_id, date(2025, 1, 1), "Before period", account, equity, "20.00"))
     await db.commit()
 
     report = await generate_cash_flow(
@@ -909,59 +553,10 @@ async def test_account_trend_monthly(db: AsyncSession, chart_of_accounts, test_u
 
     monkeypatch.setattr("src.reporting.extension.net_worth.date", FixedDate)
 
-    entry_one = JournalEntry(
-        user_id=test_user_id,
-        entry_date=FixedDate(2024, 12, 10),
-        memo="Salary",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry_one)
-    await db.flush()
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=entry_one.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_one.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    entry_two = JournalEntry(
-        user_id=test_user_id,
-        entry_date=FixedDate(2025, 2, 5),
-        memo="Dinner",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry_two)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry_two.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("40.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry_two.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("40.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, FixedDate(2024, 12, 10), "Salary", cash, income, "100.00"),
+            make_pair_entry(test_user_id, FixedDate(2025, 2, 5), "Dinner", expense, cash, "40.00"),
         ]
     )
     await db.commit()
@@ -993,33 +588,7 @@ async def test_category_breakdown_quarterly(db: AsyncSession, chart_of_accounts,
 
     monkeypatch.setattr("src.reporting.extension.net_worth.date", FixedDate)
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=FixedDate(2025, 2, 10),
-        memo="Expense",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("120.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("120.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    db.add(make_pair_entry(test_user_id, FixedDate(2025, 2, 10), "Expense", expense, cash, "120.00"))
     await db.commit()
 
     report = cast(
@@ -1040,90 +609,11 @@ async def test_cash_flow_statement(db: AsyncSession, chart_of_accounts, test_use
     """AC-reporting.cash-flow.1: [AC5.3.1] Cash flow statement should track movements across periods."""
     cash, _liability, equity, income, expense = chart_of_accounts
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Owner contribution",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equity.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    salary_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 20),
-        memo="Salary income",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(salary_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("3000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=salary_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("3000.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    expense_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 25),
-        memo="Office supplies",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(expense_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 15), "Owner contribution", cash, equity, "5000.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 20), "Salary income", cash, income, "3000.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 25), "Office supplies", expense, cash, "500.00"),
         ]
     )
     await db.commit()
@@ -1202,63 +692,18 @@ async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_acco
     """Income statement should filter by tags when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
-    tagged_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Tagged salary",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(tagged_entry)
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=tagged_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
+            make_pair_entry(
+                test_user_id,
+                date(2025, 1, 15),
+                "Tagged salary",
+                cash,
+                income,
+                "5000.00",
                 tags={"business": True, "project": "alpha"},
             ),
-            JournalLine(
-                journal_entry_id=tagged_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-                tags={"business": True, "project": "alpha"},
-            ),
-        ]
-    )
-
-    untagged_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 20),
-        memo="Personal gift",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(untagged_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=untagged_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=untagged_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 20), "Personal gift", cash, income, "1000.00"),
         ]
     )
     await db.commit()
@@ -1291,61 +736,10 @@ async def test_income_statement_with_account_type_filter(db: AsyncSession, chart
     """Income statement should filter by account type when specified."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
-    income_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Income entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(income_entry)
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    expense_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 16),
-        memo="Expense entry",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(expense_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=expense.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=expense_entry.id,
-                account_id=cash.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 15), "Income entry", cash, income, "5000.00"),
+            make_pair_entry(test_user_id, date(2025, 1, 16), "Expense entry", expense, cash, "2000.00"),
         ]
     )
     await db.commit()
@@ -1383,63 +777,12 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
     """Income statement should support combined tags and account_type filters."""
     cash, _liability, _equity, income, expense = chart_of_accounts
 
-    tagged_income_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Business income",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(tagged_income_entry)
-    await db.flush()
-
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=tagged_income_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("3000.00"),
-                currency="SGD",
-                tags={"business": True},
+            make_pair_entry(
+                test_user_id, date(2025, 1, 15), "Business income", cash, income, "3000.00", tags={"business": True}
             ),
-            JournalLine(
-                journal_entry_id=tagged_income_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("3000.00"),
-                currency="SGD",
-                tags={"business": True},
-            ),
-        ]
-    )
-
-    untagged_income_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 16),
-        memo="Personal income",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(untagged_income_entry)
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=untagged_income_entry.id,
-                account_id=cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=untagged_income_entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("2000.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 16), "Personal income", cash, income, "2000.00"),
         ]
     )
     await db.commit()
@@ -1477,31 +820,14 @@ async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_account
         )
     )
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="USD income",
-        source_type=JournalEntrySourceType.MANUAL,
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
     db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=cash.id,
-            direction=Direction.DEBIT,
-            amount=Decimal("100.00"),
-            currency="USD",
-            fx_rate=Decimal("1.35"),
-        )
-    )
-    db.add(
-        JournalLine(
-            journal_entry_id=entry.id,
-            account_id=income.id,
-            direction=Direction.CREDIT,
-            amount=Decimal("100.00"),
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "USD income",
+            cash,
+            income,
+            "100.00",
             currency="USD",
             fx_rate=Decimal("1.35"),
         )
