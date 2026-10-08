@@ -453,8 +453,10 @@ async def _cleanup_dirty_tables(engine) -> None:
         to_delete = [t.name for t in reversed(sorted_tables) if t.name.lower() in _DIRTY_TABLES]
         try:
             async with engine.begin() as conn:
+                await conn.execute(text("SET session_replication_role = 'replica'"))
                 for table_name in to_delete:
                     await conn.execute(text(f'DELETE FROM "{table_name}"'))
+                await conn.execute(text("SET session_replication_role = 'origin'"))
         except Exception:
             all_tables = ", ".join(f'"{table.name}"' for table in sorted_tables)
             async with engine.begin() as conn:
@@ -492,10 +494,7 @@ async def db_engine(request, _schema_engine):
 
     await _cleanup_dirty_tables(_schema_engine)
 
-    try:
-        yield _schema_engine
-    finally:
-        await _cleanup_dirty_tables(_schema_engine)
+    yield _schema_engine
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)

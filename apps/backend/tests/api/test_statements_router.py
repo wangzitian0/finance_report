@@ -1475,6 +1475,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
         user_id=test_user.id,
     )
     assert resp.status == BankStatementStatus.PARSING
+    await wait_for_background_tasks()
 
 
 async def test_upload_statement_rejects_invalid_model(db, test_user, storage_stub, monkeypatch):
