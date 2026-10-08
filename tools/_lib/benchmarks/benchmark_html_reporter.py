@@ -18,49 +18,12 @@ from tools._lib.benchmarks._html_templates import (
     DASHBOARD_HTML_TEMPLATE,
     REPORT_HTML_TEMPLATE,
 )
+from tools._lib.benchmarks.case_types import (
+    FLOW_TO_DOMAIN,
+    get_case_to_flows,
+)
 
-
-CASE_TO_FLOWS: dict[str, set[int]] = {
-    "case_1": {1, 2, 6, 7, 10, 23, 24, 25, 26, 27},
-    "case_2": {1, 3, 8, 9, 11, 12, 13, 14, 29},
-    "case_3": {15, 16, 18},
-    "case_4": {17, 23},
-    "case_5": {4, 5, 14, 19, 20, 21, 22, 27, 28, 30},
-    "case_6": {5, 21, 23, 24},
-}
-
-FLOW_TO_DOMAIN: dict[int, int] = {
-    1: 1,
-    2: 1,
-    3: 1,
-    4: 1,
-    5: 1,
-    6: 2,
-    7: 2,
-    8: 2,
-    9: 2,
-    10: 2,
-    11: 3,
-    12: 3,
-    13: 3,
-    14: 3,
-    15: 4,
-    16: 4,
-    17: 4,
-    18: 4,
-    19: 5,
-    20: 5,
-    21: 5,
-    22: 5,
-    23: 6,
-    24: 6,
-    25: 6,
-    26: 6,
-    27: 7,
-    28: 7,
-    29: 7,
-    30: 7,
-}
+CASE_TO_FLOWS: dict[str, set[int]] = get_case_to_flows()
 
 
 def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:

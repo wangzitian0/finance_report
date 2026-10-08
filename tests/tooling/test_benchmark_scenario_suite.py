@@ -539,3 +539,50 @@ def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
     assert {"4"}.issubset(DOMAIN_TO_CASES[4])
     assert {"2"}.issubset(FLOW_TO_CASES[14])
     assert {"1"}.issubset(FLOW_TO_CASES[23])
+
+
+def test_benchmark_mapping_ssot_bijection_and_coverage() -> None:
+    """AC-testing.benchmarks.v2: Verify mathematical bijection between FLOW_TO_CASES and CASE_TO_FLOWS."""
+    from tools._lib.benchmarks.benchmark_html_reporter import CASE_TO_FLOWS
+    from tools._lib.benchmarks.case_types import (
+        DOMAIN_TO_CASES,
+        FLOW_TO_CASES,
+        FLOW_TO_DOMAIN,
+        get_case_to_flows,
+    )
+
+    # 1. 30 flows across 7 domains completeness
+    assert len(FLOW_TO_DOMAIN) == 30
+    assert set(FLOW_TO_DOMAIN.keys()) == set(range(1, 31))
+    assert set(FLOW_TO_DOMAIN.values()) == set(range(1, 8))
+    assert len(FLOW_TO_CASES) == 30
+
+    # 2. Dynamic inversion equality
+    computed_case_to_flows = get_case_to_flows()
+    assert CASE_TO_FLOWS == computed_case_to_flows
+
+    # 3. Mathematical bidirectional bijection
+    for flow, cases in FLOW_TO_CASES.items():
+        assert len(cases) > 0, (
+            f"Flow {flow} must be mapped to at least one benchmark case"
+        )
+        for case in cases:
+            cid = f"case_{case}"
+            assert cid in computed_case_to_flows, (
+                f"Case {cid} missing from inverted map"
+            )
+            assert flow in computed_case_to_flows[cid], (
+                f"Flow {flow} missing from {cid}"
+            )
+
+    for cid, flows in computed_case_to_flows.items():
+        case_num = cid.replace("case_", "")
+        for flow in flows:
+            assert case_num in FLOW_TO_CASES[flow], (
+                f"Case {case_num} missing from FLOW_TO_CASES[{flow}]"
+            )
+
+    # 4. Domain to cases alignment
+    assert len(DOMAIN_TO_CASES) == 7
+    for domain_id, cases in DOMAIN_TO_CASES.items():
+        assert len(cases) > 0, f"Domain {domain_id} must cover at least one case"

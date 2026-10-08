@@ -364,3 +364,63 @@ class TestCSVEdgeCases:
 
         assert len(result["transactions"]) == 1
         assert result["transactions"][0]["date"] == "2025-05-01"
+
+    async def test_parse_wechat_pay_csv(self):
+        """[Flow 3]: Parse WeChat Pay bill export with preamble, ¥ amount, and Chinese directions."""
+        csv_content = (
+            "----------------------微信支付账单明细列表--------------------\n"
+            "统计时间: 2025-01-01 至 2025-01-31\n"
+            "导出时间: 2025-02-01 10:00:00\n"
+            "-----------------------------------------------------------------\n"
+            "交易时间,交易类型,交易对方,商品,收/支,金额(元),支付方式,当前状态,交易单号,商户单号,备注\n"
+            "2025-01-15 12:30:00,商户消费,星巴克,拿铁咖啡,支出,¥38.00,零钱,支付成功,4200000001,M1001,/\n"
+            "2025-01-18 19:00:00,转账,张三,朋友转账,收入,100.00,零钱,已存入零钱,4200000002,M1002,/\n"
+        ).encode()
+
+        result = await self.service._parse_csv_content(csv_content, "WeChat Pay")
+
+        assert len(result["transactions"]) == 2
+        txn0 = result["transactions"][0]
+        assert txn0["date"] == "2025-01-15"
+        assert txn0["amount"] == "38.00"
+        assert txn0["direction"] == "OUT"
+        assert "星巴克" in txn0["description"]
+        assert "拿铁咖啡" in txn0["description"]
+        assert txn0["reference"] == "4200000001"
+
+        txn1 = result["transactions"][1]
+        assert txn1["date"] == "2025-01-18"
+        assert txn1["amount"] == "100.00"
+        assert txn1["direction"] == "IN"
+        assert "张三" in txn1["description"]
+        assert txn1["reference"] == "4200000002"
+
+    async def test_parse_alipay_csv(self):
+        """[Flow 3]: Parse Alipay bill export with metadata preamble, tab spacing, and non-monetary skip."""
+        csv_content = (
+            "支付宝交易记录明细查询\n"
+            "账号: test@example.com\n"
+            "起始日期: 2025-01-01 终止日期: 2025-01-31\n"
+            "-----------------------------------------------------------------\n"
+            "交易时间\t,交易分类\t,交易对方\t,对方账号\t,商品说明\t,收/支\t,金额\t,收/付款方式\t,交易状态\t,交易订单号\t,商家订单号\t,备注\t\n"
+            "2025-01-10 08:30:00\t,餐饮美食\t,肯德基\t,kfc@corp\t,早餐套餐\t,支出\t,25.50\t,花呗\t,交易成功\t,202501100001\t,KFC01\t,/\t\n"
+            "2025-01-20 14:15:00\t,转账充值\t,李四\t,lisi@corp\t,还款转账\t,收入\t,500.00\t,余额宝\t,交易成功\t,202501200002\t,LS02\t,/\t\n"
+            "2025-01-25 10:00:00\t,信用卡还款\t,招商银行\t,cmb@bank\t,还款\t,不计收支\t,2000.00\t,银行卡\t,还款成功\t,202501250003\t,CMB03\t,/\t\n"
+        ).encode("gbk")
+
+        result = await self.service._parse_csv_content(csv_content, "Alipay")
+
+        assert len(result["transactions"]) == 2
+        txn0 = result["transactions"][0]
+        assert txn0["date"] == "2025-01-10"
+        assert txn0["amount"] == "25.50"
+        assert txn0["direction"] == "OUT"
+        assert "肯德基" in txn0["description"]
+        assert txn0["reference"] == "202501100001"
+
+        txn1 = result["transactions"][1]
+        assert txn1["date"] == "2025-01-20"
+        assert txn1["amount"] == "500.00"
+        assert txn1["direction"] == "IN"
+        assert "李四" in txn1["description"]
+        assert txn1["reference"] == "202501200002"

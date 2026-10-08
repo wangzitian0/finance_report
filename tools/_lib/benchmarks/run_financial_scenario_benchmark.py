@@ -37,7 +37,11 @@ from tools._lib.benchmarks.benchmark_html_reporter import (  # noqa: E402
     extract_summary_data,
     generate_html_report,
 )
-from tools._lib.benchmarks.case_types import CaseResult  # noqa: E402
+from tools._lib.benchmarks.case_types import (  # noqa: E402
+    DOMAIN_TO_CASES,
+    FLOW_TO_CASES,
+    CaseResult,
+)
 from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_1,
     execute_case_2,
@@ -591,50 +595,6 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Comma-separated canonical flow IDs to execute (1-30 or 'all')",
     )
     return parser.parse_args(argv)
-
-
-DOMAIN_TO_CASES: dict[int, list[str]] = {
-    1: ["1", "2", "5"],
-    2: ["1", "2"],
-    3: ["2", "5"],
-    4: ["3", "4"],
-    5: ["5", "6"],
-    6: ["1", "4", "6"],
-    7: ["5"],
-}
-
-FLOW_TO_CASES: dict[int, list[str]] = {
-    1: ["1"],
-    2: ["1"],
-    3: ["2"],
-    4: ["5"],
-    5: ["5", "6"],
-    6: ["1"],
-    7: ["1"],
-    8: ["2"],
-    9: ["2"],
-    10: ["1"],
-    11: ["2"],
-    12: ["2"],
-    13: ["2"],
-    14: ["2", "5"],
-    15: ["3"],
-    16: ["3"],
-    17: ["4"],
-    18: ["3"],
-    19: ["5"],
-    20: ["5"],
-    21: ["5", "6"],
-    22: ["5"],
-    23: ["1", "4", "6"],
-    24: ["1", "6"],
-    25: ["1"],
-    26: ["1"],
-    27: ["1", "5"],
-    28: ["5"],
-    29: ["2"],
-    30: ["5"],
-}
 
 
 def _dispatch_cases(
