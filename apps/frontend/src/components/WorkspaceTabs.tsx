@@ -15,7 +15,7 @@ export function WorkspaceTabs() {
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
             e.preventDefault();
-            const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
+            const currentIndex = tabs.findIndex((t) => t.href === pathname);
             if (currentIndex === -1) return;
 
             let nextIndex;
@@ -64,7 +64,7 @@ export function WorkspaceTabs() {
                     <TabItem
                         key={tab.id}
                         tab={tab}
-                        isActive={tab.id === activeTabId || tab.href === pathname}
+                        isActive={tab.href === pathname}
                         onClose={() => removeTab(tab.id)}
                         onClick={() => setActiveTab(tab.id)}
                     />

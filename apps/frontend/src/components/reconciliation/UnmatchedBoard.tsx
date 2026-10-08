@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { BackLink } from "@/components/ui/BackLink";
+import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
@@ -300,11 +300,10 @@ export default function UnmatchedBoard() {
   return (
     <div className="p-6">
       <div className="mb-4">
-        <BackLink href={safeReturnHref ?? "/notifications"}>
-          {safeReturnHref
-            ? "Return to statement review"
-            : "Back to Notifications"}
-        </BackLink>
+        <SmartBackLink
+          fallbackHref={safeReturnHref ?? "/reconciliation"}
+          fallbackLabel={safeReturnHref ? "Return to statement review" : "Back to Reconciliation"}
+        />
       </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>

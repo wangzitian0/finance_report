@@ -58,6 +58,13 @@ export function pnlColorClass(value: string): string {
     return comparison > 0 ? "text-[var(--success)]" : "text-[var(--error)]";
 }
 
+/** Text color class for liability amount: error when positive liability exists, neutral when zero. */
+export function liabilityToneClass(value?: string | number | null): string {
+    if (!value) return "text-muted";
+    const comparison = compareAmounts(String(value), "0");
+    return comparison > 0 ? "text-[var(--error)]" : "text-muted";
+}
+
 const SOURCE_CLASS_LABELS: Record<string, string> = {
     bank_statement: "Bank statements",
     brokerage_statement: "Brokerage statements",

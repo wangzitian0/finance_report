@@ -24,6 +24,7 @@ import {
 } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
+import { liabilityToneClass } from "@/lib/statusLabels";
 import { normalizeFxWarningRows, type ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine {
@@ -419,7 +420,11 @@ export default function BalanceSheetPage() {
               <span className="text-muted">—</span>
             )}
           </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">
+          <div
+            className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold ${
+              report ? liabilityToneClass(report.total_liabilities) : "text-muted"
+            }`}
+          >
             Total:{" "}
             {report
               ? formatCurrencyLocale(report.total_liabilities, report.currency)

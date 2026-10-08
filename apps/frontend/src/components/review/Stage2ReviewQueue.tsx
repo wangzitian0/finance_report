@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 import { useToast } from "@/components/ui/Toast";
-import { BackLink } from "@/components/ui/BackLink";
+import { SmartBackLink } from "@/components/ui/SmartBackLink";
 
 import { apiOperation } from "@/lib/api-client";
 
@@ -423,7 +423,7 @@ export function Stage2ReviewQueue() {
   return (
     <div className="p-6">
       <div className="mb-4">
-        <BackLink>Back to Notifications</BackLink>
+        <SmartBackLink fallbackHref="/reconciliation" fallbackLabel="Back to Reconciliation" />
       </div>
       <div className="mb-6">
         <h1 className="page-title">Review queue</h1>
