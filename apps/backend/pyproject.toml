@@ -126,9 +126,10 @@ addopts = [
 # Deny-list approach: source=["src"] makes coverage.py consider backend src.
 # common/meta/extension/coverage/policy.py owns the final CI source-tree/LCOV audit.
 source = ["src"]
-# Required: greenlet+thread tracer for async (Py3.12 sys.monitoring drops events otherwise);
+# Python 3.12 sys.monitoring provides zero-overhead C-level tracing;
 # parallel+sigterm let pytest-xdist workers write per-worker .coverage.* and flush on SIGTERM.
-concurrency = ["greenlet", "thread"]
+core = "sysmon"
+concurrency = ["thread"]
 parallel = true
 sigterm = true
 omit = [

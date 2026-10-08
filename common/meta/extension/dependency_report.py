@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import io
 import json
 import os
@@ -92,6 +93,24 @@ type _ValueBinding = (
 
 _ResolutionKey = tuple[Path, str, int | None]
 _ValueKey = tuple[Path, str]
+
+
+@functools.lru_cache(maxsize=8192)
+def _parse_source_tree_cached(path_str: str, mtime_ns: int, size: int) -> ast.Module:
+    path = Path(path_str)
+    return ast.parse(path.read_text(encoding="utf-8"), filename=path_str)
+
+
+def _parse_source_tree(source: Path) -> ast.Module:
+    resolved = source.resolve()
+    try:
+        st = resolved.stat()
+        mtime_ns = st.st_mtime_ns
+        size = st.st_size
+    except OSError:
+        mtime_ns = 0
+        size = 0
+    return _parse_source_tree_cached(str(resolved), mtime_ns, size)
 
 
 def _annotation(node: ast.expr | None) -> str:
@@ -236,7 +255,7 @@ def _dereference_value(
         key = (binding.source.resolve(), binding.symbol)
         if key in seen:
             return None
-        tree = ast.parse(binding.source.read_text(encoding="utf-8"))
+        tree = _parse_source_tree(binding.source)
         values = _module_values(tree.body, source=binding.source, repo_root=repo_root)
         target = values.get(binding.symbol)
         return (
@@ -505,7 +524,7 @@ def _imported_value_fingerprint(
     key = (source.resolve(), symbol)
     if key in seen:
         return None
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     values = _module_values(tree.body, source=source, repo_root=repo_root)
     binding = values.get(symbol)
     if binding is not None:
@@ -520,7 +539,7 @@ def _imported_definition_fingerprint(
     repo_root: Path,
     value_seen: frozenset[_ValueKey],
 ) -> str | None:
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     for index in range(len(tree.body) - 1, -1, -1):
         node = tree.body[index]
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -1017,6 +1036,7 @@ def _module_definition_signature(
     )
 
 
+@functools.lru_cache(maxsize=16384)
 def _module_source(base: Path) -> Path | None:
     source = base.with_suffix(".py")
     if source.is_file():
@@ -1025,6 +1045,7 @@ def _module_source(base: Path) -> Path | None:
     return init_source if init_source.is_file() else None
 
 
+@functools.lru_cache(maxsize=16384)
 def _absolute_module_source(source: Path, module: str, repo_root: Path) -> Path | None:
     module_parts = module.split(".")
     anchor = source.parent
@@ -1038,6 +1059,7 @@ def _absolute_module_source(source: Path, module: str, repo_root: Path) -> Path 
     return None
 
 
+@functools.lru_cache(maxsize=16384)
 def _module_spec_source(source: Path, module: str, repo_root: Path) -> Path | None:
     level = len(module) - len(module.lstrip("."))
     if not level:
@@ -1086,7 +1108,7 @@ def _literal_value(node: ast.expr) -> object:
 
 
 def _wildcard_exports(source: Path, symbol: str) -> bool:
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     for node in reversed(tree.body):
         value: ast.expr | None = None
         if isinstance(node, ast.Assign) and any(
@@ -1355,7 +1377,7 @@ def _resolve_export(
     key = (source.resolve(), symbol, before_index)
     if key in seen:
         return None
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     next_seen = seen | {key}
     stop = len(tree.body) if before_index is None else min(before_index, len(tree.body))
 
@@ -1551,7 +1573,7 @@ def _public_symbol_records(
 def _shallow_definition_signature(source: Path, symbol: str) -> str:
     """Fingerprint only a command's own fields or callable signature."""
 
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     for node in tree.body:
         if (
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -1574,9 +1596,7 @@ def _shallow_definition_signature(source: Path, symbol: str) -> str:
 
 
 def _contract_call(contract_path: Path) -> ast.Call:
-    tree = ast.parse(
-        contract_path.read_text(encoding="utf-8"), filename=str(contract_path)
-    )
+    tree = _parse_source_tree(contract_path)
     for node in tree.body:
         value: ast.expr | None = None
         if isinstance(node, ast.Assign) and any(
