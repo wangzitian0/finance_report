@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import Account, AccountType, Direction
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
     ReportError,
@@ -18,6 +18,7 @@ from src.reporting import (
     get_account_trend,
     get_category_breakdown,
 )
+from tests.reporting._report_fixtures import make_entry, make_pair_entry, seed_fx_rates
 
 
 @pytest.fixture
@@ -40,67 +41,30 @@ async def multi_currency_accounts(db: AsyncSession, test_user_id):
 @pytest.fixture
 async def fx_rates(db: AsyncSession):
     """Setup historical FX rates."""
-    rates = [
-        # Rate at beginning of month: 1 USD = 1.30 SGD
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.30"),
-            rate_date=date(2025, 1, 1),
-            source="test",
-        ),
-        # Rate at end of month: 1 USD = 1.40 SGD (USD strengthened)
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.40"),
-            rate_date=date(2025, 1, 31),
-            source="test",
-        ),
-    ]
-    db.add_all(rates)
-    await db.commit()
-    return rates
+    return await seed_fx_rates(
+        db,
+        ("USD", "SGD", "1.30", date(2025, 1, 1)),
+        ("USD", "SGD", "1.40", date(2025, 1, 31)),
+    )
 
 
 async def test_fx_unrealized_gain_calculation(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """AC-reporting.balance-sheet.2: [AC5.1.2] Test that unrealized FX gain is correctly calculated in the balance sheet."""
     sgd_cash, usd_savings, capital, *_ = multi_currency_accounts
 
-    # 1. Opening Entry: Invest 100 USD when rate is 1.30 (Historical Cost = 130 SGD)
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Initial investment",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.30"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("130.00"),
-                currency="SGD",
-            ),
-        ]
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Initial investment",
+            [
+                (usd_savings, Direction.DEBIT, "100.00", "USD", Decimal("1.30")),
+                (capital, Direction.CREDIT, "130.00", "SGD", None),
+            ],
+        )
     )
     await db.commit()
 
-    # 2. At end of month, rate is 1.40.
-    # Assets: 100 USD * 1.40 = 140 SGD
-    # Equity: 130 SGD
-    # Unrealized Gain = 140 - 130 = 10 SGD
     report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
     assert report["total_assets"] == Decimal("140.00")
@@ -113,68 +77,22 @@ async def test_income_statement_comprehensive_income(db: AsyncSession, multi_cur
     """AC-reporting.income-statement.2: [AC5.2.2] Test that income statement includes both net income and unrealized FX change."""
     sgd_cash, usd_savings, capital, salary, _ = multi_currency_accounts
 
-    # 1. Opening (already in USD)
-    entry1 = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Opening",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry1)
-    await db.flush()
     db.add_all(
         [
-            JournalLine(
-                journal_entry_id=entry1.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.30"),
+            make_entry(
+                test_user_id,
+                date(2025, 1, 1),
+                "Opening",
+                [
+                    (usd_savings, Direction.DEBIT, "100.00", "USD", Decimal("1.30")),
+                    (capital, Direction.CREDIT, "130.00", "SGD", None),
+                ],
             ),
-            JournalLine(
-                journal_entry_id=entry1.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("130.00"),
-                currency="SGD",
-            ),
-        ]
-    )
-
-    # 2. Income mid-month: 1000 SGD
-    entry2 = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry2)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry2.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry2.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
+            make_pair_entry(test_user_id, date(2025, 1, 15), "Salary", sgd_cash, salary, "1000.00"),
         ]
     )
     await db.commit()
 
-    # Calculation:
-    # Net Income = 1000 SGD
-    # Unrealized FX Change = 10 SGD (from USD strengthening)
-    # Comprehensive Income = 1010 SGD
     report = await generate_income_statement(
         db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
     )
@@ -186,51 +104,25 @@ async def test_income_statement_comprehensive_income(db: AsyncSession, multi_cur
 
 async def test_fx_liability_inversion(db: AsyncSession, multi_currency_accounts, fx_rates, test_user_id):
     """Test that USD strengthening results in a LOSS for USD-denominated liabilities."""
-    # Create a USD Liability account
     usd_debt = Account(user_id=test_user_id, name="USD Debt", type=AccountType.LIABILITY, currency="USD")
     db.add(usd_debt)
     sgd_cash = multi_currency_accounts[0]
     await db.commit()
     await db.refresh(usd_debt)
 
-    # 1. Borrow 100 USD when rate is 1.30 (Historical Liability = 130 SGD)
-    # entry: Debit Cash 130 SGD, Credit USD Debt 100 USD (130 SGD)
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Borrow",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("130.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_debt.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.30"),
-            ),
-        ]
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Borrow",
+            [
+                (sgd_cash, Direction.DEBIT, "130.00", "SGD", None),
+                (usd_debt, Direction.CREDIT, "100.00", "USD", Decimal("1.30")),
+            ],
+        )
     )
     await db.commit()
 
-    # 2. At end of month, rate is 1.40.
-    # Liability: 100 USD * 1.40 = 140 SGD
-    # Historical Net Income = 0
-    # Equity = 0
-    # Assets = 130 SGD
-    # Equation: 130 = 140 + 0 + 0 + Unrealized
-    # Unrealized = 130 - 140 = -10 SGD (Loss)
     report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
 
     assert report["total_assets"] == Decimal("130.00")
@@ -244,69 +136,28 @@ async def test_multi_currency_aggregation(db: AsyncSession, multi_currency_accou
     eur_savings = Account(user_id=test_user_id, name="EUR Savings", type=AccountType.ASSET, currency="EUR")
     db.add(eur_savings)
 
-    # Rates
-    db.add_all(
-        [
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.30"),
-                rate_date=date(2025, 1, 1),
-                source="test",
-            ),
-            FxRate(
-                base_currency="EUR",
-                quote_currency="SGD",
-                rate=Decimal("1.50"),
-                rate_date=date(2025, 1, 1),
-                source="test",
-            ),
-        ]
+    await seed_fx_rates(
+        db,
+        ("USD", "SGD", "1.30", date(2025, 1, 1)),
+        ("EUR", "SGD", "1.50", date(2025, 1, 1)),
     )
-    await db.commit()
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 1),
-        memo="Opening",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.30"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=eur_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="EUR",
-                fx_rate=Decimal("1.50"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("280.00"),
-                currency="SGD",
-            ),
-        ]
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Opening",
+            [
+                (usd_savings, Direction.DEBIT, "100.00", "USD", Decimal("1.30")),
+                (eur_savings, Direction.DEBIT, "100.00", "EUR", Decimal("1.50")),
+                (capital, Direction.CREDIT, "280.00", "SGD", None),
+            ],
+        )
     )
     await db.commit()
 
     report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 1), currency="SGD")
 
-    # USD 100 * 1.3 = 130
-    # EUR 100 * 1.5 = 150
-    # Total Assets = 280
     assert report["total_assets"] == Decimal("280.00")
     assert report["total_equity"] == Decimal("280.00")
     assert report["unrealized_fx_gain_loss"] == Decimal("0.00")
@@ -320,91 +171,35 @@ async def test_historical_vs_average_discrepancy_bridge(db: AsyncSession, multi_
     """
     sgd_cash, usd_savings, capital, salary, _ = multi_currency_accounts
 
-    # Rates
-    # Date 1: 1 USD = 1.30 SGD
-    # Date 15: 1 USD = 1.40 SGD (Income received)
-    # Date 31: 1 USD = 1.50 SGD
-    # Average for month: (1.3 + 1.4 + 1.5)/3 = 1.40 (Simplified)
-    # Let's just put explicit average rate in DB if we want to be sure
-    db.add_all(
-        [
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.30"),
-                rate_date=date(2025, 1, 1),
-                source="test",
-            ),
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.40"),
-                rate_date=date(2025, 1, 15),
-                source="test",
-            ),
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.50"),
-                rate_date=date(2025, 1, 31),
-                source="test",
-            ),
-        ]
+    await seed_fx_rates(
+        db,
+        ("USD", "SGD", "1.30", date(2025, 1, 1)),
+        ("USD", "SGD", "1.40", date(2025, 1, 15)),
+        ("USD", "SGD", "1.50", date(2025, 1, 31)),
+    )
+
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Salary",
+            usd_savings,
+            salary,
+            "100.00",
+            currency="USD",
+            fx_rate=Decimal("1.40"),
+        )
     )
     await db.commit()
 
-    # 1. Earn 100 USD on Jan 15.
-    # Spot rate: 1.40. Historical value = 140 SGD.
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.40"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.40"),
-            ),
-        ]
-    )
-    await db.commit()
-
-    # 2. Check Balance Sheet on Jan 31.
-    # Assets: 100 USD * 1.50 = 150 SGD
-    # Net Income (Historical): 100 USD * 1.40 = 140 SGD
-    # Unrealized Gain = 150 - 140 = 10 SGD
     bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
     assert bs["total_assets"] == Decimal("150.00")
     assert bs["net_income"] == Decimal("140.00")
     assert bs["unrealized_fx_gain_loss"] == Decimal("10.00")
 
-    # 3. Check Income Statement for Jan.
-    # Income (Average): say average is 1.40 (matches spot on Jan 15 for this test)
-    # If it uses average rate, it should match the historical cost in this case.
-    # If it uses a DIFFERENT rate (e.g. monthly avg), the unrealized FX change will bridge it.
     is_report = await generate_income_statement(
         db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
     )
-
-    # Net Income in IS might differ from BS if average rate != historical rate
-    # But Comprehensive Income must equal the change in Net Assets.
-    # Here Start Net Assets = 0. End Net Assets = 150. Change = 150.
     assert is_report["comprehensive_income"] == Decimal("150.00")
 
 
@@ -412,59 +207,26 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
     """AC-reporting.fx.1: [AC5.4.1] Test FX fallbacks when rates are missing for BS and IS."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
-    # Rate only on Jan 31
+    await seed_fx_rates(db, ("USD", "SGD", "1.50", date(2025, 1, 31)))
     db.add(
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.50"),
-            rate_date=date(2025, 1, 31),
-            source="test",
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Salary",
+            usd_savings,
+            salary,
+            "100.00",
+            currency="USD",
+            fx_rate=Decimal("1.50"),
         )
     )
     await db.commit()
 
-    # Entry on Jan 15 (Missing rate for Jan 15)
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.50"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.50"),
-            ),
-        ]
-    )
-    await db.commit()
-
-    # 1. Balance Sheet: Should NOT raise if prefetch fails but fallback works
     bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
-    # Assets: 100 USD * 1.50 = 150 SGD
-    # Income: 100 USD * 1.50 (Fallback to spot) = 150 SGD
-    # Unrealized = 150 - 150 = 0
     assert bs["total_assets"] == Decimal("150.00")
     assert bs["net_income"] == Decimal("150.00")
     assert bs["unrealized_fx_gain_loss"] == Decimal("0.00")
 
-    # 2. Income Statement: Should fallback to spot rate at end_date
     is_report = await generate_income_statement(
         db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
     )
@@ -473,15 +235,12 @@ async def test_reporting_fx_fallbacks(db: AsyncSession, multi_currency_accounts,
 
 async def test_reporting_error_cases(db: AsyncSession, test_user_id):
     """Test error handling and edge cases in reporting."""
-    # Start > End
     with pytest.raises(ReportError, match="start_date must be before end_date"):
         await generate_income_statement(db, test_user_id, start_date=date(2025, 1, 31), end_date=date(2025, 1, 1))
 
-    # Missing account for trend
     with pytest.raises(ReportError, match="Account not found"):
         await get_account_trend(db, test_user_id, account_id=uuid4(), period="daily")
 
-    # Invalid period for breakdown
     with pytest.raises(ReportError, match="Unsupported period"):
         await get_category_breakdown(db, test_user_id, breakdown_type=AccountType.INCOME, period="invalid")
 
@@ -490,76 +249,26 @@ async def test_additional_reports_basic_coverage(db: AsyncSession, multi_currenc
     """Test trend, breakdown and cash flow reports for basic coverage."""
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
-    # Add some data
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary and Food",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1200.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=dining.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("200.00"),
-                currency="SGD",
-            ),
-        ]
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Salary and Food",
+            [
+                (sgd_cash, Direction.DEBIT, "1000.00", "SGD", None),
+                (salary, Direction.CREDIT, "1200.00", "SGD", None),
+                (dining, Direction.DEBIT, "200.00", "SGD", None),
+            ],
+        )
     )
     await db.commit()
 
-    # Trend
     trend = await get_account_trend(db, test_user_id, account_id=sgd_cash.id, period="monthly", currency="SGD")
     assert isinstance(trend["points"], list)
     assert len(trend["points"]) > 0
 
-    # Breakdown - need to use today's date or ensure data is within "monthly" start date
-    # get_category_breakdown uses date.today() as end_date
     today = date.today()
-    breakdown_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=today,
-        memo="Today Income",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(breakdown_entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=breakdown_entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=breakdown_entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-        ]
-    )
+    db.add(make_pair_entry(test_user_id, today, "Today Income", sgd_cash, salary, "100.00"))
     await db.commit()
 
     breakdown = await get_category_breakdown(
@@ -569,8 +278,6 @@ async def test_additional_reports_basic_coverage(db: AsyncSession, multi_currenc
     assert len(breakdown["items"]) >= 1
     assert any(item["category_name"] == "Salary" for item in breakdown["items"])
 
-    # Cash Flow
-    # Add cash keywords to sgd_cash name to ensure it's picked up
     sgd_cash.name = "SGD Cash Bank"
     db.add(sgd_cash)
     await db.commit()
@@ -587,38 +294,13 @@ async def test_reporting_tags_filtering(db: AsyncSession, multi_currency_account
     """Test filtering income statement by tags."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
-    # Entry with tags
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Tagged Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-                tags={"work": "true"},
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("500.00"),
-                currency="SGD",
-                tags={"work": "true"},
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id, date(2025, 1, 15), "Tagged Salary", sgd_cash, salary, "500.00", tags={"work": "true"}
+        )
     )
     await db.commit()
 
-    # Filter by existing tag
     is_tagged = await generate_income_statement(
         db,
         test_user_id,
@@ -629,7 +311,6 @@ async def test_reporting_tags_filtering(db: AsyncSession, multi_currency_account
     )
     assert is_tagged["total_income"] == Decimal("500.00")
 
-    # Filter by non-existent tag
     is_missing_tag = await generate_income_statement(
         db,
         test_user_id,
@@ -646,34 +327,17 @@ async def test_reporting_fx_extreme_fallbacks(db: AsyncSession, multi_currency_a
     sgd_cash, usd_savings, capital, salary, dining = multi_currency_accounts
 
     # No rates at all in DB
-
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Salary",
+            usd_savings,
+            salary,
+            "100.00",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -727,45 +391,18 @@ async def test_reporting_cash_flow_edge_cases(db: AsyncSession, multi_currency_a
     db.add_all([equipment, loan, sgd_bank])
     await db.commit()
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Investing and Financing",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("5000"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=loan.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("5000"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=equipment.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("2000"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_bank.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("2000"),
-                currency="SGD",
-            ),
-        ]
+    db.add(
+        make_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Investing and Financing",
+            [
+                (sgd_bank, Direction.DEBIT, "5000", "SGD"),
+                (loan, Direction.CREDIT, "5000", "SGD"),
+                (equipment, Direction.DEBIT, "2000", "SGD"),
+                (sgd_bank, Direction.CREDIT, "2000", "SGD"),
+            ],
+        )
     )
     await db.commit()
 
@@ -823,34 +460,17 @@ async def test_reporting_cash_flow_before_fx_error(db: AsyncSession, multi_curre
     """Test cash flow error when FX fails for 'before' period balances."""
     _, usd_savings, capital, *_ = multi_currency_accounts
 
-    # Entry BEFORE start_date
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2024, 12, 1),
-        memo="Old Entry",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2024, 12, 1),
+            "Old Entry",
+            usd_savings,
+            capital,
+            "100",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -865,33 +485,17 @@ async def test_reporting_cash_flow_fx_error_handling(db: AsyncSession, multi_cur
     sgd_bank.name = "Bank account"
 
     # No rates in DB
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="FX CF Error",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "FX CF Error",
+            usd_savings,
+            capital,
+            "100",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -904,33 +508,17 @@ async def test_reporting_breakdown_fx_error_handling(db: AsyncSession, multi_cur
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # No rates in DB
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="FX Breakdown Error",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date.today(),
+            "FX Breakdown Error",
+            sgd_cash,
+            salary,
+            "100",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -943,33 +531,17 @@ async def test_reporting_trend_fx_error_handling(db: AsyncSession, multi_currenc
     _, usd_savings, capital, *_ = multi_currency_accounts
 
     # No rates in DB
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date.today(),
-        memo="FX Trend Error",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_savings.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=capital.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date.today(),
+            "FX Trend Error",
+            usd_savings,
+            capital,
+            "100",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
@@ -983,45 +555,19 @@ async def test_reporting_income_statement_period_fx_fallback_to_spot(
     """Test IS fallback from average rate to spot rate when average rate is missing."""
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
-    # Rate only at end_date
-    db.add(
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.50"),
-            rate_date=date(2025, 1, 31),
-            source="test",
-        )
-    )
-    await db.commit()
+    await seed_fx_rates(db, ("USD", "SGD", "1.50", date(2025, 1, 31)))
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 15),
-        memo="Salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.50"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100"),
-                currency="USD",
-                fx_rate=Decimal("1.50"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Salary",
+            sgd_cash,
+            salary,
+            "100",
+            currency="USD",
+            fx_rate=Decimal("1.50"),
+        )
     )
     await db.commit()
 
@@ -1037,48 +583,22 @@ async def test_balance_sheet_net_income_fx_fallback(db: AsyncSession, multi_curr
 
     This covers the fallback path in _aggregate_net_income_sql (lines 312-333).
     """
-    sgd_cash, _, _, salary, expense = multi_currency_accounts
+    sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # Only add FX rate at as_of_date (2025-01-31), NOT at entry_date (2025-01-10)
-    db.add(
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.35"),
-            rate_date=date(2025, 1, 31),
-            source="test",
-        )
-    )
-    await db.commit()
+    await seed_fx_rates(db, ("USD", "SGD", "1.35", date(2025, 1, 31)))
 
-    # Create income entry on 2025-01-10 (no FX rate for this date)
-    income_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 10),
-        memo="USD Salary - no rate at entry date",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(income_entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.35"),
-            ),
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.35"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 10),
+            "USD Salary - no rate at entry date",
+            sgd_cash,
+            salary,
+            "100.00",
+            currency="USD",
+            fx_rate=Decimal("1.35"),
+        )
     )
     await db.commit()
 
@@ -1097,52 +617,23 @@ async def test_reports_lazy_resolve_missing_hkd_sgd_from_bridge_rates(db: AsyncS
     db.add_all([hkd_cash, hkd_salary])
     await db.flush()
 
-    db.add_all(
-        [
-            FxRate(
-                base_currency="USD",
-                quote_currency="HKD",
-                rate=Decimal("7.800000"),
-                rate_date=date(2025, 6, 30),
-                source="test",
-            ),
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.350000"),
-                rate_date=date(2025, 6, 30),
-                source="test",
-            ),
-        ]
+    await seed_fx_rates(
+        db,
+        ("USD", "HKD", "7.800000", date(2025, 6, 30)),
+        ("USD", "SGD", "1.350000", date(2025, 6, 30)),
     )
 
-    entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 6, 30),
-        memo="HKD salary",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=hkd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("780.00"),
-                currency="HKD",
-                fx_rate=Decimal("0.173077"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=hkd_salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("780.00"),
-                currency="HKD",
-                fx_rate=Decimal("0.173077"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 6, 30),
+            "HKD salary",
+            hkd_cash,
+            hkd_salary,
+            "780.00",
+            currency="HKD",
+            fx_rate=Decimal("0.173077"),
+        )
     )
     await db.commit()
 
@@ -1180,33 +671,17 @@ async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi
     sgd_cash, _, _, salary, _ = multi_currency_accounts
 
     # Create income entry with USD but NO FX rate at all
-    income_entry = JournalEntry(
-        user_id=test_user_id,
-        entry_date=date(2025, 1, 10),
-        memo="USD Salary - no FX rate",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(income_entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=sgd_cash.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-            JournalLine(
-                journal_entry_id=income_entry.id,
-                account_id=salary.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="USD",
-                fx_rate=Decimal("1.00"),
-            ),
-        ]
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2025, 1, 10),
+            "USD Salary - no FX rate",
+            sgd_cash,
+            salary,
+            "100.00",
+            currency="USD",
+            fx_rate=Decimal("1.00"),
+        )
     )
     await db.commit()
 
