@@ -553,6 +553,7 @@ export default function StatementReviewPage() {
             onReject={() => setRejectDialogOpen(true)}
             actionLoading={approveMutation.isPending || rejectMutation.isPending}
             balanceValid={balanceValid}
+            statementStatus={data.status}
             approvalBlockedReason={approvalBlockedReason}
             onResolveConflicts={
               hasUnresolvedConflicts

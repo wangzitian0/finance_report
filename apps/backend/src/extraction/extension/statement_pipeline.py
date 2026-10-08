@@ -112,3 +112,48 @@ async def submit_parse_pipeline(
             return _run_in_process()
 
     return _run_in_process()
+
+
+async def check_and_recover_stalled_parsing_jobs(
+    db: AsyncSession,
+    stall_threshold_seconds: int = 180,
+) -> list[str]:
+    """Recover statement parsing jobs stalled longer than threshold.
+
+    Transitions status to REJECTED and records audit logging so the user
+    can retry without waiting for supervisor reset.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from src.extraction.base.source_vocabulary import BankStatementStatus
+    from src.extraction.orm.statement_summary import StatementSummary
+
+    cutoff = datetime.now(UTC) - timedelta(seconds=stall_threshold_seconds)
+    stmt = (
+        select(StatementSummary)
+        .where(StatementSummary.status == BankStatementStatus.PARSING)
+        .where(StatementSummary.updated_at < cutoff)
+    )
+    result = await db.execute(stmt)
+    stalled_statements = result.scalars().all()
+
+    recovered_ids: list[str] = []
+    for statement in stalled_statements:
+        statement.status = BankStatementStatus.REJECTED
+        statement.validation_error = "Parsing timed out after stall threshold. Please retry."
+        statement.confidence_score = 0
+        statement.balance_validated = False
+        recovered_ids.append(str(statement.id))
+        logger.warning(
+            "statement.parsing.watchdog_timeout",
+            statement_id=str(statement.id),
+            stall_seconds=stall_threshold_seconds,
+            updated_at=str(statement.updated_at),
+        )
+
+    if stalled_statements:
+        await db.commit()
+
+    return recovered_ids

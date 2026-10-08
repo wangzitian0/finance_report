@@ -5,6 +5,7 @@ interface ReviewActionBarProps {
     onReject: () => void;
     actionLoading: boolean;
     balanceValid: boolean;
+    statementStatus?: string;
     approvalBlockedReason?: string | null;
     // EPIC-022 AC22.5.2: in-place escapes when Approve is blocked, so the user
     // never has to leave the review page to make progress.
@@ -18,17 +19,21 @@ export function ReviewActionBar({
     onReject,
     actionLoading,
     balanceValid,
+    statementStatus = "completed",
     approvalBlockedReason = null,
     onResolveConflicts,
     onReparse,
     reparsePending = false,
 }: ReviewActionBarProps) {
+    const isParsing = statementStatus === "parsing" || statementStatus === "pending";
     const blockedByReview = Boolean(approvalBlockedReason);
     const blockedByConflicts = blockedByReview && Boolean(onResolveConflicts);
-    const blockedByBalance = !blockedByReview && !balanceValid;
-    const isBlocked = blockedByReview || blockedByBalance;
+    const blockedByBalance = !isParsing && !blockedByReview && !balanceValid;
+    const isBlocked = isParsing || blockedByReview || blockedByBalance;
 
-    const reason = blockedByConflicts
+    const reason = isParsing
+        ? "Approve is paused — extraction is in progress."
+        : blockedByConflicts
         ? "Approve is paused — we found possible duplicate or transfer-pair transactions. Review them before approving."
         : blockedByReview
           ? approvalBlockedReason || "Approve is paused until the required review is complete."

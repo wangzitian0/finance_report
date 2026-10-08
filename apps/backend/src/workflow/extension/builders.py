@@ -115,6 +115,20 @@ def build_review_completed_event_payload(statement: StatementEventSource, filena
     )
 
 
+def build_review_rejected_event_payload(statement: StatementEventSource, filename: str) -> WorkflowEventCreate:
+    """Build the warning event for rejected Stage 1 review."""
+    return _build_statement_event_payload(
+        statement,
+        family=WorkflowEventFamily.REVIEW_COMPLETED,
+        occurred_at=statement.stage1_reviewed_at or statement.updated_at or statement.created_at,
+        severity=WorkflowEventSeverity.WARNING,
+        title="Source review rejected",
+        summary=f"{filename} source review was rejected.",
+        action_href=f"/statements/{statement.id}",
+        report_impact=WorkflowReportImpact.NONE,
+    )
+
+
 def _readiness_blocker_source_id(code: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"finance-report:readiness-blocker:{code}")
 
