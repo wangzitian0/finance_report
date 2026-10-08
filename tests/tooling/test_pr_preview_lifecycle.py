@@ -20,6 +20,44 @@ def lifecycle_module():
     return importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
 
 
+DEFAULT_EFFECTIVE_ENV = "\n".join(
+    [
+        "IMAGE_TAG=pr-591-abc123",
+        "GIT_COMMIT_SHA=abc123",
+        "IAC_CONFIG_HASH=pr-591-abc123",
+        "COMPOSE_PROJECT_NAME=finance_report_pr_591",
+        "ENV_SUFFIX=-pr-591-abc123",
+        "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
+        "NETWORK_SUFFIX=-pr-591",
+        "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
+        "DB_HOST=finance-report-db-pr-591-abc123",
+        "S3_HOST=finance-report-minio-pr-591-abc123",
+        "COMPOSE_PROFILES=infra,app",
+    ]
+)
+
+
+def _deploy_args(**overrides: object) -> SimpleNamespace:
+    payload: dict[str, object] = {
+        "action": "deploy",
+        "pr_number": 591,
+        "compose_name": "pr-591",
+        "compose_id": "",
+        "environment_id": "env-test",
+        "api_url": "https://cloud.example/api",
+        "api_key": "secret-key",
+        "github_integration_id": "ghid",
+        "branch": "feature",
+        "commit_sha": "abc123",
+        "registry": "ghcr.io",
+        "image_prefix": "owner/finance_report",
+        "internal_domain": "zitian.party",
+        "dry_run": False,
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
+
+
 def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     lifecycle = lifecycle_module()
 
@@ -954,34 +992,13 @@ def test_AC8_13_72_update_compose_env_fails_when_effective_env_differs(
         )
 
 
-
-
-
-
-
-
 def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-            "VAULT_APP_TOKEN=hvs.secret",
-        ]
-    )
+    effective_env = f"{DEFAULT_EFFECTIVE_ENV}\nVAULT_APP_TOKEN=hvs.secret"
 
     def fake_run_command(
         cmd: list[str],
@@ -1020,25 +1037,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
         "wait_for_dokploy_deployment_rollout",
         lambda *args, **kwargs: None,
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        host="cloud.zitian.party",
-        user="root",
-        ssh_key="/tmp/key",
-        dry_run=False,
-    )
+    args = _deploy_args(host="cloud.zitian.party", user="root", ssh_key="/tmp/key")
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1058,21 +1057,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
     calls: list[list[str]] = []
     wait_calls = 0
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1117,22 +1102,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1151,21 +1121,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1208,22 +1164,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
         "wait_for_dokploy_deployment_rollout",
         lambda *args, **kwargs: None,
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1243,21 +1184,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     calls: list[list[str]] = []
     rollout_previous_ids: list[set[str] | None] = []
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1298,22 +1225,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
     rendered_calls = "\n".join(" ".join(call) for call in calls)
@@ -1333,21 +1245,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
     calls: list[list[str]] = []
     wait_calls = 0
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1408,22 +1306,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1448,21 +1331,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     calls: list[list[str]] = []
     wait_calls = 0
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1506,22 +1375,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 1
 
@@ -1549,21 +1403,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
     calls: list[list[str]] = []
     wait_calls = 0
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1624,22 +1464,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1661,21 +1486,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     calls: list[list[str]] = []
     wait_calls = 0
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1721,22 +1532,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 1
 
@@ -1763,21 +1559,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1817,22 +1599,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 1
 
@@ -1850,21 +1617,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
 
-    effective_env = "\n".join(
-        [
-            "IMAGE_TAG=pr-591-abc123",
-            "GIT_COMMIT_SHA=abc123",
-            "IAC_CONFIG_HASH=pr-591-abc123",
-            "COMPOSE_PROJECT_NAME=finance_report_pr_591",
-            "ENV_SUFFIX=-pr-591-abc123",
-            "ENV_DOMAIN_SUFFIX=-pr-591-abc123",
-            "NETWORK_SUFFIX=-pr-591",
-            "NEXT_PUBLIC_API_URL=https://report-pr-591.zitian.party",
-            "DB_HOST=finance-report-db-pr-591-abc123",
-            "S3_HOST=finance-report-minio-pr-591-abc123",
-            "COMPOSE_PROFILES=infra,app",
-        ]
-    )
+    effective_env = DEFAULT_EFFECTIVE_ENV
 
     def fake_run_command(
         cmd: list[str],
@@ -1902,22 +1655,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
         "wait_for_dokploy_deployment_rollout",
         lambda *args, **kwargs: None,
     )
-    args = SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
+    args = _deploy_args()
 
     assert lifecycle.main_from_args(args) == 0
 
@@ -1991,19 +1729,7 @@ def test_AC8_13_71_deploy_action_writes_github_output(
         "wait_for_dokploy_deployment_rollout",
         lambda *args, **kwargs: None,
     )
-    args = SimpleNamespace(
-        pr_number=591,
-        compose_name="pr-591",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-    )
+    args = _deploy_args()
 
     assert lifecycle.deploy_action(args) == 0
 
@@ -2025,19 +1751,7 @@ def test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs(
         return "{}"
 
     monkeypatch.setattr(lifecycle._dokploy, "dokploy_api_call", fail_if_called)
-    args = SimpleNamespace(
-        pr_number=591,
-        compose_name="pr-591",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="",
-        github_integration_id="",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-    )
+    args = _deploy_args(api_key="", github_integration_id="")
 
     with pytest.raises(ValueError, match="api_key, github_integration_id"):
         lifecycle.deploy_action(args)
@@ -2060,19 +1774,7 @@ def test_AC8_13_107_deploy_input_validation_rejects_invalid_values(
 ) -> None:
     """AC8.13.107: Invalid deploy input values fail before rollout mutation."""
     lifecycle = lifecycle_module()
-    args = SimpleNamespace(
-        pr_number=591,
-        compose_name="pr-591",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-    )
+    args = _deploy_args()
     setattr(args, field, value)
 
     with pytest.raises(ValueError, match=expected_error):
@@ -2087,19 +1789,7 @@ def test_AC8_13_107_preview_deploy_context_is_written_without_secrets(
     context_path = tmp_path / "ci-context" / "pr-preview-deploy-context.json"
     context_path.parent.mkdir(parents=True)
     context_path.write_text('{"old_secret":"do-not-preserve"}\n', encoding="utf-8")
-    args = SimpleNamespace(
-        pr_number=591,
-        compose_name="pr-591",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid-secret",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-    )
+    args = _deploy_args(github_integration_id="ghid-secret")
 
     lifecycle.write_preview_context(
         str(context_path),
@@ -2199,19 +1889,11 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
     assert "APP_URL: ${{ steps.deploy.outputs.app_url }}" not in workflow
 
 
-
-
-
-
-
-
 def test_AC8_13_71_main_rejects_unsupported_action() -> None:
     lifecycle = lifecycle_module()
 
     with pytest.raises(ValueError, match="Unsupported action"):
         lifecycle.main_from_args(SimpleNamespace(action="unsupported"))
-
-
 
 
 def test_AC8_13_71_deploy_still_uses_lifecycle_tool() -> None:
@@ -2298,8 +1980,6 @@ def test_AC8_13_102_api_call_retries_transient_failures_on_get(
     assert calls == 1
 
 
-
-
 def test_AC8_13_102_dokploy_api_call_invalid_retry_delay_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2373,8 +2053,6 @@ def test_AC8_13_102_dokploy_api_call_non_transient_curl_error_does_not_retry(
         )
     # Should fail immediately on 1st attempt, not retrying up to 4 times
     assert calls == 1
-
-
 
 
 def test_get_running_deployments_count(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2534,25 +2212,6 @@ def test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout() -> None:
 # Issue #756 — fail-fast on no-new-deployment record (classified error)
 # Issue #758 — rollback / safe-to-reconcile on mutate-then-fail
 # ---------------------------------------------------------------------------
-
-
-def _deploy_args() -> SimpleNamespace:
-    return SimpleNamespace(
-        action="deploy",
-        pr_number=591,
-        compose_name="pr-591",
-        compose_id="",
-        environment_id="env-test",
-        api_url="https://cloud.example/api",
-        api_key="secret-key",
-        github_integration_id="ghid",
-        branch="feature",
-        commit_sha="abc123",
-        registry="ghcr.io",
-        image_prefix="owner/finance_report",
-        internal_domain="zitian.party",
-        dry_run=False,
-    )
 
 
 def test_AC7_13_1_no_new_deployment_record_raises_classified_subclass(
@@ -2840,7 +2499,9 @@ def test_AC7_13_4_existing_compose_rolls_back_to_last_known_good_on_env_drift(
 def test_AC7_13_5_ci_cd_docs_describe_failure_modes() -> None:
     """AC-testing.preview.20: AC7.13.5: ci-cd SSOT documents both the no-new-deployment fail-fast mode
     and the half-update rollback / safe-to-reconcile recovery path."""
-    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
+    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text() + (
+        ROOT / "common/runtime/ci-cd.md"
+    ).read_text()
     assert "dokploy-worker-or-deployment-record" in ci_cd
     assert "safe-to-reconcile" in ci_cd
     lowered = ci_cd.lower()
