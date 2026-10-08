@@ -25,7 +25,7 @@ export function ReviewActionBar({
     onReparse,
     reparsePending = false,
 }: ReviewActionBarProps) {
-    const isParsing = statementStatus === "parsing" || statementStatus === "pending";
+    const isParsing = statementStatus === "parsing";
     const blockedByReview = Boolean(approvalBlockedReason);
     const blockedByConflicts = blockedByReview && Boolean(onResolveConflicts);
     const blockedByBalance = !isParsing && !blockedByReview && !balanceValid;
