@@ -8,6 +8,8 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
 from tools._lib.benchmarks.run_financial_scenario_benchmark import (
     generate_credit_card_repayment_bank_pdf,
@@ -392,16 +394,34 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     assert len(html_out) > 5000
 
 
-def test_benchmark_case_6_dispatch_contract() -> None:
+def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-testing.benchmarks.v2: Case 6 is exported and dispatchable via CLI and scenario runner."""
+    from tools._lib.benchmarks import run_financial_scenario_benchmark
+    from tools._lib.benchmarks.case_types import CaseResult
     from tools._lib.benchmarks.cases import execute_case_6
 
     assert callable(execute_case_6)
 
-    # Test _should_run resolution for Case 6
-    case_arg = "6"
-    requested = [c.strip().lower() for c in case_arg.split(",") if c.strip()]
-    assert "6" in requested
+    # Prove case 6 is genuinely wired into scenario dispatch
+    fake_result = CaseResult(
+        case_id="case_6",
+        case_name="Case 6 Test",
+        status="PASS",
+        duration_seconds=0.1,
+        details={},
+    )
+    dispatched_cases: list[str] = []
+    monkeypatch.setattr(
+        run_financial_scenario_benchmark,
+        "execute_case_6",
+        lambda runner: (dispatched_cases.append("case_6"), fake_result)[1],
+    )
+
+    fake_runner = object()  # type: ignore[arg-type]
+    results = run_financial_scenario_benchmark._dispatch_cases(fake_runner, "6")
+    assert dispatched_cases == ["case_6"]
+    assert len(results) == 1
+    assert results[0].case_id == "case_6"
 
 
 def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
