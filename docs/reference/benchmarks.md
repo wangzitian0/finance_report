@@ -46,8 +46,24 @@ The V2 benchmark test matrix covers end-to-end multi-period accounting sufficien
    Processes statements across 3 sovereign jurisdictions: Singapore (SGD), United States (USD), and Hong Kong (HKD). Mathematically asserts consolidated balance sheet balance in base currency (SGD) and target currency (USD) with $\Delta = 0.00$.
 5. **Case 5: Holistic Multi-Asset & Tax Ecosystem**
    Combines liquid securities (AAPL, VT) via Interactive Brokers import, illiquid real estate property appraisal (350,000.00 USD), and annual compensation / tax withholding verification via Form W-2 and Payslip structured entries. Asserts comprehensive wealth valuation integration on the balance sheet with $\Delta = 0.00$.
-6. **Case 6: Bank Overdraft & Capital Gain Asset Disposal**
-   Validates negative cash balance (overdraft) handling where expenses exceed deposits, followed by emergency capital injection, collectible art acquisition, and profitable asset disposal with realized capital gains. Mathematically asserts three-statement conservation ($Assets \equiv Liabilities + Equity$) across negative and zero-asset transitions.
+6. **Case 6: Bank Overdraft (Negative Cash Balance) & Asset Disposal Capital Gains**
+   Evaluates emergency cash depletion driving primary checking balance into negative territory (-1,500.00 SGD), emergency capital injection, and capital asset acquisition/disposal with realized capital gain (+2,500.00 SGD). Asserts zero-delta equation balance under boundary transitions.
+
+---
+
+## 🏛️ 30-Flow Canonical Architecture & Shift-Left Matrix
+
+Bench V2 aligns directly with the 30 canonical wealth & accounting flows across 7 domains defined in `common/meta/flows/thirty_flows_ssot.json`:
+
+| Domain | Flows Covered | Primary Mathematical Invariants ($\Delta = 0.00$) |
+| :--- | :--- | :--- |
+| **Domain 1: Ingestion & Extraction** | Flows 1–5 | Opening + sum(IN) - sum(OUT) == calculated_closing; $M_{n+1} \equiv M_n$; receipt digest hash SHA-256; appraisal asset/gain. |
+| **Domain 2: Review & Human-in-the-Loop** | Flows 6–10 | Balanced posted entries; balance mismatch rejection defense; deterministic cross-statement deduplication. |
+| **Domain 3: Economic Intent & Splits** | Flows 11–14 | Intent counter-account assignment; atomic batch rule commit; dynamic account creation; payroll gross == net + tax + CPF. |
+| **Domain 4: Transfers & Reconciliation** | Flows 15–18 | Inter-account transfer zero clearing; credit card liability clearance with zero P&L leak; multi-currency realized FX decomposition; penny rounding write-off. |
+| **Domain 5: Investments & Multi-Asset** | Flows 19–22 | Brokerage position book cost sync; dividend gross == net + WHT; real-time market revaluation; mortgage principal + interest split. |
+| **Domain 6: Reporting & Equation Governance** | Flows 23–26 | Assets == Liabilities + Equity + Net Income ($\Delta = 0.00$); out-of-balance diagnostic root cause; comparative trends; 3-activity cash flow identity. |
+| **Domain 7: Audit Traceability & Insights** | Flows 27–30 | Report line drilldown to journal lines and statement provenance; annual tax package ZIP manifest integrity; recurring anomaly detection; AI assistant tool calling. |
 
 ---
 

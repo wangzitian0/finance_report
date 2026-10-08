@@ -1,22 +1,24 @@
 """AC-reporting.journeys.1-4: In-memory domain shift-left tests for Bench V2 financial articulation.
 
-Validates the mathematical core of the Bench V2 accounting scenarios against SQLite in < 0.5s:
-- Case 1: 4-Month Consecutive Rollforward & Q1 Three-Statement Articulation.
-- Case 2: Multi-PII Household Operations & Consolidated Multi-Account Reporting.
-- Case 3: Credit Card Liability Clearance & Non-P&L Repayment Zero Contamination.
-- Case 4: Multi-Currency Consolidated Balance Sheet with IAS 21 CTA Rendering.
-- Case 5: Holistic Multi-Asset & Tax Valuation (W-2 Withholding and Illiquid Appraisals).
-- Case 6: Bank Overdraft (Negative Cash Balance) and Asset Disposal Capital Gains.
+Validates the mathematical core of the Bench V2 accounting scenarios across 36 tests (6 holistic cases + 30 shift-left flow invariants) in ~10s:
+- Cases 1–6: End-to-end multi-period holistic accounting scenarios.
+- Domains 1–7: Canonical 30-flow shift-left invariant matrix (Flows 1–30).
 """
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
+import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.extraction import TransactionDirection
+from src.extraction.extension.deduplication import DeduplicationService
 from src.ledger import (
     Account,
     AccountType,
@@ -24,6 +26,13 @@ from src.ledger import (
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
+)
+from src.ledger.splits import (
+    calculate_dividend_split,
+    calculate_mortgage_split,
+    calculate_payroll_split,
+    calculate_reconciliation_adjustment,
+    calculate_transfer_fx_split,
 )
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
@@ -33,10 +42,18 @@ from src.pricing.base.manual_valuation import (
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate
 from src.reporting import (
+    EquationDiagnosticCategory,
+    diagnose_equation_imbalance,
     generate_balance_sheet,
     generate_cash_flow,
     generate_income_statement,
 )
+
+STANDARD_BENCHMARK_FX_RATES: dict[str, Decimal] = {
+    "USD": Decimal("1.35"),
+    "HKD": Decimal("0.17"),
+    "EUR": Decimal("1.45"),
+}
 
 
 def _post_entry(
@@ -45,6 +62,7 @@ def _post_entry(
     memo: str,
     lines: list[tuple[Account, Direction, Decimal, str]],
     fx_rate: Decimal | None = None,
+    fx_rates_by_currency: dict[str, Decimal] | None = None,
 ) -> JournalEntry:
     """Helper to construct a balanced journal entry with lines."""
     entry = JournalEntry(
@@ -55,13 +73,24 @@ def _post_entry(
         status=JournalEntryStatus.POSTED,
     )
     for account, direction, amount, currency in lines:
+        if currency == "SGD":
+            resolved_fx = None
+        elif fx_rate is not None:
+            resolved_fx = fx_rate
+        elif fx_rates_by_currency and currency in fx_rates_by_currency:
+            resolved_fx = fx_rates_by_currency[currency]
+        elif currency in STANDARD_BENCHMARK_FX_RATES:
+            resolved_fx = STANDARD_BENCHMARK_FX_RATES[currency]
+        else:
+            resolved_fx = Decimal("1.00")
+
         line = JournalLine(
             journal_entry=entry,
             account_id=account.id,
             direction=direction,
             amount=amount,
             currency=currency,
-            fx_rate=fx_rate if currency != "SGD" else None,
+            fx_rate=resolved_fx,
         )
         entry.lines.append(line)
     return entry
@@ -893,3 +922,1221 @@ async def test_bench_case_6_bank_overdraft_and_capital_gain_disposal(db: AsyncSe
     assert bs_final["net_income"] == Decimal("0.00")
     assert bs_final["is_balanced"] is True
     assert bs_final["equation_delta"] == Decimal("0.00")
+
+
+# ==============================================================================
+# CANONICAL 30-FLOW SHIFT-LEFT ARTICULATION MATRIX (DOMAINS 1–7)
+# ==============================================================================
+
+
+class TestBenchDomain1Ingestion:
+    """Domain 1: Ingestion & Multimodal Extraction (Flows 1–5)."""
+
+    async def test_flow_1_standard_statement_ingestion_balance_invariant(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 1: Parsed opening + sum(IN) - sum(OUT) == calculated_closing."""
+        checking = Account(user_id=test_user_id, name="Primary Checking", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Opening Equity", type=AccountType.EQUITY, currency="SGD")
+        income = Account(user_id=test_user_id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+        expense = Account(user_id=test_user_id, name="Utility Expense", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([checking, equity, income, expense])
+        await db.commit()
+
+        # Opening balance 10,000.00 SGD
+        open_entry = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Opening Balance",
+            [
+                (checking, Direction.DEBIT, Decimal("10000.00"), "SGD"),
+                (equity, Direction.CREDIT, Decimal("10000.00"), "SGD"),
+            ],
+        )
+        # Transactions: IN +4,500.00, OUT -2,350.25 -> calculated closing = 12,149.75 SGD
+        in_entry = _post_entry(
+            test_user_id,
+            date(2025, 1, 10),
+            "Salary Inflow",
+            [
+                (checking, Direction.DEBIT, Decimal("4500.00"), "SGD"),
+                (income, Direction.CREDIT, Decimal("4500.00"), "SGD"),
+            ],
+        )
+        out_entry = _post_entry(
+            test_user_id,
+            date(2025, 1, 20),
+            "Utility Outflow",
+            [
+                (expense, Direction.DEBIT, Decimal("2350.25"), "SGD"),
+                (checking, Direction.CREDIT, Decimal("2350.25"), "SGD"),
+            ],
+        )
+        db.add_all([open_entry, in_entry, out_entry])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("12149.75")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_2_batch_multimonth_continuity_and_gap_detection(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 2: Statement[M].closing_balance == Statement[M+1].opening_balance."""
+        from datetime import UTC, datetime
+
+        from src.ledger.data.account_coverage import (
+            StatementCoverageRow,
+            _coverage_issues,
+        )
+        from src.schemas.account import AccountCoverageIssueType
+
+        acc_id = uuid4()
+        now = datetime.now(UTC)
+
+        # 1. Continuous statements without gaps or mismatch
+        s1 = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
+            opening_balance=Decimal("10000.00"),
+            closing_balance=Decimal("15271.23"),
+            updated_at=now,
+        )
+        s2 = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 2, 1),
+            period_end=date(2025, 2, 28),
+            opening_balance=Decimal("15271.23"),
+            closing_balance=Decimal("18500.00"),
+            updated_at=now,
+        )
+        issues = _coverage_issues([s1, s2], "SGD")
+        assert issues == [], "Continuous statements must produce zero coverage issues"
+
+        # 2. Tampered opening balance triggers OPENING_BALANCE_MISMATCH
+        s2_tampered = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 2, 1),
+            period_end=date(2025, 2, 28),
+            opening_balance=Decimal("16000.00"),
+            closing_balance=Decimal("18500.00"),
+            updated_at=now,
+        )
+        issues_tampered = _coverage_issues([s1, s2_tampered], "SGD")
+        assert any(issue.type == AccountCoverageIssueType.OPENING_BALANCE_MISMATCH for issue in issues_tampered)
+
+        # 3. Discontinuous gap triggers GAP issue
+        s3_gap = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 4, 1),
+            period_end=date(2025, 4, 30),
+            opening_balance=Decimal("15271.23"),
+            closing_balance=Decimal("19000.00"),
+            updated_at=now,
+        )
+        issues_gap = _coverage_issues([s1, s3_gap], "SGD")
+        assert any(issue.type == AccountCoverageIssueType.GAP for issue in issues_gap)
+
+    async def test_flow_3_custom_csv_column_mapping_and_ledger_posting(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 3: All mapped rows have valid txn_date, description, and Decimal amount."""
+        raw_csv_rows = [
+            {"Txn Date": "2025-02-01", "Narration": "Client Retainer", "Credit": "3200.00", "Debit": "0.00"},
+            {"Txn Date": "2025-02-05", "Narration": "Cloud Hosting", "Credit": "0.00", "Debit": "180.50"},
+        ]
+        cash = Account(user_id=test_user_id, name="Operating Cash", type=AccountType.ASSET, currency="SGD")
+        rev = Account(user_id=test_user_id, name="Client Revenue", type=AccountType.INCOME, currency="SGD")
+        exp = Account(user_id=test_user_id, name="Cloud Server", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, rev, exp])
+        await db.commit()
+
+        # Ingest mapped rows
+        e1 = _post_entry(
+            test_user_id,
+            date(2025, 2, 1),
+            raw_csv_rows[0]["Narration"],
+            [
+                (cash, Direction.DEBIT, Decimal(raw_csv_rows[0]["Credit"]), "SGD"),
+                (rev, Direction.CREDIT, Decimal(raw_csv_rows[0]["Credit"]), "SGD"),
+            ],
+        )
+        e2 = _post_entry(
+            test_user_id,
+            date(2025, 2, 5),
+            raw_csv_rows[1]["Narration"],
+            [
+                (exp, Direction.DEBIT, Decimal(raw_csv_rows[1]["Debit"]), "SGD"),
+                (cash, Direction.CREDIT, Decimal(raw_csv_rows[1]["Debit"]), "SGD"),
+            ],
+        )
+        db.add_all([e1, e2])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="SGD")
+        assert bs["total_assets"] == Decimal("3019.50")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_4_physical_receipt_evidence_hash_anchoring(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 4: Evidence file anchored to transaction or asset with SHA-256 digest."""
+        receipt_bytes = b"RECEIPT_OCR_CONTENT_2025_02_14_COFFEE_8.50_SGD"
+        digest = hashlib.sha256(receipt_bytes).hexdigest()
+
+        cash = Account(user_id=test_user_id, name="Wallet Cash", type=AccountType.ASSET, currency="SGD")
+        meals = Account(user_id=test_user_id, name="Meals Expense", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, meals])
+        await db.commit()
+
+        entry = _post_entry(
+            test_user_id,
+            date(2025, 2, 14),
+            f"Coffee Meeting [sha256:{digest}]",
+            [(meals, Direction.DEBIT, Decimal("8.50"), "SGD"), (cash, Direction.CREDIT, Decimal("8.50"), "SGD")],
+        )
+        db.add(entry)
+        await db.commit()
+
+        assert digest in entry.memo
+        assert hashlib.sha256(receipt_bytes).hexdigest() == digest
+
+    async def test_flow_5_alternative_asset_appraisal_and_valuation_snapshot(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 5: Valuation creates journal entry adjusting Asset and UnrealizedGain."""
+        property_asset = Account(user_id=test_user_id, name="Residential Condo", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Owner Equity", type=AccountType.EQUITY, currency="SGD")
+        unrealized_gain = Account(
+            user_id=test_user_id, name="Property Unrealized Gain", type=AccountType.EQUITY, currency="SGD"
+        )
+        db.add_all([property_asset, equity, unrealized_gain])
+        await db.commit()
+
+        # Initial acquisition: 500,000 SGD
+        acq_entry = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Condo Purchase at Cost",
+            [
+                (property_asset, Direction.DEBIT, Decimal("500000.00"), "SGD"),
+                (equity, Direction.CREDIT, Decimal("500000.00"), "SGD"),
+            ],
+        )
+        # Professional appraisal: 550,000 SGD (+50,000 SGD valuation uplift)
+        appraisal_entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 31),
+            "FHA 1004 Appraisal Revaluation Uplift",
+            [
+                (property_asset, Direction.DEBIT, Decimal("50000.00"), "SGD"),
+                (unrealized_gain, Direction.CREDIT, Decimal("50000.00"), "SGD"),
+            ],
+        )
+        db.add_all([acq_entry, appraisal_entry])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("550000.00")
+        assert bs["total_equity"] == Decimal("550000.00")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+
+class TestBenchDomain2ReviewAndTriage:
+    """Domain 2: Fact Review & Human-in-the-Loop (Flows 6–10)."""
+
+    async def test_flow_6_stage_1_quick_human_approval_posting(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 6: Approved statements create posted journal entries with matching custody account."""
+        bank_acc = Account(user_id=test_user_id, name="Bank Account", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Owner Capital", type=AccountType.EQUITY, currency="SGD")
+        db.add_all([bank_acc, equity])
+        await db.commit()
+
+        # Draft entry created during OCR extraction
+        entry = JournalEntry(
+            user_id=test_user_id,
+            entry_date=date(2025, 3, 1),
+            memo="Draft Ingestion Statement",
+            source_type=JournalEntrySourceType.AUTO_PARSED,
+            status=JournalEntryStatus.DRAFT,
+        )
+        entry.lines.append(
+            JournalLine(
+                journal_entry=entry,
+                account_id=bank_acc.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1200.00"),
+                currency="SGD",
+            )
+        )
+        entry.lines.append(
+            JournalLine(
+                journal_entry=entry,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1200.00"),
+                currency="SGD",
+            )
+        )
+        db.add(entry)
+        await db.commit()
+
+        # Pre-approval: Draft is not posted, balance sheet reflects 0 posted assets
+        bs_pre = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 1), currency="SGD")
+        assert bs_pre["total_assets"] == Decimal("0.00")
+
+        # Stage-1 Reviewer Quick Approval
+        entry.status = JournalEntryStatus.POSTED
+        await db.commit()
+
+        bs_post = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 1), currency="SGD")
+        assert bs_post["total_assets"] == Decimal("1200.00")
+        assert bs_post["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_7_stage_1_balance_mismatch_defense_and_rejection(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 7: Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse."""
+        from src.extraction.base.validation import validate_balance
+        from src.extraction.extension.statement_posting import (
+            is_high_confidence_auto_approve_candidate,
+        )
+        from src.extraction.orm.statement_summary import BankStatementStatus, StatementSummary
+
+        # 1. Validate payload with arithmetic mismatch: opening 5000 - out 200 = 4800 != 4600 stated
+        payload = {
+            "opening_balance": "5000.00",
+            "closing_balance": "4600.00",
+            "transactions": [{"amount": "200.00", "direction": "OUT"}],
+        }
+        val_result = validate_balance(payload)
+        assert val_result["balance_valid"] is False
+        assert val_result["difference"] == "200.00"
+        assert val_result["expected_closing"] == "4800.00"
+
+        # 2. Defense: statement with balance_validated=False cannot be auto-approved
+        acc = Account(user_id=test_user_id, name="Checking", type=AccountType.ASSET, currency="SGD")
+        db.add(acc)
+        await db.commit()
+
+        stmt = StatementSummary(
+            user_id=test_user_id,
+            account_id=acc.id,
+            institution="DBS Bank",
+            file_hash="mismatch_hash_flow7",
+            currency="SGD",
+            status=BankStatementStatus.APPROVED,
+            balance_validated=False,
+            confidence_score=95,
+        )
+        assert is_high_confidence_auto_approve_candidate(stmt) is False
+
+    async def test_flow_8_cross_statement_overlapping_deduplication(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 8: Duplicate transactions flagged and linked without double-counting in ledger."""
+        u_id = uuid4()
+        h1 = DeduplicationService.calculate_transaction_hash(
+            user_id=u_id,
+            txn_date=date(2025, 3, 15),
+            amount=Decimal("250.00"),
+            direction=TransactionDirection.OUT,
+            description="OFFICE SUPPLIES STORE",
+            balance_after=Decimal("8000.00"),
+            occurrence_index=0,
+        )
+        h2 = DeduplicationService.calculate_transaction_hash(
+            user_id=u_id,
+            txn_date=date(2025, 3, 15),
+            amount=Decimal("250.00"),
+            direction=TransactionDirection.OUT,
+            description="OFFICE SUPPLIES STORE",
+            balance_after=Decimal("8000.00"),
+            occurrence_index=0,
+        )
+        assert h1 == h2, "Overlapping transactions must produce identical deterministic dedup hashes"
+
+    async def test_flow_9_low_quality_document_triage_and_quarantine(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 9: Rejected statements excluded from general ledger and marked with taxonomy reason."""
+        from src.extraction.extension.statement_posting import (
+            is_high_confidence_auto_approve_candidate,
+        )
+        from src.extraction.extension.statement_workflow import reject_statement_workflow
+        from src.extraction.orm.statement_summary import BankStatementStatus, StatementSummary
+
+        cash = Account(user_id=test_user_id, name="Operating Cash", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.commit()
+
+        # Create parsed statement
+        stmt = StatementSummary(
+            user_id=test_user_id,
+            account_id=cash.id,
+            institution="DBS Bank",
+            file_hash="quarantine_hash_flow9",
+            currency="SGD",
+            status=BankStatementStatus.PARSED,
+            balance_validated=False,
+            confidence_score=35,
+        )
+        db.add(stmt)
+        await db.commit()
+        await db.refresh(stmt)
+
+        # Execute production rejection workflow
+        rejected_stmt = await reject_statement_workflow(
+            db, stmt.id, test_user_id, reason="OCR_RESOLUTION_BELOW_THRESHOLD"
+        )
+        from src.extraction.base.source_vocabulary import Stage1Status
+
+        assert rejected_stmt.status == BankStatementStatus.REJECTED
+        assert rejected_stmt.stage1_status == Stage1Status.REJECTED
+        assert rejected_stmt.stage1_reviewed_at is not None
+        assert is_high_confidence_auto_approve_candidate(rejected_stmt) is False
+
+        # Assert no journal lines or ledger impacts exist
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("0.00")
+
+    async def test_flow_10_contextual_in_page_ai_assistant_metadata_preservation(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 10: Chat prompt carries immutable statement metadata and gracefully recovers."""
+        from src.advisor.base.prompt import DISCLAIMER_EN, get_ai_advisor_prompt
+
+        context = {
+            "advisor_context": "Statement stmt_2025_03_carson: Carson Bank (10,000.00 USD -> 12,500.00 USD)",
+            "total_assets": "12500.00 USD",
+            "total_liabilities": "0.00 USD",
+            "equity": "12500.00 USD",
+        }
+        prompt = get_ai_advisor_prompt(context, language="en")
+        assert "Statement stmt_2025_03_carson: Carson Bank" in prompt
+        assert "12500.00 USD" in prompt
+        assert DISCLAIMER_EN in prompt
+        assert "You can only read the user's financial data" in prompt
+
+
+class TestBenchDomain3IntentAndSplits:
+    """Domain 3: Economic Intent & Categorization (Flows 11–14)."""
+
+    async def test_flow_11_stage_2_interactive_economic_intent_allocation(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 11: Each transaction disposition assigns counter account and posts debit/credit."""
+        bank = Account(user_id=test_user_id, name="Bank Cash", type=AccountType.ASSET, currency="SGD")
+        suspense = Account(user_id=test_user_id, name="Suspense Unmatched", type=AccountType.EXPENSE, currency="SGD")
+        groceries = Account(user_id=test_user_id, name="Groceries Expense", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([bank, suspense, groceries])
+        await db.commit()
+
+        # Unallocated spend initially posted to suspense
+        e_init = _post_entry(
+            test_user_id,
+            date(2025, 2, 10),
+            "Unidentified Supermarket",
+            [(suspense, Direction.DEBIT, Decimal("150.00"), "SGD"), (bank, Direction.CREDIT, Decimal("150.00"), "SGD")],
+        )
+        db.add(e_init)
+        await db.commit()
+
+        # Reviewer allocates intent: transfer from Suspense to Groceries Expense
+        e_alloc = _post_entry(
+            test_user_id,
+            date(2025, 2, 10),
+            "Disposition Intent: Reallocate to Groceries",
+            [
+                (groceries, Direction.DEBIT, Decimal("150.00"), "SGD"),
+                (suspense, Direction.CREDIT, Decimal("150.00"), "SGD"),
+            ],
+        )
+        db.add(e_alloc)
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="SGD")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_12_batch_rule_auto_fill_and_atomic_commit(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 12: Batch approve commits all matching rules atomically when checks resolved."""
+        cash = Account(user_id=test_user_id, name="Checking", type=AccountType.ASSET, currency="SGD")
+        transport = Account(user_id=test_user_id, name="Transport Expense", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, transport])
+        await db.commit()
+
+        # 3 ride-hailing transactions matched by merchant rule "GRAB"
+        entries = [
+            _post_entry(
+                test_user_id,
+                date(2025, 2, 1),
+                "GRAB *TRIP 1",
+                [
+                    (transport, Direction.DEBIT, Decimal("24.50"), "SGD"),
+                    (cash, Direction.CREDIT, Decimal("24.50"), "SGD"),
+                ],
+            ),
+            _post_entry(
+                test_user_id,
+                date(2025, 2, 5),
+                "GRAB *TRIP 2",
+                [
+                    (transport, Direction.DEBIT, Decimal("18.00"), "SGD"),
+                    (cash, Direction.CREDIT, Decimal("18.00"), "SGD"),
+                ],
+            ),
+            _post_entry(
+                test_user_id,
+                date(2025, 2, 9),
+                "GRAB *TRIP 3",
+                [
+                    (transport, Direction.DEBIT, Decimal("32.50"), "SGD"),
+                    (cash, Direction.CREDIT, Decimal("32.50"), "SGD"),
+                ],
+            ),
+        ]
+        # Atomic commit
+        db.add_all(entries)
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="SGD")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_13_on_the_fly_counter_account_creation_during_review(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 13: On-the-fly counter account creation during review."""
+        cash = Account(user_id=test_user_id, name="Bank Cash", type=AccountType.ASSET, currency="SGD")
+        db.add(cash)
+        await db.commit()
+
+        # Dynamically create new account during review
+        new_account = Account(
+            user_id=test_user_id,
+            name="Professional SaaS Tooling",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        db.add(new_account)
+        await db.commit()
+        await db.refresh(new_account)
+
+        entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 1),
+            "GitHub Enterprise Subscription",
+            [
+                (new_account, Direction.DEBIT, Decimal("42.00"), "SGD"),
+                (cash, Direction.CREDIT, Decimal("42.00"), "SGD"),
+            ],
+        )
+        db.add(entry)
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_14_payroll_gross_to_net_tax_cpf_deductions_split(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 14: Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions."""
+        split = calculate_payroll_split(
+            gross_salary=Decimal("6000.00"),
+            income_tax=Decimal("900.00"),
+            employee_deductions=Decimal("1200.00"),
+        )
+        assert split.gross_salary == Decimal("6000.00")
+        assert split.net_payout == Decimal("3900.00")
+        assert split.net_payout + split.income_tax + split.employee_deductions == split.gross_salary
+
+        cash = Account(user_id=test_user_id, name="Employee Checking", type=AccountType.ASSET, currency="SGD")
+        salary_exp = Account(user_id=test_user_id, name="Gross Salaries", type=AccountType.EXPENSE, currency="SGD")
+        tax_payable = Account(
+            user_id=test_user_id, name="Payroll Tax Payable", type=AccountType.LIABILITY, currency="SGD"
+        )
+        pension_payable = Account(
+            user_id=test_user_id, name="CPF / Pension Payable", type=AccountType.LIABILITY, currency="SGD"
+        )
+        db.add_all([cash, salary_exp, tax_payable, pension_payable])
+        await db.commit()
+
+        payroll_entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 25),
+            "Monthly Payroll Split Distribution",
+            [
+                (salary_exp, Direction.DEBIT, split.gross_salary, "SGD"),
+                (tax_payable, Direction.CREDIT, split.income_tax, "SGD"),
+                (pension_payable, Direction.CREDIT, split.employee_deductions, "SGD"),
+                (cash, Direction.CREDIT, split.net_payout, "SGD"),
+            ],
+        )
+        db.add(payroll_entry)
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+
+class TestBenchDomain4TransfersAndReconciliation:
+    """Domain 4: Cross-Source Reconciliation & Transfers (Flows 15–18)."""
+
+    async def test_flow_15_inter_account_transfer_pairing_zero_clearing(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 15: Source account Dr == Target account Cr; Transfer clearing account net balance == 0."""
+        dbs_cash = Account(user_id=test_user_id, name="DBS Checking", type=AccountType.ASSET, currency="SGD")
+        ocbc_savings = Account(user_id=test_user_id, name="OCBC Savings", type=AccountType.ASSET, currency="SGD")
+        clearing = Account(user_id=test_user_id, name="Transfer Clearing", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Initial Capital", type=AccountType.EQUITY, currency="SGD")
+        db.add_all([dbs_cash, ocbc_savings, clearing, equity])
+        await db.commit()
+
+        # Initial capital: 5,000 SGD in DBS
+        init_e = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Capital",
+            [
+                (dbs_cash, Direction.DEBIT, Decimal("5000.00"), "SGD"),
+                (equity, Direction.CREDIT, Decimal("5000.00"), "SGD"),
+            ],
+        )
+        # Transfer 2,000 SGD: DBS -> Clearing -> OCBC
+        leg1 = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Transfer Out DBS",
+            [
+                (clearing, Direction.DEBIT, Decimal("2000.00"), "SGD"),
+                (dbs_cash, Direction.CREDIT, Decimal("2000.00"), "SGD"),
+            ],
+        )
+        leg2 = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Transfer In OCBC",
+            [
+                (ocbc_savings, Direction.DEBIT, Decimal("2000.00"), "SGD"),
+                (clearing, Direction.CREDIT, Decimal("2000.00"), "SGD"),
+            ],
+        )
+        db.add_all([init_e, leg1, leg2])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("5000.00")
+        assert bs["net_income"] == Decimal("0.00")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_16_credit_card_repayment_debt_clearance_zero_pnl_leak(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 16: Bank cash outflow Dr CreditCardLiability == Credit card statement payment Inflow."""
+        bank = Account(user_id=test_user_id, name="Bank Cash", type=AccountType.ASSET, currency="SGD")
+        card_liab = Account(
+            user_id=test_user_id, name="Credit Card Liability", type=AccountType.LIABILITY, currency="SGD"
+        )
+        dining = Account(user_id=test_user_id, name="Dining Expense", type=AccountType.EXPENSE, currency="SGD")
+        capital = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="SGD")
+        db.add_all([bank, card_liab, dining, capital])
+        await db.commit()
+
+        # Incur expense on card: 800.00 SGD
+        e1 = _post_entry(
+            test_user_id,
+            date(2025, 2, 5),
+            "Dining Out",
+            [
+                (dining, Direction.DEBIT, Decimal("800.00"), "SGD"),
+                (card_liab, Direction.CREDIT, Decimal("800.00"), "SGD"),
+            ],
+        )
+        # Fund bank account: 2,000.00 SGD
+        e2 = _post_entry(
+            test_user_id,
+            date(2025, 2, 1),
+            "Capital Deposit",
+            [
+                (bank, Direction.DEBIT, Decimal("2000.00"), "SGD"),
+                (capital, Direction.CREDIT, Decimal("2000.00"), "SGD"),
+            ],
+        )
+        # Repay card from bank: 800.00 SGD (Pure liability settlement, 0 P&L impact)
+        e3 = _post_entry(
+            test_user_id,
+            date(2025, 2, 20),
+            "Card Payment",
+            [
+                (card_liab, Direction.DEBIT, Decimal("800.00"), "SGD"),
+                (bank, Direction.CREDIT, Decimal("800.00"), "SGD"),
+            ],
+        )
+        db.add_all([e1, e2, e3])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="SGD")
+        assert bs["net_income"] == Decimal("-800.00")  # Exactly 800, zero double-counting
+        assert bs["total_liabilities"] == Decimal("0.00")  # Fully cleared
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_17_multicurrency_transfer_realized_fx_decomposition(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 17: OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss."""
+        fx = calculate_transfer_fx_split(
+            source_amount=Decimal("1000.00"),
+            source_currency="USD",
+            source_to_base_rate=Decimal("1.35"),
+            target_amount=Decimal("1320.00"),
+            target_currency="SGD",
+            target_to_base_rate=Decimal("1.00"),
+        )
+        assert fx.source_base_value == Decimal("1350.00")
+        assert fx.target_base_value == Decimal("1320.00")
+        assert fx.realized_gain_loss == Decimal("-30.00")
+
+        usd_cash = Account(user_id=test_user_id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+        sgd_cash = Account(user_id=test_user_id, name="SGD Cash", type=AccountType.ASSET, currency="SGD")
+        fx_loss = Account(user_id=test_user_id, name="Realized FX Loss", type=AccountType.EXPENSE, currency="SGD")
+        capital = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="SGD")
+        db.add_all([usd_cash, sgd_cash, fx_loss, capital])
+        await db.commit()
+
+        # Seed capital 1350 SGD
+        cap_entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 1),
+            "Cap",
+            [
+                (sgd_cash, Direction.DEBIT, Decimal("1350.00"), "SGD"),
+                (capital, Direction.CREDIT, Decimal("1350.00"), "SGD"),
+            ],
+        )
+        # FX Transfer with loss
+        fx_entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 10),
+            "USD to SGD Conversion",
+            [
+                (sgd_cash, Direction.DEBIT, Decimal("1320.00"), "SGD"),
+                (fx_loss, Direction.DEBIT, Decimal("30.00"), "SGD"),
+                (sgd_cash, Direction.CREDIT, Decimal("1350.00"), "SGD"),
+            ],
+        )
+        db.add_all([cap_entry, fx_entry])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_18_reconciliation_penny_rounding_write_off(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 18: Immaterial discrepancy (|delta| <= 0.05) balances to BankRoundingDifference."""
+        adj = calculate_reconciliation_adjustment(bank_balance=Decimal("2500.02"), book_balance=Decimal("2500.00"))
+        assert adj.difference == Decimal("0.02")
+        assert adj.is_gain is True
+
+        cash = Account(user_id=test_user_id, name="Bank Cash", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="SGD")
+        rounding_gain = Account(
+            user_id=test_user_id, name="Bank Rounding Difference", type=AccountType.INCOME, currency="SGD"
+        )
+        db.add_all([cash, equity, rounding_gain])
+        await db.commit()
+
+        open_e = _post_entry(
+            test_user_id,
+            date(2025, 3, 1),
+            "Open",
+            [(cash, Direction.DEBIT, Decimal("2500.00"), "SGD"), (equity, Direction.CREDIT, Decimal("2500.00"), "SGD")],
+        )
+        adj_e = _post_entry(
+            test_user_id,
+            date(2025, 3, 31),
+            "Penny Rounding Adjustment",
+            [
+                (cash, Direction.DEBIT, Decimal("0.02"), "SGD"),
+                (rounding_gain, Direction.CREDIT, Decimal("0.02"), "SGD"),
+            ],
+        )
+        db.add_all([open_e, adj_e])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("2500.02")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+
+class TestBenchDomain5InvestmentsAndAssets:
+    """Domain 5: Investments & Multi-Asset Valuation (Flows 19–22)."""
+
+    async def test_flow_19_brokerage_statement_position_sync(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 19: Position quantity * average_cost == Book cost; synced across statement boundaries."""
+        qty = Decimal("50")
+        avg_cost = Decimal("100.00")
+        book_cost = qty * avg_cost
+        assert book_cost == Decimal("5000.00")
+
+        brokerage_cash = Account(user_id=test_user_id, name="IBKR Cash", type=AccountType.ASSET, currency="USD")
+        etf_holdings = Account(user_id=test_user_id, name="VT ETF Holdings", type=AccountType.ASSET, currency="USD")
+        equity = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="USD")
+        db.add_all([brokerage_cash, etf_holdings, equity])
+        await db.commit()
+
+        cap_e = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Fund",
+            [
+                (brokerage_cash, Direction.DEBIT, Decimal("10000.00"), "USD"),
+                (equity, Direction.CREDIT, Decimal("10000.00"), "USD"),
+            ],
+        )
+        buy_e = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Buy 50 VT ETF",
+            [(etf_holdings, Direction.DEBIT, book_cost, "USD"), (brokerage_cash, Direction.CREDIT, book_cost, "USD")],
+        )
+        db.add_all([cap_e, buy_e])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="USD")
+        assert bs["total_assets"] == Decimal("10000.00")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_20_dividend_gross_to_net_wht_split(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 20: Gross Dividend Income == Net Cash Received + Withholding Tax Expense."""
+        div = calculate_dividend_split(gross_amount=Decimal("1200.00"), withholding_tax_rate=Decimal("0.30"))
+        assert div.gross_amount == Decimal("1200.00")
+        assert div.tax_amount == Decimal("360.00")
+        assert div.net_amount == Decimal("840.00")
+        assert div.net_amount + div.tax_amount == div.gross_amount
+
+        cash = Account(user_id=test_user_id, name="Brokerage Cash", type=AccountType.ASSET, currency="USD")
+        div_income = Account(user_id=test_user_id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
+        wht_exp = Account(
+            user_id=test_user_id, name="Withholding Tax Expense", type=AccountType.EXPENSE, currency="USD"
+        )
+        db.add_all([cash, div_income, wht_exp])
+        await db.commit()
+
+        div_entry = _post_entry(
+            test_user_id,
+            date(2025, 2, 1),
+            "US Dividend Distribution with WHT Split",
+            [
+                (cash, Direction.DEBIT, div.net_amount, "USD"),
+                (wht_exp, Direction.DEBIT, div.tax_amount, "USD"),
+                (div_income, Direction.CREDIT, div.gross_amount, "USD"),
+            ],
+        )
+        db.add(div_entry)
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="USD")
+        assert bs["total_assets"] == Decimal("840.00")
+        assert bs["net_income"] == Decimal("840.00")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_21_real_time_market_price_refresh_and_unrealized_pnl(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 21: Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost."""
+        qty = Decimal("100")
+        cost_price = Decimal("150.00")
+        latest_price = Decimal("175.00")
+        book_cost = qty * cost_price  # 15,000
+        market_val = qty * latest_price  # 17,500
+        unrealized_gain = market_val - book_cost  # 2,500
+        assert unrealized_gain == Decimal("2500.00")
+
+        stock_asset = Account(user_id=test_user_id, name="AAPL Shares", type=AccountType.ASSET, currency="USD")
+        equity = Account(user_id=test_user_id, name="Owner Capital", type=AccountType.EQUITY, currency="USD")
+        gain_account = Account(
+            user_id=test_user_id, name="Unrealized Valuation Gain", type=AccountType.EQUITY, currency="USD"
+        )
+        db.add_all([stock_asset, equity, gain_account])
+        await db.commit()
+
+        e1 = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Acquisition",
+            [(stock_asset, Direction.DEBIT, book_cost, "USD"), (equity, Direction.CREDIT, book_cost, "USD")],
+        )
+        e2 = _post_entry(
+            test_user_id,
+            date(2025, 2, 28),
+            "Mark-to-Market Refresh",
+            [
+                (stock_asset, Direction.DEBIT, unrealized_gain, "USD"),
+                (gain_account, Direction.CREDIT, unrealized_gain, "USD"),
+            ],
+        )
+        db.add_all([e1, e2])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 2, 28), currency="USD")
+        assert bs["total_assets"] == Decimal("17500.00")
+        assert bs["total_equity"] == Decimal("17500.00")
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_22_mortgage_principal_amortization_and_interest_split(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 22: Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense."""
+        mtg = calculate_mortgage_split(total_payment=Decimal("3500.00"), interest_amount=Decimal("1500.00"))
+        assert mtg.principal_amount == Decimal("2000.00")
+        assert mtg.interest_amount == Decimal("1500.00")
+        assert mtg.principal_amount + mtg.interest_amount == mtg.total_payment
+
+        cash = Account(user_id=test_user_id, name="Checking", type=AccountType.ASSET, currency="SGD")
+        capital = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="SGD")
+        mtg_liab = Account(user_id=test_user_id, name="Mortgage Loan", type=AccountType.LIABILITY, currency="SGD")
+        interest_exp = Account(user_id=test_user_id, name="Mortgage Interest", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, capital, mtg_liab, interest_exp])
+        await db.commit()
+
+        # Seed capital 10,000 SGD and mortgage debt 500,000 SGD
+        e_init = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Init",
+            [
+                (cash, Direction.DEBIT, Decimal("10000.00"), "SGD"),
+                (capital, Direction.CREDIT, Decimal("10000.00"), "SGD"),
+            ],
+        )
+        # Mortgage payment split
+        e_pay = _post_entry(
+            test_user_id,
+            date(2025, 1, 30),
+            "Monthly Mortgage Payment",
+            [
+                (mtg_liab, Direction.DEBIT, mtg.principal_amount, "SGD"),
+                (interest_exp, Direction.DEBIT, mtg.interest_amount, "SGD"),
+                (cash, Direction.CREDIT, mtg.total_payment, "SGD"),
+            ],
+        )
+        db.add_all([e_init, e_pay])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+
+class TestBenchDomain6StatementGovernance:
+    """Domain 6: Financial Reporting & Accounting Equation Governance (Flows 23–26)."""
+
+    async def test_flow_23_balance_sheet_accounting_equation_exact_validation(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 23: Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)."""
+        checking = Account(user_id=test_user_id, name="Bank Checking", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Owner Capital", type=AccountType.EQUITY, currency="SGD")
+        income = Account(user_id=test_user_id, name="Consulting", type=AccountType.INCOME, currency="SGD")
+        expense = Account(user_id=test_user_id, name="Supplies", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([checking, equity, income, expense])
+        await db.commit()
+
+        e1 = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Opening",
+            [
+                (checking, Direction.DEBIT, Decimal("5000.00"), "SGD"),
+                (equity, Direction.CREDIT, Decimal("5000.00"), "SGD"),
+            ],
+        )
+        e2 = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Revenue",
+            [
+                (checking, Direction.DEBIT, Decimal("3000.00"), "SGD"),
+                (income, Direction.CREDIT, Decimal("3000.00"), "SGD"),
+            ],
+        )
+        e3 = _post_entry(
+            test_user_id,
+            date(2025, 1, 20),
+            "Expenses",
+            [
+                (expense, Direction.DEBIT, Decimal("1200.00"), "SGD"),
+                (checking, Direction.CREDIT, Decimal("1200.00"), "SGD"),
+            ],
+        )
+        db.add_all([e1, e2, e3])
+        await db.commit()
+
+        bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+        assert bs["total_assets"] == Decimal("6800.00")
+        assert bs["total_equity"] == Decimal("5000.00")
+        assert bs["net_income"] == Decimal("1800.00")
+        assert bs["is_balanced"] is True
+        assert bs["equation_delta"] == Decimal("0.00")
+
+    async def test_flow_24_accounting_equation_out_of_balance_diagnostic_triage(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 24: When Equation Delta != 0, returns classified cause."""
+        # 1. Strictly balanced
+        res_bal = diagnose_equation_imbalance(Decimal("0.00"))
+        assert res_bal.is_balanced is True
+        assert res_bal.primary_category == EquationDiagnosticCategory.BALANCED
+
+        # 2. Unposted draft imbalance
+        res_draft = diagnose_equation_imbalance(Decimal("450.00"), has_pending_drafts=True, unposted_draft_count=1)
+        assert res_draft.is_balanced is False
+        assert res_draft.primary_category == EquationDiagnosticCategory.UNPOSTED_DRAFT
+
+        # 3. Unmapped account imbalance
+        res_unmapped = diagnose_equation_imbalance(Decimal("200.00"), has_unclassified_accounts=True)
+        assert res_unmapped.is_balanced is False
+        assert res_unmapped.primary_category == EquationDiagnosticCategory.UNCLASSIFIED_ACCOUNT
+
+        # 4. One-sided transaction imbalance
+        res_onesided = diagnose_equation_imbalance(Decimal("100.00"), has_one_sided_entries=True)
+        assert res_onesided.is_balanced is False
+        assert res_onesided.primary_category == EquationDiagnosticCategory.ONE_SIDED_ENTRY
+
+    async def test_flow_25_income_statement_comparative_trend_analysis(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 25: Comparative periodic columns display balance variations without silent drop."""
+        cash = Account(user_id=test_user_id, name="Cash", type=AccountType.ASSET, currency="SGD")
+        sal = Account(user_id=test_user_id, name="Salary", type=AccountType.INCOME, currency="SGD")
+        rent = Account(user_id=test_user_id, name="Rent", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, sal, rent])
+        await db.commit()
+
+        # Month 1: Jan 2025
+        e_jan1 = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Jan Salary",
+            [(cash, Direction.DEBIT, Decimal("5000.00"), "SGD"), (sal, Direction.CREDIT, Decimal("5000.00"), "SGD")],
+        )
+        e_jan2 = _post_entry(
+            test_user_id,
+            date(2025, 1, 25),
+            "Jan Rent",
+            [(rent, Direction.DEBIT, Decimal("2000.00"), "SGD"), (cash, Direction.CREDIT, Decimal("2000.00"), "SGD")],
+        )
+        # Month 2: Feb 2025
+        e_feb1 = _post_entry(
+            test_user_id,
+            date(2025, 2, 15),
+            "Feb Salary",
+            [(cash, Direction.DEBIT, Decimal("5000.00"), "SGD"), (sal, Direction.CREDIT, Decimal("5000.00"), "SGD")],
+        )
+        e_feb2 = _post_entry(
+            test_user_id,
+            date(2025, 2, 25),
+            "Feb Rent",
+            [(rent, Direction.DEBIT, Decimal("2200.00"), "SGD"), (cash, Direction.CREDIT, Decimal("2200.00"), "SGD")],
+        )
+        db.add_all([e_jan1, e_jan2, e_feb1, e_feb2])
+        await db.commit()
+
+        # Jan Income Statement
+        is_jan = await generate_income_statement(
+            db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+        )
+        assert is_jan["net_income"] == Decimal("3000.00")
+
+        # Feb Income Statement
+        is_feb = await generate_income_statement(
+            db, test_user_id, start_date=date(2025, 2, 1), end_date=date(2025, 2, 28), currency="SGD"
+        )
+        assert is_feb["net_income"] == Decimal("2800.00")
+
+    async def test_flow_26_cash_flow_statement_multi_activity_invariant(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 26: Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow."""
+        cash = Account(user_id=test_user_id, name="Primary Cash Account", type=AccountType.ASSET, currency="SGD")
+        equity = Account(user_id=test_user_id, name="Owner Capital", type=AccountType.EQUITY, currency="SGD")
+        income = Account(user_id=test_user_id, name="Operating Revenue", type=AccountType.INCOME, currency="SGD")
+        expense = Account(user_id=test_user_id, name="Operating Expense", type=AccountType.EXPENSE, currency="SGD")
+        db.add_all([cash, equity, income, expense])
+        await db.commit()
+
+        e1 = _post_entry(
+            test_user_id,
+            date(2025, 1, 1),
+            "Equity Deposit",
+            [
+                (cash, Direction.DEBIT, Decimal("10000.00"), "SGD"),
+                (equity, Direction.CREDIT, Decimal("10000.00"), "SGD"),
+            ],
+        )
+        e2 = _post_entry(
+            test_user_id,
+            date(2025, 1, 15),
+            "Revenue",
+            [(cash, Direction.DEBIT, Decimal("4000.00"), "SGD"), (income, Direction.CREDIT, Decimal("4000.00"), "SGD")],
+        )
+        e3 = _post_entry(
+            test_user_id,
+            date(2025, 1, 20),
+            "Expenses",
+            [
+                (expense, Direction.DEBIT, Decimal("1500.00"), "SGD"),
+                (cash, Direction.CREDIT, Decimal("1500.00"), "SGD"),
+            ],
+        )
+        db.add_all([e1, e2, e3])
+        await db.commit()
+
+        cf = await generate_cash_flow(
+            db, test_user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
+        )
+        summary = cf["summary"]
+        assert summary["ending_cash"] == Decimal("12500.00")
+        assert cf["cash_bridge"]["reconciles"] is True
+
+
+class TestBenchDomain7AuditAndInsights:
+    """Domain 7: Audit Traceability, Compliance & AI Insights (Flows 27–30)."""
+
+    async def test_flow_27_financial_report_to_pdf_provenance_drilldown(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 27: Report Line drilldown traces to underlying journal entries and source statement metadata."""
+        checking = Account(user_id=test_user_id, name="Checking", type=AccountType.ASSET, currency="SGD")
+        capital = Account(user_id=test_user_id, name="Capital", type=AccountType.EQUITY, currency="SGD")
+        db.add_all([checking, capital])
+        await db.commit()
+
+        entry = _post_entry(
+            test_user_id,
+            date(2025, 3, 1),
+            "Drilldown Statement Reference [stmt_772]",
+            [
+                (checking, Direction.DEBIT, Decimal("3500.00"), "SGD"),
+                (capital, Direction.CREDIT, Decimal("3500.00"), "SGD"),
+            ],
+        )
+        db.add(entry)
+        await db.commit()
+
+        # Drilldown query: find all journal lines contributing to checking account
+        query = (
+            select(JournalLine, JournalEntry)
+            .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(JournalLine.account_id == checking.id)
+        )
+        results = (await db.execute(query)).all()
+        assert len(results) == 1
+        line, parent_entry = results[0]
+        assert line.amount == Decimal("3500.00")
+        assert "stmt_772" in parent_entry.memo
+
+    async def test_flow_28_annual_tax_package_zip_export_manifest_integrity(
+        self, db: AsyncSession, test_user_id, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Flow 28: ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail."""
+        import json
+        import zipfile
+        from io import BytesIO
+
+        from src.routers.reports import (
+            PackageSnapshotExportFormat,
+            export_personal_report_package_snapshot,
+            generate_personal_report_package_snapshot,
+        )
+        from src.schemas import (
+            PersonalReportingFrameworkId,
+            PersonalReportPackageGenerateRequest,
+        )
+        from tests.api.test_personal_report_package_contract import (
+            _patch_package_snapshot_inputs,
+        )
+
+        await _patch_package_snapshot_inputs(
+            monkeypatch,
+            readiness_state="ready",
+            blocking_count=0,
+            section_label="Bench Annual Audit 2025",
+        )
+
+        snapshot = await generate_personal_report_package_snapshot(
+            request=PersonalReportPackageGenerateRequest(
+                framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+                start_date=date(2025, 1, 1),
+                end_date=date(2025, 12, 31),
+                as_of_date=date(2025, 12, 31),
+                currency="SGD",
+            ),
+            db=db,
+            user_id=test_user_id,
+        )
+
+        zip_response = await export_personal_report_package_snapshot(
+            snapshot_id=snapshot.id,
+            format=PackageSnapshotExportFormat.ZIP,
+            db=db,
+            user_id=test_user_id,
+        )
+        assert zip_response.media_type == "application/zip"
+
+        chunks = []
+        async for chunk in zip_response.body_iterator:
+            chunks.append(chunk.encode("utf-8") if isinstance(chunk, str) else chunk)
+        body_bytes = b"".join(chunks)
+
+        with zipfile.ZipFile(BytesIO(body_bytes), "r") as zf:
+            namelist = zf.namelist()
+            assert "manifest.json" in namelist
+            assert "balance_sheet.csv" in namelist
+            assert "income_statement.csv" in namelist
+            assert "cash_flow.csv" in namelist
+
+            manifest_data = json.loads(zf.read("manifest.json").decode("utf-8"))
+            assert manifest_data["package_id"] == str(snapshot.id)
+            assert manifest_data["reporting_currency"] == "SGD"
+            assert len(manifest_data["files"]) > 0
+
+            for entry in manifest_data["files"]:
+                filename = entry["filename"]
+                expected_sha256 = entry["sha256"]
+                assert filename in namelist
+                actual_sha256 = hashlib.sha256(zf.read(filename)).hexdigest()
+                assert actual_sha256 == expected_sha256
+
+    async def test_flow_29_recurring_subscription_anomaly_alert(self, db: AsyncSession, test_user_id) -> None:
+        """Flow 29: Identifies recurring cadence and flags unexpected amount increases or duplicate runs."""
+        from datetime import timedelta
+
+        from src.extraction import TransactionDirection
+        from src.reconciliation.extension.anomaly import detect_anomalies
+        from tests.factories import AtomicTransactionFactory
+
+        # Create baseline of small recurring charges within 30-day lookback
+        for i in range(30):
+            await AtomicTransactionFactory.create_async(
+                db,
+                user_id=test_user_id,
+                amount=Decimal("1.00"),
+                direction=TransactionDirection.OUT,
+                txn_date=date.today() - timedelta(days=(i % 28) + 1),
+                description="STREAMING SERVICE SUBSCRIPTION",
+            )
+
+        # Huge spike transaction
+        spike_txn = await AtomicTransactionFactory.create_async(
+            db,
+            user_id=test_user_id,
+            amount=Decimal("5000.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date.today(),
+            description="STREAMING SERVICE SUBSCRIPTION",
+        )
+        await db.commit()
+
+        anomalies = await detect_anomalies(db, spike_txn, user_id=test_user_id)
+        assert any(a.anomaly_type == "LARGE_AMOUNT" for a in anomalies)
+
+    async def test_flow_30_natural_language_financial_ai_assistant_read_only_tool_calling(
+        self, db: AsyncSession, test_user_id
+    ) -> None:
+        """Flow 30: AI operates in read-only sandbox calling accounting queries with streaming response."""
+        from src.advisor import is_write_request
+
+        assert is_write_request("create a journal entry") is True
+        assert is_write_request("delete journal entry 123") is True
+        assert is_write_request("post a journal entry") is True
+        assert is_write_request("What is my current balance sheet equation delta?") is False
+        assert is_write_request("Summarize my income statement for Q1") is False

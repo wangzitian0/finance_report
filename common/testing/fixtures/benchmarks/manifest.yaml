@@ -9,6 +9,30 @@ version: "2.1"
 benchmark_suite: "finance_report_core_scenarios_v2"
 updated_at: "2026-10-06"
 
+# 7-Domain Canonical Wealth & Accounting Architecture
+domains:
+  - id: 1
+    name: "Ingestion & Multimodal Extraction"
+    flows: [1, 2, 3, 4, 5]
+  - id: 2
+    name: "Fact Review & Human-in-the-Loop"
+    flows: [6, 7, 8, 9, 10]
+  - id: 3
+    name: "Economic Intent & Categorization"
+    flows: [11, 12, 13, 14]
+  - id: 4
+    name: "Cross-Source Reconciliation & Transfers"
+    flows: [15, 16, 17, 18]
+  - id: 5
+    name: "Investments & Multi-Asset Valuation"
+    flows: [19, 20, 21, 22]
+  - id: 6
+    name: "Financial Reporting & Accounting Equation Governance"
+    flows: [23, 24, 25, 26]
+  - id: 7
+    name: "Audit Traceability, Compliance & AI Insights"
+    flows: [27, 28, 29, 30]
+
 fixtures:
   - id: "bankstatemently_straits_capital"
     name: "Straits Capital Bank Statement (Singapore)"
@@ -28,6 +52,11 @@ fixtures:
     local_path: "common/testing/fixtures/benchmarks/bankstatemently/bsb_001_straits_capital.pdf"
     cases:
       - "case_1_consecutive_rollforward"
+    flows:
+      - 1
+      - 2
+      - 17
+      - 23
 
   - id: "docubench_w2_tax_statement"
     name: "Form W-2 Wage and Tax Statement"
@@ -48,6 +77,9 @@ fixtures:
     intake_mode: "fallback_structured_entry"
     cases:
       - "case_5_holistic_multi_asset_tax"
+    flows:
+      - 14
+      - 28
 
   - id: "docubench_payslip_statement"
     name: "Earnings / Payslip Statement"
@@ -68,3 +100,6 @@ fixtures:
     intake_mode: "fallback_structured_entry"
     cases:
       - "case_5_holistic_multi_asset_tax"
+    flows:
+      - 14
+      - 28

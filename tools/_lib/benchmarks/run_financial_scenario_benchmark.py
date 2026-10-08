@@ -578,11 +578,91 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="off",
         help="Enable cassette replay mode for fast execution without live OCR latency",
     )
+    parser.add_argument(
+        "--domain",
+        type=str,
+        default=None,
+        help="Comma-separated canonical domains to execute (1-7 or 'all')",
+    )
+    parser.add_argument(
+        "--flow",
+        type=str,
+        default=None,
+        help="Comma-separated canonical flow IDs to execute (1-30 or 'all')",
+    )
     return parser.parse_args(argv)
 
 
-def _dispatch_cases(runner: ScenarioBenchmarkRunner, case_arg: str) -> list[CaseResult]:
-    requested = [c.strip().lower() for c in case_arg.split(",") if c.strip()]
+DOMAIN_TO_CASES: dict[int, list[str]] = {
+    1: ["1", "2", "5"],
+    2: ["1", "2"],
+    3: ["2", "5"],
+    4: ["3", "4"],
+    5: ["5", "6"],
+    6: ["1", "4", "6"],
+    7: ["5"],
+}
+
+FLOW_TO_CASES: dict[int, list[str]] = {
+    1: ["1"],
+    2: ["1"],
+    3: ["2"],
+    4: ["5"],
+    5: ["5", "6"],
+    6: ["1"],
+    7: ["1"],
+    8: ["2"],
+    9: ["2"],
+    10: ["1"],
+    11: ["2"],
+    12: ["2"],
+    13: ["2"],
+    14: ["2", "5"],
+    15: ["3"],
+    16: ["3"],
+    17: ["4"],
+    18: ["3"],
+    19: ["5"],
+    20: ["5"],
+    21: ["5", "6"],
+    22: ["5"],
+    23: ["1", "4", "6"],
+    24: ["1", "6"],
+    25: ["1"],
+    26: ["1"],
+    27: ["1", "5"],
+    28: ["5"],
+    29: ["2"],
+    30: ["5"],
+}
+
+
+def _dispatch_cases(
+    runner: ScenarioBenchmarkRunner,
+    case_arg: str,
+    domain_arg: str | None = None,
+    flow_arg: str | None = None,
+) -> list[CaseResult]:
+    requested = set(c.strip().lower() for c in case_arg.split(",") if c.strip())
+
+    if domain_arg:
+        for d in domain_arg.split(","):
+            d = d.strip()
+            if d.lower() == "all":
+                for cases in DOMAIN_TO_CASES.values():
+                    requested.update(cases)
+            elif d.isdigit() and int(d) in DOMAIN_TO_CASES:
+                requested.update(DOMAIN_TO_CASES[int(d)])
+
+    if flow_arg:
+        for f in flow_arg.split(","):
+            f = f.strip()
+            if f.lower() == "all":
+                for cases in FLOW_TO_CASES.values():
+                    requested.update(cases)
+            elif f.isdigit() and int(f) in FLOW_TO_CASES:
+                requested.update(FLOW_TO_CASES[int(f)])
+
     run_all = "all" in requested
 
     def _should_run(case_num: str) -> bool:
@@ -701,7 +781,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         cassette_mode=args.cassette,
     )
 
-    results = _dispatch_cases(runner, args.case)
+    results = _dispatch_cases(
+        runner, args.case, domain_arg=args.domain, flow_arg=args.flow
+    )
     if not results:
         print("❌ Error: No valid benchmark cases selected.", file=sys.stderr)
         return 2
