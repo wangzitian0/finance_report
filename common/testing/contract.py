@@ -1456,7 +1456,7 @@ CONTRACT = PackageContract(
             statement=(
                 "The heavy LLM audit journeys (full statement journey, four-asset "
                 "net-worth golden path, personal financial report package) run as a "
-                "separate audit-replay.yml job on schedule: (nightly) + "
+                "separate audit-replay.yml job on manual "
                 "workflow_dispatch: that calls the reusable gate with corpus: "
                 "audit_replay and blocking: false, so the comprehensive corpus does "
                 "NOT block production promotion by default (Was EPIC-008 AC8.13.157)."

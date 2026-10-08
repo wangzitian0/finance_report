@@ -581,16 +581,13 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
     audit = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
     deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
 
-    # Scheduled (nightly) + manual dispatch, NOT on push / workflow_run / pull_request.
+    # Manual dispatch on-demand, NOT on push / workflow_run / pull_request.
     triggers = audit.get("on", audit.get(True))
     assert isinstance(triggers, dict)
-    assert "schedule" in triggers
     assert "workflow_dispatch" in triggers
     assert "push" not in triggers
     assert "workflow_run" not in triggers
     assert "pull_request" not in triggers
-    schedule = triggers["schedule"]
-    assert isinstance(schedule, list) and schedule and "cron" in schedule[0]
 
     # The audit-replay job calls the SAME reusable gate body, selecting the heavy
     # audit corpus, and is non-blocking (blocking=false) so it never blocks
