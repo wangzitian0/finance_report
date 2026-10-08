@@ -510,3 +510,32 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
     is_ok, msg = sync_benchmark_fixtures.verify_fixture(dummy_fixture, tmp_path)
     assert not is_ok
     assert "Missing file" in msg
+
+
+def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
+    """AC-testing.benchmarks.v2: CLI supports --domain 1..7 and --flow 1..30 mappings."""
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+        DOMAIN_TO_CASES,
+        FLOW_TO_CASES,
+        _parse_args,
+    )
+
+    parsed = _parse_args(
+        [
+            "--app-url",
+            "http://localhost:8000",
+            "--domain",
+            "1,4",
+            "--flow",
+            "14,23",
+        ]
+    )
+    assert parsed.domain == "1,4"
+    assert parsed.flow == "14,23"
+
+    assert len(DOMAIN_TO_CASES) == 7
+    assert len(FLOW_TO_CASES) == 30
+    assert "1" in DOMAIN_TO_CASES[1]
+    assert "4" in DOMAIN_TO_CASES[4]
+    assert "2" in FLOW_TO_CASES[14]
+    assert "1" in FLOW_TO_CASES[23]

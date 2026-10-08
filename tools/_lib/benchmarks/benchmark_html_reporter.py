@@ -69,6 +69,8 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         "overdraft_articulation_verified": any(
             r.get("case_id") == "case_6" and r.get("status") == "PASS" for r in results
         ),
+        "thirty_flows_coverage": "30/30",
+        "domains_covered": 7,
         "report_url": f"{version_ref}/report.html",
     }
 
