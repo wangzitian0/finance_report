@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
@@ -39,7 +39,15 @@ async def generate_annualized_income_schedule(
     currency: str | None = None,
 ) -> AnnualizedIncomeScheduleResponse:
     """Return report-ready annualized income and restricted compensation."""
-    report_date = as_of_date or date.today()
+    if as_of_date is None:
+        latest_entry_date = await db.scalar(
+            select(func.max(JournalEntry.entry_date))
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        )
+        report_date = latest_entry_date or date.today()
+    else:
+        report_date = as_of_date
     start_date = report_date - timedelta(days=365)
     income_result = await db.execute(
         select(JournalLine, Account)
