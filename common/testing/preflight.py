@@ -201,6 +201,28 @@ CHECKS: tuple[Check, ...] = (
         cwd="apps/backend",
     ),
     Check(
+        name="bench-articulation",
+        globs=(
+            "apps/backend/src/ledger/*.py",
+            "apps/backend/src/pricing/*.py",
+            "apps/backend/src/reporting/*.py",
+            "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
+        ),
+        commands=(
+            (
+                PY,
+                "-m",
+                "pytest",
+                "tests/reporting/test_bench_articulation_matrix.py",
+                "-q",
+                "--no-cov",
+            ),
+        ),
+        why="financial calculation logic changed: in-memory BenchV2 articulation matrix must balance",
+        cwd="apps/backend",
+        tier="static",
+    ),
+    Check(
         name="env-reference",
         globs=("apps/backend/src/config.py",),
         commands=((PY, "tools/generate_env_reference.py", "--check"),),

@@ -12,6 +12,7 @@ the journey SKIPPED — the canary proved nothing.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -58,8 +59,20 @@ def generated_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
-    pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+        if os.getenv("CI") == "true" or os.getenv("STRICT_E2E_GATES", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            pytest.fail(
+                f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+        pytest.skip(
+            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    pdfs = (
+        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    )
     if not pdfs:
         pytest.fail(
             f"PDF generation for {source} exited 0 but produced no files in "

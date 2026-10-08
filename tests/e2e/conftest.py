@@ -54,6 +54,49 @@ def _strict_e2e_gates_enabled() -> bool:
     return os.getenv("STRICT_E2E_GATES", "").lower() in {"1", "true", "yes"}
 
 
+def pytest_sessionstart(session):
+    """EPIC-008: Fail-fast target environment handshake and freshness check."""
+    if _strict_e2e_gates_enabled() or os.getenv("CI") == "true":
+        if TestConfig.TEST_ENV != "local":
+            if not TestConfig.EXPECTED_SHA:
+                pytest.exit(
+                    "Fatal: EXPECTED_SHA must be explicitly set in CI, staging, and strict gate environments",
+                    returncode=1,
+                )
+            health_url = f"{TestConfig.APP_URL.rstrip('/')}/api/health"
+            try:
+                import urllib.request
+                import ssl
+
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                req = urllib.request.Request(
+                    health_url,
+                    headers={"User-Agent": "E2E-Handshake/1.0"},
+                )
+                with urllib.request.urlopen(req, timeout=10.0, context=ctx) as resp:
+                    if resp.status != 200:
+                        pytest.exit(
+                            f"Fatal: Target health check failed with status {resp.status} at {health_url}",
+                            returncode=1,
+                        )
+                    payload = json.loads(resp.read().decode("utf-8"))
+                    live_sha = payload.get("git_sha")
+                    if live_sha != TestConfig.EXPECTED_SHA:
+                        pytest.exit(
+                            f"Fatal: Stale target environment detected at {health_url}: expected SHA {TestConfig.EXPECTED_SHA}, but target serves {live_sha}",
+                            returncode=1,
+                        )
+            except Exception as exc:
+                if isinstance(exc, pytest.exit.Exception):
+                    raise
+                pytest.exit(
+                    f"Fatal: Could not connect to target environment at {health_url}: {exc}",
+                    returncode=1,
+                )
+
+
 def format_ai_ocr_gate_failure(
     message: str,
     *,
