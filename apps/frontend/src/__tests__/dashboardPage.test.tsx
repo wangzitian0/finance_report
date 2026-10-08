@@ -73,143 +73,46 @@ function mockDashboardApi(overrides: Record<string, unknown> = {}) {
     }
     if (path.startsWith("/api/chat/suggestions")) {
       if (overrides.chatSuggestionsError) return Promise.reject(overrides.chatSuggestionsError)
-      return Promise.resolve(
-        hasOverride("chatSuggestions")
-          ? overrides.chatSuggestions
-          : {
-              suggestions: ["How is my report readiness?"],
-              structured_suggestions: [
-                {
-                  basis: "Report package is blocked by one review-required item.",
-                  confidence_tier: "blocked",
-                  source_refs: ["workflow.status", "report_package.readiness"],
-                  limitation: "Review the blocker before relying on this report.",
-                  next_action_href: "/reports/package",
-                },
-              ],
-            },
-      )
+      return Promise.resolve(hasOverride("chatSuggestions") ? overrides.chatSuggestions : {
+        suggestions: ["How is my report readiness?"],
+        structured_suggestions: [{ basis: "Report package is blocked by one review-required item.", confidence_tier: "blocked", source_refs: ["workflow.status", "report_package.readiness"], limitation: "Review the blocker before relying on this report.", next_action_href: "/reports/package" }],
+      })
     }
     if (path.startsWith("/api/workflow/status")) {
-      return Promise.resolve(
-        hasOverride("workflowStatus")
-          ? overrides.workflowStatus
-          : {
-              primary_state: "needs_action",
-              next_action: {
-                type: "review_required",
-                count: 1,
-                href: "/review",
-                label: "Review required",
-                summary: "Confirm the source or review item so trusted report preparation can continue.",
-              },
-              report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
-              event_counts: { unread: 2, action_required: 1, blocked: 0 },
-            },
-      )
+      return Promise.resolve(hasOverride("workflowStatus") ? overrides.workflowStatus : {
+        primary_state: "needs_action",
+        next_action: { type: "review_required", count: 1, href: "/review", label: "Review required", summary: "Confirm the source or review item so trusted report preparation can continue." },
+        report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
+        event_counts: { unread: 2, action_required: 1, blocked: 0 },
+      })
     }
     if (path.startsWith("/api/workflow/events")) {
-      return Promise.resolve(
-        hasOverride("workflowEvents")
-          ? overrides.workflowEvents
-          : {
-              total: 1,
-              items: [
-                {
-                  id: "workflow-dashboard",
-                  user_id: "user-dashboard",
-                  session_id: "dashboard-session",
-                  occurred_at: "2026-06-03T08:00:00Z",
-                  family: "review.required",
-                  severity: "action_required",
-                  status: "unread",
-                  title: "Review required",
-                  summary: "A statement needs confirmation before reports are ready.",
-                  source_type: "bank_statement",
-                  source_id: "statement-dashboard",
-                  action_href: "/review",
-                  report_impact: "blocked",
-                  dedupe_key: "workflow:dashboard",
-                  created_at: "2026-06-03T08:00:00Z",
-                  updated_at: "2026-06-03T08:00:00Z",
-                },
-                {
-                  id: "workflow-routine-dashboard",
-                  user_id: "user-dashboard",
-                  session_id: "dashboard-session",
-                  occurred_at: "2026-06-03T07:00:00Z",
-                  family: "ledger.auto_posted",
-                  severity: "success",
-                  status: "read",
-                  title: "Safe entries posted",
-                  summary: "Automation posted high-confidence entries.",
-                  source_type: "journal",
-                  source_id: "journal-dashboard",
-                  action_href: "/journal",
-                  report_impact: "ready",
-                  dedupe_key: "workflow:routine-dashboard",
-                  created_at: "2026-06-03T07:00:00Z",
-                  updated_at: "2026-06-03T07:00:00Z",
-                },
-              ],
-              sessions: [
-                {
-                  id: "dashboard-session",
-                  status: "active",
-                  title: "Upload-to-report session",
-                  summary: "Current upload, processing, review, and report-readiness work.",
-                  started_at: "2026-06-03T07:00:00Z",
-                  last_event_at: "2026-06-03T08:00:00Z",
-                  source_count: 2,
-                  primary_state: "needs_action",
-                  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
-                  event_counts: { unread: 1, action_required: 1, blocked: 0 },
-                },
-              ],
-            },
-      )
+      return Promise.resolve(hasOverride("workflowEvents") ? overrides.workflowEvents : {
+        total: 1,
+        items: [
+          { id: "workflow-dashboard", user_id: "user-dashboard", session_id: "dashboard-session", occurred_at: "2026-06-03T08:00:00Z", family: "review.required", severity: "action_required", status: "unread", title: "Review required", summary: "A statement needs confirmation before reports are ready.", source_type: "bank_statement", source_id: "statement-dashboard", action_href: "/review", report_impact: "blocked", dedupe_key: "workflow:dashboard", created_at: "2026-06-03T08:00:00Z", updated_at: "2026-06-03T08:00:00Z" },
+          { id: "workflow-routine-dashboard", user_id: "user-dashboard", session_id: "dashboard-session", occurred_at: "2026-06-03T07:00:00Z", family: "ledger.auto_posted", severity: "success", status: "read", title: "Safe entries posted", summary: "Automation posted high-confidence entries.", source_type: "journal", source_id: "journal-dashboard", action_href: "/journal", report_impact: "ready", dedupe_key: "workflow:routine-dashboard", created_at: "2026-06-03T07:00:00Z", updated_at: "2026-06-03T07:00:00Z" },
+        ],
+        sessions: [
+          { id: "dashboard-session", status: "active", title: "Upload-to-report session", summary: "Current upload, processing, review, and report-readiness work.", started_at: "2026-06-03T07:00:00Z", last_event_at: "2026-06-03T08:00:00Z", source_count: 2, primary_state: "needs_action", report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" }, event_counts: { unread: 1, action_required: 1, blocked: 0 } },
+        ],
+      })
     }
     if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(hasOverride("income") ? overrides.income : baseIncome)
     if (path.startsWith("/api/income/annualized")) {
-      return Promise.resolve(
-        hasOverride("annualized") ? overrides.annualized : {
-          annualized_salary: 120000,
-          annualized_bonus: 15000,
-          annualized_dividend: 2400,
-          annualized_total: 137400,
-          currency: "USD",
-          as_of: "2026-05-20",
-        },
-      )
+      return Promise.resolve(hasOverride("annualized") ? overrides.annualized : {
+        annualized_salary: 120000, annualized_bonus: 15000, annualized_dividend: 2400, annualized_total: 137400, currency: "USD", as_of: "2026-05-20",
+      })
     }
     if (path.startsWith("/api/assets/restricted")) {
-      return Promise.resolve(
-        hasOverride("restricted")
-          ? overrides.restricted
-          : [
-              {
-                ticker: "SHOP-RSU",
-                quantity: "1.000000",
-                vesting_schedule: "25% annual vesting",
-                unlock_date: "2027-01-01",
-                fair_value: 12500,
-                currency: "USD",
-              },
-            ],
-      )
+      return Promise.resolve(hasOverride("restricted") ? overrides.restricted : [
+        { ticker: "SHOP-RSU", quantity: "1.000000", vesting_schedule: "25% annual vesting", unlock_date: "2027-01-01", fair_value: 12500, currency: "USD" },
+      ])
     }
     if (path.startsWith("/api/reconciliation/stats")) {
-      return Promise.resolve(
-        hasOverride("stats") ? overrides.stats : {
-          total_transactions: 20,
-          matched_transactions: 16,
-          unmatched_transactions: 4,
-          pending_review: 2,
-          auto_accepted: 4,
-          match_rate: 80,
-          score_distribution: {},
-        },
-      )
+      return Promise.resolve(hasOverride("stats") ? overrides.stats : {
+        total_transactions: 20, matched_transactions: 16, unmatched_transactions: 4, pending_review: 2, auto_accepted: 4, match_rate: 80, score_distribution: {},
+      })
     }
     if (path.startsWith("/api/reconciliation/unmatched")) {
       return Promise.resolve(hasOverride("unmatched") ? overrides.unmatched : { items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }], total: 1 })

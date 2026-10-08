@@ -37,40 +37,16 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 const mockedApi = vi.mocked(apiFetch);
 
 const baseStatement = {
-    id: "s1",
-    original_filename: "statement.pdf",
-    institution: "DBS",
-    currency: "SGD",
-    period_start: "2024-01-01",
-    period_end: "2024-01-31",
-    opening_balance: 100,
-    closing_balance: 120,
-    status: "pending",
-    stage1_status: null,
+    id: "s1", original_filename: "statement.pdf", institution: "DBS", currency: "SGD",
+    period_start: "2024-01-01", period_end: "2024-01-31", opening_balance: 100, closing_balance: 120,
+    status: "pending", stage1_status: null,
     balance_validation_result: {
-        opening_balance: "100.00",
-        closing_balance: "120.00",
-        calculated_closing: "120.00",
-        opening_delta: "0.00",
-        closing_delta: "0.00",
-        opening_match: true,
-        closing_match: true,
-        validated_at: "2024-01-31T00:00:00Z",
+        opening_balance: "100.00", closing_balance: "120.00", calculated_closing: "120.00",
+        opening_delta: "0.00", closing_delta: "0.00", opening_match: true, closing_match: true, validated_at: "2024-01-31T00:00:00Z",
     },
     pdf_url: null,
     transactions: [
-        {
-            id: "txn-1",
-            txn_date: "2024-01-03",
-            description: "Salary",
-            reference: "REF-1",
-            amount: 20,
-            direction: "IN",
-            currency: "SGD",
-            balance_after: 120,
-            confidence: "high",
-            status: "draft",
-        },
+        { id: "txn-1", txn_date: "2024-01-03", description: "Salary", reference: "REF-1", amount: 20, direction: "IN", currency: "SGD", balance_after: 120, confidence: "high", status: "draft" },
     ],
 };
 

@@ -58,6 +58,27 @@ def _deploy_args(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**payload)
 
 
+def _make_fake_runner(
+    calls: list[list[str]],
+    responses: dict[str, str | dict[str, object]] | None = None,
+    default: str = '{"ok":true}',
+):
+    mapping = responses or {}
+
+    def fake_run_command(
+        cmd: list[str], *, input_text: str | None = None, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        rendered = " ".join(cmd)
+        for key, val in mapping.items():
+            if key in rendered:
+                out = val if isinstance(val, str) else json.dumps(val)
+                return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout=default, stderr="")
+
+    return fake_run_command
+
+
 def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
     lifecycle = lifecycle_module()
 
@@ -1000,38 +1021,22 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
 
     effective_env = f"{DEFAULT_EFFECTIVE_ENV}\nVAULT_APP_TOKEN=hvs.secret"
 
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout='{"compose":[]}', stderr=""
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout='{"composeId":"cmp-591"}', stderr=""
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps(
-                    {
-                        "appName": "compose-pr-591-app",
-                        "env": effective_env,
-                        "composeStatus": "running",
-                    }
-                ),
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
-
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle._util,
+        "run_command",
+        _make_fake_runner(
+            calls,
+            {
+                "environment.one": '{"compose":[]}',
+                "compose.create": '{"composeId":"cmp-591"}',
+                "compose.one": {
+                    "appName": "compose-pr-591-app",
+                    "env": effective_env,
+                    "composeStatus": "running",
+                },
+            },
+        ),
+    )
     monkeypatch.setattr(
         lifecycle._dokploy,
         "wait_for_dokploy_deployment_rollout",
@@ -1059,37 +1064,23 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
 
     effective_env = DEFAULT_EFFECTIVE_ENV
 
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout='{"compose":[]}', stderr=""
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout='{"composeId":"cmp-591"}', stderr=""
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps(
-                    {
-                        "appName": "compose-pr-591-app",
-                        "env": effective_env,
-                        "composeStatus": "idle",
-                        "deployments": [],
-                    }
-                ),
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+    monkeypatch.setattr(
+        lifecycle._util,
+        "run_command",
+        _make_fake_runner(
+            calls,
+            {
+                "environment.one": '{"compose":[]}',
+                "compose.create": '{"composeId":"cmp-591"}',
+                "compose.one": {
+                    "appName": "compose-pr-591-app",
+                    "env": effective_env,
+                    "composeStatus": "idle",
+                    "deployments": [],
+                },
+            },
+        ),
+    )
 
     def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
         nonlocal wait_calls
@@ -1098,7 +1089,6 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
         if wait_calls == 1:
             raise lifecycle.DokployDeploymentDidNotStart("queued deploy was lost")
 
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )
@@ -1123,42 +1113,23 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
 
     effective_env = DEFAULT_EFFECTIVE_ENV
 
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"compose":[{"name":"pr-591","composeId":"empty-cmp"}]}',
-                stderr="",
-            )
-        if "compose.create" in rendered:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout='{"composeId":"recreated-cmp"}', stderr=""
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps(
-                    {
-                        "appName": "compose-pr-591-app",
-                        "env": effective_env,
-                        "composeStatus": "idle",
-                        "deployments": [],
-                    }
-                ),
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
-
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        lifecycle._util,
+        "run_command",
+        _make_fake_runner(
+            calls,
+            {
+                "environment.one": '{"compose":[{"name":"pr-591","composeId":"empty-cmp"}]}',
+                "compose.create": '{"composeId":"recreated-cmp"}',
+                "compose.one": {
+                    "appName": "compose-pr-591-app",
+                    "env": effective_env,
+                    "composeStatus": "idle",
+                    "deployments": [],
+                },
+            },
+        ),
+    )
     monkeypatch.setattr(
         lifecycle._dokploy,
         "wait_for_dokploy_deployment_rollout",
@@ -1186,42 +1157,27 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
 
     effective_env = DEFAULT_EFFECTIVE_ENV
 
-    def fake_run_command(
-        cmd: list[str],
-        *,
-        input_text: str | None = None,
-        check: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        rendered = " ".join(cmd)
-        if "environment.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout='{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
-                stderr="",
-            )
-        if "compose.one" in rendered:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout=json.dumps(
-                    {
-                        "appName": "compose-pr-591-app",
-                        "env": effective_env,
-                        "composeStatus": "running",
-                        "deployments": [{"deploymentId": "old-dep-591"}],
-                    }
-                ),
-                stderr="",
-            )
-        return subprocess.CompletedProcess(cmd, 0, stdout='{"ok":true}', stderr="")
+    monkeypatch.setattr(
+        lifecycle._util,
+        "run_command",
+        _make_fake_runner(
+            calls,
+            {
+                "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
+                "compose.one": {
+                    "appName": "compose-pr-591-app",
+                    "env": effective_env,
+                    "composeStatus": "running",
+                    "deployments": [{"deploymentId": "old-dep-591"}],
+                },
+            },
+        ),
+    )
 
     def fake_wait_for_rollout(*args: object, **kwargs: object) -> None:
         previous = kwargs.get("previous_deployment_ids")
         rollout_previous_ids.append(previous if isinstance(previous, set) else None)
 
-    monkeypatch.setattr(lifecycle._util, "run_command", fake_run_command)
     monkeypatch.setattr(
         lifecycle._dokploy, "wait_for_dokploy_deployment_rollout", fake_wait_for_rollout
     )

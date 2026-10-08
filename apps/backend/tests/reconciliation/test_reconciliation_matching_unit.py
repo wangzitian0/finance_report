@@ -141,72 +141,27 @@ def test_score_date_proximity():
     assert score_date(d1, date(2024, 1, 15), config) == 0.0
 
 
-def test_score_business_logic_combinations():
-    # IN Direction
-    txn_in = AtomicTransaction(direction="IN")
-
-    # Asset + Income
-    entry_income = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-            JournalLine(account=Account(type=AccountType.INCOME)),
-        ]
-    )
-    assert score_business_logic(txn_in, entry_income) == 100.0
-
-    # Asset + Liability
-    entry_liability = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-            JournalLine(account=Account(type=AccountType.LIABILITY)),
-        ]
-    )
-    assert score_business_logic(txn_in, entry_liability) == 85.0
-
-    # Asset + Equity
-    entry_equity = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-            JournalLine(account=Account(type=AccountType.EQUITY)),
-        ]
-    )
-    assert score_business_logic(txn_in, entry_equity) == 75.0
-
-    # Internal Transfer (Asset only)
-    entry_transfer = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-            JournalLine(account=Account(type=AccountType.ASSET)),
-        ]
-    )
-    assert score_business_logic(txn_in, entry_transfer) == 70.0
-
-    # Other
-    entry_other = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.EXPENSE)),
-        ]
-    )
-    assert score_business_logic(txn_in, entry_other) == 40.0
-
-    # OUT Direction
-    txn_out = AtomicTransaction(direction="OUT")
-
-    # Asset + Expense
-    entry_expense = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-            JournalLine(account=Account(type=AccountType.EXPENSE)),
-        ]
-    )
-    assert score_business_logic(txn_out, entry_expense) == 100.0
-
-    # Asset + Liability (Debt repayment)
-    assert score_business_logic(txn_out, entry_liability) == 90.0
-
-    # Unknown direction
-    txn_unknown = AtomicTransaction(direction="???")
-    assert score_business_logic(txn_unknown, entry_income) == 50.0
+@pytest.mark.parametrize(
+    ("direction", "account_types", "expected_score"),
+    [
+        ("IN", [AccountType.ASSET, AccountType.INCOME], 100.0),
+        ("IN", [AccountType.ASSET, AccountType.LIABILITY], 85.0),
+        ("IN", [AccountType.ASSET, AccountType.EQUITY], 75.0),
+        ("IN", [AccountType.ASSET, AccountType.ASSET], 70.0),
+        ("IN", [AccountType.EXPENSE], 40.0),
+        ("OUT", [AccountType.ASSET, AccountType.EXPENSE], 100.0),
+        ("OUT", [AccountType.ASSET, AccountType.LIABILITY], 90.0),
+        ("OUT", [AccountType.ASSET, AccountType.EQUITY], 40.0),
+        ("OUT", [AccountType.ASSET], 70.0),
+        ("???", [AccountType.ASSET, AccountType.INCOME], 50.0),
+    ],
+)
+def test_score_business_logic_combinations(
+    direction: str, account_types: list[AccountType], expected_score: float
+) -> None:
+    txn = AtomicTransaction(direction=direction)
+    entry = JournalEntry(lines=[JournalLine(account=Account(type=t)) for t in account_types])
+    assert score_business_logic(txn, entry) == expected_score
 
 
 def test_AC4_6_3_candidate_tie_breaker_prefers_higher_source_trust():
@@ -851,34 +806,6 @@ async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_
     matched_atomic_ids = {m.atomic_txn_id for m in matches}
     assert txn1.id in matched_atomic_ids
     assert txn2.id in matched_atomic_ids
-
-
-def test_score_business_logic_out_equity():
-    txn = AtomicTransaction(direction="OUT")
-    account_asset = Account(type=AccountType.ASSET)
-    account_equity = Account(type=AccountType.EQUITY)
-
-    entry = JournalEntry(
-        lines=[
-            JournalLine(account=account_asset),
-            JournalLine(account=account_equity),
-        ]
-    )
-
-    score = score_business_logic(txn, entry)
-    assert score == 40.0
-
-
-def test_score_business_logic_out_unknown():
-    txn = AtomicTransaction(direction="OUT")
-    entry = JournalEntry(
-        lines=[
-            JournalLine(account=Account(type=AccountType.ASSET)),
-        ]
-    )
-
-    score = score_business_logic(txn, entry)
-    assert score == 70.0
 
 
 # ---------------------------------------------------------------------------
