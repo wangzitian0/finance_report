@@ -73,7 +73,7 @@ placement checks for units without a module path, per the package model.
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ACRecord,
+    ac,
     ConceptRecord,
     ContextRelation,
     ContextScope,
@@ -260,944 +260,379 @@ CONTRACT = PackageContract(
     # functions keep their AC6_*/AC21_* names — the ``test=`` reference is
     # the resolvable anchor, not the function name.
     roadmap=[
-        ACRecord(
-            id="AC-advisor.fx-port.1",
-            statement=(
-                "Advisor FX pair and conversion registrations expose exact async "
-                "protocol signatures without Callable[..., Any] erasure."
-            ),
-            test=(
-                "tests/tooling/test_s3_pr_d_structure.py"
-                "::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.fx-port.1",
+            "Advisor FX pair and conversion registrations expose exact async protocol signatures without Callable[..., Any] erasure.",
+            "tests/tooling/test_s3_pr_d_structure.py::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.1",
-            statement=(
-                "A write/mutation request (create/post/delete/void/modify a "
-                "journal or ledger entry) is detected by ``is_write_request`` "
-                "and refused before any LLM call; the advisor never writes a "
-                "ledger number."
-            ),
-            # was AC6.1.1 (partial) + AC6.7.7 + AC6.34.1
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_chat_stream_refusal_branches"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.1",
+            "A write/mutation request (create/post/delete/void/modify a journal or ledger entry) is detected by ``is_write_request`` and refused before any LLM call; the advisor never writes a ledger number.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_chat_stream_refusal_branches",
             proof_kind="property",
             vision_anchor="non-goals-not-robo-advisor",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.2",
-            statement=(
-                "Prompt-injection attempts (``is_prompt_injection``) and "
-                "sensitive-data requests (``is_sensitive_request``) are "
-                "detected and refused; sensitive numeric patterns are redacted "
-                "from the user message and from the streamed response via "
-                "``StreamRedactor`` before persistence."
-            ),
-            # was AC6.1.1 + AC21.2.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py::test_safety_filters"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.2",
+            "Prompt-injection attempts (``is_prompt_injection``) and sensitive-data requests (``is_sensitive_request``) are detected and refused; sensitive numeric patterns are redacted from the user message and from the streamed response via ``StreamRedactor`` before persistence.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_safety_filters",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.13",
-            statement=(
-                "``StreamRedactor`` withholds emission of a chunk smaller than "
-                "its configured tail size, accumulating it in an internal "
-                "buffer instead of forwarding it immediately, so a sensitive "
-                "pattern split across two small stream chunks cannot escape "
-                "redaction."
-            ),
-            # was AC2.12.5
-            test=(
-                "apps/backend/tests/infra/test_infra_edge_cases.py"
-                "::test_stream_redactor_small_chunks"
-            ),
+        ac(
+            "AC-advisor.guardrail.13",
+            "``StreamRedactor`` withholds emission of a chunk smaller than its configured tail size, accumulating it in an internal buffer instead of forwarding it immediately, so a sensitive pattern split across two small stream chunks cannot escape redaction.",
+            "apps/backend/tests/infra/test_infra_edge_cases.py::test_stream_redactor_small_chunks",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.1",
-            statement=(
-                "A ``ChatSession`` is owned by exactly one user (``user_id`` "
-                "foreign key, enforced at the ORM level); retrieving a session "
-                "by id scopes the lookup to the requesting user.  Once a "
-                "session is ARCHIVED (planned lifecycle addition) it is "
-                "immutable — no further messages may be appended."
-            ),
-            # was AC6.4.1 (user ownership portion); ARCHIVED state is a follow-up
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_get_or_create_session_with_existing_session"
-            ),
+        ac(
+            "AC-advisor.session.1",
+            "A ``ChatSession`` is owned by exactly one user (``user_id`` foreign key, enforced at the ORM level); retrieving a session by id scopes the lookup to the requesting user.  Once a session is ARCHIVED (planned lifecycle addition) it is immutable — no further messages may be appended.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_get_or_create_session_with_existing_session",
             priority="P1",
-            # "open" because the ARCHIVED immutability invariant is not yet
-            # implemented (ChatSessionStatus has ACTIVE/DELETED, not ARCHIVED).
             status="open",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.context.1",
-            statement=(
-                "Advisor answers are grounded only in the user's bounded read "
-                "context (reconciliation readiness, report readiness, "
-                "workflow status, portfolio positions, market data, category "
-                "breakdown) — never in raw ledger writes or external data "
-                "outside that context.  Each response carries ``citations`` "
-                "and ``actions`` that surface the grounding sources."
-            ),
-            # was AC21.2.1; strengthened by #1671 Wave B: the bounded-context
-            # test proves the context is exactly the bounded fact set (reads
-            # flowing through published roots + the app_reads ports) and that
-            # response metadata carries citations restricted to bounded
-            # sources.  The original AC21_2_1 test remains in the suite.
-            test=(
-                "apps/backend/tests/ai/test_advisor_bounded_context.py"
-                "::test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set"
-            ),
+        ac(
+            "AC-advisor.context.1",
+            "Advisor answers are grounded only in the user's bounded read context (reconciliation readiness, report readiness, workflow status, portfolio positions, market data, category breakdown) — never in raw ledger writes or external data outside that context.  Each response carries ``citations`` and ``actions`` that surface the grounding sources.",
+            "apps/backend/tests/ai/test_advisor_bounded_context.py::test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.cache.1",
-            statement=(
-                "Identical questions from the same user against the same "
-                "financial context and model return the cached response "
-                "(deterministic dedup by ``normalize_question(message) + "
-                "sha256(context) + model_key``); the cache hit is recorded "
-                "in the session and returned without an LLM round-trip."
-            ),
-            # was AC6.6.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_chat_stream_uses_cached_response"
-            ),
+        ac(
+            "AC-advisor.cache.1",
+            "Identical questions from the same user against the same financial context and model return the cached response (deterministic dedup by ``normalize_question(message) + sha256(context) + model_key``); the cache hit is recorded in the session and returned without an LLM round-trip.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_chat_stream_uses_cached_response",
             priority="P2",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.3",
-            statement=(
-                "A non-financial query (e.g. 'Tell me a joke about finance') is "
-                "detected by ``is_non_financial``, verified alongside the other "
-                "three guardrail predicates in the same assertion set."
-            ),
-            # was AC6.1.4
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_safety_filters",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.3",
+            "A non-financial query (e.g. 'Tell me a joke about finance') is detected by ``is_non_financial``, verified alongside the other three guardrail predicates in the same assertion set.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_safety_filters",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.4",
-            statement=(
-                "Legitimate financial queries ('What are my expenses?', 'What "
-                "is my account balance?', 'Show me my journal entries', 'How "
-                "much did I spend on food?') pass all four guardrail "
-                "predicates without being refused, so the guardrail does not "
-                "over-block normal usage."
-            ),
-            # was AC6.1.5
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_safety_filters_negative_cases"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.4",
+            "Legitimate financial queries ('What are my expenses?', 'What is my account balance?', 'Show me my journal entries', 'How much did I spend on food?') pass all four guardrail predicates without being refused, so the guardrail does not over-block normal usage.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_safety_filters_negative_cases",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.5",
-            statement=(
-                "``ensure_disclaimer`` appends the localized disclaimer "
-                "exactly once to a response that does not already contain it."
-            ),
-            # was AC6.3.1 (+ dup AC6.12.3)
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_ensure_disclaimer_appends_once"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.5",
+            "``ensure_disclaimer`` appends the localized disclaimer exactly once to a response that does not already contain it.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_ensure_disclaimer_appends_once",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.6",
-            statement=(
-                "``ensure_disclaimer`` is a no-op — it does not duplicate the "
-                "disclaimer — when the response text already ends with it."
-            ),
-            # was AC6.3.2 (+ dup AC6.12.3)
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_ensure_disclaimer_respects_existing"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.6",
+            "``ensure_disclaimer`` is a no-op — it does not duplicate the disclaimer — when the response text already ends with it.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_ensure_disclaimer_respects_existing",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.7",
-            statement=(
-                "``StreamRedactor`` masks a sensitive numeric sequence even "
-                "when it is split across multiple streamed chunks, replacing "
-                "it with ``[REDACTED]`` in the concatenated output."
-            ),
-            # was AC6.7.4
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_redactor_masks_sensitive_sequences"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.7",
+            "``StreamRedactor`` masks a sensitive numeric sequence even when it is split across multiple streamed chunks, replacing it with ``[REDACTED]`` in the concatenated output.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_redactor_masks_sensitive_sequences",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.8",
-            statement=(
-                "``StreamRedactor`` buffers a short tail chunk (shorter than "
-                "``tail_size``) without emitting it, then emits the buffered "
-                "content on ``flush()``, so a sensitive sequence split at the "
-                "very end of a stream is not leaked before it can be checked."
-            ),
-            # was AC6.7.5
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_redactor_flushes_tail"
-            ),
+        ac(
+            "AC-advisor.guardrail.8",
+            "``StreamRedactor`` buffers a short tail chunk (shorter than ``tail_size``) without emitting it, then emits the buffered content on ``flush()``, so a sensitive sequence split at the very end of a stream is not leaked before it can be checked.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_redactor_flushes_tail",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.9",
-            statement=(
-                "``StreamRedactor.flush()`` returns an empty string when no "
-                "data was buffered, rather than raising or returning a "
-                "placeholder."
-            ),
-            # was AC6.7.6
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_redactor_flush_empty"
-            ),
+        ac(
+            "AC-advisor.guardrail.9",
+            "``StreamRedactor.flush()`` returns an empty string when no data was buffered, rather than raising or returning a placeholder.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_redactor_flush_empty",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.10",
-            statement=(
-                "``build_refusal`` defaults to the non-financial-topic "
-                "refusal message (mentioning 'finance') and still appends "
-                "the disclaimer when called with an unrecognized refusal "
-                "reason."
-            ),
-            # was AC6.8.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_build_refusal_defaults_to_non_financial"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.10",
+            "``build_refusal`` defaults to the non-financial-topic refusal message (mentioning 'finance') and still appends the disclaimer when called with an unrecognized refusal reason.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_build_refusal_defaults_to_non_financial",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.11",
-            statement=(
-                "``redact_sensitive`` masks a detected card-like numeric "
-                "sequence in free text with ``[REDACTED]``, removing the "
-                "original digits from the output."
-            ),
-            # was AC6.10.3
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_redact_sensitive",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.guardrail.11",
+            "``redact_sensitive`` masks a detected card-like numeric sequence in free text with ``[REDACTED]``, removing the original digits from the output.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_redact_sensitive",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.guardrail.12",
-            statement=(
-                "The bank-account PII detector skips date-like (e.g. "
-                "'20240301') and zero-heavy (e.g. '90000000') numeric "
-                "sequences, flagging only genuine account-like numbers (e.g. "
-                "'812345678'), to avoid over-redacting ordinary numbers."
-            ),
-            # was AC6.13.6
-            test=(
-                "apps/backend/tests/ai/test_pii_redaction.py"
-                "::test_detect_pii_skips_date_like_and_zero_heavy_numbers"
-            ),
+        ac(
+            "AC-advisor.guardrail.12",
+            "The bank-account PII detector skips date-like (e.g. '20240301') and zero-heavy (e.g. '90000000') numeric sequences, flagging only genuine account-like numbers (e.g. '812345678'), to avoid over-redacting ordinary numbers.",
+            "apps/backend/tests/ai/test_pii_redaction.py::test_detect_pii_skips_date_like_and_zero_heavy_numbers",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.2",
-            statement=(
-                "``_get_or_create_session`` raises ``AIAdvisorError`` ('Chat "
-                "session not found') when asked to resume a session id that "
-                "does not exist."
-            ),
-            # was AC6.4.2
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_get_or_create_session_missing_raises"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.session.2",
+            "``_get_or_create_session`` raises ``AIAdvisorError`` ('Chat session not found') when asked to resume a session id that does not exist.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_get_or_create_session_missing_raises",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.3",
-            statement=(
-                "``_load_history`` skips SYSTEM-role messages when "
-                "reconstructing prior turns, returning only user/assistant "
-                "messages to feed back into the model."
-            ),
-            # was AC6.4.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_load_history_skips_system_messages"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.session.3",
+            "``_load_history`` skips SYSTEM-role messages when reconstructing prior turns, returning only user/assistant messages to feed back into the model.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_load_history_skips_system_messages",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.4",
-            statement=(
-                "``_record_message`` sets the session's ``title`` from the "
-                "first recorded message's content when the session has no "
-                "title yet."
-            ),
-            # was AC6.4.4
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_record_message_sets_title"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.session.4",
+            "``_record_message`` sets the session's ``title`` from the first recorded message's content when the session has no title yet.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_record_message_sets_title",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.5",
-            statement=(
-                "``DELETE /api/chat/session/{id}`` marks the resolved "
-                "``ChatSession.status`` as DELETED and commits, rather than "
-                "physically deleting the row."
-            ),
-            # was AC6.4.5
-            test="apps/backend/tests/ai/test_chat_router.py::test_delete_session_success",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.session.5",
+            "``DELETE /api/chat/session/{id}`` marks the resolved ``ChatSession.status`` as DELETED and commits, rather than physically deleting the row.",
+            "apps/backend/tests/ai/test_chat_router.py::test_delete_session_success",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.6",
-            statement=(
-                "``DELETE /api/chat/session/{id}`` returns 404 when the "
-                "session id does not resolve for the requesting user."
-            ),
-            # was AC6.4.6
-            test="apps/backend/tests/ai/test_chat_router.py::test_delete_session_not_found",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.session.6",
+            "``DELETE /api/chat/session/{id}`` returns 404 when the session id does not resolve for the requesting user.",
+            "apps/backend/tests/ai/test_chat_router.py::test_delete_session_not_found",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.session.7",
-            statement=(
-                "``_record_message`` swallows an exception raised by "
-                "``db.refresh`` (logging a warning) rather than propagating "
-                "it, so a refresh failure never surfaces as a fatal "
-                "chat-turn error."
-            ),
-            # was AC6.13.1
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_record_message_refresh_exception_logs_warning"
-            ),
+        ac(
+            "AC-advisor.session.7",
+            "``_record_message`` swallows an exception raised by ``db.refresh`` (logging a warning) rather than propagating it, so a refresh failure never surfaces as a fatal chat-turn error.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_record_message_refresh_exception_logs_warning",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.context.2",
-            statement=(
-                "``get_financial_context`` degrades gracefully when "
-                "``generate_balance_sheet``/``generate_income_statement``/"
-                "``get_category_breakdown`` raise ``ReportError``, returning "
-                "zeroed totals, ``top_expenses='N/A'``, and "
-                "``match_rate='0.0%'`` instead of propagating the error."
-            ),
-            # was AC6.8.1
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_get_financial_context_handles_report_errors"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.context.2",
+            "``get_financial_context`` degrades gracefully when ``generate_balance_sheet``/``generate_income_statement``/``get_category_breakdown`` raise ``ReportError``, returning zeroed totals, ``top_expenses='N/A'``, and ``match_rate='0.0%'`` instead of propagating the error.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_get_financial_context_handles_report_errors",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.context.3",
-            statement=(
-                "``get_financial_context`` scopes monthly income/expenses, "
-                "unmatched count, pending-review count, and match rate to "
-                "the requesting user's own journal entries and "
-                "reconciliation matches, excluding another user's "
-                "transactions from the computation."
-            ),
-            # was AC6.8.2 (+ dup AC6.12.2, AC6.12.6)
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_get_financial_context_filters_by_user"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.context.3",
+            "``get_financial_context`` scopes monthly income/expenses, unmatched count, pending-review count, and match rate to the requesting user's own journal entries and reconciliation matches, excluding another user's transactions from the computation.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_get_financial_context_filters_by_user",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.context.4",
-            statement=(
-                "Prompt construction (``get_ai_advisor_prompt``) surfaces "
-                "the structured ``advisor_context``/``advisor_suggestions`` "
-                "facts verbatim and injects an explicit instruction that "
-                "blocked report readiness is not trusted and that "
-                "stale/unreviewed/unsupported/manual-trusted data must keep "
-                "its stated limitation."
-            ),
-            # was AC21.2.2
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.context.4",
+            "Prompt construction (``get_ai_advisor_prompt``) surfaces the structured ``advisor_context``/``advisor_suggestions`` facts verbatim and injects an explicit instruction that blocked report readiness is not trusted and that stale/unreviewed/unsupported/manual-trusted data must keep its stated limitation.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_AC21_2_2_prompt_consumes_structured_advisor_facts_without_trusting_blocked_state",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.cache.2",
-            statement=(
-                "``ResponseCache`` entries expire per their configured TTL: "
-                "a ``ttl_seconds=0`` cache never returns a value it just "
-                "set, while a ``ttl_seconds=60`` cache does."
-            ),
-            # was AC6.6.1
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_response_cache_ttl",
+        ac(
+            "AC-advisor.cache.2",
+            "``ResponseCache`` entries expire per their configured TTL: a ``ttl_seconds=0`` cache never returns a value it just set, while a ``ttl_seconds=60`` cache does.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_response_cache_ttl",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.cache.3",
-            statement=(
-                "``ResponseCache.prune()`` removes already-expired entries "
-                "from the store so ``get()`` on a pruned key returns "
-                "``None``."
-            ),
-            # was AC6.6.2
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_response_cache_prune",
+        ac(
+            "AC-advisor.cache.3",
+            "``ResponseCache.prune()`` removes already-expired entries from the store so ``get()`` on a pruned key returns ``None``.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_response_cache_prune",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.1",
-            statement=(
-                "``_stream_openrouter`` falls back to the next configured "
-                "fallback model when the primary model raises a retryable "
-                "``AIStreamError``, yielding chunks tagged with the model "
-                "that actually served them."
-            ),
-            # was AC6.7.1 (+ dup AC6.12.5)
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_openrouter_falls_back"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.1",
+            "``_stream_openrouter`` falls back to the next configured fallback model when the primary model raises a retryable ``AIStreamError``, yielding chunks tagged with the model that actually served them.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_openrouter_falls_back",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.2",
-            statement=(
-                "``_stream_openrouter`` raises ``AIStreamError`` (mentioning "
-                "the fallback model) when every configured model — primary "
-                "and all fallbacks — fails."
-            ),
-            # was AC6.7.2
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_openrouter_raises_when_all_fail"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.2",
+            "``_stream_openrouter`` raises ``AIStreamError`` (mentioning the fallback model) when every configured model — primary and all fallbacks — fails.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_openrouter_raises_when_all_fail",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.3",
-            statement=(
-                "``chat_stream`` raises ``AIAdvisorError`` ('AI provider API "
-                "key not configured') when no provider API key is "
-                "configured, before attempting any model call."
-            ),
-            # was AC6.7.3
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_chat_stream_requires_api_key",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.3",
+            "``chat_stream`` raises ``AIAdvisorError`` ('AI provider API key not configured') when no provider API key is configured, before attempting any model call.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_chat_stream_requires_api_key",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.4",
-            statement=(
-                "``_stream_and_store`` appends the disclaimer to the "
-                "assembled response and records it in the ``ResponseCache`` "
-                "under the request's cache key once the stream completes."
-            ),
-            # was AC6.8.4
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_and_store_records_response"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.4",
+            "``_stream_and_store`` appends the disclaimer to the assembled response and records it in the ``ResponseCache`` under the request's cache key once the stream completes.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_and_store_records_response",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.5",
-            statement=(
-                "``_stream_and_store`` translates an underlying error from "
-                "``_stream_openrouter`` into ``AIAdvisorError`` (preserving "
-                "the original message) rather than letting a raw exception "
-                "escape the streaming generator."
-            ),
-            # was AC6.9.1
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_and_store_raises_on_stream_error"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.5",
+            "``_stream_and_store`` translates an underlying error from ``_stream_openrouter`` into ``AIAdvisorError`` (preserving the original message) rather than letting a raw exception escape the streaming generator.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_and_store_raises_on_stream_error",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.6",
-            statement=(
-                "On a cache miss, ``chat_stream`` returns a ``ChatStream`` "
-                "with ``cached=False`` whose stream is backed by "
-                "``_stream_and_store``'s live pipeline rather than a cached "
-                "string."
-            ),
-            # was AC6.9.2
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_chat_stream_success_path_uses_stream"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.stream.6",
+            "On a cache miss, ``chat_stream`` returns a ``ChatStream`` with ``cached=False`` whose stream is backed by ``_stream_and_store``'s live pipeline rather than a cached string.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_chat_stream_success_path_uses_stream",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.7",
-            statement=(
-                "``_stream_openrouter`` tries a caller-supplied "
-                "``preferred_model`` before the primary/fallback list, so a "
-                "per-request model override takes precedence."
-            ),
-            # was AC6.13.2
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_openrouter_with_preferred_model"
-            ),
+        ac(
+            "AC-advisor.stream.7",
+            "``_stream_openrouter`` tries a caller-supplied ``preferred_model`` before the primary/fallback list, so a per-request model override takes precedence.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_openrouter_with_preferred_model",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.8",
-            statement=(
-                "``_stream_openrouter`` converts a ``ValueError``/"
-                "``TypeError`` raised inside ``_stream_model`` (a "
-                "programming error, not a transient provider failure) into "
-                "``AIAdvisorError`` with an 'Internal error: <ExcType>' "
-                "message, distinguishing it from retryable provider "
-                "failures."
-            ),
-            # was AC6.13.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_stream_openrouter_raises_on_programming_error"
-            ),
+        ac(
+            "AC-advisor.stream.8",
+            "``_stream_openrouter`` converts a ``ValueError``/``TypeError`` raised inside ``_stream_model`` (a programming error, not a transient provider failure) into ``AIAdvisorError`` with an 'Internal error: <ExcType>' message, distinguishing it from retryable provider failures.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_openrouter_raises_on_programming_error",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.stream.9",
-            statement=(
-                "``_stream_model`` proxies chunks yielded by the underlying "
-                "``stream_ai_chat`` transport call unchanged, chunk-by-chunk."
-            ),
-            # was AC6.13.4
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_model_yields_chunks",
+        ac(
+            "AC-advisor.stream.9",
+            "``_stream_model`` proxies chunks yielded by the underlying ``stream_ai_chat`` transport call unchanged, chunk-by-chunk.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_stream_model_yields_chunks",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.textutil.1",
-            statement=(
-                "``normalize_question`` strips leading/trailing whitespace "
-                "and lowercases the question text so equivalent phrasings "
-                "produce the same cache key."
-            ),
-            # was AC6.10.1
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_normalize_question",
+        ac(
+            "AC-advisor.textutil.1",
+            "``normalize_question`` strips leading/trailing whitespace and lowercases the question text so equivalent phrasings produce the same cache key.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_normalize_question",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.textutil.3",
-            statement=(
-                "``AIAdvisorService._chunk_text`` splits a string into "
-                "fixed-size pieces of the requested size, preserving all "
-                "characters across chunks."
-            ),
-            # was AC6.10.4
-            test="apps/backend/tests/ai/test_ai_advisor_service.py::test_chunk_text_splits_text",
+        ac(
+            "AC-advisor.textutil.3",
+            "``AIAdvisorService._chunk_text`` splits a string into fixed-size pieces of the requested size, preserving all characters across chunks.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_chunk_text_splits_text",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.language.1",
-            statement=(
-                "``detect_language`` classifies Chinese-language input (e.g. "
-                "'这个月花了多少钱') as 'zh'."
-            ),
-            # was AC6.2.1 (+ dup AC6.12.4)
-            test="apps/backend/tests/ai/test_chat_router.py::test_detect_language_chinese",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.language.1",
+            "``detect_language`` classifies Chinese-language input (e.g. '这个月花了多少钱') as 'zh'.",
+            "apps/backend/tests/ai/test_chat_router.py::test_detect_language_chinese",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.language.2",
-            statement=(
-                "``detect_language`` classifies English-language input (e.g. "
-                "'What are my expenses?') as 'en'."
-            ),
-            # was AC6.2.2 (+ dup AC6.12.4)
-            test="apps/backend/tests/ai/test_chat_router.py::test_detect_language_english",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.language.2",
+            "``detect_language`` classifies English-language input (e.g. 'What are my expenses?') as 'en'.",
+            "apps/backend/tests/ai/test_chat_router.py::test_detect_language_english",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.language.3",
-            statement=(
-                "The chat-suggestions endpoint auto-detects Chinese from "
-                "the caller's ``message`` text (when no explicit "
-                "``language`` is given) and returns Chinese-language "
-                "suggestions."
-            ),
-            # was AC6.2.5
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_auto_detect_zh",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.language.3",
+            "The chat-suggestions endpoint auto-detects Chinese from the caller's ``message`` text (when no explicit ``language`` is given) and returns Chinese-language suggestions.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_auto_detect_zh",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.language.4",
-            statement=(
-                "The chat-suggestions endpoint auto-detects English from "
-                "the caller's ``message`` text and returns English-language "
-                "suggestions."
-            ),
-            # was AC6.2.6
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_auto_detect_en",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.language.4",
+            "The chat-suggestions endpoint auto-detects English from the caller's ``message`` text and returns English-language suggestions.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_auto_detect_en",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.suggestions.1",
-            statement=(
-                "``GET /api/chat/suggestions?language=zh`` returns "
-                "Chinese-language quick-question suggestions (first entry "
-                "contains '支出'); a static localized-copy selection, not an "
-                "LLM call."
-            ),
-            # was AC6.2.3 (+ dup AC6.5.2)
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_zh",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.suggestions.1",
+            "``GET /api/chat/suggestions?language=zh`` returns Chinese-language quick-question suggestions (first entry contains '支出'); a static localized-copy selection, not an LLM call.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_zh",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.suggestions.2",
-            statement=(
-                "``GET /api/chat/suggestions?language=en`` returns "
-                "English-language quick-question suggestions (first entry "
-                "contains 'What are my expenses'); a static localized-copy "
-                "selection, not an LLM call."
-            ),
-            # was AC6.2.4 (+ dup AC6.5.1)
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_en",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.suggestions.2",
+            "``GET /api/chat/suggestions?language=en`` returns English-language quick-question suggestions (first entry contains 'What are my expenses'); a static localized-copy selection, not an LLM call.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_suggestions_en",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.suggestions.3",
-            statement=(
-                "The chat-suggestions endpoint, when "
-                "``include_structured=True``, exposes the advisor's "
-                "structured source-cited facts (``basis``, "
-                "``confidence_tier``, ``source_refs``, ``limitation``, "
-                "``next_action_href``) as ``structured_suggestions`` "
-                "sourced from ``get_advisor_context``, without depending on "
-                "parsing LLM prose."
-            ),
-            # was AC21.3.1
-            test=(
-                "apps/backend/tests/ai/test_chat_router.py"
-                "::test_AC21_3_1_chat_suggestions_include_structured_advisor_facts"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.suggestions.3",
+            "The chat-suggestions endpoint, when ``include_structured=True``, exposes the advisor's structured source-cited facts (``basis``, ``confidence_tier``, ``source_refs``, ``limitation``, ``next_action_href``) as ``structured_suggestions`` sourced from ``get_advisor_context``, without depending on parsing LLM prose.",
+            "apps/backend/tests/ai/test_chat_router.py::test_AC21_3_1_chat_suggestions_include_structured_advisor_facts",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.api.1",
-            statement=(
-                "``POST /api/chat`` returns HTTP 503 with a 'temporarily "
-                "unavailable' message when the underlying ``AIAdvisorError`` "
-                "indicates the provider API key is unavailable."
-            ),
-            # was AC6.5.3 (+ dup AC6.12.5)
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_error_api_key_unavailable",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.api.1",
+            "``POST /api/chat`` returns HTTP 503 with a 'temporarily unavailable' message when the underlying ``AIAdvisorError`` indicates the provider API key is unavailable.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_error_api_key_unavailable",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.api.2",
-            statement=(
-                "``POST /api/chat`` returns HTTP 404 when the underlying "
-                "``AIAdvisorError`` indicates the requested session was not "
-                "found."
-            ),
-            # was AC6.5.4
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_error_session_not_found",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.api.2",
+            "``POST /api/chat`` returns HTTP 404 when the underlying ``AIAdvisorError`` indicates the requested session was not found.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_error_session_not_found",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.api.3",
-            statement=(
-                "``POST /api/chat`` returns HTTP 400 when the underlying "
-                "``AIAdvisorError`` indicates an invalid/bad request."
-            ),
-            # was AC6.5.5
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_error_bad_request",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.api.3",
+            "``POST /api/chat`` returns HTTP 400 when the underlying ``AIAdvisorError`` indicates an invalid/bad request.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_error_bad_request",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.api.4",
-            statement=(
-                "``POST /api/chat`` sets the ``X-Model-Name`` response "
-                "header (listed in ``Access-Control-Expose-Headers``) to "
-                "the model that actually served the response."
-            ),
-            # was AC6.5.6
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_with_model_name_header",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.api.4",
+            "``POST /api/chat`` sets the ``X-Model-Name`` response header (listed in ``Access-Control-Expose-Headers``) to the model that actually served the response.",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_with_model_name_header",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.api.5",
-            statement=(
-                "``POST /api/chat`` omits the ``X-Model-Name`` header "
-                "entirely when the stream result carries no model name "
-                "(e.g. a guardrail-refused/cached-only response)."
-            ),
-            # was AC6.5.7
-            test="apps/backend/tests/ai/test_chat_router.py::test_chat_without_model_name_header",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.api.5",
+            "``POST /api/chat`` omits the ``X-Model-Name`` header entirely when the stream result carries no model name (e.g. a guardrail-refused/cached-only response).",
+            "apps/backend/tests/ai/test_chat_router.py::test_chat_without_model_name_header",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.envelope.1",
-            statement=(
-                "``ChatStreamEnvelope`` with only a ``session_id`` set "
-                "builds a text/plain response exposing just "
-                "``X-Session-Id`` (no model/metadata headers), with "
-                "``Access-Control-Expose-Headers`` listing exactly that one "
-                "header."
-            ),
-            # was AC6.33.1
-            test=(
-                "apps/backend/tests/ai/test_streaming_contract.py"
-                "::test_AC6_33_1_chat_envelope_minimal_headers"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.envelope.1",
+            "``ChatStreamEnvelope`` with only a ``session_id`` set builds a text/plain response exposing just ``X-Session-Id`` (no model/metadata headers), with ``Access-Control-Expose-Headers`` listing exactly that one header.",
+            "apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_1_chat_envelope_minimal_headers",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.envelope.2",
-            statement=(
-                "``ChatStreamEnvelope`` with a model name and non-empty "
-                "``ChatResponseMetadata`` exposes ``X-Model-Name`` and a "
-                "JSON ``X-Advisor-Metadata`` header, and lists all three "
-                "headers in ``Access-Control-Expose-Headers`` in a fixed "
-                "CORS order."
-            ),
-            # was AC6.33.2
-            test=(
-                "apps/backend/tests/ai/test_streaming_contract.py"
-                "::test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.envelope.2",
+            "``ChatStreamEnvelope`` with a model name and non-empty ``ChatResponseMetadata`` exposes ``X-Model-Name`` and a JSON ``X-Advisor-Metadata`` header, and lists all three headers in ``Access-Control-Expose-Headers`` in a fixed CORS order.",
+            "apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.envelope.3",
-            statement=(
-                "``ChatStreamEnvelope`` omits ``X-Advisor-Metadata`` (and "
-                "excludes it from ``Access-Control-Expose-Headers``) when "
-                "the attached ``ChatResponseMetadata`` is empty (not "
-                "grounded, no citations/actions)."
-            ),
-            # was AC6.33.3
-            test=(
-                "apps/backend/tests/ai/test_streaming_contract.py"
-                "::test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.envelope.3",
+            "``ChatStreamEnvelope`` omits ``X-Advisor-Metadata`` (and excludes it from ``Access-Control-Expose-Headers``) when the attached ``ChatResponseMetadata`` is empty (not grounded, no citations/actions).",
+            "apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_3_chat_envelope_omits_empty_advisor_metadata",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.envelope.4",
-            statement=(
-                "Constructing a ``ChatStreamEnvelope`` with advisor "
-                "metadata that violates the ``ChatResponseMetadata`` schema "
-                "(e.g. a non-boolean ``grounded``) raises a Pydantic "
-                "``ValidationError`` instead of silently accepting "
-                "malformed metadata."
-            ),
-            # was AC6.33.4
-            test=(
-                "apps/backend/tests/ai/test_streaming_contract.py"
-                "::test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.envelope.4",
+            "Constructing a ``ChatStreamEnvelope`` with advisor metadata that violates the ``ChatResponseMetadata`` schema (e.g. a non-boolean ``grounded``) raises a Pydantic ``ValidationError`` instead of silently accepting malformed metadata.",
+            "apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_4_chat_envelope_rejects_invalid_advisor_metadata",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.envelope.5",
-            statement=(
-                "``chat_message`` builds its ``StreamingResponse`` from "
-                "``ChatStreamEnvelope.to_headers()`` — media type, "
-                "``X-Session-Id``, ``X-Model-Name``, and a dict-shaped "
-                "advisor-metadata payload coerced into the validated "
-                "``X-Advisor-Metadata`` header — so the typed envelope "
-                "governs the actual wire response without changing its "
-                "bytes."
-            ),
-            # was AC6.33.7
-            test=(
-                "apps/backend/tests/ai/test_streaming_contract.py"
-                "::test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.envelope.5",
+            "``chat_message`` builds its ``StreamingResponse`` from ``ChatStreamEnvelope.to_headers()`` — media type, ``X-Session-Id``, ``X-Model-Name``, and a dict-shaped advisor-metadata payload coerced into the validated ``X-Advisor-Metadata`` header — so the typed envelope governs the actual wire response without changing its bytes.",
+            "apps/backend/tests/ai/test_streaming_contract.py::test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.txn.1",
-            statement=(
-                "The advisor reads other domains (portfolio, reconciliation, "
-                "reporting) only via their published interfaces, in a "
-                "read-only transaction; it never writes into another domain's "
-                "tables.  The write guardrail (AC-advisor.guardrail.1) is the "
-                "runtime enforcement; this AC governs the structural boundary "
-                "(once cross-domain packages publish their interfaces, the "
-                "advisor's imports must use those, not internal service paths)."
-            ),
-            # was (new): reinforces guardrail.1 + context.1 at the boundary level.
-            # Closed by #1671 Wave B: the structural test asserts the package
-            # physically lives at implementations["be"] and imports no
-            # src.services/src.prompts/src.routers internal paths — remainder
-            # reads flow through the app_reads ports wired by the composition
-            # root; the package-contract gate enforces depends_on honesty.
-            test=(
-                "tests/tooling/test_advisor_package.py"
-                "::test_AC_advisor_txn_1_reads_only_published_interfaces"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.txn.1",
+            "The advisor reads other domains (portfolio, reconciliation, reporting) only via their published interfaces, in a read-only transaction; it never writes into another domain's tables.  The write guardrail (AC-advisor.guardrail.1) is the runtime enforcement; this AC governs the structural boundary (once cross-domain packages publish their interfaces, the advisor's imports must use those, not internal service paths).",
+            "tests/tooling/test_advisor_package.py::test_AC_advisor_txn_1_reads_only_published_interfaces",
             proof_kind="property",
         ),
         # ── group grounding: grounded chat answers with citations/next-action
         # chips (was EPIC-022 AC22.14.1/AC22.14.3, #1821 Wave A
         # pending-package move) ──
-        ACRecord(
-            id="AC-advisor.grounding.1",
-            statement=(
-                "POST /api/chat exposes structured grounding metadata for "
-                "personal-data answers, including source citations with "
-                "confidence tiers, without sending or returning raw account "
-                "numbers or transaction-level PII."
-            ),
-            # was AC22.14.1
-            test=(
-                "apps/backend/tests/ai/test_chat_router.py"
-                "::test_AC22_14_1_chat_response_exposes_grounding_metadata_header"
-            ),
+        ac(
+            "AC-advisor.grounding.1",
+            "POST /api/chat exposes structured grounding metadata for personal-data answers, including source citations with confidence tiers, without sending or returning raw account numbers or transaction-level PII.",
+            "apps/backend/tests/ai/test_chat_router.py::test_AC22_14_1_chat_response_exposes_grounding_metadata_header",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-advisor.grounding.2",
-            statement=(
-                "A grounded chat answer that has pending reconciliation "
-                "review context exposes a 'Review N' action deep-link to the "
-                "review queue while preserving the assistant's "
-                "read-only/no-write boundary."
-            ),
-            # was AC22.14.3
-            test=(
-                "apps/backend/tests/ai/test_ai_advisor_service.py"
-                "::test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions"
-            ),
+        ac(
+            "AC-advisor.grounding.2",
+            "A grounded chat answer that has pending reconciliation review context exposes a 'Review N' action deep-link to the review queue while preserving the assistant's read-only/no-write boundary.",
+            "apps/backend/tests/ai/test_ai_advisor_service.py::test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_actions",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # NOTE: AC21.1.1 was evaluated for this move and REJECTED: its own
@@ -1211,128 +646,94 @@ CONTRACT = PackageContract(
         # ── group application-layer: the advisor is a read-only application
         # layer, not the source of record (was EPIC-021 AC21.1.2, #1821 Wave
         # A horizontal move) ──
-        ACRecord(
-            id="AC-advisor.application-layer.1",
-            statement=(
-                "Scale coverage and confidence work is explicitly routed to "
-                "existing EPICs and issues instead of being re-owned by "
-                "EPIC-021."
-            ),
-            # was AC21.1.2
-            test=(
-                "tests/tooling/test_application_ai_advisor_epic021_contract.py"
-                "::test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics"
-            ),
+        ac(
+            "AC-advisor.application-layer.1",
+            "Scale coverage and confidence work is explicitly routed to existing EPICs and issues instead of being re-owned by EPIC-021.",
+            "tests/tooling/test_application_ai_advisor_epic021_contract.py::test_AC21_1_2_scale_and_confidence_work_stays_in_existing_epics",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
-        ACRecord(
-            id="AC-advisor.fe-chat.1",
-            statement="Chat page renders advisor client within suspense boundary",
-            # was AC16.16.3
-            test="apps/frontend/src/__tests__/chatPage.test.tsx::AC16.16.3 renders advisor client",
+        ac(
+            "AC-advisor.fe-chat.1",
+            "Chat page renders advisor client within suspense boundary",
+            "apps/frontend/src/__tests__/chatPage.test.tsx::AC16.16.3 renders advisor client",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.2",
-            statement="Chat page client enforces disclaimer consent and passes initial prompt into chat panel",
-            # was AC16.19.5
-            test="apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.5 AC16.20.2 shows consent modal when not accepted",
+        ac(
+            "AC-advisor.fe-chat.2",
+            "Chat page client enforces disclaimer consent and passes initial prompt into chat panel",
+            "apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.5 AC16.20.2 shows consent modal when not accepted",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.3",
-            statement="Chat page client renders primary navigation links and first-class conversational IA",
-            # was AC16.19.6
-            test="apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.6 AC16.20.2 renders navigation links",
+        ac(
+            "AC-advisor.fe-chat.3",
+            "Chat page client renders primary navigation links and first-class conversational IA",
+            "apps/frontend/src/__tests__/ChatPageClient.test.tsx::AC16.19.6 AC16.20.2 renders navigation links",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.4",
-            statement="Chat panel sends streaming responses, loads suggestions/history, and clears session",
-            # was AC16.20.5
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.5 loads suggestions/history and streams reply",
+        ac(
+            "AC-advisor.fe-chat.4",
+            "Chat panel sends streaming responses, loads suggestions/history, and clears session",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.5 loads suggestions/history and streams reply",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.5",
-            statement="Handles missing stream reader",
-            # was AC16.20.7
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.7 handles missing stream reader",
+        ac(
+            "AC-advisor.fe-chat.5",
+            "Handles missing stream reader",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC16.20.7 handles missing stream reader",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.6",
-            statement="ChatPanel renders modern conversational bubbles with avatar and right-aligned user bubble, avoiding full-width rectangular bars",
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.6 renders modern conversational bubbles with avatar",
+        ac(
+            "AC-advisor.fe-chat.6",
+            "ChatPanel renders modern conversational bubbles with avatar and right-aligned user bubble, avoiding full-width rectangular bars",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.6 renders modern conversational bubbles with avatar",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.7",
-            statement="ChatPanel formats structured markdown tables, lists, and bold text for assistant responses",
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.7 formats structured markdown tables and bold text",
+        ac(
+            "AC-advisor.fe-chat.7",
+            "ChatPanel formats structured markdown tables, lists, and bold text for assistant responses",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.7 formats structured markdown tables and bold text",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-chat.8",
-            statement="ChatPanel input area provides auto-growing textarea, circular send button, and resolves persistent loading indicators",
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.8 input area supports auto-grow and circular send",
+        ac(
+            "AC-advisor.fe-chat.8",
+            "ChatPanel input area provides auto-growing textarea, circular send button, and resolves persistent loading indicators",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC-advisor.fe-chat.8 input area supports auto-grow and circular send",
             priority="P2",
-            status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ACRecord(
-            id="AC-advisor.fe-ia-chat.1",
-            statement="`ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose",
-            # was AC22.14.2
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips",
+        ac(
+            "AC-advisor.fe-ia-chat.1",
+            "`ChatPanel` renders assistant-answer citations as safe internal links and shows pending-action chips without parsing LLM prose",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC22.14.2 AC22.14.3 renders grounded answer citations and pending action chips",
             priority="P1",
-            status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ACRecord(
-            id="AC-advisor.fe-remainder-chat.1",
-            statement="`/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings",
-            # was AC19.8.6
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC19.8.6 shows chat sessions inside the AI page without workflow ownership",
+        ac(
+            "AC-advisor.fe-remainder-chat.1",
+            "`/chat` is a simple AI utility page with model selector, active conversation, and session-list drawer; it is not labeled AI Settings",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC19.8.6 shows chat sessions inside the AI page without workflow ownership",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-advisor.fe-remainder-chat.2",
-            statement="Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links",
-            # was AC21.3.2
-            test="apps/frontend/src/__tests__/advisorBrief.test.tsx::AC21.3.2 test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.fe-remainder-chat.2",
+            "Advisor Brief renders blocked, ready, review-required, and stale-market-data cards with source basis, limitation, and safe internal action links",
+            "apps/frontend/src/__tests__/advisorBrief.test.tsx::AC21.3.2 test_AC21_3_2_advisor_brief_renders_structured_cards_and_safe_routes",
         ),
-        ACRecord(
-            id="AC-advisor.fe-remainder-chat.3",
-            statement="Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior",
-            # was AC21.3.3
-            test="apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-advisor.fe-remainder-chat.3",
+            "Chat and dashboard surfaces expose contextual Ask AI links that seed a scoped prompt without losing existing chat behavior",
+            "apps/frontend/src/__tests__/chatPanelComponent.test.tsx::AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief",
         ),
-        ACRecord(
-            id="AC-advisor.fe-remainder-chat.4",
-            statement="Advisor Brief keeps desktop and mobile layouts free of horizontal overflow",
-            # was AC21.3.4
-            test="apps/frontend/playwright/advisor-brief.spec.ts::${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow",
+        ac(
+            "AC-advisor.fe-remainder-chat.4",
+            "Advisor Brief keeps desktop and mobile layouts free of horizontal overflow",
+            "apps/frontend/playwright/advisor-brief.spec.ts::${scenario.name} advisor-brief desktop and mobile layouts avoid horizontal overflow",
             priority="P1",
-            status="done",
         ),
     ],
     concepts=[

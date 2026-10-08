@@ -35,60 +35,31 @@ def _disable_artifact_preflight(monkeypatch):
 class TestIsTestFile:
     """AC16.3.2: Blacklist patterns correctly exclude test files."""
 
-    def test_test_prefix_excluded(self):
-        assert cuc.is_test_file("test_foo.py") is True
-
-    def test_test_dir_excluded(self):
-        assert cuc.is_test_file("apps/backend/tests/test_accounting.py") is True
-
-    def test_double_underscore_tests_excluded(self):
-        assert cuc.is_test_file("apps/frontend/src/__tests__/Button.test.tsx") is True
-
-    def test_test_ts_excluded(self):
-        assert cuc.is_test_file("apps/frontend/src/Button.test.ts") is True
-
-    def test_spec_ts_excluded(self):
-        assert cuc.is_test_file("apps/frontend/src/Button.spec.ts") is True
-
-    def test_spec_tsx_excluded(self):
-        assert cuc.is_test_file("apps/frontend/src/Button.spec.tsx") is True
-
-    def test_test_suffix_excluded(self):
-        assert cuc.is_test_file("foo_test.py") is True
-
-    def test_conftest_excluded(self):
-        assert cuc.is_test_file("apps/backend/conftest.py") is True
-
-    def test_pyproject_excluded(self):
-        assert cuc.is_test_file("pyproject.toml") is True
-
-    def test_node_modules_excluded(self):
-        assert cuc.is_test_file("apps/frontend/node_modules/lib/index.js") is True
-
-    def test_next_dir_excluded(self):
-        assert cuc.is_test_file("apps/frontend/.next/static/main.js") is True
-
-    def test_venv_excluded(self):
-        assert cuc.is_test_file("apps/backend/.venv/lib/site.py") is True
-
-    def test_normal_py_included(self):
-        assert cuc.is_test_file("apps/backend/src/routers/accounts.py") is False
-
-    def test_filename_containing_test_is_not_excluded(self):
-        assert cuc.is_test_file("apps/backend/src/services/latest_report.py") is False
-
-    def test_normal_ts_included(self):
-        assert cuc.is_test_file("apps/frontend/src/lib/api.ts") is False
-
-    def test_normal_tsx_included(self):
-        assert cuc.is_test_file("apps/frontend/src/components/Button.tsx") is False
-
-    def test_tools_py_included(self):
-        assert cuc.is_test_file("tools/calculate_unified_coverage.py") is False
-
-    def test_windows_path_normalised(self):
-        # Backslash paths (Windows) should be normalised
-        assert cuc.is_test_file("apps\\backend\\tests\\test_foo.py") is True
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            ("test_foo.py", True),
+            ("apps/backend/tests/test_accounting.py", True),
+            ("apps/frontend/src/__tests__/Button.test.tsx", True),
+            ("apps/frontend/src/Button.test.ts", True),
+            ("apps/frontend/src/Button.spec.ts", True),
+            ("apps/frontend/src/Button.spec.tsx", True),
+            ("foo_test.py", True),
+            ("apps/backend/conftest.py", True),
+            ("pyproject.toml", True),
+            ("apps/frontend/node_modules/lib/index.js", True),
+            ("apps/frontend/.next/static/main.js", True),
+            ("apps/backend/.venv/lib/site.py", True),
+            ("apps/backend/src/routers/accounts.py", False),
+            ("apps/backend/src/services/latest_report.py", False),
+            ("apps/frontend/src/lib/api.ts", False),
+            ("apps/frontend/src/components/Button.tsx", False),
+            ("tools/calculate_unified_coverage.py", False),
+            ("apps\\backend\\tests\\test_foo.py", True),
+        ],
+    )
+    def test_is_test_file(self, path: str, expected: bool) -> None:
+        assert cuc.is_test_file(path) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -555,90 +526,11 @@ class TestMain:
 class TestBaselineComparison:
     """AC16.4: Baseline comparison enforces minimum coverage improvement."""
 
-    def test_passes_when_coverage_equals_baseline(self, tmp_path, monkeypatch):
-        """When current coverage equals baseline, expect exit 0."""
-        # Setup baseline file
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4700,
-                    "coverage_percent": 94.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        # Set up environment
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # Mock all coverage functions to return same as baseline
-        def mock_coverage(name):
-            return baseline_data["breakdown"][name]
-
-        monkeypatch.setattr(
-            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
-        )
-        monkeypatch.setattr(
-            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
-        )
-        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
-
-        # Should exit 0 (no regression)
-        assert cuc.main([]) == 0
-
-    def test_within_epsilon_jitter_is_not_a_regression(self, tmp_path, monkeypatch):
-        """A sub-epsilon dip (one covered line of run-to-run jitter) must NOT red
-        the gate: with REGRESSION_EPSILON_PCT=0.05, 83.14% vs baseline 83.15%
-        is measurement noise, not a regression (the flap seen on main after the
-        #1631 re-baseline: common flipped 93.46<->93.47 with no code change)."""
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4700,
-                    "coverage_percent": 94.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # One covered line less in tools: 1661/2000 = 83.05 (-0.05, at epsilon)
-        # and unified 8314/10000 = 83.14 (-0.01, within epsilon).
-        current = {
+    SAMPLE_BASELINE = {
+        "coverage_percent": 83.15,
+        "total_lines": 10000,
+        "covered_lines": 8315,
+        "breakdown": {
             "backend": {
                 "total_lines": 5000,
                 "covered_lines": 4700,
@@ -651,14 +543,50 @@ class TestBaselineComparison:
             },
             "tools": {
                 "total_lines": 2000,
+                "covered_lines": 1662,
+                "coverage_percent": 83.10,
+            },
+        },
+    }
+
+    def _setup_baseline(self, tmp_path, monkeypatch, data=None):
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = data or self.SAMPLE_BASELINE
+        baseline_file.write_text(json.dumps(baseline_data))
+        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
+        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
+        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
+        return baseline_data
+
+    def _mock_coverage(self, monkeypatch, backend=None, frontend=None, tools=None):
+        base = self.SAMPLE_BASELINE["breakdown"]
+        b = backend if backend is not None else base["backend"]
+        fe = frontend if frontend is not None else base["frontend"]
+        t = tools if tools is not None else base["tools"]
+        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: b)
+        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: fe)
+        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: t)
+
+    def test_passes_when_coverage_equals_baseline(self, tmp_path, monkeypatch):
+        """When current coverage equals baseline, expect exit 0."""
+        self._setup_baseline(tmp_path, monkeypatch)
+        self._mock_coverage(monkeypatch)
+        assert cuc.main([]) == 0
+
+    def test_within_epsilon_jitter_is_not_a_regression(self, tmp_path, monkeypatch):
+        """A sub-epsilon dip (one covered line of run-to-run jitter) must NOT red
+        the gate: with REGRESSION_EPSILON_PCT=0.05, 83.14% vs baseline 83.15%
+        is measurement noise, not a regression (the flap seen on main after the
+        #1631 re-baseline: common flipped 93.46<->93.47 with no code change)."""
+        self._setup_baseline(tmp_path, monkeypatch)
+        self._mock_coverage(
+            monkeypatch,
+            tools={
+                "total_lines": 2000,
                 "covered_lines": 1661,
                 "coverage_percent": 83.05,
             },
-        }
-        monkeypatch.setattr(cuc, "get_backend_coverage", lambda: current["backend"])
-        monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: current["frontend"])
-        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
-
+        )
         assert cuc.main([]) == 0
 
     def test_within_epsilon_jitter_floating_point_imprecision(
@@ -667,7 +595,6 @@ class TestBaselineComparison:
         """Regression test for IEEE-754 precision: 92.37 - 0.05 is 92.32000000000001 in float.
         Without explicit rounding to 2 decimal places, 92.32 would be considered < 92.32000000000001
         and falsely fail the no-regression gate."""
-        baseline_file = tmp_path / "baseline.json"
         baseline_data = {
             "coverage_percent": 95.56,
             "total_lines": 50000,
@@ -680,17 +607,13 @@ class TestBaselineComparison:
                 },
             },
         }
-        baseline_file.write_text(json.dumps(baseline_data))
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
+        self._setup_baseline(tmp_path, monkeypatch, baseline_data)
         current = {
             "tools": {
                 "total_lines": 3399,
                 "covered_lines": 3138,
-                "coverage_percent": 92.32,  # Exactly -0.05%
-            },
+                "coverage_percent": 92.32,
+            }
         }
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
         assert cuc.main(["--gate-components", "tools"]) == 0
@@ -699,38 +622,7 @@ class TestBaselineComparison:
         self, tmp_path, monkeypatch, capfd
     ):
         """When unified coverage drops below baseline, expect exit 1 with message."""
-        # Setup baseline file
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4700,
-                    "coverage_percent": 94.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        # Set up environment
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # Mock unified coverage to drop (82.0% < 83.15%)
+        self._setup_baseline(tmp_path, monkeypatch)
         current_data = {
             "coverage_percent": 82.0,
             "total_lines": 10000,
@@ -753,28 +645,21 @@ class TestBaselineComparison:
                 },
             },
         }
-
-        def mock_coverage(name):
-            return current_data["breakdown"][name]
-
-        monkeypatch.setattr(
-            cuc, "get_backend_coverage", lambda: mock_coverage("backend")
+        self._mock_coverage(
+            monkeypatch,
+            backend=current_data["breakdown"]["backend"],
+            frontend=current_data["breakdown"]["frontend"],
+            tools=current_data["breakdown"]["tools"],
         )
-        monkeypatch.setattr(
-            cuc, "get_frontend_coverage", lambda: mock_coverage("frontend")
-        )
-        monkeypatch.setattr(cuc, "get_tools_coverage", lambda: mock_coverage("tools"))
-
-        # Should exit 1 with message containing both values
         assert cuc.main([]) == 1
-        # Check stderr contains both baseline and current values
         captured = capfd.readouterr()
         assert "82.0" in captured.err
         assert "83.15" in captured.err
         assert "BASELINE COMPARISON" in captured.out
         assert (
             "unified: current=8200/10000 (82.00%) baseline=8315/10000 (83.15%)"
-        ) in captured.out
+            in captured.out
+        )
         current_report = json.loads((tmp_path / "unified-coverage.json").read_text())
         assert current_report["covered_lines"] == 8200
         assert current_report["total_lines"] == 10000
@@ -796,26 +681,19 @@ class TestBaselineComparison:
                 }
             )
         )
-
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
         monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        monkeypatch.setattr(
-            cuc,
-            "get_backend_coverage",
-            lambda: {"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
+        self._mock_coverage(
+            monkeypatch,
+            backend={"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
+            frontend={
+                "total_lines": 100,
+                "covered_lines": 80,
+                "coverage_percent": 80.0,
+            },
+            tools={"total_lines": 100, "covered_lines": 75, "coverage_percent": 75.0},
         )
-        monkeypatch.setattr(
-            cuc,
-            "get_frontend_coverage",
-            lambda: {"total_lines": 100, "covered_lines": 80, "coverage_percent": 80.0},
-        )
-        monkeypatch.setattr(
-            cuc,
-            "get_tools_coverage",
-            lambda: {"total_lines": 100, "covered_lines": 75, "coverage_percent": 75.0},
-        )
-
         assert cuc.main([]) == 1
         err = capfd.readouterr().err
         assert "Coverage regression detected by local deterministic gate" in err
@@ -827,186 +705,55 @@ class TestBaselineComparison:
 
     def test_fails_when_backend_drops_despite_unified_ok(self, tmp_path, monkeypatch):
         """When backend drops significantly despite unified staying ok, expect exit 1."""
-        # Setup baseline file
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4700,
-                    "coverage_percent": 94.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # Mock: backend drops 94.0% → 90.0%, unified stays 83.15%
-        def mock_backend():
-            return {
+        self._setup_baseline(tmp_path, monkeypatch)
+        self._mock_coverage(
+            monkeypatch,
+            backend={
                 "total_lines": 5000,
                 "covered_lines": 4500,
                 "coverage_percent": 90.0,
-            }
-
-        def mock_frontend():
-            return {
-                "total_lines": 3000,
-                "covered_lines": 2494,
-                "coverage_percent": 83.13,
-            }
-
-        def mock_tools():
-            return {
-                "total_lines": 2000,
-                "covered_lines": 1662,
-                "coverage_percent": 83.10,
-            }
-
-        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
-        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
-        monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
-
-        # Should exit 1 due to backend regression
+            },
+        )
         assert cuc.main([]) == 1
 
     def test_fails_when_frontend_drops(self, tmp_path, monkeypatch):
         """When frontend drops significantly, expect exit 1."""
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4159,
-                    "coverage_percent": 83.18,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # Frontend drops 61.77% → 60.0%
-        def mock_backend():
-            return {
+        self._setup_baseline(tmp_path, monkeypatch)
+        self._mock_coverage(
+            monkeypatch,
+            backend={
                 "total_lines": 5000,
                 "covered_lines": 4159,
                 "coverage_percent": 83.18,
-            }
-
-        def mock_frontend():
-            return {
+            },
+            frontend={
                 "total_lines": 3000,
                 "covered_lines": 1800,
                 "coverage_percent": 60.0,
-            }
-
-        def mock_tools():
-            return {
-                "total_lines": 2000,
-                "covered_lines": 1662,
-                "coverage_percent": 83.10,
-            }
-
-        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
-        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
-        monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
-
+            },
+        )
         assert cuc.main([]) == 1
 
     def test_fails_when_tools_drops(self, tmp_path, monkeypatch):
         """When tools drops significantly, expect exit 1."""
-        baseline_file = tmp_path / "baseline.json"
-        baseline_data = {
-            "coverage_percent": 83.15,
-            "total_lines": 10000,
-            "covered_lines": 8315,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4159,
-                    "coverage_percent": 83.18,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2494,
-                    "coverage_percent": 83.13,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1662,
-                    "coverage_percent": 83.10,
-                },
-            },
-        }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # Tools drops 68.02% → 65.0%
-        def mock_backend():
-            return {
+        self._setup_baseline(tmp_path, monkeypatch)
+        self._mock_coverage(
+            monkeypatch,
+            backend={
                 "total_lines": 5000,
                 "covered_lines": 4159,
                 "coverage_percent": 83.18,
-            }
-
-        def mock_frontend():
-            return {
-                "total_lines": 3000,
-                "covered_lines": 2494,
-                "coverage_percent": 83.13,
-            }
-
-        def mock_tools():
-            return {
+            },
+            tools={
                 "total_lines": 2000,
                 "covered_lines": 1300,
                 "coverage_percent": 65.0,
-            }
-
-        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
-        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
-        monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
-
+            },
+        )
         assert cuc.main([]) == 1
 
     def test_passes_when_all_components_improve(self, tmp_path, monkeypatch):
         """When all components improve, expect exit 0 (no regression)."""
-        baseline_file = tmp_path / "baseline.json"
         baseline_data = {
             "coverage_percent": 80.0,
             "total_lines": 10000,
@@ -1029,38 +776,25 @@ class TestBaselineComparison:
                 },
             },
         }
-        baseline_file.write_text(json.dumps(baseline_data))
-
-        monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
-        monkeypatch.setenv("COVERAGE_THRESHOLD", "0")
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-
-        # All components improve
-        def mock_backend():
-            return {
+        self._setup_baseline(tmp_path, monkeypatch, baseline_data)
+        self._mock_coverage(
+            monkeypatch,
+            backend={
                 "total_lines": 5000,
                 "covered_lines": 4500,
                 "coverage_percent": 90.0,
-            }
-
-        def mock_frontend():
-            return {
+            },
+            frontend={
                 "total_lines": 3000,
                 "covered_lines": 2700,
                 "coverage_percent": 90.0,
-            }
-
-        def mock_tools():
-            return {
+            },
+            tools={
                 "total_lines": 2000,
                 "covered_lines": 1800,
                 "coverage_percent": 90.0,
-            }
-
-        monkeypatch.setattr(cuc, "get_backend_coverage", mock_backend)
-        monkeypatch.setattr(cuc, "get_frontend_coverage", mock_frontend)
-        monkeypatch.setattr(cuc, "get_tools_coverage", mock_tools)
-
+            },
+        )
         assert cuc.main([]) == 0
 
     def test_skips_baseline_check_when_file_missing(self, tmp_path, monkeypatch):

@@ -43,7 +43,7 @@ tier annotation — only the relocated cassette *fixture data*
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ACRecord,
+    ac,
     ConceptRecord,
     ContextRelation,
     ContextScope,
@@ -125,4418 +125,1831 @@ CONTRACT = PackageContract(
     ],
     roadmap=[
         # ── Group 1-8: migrated from EPIC-009 (PDF fixture generation) ──
-        ACRecord(
-            id="AC-testing.1.1",
-            statement=("PDF analyzer exists (Was EPIC-009 AC9.1.1)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_1_analyzer_extracts_page_table_and_text_positions",
+        ac(
+            "AC-testing.1.1",
+            "PDF analyzer exists (Was EPIC-009 AC9.1.1).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_1_analyzer_extracts_page_table_and_text_positions",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.1.2",
-            statement=("Template extractor exists (Was EPIC-009 AC9.1.2)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_2_template_extractor_writes_sanitized_format_yaml",
+        ac(
+            "AC-testing.1.2",
+            "Template extractor exists (Was EPIC-009 AC9.1.2).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_2_template_extractor_writes_sanitized_format_yaml",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.1.3",
-            statement=("CLI tool exists (Was EPIC-009 AC9.1.3)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_template_extractor_emits_source_table_schema",
+        ac(
+            "AC-testing.1.3",
+            "CLI tool exists (Was EPIC-009 AC9.1.3).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_template_extractor_emits_source_table_schema",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.1.4",
-            statement=("DBS template exists (Was EPIC-009 AC9.1.4)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
+        ac(
+            "AC-testing.1.4",
+            "DBS template exists (Was EPIC-009 AC9.1.4).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.1.5",
-            statement=("CMB template exists (Was EPIC-009 AC9.1.5)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
+        ac(
+            "AC-testing.1.5",
+            "CMB template exists (Was EPIC-009 AC9.1.5).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.1.6",
-            statement=("Mari Bank template exists (Was EPIC-009 AC9.1.6)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
+        ac(
+            "AC-testing.1.6",
+            "Mari Bank template exists (Was EPIC-009 AC9.1.6).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_1_4_AC9_1_5_AC9_1_6_committed_templates_define_source_schemas",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.1",
-            statement=("Base generator class exists (Was EPIC-009 AC9.2.1)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_1_base_generator_loads_template_and_applies_layout",
+        ac(
+            "AC-testing.2.1",
+            "Base generator class exists (Was EPIC-009 AC9.2.1).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_1_base_generator_loads_template_and_applies_layout",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.2",
-            statement=("DBS generator exists (Was EPIC-009 AC9.2.2)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
+        ac(
+            "AC-testing.2.2",
+            "DBS generator exists (Was EPIC-009 AC9.2.2).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.3",
-            statement=("CMB generator exists (Was EPIC-009 AC9.2.3)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
+        ac(
+            "AC-testing.2.3",
+            "CMB generator exists (Was EPIC-009 AC9.2.3).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.4",
-            statement=("Mari Bank generator exists (Was EPIC-009 AC9.2.4)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
+        ac(
+            "AC-testing.2.4",
+            "Mari Bank generator exists (Was EPIC-009 AC9.2.4).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_2_AC9_2_3_AC9_2_4_generators_load_committed_templates",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.5",
-            statement=("Font utilities exist (Was EPIC-009 AC9.2.5)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_5_font_helpers_choose_safe_fonts",
+        ac(
+            "AC-testing.2.5",
+            "Font utilities exist (Was EPIC-009 AC9.2.5).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_5_font_helpers_choose_safe_fonts",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.6",
-            statement=("Fake data generator exists (Was EPIC-009 AC9.2.6)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_6_fake_data_generators_keep_running_balances",
+        ac(
+            "AC-testing.2.6",
+            "Fake data generator exists (Was EPIC-009 AC9.2.6).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_6_fake_data_generators_keep_running_balances",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.2.7",
-            statement=("Main script exists (Was EPIC-009 AC9.2.7)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_7_main_script_registers_all_supported_generators",
+        ac(
+            "AC-testing.2.7",
+            "Main script exists (Was EPIC-009 AC9.2.7).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_7_main_script_registers_all_supported_generators",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.1",
-            statement=("Format validator exists (Was EPIC-009 AC9.3.1)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings",
+        ac(
+            "AC-testing.3.1",
+            "Format validator exists (Was EPIC-009 AC9.3.1).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.2",
-            statement=("Generated DBS PDF parseable (Was EPIC-009 AC9.3.2)."),
-            test="tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_2_dbs_generated_pdf_parseable",
+        ac(
+            "AC-testing.3.2",
+            "Generated DBS PDF parseable (Was EPIC-009 AC9.3.2).",
+            "tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_2_dbs_generated_pdf_parseable",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.3",
-            statement=("Generated CMB PDF parseable (Was EPIC-009 AC9.3.3)."),
-            test="tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_3_cmb_generated_pdf_parseable",
+        ac(
+            "AC-testing.3.3",
+            "Generated CMB PDF parseable (Was EPIC-009 AC9.3.3).",
+            "tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_3_cmb_generated_pdf_parseable",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.4",
-            statement=("Generated Mari PDF parseable (Was EPIC-009 AC9.3.4)."),
-            test="tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_4_mari_generated_pdf_parseable",
+        ac(
+            "AC-testing.3.4",
+            "Generated Mari PDF parseable (Was EPIC-009 AC9.3.4).",
+            "tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_4_mari_generated_pdf_parseable",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.5",
-            statement=("Balance calculations correct (Was EPIC-009 AC9.3.5)."),
-            test="tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_5_balance_calculations_correct",
+        ac(
+            "AC-testing.3.5",
+            "Balance calculations correct (Was EPIC-009 AC9.3.5).",
+            "tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_5_balance_calculations_correct",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.3.6",
-            statement=("Date formats correct (Was EPIC-009 AC9.3.6)."),
-            test="tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_6_date_formats_correct_per_source",
+        ac(
+            "AC-testing.3.6",
+            "Date formats correct (Was EPIC-009 AC9.3.6).",
+            "tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_6_date_formats_correct_per_source",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.4.1",
-            statement=("Format analysis README (Was EPIC-009 AC9.4.1)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
+        ac(
+            "AC-testing.4.1",
+            "Format analysis README (Was EPIC-009 AC9.4.1).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.4.2",
-            statement=("Generation README (Was EPIC-009 AC9.4.2)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
+        ac(
+            "AC-testing.4.2",
+            "Generation README (Was EPIC-009 AC9.4.2).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.4.3",
-            statement=("Template format specification (Was EPIC-009 AC9.4.3)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
+        ac(
+            "AC-testing.4.3",
+            "Template format specification (Was EPIC-009 AC9.4.3).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.4.4",
-            statement=("Usage examples (Was EPIC-009 AC9.4.4)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
+        ac(
+            "AC-testing.4.4",
+            "Usage examples (Was EPIC-009 AC9.4.4).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_4_readmes_document_analysis_generation_templates_and_examples",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.5.1",
-            statement=(".gitignore excludes real PDFs (Was EPIC-009 AC9.5.1)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
+        ac(
+            "AC-testing.5.1",
+            ".gitignore excludes real PDFs (Was EPIC-009 AC9.5.1).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.5.2",
-            statement=("Format templates committed (Was EPIC-009 AC9.5.2)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
+        ac(
+            "AC-testing.5.2",
+            "Format templates committed (Was EPIC-009 AC9.5.2).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.5.3",
-            statement=("Generators committed (Was EPIC-009 AC9.5.3)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
+        ac(
+            "AC-testing.5.3",
+            "Generators committed (Was EPIC-009 AC9.5.3).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.5.4",
-            statement=("Analyzers committed (Was EPIC-009 AC9.5.4)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
+        ac(
+            "AC-testing.5.4",
+            "Analyzers committed (Was EPIC-009 AC9.5.4).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.5.5",
-            statement=("Validators committed (Was EPIC-009 AC9.5.5)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
+        ac(
+            "AC-testing.5.5",
+            "Validators committed (Was EPIC-009 AC9.5.5).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.6.1",
-            statement=("DBS generator loads template (Was EPIC-009 AC9.6.1)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity",
+        ac(
+            "AC-testing.6.1",
+            "DBS generator loads template (Was EPIC-009 AC9.6.1).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.6.2",
-            statement=("CMB generator loads template (Was EPIC-009 AC9.6.2)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity",
+        ac(
+            "AC-testing.6.2",
+            "CMB generator loads template (Was EPIC-009 AC9.6.2).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.6.3",
-            statement=("CMB generator supports Chinese fonts (Was EPIC-009 AC9.6.3)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_3_cmb_generator_uses_registered_chinese_font",
+        ac(
+            "AC-testing.6.3",
+            "CMB generator supports Chinese fonts (Was EPIC-009 AC9.6.3).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_3_cmb_generator_uses_registered_chinese_font",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.6.4",
-            statement=(
-                "Mari generator generates interest section (Was EPIC-009 AC9.6.4)."
-            ),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_4_mari_generator_renders_interest_details_section",
+        ac(
+            "AC-testing.6.4",
+            "Mari generator generates interest section (Was EPIC-009 AC9.6.4).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_4_mari_generator_renders_interest_details_section",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.6.5",
-            statement=("Generators use fictional data (Was EPIC-009 AC9.6.5)."),
-            test="tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_5_generators_use_masked_accounts_and_fictional_data",
+        ac(
+            "AC-testing.6.5",
+            "Generators use fictional data (Was EPIC-009 AC9.6.5).",
+            "tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_5_generators_use_masked_accounts_and_fictional_data",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.7.1",
-            statement=(
-                "Main script supports --source parameter (Was EPIC-009 AC9.7.1)."
-            ),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_selected_source",
+        ac(
+            "AC-testing.7.1",
+            "Main script supports --source parameter (Was EPIC-009 AC9.7.1).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_selected_source",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.7.2",
-            statement=(
-                "Main script supports --output parameter (Was EPIC-009 AC9.7.2)."
-            ),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output",
+        ac(
+            "AC-testing.7.2",
+            "Main script supports --output parameter (Was EPIC-009 AC9.7.2).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.7.3",
-            statement=("Analyzer CLI supports input/output (Was EPIC-009 AC9.7.3)."),
-            test="tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_analyzer_cli_writes_template_yaml",
+        ac(
+            "AC-testing.7.3",
+            "Analyzer CLI supports input/output (Was EPIC-009 AC9.7.3).",
+            "tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_analyzer_cli_writes_template_yaml",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.8.1",
-            statement=(
-                "Committed templates define sanitized real-format contracts for page, "
-                "table, date, currency, and key text metadata (Was EPIC-009 AC9.8.1)."
-            ),
-            test="tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_1_templates_define_sanitized_real_format_contract",
+        ac(
+            "AC-testing.8.1",
+            "Committed templates define sanitized real-format contracts for page, table, date, currency, and key text metadata (Was EPIC-009 AC9.8.1).",
+            "tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_1_templates_define_sanitized_real_format_contract",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.8.2",
-            statement=(
-                "Validator rejects missing or drifting real-format contracts (Was EPIC-009 AC9.8.2)."
-            ),
-            test="tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_2_validator_rejects_missing_or_drifting_real_format_contract",
+        ac(
+            "AC-testing.8.2",
+            "Validator rejects missing or drifting real-format contracts (Was EPIC-009 AC9.8.2).",
+            "tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_2_validator_rejects_missing_or_drifting_real_format_contract",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.8.3",
-            statement=(
-                "Generated PDFs satisfy the real-format contract for parser-visible "
-                "page, table, date, currency, and key-text structure (Was EPIC-009 AC9.8.3)."
-            ),
-            test="tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_pdf_matches_template_real_format_contract",
+        ac(
+            "AC-testing.8.3",
+            "Generated PDFs satisfy the real-format contract for parser-visible page, table, date, currency, and key-text structure (Was EPIC-009 AC9.8.3).",
+            "tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_pdf_matches_template_real_format_contract",
             priority="P2",
-            status="done",
         ),
         # ── group journeys: core E2E journey rollup (was EPIC-008
         # AC8.8), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.journeys.1",
-            statement="API health check (Was EPIC-008 AC8.8.1).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.journeys.1",
+            "API health check (Was EPIC-008 AC8.8.1).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract",
         ),
-        ACRecord(
-            id="AC-testing.journeys.2",
-            statement="Accounts CRUD API (Was EPIC-008 AC8.8.2).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_accounts_schema_contract",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.journeys.2",
+            "Accounts CRUD API (Was EPIC-008 AC8.8.2).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_accounts_schema_contract",
         ),
-        ACRecord(
-            id="AC-testing.journeys.3",
-            statement="Journal entry lifecycle API (Was EPIC-008 AC8.8.3).",
-            test="apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_post_and_void_reversal",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.journeys.3",
+            "Journal entry lifecycle API (Was EPIC-008 AC8.8.3).",
+            "apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_post_and_void_reversal",
         ),
-        ACRecord(
-            id="AC-testing.journeys.4",
-            statement="Reports API (Was EPIC-008 AC8.8.4).",
-            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.journeys.4",
+            "Reports API (Was EPIC-008 AC8.8.4).",
+            "apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation",
         ),
-        ACRecord(
-            id="AC-testing.journeys.5",
-            statement="Reconciliation API (Was EPIC-008 AC8.8.5).",
-            test="apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_scoring_engine_algorithms",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.journeys.5",
+            "Reconciliation API (Was EPIC-008 AC8.8.5).",
+            "apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_scoring_engine_algorithms",
         ),
-        ACRecord(
-            id="AC-testing.journeys.6",
-            statement=(
-                "Every browser-based E2E journey records an HTTP 429 response as "
-                "a rate-limit capacity failure and makes the owning test report "
-                "fail with bounded method/path evidence, including failures first "
-                "observed during teardown, instead of masking the 429 as an auth, "
-                "business, or locator failure."
-            ),
-            test=(
-                "tests/tooling/test_e2e_rate_limit_guard.py"
-                "::test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report"
-            ),
+        ac(
+            "AC-testing.journeys.6",
+            "Every browser-based E2E journey records an HTTP 429 response as a rate-limit capacity failure and makes the owning test report fail with bounded method/path evidence, including failures first observed during teardown, instead of masking the 429 as an auth, business, or locator failure.",
+            "tests/tooling/test_e2e_rate_limit_guard.py::test_AC_testing_journeys_6_rate_limit_hits_fail_the_test_report",
             priority="P1",
-            status="done",
         ),
         # ── group ci-integration: CI/CD integration journey gates (was
         # EPIC-008 AC8.9), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.ci-integration.1",
-            statement="PR workflow runs E2E tests (Was EPIC-008 AC8.9.1).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_ci_workflow_contracts",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.ci-integration.1",
+            "PR workflow runs E2E tests (Was EPIC-008 AC8.9.1).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_ci_workflow_contracts",
         ),
-        ACRecord(
-            id="AC-testing.ci-integration.2",
-            statement="Smoke tests integrated (Was EPIC-008 AC8.9.2).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_smoke_test_script_contract",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.ci-integration.2",
+            "Smoke tests integrated (Was EPIC-008 AC8.9.2).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_smoke_test_script_contract",
         ),
-        ACRecord(
-            id="AC-testing.ci-integration.3",
-            statement="Critical test check (Was EPIC-008 AC8.9.3).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_ci_workflow_contracts",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.ci-integration.3",
+            "Critical test check (Was EPIC-008 AC8.9.3).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_ci_workflow_contracts",
         ),
-        ACRecord(
-            id="AC-testing.ci-integration.4",
-            statement="Environment isolation (Was EPIC-008 AC8.9.4).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_database_environment_isolation_contract",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.ci-integration.4",
+            "Environment isolation (Was EPIC-008 AC8.9.4).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_database_environment_isolation_contract",
         ),
         # ── group must-have: must-have scenario traceability (was
         # EPIC-008 AC8.10), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.must-have.1",
-            statement="Health endpoint reachable (Was EPIC-008 AC8.10.1).",
-            test="apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.1",
+            "Health endpoint reachable (Was EPIC-008 AC8.10.1).",
+            "apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract",
         ),
-        ACRecord(
-            id="AC-testing.must-have.2",
-            statement="User can create account (Was EPIC-008 AC8.10.2).",
-            test="apps/backend/tests/ledger/test_ledger_shift_left.py::test_account_creation_cash_and_bank",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.2",
+            "User can create account (Was EPIC-008 AC8.10.2).",
+            "apps/backend/tests/ledger/test_ledger_shift_left.py::test_account_creation_cash_and_bank",
         ),
-        ACRecord(
-            id="AC-testing.must-have.3",
-            statement="User can create journal entry (Was EPIC-008 AC8.10.3).",
-            test="apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_balancing_and_validation",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.3",
+            "User can create journal entry (Was EPIC-008 AC8.10.3).",
+            "apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_balancing_and_validation",
         ),
-        ACRecord(
-            id="AC-testing.must-have.4",
-            statement="Statement upload triggers AI (Was EPIC-008 AC8.10.4).",
-            test="apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_upload_csv_direct_parsing",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.4",
+            "Statement upload triggers AI (Was EPIC-008 AC8.10.4).",
+            "apps/backend/tests/extraction/test_statements_shift_left.py::test_statement_upload_csv_direct_parsing",
         ),
-        ACRecord(
-            id="AC-testing.must-have.5",
-            statement="Reconciliation engine runs (Was EPIC-008 AC8.10.5).",
-            test="apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_scoring_engine_algorithms",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.5",
+            "Reconciliation engine runs (Was EPIC-008 AC8.10.5).",
+            "apps/backend/tests/reconciliation/test_reconciliation_shift_left.py::test_reconciliation_scoring_engine_algorithms",
         ),
-        ACRecord(
-            id="AC-testing.must-have.6",
-            statement="Unbalanced entry rejected (Was EPIC-008 AC8.10.6).",
-            test="apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_balancing_and_validation",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.6",
+            "Unbalanced entry rejected (Was EPIC-008 AC8.10.6).",
+            "apps/backend/tests/ledger/test_ledger_shift_left.py::test_journal_entry_balancing_and_validation",
         ),
-        ACRecord(
-            id="AC-testing.must-have.7",
-            statement="Reports API accessible (Was EPIC-008 AC8.10.7).",
-            test="apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.7",
+            "Reports API accessible (Was EPIC-008 AC8.10.7).",
+            "apps/backend/tests/reporting/test_reporting_shift_left.py::test_balance_sheet_accounting_equation_articulation",
         ),
-        ACRecord(
-            id="AC-testing.must-have.8",
-            statement="User registration flow (Was EPIC-008 AC8.10.8).",
-            test="apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.8",
+            "User registration flow (Was EPIC-008 AC8.10.8).",
+            "apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification",
         ),
-        ACRecord(
-            id="AC-testing.must-have.9",
-            statement="Authentication validation (Was EPIC-008 AC8.10.9).",
-            test="apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.must-have.9",
+            "Authentication validation (Was EPIC-008 AC8.10.9).",
+            "apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401",
         ),
         # ── group trust-mirrors: product trust proof mirrors (was
         # EPIC-008 AC8.14), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.trust-mirrors.1",
-            statement=(
-                "Critical proof matrix classifies product proof paths by trust mode "
-                "and source classes (Was EPIC-008 AC8.14.1)."
-            ),
-            test=(
-                "tests/tooling/test_check_critical_proof_matrix.py"
-                "::test_valid_behavioral_static_and_manual_entries_pass"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trust-mirrors.1",
+            "Critical proof matrix classifies product proof paths by trust mode and source classes (Was EPIC-008 AC8.14.1).",
+            "tests/tooling/test_check_critical_proof_matrix.py::test_valid_behavioral_static_and_manual_entries_pass",
         ),
-        ACRecord(
-            id="AC-testing.trust-mirrors.2",
-            statement=(
-                "Critical post-merge LLM/OCR product proofs must name a PR "
-                "deterministic mirror proof for the same source classes (Was EPIC-008 "
-                "AC8.14.2)."
-            ),
-            test=(
-                "tests/tooling/test_check_critical_proof_matrix.py"
-                "::test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trust-mirrors.2",
+            "Critical post-merge LLM/OCR product proofs must name a PR deterministic mirror proof for the same source classes (Was EPIC-008 AC8.14.2).",
+            "tests/tooling/test_check_critical_proof_matrix.py::test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror",
         ),
-        ACRecord(
-            id="AC-testing.trust-mirrors.3",
-            statement=(
-                "Personal report package critical proof has a deterministic PR mirror "
-                "covering bank, brokerage, manual valuation, restricted-compensation, "
-                "CSV, and manual-record source classes (Was EPIC-008 AC8.14.3)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_14_3_personal_package_has_deterministic_package_document_mirror"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trust-mirrors.3",
+            "Personal report package critical proof has a deterministic PR mirror covering bank, brokerage, manual valuation, restricted-compensation, CSV, and manual-record source classes (Was EPIC-008 AC8.14.3).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_14_3_personal_package_has_deterministic_package_document_mirror",
         ),
-        ACRecord(
-            id="AC-testing.trust-mirrors.4",
-            statement=(
-                "Backend reporting integration acts as a deterministic PR mirror from "
-                "structured/manual source facts through ledger and core statements "
-                "(Was EPIC-008 AC8.14.4)."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_reporting_e2e.py"
-                "::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trust-mirrors.4",
+            "Backend reporting integration acts as a deterministic PR mirror from structured/manual source facts through ledger and core statements (Was EPIC-008 AC8.14.4).",
+            "apps/backend/tests/integration/test_reporting_e2e.py::test_AC5_15_1_multicurrency_reporting_cycle_reconciles_bs_is_cf",
         ),
         # ── group tier2: Tier 2 deployed HTTP E2E proof semantics (was
         # EPIC-008 AC8.18), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.tier2.1",
-            statement=(
-                "The Tier 2 command fails closed unless a deployed base URL and "
-                "expected deployed version are supplied (Was EPIC-008 AC8.18.1)."
-            ),
-            test=(
-                "tests/tooling/test_tier2_http_e2e.py"
-                "::test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.tier2.1",
+            "The Tier 2 command fails closed unless a deployed base URL and expected deployed version are supplied (Was EPIC-008 AC8.18.1).",
+            "tests/tooling/test_tier2_http_e2e.py::test_AC8_18_1_tier2_http_command_fails_closed_without_deployed_inputs",
         ),
-        ACRecord(
-            id="AC-testing.tier2.2",
-            statement=(
-                "Tier 2 reports carry proof_tier=tier2_http; advisory/env-gated "
-                "not-run output is marked proof_eligible=false, while passing reports "
-                "require concrete HTTP checks (Was EPIC-008 AC8.18.2)."
-            ),
-            test=(
-                "tests/tooling/test_tier2_http_e2e.py"
-                "::test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.tier2.2",
+            "Tier 2 reports carry proof_tier=tier2_http; advisory/env-gated not-run output is marked proof_eligible=false, while passing reports require concrete HTTP checks (Was EPIC-008 AC8.18.2).",
+            "tests/tooling/test_tier2_http_e2e.py::test_AC8_18_2_tier2_http_report_is_proof_tiered_and_skip_ineligible",
         ),
-        ACRecord(
-            id="AC-testing.tier2.3",
-            statement=(
-                "Staging runs Tier 2 after shell smoke and before Tier 3/browser E2E, "
-                "and the execution matrix names deployment_tier2_http_e2e separately "
-                "(Was EPIC-008 AC8.18.3)."
-            ),
-            test=(
-                "tests/tooling/test_tier2_http_e2e.py"
-                "::test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.tier2.3",
+            "Staging runs Tier 2 after shell smoke and before Tier 3/browser E2E, and the execution matrix names deployment_tier2_http_e2e separately (Was EPIC-008 AC8.18.3).",
+            "tests/tooling/test_tier2_http_e2e.py::test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e",
         ),
         # ── group review-threads: PR review thread merge gate (was
         # EPIC-008 AC8.20), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.review-threads.1",
-            statement=(
-                "The checker blocks (exit 1) when an unresolved P0/P1 (or unresolved "
-                "Copilot) review thread exists (Was EPIC-008 AC8.20.1)."
-            ),
-            test=(
-                "tests/tooling/test_check_pr_review_threads.py"
-                "::test_AC8_20_1_unresolved_p0_blocks"
-            ),
+        ac(
+            "AC-testing.review-threads.1",
+            "The checker blocks (exit 1) when an unresolved P0/P1 (or unresolved Copilot) review thread exists (Was EPIC-008 AC8.20.1).",
+            "tests/tooling/test_check_pr_review_threads.py::test_AC8_20_1_unresolved_p0_blocks",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.review-threads.2",
-            statement=(
-                "Resolved/outdated threads and lower-severity (P2/P3/nit) unresolved "
-                "threads do NOT block; they are reported (Was EPIC-008 AC8.20.2)."
-            ),
-            test=(
-                "tests/tooling/test_check_pr_review_threads.py"
-                "::test_AC8_20_2_resolved_p0_passes"
-            ),
+        ac(
+            "AC-testing.review-threads.2",
+            "Resolved/outdated threads and lower-severity (P2/P3/nit) unresolved threads do NOT block; they are reported (Was EPIC-008 AC8.20.2).",
+            "tests/tooling/test_check_pr_review_threads.py::test_AC8_20_2_resolved_p0_passes",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.review-threads.3",
-            statement=(
-                "The severity classification rule is documented in the CI/CD SSOT "
-                "(Was EPIC-008 AC8.20.3)."
-            ),
-            test=(
-                "tests/tooling/test_check_pr_review_threads.py"
-                "::test_AC8_20_3_severity_rule_documented_in_ssot"
-            ),
+        ac(
+            "AC-testing.review-threads.3",
+            "The severity classification rule is documented in the CI/CD SSOT (Was EPIC-008 AC8.20.3).",
+            "tests/tooling/test_check_pr_review_threads.py::test_AC8_20_3_severity_rule_documented_in_ssot",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.review-threads.4",
-            statement=(
-                "A Copilot thread classifies as blocking using the real "
-                "author.login the GraphQL reviewThreads API actually returns "
-                '("copilot-pull-request-reviewer", no "[bot]" suffix) -- '
-                'not only a synthetic "[bot]"-suffixed fixture value '
-                "(2026-07-12 regression: this mismatch let every real "
-                "Copilot thread silently classify as non-blocking)."
-            ),
-            test=(
-                "tests/tooling/test_check_pr_review_threads.py"
-                "::test_copilot_thread_real_login_without_bot_suffix_is_blocking"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.review-threads.4",
+            'A Copilot thread classifies as blocking using the real author.login the GraphQL reviewThreads API actually returns ("copilot-pull-request-reviewer", no "[bot]" suffix) -- not only a synthetic "[bot]"-suffixed fixture value (2026-07-12 regression: this mismatch let every real Copilot thread silently classify as non-blocking).',
+            "tests/tooling/test_check_pr_review_threads.py::test_copilot_thread_real_login_without_bot_suffix_is_blocking",
         ),
         # ── group seeded-journey: seeded no-LLM statement journey (was
         # EPIC-008 AC8.21), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.seeded-journey.1",
-            statement=(
-                "A seeded no-LLM fixture materializes an already-parsed statement "
-                "(PARSED envelope, linked ODS document, atomic transactions, "
-                "non-empty original_filename, Decimal balances) with zero provider "
-                "calls, bypassing the extraction/LLM seam (Was EPIC-008 AC8.21.1)."
-            ),
-            test=(
-                "apps/backend/tests/extraction/test_statements_shift_left.py"
-                "::test_seeded_statement_materializes_without_llm"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.seeded-journey.1",
+            "A seeded no-LLM fixture materializes an already-parsed statement (PARSED envelope, linked ODS document, atomic transactions, non-empty original_filename, Decimal balances) with zero provider calls, bypassing the extraction/LLM seam (Was EPIC-008 AC8.21.1).",
+            "apps/backend/tests/extraction/test_statements_shift_left.py::test_seeded_statement_materializes_without_llm",
         ),
-        ACRecord(
-            id="AC-testing.seeded-journey.2",
-            statement=(
-                "The previously LLM-gated statement list -> detail journey runs in "
-                "the no-LLM merge tier via the fixture: the list row and detail "
-                "expose status=parsed, a non-empty original_filename (the "
-                "stretched-link label, #1142), and the parsed transactions (Was "
-                "EPIC-008 AC8.21.2)."
-            ),
-            test=(
-                "apps/backend/tests/extraction/test_statements_shift_left.py"
-                "::test_seeded_statement_list_and_details_query"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.seeded-journey.2",
+            "The previously LLM-gated statement list -> detail journey runs in the no-LLM merge tier via the fixture: the list row and detail expose status=parsed, a non-empty original_filename (the stretched-link label, #1142), and the parsed transactions (Was EPIC-008 AC8.21.2).",
+            "apps/backend/tests/extraction/test_statements_shift_left.py::test_seeded_statement_list_and_details_query",
         ),
-        ACRecord(
-            id="AC-testing.seeded-journey.3",
-            statement=(
-                "The seeded statement's transactions endpoint resolves the parsed "
-                "atomic transactions (descriptions, Decimal amounts, directions) with "
-                "no provider call, so the downstream review/reconcile journey runs "
-                "provider-free (Was EPIC-008 AC8.21.3)."
-            ),
-            test=(
-                "apps/backend/tests/extraction/test_statements_shift_left.py"
-                "::test_seeded_statement_transactions_and_reconciliation"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.seeded-journey.3",
+            "The seeded statement's transactions endpoint resolves the parsed atomic transactions (descriptions, Decimal amounts, directions) with no provider call, so the downstream review/reconcile journey runs provider-free (Was EPIC-008 AC8.21.3).",
+            "apps/backend/tests/extraction/test_statements_shift_left.py::test_seeded_statement_transactions_and_reconciliation",
         ),
         # ── group matrix: test execution matrix as code (was EPIC-008
         # AC8.22), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.matrix.1",
-            statement=(
-                "The checked-in common/testing/data/test-execution-matrix.yaml is exactly the "
-                "view generated from common/testing/matrix.py (byte-identical via the "
-                "--check-matrix CLI gate), and the generated YAML parses into the "
-                "same path\u2192stage/ci_required rules the AC-traceability consumer reads "
-                "\u2014 matrix-as-code cannot drift from the SSOT view (Was EPIC-008 "
-                "AC8.22.1)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_1_generated_matrix_matches_checked_in_yaml"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.matrix.1",
+            "The checked-in common/testing/data/test-execution-matrix.yaml is exactly the view generated from common/testing/matrix.py (byte-identical via the --check-matrix CLI gate), and the generated YAML parses into the same path→stage/ci_required rules the AC-traceability consumer reads — matrix-as-code cannot drift from the SSOT view (Was EPIC-008 AC8.22.1).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_1_generated_matrix_matches_checked_in_yaml",
         ),
-        ACRecord(
-            id="AC-testing.matrix.2",
-            statement=(
-                "preview.yml derives its in-runner E2E selection at runtime by "
-                "eval'ing tools/test_selection.py --stage pr_preview_e2e --shell "
-                "(tests, marker expression, parallelism all from the matrix) and "
-                "carries no hardcoded tests/e2e/ path \u2014 the #1547 whitelist is "
-                "structurally impossible to reintroduce (Was EPIC-008 AC8.22.2)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_2_preview_workflow_derives_selection_from_matrix"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.matrix.2",
+            "preview.yml derives its in-runner E2E selection at runtime by eval'ing tools/test_selection.py --stage pr_preview_e2e --shell (tests, marker expression, parallelism all from the matrix) and carries no hardcoded tests/e2e/ path — the #1547 whitelist is structurally impossible to reintroduce (Was EPIC-008 AC8.22.2).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_2_preview_workflow_derives_selection_from_matrix",
         ),
-        ACRecord(
-            id="AC-testing.matrix.3",
-            statement=(
-                "The derived pre-merge selection contains exactly the audited, "
-                "dependency-free rows (preserving the original in-runner set), every "
-                "selected spec exists on disk, no llm-marked spec (verified against "
-                "file content, not row metadata) can appear in the merge-blocking "
-                "set, and the #1547 non-LLM vision hard gate is admitted after BOTH "
-                "in-runner stack bugs it flushed out were root-caused and fixed in "
-                "docker-compose.ci-e2e.yml \u2014 the double-/api NEXT_PUBLIC_API_URL 404 "
-                "(PR #1587) and the #1589 FirstRunModal pointer interception (no "
-                "provider wiring -> app-wide dismissible modal on every full "
-                "navigation; fixed with placeholder wiring + unroutable AI_BASE_URL) "
-                "\u2014 each admission a row flip, never a workflow edit (Was EPIC-008 "
-                "AC8.22.3)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_3_preview_selection_is_audited_and_dependency_free"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.matrix.3",
+            "The derived pre-merge selection contains exactly the audited, dependency-free rows (preserving the original in-runner set), every selected spec exists on disk, no llm-marked spec (verified against file content, not row metadata) can appear in the merge-blocking set, and the #1547 non-LLM vision hard gate is admitted after BOTH in-runner stack bugs it flushed out were root-caused and fixed in docker-compose.ci-e2e.yml — the double-/api NEXT_PUBLIC_API_URL 404 (PR #1587) and the #1589 FirstRunModal pointer interception (no provider wiring -> app-wide dismissible modal on every full navigation; fixed with placeholder wiring + unroutable AI_BASE_URL) — each admission a row flip, never a workflow edit (Was EPIC-008 AC8.22.3).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_3_preview_selection_is_audited_and_dependency_free",
         ),
-        ACRecord(
-            id="AC-testing.matrix.4",
-            statement=(
-                "Every root tests/e2e/test_*.py spec has a named ownership row in the "
-                "matrix (needs + audit status + reason) and no stale row survives "
-                "file removal \u2014 an unclassified E2E spec fails CI instead of silently "
-                "landing outside any execution tier (Was EPIC-008 AC8.22.4)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_4_every_root_e2e_spec_has_a_named_row"
-            ),
+        ac(
+            "AC-testing.matrix.4",
+            "Every root tests/e2e/test_*.py spec has a named ownership row in the matrix (needs + audit status + reason) and no stale row survives file removal — an unclassified E2E spec fails CI instead of silently landing outside any execution tier (Was EPIC-008 AC8.22.4).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_4_every_root_e2e_spec_has_a_named_row",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.matrix.5",
-            statement=(
-                "The --shell emission is valid, shlex-round-trippable bash (test "
-                "array, quoted marker expression, parallelism) matching the in-code "
-                "selection exactly, and an unknown stage is rejected with an explicit "
-                "error (Was EPIC-008 AC8.22.5)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_5_shell_emission_round_trips"
-            ),
+        ac(
+            "AC-testing.matrix.5",
+            "The --shell emission is valid, shlex-round-trippable bash (test array, quoted marker expression, parallelism) matching the in-code selection exactly, and an unknown stage is rejected with an explicit error (Was EPIC-008 AC8.22.5).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_5_shell_emission_round_trips",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.matrix.6",
-            statement=(
-                "The testing-package governance charter (execution matrix, package "
-                "declaration protocol, E2E extension layer, fast interception, "
-                "responsibility table) exists in common/testing/readme.md, and "
-                "common/meta/data/MANIFEST.yaml records common/testing/matrix.py as "
-                "the test_execution_matrix owner with the generated YAML as a cross-ref "
-                "(Was EPIC-008 AC8.22.6)."
-            ),
-            test=(
-                "tests/tooling/test_execution_matrix_contract.py"
-                "::test_AC8_22_6_charter_and_manifest_ownership"
-            ),
+        ac(
+            "AC-testing.matrix.6",
+            "The testing-package governance charter (execution matrix, package declaration protocol, E2E extension layer, fast interception, responsibility table) exists in common/testing/readme.md, and common/meta/data/MANIFEST.yaml records common/testing/matrix.py as the test_execution_matrix owner with the generated YAML as a cross-ref (Was EPIC-008 AC8.22.6).",
+            "tests/tooling/test_execution_matrix_contract.py::test_AC8_22_6_charter_and_manifest_ownership",
             priority="P1",
-            status="done",
         ),
         # ── group conformance: workflow selection conformance &
         # execution reconciliation (was EPIC-008 AC8.23), migration
         # closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.conformance.1",
-            statement=(
-                "Every junit-emitting pytest invocation in any workflow is registered "
-                "in the matrix contracts and every registered contract has exactly "
-                "one live invocation \u2014 fail-closed in both directions, so a selection "
-                "change is impossible without touching the SSOT (Was EPIC-008 "
-                "AC8.23.1)."
-            ),
-            test=(
-                "tests/tooling/test_workflow_selection_conformance.py"
-                "::test_AC8_23_1_every_workflow_pytest_invocation_is_registered"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.conformance.1",
+            "Every junit-emitting pytest invocation in any workflow is registered in the matrix contracts and every registered contract has exactly one live invocation — fail-closed in both directions, so a selection change is impossible without touching the SSOT (Was EPIC-008 AC8.23.1).",
+            "tests/tooling/test_workflow_selection_conformance.py::test_AC8_23_1_every_workflow_pytest_invocation_is_registered",
         ),
-        ACRecord(
-            id="AC-testing.conformance.2",
-            statement=(
-                "Each registered invocation's -m expression and explicit path "
-                "arguments equal the matrix constants (backend shards, integration, "
-                "tier-1, staging core/provider/AI-OCR/version, production readonly) \u2014 "
-                "marker semantics have exactly one owner (Was EPIC-008 AC8.23.2)."
-            ),
-            test=(
-                "tests/tooling/test_workflow_selection_conformance.py"
-                "::test_AC8_23_2_registered_invocations_match_matrix_selection"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.conformance.2",
+            "Each registered invocation's -m expression and explicit path arguments equal the matrix constants (backend shards, integration, tier-1, staging core/provider/AI-OCR/version, production readonly) — marker semantics have exactly one owner (Was EPIC-008 AC8.23.2).",
+            "tests/tooling/test_workflow_selection_conformance.py::test_AC8_23_2_registered_invocations_match_matrix_selection",
         ),
-        ACRecord(
-            id="AC-testing.conformance.3",
-            statement=(
-                "The staging AI/OCR corpus (derived from @ac_proof metadata) and the "
-                "matrix llm rows describe the same provider-dependent spec set, with "
-                "the connectivity probe as the only declared difference \u2014 the two "
-                "derivations cannot drift silently (Was EPIC-008 AC8.23.3)."
-            ),
-            test=(
-                "tests/tooling/test_workflow_selection_conformance.py"
-                "::test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows"
-            ),
+        ac(
+            "AC-testing.conformance.3",
+            "The staging AI/OCR corpus (derived from @ac_proof metadata) and the matrix llm rows describe the same provider-dependent spec set, with the connectivity probe as the only declared difference — the two derivations cannot drift silently (Was EPIC-008 AC8.23.3).",
+            "tests/tooling/test_workflow_selection_conformance.py::test_AC8_23_3_staging_ai_ocr_corpus_aligns_with_matrix_llm_rows",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.conformance.4",
-            statement=(
-                "A behavioral pr_ci proof absent from aggregated PR junit evidence "
-                "fails the reconciliation gate (wired after the score ratchet in "
-                "ci.yml); present proofs pass, skipped-only is a hard fail (#1558: a "
-                "pr_ci proof that only ever skips pre-merge is not executing its "
-                "promise, though a skip in one shard with a real run in another "
-                "passes), and parametrized/class-nested junit ids are matched "
-                "correctly. Synthetic canonical proof fixtures preserve the declared "
-                "semantic strength rather than substituting exact "
-                "(Was EPIC-008 AC8.23.4)."
-            ),
-            test=(
-                "tests/tooling/test_workflow_selection_conformance.py"
-                "::test_AC8_23_4_pr_ci_evidence_reconciliation_gate"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.conformance.4",
+            "A behavioral pr_ci proof absent from aggregated PR junit evidence fails the reconciliation gate (wired after the score ratchet in ci.yml); present proofs pass, skipped-only is a hard fail (#1558: a pr_ci proof that only ever skips pre-merge is not executing its promise, though a skip in one shard with a real run in another passes), and parametrized/class-nested junit ids are matched correctly. Synthetic canonical proof fixtures preserve the declared semantic strength rather than substituting exact (Was EPIC-008 AC8.23.4).",
+            "tests/tooling/test_workflow_selection_conformance.py::test_AC8_23_4_pr_ci_evidence_reconciliation_gate",
         ),
         # ── group declarations: package test declarations, env
         # preconditions & mirror ratchet (was EPIC-008 AC8.24),
         # migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.declarations.1",
-            statement=(
-                "The seed packages (runtime, ledger, coverage) declare their owned "
-                "test roots via TEST_ROOTS in their contract.py; the matrix "
-                "aggregates them into the generated YAML's ownership: section (a "
-                "dropped declaration fails the --check-matrix drift gate), every "
-                "declared root exists on disk, and a root declared by two packages is "
-                "rejected (Was EPIC-008 AC8.24.1)."
-            ),
-            test=(
-                "tests/tooling/test_package_declaration_and_ratchet.py"
-                "::test_AC8_24_1_seed_packages_declare_owned_test_roots"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.declarations.1",
+            "The seed packages (runtime, ledger, coverage) declare their owned test roots via TEST_ROOTS in their contract.py; the matrix aggregates them into the generated YAML's ownership: section (a dropped declaration fails the --check-matrix drift gate), every declared root exists on disk, and a root declared by two packages is rejected (Was EPIC-008 AC8.24.1).",
+            "tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_1_seed_packages_declare_owned_test_roots",
         ),
-        ACRecord(
-            id="AC-testing.declarations.2",
-            statement=(
-                "Workflow pytest contracts declaring an environment precondition (the "
-                "runtime-owned smoke gate, for the preview and staging core E2E "
-                "stages) must run it before the pytest invocation in the same "
-                "workflow \u2014 mechanized fault attribution: a red precondition aborts "
-                "before tests start (Was EPIC-008 AC8.24.2)."
-            ),
-            test=(
-                "tests/tooling/test_package_declaration_and_ratchet.py"
-                "::test_AC8_24_2_e2e_stages_run_their_environment_precondition_first"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.declarations.2",
+            "Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the preview and staging core E2E stages) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start (Was EPIC-008 AC8.24.2).",
+            "tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_2_e2e_stages_run_their_environment_precondition_first",
         ),
-        ACRecord(
-            id="AC-testing.declarations.3",
-            statement=(
-                "The mirror-assertion count over tests/tooling/ is locked behind a "
-                "committed baseline that may only decrease: growth fails CI, --update "
-                "refuses to raise the baseline, and paydown lowers it \u2014 with the "
-                "eight marker-literal mirrors already redundant with AC8.23.2 deleted "
-                "in the same change (Was EPIC-008 AC8.24.3)."
-            ),
-            test=(
-                "tests/tooling/test_package_declaration_and_ratchet.py"
-                "::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.declarations.3",
+            "The mirror-assertion count over tests/tooling/ is locked behind a committed baseline that may only decrease: growth fails CI, --update refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change (Was EPIC-008 AC8.24.3).",
+            "tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down",
         ),
         # ── group deploy-gates: deploy/staging/production workflow
         # gates (was EPIC-008 AC8.13 subset), migration closeout, #1663
         # / #1718 ──
-        ACRecord(
-            id="AC-testing.deploy-gates.1",
-            statement=(
-                "Production release runs prod-safe read-only E2E smoke (Was EPIC-008 "
-                "AC8.13.9)."
-            ),
-            test=(
-                "tests/e2e/test_production_readonly_smoke.py"
-                "::test_AC8_13_9_production_public_runtime_contract"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.1",
+            "Production release runs prod-safe read-only E2E smoke (Was EPIC-008 AC8.13.9).",
+            "tests/e2e/test_production_readonly_smoke.py::test_AC8_13_9_production_public_runtime_contract",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.2",
-            statement=(
-                "Staging health check diagnoses API route 404 with route probes (Was "
-                "EPIC-008 AC8.13.11)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_11_health_check_diagnoses_staging_api_route_404"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.2",
+            "Staging health check diagnoses API route 404 with route probes (Was EPIC-008 AC8.13.11).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_11_health_check_diagnoses_staging_api_route_404",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.3",
-            statement=(
-                "AI/OCR gate failures include statement validation context (Was "
-                "EPIC-008 AC8.13.12)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.3",
+            "AI/OCR gate failures include statement validation context (Was EPIC-008 AC8.13.12).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.4",
-            statement=(
-                "Staging deploy uses workflow-level singleton concurrency plus an "
-                "in-job FIFO guard to prevent duplicate concurrent staging mutation "
-                "and bounds E2E gate duration with phase timing logs (Was EPIC-008 "
-                "AC8.13.13)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_13_staging_deploy_fast_fail_guardrails"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.4",
+            "Staging deploy uses workflow-level singleton concurrency plus an in-job FIFO guard to prevent duplicate concurrent staging mutation and bounds E2E gate duration with phase timing logs (Was EPIC-008 AC8.13.13).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_13_staging_deploy_fast_fail_guardrails",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.5",
-            statement=(
-                "Provider-backed staging AI/OCR gate runs separately from deploy "
-                "health (Was EPIC-008 AC8.13.14)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.5",
+            "Provider-backed staging AI/OCR gate runs separately from deploy health (Was EPIC-008 AC8.13.14).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.6",
-            statement=(
-                "Provider-backed staging AI/OCR gate runs inside a manual staging "
-                "dispatch (inheriting workflow_dispatch) and via the on-demand "
-                "deploy.yml, never auto-after-CI (Was EPIC-008 AC8.13.21)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.6",
+            "Provider-backed staging AI/OCR gate runs inside a manual staging dispatch (inheriting workflow_dispatch) and via the on-demand deploy.yml, never auto-after-CI (Was EPIC-008 AC8.13.21).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.7",
-            statement=(
-                "Staging deploys an explicitly supplied published release version_ref "
-                "(vX.Y.Z tag) on workflow_dispatch; it does not build or promote "
-                "images inside the deploy workflow (Was EPIC-008 AC8.13.22)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_22_staging_deploys_manually_dispatched_version_ref"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.7",
+            "Staging deploys an explicitly supplied published release version_ref (vX.Y.Z tag) on workflow_dispatch; it does not build or promote images inside the deploy workflow (Was EPIC-008 AC8.13.22).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_22_staging_deploys_manually_dispatched_version_ref",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.8",
-            statement=(
-                "Automatic staging deploy health and AI/OCR validation run in one "
-                "serialized post-merge workflow unit (Was EPIC-008 AC8.13.23)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.8",
+            "Automatic staging deploy health and AI/OCR validation run in one serialized post-merge workflow unit (Was EPIC-008 AC8.13.23).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.9",
-            statement=(
-                "Main CI builds SHA-tagged images, deploy.yml promotes those digests "
-                "to an immutable vX.Y.Z release tag, and staging deploy consumes that "
-                "tag without rebuilding or moving a staging tag (Was EPIC-008 "
-                "AC8.13.36)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.9",
+            "Main CI builds SHA-tagged images, deploy.yml promotes those digests to an immutable vX.Y.Z release tag, and staging deploy consumes that tag without rebuilding or moving a staging tag (Was EPIC-008 AC8.13.36).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.10",
-            statement=(
-                "PR CI dry-runs staging image builds before merge; main push CI is "
-                "the only path that pushes SHA-tagged images (Was EPIC-008 "
-                "AC8.13.40)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.10",
+            "PR CI dry-runs staging image builds before merge; main push CI is the only path that pushes SHA-tagged images (Was EPIC-008 AC8.13.40).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.11",
-            statement=(
-                "Staging AI/OCR gates publish audit input inventory and replay "
-                "summary fields (Was EPIC-008 AC8.13.49)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.11",
+            "Staging AI/OCR gates publish audit input inventory and replay summary fields (Was EPIC-008 AC8.13.49).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.12",
-            statement=(
-                "Staging deploy is manual (workflow_dispatch) only with a required "
-                "deploy_v2-aligned version_ref input; it does not auto-follow main CI "
-                "and does not poll for CI in-job (Was EPIC-008 AC8.13.51)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_51_staging_deploy_is_manual_dispatch_only"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.12",
+            "Staging deploy is manual (workflow_dispatch) only with a required deploy_v2-aligned version_ref input; it does not auto-follow main CI and does not poll for CI in-job (Was EPIC-008 AC8.13.51).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_51_staging_deploy_is_manual_dispatch_only",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.13",
-            statement=(
-                "Production release dry-run validates release prerequisites and image "
-                "builds through shared release evidence/image digest tools without "
-                "production mutation (Was EPIC-008 AC8.13.52)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_52_production_release_dry_run_does_not_mutate_production"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.13",
+            "Production release dry-run validates release prerequisites and image builds through shared release evidence/image digest tools without production mutation (Was EPIC-008 AC8.13.52).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_52_production_release_dry_run_does_not_mutate_production",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.14",
-            statement=(
-                "Post-merge staging deploys only for runtime, deploy, E2E, staging "
-                "workflow, or toolchain changes (Was EPIC-008 "
-                "AC8.13.55)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.14",
+            "Post-merge staging deploys only for runtime, deploy, E2E, staging workflow, or toolchain changes (Was EPIC-008 AC8.13.55).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.15",
-            statement=(
-                "Deploy workflows do not keep no-op dependency checks or warning-only "
-                "performance probes that cannot block release risk (Was EPIC-008 "
-                "AC8.13.60)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.15",
+            "Deploy workflows do not keep no-op dependency checks or warning-only performance probes that cannot block release risk (Was EPIC-008 AC8.13.60).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.16",
-            statement=(
-                "Production release verifies DB, S3, app vendor-neutral OTEL "
-                "readiness, API, and frontend before completing deploy (proving the "
-                "observability backend ingests is infra2's job) (Was EPIC-008 "
-                "AC8.13.64)."
-            ),
-            test=(
-                "tests/tooling/test_production_infra_smoke.py"
-                "::test_AC8_13_64_production_infra_smoke_cli_reports_failure"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.16",
+            "Production release verifies DB, S3, app vendor-neutral OTEL readiness, API, and frontend before completing deploy (proving the observability backend ingests is infra2's job) (Was EPIC-008 AC8.13.64).",
+            "tests/tooling/test_production_infra_smoke.py::test_AC8_13_64_production_infra_smoke_cli_reports_failure",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.17",
-            statement=(
-                "Production release reuses successful main CI proof instead of "
-                "rerunning container-backed tests in the release lane (Was EPIC-008 "
-                "AC8.13.65)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_52_production_release_dry_run_does_not_mutate_production"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.17",
+            "Production release reuses successful main CI proof instead of rerunning container-backed tests in the release lane (Was EPIC-008 AC8.13.65).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_52_production_release_dry_run_does_not_mutate_production",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.18",
-            statement=(
-                "Production release preserves deployed version metadata from image "
-                "build through Dokploy runtime health (Was EPIC-008 AC8.13.67)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_67_production_release_preserves_version_metadata"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.18",
+            "Production release preserves deployed version metadata from image build through Dokploy runtime health (Was EPIC-008 AC8.13.67).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_67_production_release_preserves_version_metadata",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.19",
-            statement=(
-                "Staging is mutated only by an explicit manual workflow_dispatch with "
-                "a required release version_ref input; no auto path can promote "
-                "images or change Dokploy, and structured deploy failure context is "
-                "preserved (Was EPIC-008 AC8.13.93)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_93_staging_promotion_requires_manual_dispatch"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.19",
+            "Staging is mutated only by an explicit manual workflow_dispatch with a required release version_ref input; no auto path can promote images or change Dokploy, and structured deploy failure context is preserved (Was EPIC-008 AC8.13.93).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_93_staging_promotion_requires_manual_dispatch",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.20",
-            statement=(
-                "Main post-merge staging publishes one commit-level Post-merge "
-                "Delivery check that fails release-critical staging build/deploy and "
-                "provider connectivity failures, while recording right-shifted full "
-                "AI/OCR regression evidence without blocking production eligibility "
-                "(Was EPIC-008 AC8.13.103)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.20",
+            "Main post-merge staging publishes one commit-level Post-merge Delivery check that fails release-critical staging build/deploy and provider connectivity failures, while recording right-shifted full AI/OCR regression evidence without blocking production eligibility (Was EPIC-008 AC8.13.103).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.21",
-            statement=(
-                "Post-merge staging keeps FIFO ordering but collapses train wait, "
-                "staging classification, and deploy into one runner job to avoid a "
-                "second GitHub Actions scheduling gap before staging mutation (Was "
-                "EPIC-008 AC8.13.105)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_13_staging_deploy_fast_fail_guardrails"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.21",
+            "Post-merge staging keeps FIFO ordering but collapses train wait, staging classification, and deploy into one runner job to avoid a second GitHub Actions scheduling gap before staging mutation (Was EPIC-008 AC8.13.105).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_13_staging_deploy_fast_fail_guardrails",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.22",
-            statement=(
-                "Main post-merge staging deploy failures publish structured failure "
-                "domain, failed step, and failure summary in the deploy context "
-                "artifact and Post-merge Delivery summary so deploy_v2 dependency "
-                "setup, Dokploy rollout, route health, E2E setup, and application E2E "
-                "failures can be separated without manual log scraping (Was EPIC-008 "
-                "AC8.13.108)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_93_staging_promotion_requires_manual_dispatch"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.22",
+            "Main post-merge staging deploy failures publish structured failure domain, failed step, and failure summary in the deploy context artifact and Post-merge Delivery summary so deploy_v2 dependency setup, Dokploy rollout, route health, E2E setup, and application E2E failures can be separated without manual log scraping (Was EPIC-008 AC8.13.108).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_93_staging_promotion_requires_manual_dispatch",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.23",
-            statement=(
-                "Post-merge staging AI/OCR gate tests use isolated users, "
-                "browser-cookie auth, deterministic UI waits, and cleanup-capable "
-                "test accounts; PR tooling rejects shared mutable users, localStorage "
-                "bearer tokens, and generic deployed-env idle waits before "
-                "provider-backed replay (Was EPIC-008 AC8.13.109)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.23",
+            "Post-merge staging AI/OCR gate tests use isolated users, browser-cookie auth, deterministic UI waits, and cleanup-capable test accounts; PR tooling rejects shared mutable users, localStorage bearer tokens, and generic deployed-env idle waits before provider-backed replay (Was EPIC-008 AC8.13.109).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC8_13_109_ai_ocr_gate_tests_use_isolated_users",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.24",
-            statement=(
-                "Sparse Env x Stage reviews record the three newest successful and "
-                "three newest failed evidence samples for active delivery lanes, then "
-                "summarize delivery-speed balance, end-to-end consistency, quality "
-                "fallback, resource leak candidates, and the safe simplification "
-                "boundary (Was EPIC-008 AC8.13.113)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.24",
+            "Sparse Env x Stage reviews record the three newest successful and three newest failed evidence samples for active delivery lanes, then summarize delivery-speed balance, end-to-end consistency, quality fallback, resource leak candidates, and the safe simplification boundary (Was EPIC-008 AC8.13.113).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.25",
-            statement=(
-                "Post-merge \u2192 staging start latency is reduced by removing redundant "
-                "heavy re-run on push to main (Was EPIC-008 AC8.13.116)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_116_skip_heavy_ci_on_main_push"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.25",
+            "Post-merge → staging start latency is reduced by removing redundant heavy re-run on push to main (Was EPIC-008 AC8.13.116).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_116_skip_heavy_ci_on_main_push",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.26",
-            statement=(
-                "One delivery hardening PR contracts the known leak paths: PR preview "
-                "leftovers, legacy GHCR PR tag accumulation, stale staging or "
-                "production routes, provider-backed external-state residue, and "
-                "Docker build cache and stopped containers, while preserving the "
-                "sparse Env x Stage speed boundary (Was EPIC-008 AC8.13.119)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_119_delivery_resource_leak_hardening_is_contracted"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.26",
+            "One delivery hardening PR contracts the known leak paths: PR preview leftovers, legacy GHCR PR tag accumulation, stale staging or production routes, provider-backed external-state residue, and Docker build cache and stopped containers, while preserving the sparse Env x Stage speed boundary (Was EPIC-008 AC8.13.119).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_119_delivery_resource_leak_hardening_is_contracted",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.27",
-            statement=(
-                "Provider-risk staging changes run one dedicated real AI provider "
-                "connectivity smoke after deployed health and non-LLM E2E; transient "
-                "provider 5xx/timeouts degrade delivery without failing main, while "
-                "provider 4xx stays a hard gate (Was EPIC-008 AC8.13.120)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.27",
+            "Provider-risk staging changes run one dedicated real AI provider connectivity smoke after deployed health and non-LLM E2E; transient provider 5xx/timeouts degrade delivery without failing main, while provider 4xx stays a hard gate (Was EPIC-008 AC8.13.120).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.28",
-            statement=(
-                "The staging AI/OCR gate summarizes its JUnit output into real "
-                "pass/fail counts and names the failing corpus docs (instead of a "
-                'binary "Failures observed: 1+" with verified counts "unknown"), so a '
-                "red gate is diagnosable "
-                "([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) "
-                "(Was EPIC-008 AC8.13.137)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC8_13_137_summarize_junit_reports_per_doc_failures"
-            ),
+        ac(
+            "AC-testing.deploy-gates.28",
+            'The staging AI/OCR gate summarizes its JUnit output into real pass/fail counts and names the failing corpus docs (instead of a binary "Failures observed: 1+" with verified counts "unknown"), so a red gate is diagnosable ([#1089](https://github.com/wangzitian0/finance_report/issues/1089)) (Was EPIC-008 AC8.13.137).',
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC8_13_137_summarize_junit_reports_per_doc_failures",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.29",
-            statement=(
-                "Production release rolls back through deploy_v2 to the pre-deploy "
-                "production version and confirms health when a post-deploy route, "
-                "infrastructure, smoke, or read-only E2E gate fails after mutation "
-                "(Was EPIC-008 AC8.13.144)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.29",
+            "Production release rolls back through deploy_v2 to the pre-deploy production version and confirms health when a post-deploy route, infrastructure, smoke, or read-only E2E gate fails after mutation (Was EPIC-008 AC8.13.144).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.30",
-            statement=(
-                "The report-branch-main auto preview dispatch runs only after "
-                "successful main CI publishes SHA images, skips stale workflow_run "
-                "completions, and infra2 deploy_v2 refuses to deploy branch-form main "
-                "unless it resolves to the exact payload SHA (Was EPIC-008 "
-                "AC8.13.146)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_146_report_main_dispatch_waits_for_ci_images"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.30",
+            "The report-branch-main auto preview dispatch runs only after successful main CI publishes SHA images, skips stale workflow_run completions, and infra2 deploy_v2 refuses to deploy branch-form main unless it resolves to the exact payload SHA (Was EPIC-008 AC8.13.146).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_146_report_main_dispatch_waits_for_ci_images",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.31",
-            statement=(
-                "The staging AI/OCR production-promotion blocking path runs only the "
-                "minimal AI/OCR Canary corpus \u2014 one representative brokerage "
-                "upload\u2192parse\u2192import\u2192value liveness check "
-                "(tests/e2e/test_brokerage_upload_to_portfolio_value.py) with no "
-                "broad audit assertions (report_verifications == 0); the canary "
-                "corpus is curated in tools/staging_ai_ocr_gate_contract.py "
-                "(canary_files()) as a subset of the derived llm post-merge proofs "
-                "and runs via the reusable gate's corpus: canary input (Was EPIC-008 "
-                "AC8.13.156)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC8_13_156_canary_corpus_is_minimal_liveness"
-            ),
+        ac(
+            "AC-testing.deploy-gates.31",
+            "The staging AI/OCR production-promotion blocking path runs only the minimal AI/OCR Canary corpus — one representative brokerage upload→parse→import→value liveness check (tests/e2e/test_brokerage_upload_to_portfolio_value.py) with no broad audit assertions (report_verifications == 0); the canary corpus is curated in tools/staging_ai_ocr_gate_contract.py (canary_files()) as a subset of the derived llm post-merge proofs and runs via the reusable gate's corpus: canary input (Was EPIC-008 AC8.13.156).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC8_13_156_canary_corpus_is_minimal_liveness",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.32",
-            statement=(
-                "The heavy LLM audit journeys (full statement journey, four-asset "
-                "net-worth golden path, personal financial report package) run as a "
-                "separate audit-replay.yml job on manual "
-                "workflow_dispatch: that calls the reusable gate with corpus: "
-                "audit_replay and blocking: false, so the comprehensive corpus does "
-                "NOT block production promotion by default (Was EPIC-008 AC8.13.157)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking"
-            ),
+        ac(
+            "AC-testing.deploy-gates.32",
+            "The heavy LLM audit journeys (full statement journey, four-asset net-worth golden path, personal financial report package) run as a separate audit-replay.yml job on manual workflow_dispatch: that calls the reusable gate with corpus: audit_replay and blocking: false, so the comprehensive corpus does NOT block production promotion by default (Was EPIC-008 AC8.13.157).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.33",
-            statement=(
-                "The canary's provider transient-failure classification is owned by "
-                "the Staging Provider Gate: the inline ai-ocr-gate canary only starts "
-                "after provider-gate passes, where a 4xx/config error blocks delivery "
-                "(config-failure) while a 5xx/timeout is a non-blocking degraded "
-                "status (Was EPIC-008 AC8.13.158)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_158_canary_transient_classification_owned_by_provider_gate"
-            ),
+        ac(
+            "AC-testing.deploy-gates.33",
+            "The canary's provider transient-failure classification is owned by the Staging Provider Gate: the inline ai-ocr-gate canary only starts after provider-gate passes, where a 4xx/config error blocks delivery (config-failure) while a 5xx/timeout is a non-blocking degraded status (Was EPIC-008 AC8.13.158).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_158_canary_transient_classification_owned_by_provider_gate",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.34",
-            statement=(
-                "Anti-regression: the blocking-path canary corpus and the "
-                "audit-replay corpus are disjoint, every heavy audit journey is in "
-                "the audit-replay corpus (never the canary), and the deploy-path "
-                "ai-ocr-gate resolves corpus: canary so the heavy journeys cannot "
-                "creep back into the blocking path (Was EPIC-008 AC8.13.159)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys"
-            ),
+        ac(
+            "AC-testing.deploy-gates.34",
+            "Anti-regression: the blocking-path canary corpus and the audit-replay corpus are disjoint, every heavy audit journey is in the audit-replay corpus (never the canary), and the deploy-path ai-ocr-gate resolves corpus: canary so the heavy journeys cannot creep back into the blocking path (Was EPIC-008 AC8.13.159).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC8_13_159_blocking_path_excludes_heavy_audit_journeys",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.35",
-            statement=(
-                "SSOT common/testing/ci-cd.md clearly distinguishes the blocking, minimal "
-                "AI/OCR Canary from the nightly/manual, comprehensive Audit Replay, "
-                "and records the canary-vs-audit split as a deliberate keep_separate "
-                "decision in the gate inventory (Was EPIC-008 AC8.13.160)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay"
-            ),
+        ac(
+            "AC-testing.deploy-gates.35",
+            "SSOT common/testing/ci-cd.md clearly distinguishes the blocking, minimal AI/OCR Canary from the nightly/manual, comprehensive Audit Replay, and records the canary-vs-audit split as a deliberate keep_separate decision in the gate inventory (Was EPIC-008 AC8.13.160).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.36",
-            statement=(
-                "Every main-branch commit's :<sha> image is independently "
-                "verified to actually exist in the registry, not just "
-                "'the build step reported success': verify-sha-image-published "
-                "runs after container-images on main push and re-inspects the "
-                "registry via the same digest primitive release.yml's dry-run "
-                "uses for release tags, so a silent publish failure is caught "
-                "at commit time instead of later at promote (#1759, W4 of #1435)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_verified"
-            ),
+        ac(
+            "AC-testing.deploy-gates.36",
+            "Every main-branch commit's :<sha> image is independently verified to actually exist in the registry, not just 'the build step reported success': verify-sha-image-published runs after container-images on main push and re-inspects the registry via the same digest primitive release.yml's dry-run uses for release tags, so a silent publish failure is caught at commit time instead of later at promote (#1759, W4 of #1435).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_verified",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.37",
-            statement=(
-                "Before spending the corpus budget, the staging AI/OCR gate "
-                "preflights the DEPLOYED app's health surface (manifest-required "
-                "dependency checks), after the version check and before the "
-                "corpus run; any miss records the distinct precondition-failed "
-                "status and is never counted as an extraction regression. The "
-                "preflight only reads deployed surfaces — it recomputes no "
-                "parallel environment state (#1806, #1435 lesson)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend"
-            ),
+        ac(
+            "AC-testing.deploy-gates.37",
+            "Before spending the corpus budget, the staging AI/OCR gate preflights the DEPLOYED app's health surface (manifest-required dependency checks), after the version check and before the corpus run; any miss records the distinct precondition-failed status and is never counted as an extraction regression. The preflight only reads deployed surfaces — it recomputes no parallel environment state (#1806, #1435 lesson).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.38",
-            statement=(
-                "Every failed corpus case is machine-attributed from its JUnit "
-                "failure text into regression | precondition (environment-data "
-                "gaps such as missing FX rates) | transient (provider timeout / "
-                "5xx), with regression-first precedence so co-occurring noise "
-                "never masks a real regression. Transient-only reds earn exactly "
-                "one bounded retry of the affected files; a reproduced transient "
-                "while a transient alert is already standing escalates to "
-                "regression-failed (#1806)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates"
-            ),
+        ac(
+            "AC-testing.deploy-gates.38",
+            "Every failed corpus case is machine-attributed from its JUnit failure text into regression | precondition (environment-data gaps such as missing FX rates) | transient (provider timeout / 5xx), with regression-first precedence so co-occurring noise never masks a real regression. Transient-only reds earn exactly one bounded retry of the affected files; a reproduced transient while a transient alert is already standing escalates to regression-failed (#1806).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_38_gate_retries_transients_once_then_escalates",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.39",
-            statement=(
-                "The gate's alert-issue body is generated from the JUnit "
-                "attribution (per-class failed-case lists), never a hardcoded "
-                "parse-quality claim — the #1781 triage proved that claim wrong "
-                "for every failure it labeled (#1806)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution"
-            ),
+        ac(
+            "AC-testing.deploy-gates.39",
+            "The gate's alert-issue body is generated from the JUnit attribution (per-class failed-case lists), never a hardcoded parse-quality claim — the #1781 triage proved that claim wrong for every failure it labeled (#1806).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_39_alert_body_carries_machine_attribution",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.40",
-            statement=(
-                "A green gate run closes the loop: it auto-closes every standing "
-                "gate alert issue (regression, transient, precondition, "
-                "version-check, gate-timeout) with the run as evidence, so an "
-                "open alert can never keep asserting a regression the gate no "
-                "longer observes; per-class dedup of open alerts is preserved "
-                "(#1806, #1767)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_40_green_run_closes_standing_alerts"
-            ),
+        ac(
+            "AC-testing.deploy-gates.40",
+            "A green gate run closes the loop: it auto-closes every standing gate alert issue (regression, transient, precondition, version-check, gate-timeout) with the run as evidence, so an open alert can never keep asserting a regression the gate no longer observes; per-class dedup of open alerts is preserved (#1806, #1767).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_40_green_run_closes_standing_alerts",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── group deploy-gates (continued): staging AI/OCR gate timeout
         # hardening + frontend smoke-route contract (was EPIC-008
         # AC8.13.166/.167 and EPIC-007 AC7.17.1, #1821 Wave A horizontal
         # move) ──
-        ACRecord(
-            id="AC-testing.deploy-gates.41",
-            statement=(
-                "The staging AI/OCR gate's regression alerting cannot be "
-                "silently skipped by its own corpus step's timeout-minutes: "
-                "a job-level gate_timeout_fallback step runs if: always() "
-                "and fires the same GitHub-issue fallback alert (deduped by "
-                "a stable title) whenever the corpus step's outcome is not "
-                "success AND it produced no ai_ocr_status output, using a "
-                "distinct gate-timeout status (#1767)."
-            ),
-            # was AC8.13.166
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.41",
+            "The staging AI/OCR gate's regression alerting cannot be silently skipped by its own corpus step's timeout-minutes: a job-level gate_timeout_fallback step runs if: always() and fires the same GitHub-issue fallback alert (deduped by a stable title) whenever the corpus step's outcome is not success AND it produced no ai_ocr_status output, using a distinct gate-timeout status (#1767).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_output",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.42",
-            statement=(
-                "The staging AI/OCR gate's job/step timeout-minutes budget "
-                "is sized per corpus input instead of one fixed value, "
-                "using the corpus's total sequential parse-wait count times "
-                "the 8-minute PARSING_TIMEOUT_MS ceiling, plus checkout/"
-                "setup overhead (#1767)."
-            ),
-            # was AC8.13.167
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.42",
+            "The staging AI/OCR gate's job/step timeout-minutes budget is sized per corpus input instead of one fixed value, using the corpus's total sequential parse-wait count times the 8-minute PARSING_TIMEOUT_MS ceiling, plus checkout/setup overhead (#1767).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.43",
-            statement=(
-                "Every page route the smoke gate asserts maps to a real "
-                "public Next.js route that exists under apps/frontend/src/"
-                "app (route-group folders excluded); a removed path with no "
-                "page.tsx is not asserted."
-            ),
-            # was AC7.17.1
-            test=(
-                "tests/tooling/test_smoke_routes_contract.py"
-                "::test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.43",
+            "Every page route the smoke gate asserts maps to a real public Next.js route that exists under apps/frontend/src/app (route-group folders excluded); a removed path with no page.tsx is not asserted.",
+            "tests/tooling/test_smoke_routes_contract.py::test_AC7_17_1_smoke_asserts_only_existing_public_frontend_routes",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.44",
-            statement=(
-                "A repeated red staging AI/OCR run refreshes the existing open "
-                "alert with the current machine-attributed body and an explicit "
-                "run/version/corpus comment instead of leaving the standing issue "
-                "stale behind title-only deduplication."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_44_existing_alert_is_refreshed"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.44",
+            "A repeated red staging AI/OCR run refreshes the existing open alert with the current machine-attributed body and an explicit run/version/corpus comment instead of leaving the standing issue stale behind title-only deduplication.",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_44_existing_alert_is_refreshed",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.deploy-gates.45",
-            statement=(
-                "A green staging AI/OCR gate run auto-closes an open alert only "
-                "when the run's corpus satisfies the alert's corpus (canary "
-                "cannot close audit-replay or all alerts; audit-replay cannot "
-                "close canary alerts), preventing false-green closes across "
-                "partitioned corpora; every gate run emits a canonical "
-                "TraceRecord observation and structured evidence manifest, "
-                "eliminating truth gaps between CI context and evidence bundle "
-                "outcomes (#1806, #1906)."
-            ),
-            test=(
-                "tests/tooling/test_staging_ai_ocr_gate_contract.py"
-                "::test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_corpus_close"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.deploy-gates.45",
+            "A green staging AI/OCR gate run auto-closes an open alert only when the run's corpus satisfies the alert's corpus (canary cannot close audit-replay or all alerts; audit-replay cannot close canary alerts), preventing false-green closes across partitioned corpora; every gate run emits a canonical TraceRecord observation and structured evidence manifest, eliminating truth gaps between CI context and evidence bundle outcomes (#1806, #1906).",
+            "tests/tooling/test_staging_ai_ocr_gate_contract.py::test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_corpus_close",
             proof_kind="property",
         ),
         # ── group product-gates: product-journey hard gates & fixture
         # contracts (was EPIC-008 AC8.13 subset), migration closeout,
         # #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.product-gates.1",
-            statement=(
-                "Critical staging E2E skips fail the deploy gate (Was EPIC-008 "
-                "AC8.13.6)."
-            ),
-            test=(
-                "tests/tooling/test_critical_skip_gate.py"
-                "::test_AC8_13_6_strict_gates_off_never_converts"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.product-gates.1",
+            "Critical staging E2E skips fail the deploy gate (Was EPIC-008 AC8.13.6).",
+            "tests/tooling/test_critical_skip_gate.py::test_AC8_13_6_strict_gates_off_never_converts",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.2",
-            statement=(
-                "A deterministic CSV upload runs as a critical fresh-user staging E2E: "
-                "source facts parse and are explicitly confirmed through the browser, "
-                "but a missing authoritative economic disposition "
-                "returns the statement to pending review with zero journal entries "
-                "instead of a false successful approval."
-            ),
-            test=(
-                "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
-                "::test_statement_upload_to_dashboard_vision_hard_gate"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.product-gates.2",
+            "A deterministic CSV upload runs as a critical fresh-user staging E2E: source facts parse and are explicitly confirmed through the browser, but a missing authoritative economic disposition returns the statement to pending review with zero journal entries instead of a false successful approval.",
+            "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py::test_statement_upload_to_dashboard_vision_hard_gate",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.7",
-            statement=(
-                "Four-asset as-of net worth golden path proves exact values: bank "
-                "cash, property, mortgage, and ESOP components equal hand-derived "
-                "fixture constants; the brokerage market value reaches reporting "
-                "exactly; the accounting equation closes to zero; and the "
-                "net-worth timeseries reports the same exact as-of numbers and "
-                "currency as the balance sheet (Was EPIC-008 AC8.13.42)."
-            ),
-            test=(
-                "tests/e2e/test_four_asset_net_worth_golden_path.py"
-                "::test_four_asset_as_of_net_worth_golden_path"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: exact component pins + cross-surface value
-            # agreement; "property" (not "exact") because the brokerage leg is
-            # measured from a randomized fixture and locked by consistency.
+        ac(
+            "AC-testing.product-gates.7",
+            "Four-asset as-of net worth golden path proves exact values: bank cash, property, mortgage, and ESOP components equal hand-derived fixture constants; the brokerage market value reaches reporting exactly; the accounting equation closes to zero; and the net-worth timeseries reports the same exact as-of numbers and currency as the balance sheet (Was EPIC-008 AC8.13.42).",
+            "tests/e2e/test_four_asset_net_worth_golden_path.py::test_four_asset_as_of_net_worth_golden_path",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.8",
-            statement=(
-                "Personal report package representative fixture contract defines bank "
-                "cash, income/expense activity, brokerage holdings, manual property "
-                "valuation, liability, restricted compensation, notes, traceability "
-                "anchors, and exact Decimal expected outputs (Was EPIC-008 "
-                "AC8.13.83)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: fixture contract pins exact Decimal expected outputs.
+        ac(
+            "AC-testing.product-gates.8",
+            "Personal report package representative fixture contract defines bank cash, income/expense activity, brokerage holdings, manual property valuation, liability, restricted compensation, notes, traceability anchors, and exact Decimal expected outputs (Was EPIC-008 AC8.13.83).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_13_83_representative_package_fixture_contract_defines_exact_outputs",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.9",
-            statement=(
-                "Personal report package post-merge E2E consumes the representative "
-                "fixture contract instead of duplicating financial constants or "
-                "expected totals inline (Was EPIC-008 AC8.13.84)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: e2e consumes the fixture contract, never inline constants.
+        ac(
+            "AC-testing.product-gates.9",
+            "Personal report package post-merge E2E consumes the representative fixture contract instead of duplicating financial constants or expected totals inline (Was EPIC-008 AC8.13.84).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.10",
-            statement=(
-                "Personal financial report package macro proof is promoted to covered "
-                "only when the representative fixture contract ACs are part of the "
-                "critical proof matrix (Was EPIC-008 AC8.13.85)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.product-gates.10",
+            "Personal financial report package macro proof is promoted to covered only when the representative fixture contract ACs are part of the critical proof matrix (Was EPIC-008 AC8.13.85).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_13_85_personal_package_macro_proof_is_promoted_after_fixture_contract",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.11",
-            statement=(
-                "Personal report package fixture contract pins brokerage, dividend, "
-                "and market-price expected outputs as Decimal-safe audit fixtures "
-                "(Was EPIC-008 AC8.13.87)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: brokerage/dividend/market-price outputs pinned as Decimals.
+        ac(
+            "AC-testing.product-gates.11",
+            "Personal report package fixture contract pins brokerage, dividend, and market-price expected outputs as Decimal-safe audit fixtures (Was EPIC-008 AC8.13.87).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_13_87_personal_package_fixture_pins_brokerage_dividend_and_market_price_outputs",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.12",
-            statement=(
-                "Personal report package post-merge E2E consumes the audit-grade "
-                "brokerage, dividend, market-price, and traceability identifier "
-                "expected outputs (Was EPIC-008 AC8.13.88)."
-            ),
-            test=(
-                "tests/tooling/test_personal_report_package_fixture_contract.py"
-                "::test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-value-oracle: e2e consumes the audit-grade expected outputs.
+        ac(
+            "AC-testing.product-gates.12",
+            "Personal report package post-merge E2E consumes the audit-grade brokerage, dividend, market-price, and traceability identifier expected outputs (Was EPIC-008 AC8.13.88).",
+            "tests/tooling/test_personal_report_package_fixture_contract.py::test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.product-gates.13",
-            statement=(
-                "Provider-backed bank journeys confirm missing source envelopes only from "
-                "independent fixture facts and an exact current source digest, then treat an intent_missing approval "
-                "conflict as the expected human-review boundary: they apply only "
-                "fixture-owned explicit economic dispositions, retry approval, and "
-                "continue to ledger/report assertions without inferring intent from "
-                "cash direction."
-            ),
-            test=(
-                "tests/tooling/test_provider_journey_review_contract.py"
-                "::test_AC_testing_product_gates_13_retries_after_reviewed_dispositions"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.product-gates.13",
+            "Provider-backed bank journeys confirm missing source envelopes only from independent fixture facts and an exact current source digest, then treat an intent_missing approval conflict as the expected human-review boundary: they apply only fixture-owned explicit economic dispositions, retry approval, and continue to ledger/report assertions without inferring intent from cash direction.",
+            "tests/tooling/test_provider_journey_review_contract.py::test_AC_testing_product_gates_13_retries_after_reviewed_dispositions",
             proof_kind="property",
         ),
         # ── group preview: PR-preview lifecycle & Dokploy semantics
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
         # #1718 ──
-        ACRecord(
-            id="AC-testing.preview.1",
-            statement=(
-                "The app performs no Dokploy preview reclaim \u2014 on PR close it "
-                "dispatches a vendor-neutral teardown to infra2 (which owns the 1:1 "
-                "reclaim); the app keeps no cleanup/reconcile entrypoints, no "
-                "host-hygiene commands, and emits no raw Dokploy responses (Was "
-                "EPIC-008 AC8.13.38)."
-            ),
-            test=(
-                "tests/tooling/test_cleanup_pr_preview_resources.py"
-                "::test_AC8_13_38_legacy_cleanup_entrypoints_are_removed"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.1",
+            "The app performs no Dokploy preview reclaim — on PR close it dispatches a vendor-neutral teardown to infra2 (which owns the 1:1 reclaim); the app keeps no cleanup/reconcile entrypoints, no host-hygiene commands, and emits no raw Dokploy responses (Was EPIC-008 AC8.13.38).",
+            "tests/tooling/test_cleanup_pr_preview_resources.py::test_AC8_13_38_legacy_cleanup_entrypoints_are_removed",
         ),
-        ACRecord(
-            id="AC-testing.preview.2",
-            statement=(
-                "PR preview non-LLM E2E uses strict gates and parallelism while "
-                "narrowing execution to runtime/API/UI preview-relevant paths instead "
-                "of the staging regression set (Was EPIC-008 AC8.13.46)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism"
-            ),
+        ac(
+            "AC-testing.preview.2",
+            "PR preview non-LLM E2E uses strict gates and parallelism while narrowing execution to runtime/API/UI preview-relevant paths instead of the staging regression set (Was EPIC-008 AC8.13.46).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.preview.3",
-            statement=(
-                "One lifecycle tool stands PR previews UP (deploy) and writes stable "
-                "preview metadata; on PR close the workflow dispatches a "
-                "preview-teardown signal to infra2 \u2014 the app owns no Dokploy reclaim "
-                "(cleanup/reconcile/delete) (Was EPIC-008 AC8.13.71)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_71_close_dispatches_preview_teardown_to_infra2"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.3",
+            "One lifecycle tool stands PR previews UP (deploy) and writes stable preview metadata; on PR close the workflow dispatches a preview-teardown signal to infra2 — the app owns no Dokploy reclaim (cleanup/reconcile/delete) (Was EPIC-008 AC8.13.71).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_71_close_dispatches_preview_teardown_to_infra2",
         ),
-        ACRecord(
-            id="AC-testing.preview.4",
-            statement=(
-                "Dokploy deploy diagnostics redact raw responses, log only "
-                "allowlisted effective environment/config details, parse deployment "
-                "records as typed object records, fail before readiness when fixed "
-                "deploy_v2 sees rollout error/no terminal new record, and retain "
-                "redacted rollout diagnostics for legacy preview compatibility (Was "
-                "EPIC-008 AC8.13.72)."
-            ),
-            test=(
-                "tests/tooling/test_dokploy_redaction.py"
-                "::test_AC8_13_72_common_dokploy_call_redacts_non_200_body"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.4",
+            "Dokploy deploy diagnostics redact raw responses, log only allowlisted effective environment/config details, parse deployment records as typed object records, fail before readiness when fixed deploy_v2 sees rollout error/no terminal new record, and retain redacted rollout diagnostics for legacy preview compatibility (Was EPIC-008 AC8.13.72).",
+            "tests/tooling/test_dokploy_redaction.py::test_AC8_13_72_common_dokploy_call_redacts_non_200_body",
         ),
-        ACRecord(
-            id="AC-testing.preview.5",
-            statement=(
-                "The app owns no VPS host hygiene \u2014 generic host GC "
-                "(Docker/journald/disk prune) is infra2-owned "
-                "(tools/host_hygiene_schedule.py + the ops-checks re-ensure job); the "
-                "app ships no vps_host_hygiene module and provisions no Dokploy "
-                "host-schedule (Was EPIC-008 AC8.13.73)."
-            ),
-            test=(
-                "tests/tooling/test_cleanup_pr_preview_resources.py"
-                "::test_AC8_13_73_app_owns_no_vps_host_hygiene"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.5",
+            "The app owns no VPS host hygiene — generic host GC (Docker/journald/disk prune) is infra2-owned (tools/host_hygiene_schedule.py + the ops-checks re-ensure job); the app ships no vps_host_hygiene module and provisions no Dokploy host-schedule (Was EPIC-008 AC8.13.73).",
+            "tests/tooling/test_cleanup_pr_preview_resources.py::test_AC8_13_73_app_owns_no_vps_host_hygiene",
         ),
-        ACRecord(
-            id="AC-testing.preview.6",
-            statement=(
-                "The app's scheduled maintenance performs no Dokploy preview "
-                "reconcile and no host hygiene \u2014 it only prunes the app's own stale "
-                "GHCR PR image tags (Dokploy preview reclaim is infra2-owned) (Was "
-                "EPIC-008 AC8.13.74)."
-            ),
-            test=(
-                "tests/tooling/test_cleanup_pr_preview_resources.py"
-                "::test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.6",
+            "The app's scheduled maintenance performs no Dokploy preview reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image tags (Dokploy preview reclaim is infra2-owned) (Was EPIC-008 AC8.13.74).",
+            "tests/tooling/test_cleanup_pr_preview_resources.py::test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only",
         ),
-        ACRecord(
-            id="AC-testing.preview.7",
-            statement=(
-                "The runner-local full-stack smoke/E2E gate runs synchronously on "
-                "pull_request (the merge authority, a real required check, not async "
-                "via workflow_run); the on-demand persistent Dokploy preview is built "
-                "from the PR source on the host without pushing, preflighting, "
-                "pulling, or deleting PR preview images (Was EPIC-008 AC8.13.89)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.7",
+            "The runner-local full-stack smoke/E2E gate runs synchronously on pull_request (the merge authority, a real required check, not async via workflow_run); the on-demand persistent Dokploy preview is built from the PR source on the host without pushing, preflighting, pulling, or deleting PR preview images (Was EPIC-008 AC8.13.89).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds",
         ),
-        ACRecord(
-            id="AC-testing.preview.8",
-            statement=(
-                "Legacy Dokploy preview composes preserve compose identity, update "
-                "allowlisted deploy env, and re-run Dokploy compose.redeploy without "
-                "a pre-stop or separate compose.start call so historical "
-                "cleanup/reconciliation compatibility can still reason about stuck "
-                "previews safely (Was EPIC-008 AC8.13.98)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.8",
+            "Legacy Dokploy preview composes preserve compose identity, update allowlisted deploy env, and re-run Dokploy compose.redeploy without a pre-stop or separate compose.start call so historical cleanup/reconciliation compatibility can still reason about stuck previews safely (Was EPIC-008 AC8.13.98).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop",
         ),
-        ACRecord(
-            id="AC-testing.preview.9",
-            statement=(
-                "Runner preview readiness is bounded and observable before smoke/E2E; "
-                "legacy Dokploy route diagnostics remain as compatibility evidence "
-                "for historical preview cleanup/reconciliation tooling (Was EPIC-008 "
-                "AC8.13.100)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.9",
+            "Runner preview readiness is bounded and observable before smoke/E2E; legacy Dokploy route diagnostics remain as compatibility evidence for historical preview cleanup/reconciliation tooling (Was EPIC-008 AC8.13.100).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable",
         ),
-        ACRecord(
-            id="AC-testing.preview.10",
-            statement=(
-                "PR preview E2E consumes the runner-local http://localhost:8080 URL "
-                "as the merge-authority gate; after it passes, a non-blocking "
-                "persistent Dokploy preview is deployed at report-pr-<N>.<domain> and "
-                "released via compose.delete on PR close; lifecycle helpers preserve "
-                "stable/commit preview URL derivation (Was EPIC-008 AC8.13.101)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_101_preview_app_url_prefers_stable_alias"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.10",
+            "PR preview E2E consumes the runner-local http://localhost:8080 URL as the merge-authority gate; after it passes, a non-blocking persistent Dokploy preview is deployed at report-pr-<N>.<domain> and released via compose.delete on PR close; lifecycle helpers preserve stable/commit preview URL derivation (Was EPIC-008 AC8.13.101).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_101_preview_app_url_prefers_stable_alias",
         ),
-        ACRecord(
-            id="AC-testing.preview.11",
-            statement=(
-                "The PR-preview deploy helpers keep bounded rollout diagnostics, "
-                "redaction, transient retry handling, and stuck-compose recovery "
-                "semantics so a preview deploy fails safe even though current default "
-                "PR preview no longer creates PR images (Was EPIC-008 AC8.13.102)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.11",
+            "The PR-preview deploy helpers keep bounded rollout diagnostics, redaction, transient retry handling, and stuck-compose recovery semantics so a preview deploy fails safe even though current default PR preview no longer creates PR images (Was EPIC-008 AC8.13.102).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_102_preview_network_is_pr_scoped_to_limit_subnet_usage",
         ),
-        ACRecord(
-            id="AC-testing.preview.12",
-            statement=(
-                "PR preview uploads runner preview context artifacts without PR image "
-                "preflight, while legacy lifecycle deploy helpers still redact "
-                "context for compatibility tests (Was EPIC-008 AC8.13.107)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.12",
+            "PR preview uploads runner preview context artifacts without PR image preflight, while legacy lifecycle deploy helpers still redact context for compatibility tests (Was EPIC-008 AC8.13.107).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_107_deploy_action_fails_fast_on_missing_required_inputs",
         ),
-        ACRecord(
-            id="AC-testing.preview.13",
-            statement=(
-                "The in-runner E2E gate runs synchronously on pull_request as a real "
-                "required check a fast/auto merge cannot bypass (not async via "
-                "workflow_run, which a merge could outrun); PR close triggers "
-                "cleanup, not a gate (Was EPIC-008 AC8.13.114)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.13",
+            "The in-runner E2E gate runs synchronously on pull_request as a real required check a fast/auto merge cannot bypass (not async via workflow_run, which a merge could outrun); PR close triggers cleanup, not a gate (Was EPIC-008 AC8.13.114).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run",
         ),
-        ACRecord(
-            id="AC-testing.preview.14",
-            statement=(
-                "Runner preview readiness is bounded before smoke/E2E starts, with "
-                "stack logs emitted on failure (Was EPIC-008 AC8.13.115)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_115_readiness_fail_fast"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.14",
+            "Runner preview readiness is bounded before smoke/E2E starts, with stack logs emitted on failure (Was EPIC-008 AC8.13.115).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_115_readiness_fail_fast",
         ),
-        ACRecord(
-            id="AC-testing.preview.15",
-            statement=(
-                "PR preview waits stay bounded: current runner preview has a hard "
-                "workflow timeout and legacy Dokploy busy-queue extensions cannot "
-                "exceed the compatibility rollout deadline (Was EPIC-008 AC8.13.125)."
-            ),
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline"
-            ),
+        ac(
+            "AC-testing.preview.15",
+            "PR preview waits stay bounded: current runner preview has a hard workflow timeout and legacy Dokploy busy-queue extensions cannot exceed the compatibility rollout deadline (Was EPIC-008 AC8.13.125).",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline",
             priority="P1",
-            status="done",
         ),
         # ── group preview (continued): PR-preview lifecycle fail-fast +
         # rollback classification (was EPIC-007 AC7.13.1-.5, #1821 Wave A
         # horizontal move) ──
-        ACRecord(
-            id="AC-testing.preview.16",
-            statement=(
-                "A composeStatus=done rollout with no new deployment record "
-                "for the requested SHA fails fast with the classified "
-                "DokployNoNewDeploymentRecord error instead of proceeding "
-                "to commit-scoped readiness against stale records."
-            ),
-            # was AC7.13.1
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC7_13_1_no_new_deployment_record_raises_classified_subclass"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.16",
+            "A composeStatus=done rollout with no new deployment record for the requested SHA fails fast with the classified DokployNoNewDeploymentRecord error instead of proceeding to commit-scoped readiness against stale records.",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC7_13_1_no_new_deployment_record_raises_classified_subclass",
         ),
-        ACRecord(
-            id="AC-testing.preview.17",
-            statement=(
-                "Rollout diagnostics distinguish 'no new deployment "
-                "created' from 'new deployment created but route not "
-                "ready', and effective-env reconciliation flags stale "
-                "non-allowlisted keys by name without leaking secret "
-                "values."
-            ),
-            # was AC7.13.2
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.17",
+            "Rollout diagnostics distinguish 'no new deployment created' from 'new deployment created but route not ready', and effective-env reconciliation flags stale non-allowlisted keys by name without leaking secret values.",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC7_13_2_env_reconciliation_rejects_stale_non_allowlisted_keys",
         ),
-        ACRecord(
-            id="AC-testing.preview.18",
-            statement=(
-                "update_compose_env reconciles the whole requested env "
-                "against the effective remote env and fails fast when a "
-                "stale non-allowlisted key diverges."
-            ),
-            # was AC7.13.3
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.18",
+            "update_compose_env reconciles the whole requested env against the effective remote env and fails fast when a stale non-allowlisted key diverges.",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC7_13_3_update_compose_env_fails_fast_on_stale_keys",
         ),
-        ACRecord(
-            id="AC-testing.preview.19",
-            statement=(
-                "On deploy/rollout failure the lifecycle rolls back to "
-                "last-known-good source/env or marks the record "
-                "safe-to-reconcile, recording which mutation step "
-                "(source/env/deploy/rollout) it was left at — never a "
-                "silent half-update."
-            ),
-            # was AC7.13.4
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC7_13_4_mutate_then_fail_marks_state_and_records_step"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.19",
+            "On deploy/rollout failure the lifecycle rolls back to last-known-good source/env or marks the record safe-to-reconcile, recording which mutation step (source/env/deploy/rollout) it was left at — never a silent half-update.",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC7_13_4_mutate_then_fail_marks_state_and_records_step",
         ),
-        ACRecord(
-            id="AC-testing.preview.20",
-            statement=(
-                "The CI/CD SSOT documents both the no-new-deployment "
-                "fail-fast mode and the half-update rollback / "
-                "safe-to-reconcile recovery path."
-            ),
-            # was AC7.13.5
-            test=(
-                "tests/tooling/test_pr_preview_lifecycle.py"
-                "::test_AC7_13_5_ci_cd_docs_describe_failure_modes"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.preview.20",
+            "The CI/CD SSOT documents both the no-new-deployment fail-fast mode and the half-update rollback / safe-to-reconcile recovery path.",
+            "tests/tooling/test_pr_preview_lifecycle.py::test_AC7_13_5_ci_cd_docs_describe_failure_modes",
         ),
         # ── group classifier: CI change classification (was EPIC-008
         # AC8.13 subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.classifier.1",
-            statement=(
-                "CI change classification skips backend/frontend/coverage for "
-                "lightweight changes and uses deterministic npm cache (Was EPIC-008 "
-                "AC8.13.16)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_16_ci_change_classification_and_frontend_cache"
-            ),
+        ac(
+            "AC-testing.classifier.1",
+            "CI change classification skips backend/frontend/coverage for lightweight changes and uses deterministic npm cache (Was EPIC-008 AC8.13.16).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_16_ci_change_classification_and_frontend_cache",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.classifier.2",
-            statement=(
-                "CI change classification is covered by multi-commit and markdown "
-                "edge-case regression tests (Was EPIC-008 AC8.13.20)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow"
-            ),
+        ac(
+            "AC-testing.classifier.2",
+            "CI change classification is covered by multi-commit and markdown edge-case regression tests (Was EPIC-008 AC8.13.20).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_20_ci_workflow_changes_are_heavy_except_docs_workflow",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.classifier.3",
-            statement=(
-                "PR preview relevance classification includes preview workflow, "
-                "lifecycle, and config changes while excluding docs-only and app "
-                "test-only changes (Was EPIC-008 AC8.13.96)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.3",
+            "PR preview relevance classification includes preview workflow, lifecycle, and config changes while excluding docs-only and app test-only changes (Was EPIC-008 AC8.13.96).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths",
         ),
-        ACRecord(
-            id="AC-testing.classifier.4",
-            statement=(
-                "CI change classification exposes table-driven env/stage rules so "
-                "shared runtime paths cannot drift between PR preview and staging "
-                "deployed proof (Was EPIC-008 AC8.13.97)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.4",
+            "CI change classification exposes table-driven env/stage rules so shared runtime paths cannot drift between PR preview and staging deployed proof (Was EPIC-008 AC8.13.97).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules",
         ),
-        ACRecord(
-            id="AC-testing.classifier.5",
-            statement=(
-                "Automatic staging AI/OCR runs only for provider, extraction, "
-                "statement parsing, PDF fixture, AI/OCR workflow, or critical LLM "
-                "proof path changes; normal runtime deploys keep staging smoke/E2E "
-                "but skip provider spend (Was EPIC-008 AC8.13.104)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.5",
+            "Automatic staging AI/OCR runs only for provider, extraction, statement parsing, PDF fixture, AI/OCR workflow, or critical LLM proof path changes; normal runtime deploys keep staging smoke/E2E but skip provider spend (Was EPIC-008 AC8.13.104).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths",
         ),
-        ACRecord(
-            id="AC-testing.classifier.6",
-            statement=(
-                "CI change classification emits structured Env x Stage JSON outputs "
-                "and matrix summaries as the sole machine-readable gate contract; the "
-                "per-env legacy scalar outputs (pr_preview_required, "
-                "staging_required, staging_ai_ocr_required) are retired now that "
-                "every workflow consumer derives its own scalar from the structured "
-                "matrix (Was EPIC-008 AC8.13.110)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_110_github_outputs_include_structured_env_stage_matrix"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.6",
+            "CI change classification emits structured Env x Stage JSON outputs and matrix summaries as the sole machine-readable gate contract; the per-env legacy scalar outputs (pr_preview_required, staging_required, staging_ai_ocr_required) are retired now that every workflow consumer derives its own scalar from the structured matrix (Was EPIC-008 AC8.13.110).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_110_github_outputs_include_structured_env_stage_matrix",
         ),
-        ACRecord(
-            id="AC-testing.classifier.7",
-            statement=(
-                "CI change classification structured Env x Stage outputs cover the "
-                "complete environment axis (local, pr, pr-preview, staging, prd) "
-                "while keeping PR heavy gating and deployed-environment gates "
-                "represented as matrix cells (Was EPIC-008 AC8.13.111)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_111_static_stage_rejects_non_static_environments"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.7",
+            "CI change classification structured Env x Stage outputs cover the complete environment axis (local, pr, pr-preview, staging, prd) while keeping PR heavy gating and deployed-environment gates represented as matrix cells (Was EPIC-008 AC8.13.111).",
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_111_static_stage_rejects_non_static_environments",
         ),
-        ACRecord(
-            id="AC-testing.classifier.8",
-            statement=(
-                "Delivery-engine recommendations, SSOT, workflow gates, and contract "
-                "tests stay aligned around structured Env x Stage consumers as the "
-                "sole gate contract; the per-env legacy scalar classifier outputs are "
-                "retired and the simplification path is recorded as complete (Was "
-                "EPIC-008 AC8.13.112)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.classifier.8",
+            "Delivery-engine recommendations, SSOT, workflow gates, and contract tests stay aligned around structured Env x Stage consumers as the sole gate contract; the per-env legacy scalar classifier outputs are retired and the simplification path is recorded as complete (Was EPIC-008 AC8.13.112).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path",
         ),
-        ACRecord(
-            id="AC-testing.classifier.9",
-            statement=(
-                "Workflow consumers keep Env x Stage as the classifier-owned source "
-                "of truth: CI and PR preview jobs normalize structured classifier "
-                "outputs into compatibility scalar outputs, downstream jobs consume "
-                "only those normalized outputs, and no downstream job reimplements "
-                "changed-path classification or ad hoc path logic (Was EPIC-008 "
-                "AC8.13.152)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_152_workflow_consumers_keep_classification_single_owned"
-            ),
+        ac(
+            "AC-testing.classifier.9",
+            "Workflow consumers keep Env x Stage as the classifier-owned source of truth: CI and PR preview jobs normalize structured classifier outputs into compatibility scalar outputs, downstream jobs consume only those normalized outputs, and no downstream job reimplements changed-path classification or ad hoc path logic (Was EPIC-008 AC8.13.152).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_152_workflow_consumers_keep_classification_single_owned",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.classifier.10",
-            statement=(
-                "The change classifier computes a per-component "
-                "(backend/frontend/tools/common) change signal alongside the existing "
-                'Env\u00d7Stage matrix \u2014 fail-closed to "all changed" on an undetected '
-                "diff \u2014 and exposes it as plain {component}_changed GITHUB_OUTPUT "
-                "scalars plus a ready-to-use coverage_gate_components comma list, so "
-                "downstream jobs never reimplement path classification (extends "
-                "AC8.13.152's single-owned-classification principle to component "
-                "scope, #1689) (Was EPIC-008 AC8.13.161)."
-            ),
-            test=(
-                "tests/tooling/test_ci_change_classifier.py"
-                "::test_AC8_13_161_component_changed_isolates_a_single_component"
-            ),
+        ac(
+            "AC-testing.classifier.10",
+            'The change classifier computes a per-component (backend/frontend/tools/common) change signal alongside the existing Env×Stage matrix — fail-closed to "all changed" on an undetected diff — and exposes it as plain {component}_changed GITHUB_OUTPUT scalars plus a ready-to-use coverage_gate_components comma list, so downstream jobs never reimplement path classification (extends AC8.13.152\'s single-owned-classification principle to component scope, #1689) (Was EPIC-008 AC8.13.161).',
+            "tests/tooling/test_ci_change_classifier.py::test_AC8_13_161_component_changed_isolates_a_single_component",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── group ci-structure: CI job structure & fan-in (was EPIC-008
         # AC8.13 subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.ci-structure.1",
-            statement=(
-                "Full CI starts deterministic test and image jobs after change "
-                "classification, joins their execution evidence in AC traceability only "
-                "after its required producers finish, and uses finish to aggregate lint, "
-                "AC traceability, tests, image validation, coverage, and skipped-job "
-                "semantics (Was EPIC-008 AC8.13.25)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates"
-            ),
+        ac(
+            "AC-testing.ci-structure.1",
+            "Full CI starts deterministic test and image jobs after change classification, joins their execution evidence in AC traceability only after its required producers finish, and uses finish to aggregate lint, AC traceability, tests, image validation, coverage, and skipped-job semantics (Was EPIC-008 AC8.13.25).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.2",
-            statement=(
-                "CI metrics contract fails when source roots, coverage policy, "
-                "workflow gates, or AC traceability semantics drift (Was EPIC-008 "
-                "AC8.13.26)."
-            ),
-            test=(
-                "tests/tooling/test_ci_metrics_contract.py"
-                "::test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.ci-structure.2",
+            "CI metrics contract fails when source roots, coverage policy, workflow gates, or AC traceability semantics drift (Was EPIC-008 AC8.13.26).",
+            "tests/tooling/test_ci_metrics_contract.py::test_AC8_13_26_ci_workflow_runs_metrics_contract_and_defines_metric_semantics",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.3",
-            statement=(
-                "Shared E2E setup caches Python virtualenv and Playwright browser "
-                "artifacts for staging and preview gates and exports repository-root "
-                "PYTHONPATH for stable tests.e2e.* imports (Was EPIC-008 AC8.13.33)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers"
-            ),
+        ac(
+            "AC-testing.ci-structure.3",
+            "Shared E2E setup caches Python virtualenv and Playwright browser artifacts for staging and preview gates and exports repository-root PYTHONPATH for stable tests.e2e.* imports (Was EPIC-008 AC8.13.33).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.4",
-            statement=(
-                "CI and post-merge workflows append queue, execution, and per-job "
-                "timing summaries to GitHub Step Summary (Was EPIC-008 AC8.13.34)."
-            ),
-            test=(
-                "tests/tooling/test_github_workflow_timing_summary.py"
-                "::test_AC8_13_34_format_duration_uses_compact_minutes"
-            ),
+        ac(
+            "AC-testing.ci-structure.4",
+            "CI and post-merge workflows append queue, execution, and per-job timing summaries to GitHub Step Summary (Was EPIC-008 AC8.13.34).",
+            "tests/tooling/test_github_workflow_timing_summary.py::test_AC8_13_34_format_duration_uses_compact_minutes",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.5",
-            statement=(
-                "CI fast-feedback producer jobs start after change classification "
-                "without waiting for behavior-only backend gates, while the package "
-                "governance traceability consumer waits for its declared evidence "
-                "producers (Was EPIC-008 AC8.13.86)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates"
-            ),
+        ac(
+            "AC-testing.ci-structure.5",
+            "CI fast-feedback producer jobs start after change classification without waiting for behavior-only backend gates, while the package governance traceability consumer waits for its declared evidence producers (Was EPIC-008 AC8.13.86).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.6",
-            statement=(
-                "Backend Tier-1 API E2E keeps PR fail-fast for speed but push/main "
-                "runs the full Tier-1 suite so the JUnit artifact reports every "
-                "failing API journey in one run (Was EPIC-008 AC8.13.145)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures"
-            ),
+        ac(
+            "AC-testing.ci-structure.6",
+            "Backend Tier-1 API E2E keeps PR fail-fast for speed but push/main runs the full Tier-1 suite so the JUnit artifact reports every failing API journey in one run (Was EPIC-008 AC8.13.145).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_145_backend_tier1_pr_fail_fast_but_main_reports_all_failures",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.7",
-            statement=(
-                "Frontend PR CI is split into build/typecheck, Vitest coverage, "
-                "provider-free Playwright, and telemetry E2E jobs while preserving "
-                "coverage-frontend, frontend Vitest JUnit evidence, unified-coverage "
-                "fan-in, AC behavioral ratchet fan-in, and finish aggregation over "
-                "every frontend gate (Was EPIC-008 AC8.13.147)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_147_frontend_ci_split_preserves_merge_authority"
-            ),
+        ac(
+            "AC-testing.ci-structure.7",
+            "Frontend PR CI is split into build/typecheck, Vitest coverage, provider-free Playwright, and telemetry E2E jobs while preserving coverage-frontend, frontend Vitest JUnit evidence, unified-coverage fan-in, AC behavioral ratchet fan-in, and finish aggregation over every frontend gate (Was EPIC-008 AC8.13.147).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_147_frontend_ci_split_preserves_merge_authority",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.8",
-            statement=(
-                "Backend fast-test CI shards rebalance the current critical path with "
-                "a 4-way seeded least-duration matrix (consolidated from 8-way alongside "
-                "pytest -n auto parallelization, saturating runner vCPUs and cutting fixed "
-                "VM startup overhead while keeping wall-clock runtime low), a committed duration "
-                "seed, least-duration assignment, and a seed-size guard so CI cannot silently "
-                "fall back to unseeded even splitting (Was EPIC-008 AC8.13.148)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_148_backend_shards_use_seeded_4_way_split"
-            ),
+        ac(
+            "AC-testing.ci-structure.8",
+            "Backend fast-test CI shards rebalance the current critical path with a 4-way seeded least-duration matrix (consolidated from 8-way alongside pytest -n auto parallelization, saturating runner vCPUs and cutting fixed VM startup overhead while keeping wall-clock runtime low), a committed duration seed, least-duration assignment, and a seed-size guard so CI cannot silently fall back to unseeded even splitting (Was EPIC-008 AC8.13.148).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_148_backend_shards_use_seeded_4_way_split",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.9",
-            statement=(
-                "CI fan-in jobs trim post-backend tail work without weakening merge "
-                "authority: unified coverage runs stdlib Python over scoped coverage "
-                "artifacts, and the AC behavioral ratchet downloads only "
-                "JUnit-producing test-context artifacts (Was EPIC-008 AC8.13.149)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_149_fan_in_jobs_download_only_required_artifacts"
-            ),
+        ac(
+            "AC-testing.ci-structure.9",
+            "CI fan-in jobs trim post-backend tail work without weakening merge authority: unified coverage runs stdlib Python over scoped coverage artifacts, and the AC behavioral ratchet downloads only JUnit-producing test-context artifacts (Was EPIC-008 AC8.13.149).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_149_fan_in_jobs_download_only_required_artifacts",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.10",
-            statement=(
-                "frontend-telemetry-e2e is right-moved off PRs that touch no "
-                "apps/frontend/ path (mirrors container-images' image_build_required "
-                "pattern): it always runs on a main/release push or manual dispatch, "
-                "and a skip is a pass (not a gap) in finish's aggregation, so "
-                "unrelated PRs stop paying its browser-install wall-clock cost "
-                "(#1689) (Was EPIC-008 AC8.13.162)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass"
-            ),
+        ac(
+            "AC-testing.ci-structure.10",
+            "frontend-telemetry-e2e is right-moved off PRs that touch no apps/frontend/ path (mirrors container-images' image_build_required pattern): it always runs on a main/release push or manual dispatch, and a skip is a pass (not a gap) in finish's aggregation, so unrelated PRs stop paying its browser-install wall-clock cost (#1689) (Was EPIC-008 AC8.13.162).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.11",
-            statement=(
-                "frontend-build and frontend-playwright are right-moved off PRs "
-                "that touch no apps/frontend/ path, the same pattern as "
-                "frontend-telemetry-e2e (AC-testing.ci-structure.10) minus the "
-                "always-run-on-push override that production-observability canary "
-                "needs and these two non-coverage proof jobs don't (they gate on "
-                "pr_required uniformly like backend/frontend-vitest, "
-                "AC-testing.deploy-gates.25): a skip is a pass (not a gap) in "
-                "finish's aggregation, so a docs/tooling/backend-only PR stops "
-                "paying the Next.js build and Playwright browser-install "
-                "wall-clock cost."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass"
-            ),
+        ac(
+            "AC-testing.ci-structure.11",
+            "frontend-build and frontend-playwright are right-moved off PRs that touch no apps/frontend/ path, the same pattern as frontend-telemetry-e2e (AC-testing.ci-structure.10) minus the always-run-on-push override that production-observability canary needs and these two non-coverage proof jobs don't (they gate on pr_required uniformly like backend/frontend-vitest, AC-testing.deploy-gates.25): a skip is a pass (not a gap) in finish's aggregation, so a docs/tooling/backend-only PR stops paying the Next.js build and Playwright browser-install wall-clock cost.",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC_testing_ci_structure_11_frontend_build_and_playwright_are_right_moved_and_skip_is_a_pass",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.12",
-            statement=(
-                "Every `Install uv` step in ci.yml retries once, through one local "
-                "composite action (.github/actions/setup-uv-retry), instead of "
-                "failing the job outright on a transient astral-sh/setup-uv "
-                "network fetch failure -- attempt 1 tolerates failure "
-                "(continue-on-error), a short wait, then a retry attempt that "
-                "does not tolerate failure (a second failure still fails the "
-                "job), mirroring truealpha#890's buildx retry idiom (run "
-                "35091080269 red-flagged Backend Integration Tests on exactly "
-                "this)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action"
-            ),
+        ac(
+            "AC-testing.ci-structure.12",
+            "Every `Install uv` step in ci.yml retries once, through one local composite action (.github/actions/setup-uv-retry), instead of failing the job outright on a transient astral-sh/setup-uv network fetch failure -- attempt 1 tolerates failure (continue-on-error), a short wait, then a retry attempt that does not tolerate failure (a second failure still fails the job), mirroring truealpha#890's buildx retry idiom (run 35091080269 red-flagged Backend Integration Tests on exactly this).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC_testing_ci_structure_12_setup_uv_retries_once_via_one_composite_action",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.13",
-            statement=(
-                "Each backend CI shard runs only the whole test files that a seeded "
-                "file-level least_duration split (common/testing/backend_shard.py, "
-                "tools/backend_shard_files.py, over ci/backend-test-durations.json) "
-                "assigns to it, so a shard no longer collects the entire suite under "
-                "--cov-branch to keep one eighth of it (37-58 s per shard on a hosted "
-                "runner, #2050). Every tests/**/test_*.py file lands in exactly one "
-                "shard, the split is deterministic and stdlib-only, the step fails "
-                "closed on an empty selection, and discovery matches the backend "
-                "pytest configuration (no collect_ignore hooks an explicit path "
-                "would bypass)."
-            ),
-            test=(
-                "tests/tooling/test_backend_shard.py"
-                "::test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced"
-            ),
+        ac(
+            "AC-testing.ci-structure.13",
+            "Each backend CI shard runs only the whole test files that a seeded file-level least_duration split (common/testing/backend_shard.py, tools/backend_shard_files.py, over ci/backend-test-durations.json) assigns to it, so a shard no longer collects the entire suite under --cov-branch to keep one eighth of it (37-58 s per shard on a hosted runner, #2050). Every tests/**/test_*.py file lands in exactly one shard, the split is deterministic and stdlib-only, the step fails closed on an empty selection, and discovery matches the backend pytest configuration (no collect_ignore hooks an explicit path would bypass).",
+            "tests/tooling/test_backend_shard.py::test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.14",
-            statement=(
-                "Backend Tier-1 API E2E runs as seeded pytest-split least_duration "
-                "matrix legs (ci/backend-tier1-test-durations.json) instead of one "
-                "job whose four 38-55 s statement-corpus journeys made it the "
-                "slowest PR leg (#2050); every leg uploads its own "
-                "backend-tier1-e2e-<n>-test-context artifact, and both the AC "
-                "behavioral ratchet and the package-governance lane classification "
-                "consume all legs."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs"
-            ),
+        ac(
+            "AC-testing.ci-structure.14",
+            "Backend Tier-1 API E2E runs as seeded pytest-split least_duration matrix legs (ci/backend-tier1-test-durations.json) instead of one job whose four 38-55 s statement-corpus journeys made it the slowest PR leg (#2050); every leg uploads its own backend-tier1-e2e-<n>-test-context artifact, and both the AC behavioral ratchet and the package-governance lane classification consume all legs.",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.ci-structure.15",
-            statement=(
-                "Main-only CI jobs declare pre-main PR rehearsal or failure isolation "
-                "in the workflow contract (#1811); rehearsals execute in dry-run mode "
-                "riding existing PR jobs without growing the required check count, and "
-                "failure isolation guarantees that post-merge state writes cannot "
-                "flip merge semantics red."
-            ),
-            test=(
-                "tests/tooling/test_workflow_contract.py"
-                "::test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolation"
-            ),
+        ac(
+            "AC-testing.ci-structure.15",
+            "Main-only CI jobs declare pre-main PR rehearsal or failure isolation in the workflow contract (#1811); rehearsals execute in dry-run mode riding existing PR jobs without growing the required check count, and failure isolation guarantees that post-merge state writes cannot flip merge semantics red.",
+            "tests/tooling/test_workflow_contract.py::test_AC_testing_ci_structure_15_main_only_jobs_declare_rehearsal_or_isolation",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── group coverage: coverage/LCOV gates (was EPIC-008 AC8.13
         # subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.coverage.1",
-            statement=(
-                "Unified coverage policy keeps CI source tree, LCOV reports, and "
-                "Coveralls uploads aligned (Was EPIC-008 AC8.13.15)."
-            ),
-            test=(
-                "tests/tooling/test_ci_metrics_contract.py"
-                "::test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.coverage.1",
+            "Unified coverage policy keeps CI source tree, LCOV reports, and Coveralls uploads aligned (Was EPIC-008 AC8.13.15).",
+            "tests/tooling/test_ci_metrics_contract.py::test_AC8_13_26_future_app_source_roots_must_be_in_coverage_policy",
         ),
-        ACRecord(
-            id="AC-testing.coverage.2",
-            statement=(
-                "Pull requests do not publish Coveralls status contexts; main-only "
-                "Coveralls reporting remains separate from local deterministic "
-                "coverage gates (Was EPIC-008 AC8.13.27)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_27_coveralls_uploads_are_reporting_only"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.coverage.2",
+            "Pull requests do not publish Coveralls status contexts; main-only Coveralls reporting remains separate from local deterministic coverage gates (Was EPIC-008 AC8.13.27).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_27_coveralls_uploads_are_reporting_only",
         ),
-        ACRecord(
-            id="AC-testing.coverage.3",
-            statement=(
-                "Coveralls uploads strip branch counters so external percentages "
-                "track the line-only unified coverage gate (Was EPIC-008 AC8.13.66)."
-            ),
-            test=(
-                "tests/tooling/test_strip_lcov_branches.py"
-                "::test_AC8_13_66_strip_lcov_branches_cli_exits_zero"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.coverage.3",
+            "Coveralls uploads strip branch counters so external percentages track the line-only unified coverage gate (Was EPIC-008 AC8.13.66).",
+            "tests/tooling/test_strip_lcov_branches.py::test_AC8_13_66_strip_lcov_branches_cli_exits_zero",
         ),
-        ACRecord(
-            id="AC-testing.coverage.4",
-            statement=(
-                "Reporting-only coverage gate summary cannot fail the final CI "
-                "aggregation job if GitHub Step Summary writes fail (Was EPIC-008 "
-                "AC8.13.75)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_75_coverage_gate_summary_is_nonblocking"
-            ),
+        ac(
+            "AC-testing.coverage.4",
+            "Reporting-only coverage gate summary cannot fail the final CI aggregation job if GitHub Step Summary writes fail (Was EPIC-008 AC8.13.75).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_75_coverage_gate_summary_is_nonblocking",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.coverage.5",
-            statement=(
-                "Main CI automatically opens or updates a reviewed baseline PR when "
-                "unified-coverage.json rises, while PR CI keeps the committed "
-                "no-regression gate and no new required status context is introduced "
-                "(Was EPIC-008 AC8.13.143)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push"
-            ),
+        ac(
+            "AC-testing.coverage.5",
+            "Main CI automatically opens or updates a reviewed baseline PR when unified-coverage.json rises, while PR CI keeps the committed no-regression gate and no new required status context is introduced (Was EPIC-008 AC8.13.143).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main_push",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.coverage.6",
-            statement=(
-                "calculate_unified_coverage's no-regression gate accepts a "
-                "--gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request "
-                "events it BLOCKS only on regressions in the components the PR "
-                "actually changed (an unrelated component's regression, and the "
-                'blended "unified" total, are still computed and reported but do not '
-                "fail the job); every component is still merged into "
-                "unified-coverage.json regardless of scope, and a push to main always "
-                "omits the scope (full, unscoped, unchanged-strict gate) (#1689) (Was "
-                "EPIC-008 AC8.13.163)."
-            ),
-            test=(
-                "tests/tooling/test_coverage_artifact_preflight.py"
-                "::test_AC8_13_163_scoped_to_the_regressed_component_still_fails"
-            ),
+        ac(
+            "AC-testing.coverage.6",
+            "calculate_unified_coverage's no-regression gate accepts a --gate-components/COVERAGE_GATE_COMPONENTS scope: on pull_request events it BLOCKS only on regressions in the components the PR actually changed (an unrelated component's regression, and the blended \"unified\" total, are still computed and reported but do not fail the job); every component is still merged into unified-coverage.json regardless of scope, and a push to main always omits the scope (full, unscoped, unchanged-strict gate) (#1689) (Was EPIC-008 AC8.13.163).",
+            "tests/tooling/test_coverage_artifact_preflight.py::test_AC8_13_163_scoped_to_the_regressed_component_still_fails",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── group acgates: AC-index / critical-proof / traceability
         # gates (was EPIC-008 AC8.13 subset), migration closeout, #1663
         # / #1718 ──
-        ACRecord(
-            id="AC-testing.acgates.1",
-            statement=(
-                "AC registry generation writes small generated indexes, materializes "
-                "entries from EPIC docs plus explicit overrides, and preserves no "
-                "duplicate feature/infra ownership (Was EPIC-008 AC8.13.17)."
-            ),
-            test=(
-                "tests/tooling/test_generate_ac_registry.py"
-                "::test_main_appends_missing_ac_without_rewriting_current_epic_text"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.1",
+            "AC registry generation writes small generated indexes, materializes entries from EPIC docs plus explicit overrides, and preserves no duplicate feature/infra ownership (Was EPIC-008 AC8.13.17).",
+            "tests/tooling/test_generate_ac_registry.py::test_main_appends_missing_ac_without_rewriting_current_epic_text",
         ),
-        ACRecord(
-            id="AC-testing.acgates.2",
-            statement=(
-                "AC traceability audit is uploaded as a CI artifact instead of "
-                "failing on a stale committed report (Was EPIC-008 AC8.13.24)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate"
-            ),
+        ac(
+            "AC-testing.acgates.2",
+            "AC traceability audit is uploaded as a CI artifact instead of failing on a stale committed report (Was EPIC-008 AC8.13.24).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.acgates.3",
-            statement=(
-                "AC traceability reporting distinguishes real test references from "
-                "_ac_stubs and trivial placeholder assertions (Was EPIC-008 "
-                "AC8.13.35)."
-            ),
-            test=(
-                "tests/tooling/test_check_ac_traceability.py"
-                "::test_classifies_placeholder_assertion"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.3",
+            "AC traceability reporting distinguishes real test references from _ac_stubs and trivial placeholder assertions (Was EPIC-008 AC8.13.35).",
+            "tests/tooling/test_check_ac_traceability.py::test_classifies_placeholder_assertion",
         ),
-        ACRecord(
-            id="AC-testing.acgates.4",
-            statement=(
-                "AC traceability fails mandatory ACs that are covered only by "
-                "_ac_stubs (Was EPIC-008 AC8.13.37)."
-            ),
-            test=(
-                "tests/tooling/test_check_ac_traceability.py"
-                "::test_placeholder_and_stub_refs_do_not_count_as_real_coverage"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.4",
+            "AC traceability fails mandatory ACs that are covered only by _ac_stubs (Was EPIC-008 AC8.13.37).",
+            "tests/tooling/test_check_ac_traceability.py::test_placeholder_and_stub_refs_do_not_count_as_real_coverage",
         ),
-        ACRecord(
-            id="AC-testing.acgates.5",
-            statement=(
-                "Critical proof matrix fails when a core product proof path is backed "
-                "only by broad or reference-only AC strings (Was EPIC-008 AC8.13.41)."
-            ),
-            test=(
-                "tests/tooling/test_check_critical_proof_matrix.py"
-                "::test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.5",
+            "Critical proof matrix fails when a core product proof path is backed only by broad or reference-only AC strings (Was EPIC-008 AC8.13.41).",
+            "tests/tooling/test_check_critical_proof_matrix.py::test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids",
         ),
-        ACRecord(
-            id="AC-testing.acgates.6",
-            statement=(
-                "Critical proof matrix validates the closed macro outcome set from "
-                "README through owner EPICs and E2E proof anchors (Was EPIC-008 "
-                "AC8.13.50)."
-            ),
-            test=(
-                "tests/tooling/test_check_critical_proof_matrix.py"
-                "::test_AC8_13_50_macro_outcome_contract_rejects_drift"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.6",
+            "Critical proof matrix validates the closed macro outcome set from README through owner EPICs and E2E proof anchors (Was EPIC-008 AC8.13.50).",
+            "tests/tooling/test_check_critical_proof_matrix.py::test_AC8_13_50_macro_outcome_contract_rejects_drift",
         ),
-        ACRecord(
-            id="AC-testing.acgates.7",
-            statement=(
-                "Critical proof matrix fails when README macro outcomes, matrix "
-                "outcomes, or owner EPIC reverse declarations drift (Was EPIC-008 "
-                "AC8.13.54)."
-            ),
-            test=(
-                "tests/tooling/test_check_critical_proof_matrix.py"
-                "::test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.7",
+            "Critical proof matrix fails when README macro outcomes, matrix outcomes, or owner EPIC reverse declarations drift (Was EPIC-008 AC8.13.54).",
+            "tests/tooling/test_check_critical_proof_matrix.py::test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations",
         ),
-        ACRecord(
-            id="AC-testing.acgates.8",
-            statement=(
-                "E2E EPIC traceability fails E2E-root test functions missing "
-                "function-level EPIC IDs or residue EPICs without E2E owners; "
-                "typed design-doc and goal-stub EPICs remain known but do not demand "
-                "a fabricated product E2E owner (Was EPIC-008 AC8.13.68)."
-            ),
-            test=(
-                "tests/tooling/test_check_e2e_epic_traceability.py"
-                "::test_AC_testing_acgates_8_design_docs_do_not_require_product_e2e"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.8",
+            "E2E EPIC traceability fails E2E-root test functions missing function-level EPIC IDs or residue EPICs without E2E owners; typed design-doc and goal-stub EPICs remain known but do not demand a fabricated product E2E owner (Was EPIC-008 AC8.13.68).",
+            "tests/tooling/test_check_e2e_epic_traceability.py::test_AC_testing_acgates_8_design_docs_do_not_require_product_e2e",
         ),
-        ACRecord(
-            id="AC-testing.acgates.9",
-            statement=(
-                "E2E EPIC traceability fails README EPIC map drift and unclassified "
-                "E2E-like assets outside declared roots (Was EPIC-008 AC8.13.70)."
-            ),
-            test=(
-                "tests/tooling/test_check_e2e_epic_traceability.py"
-                "::test_AC8_13_70_classified_non_product_e2e_assets_are_allowed"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.9",
+            "E2E EPIC traceability fails README EPIC map drift and unclassified E2E-like assets outside declared roots (Was EPIC-008 AC8.13.70).",
+            "tests/tooling/test_check_e2e_epic_traceability.py::test_AC8_13_70_classified_non_product_e2e_assets_are_allowed",
         ),
-        ACRecord(
-            id="AC-testing.acgates.10",
-            statement=(
-                "Registry-to-EPIC consistency fails active stub or orphan AC entries "
-                "instead of silently excluding them (Was EPIC-008 AC8.13.77)."
-            ),
-            test=(
-                "tests/tooling/test_lint_doc_consistency.py"
-                "::test_AC8_13_77_active_stub_orphan_fails"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.10",
+            "Registry-to-EPIC consistency fails active stub or orphan AC entries instead of silently excluding them (Was EPIC-008 AC8.13.77).",
+            "tests/tooling/test_lint_doc_consistency.py::test_AC8_13_77_active_stub_orphan_fails",
         ),
-        ACRecord(
-            id="AC-testing.acgates.11",
-            statement=(
-                "Mandatory AC traceability requires at least one real proof file that "
-                "is mapped to a CI-required execution stage (Was EPIC-008 AC8.13.78)."
-            ),
-            test=(
-                "tests/tooling/test_check_ac_traceability.py"
-                "::test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.11",
+            "Mandatory AC traceability requires at least one real proof file that is mapped to a CI-required execution stage (Was EPIC-008 AC8.13.78).",
+            "tests/tooling/test_check_ac_traceability.py::test_AC8_13_78_ci_required_real_refs_cover_mandatory_gate",
         ),
-        ACRecord(
-            id="AC-testing.acgates.12",
-            statement=(
-                "AC coverage analysis supports no-write and stale-report check modes "
-                "for local verification (Was EPIC-008 AC8.13.80)."
-            ),
-            test=(
-                "tests/tooling/test_analyze_test_ac_coverage.py"
-                "::test_AC8_13_80_check_mode_fails_stale_report"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.12",
+            "AC coverage analysis supports no-write and stale-report check modes for local verification (Was EPIC-008 AC8.13.80).",
+            "tests/tooling/test_analyze_test_ac_coverage.py::test_AC8_13_80_check_mode_fails_stale_report",
         ),
-        ACRecord(
-            id="AC-testing.acgates.13",
-            statement=(
-                "AC traceability gate and uploaded audit builder consume the same "
-                "SSOT test-surface definition, including frontend Playwright tests "
-                "(Was EPIC-008 AC8.13.124)."
-            ),
-            test=(
-                "tests/tooling/test_schema_quality_contract.py"
-                "::test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface"
-            ),
+        ac(
+            "AC-testing.acgates.13",
+            "AC traceability gate and uploaded audit builder consume the same SSOT test-surface definition, including frontend Playwright tests (Was EPIC-008 AC8.13.124).",
+            "tests/tooling/test_schema_quality_contract.py::test_AC8_13_124_traceability_gate_and_audit_builder_share_test_surface",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.acgates.14",
-            statement=(
-                "The AC-index gate's PROTECTION dashboard reports mandatory-AC "
-                "coverage as per-type counts (has_real_ref / has_proof / has_score / "
-                "has_mirror), never conflating L1 reference presence with behavioral "
-                "proof, so a passing gate cannot be read as misleading behavioral "
-                "assurance (re-anchored from the retired standalone traceability "
-                "report) (Was EPIC-008 AC8.13.135)."
-            ),
-            test=(
-                "tests/tooling/test_ac_index_consistency.py"
-                "::test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.acgates.14",
+            "The AC-index gate's PROTECTION dashboard reports mandatory-AC coverage as per-type counts (has_real_ref / has_proof / has_score / has_mirror), never conflating L1 reference presence with behavioral proof, so a passing gate cannot be read as misleading behavioral assurance (re-anchored from the retired standalone traceability report) (Was EPIC-008 AC8.13.135).",
+            "tests/tooling/test_ac_index_consistency.py::test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral",
         ),
-        ACRecord(
-            id="AC-testing.acgates.15",
-            statement=(
-                "The AC-score ratchet baseline is a PERSISTED ratchet stored "
-                "conflict-free as sorted, one-AC-per-line JSONL with a merge=union "
-                "gitattribute, loading into the same in-memory shape the ratchet uses "
-                "\u2014 and the ratchet still fails on regression, missing evidence, or "
-                "non-pass code (the derived aggregate views it once sat beside are "
-                "now covered by AC8.13.139) (Was EPIC-008 AC8.13.138)."
-            ),
-            test=(
-                "tests/tooling/test_proof_index_architecture.py"
-                "::test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge"
-            ),
+        ac(
+            "AC-testing.acgates.15",
+            "The AC-score ratchet baseline is a PERSISTED ratchet stored conflict-free as sorted, one-AC-per-line JSONL with a merge=union gitattribute, loading into the same in-memory shape the ratchet uses — and the ratchet still fails on regression, missing evidence, or non-pass code (the derived aggregate views it once sat beside are now covered by AC8.13.139) (Was EPIC-008 AC8.13.138).",
+            "tests/tooling/test_proof_index_architecture.py::test_AC8_13_138_baseline_is_sorted_jsonl_with_union_merge",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.acgates.16",
-            statement=(
-                "The cross-cutting proof/vision/status indexes are unified onto ONE "
-                "AC-keyed graph (common/testing/ac_graph.py) built from sharded "
-                "sources (EPIC docs, @ac_proof decorators, vision.md, "
-                "critical-proof-outcomes.yaml, the JSONL ratchet); the critical-proof "
-                "matrix, vision-proof matrix, and README EPIC-status table are "
-                "DERIVED on demand and never committed-materialized; and "
-                "tools/check_ac_index.py is exactly TWO gates \u2014 Gate A INTEGRITY "
-                "(check_integrity, hard: every AC is managed/enumerated with a "
-                "protection record AND no dangling reference \u2014 every @ac_proof "
-                "resolves to a real test + real AC, every vision item with an owner "
-                "EPIC backs an AC, every macro outcome's proof_ids resolve, every "
-                "mandatory active AC has a real test reference, with the "
-                "per-edge-type messages preserved verbatim) and Gate B PROTECTION "
-                "RATCHET (see AC8.13.140) \u2014 instead of N byte-compares (Was EPIC-008 "
-                "AC8.13.139)."
-            ),
-            test=(
-                "tests/tooling/test_ac_index_consistency.py"
-                "::test_AC8_13_139_gate_passes_on_consistent_tree"
-            ),
+        ac(
+            "AC-testing.acgates.16",
+            "The cross-cutting proof/vision/status indexes are unified onto ONE AC-keyed graph (common/testing/ac_graph.py) built from sharded sources (EPIC docs, @ac_proof decorators, vision.md, critical-proof-outcomes.yaml, the JSONL ratchet); the critical-proof matrix, vision-proof matrix, and README EPIC-status table are DERIVED on demand and never committed-materialized; and tools/check_ac_index.py is exactly TWO gates — Gate A INTEGRITY (check_integrity, hard: every AC is managed/enumerated with a protection record AND no dangling reference — every @ac_proof resolves to a real test + real AC, every vision item with an owner EPIC backs an AC, every macro outcome's proof_ids resolve, every mandatory active AC has a real test reference, with the per-edge-type messages preserved verbatim) and Gate B PROTECTION RATCHET (see AC8.13.140) — instead of N byte-compares (Was EPIC-008 AC8.13.139).",
+            "tests/tooling/test_ac_index_consistency.py::test_AC8_13_139_gate_passes_on_consistent_tree",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.acgates.17",
-            statement=(
-                "Gate B (PROTECTION RATCHET) of tools/check_ac_index.py is monotonic, "
-                "per-type and conflict-safe: an AC with an all-empty protection "
-                'record is still "managed" (managed = present in the structure, not '
-                "that it has any test); part 1 is the per-AC behavioural-score floor "
-                "(ac-score-baseline.jsonl, merge=union, unchanged); part 2 is a "
-                "per-type COUNT floor (common/testing/data/protection-floor.json) where the "
-                "current count of mandatory active ACs at each type (has_real_ref, "
-                "has_proof, has_score, has_mirror) must be >= the committed floor \u2014 "
-                "adding protection only RAISES the current count and passes without "
-                "editing the floor file, the default all-zero/missing floor is valid, "
-                "and floors are raised only by the explicit --update-floor action so "
-                "protection-adding PRs never touch the file (Was EPIC-008 "
-                "AC8.13.140)."
-            ),
-            test=(
-                "tests/tooling/test_ac_index_consistency.py"
-                "::test_AC8_13_140_every_ac_managed_with_empty_protection_passes"
-            ),
+        ac(
+            "AC-testing.acgates.17",
+            'Gate B (PROTECTION RATCHET) of tools/check_ac_index.py is monotonic, per-type and conflict-safe: an AC with an all-empty protection record is still "managed" (managed = present in the structure, not that it has any test); part 1 is the per-AC behavioural-score floor (ac-score-baseline.jsonl, merge=union, unchanged); part 2 is a per-type COUNT floor (common/testing/data/protection-floor.json) where the current count of mandatory active ACs at each type (has_real_ref, has_proof, has_score, has_mirror) must be >= the committed floor — adding protection only RAISES the current count and passes without editing the floor file, the default all-zero/missing floor is valid, and floors are raised only by the explicit --update-floor action so protection-adding PRs never touch the file (Was EPIC-008 AC8.13.140).',
+            "tests/tooling/test_ac_index_consistency.py::test_AC8_13_140_every_ac_managed_with_empty_protection_passes",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.acgates.18",
-            statement=(
-                "The AC-index gate is OPERATIONALLY exactly TWO CI gates: the former "
-                "standalone CI-stage traceability contract "
-                "(common.testing.check_ac_traceability.run_traceability: a mandatory "
-                "active AC must resolve to a real test reference in a CI-REQUIRED "
-                "execution stage per common/testing/data/test-execution-matrix.yaml, with the "
-                "placeholder-only/stub-only/unexecuted-only/missing classifications) "
-                "and critical-proof contract "
-                "(common.testing.check_critical_proof_matrix.validate_matrix_contract: "
-                "per-proof trust_mode/mirror/required_markers/scope/ci_tier + "
-                "manual_gate evidence + macro-outcome shape contract) gate STEPS are "
-                "RETIRED as separate CI steps; their logic is FOLDED into "
-                "check_ac_index's Gate A INTEGRITY (check_repo_contracts) by "
-                "importing those modules as LIBRARIES (no reimplementation, verbatim "
-                "messages), so every failure they caught still fails the single gate, "
-                "the index gate runs ONCE (lint job, not duplicated in "
-                "ac-traceability), and no CI job name / required status context is "
-                "renamed (Was EPIC-008 AC8.13.141)."
-            ),
-            test=(
-                "tests/tooling/test_two_gate_consolidation.py"
-                "::test_AC8_13_141_green_tree_old_gates_and_consolidated_agree"
-            ),
+        ac(
+            "AC-testing.acgates.18",
+            "The AC-index gate is OPERATIONALLY exactly TWO CI gates: the former standalone CI-stage traceability contract (common.testing.check_ac_traceability.run_traceability: a mandatory active AC must resolve to a real test reference in a CI-REQUIRED execution stage per common/testing/data/test-execution-matrix.yaml, with the placeholder-only/stub-only/unexecuted-only/missing classifications) and critical-proof contract (common.testing.check_critical_proof_matrix.validate_matrix_contract: per-proof trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence + macro-outcome shape contract) gate STEPS are RETIRED as separate CI steps; their logic is FOLDED into check_ac_index's Gate A INTEGRITY (check_repo_contracts) by importing those modules as LIBRARIES (no reimplementation, verbatim messages), so every failure they caught still fails the single gate, the index gate runs ONCE (lint job, not duplicated in ac-traceability), and no CI job name / required status context is renamed (Was EPIC-008 AC8.13.141).",
+            "tests/tooling/test_two_gate_consolidation.py::test_AC8_13_141_green_tree_old_gates_and_consolidated_agree",
             priority="P1",
-            status="done",
         ),
         # ── group gate-inventory: gate inventory & proof-execution
         # model (was EPIC-008 AC8.13 subset), migration closeout, #1663
         # / #1718 ──
-        ACRecord(
-            id="AC-testing.gate-inventory.1",
-            statement=(
-                "CI simplification keeps a transitional gate inventory where every "
-                "workflow job has exactly one proof stage and one task_category; the "
-                "inventory matches live workflow jobs and finish.needs, rejects "
-                "legacy category keys, and records resolved duplicate cleanups so "
-                "cleanup PRs do not leave both old and new entrances behind (Was "
-                "EPIC-008 AC8.13.142)."
-            ),
-            test=(
-                "tests/tooling/test_ci_gate_inventory.py"
-                "::test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job"
-            ),
+        ac(
+            "AC-testing.gate-inventory.1",
+            "CI simplification keeps a transitional gate inventory where every workflow job has exactly one proof stage and one task_category; the inventory matches live workflow jobs and finish.needs, rejects legacy category keys, and records resolved duplicate cleanups so cleanup PRs do not leave both old and new entrances behind (Was EPIC-008 AC8.13.142).",
+            "tests/tooling/test_ci_gate_inventory.py::test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.gate-inventory.2",
-            statement=(
-                "AC is the only coverage key for CI proof placement: @ac_proof "
-                "remains backward compatible while each proof edge can carry "
-                "execution metadata as proof(name, stage, task_category), where stage "
-                "and task_category are proof attributes rather than identity keys and "
-                "remain separate from authority tier / proof_kind (Was EPIC-008 "
-                "AC8.13.150)."
-            ),
-            test=(
-                "tests/tooling/test_ac_proof_execution_model.py"
-                "::test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible"
-            ),
+        ac(
+            "AC-testing.gate-inventory.2",
+            "AC is the only coverage key for CI proof placement: @ac_proof remains backward compatible while each proof edge can carry execution metadata as proof(name, stage, task_category), where stage and task_category are proof attributes rather than identity keys and remain separate from authority tier / proof_kind (Was EPIC-008 AC8.13.150).",
+            "tests/tooling/test_ac_proof_execution_model.py::test_AC8_13_150_ac_proof_execution_model_is_ac_keyed_and_backward_compatible",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.gate-inventory.3",
-            statement=(
-                "CI gate inventory vocabulary is shared with the AC proof execution "
-                "helper: top-level stages and task_categories match "
-                "common.testing.ac_proof_execution exactly, so docs, runtime proof "
-                "metadata, and inventory contracts cannot drift independently (Was "
-                "EPIC-008 AC8.13.151)."
-            ),
-            test=(
-                "tests/tooling/test_ci_gate_inventory.py"
-                "::test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary"
-            ),
+        ac(
+            "AC-testing.gate-inventory.3",
+            "CI gate inventory vocabulary is shared with the AC proof execution helper: top-level stages and task_categories match common.testing.ac_proof_execution exactly, so docs, runtime proof metadata, and inventory contracts cannot drift independently (Was EPIC-008 AC8.13.151).",
+            "tests/tooling/test_ci_gate_inventory.py::test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.gate-inventory.4",
-            statement=(
-                "The staging AI/OCR corpus gate body lives once in a reusable "
-                "staging-ai-ocr-gate.yml (workflow_call) consumed by both the inline "
-                "staging deploy chain and the manual staging-ai-ocr-gate dispatch; "
-                "the two entrances are uses: callers that differ only by a blocking "
-                "input (record-only vs fail-fast) plus checkout/expected_sha, the "
-                "duplicated job body is removed, and the cleanup is recorded in the "
-                "gate inventory (Was EPIC-008 AC8.13.153)."
-            ),
-            test=(
-                "tests/tooling/test_ci_gate_inventory.py"
-                "::test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow"
-            ),
+        ac(
+            "AC-testing.gate-inventory.4",
+            "The staging AI/OCR corpus gate body lives once in a reusable staging-ai-ocr-gate.yml (workflow_call) consumed by both the inline staging deploy chain and the manual staging-ai-ocr-gate dispatch; the two entrances are uses: callers that differ only by a blocking input (record-only vs fail-fast) plus checkout/expected_sha, the duplicated job body is removed, and the cleanup is recorded in the gate inventory (Was EPIC-008 AC8.13.153).",
+            "tests/tooling/test_ci_gate_inventory.py::test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.gate-inventory.5",
-            statement=(
-                "The production release line (dry-run, deploy) is split out of "
-                "deploy.yml into a manual-dispatch-only release.yml with a "
-                "production-release-<version_ref> concurrency group "
-                "(cancel-in-progress: false) so two prod releases never run "
-                "concurrently; deploy.yml keeps staging deploy and tag-push promote, "
-                "and the workflow contract plus gate inventory track the new file and "
-                "re-homed job ids (Was EPIC-008 AC8.13.154)."
-            ),
-            test=(
-                "tests/tooling/test_ci_gate_inventory.py"
-                "::test_AC8_13_154_production_release_line_lives_in_release_yml"
-            ),
+        ac(
+            "AC-testing.gate-inventory.5",
+            "The production release line (dry-run, deploy) is split out of deploy.yml into a manual-dispatch-only release.yml with a production-release-<version_ref> concurrency group (cancel-in-progress: false) so two prod releases never run concurrently; deploy.yml keeps staging deploy and tag-push promote, and the workflow contract plus gate inventory track the new file and re-homed job ids (Was EPIC-008 AC8.13.154).",
+            "tests/tooling/test_ci_gate_inventory.py::test_AC8_13_154_production_release_line_lives_in_release_yml",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
-        ACRecord(
-            id="AC-testing.gate-inventory.6",
-            statement=(
-                "The former app-side reclaim split is retired: preview.yml#cleanup "
-                "now dispatches a preview-teardown signal to infra2 (which owns the "
-                "1:1 reclaim via preview-teardown.yml + the hourly preview-leak-check "
-                "fallback), and maintenance.yml#cleanup is GHCR-image-pruning only; "
-                "the pr_preview_cleanup_event_vs_scheduled inventory entry records "
-                "this retired state, not a keep_separate reclaim split (Was EPIC-008 "
-                "AC8.13.155)."
-            ),
-            test=(
-                "tests/tooling/test_ci_gate_inventory.py"
-                "::test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2"
-            ),
+        ac(
+            "AC-testing.gate-inventory.6",
+            "The former app-side reclaim split is retired: preview.yml#cleanup now dispatches a preview-teardown signal to infra2 (which owns the 1:1 reclaim via preview-teardown.yml + the hourly preview-leak-check fallback), and maintenance.yml#cleanup is GHCR-image-pruning only; the pr_preview_cleanup_event_vs_scheduled inventory entry records this retired state, not a keep_separate reclaim split (Was EPIC-008 AC8.13.155).",
+            "tests/tooling/test_ci_gate_inventory.py::test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2",
             priority="P1",
-            status="done",
             proof_kind="property",
         ),
         # ── group evidence: shared CI/nightly evidence bundle (#1690) —
         # baseline-aging meta-lock (#1826 G-no-silent-baseline-aging) ──
-        ACRecord(
-            id="AC-testing.evidence.1",
-            statement=(
-                "Every ratchet baseline/exceptions/floor file under common/ and "
-                "docs/ is glob-discovered into the evidence bundle with its entry "
-                "count and last-shrink date: a NEW baseline file appears with zero "
-                "code changes, and omitting a discovered one from the bundle reds "
-                "the tooling gate, so frozen debt stays visible instead of eternal "
-                "(#1826)."
-            ),
-            test=(
-                "tests/tooling/test_evidence_bundle_baseline_inventory.py"
-                "::test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.evidence.1",
+            "Every ratchet baseline/exceptions/floor file under common/ and docs/ is glob-discovered into the evidence bundle with its entry count and last-shrink date: a NEW baseline file appears with zero code changes, and omitting a discovered one from the bundle reds the tooling gate, so frozen debt stays visible instead of eternal (#1826).",
+            "tests/tooling/test_evidence_bundle_baseline_inventory.py::test_AC_testing_evidence_1_inventory_discovers_new_baselines_by_glob",
             proof_kind="property",
         ),
         # ── group governance: governance & doc-consistency gates (was
         # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.governance.1",
-            statement=(
-                "Remaining delivery-engine optimizations are captured in a tracked "
-                "project recommendation note (Was EPIC-008 AC8.13.47)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_47_delivery_engine_recommendations_are_tracked"
-            ),
+        ac(
+            "AC-testing.governance.1",
+            "Remaining delivery-engine optimizations are captured in a tracked project recommendation note (Was EPIC-008 AC8.13.47).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_47_delivery_engine_recommendations_are_tracked",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.2",
-            statement=(
-                "Coverage threshold documentation links to code-owned thresholds "
-                "instead of copying mutable numeric values (Was EPIC-008 AC8.13.81)."
-            ),
-            test=(
-                "tests/tooling/test_lint_doc_consistency.py"
-                "::test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number"
-            ),
+        ac(
+            "AC-testing.governance.2",
+            "Coverage threshold documentation links to code-owned thresholds instead of copying mutable numeric values (Was EPIC-008 AC8.13.81).",
+            "tests/tooling/test_lint_doc_consistency.py::test_AC8_13_81_doc_can_reference_code_owned_threshold_without_number",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.3",
-            statement=(
-                "CI/CD documentation separates environment taxonomy from pipeline "
-                "stages and declares the sparse env x stage execution matrix (Was "
-                "EPIC-008 AC8.13.94)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_94_env_and_pipeline_stage_contract_is_documented"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.3",
+            "CI/CD documentation separates environment taxonomy from pipeline stages and declares the sparse env x stage execution matrix (Was EPIC-008 AC8.13.94).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_94_env_and_pipeline_stage_contract_is_documented",
         ),
-        ACRecord(
-            id="AC-testing.governance.4",
-            statement=(
-                "Local verification guidance defaults to affected fast tests and "
-                "defines risk-triggered escalation for high-impact paths (Was "
-                "EPIC-008 AC8.13.95)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.4",
+            "Local verification guidance defaults to affected fast tests and defines risk-triggered escalation for high-impact paths (Was EPIC-008 AC8.13.95).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented",
         ),
-        ACRecord(
-            id="AC-testing.governance.5",
-            statement=(
-                "Critical-path timeouts and retries are documented in "
-                "common/testing/ci-cd.md and common/runtime/ci-cd.md (Was EPIC-008 AC8.13.118)."
-            ),
-            test=(
-                "tests/tooling/test_post_merge_e2e_gates.py"
-                "::test_AC8_13_118_timeouts_and_retries_documented"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.5",
+            "Critical-path timeouts and retries are documented in common/testing/ci-cd.md and common/runtime/ci-cd.md (Was EPIC-008 AC8.13.118).",
+            "tests/tooling/test_post_merge_e2e_gates.py::test_AC8_13_118_timeouts_and_retries_documented",
         ),
-        ACRecord(
-            id="AC-testing.governance.6",
-            statement=(
-                "Runtime incident response SSOT centralizes service-failure triage "
-                "and stability proof ownership, while deployment, observability, "
-                "CI/CD, and environment smoke docs link to it instead of duplicating "
-                "playbooks (Was EPIC-008 AC8.13.126)."
-            ),
-            test=(
-                "tests/tooling/test_runtime_incident_response_ssot.py"
-                "::test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.6",
+            "Runtime incident response SSOT centralizes service-failure triage and stability proof ownership, while deployment, observability, CI/CD, and environment smoke docs link to it instead of duplicating playbooks (Was EPIC-008 AC8.13.126).",
+            "tests/tooling/test_runtime_incident_response_ssot.py::test_AC8_13_126_runtime_incident_response_ssot_centralizes_triage",
         ),
-        ACRecord(
-            id="AC-testing.governance.7",
-            statement=(
-                "Bottom-up proof exceptions and code-owned surfaces are classified in "
-                "common/meta/data/governance-exceptions.yaml with a typed "
-                "proof_exceptions/code_owned_surfaces entry (id, owner, reason, "
-                "issue), validated by tools/check_governance_exceptions.py, leaving "
-                "the legacy SSOT governance exceptions list intact (#524) (Was "
-                "EPIC-008 AC8.13.131)."
-            ),
-            test=(
-                "tests/tooling/test_governance_exceptions_registry.py"
-                "::test_AC8_13_131_every_classified_entry_links_an_owner_and_issue"
-            ),
+        ac(
+            "AC-testing.governance.7",
+            "Bottom-up proof exceptions and code-owned surfaces are classified in common/meta/data/governance-exceptions.yaml with a typed proof_exceptions/code_owned_surfaces entry (id, owner, reason, issue), validated by tools/check_governance_exceptions.py, leaving the legacy SSOT governance exceptions list intact (#524) (Was EPIC-008 AC8.13.131).",
+            "tests/tooling/test_governance_exceptions_registry.py::test_AC8_13_131_every_classified_entry_links_an_owner_and_issue",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.8",
-            statement=(
-                "Every test/support file with no AC reference stays classified in "
-                "docs/project/traceability-exceptions.md, with no unclassified drift "
-                "and no product E2E test parked on the allow-list (#511) (Was "
-                "EPIC-008 AC8.13.132)."
-            ),
-            test=(
-                "tests/tooling/test_no_ac_test_classification.py"
-                "::test_AC8_13_132_no_unclassified_no_ac_test_files"
-            ),
+        ac(
+            "AC-testing.governance.8",
+            "Every test/support file with no AC reference stays classified in docs/project/traceability-exceptions.md, with no unclassified drift and no product E2E test parked on the allow-list (#511) (Was EPIC-008 AC8.13.132).",
+            "tests/tooling/test_no_ac_test_classification.py::test_AC8_13_132_no_unclassified_no_ac_test_files",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.9",
-            statement=(
-                "Cross-document SSOT concepts (reconciliation thresholds, "
-                "reconciliation/confirmation state machines, extraction confidence "
-                "tiers, confidence-tier rollup) are registered in "
-                "common/meta/data/MANIFEST.yaml with anchored owners backed by "
-                "explicit <a id> anchors (#340) (Was EPIC-008 AC8.13.133)."
-            ),
-            test=(
-                "tests/tooling/test_ssot_cross_document_anchors.py"
-                "::test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner"
-            ),
+        ac(
+            "AC-testing.governance.9",
+            "Cross-document SSOT concepts (reconciliation thresholds, reconciliation/confirmation state machines, extraction confidence tiers, confidence-tier rollup) are registered in common/meta/data/MANIFEST.yaml with anchored owners backed by explicit <a id> anchors (#340) (Was EPIC-008 AC8.13.133).",
+            "tests/tooling/test_ssot_cross_document_anchors.py::test_AC8_13_133_concepts_registered_in_manifest_with_anchored_owner",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.10",
-            statement=(
-                "Consolidated/archived stale docs stay absent and every mkdocs nav "
-                "markdown target resolves (no dangling internal links after the "
-                "consolidation) (#350) (Was EPIC-008 AC8.13.134)."
-            ),
-            test=(
-                "tests/tooling/test_stale_docs_consolidation.py"
-                "::test_AC8_13_134_mkdocs_nav_links_resolve"
-            ),
+        ac(
+            "AC-testing.governance.10",
+            "Consolidated/archived stale docs stay absent and every mkdocs nav markdown target resolves (no dangling internal links after the consolidation) (#350) (Was EPIC-008 AC8.13.134).",
+            "tests/tooling/test_stale_docs_consolidation.py::test_AC8_13_134_mkdocs_nav_links_resolve",
             priority="P1",
-            status="done",
         ),
         # ── group governance (continued): the CI/deploy workflow contract
         # itself (was EPIC-007 AC7.15.1-.3, #1821 Wave A horizontal move) ──
-        ACRecord(
-            id="AC-testing.governance.11",
-            statement=(
-                "The CI/deploy SSOT references the live workflow job ids "
-                "and triggers through a checked contract (not stale "
-                "prose), and CI lint runs tools/check_workflow_contract.py."
-            ),
-            # was AC7.15.1
-            test=(
-                "tests/tooling/test_workflow_contract.py"
-                "::test_AC7_15_1_real_repo_passes_the_workflow_contract"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.11",
+            "The CI/deploy SSOT references the live workflow job ids and triggers through a checked contract (not stale prose), and CI lint runs tools/check_workflow_contract.py.",
+            "tests/tooling/test_workflow_contract.py::test_AC7_15_1_real_repo_passes_the_workflow_contract",
         ),
-        ACRecord(
-            id="AC-testing.governance.12",
-            statement=(
-                "Issue templates use only labels that exist in the current "
-                "repository taxonomy (a stale infra/feature label or any "
-                "unknown label fails)."
-            ),
-            # was AC7.15.2
-            test=(
-                "tests/tooling/test_workflow_contract.py"
-                "::test_AC7_15_2_stale_issue_template_label_fails"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.12",
+            "Issue templates use only labels that exist in the current repository taxonomy (a stale infra/feature label or any unknown label fails).",
+            "tests/tooling/test_workflow_contract.py::test_AC7_15_2_stale_issue_template_label_fails",
         ),
-        ACRecord(
-            id="AC-testing.governance.13",
-            statement=(
-                "The workflow contract FAILS when a workflow job id, "
-                "trigger, or issue-template label drifts from the "
-                "documented standard (e.g. stale classify-changes prose, a "
-                "push trigger re-added to the deploy.yml staging target, or "
-                "a renamed classifier job)."
-            ),
-            # was AC7.15.3
-            test=(
-                "tests/tooling/test_workflow_contract.py"
-                "::test_AC7_15_3_stale_ci_classifier_job_name_fails"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.13",
+            "The workflow contract FAILS when a workflow job id, trigger, or issue-template label drifts from the documented standard (e.g. stale classify-changes prose, a push trigger re-added to the deploy.yml staging target, or a renamed classifier job).",
+            "tests/tooling/test_workflow_contract.py::test_AC7_15_3_stale_ci_classifier_job_name_fails",
         ),
         # ── group secret-scan: content-level secret scanning (was
         # EPIC-008 AC8.13 subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.secret-scan.1",
-            statement=(
-                "A content-level secret scan (gitleaks) runs in both the pre-commit "
-                "hooks and the CI lint job (local==CI parity), blocking credential "
-                "material by content rather than by filename so .gitignore is not the "
-                "only line of defense (Was EPIC-008 AC8.13.136)."
-            ),
-            test=(
-                "tests/tooling/test_secret_scan_gate.py"
-                "::test_AC8_13_136_gitleaks_runs_in_precommit_and_ci"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.secret-scan.1",
+            "A content-level secret scan (gitleaks) runs in both the pre-commit hooks and the CI lint job (local==CI parity), blocking credential material by content rather than by filename so .gitignore is not the only line of defense (Was EPIC-008 AC8.13.136).",
+            "tests/tooling/test_secret_scan_gate.py::test_AC8_13_136_gitleaks_runs_in_precommit_and_ci",
         ),
         # ── group secret-scan (continued): the CI container-images build's
         # own secret scan (was EPIC-007 AC7.18.1, #1821 Wave A horizontal
         # move) ──
-        ACRecord(
-            id="AC-testing.secret-scan.2",
-            statement=(
-                "The CI container-images job runs a gitleaks secret scan "
-                "over the per-component build context before the image "
-                "build step, fails closed on detection, and keeps the "
-                "finding visible in logs."
-            ),
-            # was AC7.18.1
-            test=(
-                "tests/tooling/test_build_secret_scan_contract.py"
-                "::test_AC7_18_1_container_images_job_has_build_context_secret_scan"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.secret-scan.2",
+            "The CI container-images job runs a gitleaks secret scan over the per-component build context before the image build step, fails closed on detection, and keeps the finding visible in logs.",
+            "tests/tooling/test_build_secret_scan_contract.py::test_AC7_18_1_container_images_job_has_build_context_secret_scan",
         ),
         # ── group toolchain: toolchain, bootstrap & CLI entry points
         # (was EPIC-008 AC8.13 subset), migration closeout, #1663 /
         # #1718 ──
-        ACRecord(
-            id="AC-testing.toolchain.1",
-            statement=(
-                "Runtime and container versions stay aligned across local, CI, and "
-                "Docker environments (Was EPIC-008 AC8.13.39)."
-            ),
-            test=(
-                "tests/tooling/test_toolchain_contract.py"
-                "::test_AC8_13_39_cli_accepts_explicit_repo_root"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.1",
+            "Runtime and container versions stay aligned across local, CI, and Docker environments (Was EPIC-008 AC8.13.39).",
+            "tests/tooling/test_toolchain_contract.py::test_AC8_13_39_cli_accepts_explicit_repo_root",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.2",
-            statement=(
-                "Local bootstrap provides one command for runtimes, dependency setup, "
-                "pre-commit hooks, and container-runtime diagnostics (Was EPIC-008 "
-                "AC8.13.44)."
-            ),
-            test=(
-                "tests/tooling/test_bootstrap_local.py"
-                "::test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.2",
+            "Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics (Was EPIC-008 AC8.13.44).",
+            "tests/tooling/test_bootstrap_local.py::test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.3",
-            statement=(
-                "Local verification entry points use the project-pinned backend "
-                "environment for format, environment, and schema gates, and route "
-                "make test through the root Moon test command with explicit "
-                "application workspace inputs (Was "
-                "EPIC-008 AC8.13.45)."
-            ),
-            test=(
-                "tests/tooling/test_preflight.py"
-                "::test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.3",
+            "Local verification entry points use the project-pinned backend environment for format, environment, and schema gates, and route make test through the root Moon test command with explicit application workspace inputs (Was EPIC-008 AC8.13.45).",
+            "tests/tooling/test_preflight.py::test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.4",
-            statement=(
-                "Common owns SSOT, config and CI contracts, coverage policy, and "
-                "isolation helpers; command entry points and tool-owned "
-                "implementations live in tools/; PR CI avoids optional Moon bootstrap "
-                "for heavy gates that run direct pytest or npm commands, with Moon "
-                "availability covered as static config contracts (Was EPIC-008 "
-                "AC8.13.53)."
-            ),
-            test=(
-                "tests/tooling/test_common_tooling_modules.py"
-                "::test_AC8_13_53_common_coverage_component_is_a_governed_source_root"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.4",
+            "Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in tools/; PR CI avoids optional Moon bootstrap for heavy gates that run direct pytest or npm commands, with Moon availability covered as static config contracts (Was EPIC-008 AC8.13.53).",
+            "tests/tooling/test_common_tooling_modules.py::test_AC8_13_53_common_coverage_component_is_a_governed_source_root",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.5",
-            statement=(
-                "Coverage command entry points run from tools/; the shared policy "
-                "stays in common/meta/extension/coverage/policy.py, and command "
-                "implementations live under tools/_lib/coverage/ (Was EPIC-008 "
-                "AC8.13.56)."
-            ),
-            test=(
-                "tests/tooling/test_common_tooling_modules.py"
-                "::test_AC8_13_56_coverage_tools_delegate_to_common_implementations"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.5",
+            "Coverage command entry points run from tools/; the shared policy stays in common/meta/extension/coverage/policy.py, and command implementations live under tools/_lib/coverage/ (Was EPIC-008 AC8.13.56).",
+            "tests/tooling/test_common_tooling_modules.py::test_AC8_13_56_coverage_tools_delegate_to_common_implementations",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.6",
-            statement=(
-                "SSOT and AC command entry points run from tools/ while shared "
-                "implementations live in the packages that own them (common/testing/, "
-                "common/meta/extension/, common/platform/); the residual common/ssot/ "
-                "generator escape hatch is retired (Was EPIC-008 AC8.13.57)."
-            ),
-            test=(
-                "tests/tooling/test_common_tooling_modules.py"
-                "::test_AC8_13_57_ssot_tools_delegate_to_common_implementations"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.6",
+            "SSOT and AC command entry points run from tools/ while shared implementations live in the packages that own them (common/testing/, common/meta/extension/, common/platform/); the residual common/ssot/ generator escape hatch is retired (Was EPIC-008 AC8.13.57).",
+            "tests/tooling/test_common_tooling_modules.py::test_AC8_13_57_ssot_tools_delegate_to_common_implementations",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.7",
-            statement=(
-                "CI and toolchain command entry points run from tools/; reusable "
-                "contracts live in the packages that own them (common/runtime/, "
-                "common/testing/, common/meta/extension/), while report and shell "
-                "command implementations live under tools/_lib/ (Was EPIC-008 "
-                "AC8.13.58)."
-            ),
-            test=(
-                "tests/tooling/test_common_tooling_modules.py"
-                "::test_AC8_13_58_ci_tools_delegate_to_common_implementations"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.7",
+            "CI and toolchain command entry points run from tools/; reusable contracts live in the packages that own them (common/runtime/, common/testing/, common/meta/extension/), while report and shell command implementations live under tools/_lib/ (Was EPIC-008 AC8.13.58).",
+            "tests/tooling/test_common_tooling_modules.py::test_AC8_13_58_ci_tools_delegate_to_common_implementations",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.8",
-            statement=(
-                "Config validation command entry points run from tools/ while shared "
-                "implementations live under apps/backend/src/runtime/extension/ "
-                "(moved from common/config/ when that package folded into runtime, "
-                "#1669) (Was EPIC-008 AC8.13.59)."
-            ),
-            test=(
-                "tests/tooling/test_common_tooling_modules.py"
-                "::test_AC8_13_59_config_validation_tools_delegate_to_common_implementations"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.8",
+            "Config validation command entry points run from tools/ while shared implementations live under apps/backend/src/runtime/extension/ (moved from common/config/ when that package folded into runtime, #1669) (Was EPIC-008 AC8.13.59).",
+            "tests/tooling/test_common_tooling_modules.py::test_AC8_13_59_config_validation_tools_delegate_to_common_implementations",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.9",
-            statement=(
-                "Local E2E command routing distinguishes root deployment E2E from "
-                "backend Tier-1 API E2E (Was EPIC-008 AC8.13.79)."
-            ),
-            test=(
-                "tests/tooling/test_cli_and_dev_servers.py"
-                "::test_AC8_13_79_cmd_test_backend_e2e_route"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.9",
+            "Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E (Was EPIC-008 AC8.13.79).",
+            "tests/tooling/test_cli_and_dev_servers.py::test_AC8_13_79_cmd_test_backend_e2e_route",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.10",
-            statement=(
-                "Frontend local and CI gates run full TypeScript checking, including "
-                "tests, instead of relying only on Next production build type checks "
-                "(Was EPIC-008 AC8.13.99)."
-            ),
-            test=(
-                "tests/tooling/test_frontend_typecheck_contract.py"
-                "::test_AC8_13_99_frontend_typecheck_is_a_required_gate"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.10",
+            "Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks (Was EPIC-008 AC8.13.99).",
+            "tests/tooling/test_frontend_typecheck_contract.py::test_AC8_13_99_frontend_typecheck_is_a_required_gate",
         ),
         # ── group toolchain (continued): E2E toolchain-setup + staging
         # deploy_v2 dependency-install retry hardening (was EPIC-007
         # AC7.16.1/.2, #1821 Wave A horizontal move) ──
-        ACRecord(
-            id="AC-testing.toolchain.11",
-            statement=(
-                "The shared E2E toolchain-setup composite (setup-e2e-tests) "
-                "retries transient dependency/browser download failures "
-                "(uv pip install, playwright install) with bounded "
-                "exponential backoff and keeps the original external error "
-                "visible on exhaustion."
-            ),
-            # was AC7.16.1
-            test=(
-                "tests/tooling/test_staging_toolchain_retry.py"
-                "::test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.11",
+            "The shared E2E toolchain-setup composite (setup-e2e-tests) retries transient dependency/browser download failures (uv pip install, playwright install) with bounded exponential backoff and keeps the original external error visible on exhaustion.",
+            "tests/tooling/test_staging_toolchain_retry.py::test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.12",
-            statement=(
-                "The staging receiver dependency install retries transient "
-                "download failures with bounded exponential backoff; "
-                "application deploy/test steps remain fail-fast (not "
-                "wrapped in retry)."
-            ),
-            # was AC7.16.2
-            test=(
-                "tests/tooling/test_staging_toolchain_retry.py"
-                "::test_AC7_16_2_staging_receiver_dependency_install_retries"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.toolchain.12",
+            "The staging receiver dependency install retries transient download failures with bounded exponential backoff; application deploy/test steps remain fail-fast (not wrapped in retry).",
+            "tests/tooling/test_staging_toolchain_retry.py::test_AC7_16_2_staging_receiver_dependency_install_retries",
         ),
         # ── group schema: schema/migration proof lanes (was EPIC-008
         # AC8.13 subset), migration closeout, #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.schema.1",
-            statement=(
-                "PR CI runs a schema migration contract against ephemeral Postgres "
-                "with alembic upgrade head, alembic check, uploaded context, and "
-                "finish aggregation (Was EPIC-008 AC8.13.121)."
-            ),
-            test=(
-                "tests/tooling/test_schema_quality_contract.py"
-                "::test_AC8_13_121_pr_ci_runs_schema_migration_contract"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.1",
+            "PR CI runs a schema migration contract against ephemeral Postgres with alembic upgrade head, alembic check, uploaded context, and finish aggregation (Was EPIC-008 AC8.13.121).",
+            "tests/tooling/test_schema_quality_contract.py::test_AC8_13_121_pr_ci_runs_schema_migration_contract",
         ),
-        ACRecord(
-            id="AC-testing.schema.2",
-            statement=(
-                "Backend schema drift guard no longer treats an out-of-date Alembic "
-                "target or missing CLI as success; PR CI schema-migrations owns hard "
-                "proof (Was EPIC-008 AC8.13.122)."
-            ),
-            test=(
-                "tests/tooling/test_schema_quality_contract.py"
-                "::test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.2",
+            "Backend schema drift guard no longer treats an out-of-date Alembic target or missing CLI as success; PR CI schema-migrations owns hard proof (Was EPIC-008 AC8.13.122).",
+            "tests/tooling/test_schema_quality_contract.py::test_AC8_13_122_schema_drift_guard_does_not_accept_outdated_targets",
         ),
-        ACRecord(
-            id="AC-testing.schema.3",
-            statement=(
-                "Schema guardrails scan the real apps/backend/migrations/versions "
-                "directory instead of a test-local path (Was EPIC-008 AC8.13.123)."
-            ),
-            test=(
-                "tests/tooling/test_schema_quality_contract.py"
-                "::test_AC8_13_123_schema_guardrails_scan_real_migration_directory"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.3",
+            "Schema guardrails scan the real apps/backend/migrations/versions directory instead of a test-local path (Was EPIC-008 AC8.13.123).",
+            "tests/tooling/test_schema_quality_contract.py::test_AC8_13_123_schema_guardrails_scan_real_migration_directory",
         ),
-        ACRecord(
-            id="AC-testing.schema.4",
-            statement=(
-                "Backend business persistence has a production-faithful Alembic-built "
-                "proof lane that keeps user foreign keys intact while exercising a "
-                "representative accounting write/read path (Was EPIC-008 AC8.13.127)."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_production_faithful_business_persistence.py"
-                "::test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.4",
+            "Backend business persistence has a production-faithful Alembic-built proof lane that keeps user foreign keys intact while exercising a representative accounting write/read path (Was EPIC-008 AC8.13.127).",
+            "apps/backend/tests/integration/test_production_faithful_business_persistence.py::test_AC8_13_127_alembic_business_persistence_keeps_user_fk_contract",
         ),
-        ACRecord(
-            id="AC-testing.schema.5",
-            statement=(
-                "Detached user_id=uuid4() owner shortcuts in DB-backed backend tests "
-                "are counted and cannot grow without an explicit budget update (Was "
-                "EPIC-008 AC8.13.128)."
-            ),
-            test=(
-                "tests/tooling/test_detached_owner_guard.py"
-                "::test_AC8_13_128_budget_fails_on_growth"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.5",
+            "Detached user_id=uuid4() owner shortcuts in DB-backed backend tests are counted and cannot grow without an explicit budget update (Was EPIC-008 AC8.13.128).",
+            "tests/tooling/test_detached_owner_guard.py::test_AC8_13_128_budget_fails_on_growth",
         ),
-        ACRecord(
-            id="AC-testing.schema.6",
-            statement=(
-                "Testing SSOT distinguishes fast create_all() fixtures, PR Alembic "
-                "schema proof, and the production-faithful backend business "
-                "persistence lane (Was EPIC-008 AC8.13.129)."
-            ),
-            test=(
-                "tests/tooling/test_detached_owner_guard.py"
-                "::test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.schema.6",
+            "Testing SSOT distinguishes fast create_all() fixtures, PR Alembic schema proof, and the production-faithful backend business persistence lane (Was EPIC-008 AC8.13.129).",
+            "tests/tooling/test_detached_owner_guard.py::test_AC8_13_129_schema_docs_distinguish_fast_fixture_and_production_faithful_lane",
         ),
-        ACRecord(
-            id="AC-testing.schema.7",
-            statement=(
-                "The detached-owner guard counts only persisted (db.add/db.add_all) "
-                "user_id=uuid4() rows \u2014 the real foreign-key risk \u2014 excluding "
-                "transient in-memory and service-argument uses, collapsing the "
-                "historically-inflated budget to the persisted rows (Was EPIC-008 "
-                "AC8.13.130)."
-            ),
-            test=(
-                "tests/tooling/test_detached_owner_guard.py"
-                "::test_AC8_13_130_counts_only_persisted_detached_owners"
-            ),
+        ac(
+            "AC-testing.schema.7",
+            "The detached-owner guard counts only persisted (db.add/db.add_all) user_id=uuid4() rows — the real foreign-key risk — excluding transient in-memory and service-argument uses, collapsing the historically-inflated budget to the persisted rows (Was EPIC-008 AC8.13.130).",
+            "tests/tooling/test_detached_owner_guard.py::test_AC8_13_130_counts_only_persisted_detached_owners",
             priority="P1",
-            status="done",
         ),
         # ── group lifecycle: test lifecycle & namespace isolation (was
         # EPIC-008 AC8.13.69 + EPIC-016 AC16.13), migration closeout,
         # #1663 / #1718 ──
-        ACRecord(
-            id="AC-testing.lifecycle.1",
-            statement=(
-                "Local test lifecycle binds namespaced infra to ephemeral host ports "
-                "so parallel branches do not collide (Was EPIC-008 AC8.13.69)."
-            ),
-            test=(
-                "apps/backend/tests/unit/infra/test_test_lifecycle.py"
-                "::test_namespaced_infra_uses_ephemeral_host_ports"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.lifecycle.1",
+            "Local test lifecycle binds namespaced infra to ephemeral host ports so parallel branches do not collide (Was EPIC-008 AC8.13.69).",
+            "apps/backend/tests/unit/infra/test_test_lifecycle.py::test_namespaced_infra_uses_ephemeral_host_ports",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.2",
-            statement=(
-                "test_lifecycle \u2014 sanitize_namespace normalizes branch/workspace "
-                "names (Was EPIC-016 AC16.13.1)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_1_sanitize_namespace_normalization"
-            ),
+        ac(
+            "AC-testing.lifecycle.2",
+            "test_lifecycle — sanitize_namespace normalizes branch/workspace names (Was EPIC-016 AC16.13.1).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_1_sanitize_namespace_normalization",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.3",
-            statement=(
-                "test_lifecycle \u2014 get_namespace honors BRANCH_NAME and optional "
-                "WORKSPACE_ID (Was EPIC-016 AC16.13.2)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_2_get_namespace_from_branch_and_workspace"
-            ),
+        ac(
+            "AC-testing.lifecycle.3",
+            "test_lifecycle — get_namespace honors BRANCH_NAME and optional WORKSPACE_ID (Was EPIC-016 AC16.13.2).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_2_get_namespace_from_branch_and_workspace",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.4",
-            statement=(
-                "test_lifecycle \u2014 get_namespace falls back to git branch plus path "
-                "hash when env vars absent (Was EPIC-016 AC16.13.3)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_3_get_namespace_from_git_and_path_hash"
-            ),
+        ac(
+            "AC-testing.lifecycle.4",
+            "test_lifecycle — get_namespace falls back to git branch plus path hash when env vars absent (Was EPIC-016 AC16.13.3).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_3_get_namespace_from_git_and_path_hash",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.5",
-            statement=(
-                "test_lifecycle \u2014 get_test_db_name and get_s3_bucket format names "
-                "deterministically (Was EPIC-016 AC16.13.4)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_4_name_helpers"
-            ),
+        ac(
+            "AC-testing.lifecycle.5",
+            "test_lifecycle — get_test_db_name and get_s3_bucket format names deterministically (Was EPIC-016 AC16.13.4).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_4_name_helpers",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.6",
-            statement=(
-                "test_lifecycle \u2014 load_active_namespaces returns [] on missing or "
-                "corrupted tracker file (Was EPIC-016 AC16.13.5)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_5_load_active_namespaces_missing_and_corrupt"
-            ),
+        ac(
+            "AC-testing.lifecycle.6",
+            "test_lifecycle — load_active_namespaces returns [] on missing or corrupted tracker file (Was EPIC-016 AC16.13.5).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_5_load_active_namespaces_missing_and_corrupt",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.7",
-            statement=(
-                "test_lifecycle \u2014 register_namespace and unregister_namespace update "
-                "active namespace tracker (Was EPIC-016 AC16.13.6)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_6_register_unregister_namespace"
-            ),
+        ac(
+            "AC-testing.lifecycle.7",
+            "test_lifecycle — register_namespace and unregister_namespace update active namespace tracker (Was EPIC-016 AC16.13.6).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_6_register_unregister_namespace",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.8",
-            statement=(
-                "test_lifecycle \u2014 get_container_runtime honors CONTAINER_RUNTIME, "
-                "otherwise detects podman/docker and returns None when absent (Was "
-                "EPIC-016 AC16.13.7)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_7_get_container_runtime"
-            ),
+        ac(
+            "AC-testing.lifecycle.8",
+            "test_lifecycle — get_container_runtime honors CONTAINER_RUNTIME, otherwise detects podman/docker and returns None when absent (Was EPIC-016 AC16.13.7).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_7_get_container_runtime",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.9",
-            statement=(
-                "test_lifecycle \u2014 is_db_ready returns false on pg_isready subprocess "
-                "failure (Was EPIC-016 AC16.13.8)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_8_is_db_ready_handles_failure"
-            ),
+        ac(
+            "AC-testing.lifecycle.9",
+            "test_lifecycle — is_db_ready returns false on pg_isready subprocess failure (Was EPIC-016 AC16.13.8).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_8_is_db_ready_handles_failure",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.10",
-            statement=(
-                "test_lifecycle \u2014 cleanup_worker_databases skips invalid namespace "
-                "values (Was EPIC-016 AC16.13.9)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace"
-            ),
+        ac(
+            "AC-testing.lifecycle.10",
+            "test_lifecycle — cleanup_worker_databases skips invalid namespace values (Was EPIC-016 AC16.13.9).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_9_cleanup_worker_databases_skips_invalid_namespace",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.11",
-            statement=(
-                "test_lifecycle \u2014 cleanup_worker_databases drops valid worker DB "
-                "names and skips invalid names (Was EPIC-016 AC16.13.10)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid"
-            ),
+        ac(
+            "AC-testing.lifecycle.11",
+            "test_lifecycle — cleanup_worker_databases drops valid worker DB names and skips invalid names (Was EPIC-016 AC16.13.10).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_10_cleanup_worker_databases_drops_valid_and_skips_invalid",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.12",
-            statement=(
-                "test_lifecycle \u2014 _get_changed_files maps backend python paths into "
-                "module import names (Was EPIC-016 AC16.13.11)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_11_get_changed_files_maps_backend_modules"
-            ),
+        ac(
+            "AC-testing.lifecycle.12",
+            "test_lifecycle — _get_changed_files maps backend python paths into module import names (Was EPIC-016 AC16.13.11).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_11_get_changed_files_maps_backend_modules",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.lifecycle.13",
-            statement=(
-                "generate_test_pdfs \u2014 generate_statement writes table rows and "
-                "closing balance from Decimal transactions (Was EPIC-016 AC16.13.12)."
-            ),
-            test=(
-                "tests/tooling/test_lifecycle_and_pdf_scripts.py"
-                "::test_AC16_13_12_generate_statement_builds_pdf_rows"
-            ),
+        ac(
+            "AC-testing.lifecycle.13",
+            "generate_test_pdfs — generate_statement writes table rows and closing balance from Decimal transactions (Was EPIC-016 AC16.13.12).",
+            "tests/tooling/test_lifecycle_and_pdf_scripts.py::test_AC16_13_12_generate_statement_builds_pdf_rows",
             priority="P1",
-            status="done",
         ),
         # ── group preflight: diff-aware pre-push dispatcher tiering
         # (#1810 G-static-parity) ──
-        ACRecord(
-            id="AC-testing.preflight.1",
-            statement=(
-                "Preflight check tiering composes with the diff-glob selection: "
-                "--tier=static keeps exactly the seconds-level static gates "
-                "matching the diff and drops the heavy suite gates, while the "
-                "default full tier preserves the exact pre-tier selection, so "
-                "every static blocking PR gate is runnable locally in seconds "
-                "via one command (#1810 G-static-parity)."
-            ),
-            test=(
-                "tests/tooling/test_preflight.py"
-                "::test_AC_testing_preflight_1_static_tier_composes_with_glob_selection"
-            ),
+        ac(
+            "AC-testing.preflight.1",
+            "Preflight check tiering composes with the diff-glob selection: --tier=static keeps exactly the seconds-level static gates matching the diff and drops the heavy suite gates, while the default full tier preserves the exact pre-tier selection, so every static blocking PR gate is runnable locally in seconds via one command (#1810 G-static-parity).",
+            "tests/tooling/test_preflight.py::test_AC_testing_preflight_1_static_tier_composes_with_glob_selection",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.preflight.2",
-            statement=(
-                "Frontend static gate parity: preflight provides a seconds-level "
-                "frontend-static gate in the static tier running npm run lint and "
-                "npm run typecheck for changed frontend files, and openapi-spec "
-                "additionally runs npm run check:api-types in apps/frontend to "
-                "guarantee frontend-backend OpenAPI contract sync."
-            ),
-            test=(
-                "tests/tooling/test_preflight.py"
-                "::test_AC_testing_preflight_2_frontend_static_gate_parity"
-            ),
+        ac(
+            "AC-testing.preflight.2",
+            "Frontend static gate parity: preflight provides a seconds-level frontend-static gate in the static tier running npm run lint and npm run typecheck for changed frontend files, and openapi-spec additionally runs npm run check:api-types in apps/frontend to guarantee frontend-backend OpenAPI contract sync.",
+            "tests/tooling/test_preflight.py::test_AC_testing_preflight_2_frontend_static_gate_parity",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.preflight.3",
-            statement=(
-                "Preflight check inventory discovery: running preflight.py --list "
-                "on a clean diff or with --all displays all registered gates for "
-                "the selected tier, and --all runs every check regardless of diff."
-            ),
-            test=(
-                "tests/tooling/test_preflight.py"
-                "::test_AC_testing_preflight_3_list_all_inventory_discovery"
-            ),
+        ac(
+            "AC-testing.preflight.3",
+            "Preflight check inventory discovery: running preflight.py --list on a clean diff or with --all displays all registered gates for the selected tier, and --all runs every check regardless of diff.",
+            "tests/tooling/test_preflight.py::test_AC_testing_preflight_3_list_all_inventory_discovery",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.preflight.4",
-            statement=(
-                "Multi-worker worktree lifecycle doctor: tools/worktree_doctor.py "
-                "inspects all worktrees against PR states, uncommitted changes, "
-                "staged index leakages, and active process file handles, providing "
-                "safe auditing and pruning of merged worktrees."
-            ),
-            test=(
-                "tests/tooling/test_worktree_doctor.py"
-                "::test_AC_testing_preflight_4_worktree_doctor_audit_and_prune"
-            ),
+        ac(
+            "AC-testing.preflight.4",
+            "Multi-worker worktree lifecycle doctor: tools/worktree_doctor.py inspects all worktrees against PR states, uncommitted changes, staged index leakages, and active process file handles, providing safe auditing and pruning of merged worktrees.",
+            "tests/tooling/test_worktree_doctor.py::test_AC_testing_preflight_4_worktree_doctor_audit_and_prune",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.preflight.5",
-            statement=(
-                "Worktree doctor recognizes squash-merged PR branches: an un-dirty "
-                "worktree with zero active file locks whose PR state is MERGED is "
-                "identified as safe to prune even when git merge-base --is-ancestor "
-                "returns non-zero due to GitHub squash-merge commit isolation."
-            ),
-            test=(
-                "tests/tooling/test_worktree_doctor.py"
-                "::test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs"
-            ),
+        ac(
+            "AC-testing.preflight.5",
+            "Worktree doctor recognizes squash-merged PR branches: an un-dirty worktree with zero active file locks whose PR state is MERGED is identified as safe to prune even when git merge-base --is-ancestor returns non-zero due to GitHub squash-merge commit isolation.",
+            "tests/tooling/test_worktree_doctor.py::test_AC_testing_preflight_5_worktree_doctor_recognizes_squash_merged_prs",
             priority="P1",
-            status="done",
         ),
         # ── group diff-coverage: diff-scoped PR coverage gate + ratchet
         # demotion (#1810, metric layer: G-diff-coverage /
         # G-ratchet-backstop). The unit of the blocking PR coverage
         # verdict is the PR's own diff, not a component percentage. ──
-        ACRecord(
-            id="AC-testing.diff-coverage.1",
-            statement=(
-                "On a PR, the blocking coverage verdict is diff-scoped: it is "
-                "computed from the PR's own diff plus per-component test-run LCOV "
-                "(no full-pipeline dependency, no baseline epsilon) and passes "
-                "iff coverage of the measurable changed lines is at or above the "
-                "threshold (default 85%, overridable via --threshold / "
-                "DIFF_COVERAGE_THRESHOLD) (#1810 G-diff-coverage)."
-            ),
-            test=(
-                "tests/tooling/test_diff_coverage.py"
-                "::test_cli_blocks_below_threshold_and_passes_at_or_above"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.diff-coverage.1",
+            "On a PR, the blocking coverage verdict is diff-scoped: it is computed from the PR's own diff plus per-component test-run LCOV (no full-pipeline dependency, no baseline epsilon) and passes iff coverage of the measurable changed lines is at or above the threshold (default 85%, overridable via --threshold / DIFF_COVERAGE_THRESHOLD) (#1810 G-diff-coverage).",
+            "tests/tooling/test_diff_coverage.py::test_cli_blocks_below_threshold_and_passes_at_or_above",
         ),
-        ACRecord(
-            id="AC-testing.diff-coverage.2",
-            statement=(
-                "A red diff-coverage verdict names each offending file with its "
-                "uncovered changed lines as file:line ranges, and a changed "
-                "in-scope file entirely absent from its component's LCOV is "
-                "counted conservatively (added non-blank, non-comment lines are "
-                "uncovered), so a new file with zero tests cannot pass silently "
-                "(#1810 G-diff-coverage)."
-            ),
-            test=(
-                "tests/tooling/test_diff_coverage.py"
-                "::test_red_verdict_lists_uncovered_line_ranges_and_new_file_hole"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.diff-coverage.2",
+            "A red diff-coverage verdict names each offending file with its uncovered changed lines as file:line ranges, and a changed in-scope file entirely absent from its component's LCOV is counted conservatively (added non-blank, non-comment lines are uncovered), so a new file with zero tests cannot pass silently (#1810 G-diff-coverage).",
+            "tests/tooling/test_diff_coverage.py::test_red_verdict_lists_uncovered_line_ranges_and_new_file_hole",
         ),
-        ACRecord(
-            id="AC-testing.diff-coverage.3",
-            statement=(
-                "Out-of-scope changes (docs, tests, configs, workflows, "
-                "policy-excluded files) never enter the diff-coverage "
-                "denominator; a diff with no measurable changed lines passes "
-                "explicitly; and an entirely absent component LCOV artifact "
-                "skips that component's files with a loud warning (parity with "
-                "the lenient CI merge step) (#1810 G-diff-coverage)."
-            ),
-            test=(
-                "tests/tooling/test_diff_coverage.py"
-                "::test_out_of_scope_files_and_absent_artifacts_are_lenient"
-            ),
+        ac(
+            "AC-testing.diff-coverage.3",
+            "Out-of-scope changes (docs, tests, configs, workflows, policy-excluded files) never enter the diff-coverage denominator; a diff with no measurable changed lines passes explicitly; and an entirely absent component LCOV artifact skips that component's files with a loud warning (parity with the lenient CI merge step) (#1810 G-diff-coverage).",
+            "tests/tooling/test_diff_coverage.py::test_out_of_scope_files_and_absent_artifacts_are_lenient",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.diff-coverage.4",
-            statement=(
-                "The component-% ratchet is a main-only water-line: in report "
-                "mode (PR CI) a detected regression is printed as report-only "
-                "and does not fail the run, while block mode (main pushes; the "
-                "default when --ratchet-mode/COVERAGE_RATCHET_MODE is unset) "
-                "keeps the exact blocking behavior, with unified-coverage.json "
-                "still written and the COVERAGE_THRESHOLD safety net unchanged "
-                "in both modes (#1810 G-ratchet-backstop)."
-            ),
-            test=(
-                "tests/tooling/test_calculate_unified_coverage.py"
-                "::test_ratchet_report_mode_reports_regression_without_blocking"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.diff-coverage.4",
+            "The component-% ratchet is a main-only water-line: in report mode (PR CI) a detected regression is printed as report-only and does not fail the run, while block mode (main pushes; the default when --ratchet-mode/COVERAGE_RATCHET_MODE is unset) keeps the exact blocking behavior, with unified-coverage.json still written and the COVERAGE_THRESHOLD safety net unchanged in both modes (#1810 G-ratchet-backstop).",
+            "tests/tooling/test_calculate_unified_coverage.py::test_ratchet_report_mode_reports_regression_without_blocking",
         ),
         # ── group fe-lane: mobile viewport lane inside the blocking
         # Playwright job (#1827 G-mobile-lane). The EPIC-022 flagship IA is
         # the mobile bottom-tab shell; a contract test locks the project
         # list so the lane cannot silently disappear. ──
-        ACRecord(
-            id="AC-testing.fe-lane.1",
-            statement=(
-                "The frontend Playwright config declares a true mobile device "
-                "project (touch enabled, phone-width viewport) whose testMatch "
-                "covers every EPIC-022 shell journey spec, alongside the "
-                "desktop chromium project; deleting the project or dropping a "
-                "journey reds vitest (#1827 G-mobile-lane)."
-            ),
-            test=(
-                "apps/frontend/src/__tests__/playwrightMobileLane.test.ts"
-                "::AC-testing.fe-lane.1 the blocking Playwright config "
-                "declares a true mobile device project"
-            ),
+        ac(
+            "AC-testing.fe-lane.1",
+            "The frontend Playwright config declares a true mobile device project (touch enabled, phone-width viewport) whose testMatch covers every EPIC-022 shell journey spec, alongside the desktop chromium project; deleting the project or dropping a journey reds vitest (#1827 G-mobile-lane).",
+            "apps/frontend/src/__tests__/playwrightMobileLane.test.ts::AC-testing.fe-lane.1 the blocking Playwright config declares a true mobile device project",
             priority="P1",
-            status="done",
         ),
         # ── group fe-async: real-QueryClient async seam (#1827
         # G-async-seam / G-core-hook-tested / G-no-undeclared-mutations). ──
-        ACRecord(
-            id="AC-testing.fe-async.1",
-            statement=(
-                "The shared data hook useApiQuery carries direct tests that "
-                "run real react-query with only the network fn mocked: path "
-                "fetching, error propagation, enabled=false, option "
-                "passthrough, and per-key caching (#1827 G-core-hook-tested)."
-            ),
-            test=(
-                "apps/frontend/src/__tests__/useApiQuery.test.tsx"
-                "::AC-testing.fe-async.1 fetches the given operation through "
-                "apiOperation and exposes the data"
-            ),
+        ac(
+            "AC-testing.fe-async.1",
+            "The shared data hook useApiQuery carries direct tests that run real react-query with only the network fn mocked: path fetching, error propagation, enabled=false, option passthrough, and per-key caching (#1827 G-core-hook-tested).",
+            "apps/frontend/src/__tests__/useApiQuery.test.tsx::AC-testing.fe-async.1 fetches the given operation through apiOperation and exposes the data",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.fe-async.2",
-            statement=(
-                "Every mutating flow that declares cache invalidations in "
-                "MUTATION_INVALIDATION_MATRIX is exercised as the REAL "
-                "component flow against a real QueryClient (only apiFetch "
-                "mocked), asserting the declared query keys actually become "
-                "invalidated — removing an invalidateQueries call reds the "
-                "flow's test (#1827 G-async-seam)."
-            ),
-            test=(
-                "apps/frontend/src/__tests__/accountsPage.test.tsx"
-                "::AC-testing.fe-async.2 delete flow invalidates the "
-                "matrix-declared query keys against a real QueryClient"
-            ),
+        ac(
+            "AC-testing.fe-async.2",
+            "Every mutating flow that declares cache invalidations in MUTATION_INVALIDATION_MATRIX is exercised as the REAL component flow against a real QueryClient (only apiFetch mocked), asserting the declared query keys actually become invalidated — removing an invalidateQueries call reds the flow's test (#1827 G-async-seam).",
+            "apps/frontend/src/__tests__/accountsPage.test.tsx::AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.fe-async.3",
-            statement=(
-                "A structural lock enumerates every useMutation call site "
-                "under apps/frontend/src (node fs scan, tests excluded) and "
-                "reds on any call site absent from "
-                "MUTATION_INVALIDATION_MATRIX or any stale matrix row, so a "
-                "new mutation cannot skip the matrix by forgetfulness (#1827 "
-                "G-no-undeclared-mutations)."
-            ),
-            test=(
-                "apps/frontend/src/__tests__/mutationInvalidationLock.test.ts"
-                "::AC-testing.fe-async.3 every useMutation call site in src/ "
-                "has a matrix row"
-            ),
+        ac(
+            "AC-testing.fe-async.3",
+            "A structural lock enumerates every useMutation call site under apps/frontend/src (node fs scan, tests excluded) and reds on any call site absent from MUTATION_INVALIDATION_MATRIX or any stale matrix row, so a new mutation cannot skip the matrix by forgetfulness (#1827 G-no-undeclared-mutations).",
+            "apps/frontend/src/__tests__/mutationInvalidationLock.test.ts::AC-testing.fe-async.3 every useMutation call site in src/ has a matrix row",
             priority="P1",
-            status="done",
         ),
         # ── group fe-handmock: decrease-only ratchet on frontend tests that
         # still hand-mock a vectored endpoint (#1827 G-contract-reddens). ──
-        ACRecord(
-            id="AC-testing.fe-handmock.1",
-            statement=(
-                "The count of frontend test files that hand-mock a vectored "
-                "endpoint (instead of loading the shared conformance-vector "
-                "fixture) only decreases relative to the committed baseline; "
-                "growth reds CI and --update refuses to raise the baseline "
-                "(#1827)."
-            ),
-            test=(
-                "tests/tooling/test_fe_api_handmock_ratchet.py"
-                "::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down"
-            ),
+        ac(
+            "AC-testing.fe-handmock.1",
+            "The count of frontend test files that hand-mock a vectored endpoint (instead of loading the shared conformance-vector fixture) only decreases relative to the committed baseline; growth reds CI and --update refuses to raise the baseline (#1827).",
+            "tests/tooling/test_fe_api_handmock_ratchet.py::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down",
             priority="P1",
-            status="done",
         ),
         # ── group fe-fetch: decrease-only ratchet on direct api-wrapper
         # (apiFetch/apiStream/apiDelete/apiUpload) call sites under
         # components/+app/, so the useApiQuery migration debt cannot
         # silently grow back while it pays down incrementally (#1868 S5
         # PR-C, G-fetch-ratchet). ──
-        ACRecord(
-            id="AC-testing.fe-fetch.1",
-            statement=(
-                "The count of direct api-wrapper call sites (apiFetch/"
-                "apiStream/apiDelete/apiUpload, generic-aware — "
-                "`apiFetch<T>(...)` counts too) under components/+app/ "
-                "(tests excluded) only decreases relative to the committed "
-                "baseline; growth reds CI and --update refuses to raise the "
-                "baseline (#1868)."
-            ),
-            test=(
-                "tests/tooling/test_fe_fetch_ratchet.py"
-                "::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down"
-            ),
+        ac(
+            "AC-testing.fe-fetch.1",
+            "The count of direct api-wrapper call sites (apiFetch/apiStream/apiDelete/apiUpload, generic-aware — `apiFetch<T>(...)` counts too) under components/+app/ (tests excluded) only decreases relative to the committed baseline; growth reds CI and --update refuses to raise the baseline (#1868).",
+            "tests/tooling/test_fe_fetch_ratchet.py::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down",
             priority="P1",
-            status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ACRecord(
-            id="AC-testing.fe-coverage.1",
-            statement="Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%",
-            # was AC8.13.48
-            test="apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.fe-coverage.1",
+            "Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%",
+            "apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes",
         ),
-        ACRecord(
-            id="AC-testing.fe-coverage.2",
-            statement="Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths",
-            # was AC8.13.76
-            test="apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.fe-coverage.2",
+            "Playwright mobile UX coverage proves Stage 1 and Stage 2 review workflows avoid document-level horizontal scroll and expose direct completion actions at phone widths",
+            "apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px",
         ),
-        ACRecord(
-            id="AC-testing.fe-coverage.3",
-            statement="Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping (AC16.27.2 removed and AC16.27.3 removed, canonical: the same shared spec also proves `AC-extraction.fe-stage1-review.11` and `AC-reconciliation.fe-stage2-review.17`, #1821 Wave B)",
-            # was AC8.13.82
-            test="apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.fe-coverage.3",
+            "Playwright responsive UX coverage proves account and review layouts avoid mobile document overflow and desktop local table clipping (AC16.27.2 removed and AC16.27.3 removed, canonical: the same shared spec also proves `AC-extraction.fe-stage1-review.11` and `AC-reconciliation.fe-stage2-review.17`, #1821 Wave B)",
+            "apps/frontend/playwright/mobile-ux.spec.ts::AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px",
         ),
-        ACRecord(
-            id="AC-testing.fe-coverage.4",
-            statement="Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered",
-            # was AC8.13.92
-            test="apps/frontend/src/__tests__/coverageBaseline.test.ts::AC8.13.92 keeps the frontend Vitest threshold baseline code-owned",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.fe-coverage.4",
+            "Frontend Vitest coverage keeps a code-owned 98% baseline for line, statement, and function metrics plus an explicit branch floor while representative low-coverage routes and workflow surfaces stay covered",
+            "apps/frontend/src/__tests__/coverageBaseline.test.ts::AC8.13.92 keeps the frontend Vitest threshold baseline code-owned",
         ),
         # ── Shared gate infrastructure (#1867 S4 PR-A) ──
-        ACRecord(
-            id="AC-testing.governance.14",
-            statement=(
-                "The AC-score and cassette-eval JSONL ratchets use one "
-                "parameterized baseline implementation with a shared raise-only "
-                "merge, preserving their distinct identifier and collection keys."
-            ),
-            test=(
-                "tests/tooling/test_s4_testing_gate_infrastructure.py"
-                "::test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior"
-            ),
+        ac(
+            "AC-testing.governance.14",
+            "The AC-score and cassette-eval JSONL ratchets use one parameterized baseline implementation with a shared raise-only merge, preserving their distinct identifier and collection keys.",
+            "tests/tooling/test_s4_testing_gate_infrastructure.py::test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.15",
-            statement=(
-                "AC coverage analysis, traceability report generation, and "
-                "traceability checking share one scanner and canonical AC ordering, "
-                "so package-qualified IDs with identical numeric suffixes remain distinct."
-            ),
-            test=(
-                "tests/tooling/test_s4_testing_gate_infrastructure.py"
-                "::test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort"
-            ),
+        ac(
+            "AC-testing.governance.15",
+            "AC coverage analysis, traceability report generation, and traceability checking share one scanner and canonical AC ordering, so package-qualified IDs with identical numeric suffixes remain distinct.",
+            "tests/tooling/test_s4_testing_gate_infrastructure.py::test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.16",
-            statement=(
-                "Repository gates share one CLI runner for repo-root parsing, "
-                "PASS/FAIL summaries, and GitHub workflow-command escaping, so "
-                "an injection-shaped violation remains one inert annotation."
-            ),
-            test=(
-                "tests/tooling/test_s4_gate_contracts.py"
-                "::test_AC_testing_governance_16_gate_cli_escapes_workflow_commands"
-            ),
+        ac(
+            "AC-testing.governance.16",
+            "Repository gates share one CLI runner for repo-root parsing, PASS/FAIL summaries, and GitHub workflow-command escaping, so an injection-shaped violation remains one inert annotation.",
+            "tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_16_gate_cli_escapes_workflow_commands",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.17",
-            statement=(
-                "During migration, the structural gate rejects new legacy main "
-                "signatures and check modules that bypass the shared gate runner."
-            ),
-            test=(
-                "tests/tooling/test_s4_gate_contracts.py::"
-                "test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed"
-            ),
+        ac(
+            "AC-testing.governance.17",
+            "During migration, the structural gate rejects new legacy main signatures and check modules that bypass the shared gate runner.",
+            "tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.18",
-            statement=(
-                "Every argparse baseline mutation flag declares its monotonic mode: "
-                "--update is raise-only or shrink-only, while debt-adopting rewrites "
-                "require the explicit --rewrite-baseline spelling."
-            ),
-            test=(
-                "tests/tooling/test_s4_gate_contracts.py"
-                "::test_AC_testing_governance_18_baseline_mutation_flags_are_explicit"
-            ),
+        ac(
+            "AC-testing.governance.18",
+            "Every argparse baseline mutation flag declares its monotonic mode: --update is raise-only or shrink-only, while debt-adopting rewrites require the explicit --rewrite-baseline spelling.",
+            "tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_18_baseline_mutation_flags_are_explicit",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.19",
-            statement=(
-                "The staging AI-OCR gate implementation lives in common/testing, "
-                "its replay counters live in common/testing/data, and the tools "
-                "entry point remains a thin compatibility shim."
-            ),
-            test=(
-                "tests/tooling/test_s4_tool_homing.py"
-                "::test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned"
-            ),
+        ac(
+            "AC-testing.governance.19",
+            "The staging AI-OCR gate implementation lives in common/testing, its replay counters live in common/testing/data, and the tools entry point remains a thin compatibility shim.",
+            "tests/tooling/test_s4_tool_homing.py::test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.20",
-            statement=(
-                "A shrink-only tools-file baseline rejects every new top-level "
-                "Python entry point over 40 lines and requires resolved fat-tool "
-                "paths to be removed from the baseline."
-            ),
-            test=(
-                "tests/tooling/test_s4_tool_homing.py"
-                "::test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt"
-            ),
+        ac(
+            "AC-testing.governance.20",
+            "A shrink-only tools-file baseline rejects every new top-level Python entry point over 40 lines and requires resolved fat-tool paths to be removed from the baseline.",
+            "tests/tooling/test_s4_tool_homing.py::test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.21",
-            statement=(
-                "Every real monotonic baseline-mutation CLI path, including "
-                "specialized update flags, is behaviorally driven against synthetic "
-                "regression debt and refuses to adopt it; the contract census fails "
-                "when a new monotonic updater lacks non-vacuous state proof."
-            ),
-            test=(
-                "tests/tooling/test_s4_gate_contracts.py"
-                "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
-            ),
+        ac(
+            "AC-testing.governance.21",
+            "Every real monotonic baseline-mutation CLI path, including specialized update flags, is behaviorally driven against synthetic regression debt and refuses to adopt it; the contract census fails when a new monotonic updater lacks non-vacuous state proof.",
+            "tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_21_real_updates_refuse_regression_debt",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.governance.22",
-            statement=(
-                "Every module-level common/tools main uses the composable "
-                "Sequence[str] argv and integer-status contract, every common check "
-                "uses the shared gate runner, and the allowlist-free AST gate fails "
-                "closed on malformed Python without a legacy baseline."
-            ),
-            test=(
-                "tests/tooling/test_s4_gate_contracts.py"
-                "::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed"
-            ),
+        ac(
+            "AC-testing.governance.22",
+            "Every module-level common/tools main uses the composable Sequence[str] argv and integer-status contract, every common check uses the shared gate runner, and the allowlist-free AST gate fails closed on malformed Python without a legacy baseline.",
+            "tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.toolchain.13",
-            statement=(
-                "Developer CLI, backend server, and backend test lifecycle share "
-                "one runtime-version and uv command implementation; compose "
-                "detection consistently honors CONTAINER_RUNTIME."
-            ),
-            test=(
-                "tests/tooling/test_s4_tool_homing.py"
-                "::test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain"
-            ),
+        ac(
+            "AC-testing.toolchain.13",
+            "Developer CLI, backend server, and backend test lifecycle share one runtime-version and uv command implementation; compose detection consistently honors CONTAINER_RUNTIME.",
+            "tests/tooling/test_s4_tool_homing.py::test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-testing.capability-proof.1",
-            statement=(
-                "A scenario-bound PR-CI behavioral proof emits one canonical TraceRecord "
-                "only after its pytest call phase passes; the JUnit gate requires exact "
-                "repository, commit, run, scenario, and proof coordinates."
-            ),
-            test=(
-                "tests/tooling/test_executed_proof.py::"
-                "test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.capability-proof.1",
+            "A scenario-bound PR-CI behavioral proof emits one canonical TraceRecord only after its pytest call phase passes; the JUnit gate requires exact repository, commit, run, scenario, and proof coordinates.",
+            "tests/tooling/test_executed_proof.py::test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates",
         ),
-        ACRecord(
-            id="AC-testing.capability-proof.2",
-            statement=(
-                "One terminal proof binds exactly one scenario to one independent oracle; "
-                "blank or stitched proof bindings are rejected."
-            ),
-            test=(
-                "tests/tooling/test_trusted_year_scenario.py::"
-                "test_AC_testing_capability_proof_2_binding_rejects_stitching"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.capability-proof.2",
+            "One terminal proof binds exactly one scenario to one independent oracle; blank or stitched proof bindings are rejected.",
+            "tests/tooling/test_trusted_year_scenario.py::test_AC_testing_capability_proof_2_binding_rejects_stitching",
         ),
-        ACRecord(
-            id="AC-testing.capability-proof.3",
-            statement=(
-                "After and only after a scenario-bound pytest call passes, one registered "
-                "consumer receives that exact canonical executed-proof TraceRecord and may "
-                "append one declaration-required canonical observation to the same JUnit "
-                "testcase; GitHub merge-authority execution requires that consumer while "
-                "local advisory execution may omit it, and duplicate registration, consumer "
-                "failure, and a wrong observation kind fail closed."
-            ),
-            test=(
-                "tests/tooling/test_executed_proof.py::"
-                "test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.capability-proof.3",
+            "After and only after a scenario-bound pytest call passes, one registered consumer receives that exact canonical executed-proof TraceRecord and may append one declaration-required canonical observation to the same JUnit testcase; GitHub merge-authority execution requires that consumer while local advisory execution may omit it, and duplicate registration, consumer failure, and a wrong observation kind fail closed.",
+            "tests/tooling/test_executed_proof.py::test_AC_testing_capability_proof_3_post_call_consumer_is_single_and_fail_closed",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.capability-proof.4",
-            statement=(
-                "An executed-proof TraceRecord from an earlier attempt of the SAME "
-                "GitHub run satisfies the PR-CI evidence reconciliation "
-                "(common.testing.check_pr_ci_evidence) and the package-governance "
-                "proof projection (common.testing.package_governance_observations), "
-                'so a partial "re-run failed jobs" -- kept jobs\' JUnit on attempt 1, '
-                "the checker on attempt 2 -- can pass (#2049). Repository, commit, "
-                "proof identity and assertion version stay exact; a different run, "
-                "an attempt newer than the checker's, or a non-GitHub execution id "
-                "fails closed; the newest matching attempt is the canonical record "
-                "and the projection carries that record's own execution id."
-            ),
-            test=(
-                "tests/tooling/test_executed_proof.py::"
-                "test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.capability-proof.4",
+            "An executed-proof TraceRecord from an earlier attempt of the SAME GitHub run satisfies the PR-CI evidence reconciliation (common.testing.check_pr_ci_evidence) and the package-governance proof projection (common.testing.package_governance_observations), so a partial \"re-run failed jobs\" -- kept jobs' JUnit on attempt 1, the checker on attempt 2 -- can pass (#2049). Repository, commit, proof identity and assertion version stay exact; a different run, an attempt newer than the checker's, or a non-GitHub execution id fails closed; the newest matching attempt is the canonical record and the projection carries that record's own execution id.",
+            "tests/tooling/test_executed_proof.py::test_AC_testing_capability_proof_4_partial_rerun_accepts_earlier_attempt_of_same_run",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.source-capability-proof.1",
-            statement=(
-                "Every non-gap extraction SourceCapability resolves to a behavioral "
-                "PR merge-authority proof, supported automated capabilities also resolve "
-                "to release-validation proof, and gap or unknown capability claims fail closed."
-            ),
-            test=(
-                "tests/tooling/test_source_capability_proof.py::"
-                "test_AC_testing_source_capability_proof_1_real_registry_resolves_to_required_proofs"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.source-capability-proof.1",
+            "Every non-gap extraction SourceCapability resolves to a behavioral PR merge-authority proof, supported automated capabilities also resolve to release-validation proof, and gap or unknown capability claims fail closed.",
+            "tests/tooling/test_source_capability_proof.py::test_AC_testing_source_capability_proof_1_real_registry_resolves_to_required_proofs",
         ),
-        ACRecord(
-            id="AC-testing.source-capability-proof.2",
-            statement=(
-                "The consolidated AC-index gate composes extraction's canonical capability "
-                "registry with testing's proof graph, while the duplicate source-coverage "
-                "YAML, path checker, shim, and product-support documentation routes are absent."
-            ),
-            test=(
-                "tests/tooling/test_source_capability_proof.py::"
-                "test_AC_testing_source_capability_proof_2_static_matrix_is_retired"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.source-capability-proof.2",
+            "The consolidated AC-index gate composes extraction's canonical capability registry with testing's proof graph, while the duplicate source-coverage YAML, path checker, shim, and product-support documentation routes are absent.",
+            "tests/tooling/test_source_capability_proof.py::test_AC_testing_source_capability_proof_2_static_matrix_is_retired",
         ),
-        ACRecord(
-            id="AC-testing.trusted-year.1",
-            statement=(
-                "TrustedYearScenario is a testing-owned immutable entity whose monetary "
-                "inputs and independently authored expected outputs are exact Decimals."
-            ),
-            test=(
-                "tests/tooling/test_trusted_year_scenario.py::"
-                "test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trusted-year.1",
+            "TrustedYearScenario is a testing-owned immutable entity whose monetary inputs and independently authored expected outputs are exact Decimals.",
+            "tests/tooling/test_trusted_year_scenario.py::test_AC_testing_trusted_year_1_scenario_is_small_exact_and_closed",
         ),
-        ACRecord(
-            id="AC-testing.trusted-year.2",
-            statement=(
-                "The v0 scenario deterministically traverses reviewed source authority, "
-                "ledger posting, valuation, and every report section to exact oracle values."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
-                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trusted-year.2",
+            "The v0 scenario deterministically traverses reviewed source authority, ledger posting, valuation, and every report section to exact oracle values.",
+            "apps/backend/tests/integration/test_trusted_year_scenario.py::test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle",
         ),
-        ACRecord(
-            id="AC-testing.trusted-year.3",
-            statement=(
-                "Cross-scope and target-mismatched authority mutations are rejected, "
-                "and superseding every authority parent in the selected manifest makes "
-                "the next package candidate draft/unproven without changing the frozen package."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
-                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.trusted-year.3",
+            "Cross-scope and target-mismatched authority mutations are rejected, and superseding every authority parent in the selected manifest makes the next package candidate draft/unproven without changing the frozen package.",
+            "apps/backend/tests/integration/test_trusted_year_scenario.py::test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle",
         ),
-        ACRecord(
-            id="AC-testing.package-lifecycle.1",
-            statement=(
-                "A trusted package can be generated, listed, reopened, and exported without "
-                "later source or valuation mutations changing its frozen document."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_trusted_year_scenario.py::"
-                "test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.package-lifecycle.1",
+            "A trusted package can be generated, listed, reopened, and exported without later source or valuation mutations changing its frozen document.",
+            "apps/backend/tests/integration/test_trusted_year_scenario.py::test_AC_testing_trusted_year_2_deterministic_executor_proves_package_lifecycle",
         ),
-        ACRecord(
-            id="AC-testing.package-lifecycle.2",
-            statement=(
-                "A generated supported GXS monthly PDF traverses live extraction, explicit "
-                "source/economic review, one posted effect per transaction, and trusted package "
-                "generation, list, reopen, and JSON/CSV export with independent Decimal totals "
-                "and unchanged frozen input decisions after a separately posted income changes "
-                "the live report. Backend and frontend versions must match the pinned deployment."
-            ),
-            test=(
-                "tests/e2e/test_institution_statement_journeys.py::"
-                "test_gxs_statement_journey_matches_expected_balances"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.package-lifecycle.2",
+            "A generated supported GXS monthly PDF traverses live extraction, explicit source/economic review, one posted effect per transaction, and trusted package generation, list, reopen, and JSON/CSV export with independent Decimal totals and unchanged frozen input decisions after a separately posted income changes the live report. Backend and frontend versions must match the pinned deployment.",
+            "tests/e2e/test_institution_statement_journeys.py::test_gxs_statement_journey_matches_expected_balances",
         ),
-        ACRecord(
-            id="AC-testing.package-lifecycle.3",
-            statement=(
-                "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts "
-                "directly from classification review without losing the explicit draft, "
-                "reviews and approves through browser controls, then generates, reopens and exports "
-                "one frozen report package with independent Decimal totals. Only authentication "
-                "setup may use mutation APIs; backend/frontend versions match the pinned target, "
-                "and model evidence distinguishes requested configuration from actual provider execution."
-            ),
-            test=(
-                "tests/e2e/test_institution_statement_journeys.py::"
-                "test_gxs_statement_journey_matches_expected_balances"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.package-lifecycle.3",
+            "A fresh ordinary user uploads a generated supported GXS PDF, creates required accounts directly from classification review without losing the explicit draft, reviews and approves through browser controls, then generates, reopens and exports one frozen report package with independent Decimal totals. Only authentication setup may use mutation APIs; backend/frontend versions match the pinned target, and model evidence distinguishes requested configuration from actual provider execution.",
+            "tests/e2e/test_institution_statement_journeys.py::test_gxs_statement_journey_matches_expected_balances",
         ),
-        ACRecord(
-            id="AC-testing.pdf-checkpoint.1",
-            statement=(
-                "Generated PDF bytes traverse upload, real storage operations and extraction normalization "
-                "into one tenant-owned document, canonical statement, immutable result and distinct atomic "
-                "facts with matching content digests and retrievable storage keys. Deterministic provider "
-                "responses prove application composition, not live OCR accuracy."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
-                "test_pdf_checkpoint_persists_source_and_fact_identity"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.pdf-checkpoint.1",
+            "Generated PDF bytes traverse upload, real storage operations and extraction normalization into one tenant-owned document, canonical statement, immutable result and distinct atomic facts with matching content digests and retrievable storage keys. Deterministic provider responses prove application composition, not live OCR accuracy.",
+            "apps/backend/tests/integration/test_pdf_report_checkpoint.py::test_pdf_checkpoint_persists_source_and_fact_identity",
         ),
-        ACRecord(
-            id="AC-testing.pdf-checkpoint.2",
-            statement=(
-                "Report drill-down for the generated PDF reaches its actual source document through "
-                "every posted effect, including starting stock, with authoritative decision anchors "
-                "and tenant isolation."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
-                "test_pdf_checkpoint_report_lineage_reaches_source"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.pdf-checkpoint.2",
+            "Report drill-down for the generated PDF reaches its actual source document through every posted effect, including starting stock, with authoritative decision anchors and tenant isolation.",
+            "apps/backend/tests/integration/test_pdf_report_checkpoint.py::test_pdf_checkpoint_report_lineage_reaches_source",
         ),
-        ACRecord(
-            id="AC-testing.pdf-checkpoint.3",
-            statement=(
-                "The same-period generated PDF checkpoint produces correct independent Decimal opening, "
-                "gross income, gross expense and closing totals across all three basic statements, then "
-                "a trusted saved package whose JSON and CSV exports retain its frozen source decisions."
-            ),
-            test=(
-                "apps/backend/tests/integration/test_pdf_report_checkpoint.py::"
-                "test_pdf_checkpoint_three_statements_and_saved_package"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.pdf-checkpoint.3",
+            "The same-period generated PDF checkpoint produces correct independent Decimal opening, gross income, gross expense and closing totals across all three basic statements, then a trusted saved package whose JSON and CSV exports retain its frozen source decisions.",
+            "apps/backend/tests/integration/test_pdf_report_checkpoint.py::test_pdf_checkpoint_three_statements_and_saved_package",
         ),
-        ACRecord(
-            id="AC-testing.governance.23",
-            statement=(
-                "One testing-owned adapter assembles package-governance observations "
-                "for an exact target SHA from package detector outputs, canonical executed-"
-                "proof TraceRecords that survive serialization and canonical re-validation, "
-                "current issue state, and enforcement inputs; missing, mixed-SHA, "
-                "self-certified, duplicate, or contradictory inputs fail closed."
-            ),
-            test=(
-                "tests/tooling/test_package_governance_observations.py"
-                "::test_AC_testing_governance_23_builds_only_from_real_inputs"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.23",
+            "One testing-owned adapter assembles package-governance observations for an exact target SHA from package detector outputs, canonical executed-proof TraceRecords that survive serialization and canonical re-validation, current issue state, and enforcement inputs; missing, mixed-SHA, self-certified, duplicate, or contradictory inputs fail closed.",
+            "tests/tooling/test_package_governance_observations.py::test_AC_testing_governance_23_builds_only_from_real_inputs",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.governance.24",
-            statement=(
-                "Authenticated GitHub issue and ruleset snapshots retain observed source "
-                "coordinates and freshness, while canonical unconditional nonzero finish "
-                "failure branches and live required contexts are derived from raw facts "
-                "instead of supplied truth booleans or dependency reachability alone."
-            ),
-            test=(
-                "tests/tooling/test_package_governance_observations.py"
-                "::test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.24",
+            "Authenticated GitHub issue and ruleset snapshots retain observed source coordinates and freshness, while canonical unconditional nonzero finish failure branches and live required contexts are derived from raw facts instead of supplied truth booleans or dependency reachability alone.",
+            "tests/tooling/test_package_governance_observations.py::test_AC_testing_governance_24_derives_live_enforcement_from_raw_facts",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.governance.25",
-            statement=(
-                "The existing package-governance command consumes an explicit current-SHA "
-                "bundle, archives its JSON and Markdown projection, and fails the existing "
-                "finish path when any open initiative guarantee is not enforced."
-            ),
-            test=(
-                "tests/tooling/test_package_governance_observations.py"
-                "::test_AC_testing_governance_25_existing_finish_path_blocks_false_green"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.25",
+            "The existing package-governance command consumes an explicit current-SHA bundle, archives its JSON and Markdown projection, and fails the existing finish path when any open initiative guarantee is not enforced.",
+            "tests/tooling/test_package_governance_observations.py::test_AC_testing_governance_25_existing_finish_path_blocks_false_green",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.governance.26",
-            statement=(
-                "The governance observation adapter discovers one optional detector "
-                "provider from each owning package, validates its package-detector "
-                "payload without exposing proof inputs, and rejects provider failure, "
-                "foreign guarantees, duplicate coordinates, or mixed target SHAs."
-            ),
-            test=(
-                "tests/tooling/test_package_governance_observations.py"
-                "::test_AC_testing_governance_26_discovers_only_package_owned_detectors"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.26",
+            "The governance observation adapter discovers one optional detector provider from each owning package, validates its package-detector payload without exposing proof inputs, and rejects provider failure, foreign guarantees, duplicate coordinates, or mixed target SHAs.",
+            "tests/tooling/test_package_governance_observations.py::test_AC_testing_governance_26_discovers_only_package_owned_detectors",
             proof_kind="exact",
         ),
-        ACRecord(
-            id="AC-testing.governance.27",
-            statement=(
-                "Canonical executed-proof records are collected for open and closed "
-                "governance initiatives at the current SHA with their declared semantic "
-                "strength and actual JUnit gate lane: open missing or mismatched evidence "
-                "fails input construction, while closed missing evidence remains an "
-                "explicit unverified projection instead of being synthesized or suppressed."
-            ),
-            test=(
-                "tests/tooling/test_package_governance_observations.py"
-                "::test_AC_testing_governance_27_refreshes_closed_initiative_proof"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-testing.governance.27",
+            "Canonical executed-proof records are collected for open and closed governance initiatives at the current SHA with their declared semantic strength and actual JUnit gate lane: open missing or mismatched evidence fails input construction, while closed missing evidence remains an explicit unverified projection instead of being synthesized or suppressed.",
+            "tests/tooling/test_package_governance_observations.py::test_AC_testing_governance_27_refreshes_closed_initiative_proof",
             proof_kind="exact",
         ),
     ],

@@ -60,7 +60,7 @@ pricing, never the reverse.
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ACRecord,
+    ac,
     ConceptRecord,
     ContextRelation,
     ContextScope,
@@ -512,669 +512,279 @@ CONTRACT = PackageContract(
     roadmap=[
         # ── group marketdata: daily FX/stock market data sync (was EPIC-011
         # AC11.10, migration closeout continuation, #1663 / #1710) ──
-        ACRecord(
-            id="AC-pricing.marketdata.1",
-            statement=(
-                "Stock price sync fetches daily prices for active holdings "
-                "and stores idempotent rows. Was EPIC-011 AC11.10.1."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.1",
+            "Stock price sync fetches daily prices for active holdings and stores idempotent rows. Was EPIC-011 AC11.10.1.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.2",
-            statement=(
-                "FX sync fetches explicit or observed pairs incrementally, "
-                "with USD/base as the default non-empty pair. Was EPIC-011 "
-                "AC11.10.2."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_sync_fx_rates_starts_after_last_stored_date"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.2",
+            "FX sync fetches explicit or observed pairs incrementally, with USD/base as the default non-empty pair. Was EPIC-011 AC11.10.2.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_sync_fx_rates_starts_after_last_stored_date",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.3",
-            statement=(
-                "Missing trading days are recorded as misses without "
-                "failing the whole sync. Was EPIC-011 AC11.10.3."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_sync_stock_prices_records_missing_trading_days"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.3",
+            "Missing trading days are recorded as misses without failing the whole sync. Was EPIC-011 AC11.10.3.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_records_missing_trading_days",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.4",
-            statement=(
-                "Primary and secondary providers are cross-validated and "
-                "disagreements are not silently persisted. Was EPIC-011 "
-                "AC11.10.4."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_stock_provider_disagreement_is_reported_without_persisting"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.4",
+            "Primary and secondary providers are cross-validated and disagreements are not silently persisted. Was EPIC-011 AC11.10.4.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_stock_provider_disagreement_is_reported_without_persisting",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.5",
-            statement=(
-                "Market data sync endpoints expose FX and stock sync status "
-                "for scheduler/E2E callers. Was EPIC-011 AC11.10.5."
-            ),
-            test=(
-                "apps/backend/tests/market_data/test_sync_router.py"
-                "::test_market_data_sync_endpoints_return_counts"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.5",
+            "Market data sync endpoints expose FX and stock sync status for scheduler/E2E callers. Was EPIC-011 AC11.10.5.",
+            "apps/backend/tests/market_data/test_sync_router.py::test_market_data_sync_endpoints_return_counts",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.6",
-            statement=(
-                "Portfolio valuation prefers synced stock prices over stale "
-                "brokerage snapshots. Was EPIC-011 AC11.10.6."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_portfolio_uses_synced_stock_price_before_atomic_snapshot"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.6",
+            "Portfolio valuation prefers synced stock prices over stale brokerage snapshots. Was EPIC-011 AC11.10.6.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_portfolio_uses_synced_stock_price_before_atomic_snapshot",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.7",
-            statement=(
-                "E2E gates cover provider-backed FX sync and stock-price "
-                "portfolio valuation paths. Was EPIC-011 AC11.10.7."
-            ),
-            test=(
-                "tests/e2e/test_market_data_price_paths.py"
-                "::test_market_data_provider_sync_feeds_fx_and_stock_price_paths"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.7",
+            "E2E gates cover provider-backed FX sync and stock-price portfolio valuation paths. Was EPIC-011 AC11.10.7.",
+            "tests/e2e/test_market_data_price_paths.py::test_market_data_provider_sync_feeds_fx_and_stock_price_paths",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.8",
-            statement=(
-                "Long historical market data sync uses bounded range "
-                "provider requests instead of per-day provider calls. Was "
-                "EPIC-011 AC11.10.8."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_sync_stock_prices_fetches_decade_range_once"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.8",
+            "Long historical market data sync uses bounded range provider requests instead of per-day provider calls. Was EPIC-011 AC11.10.8.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_sync_stock_prices_fetches_decade_range_once",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.9",
-            statement=(
-                "Report reads check market data freshness and trigger at "
-                "most one immediate refresh when the last successful sync "
-                "is older than 24 hours. Was EPIC-011 AC11.10.9."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_sync.py"
-                "::test_market_data_freshness_sync_runs_once_after_24h"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.9",
+            "Report reads check market data freshness and trigger at most one immediate refresh when the last successful sync is older than 24 hours. Was EPIC-011 AC11.10.9.",
+            "apps/backend/tests/pricing/market_data/test_sync.py::test_market_data_freshness_sync_runs_once_after_24h",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.10",
-            statement=(
-                "Backend scheduler runs daily market data sync at the "
-                "nightly Asia/Singapore close-refresh window. Was EPIC-011 "
-                "AC11.10.10."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_scheduler.py"
-                "::test_next_market_data_sync_at_uses_nightly_sgt_schedule"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.10",
+            "Backend scheduler runs daily market data sync at the nightly Asia/Singapore close-refresh window. Was EPIC-011 AC11.10.10.",
+            "apps/backend/tests/pricing/test_scheduler.py::test_next_market_data_sync_at_uses_nightly_sgt_schedule",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.11",
-            statement=(
-                "Staging E2E covers report-time market data refresh from an "
-                "authenticated ordinary-user path without manual sync. Was "
-                "EPIC-011 AC11.10.11."
-            ),
-            test=(
-                "tests/e2e/test_market_data_price_paths.py"
-                "::test_market_data_provider_sync_feeds_fx_and_stock_price_paths"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.11",
+            "Staging E2E covers report-time market data refresh from an authenticated ordinary-user path without manual sync. Was EPIC-011 AC11.10.11.",
+            "tests/e2e/test_market_data_price_paths.py::test_market_data_provider_sync_feeds_fx_and_stock_price_paths",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.12",
-            statement=(
-                "The daily crawl orchestrator syncs exactly the scopes an "
-                "injected composition-root provider returns and commits once "
-                "per run; pricing's scheduler module imports no other domain "
-                "package and nothing from the app remainder (dependency "
-                "inversion, #1641/#1610 P2)."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_scheduler.py"
-                "::test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.marketdata.12",
+            "The daily crawl orchestrator syncs exactly the scopes an injected composition-root provider returns and commits once per run; pricing's scheduler module imports no other domain package and nothing from the app remainder (dependency inversion, #1641/#1610 P2).",
+            "apps/backend/tests/pricing/test_scheduler.py::test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider",
         ),
-        ACRecord(
-            id="AC-pricing.marketdata.13",
-            statement=(
-                "The real FX/market-data path proves an exact converted VALUE "
-                "in the blocking lane (#1826 G-fx-real-path): with lazy fetch "
-                "explicitly enabled and genuinely recorded provider payloads "
-                "replayed at the provider-response seam (no live network), a "
-                "stale USD position is repriced through report-time freshness "
-                "sync -> provider parse -> persistence -> FX conversion, and "
-                "the SGD balance sheet carries the exact hand-derived "
-                "converted amount (2 x 165.279999 USD x 1.345000 -> 444.60)."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_recorded_provider_price_path.py"
-                "::test_recorded_provider_fx_and_stock_path_converts_exactly"
-            ),
-            priority="P0",
-            status="done",
-            # #1826 G-fx-real-path / G-value-oracle: deterministic recorded
-            # replay with an exact-Decimal converted-value oracle.
+        ac(
+            "AC-pricing.marketdata.13",
+            "The real FX/market-data path proves an exact converted VALUE in the blocking lane (#1826 G-fx-real-path): with lazy fetch explicitly enabled and genuinely recorded provider payloads replayed at the provider-response seam (no live network), a stale USD position is repriced through report-time freshness sync -> provider parse -> persistence -> FX conversion, and the SGD balance sheet carries the exact hand-derived converted amount (2 x 165.279999 USD x 1.345000 -> 444.60).",
+            "apps/backend/tests/pricing/market_data/test_recorded_provider_price_path.py::test_recorded_provider_fx_and_stock_path_converts_exactly",
             proof_kind="exact",
         ),
         # ── group manualvaluation: append-only manual valuation facts,
         # Axiom A (was EPIC-011 AC11.19, migration closeout continuation,
         # #1663 / #1710) ──
-        ACRecord(
-            id="AC-pricing.manualvaluation.1",
-            statement=(
-                "Correcting a manual valuation appends a new version and "
-                "preserves the prior fact unedited as a retrievable "
-                "superseded version. Was EPIC-011 AC11.19.1."
-            ),
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.1",
+            "Correcting a manual valuation appends a new version and preserves the prior fact unedited as a retrievable superseded version. Was EPIC-011 AC11.19.1.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC11_19_1_manual_valuation_correction_appends_version_and_preserves_history",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.2",
-            statement=(
-                "Heads-only reads use the current version so a corrected "
-                "valuation is never double-counted in net worth or "
-                "listings. Was EPIC-011 AC11.19.2."
-            ),
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.2",
+            "Heads-only reads use the current version so a corrected valuation is never double-counted in net worth or listings. Was EPIC-011 AC11.19.2.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.3",
-            statement=(
-                "Manual-valuation balance-sheet lines (asset/liability split, "
-                "allocation classes, trusted provenance, FX conversion into "
-                "the target currency) are built by pricing; an FX miss "
-                "surfaces as the pricing error family and the reporting "
-                "caller owns the ReportError mapping. Absorbed from "
-                "services/reporting/manual_valuation.py (#1610 P2)."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_valuation_lines.py"
-                "::test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.3",
+            "Manual-valuation balance-sheet lines (asset/liability split, allocation classes, trusted provenance, FX conversion into the target currency) are built by pricing; an FX miss surfaces as the pricing error family and the reporting caller owns the ReportError mapping. Absorbed from services/reporting/manual_valuation.py (#1610 P2).",
+            "apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.4",
-            statement=(
-                "A (component_type, source) combination whose only snapshot "
-                "postdates the requested as_of_date is absent from the "
-                "valuation components and lines, and is disclosed through the "
-                "result/accumulator warnings instead of vanishing silently "
-                "(#1796) — 'not owned yet' vs 'not recorded yet' is "
-                "inherently ambiguous for a manual component, so the gap is "
-                "warned about, never guessed at."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_valuation_lines.py"
-                "::test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.4",
+            "A (component_type, source) combination whose only snapshot postdates the requested as_of_date is absent from the valuation components and lines, and is disclosed through the result/accumulator warnings instead of vanishing silently (#1796) — 'not owned yet' vs 'not recorded yet' is inherently ambiguous for a manual component, so the gap is warned about, never guessed at.",
+            "apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned",
             priority="P1",
-            status="done",
         ),
         # ── group fx: the FX lookup + conversion surface absorbed from
         # services/fx.py (#1610 P2 — ONE implementation, pricing's; the
         # in-process TTL cache was deliberately NOT carried over, see
         # extension/fx.py) ──
-        ACRecord(
-            id="AC-pricing.fx.1",
-            statement=(
-                "get_average_rate falls back to the period-end spot rate "
-                "when the window has no observations and surfaces the "
-                "fallback through the fx_warnings side-channel "
-                "(deduplicated), matching the retired services/fx.py "
-                "behavior reporting depends on."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_fx.py"
-                "::test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning"
-            ),
+        ac(
+            "AC-pricing.fx.1",
+            "get_average_rate falls back to the period-end spot rate when the window has no observations and surfaces the fallback through the fx_warnings side-channel (deduplicated), matching the retired services/fx.py behavior reporting depends on.",
+            "apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.fx.2",
-            statement=(
-                "PrefetchedFxRates batch-prefetches spot and average-window "
-                "rates under distinct keys, serves the identity rate without "
-                "a fetch, and propagates the pricing error family on a miss "
-                "(never a silent partial cache)."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_fx.py"
-                "::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys"
-            ),
+        ac(
+            "AC-pricing.fx.2",
+            "PrefetchedFxRates batch-prefetches spot and average-window rates under distinct keys, serves the identity rate without a fetch, and propagates the pricing error family on a miss (never a silent partial cache).",
+            "apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.fx.3",
-            statement=(
-                "convert_amount/convert_money honor an average-rate window "
-                "(average_start/average_end) with the same period-end "
-                "fallback + fx_warnings semantics as the spot path — the "
-                "income-statement reporting convention."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_convert.py"
-                "::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window"
-            ),
+        ac(
+            "AC-pricing.fx.3",
+            "convert_amount/convert_money honor an average-rate window (average_start/average_end) with the same period-end fallback + fx_warnings semantics as the spot path — the income-statement reporting convention.",
+            "apps/backend/tests/pricing/test_convert.py::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window",
             priority="P1",
-            status="done",
         ),
         # ── group providers: manual price update + provider symbol/ticker
         # handling (was EPIC-017 AC17.1.6/AC17.15/AC17.33, migration
         # closeout continuation, #1663 / #1710) ──
-        ACRecord(
-            id="AC-pricing.providers.1",
-            statement=(
-                "A manual price update creates a MarketDataOverride record "
-                "for the given asset/date, independent of provider sync. "
-                "Was EPIC-017 AC17.1.6."
-            ),
-            test=(
-                "apps/backend/tests/portfolio/test_portfolio_service.py"
-                "::test_update_prices_happy"
-            ),
+        ac(
+            "AC-pricing.providers.1",
+            "A manual price update creates a MarketDataOverride record for the given asset/date, independent of provider sync. Was EPIC-017 AC17.1.6.",
+            "apps/backend/tests/portfolio/test_portfolio_service.py::test_update_prices_happy",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.providers.2",
-            statement=(
-                "_looks_like_ticker accepts real tickers/FX pairs and "
-                "rejects fund-name free text. Was EPIC-017 AC17.15.1."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
-                "::test_looks_like_ticker_accepts_real_tickers_rejects_free_text"
-            ),
+        ac(
+            "AC-pricing.providers.2",
+            "_looks_like_ticker accepts real tickers/FX pairs and rejects fund-name free text. Was EPIC-017 AC17.15.1.",
+            "apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_looks_like_ticker_accepts_real_tickers_rejects_free_text",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.providers.3",
-            statement=(
-                "A non-ticker identifier short-circuits the Yahoo stock "
-                "fetch with no HTTP call. Was EPIC-017 AC17.15.2."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
-                "::test_yahoo_stock_fetch_short_circuits_for_non_ticker"
-            ),
+        ac(
+            "AC-pricing.providers.3",
+            "A non-ticker identifier short-circuits the Yahoo stock fetch with no HTTP call. Was EPIC-017 AC17.15.2.",
+            "apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_yahoo_stock_fetch_short_circuits_for_non_ticker",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.providers.4",
-            statement=(
-                "HK numeric exchange codes map to the Yahoo <4-digit>.HK "
-                "symbol while US tickers and already-suffixed symbols pass "
-                "through unchanged. Was EPIC-017 AC17.33.1."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
-                "::test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes"
-            ),
+        ac(
+            "AC-pricing.providers.4",
+            "HK numeric exchange codes map to the Yahoo <4-digit>.HK symbol while US tickers and already-suffixed symbols pass through unchanged. Was EPIC-017 AC17.33.1.",
+            "apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_AC17_33_1_yahoo_stock_symbol_maps_hk_numeric_codes",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.providers.5",
-            statement=(
-                "HK numeric codes resolve to the Stooq <4-digit>.hk symbol "
-                "while US tickers stay .us. Was EPIC-017 AC17.33.2."
-            ),
-            test=(
-                "apps/backend/tests/pricing/market_data/test_provider_parsers.py"
-                "::test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes"
-            ),
+        ac(
+            "AC-pricing.providers.5",
+            "HK numeric codes resolve to the Stooq <4-digit>.hk symbol while US tickers stay .us. Was EPIC-017 AC17.33.2.",
+            "apps/backend/tests/pricing/market_data/test_provider_parsers.py::test_AC17_33_2_stooq_stock_symbol_maps_hk_numeric_codes",
             priority="P1",
-            status="done",
         ),
         # ── group provenance: normalized data-provenance vocabulary, pricing
         # share of a dual-package row (was EPIC-022 AC22.13.1, migration
         # closeout continuation, #1663 / #1710) ──
-        ACRecord(
-            id="AC-pricing.provenance.1",
-            statement=(
-                "Manual valuation component items expose a provenance field "
-                "constrained to the shared Imported/Manual/Derived "
-                "vocabulary. Was EPIC-022 AC22.13.1; ManualValuationSnapshot "
-                "is pricing-owned, while portfolio and reporting consume its "
-                "published facts without owning the persistence model."
-            ),
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type"
-            ),
+        ac(
+            "AC-pricing.provenance.1",
+            "Manual valuation component items expose a provenance field constrained to the shared Imported/Manual/Derived vocabulary. Was EPIC-022 AC22.13.1; ManualValuationSnapshot is pricing-owned, while portfolio and reporting consume its published facts without owning the persistence model.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type",
             priority="P1",
-            status="done",
         ),
         # ── group ingest: the extraction PriceObserved ingest subscriber
         # (#1642 — the codebase's first cross-domain event consumer; boundary
         # ruling 4: id-referenced copy, no shared transaction, no FK) ──
-        ACRecord(
-            id="AC-pricing.ingest.1",
-            statement=(
-                "An extraction-published PriceObserved (source=statement) "
-                "dispatched by the outbox relay results in exactly one "
-                "pricing observation with correct fields and the extraction "
-                "fact id carried as provenance."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_ingest.py"
-                "::test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_observation"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.ingest.1",
+            "An extraction-published PriceObserved (source=statement) dispatched by the outbox relay results in exactly one pricing observation with correct fields and the extraction fact id carried as provenance.",
+            "apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_1_extraction_event_lands_as_one_provenanced_observation",
         ),
-        ACRecord(
-            id="AC-pricing.ingest.2",
-            statement=(
-                "Ingest is idempotent under at-least-once delivery: "
-                "redelivering the same event (relay-level or direct) does "
-                "not duplicate the observation — dedup keyed by the event's "
-                "natural key (the upstream fact id), backed by a UNIQUE "
-                "constraint."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_ingest.py"
-                "::test_AC_pricing_ingest_2_redelivery_through_the_relay_does_not_duplicate"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.ingest.2",
+            "Ingest is idempotent under at-least-once delivery: redelivering the same event (relay-level or direct) does not duplicate the observation — dedup keyed by the event's natural key (the upstream fact id), backed by a UNIQUE constraint.",
+            "apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_2_redelivery_through_the_relay_does_not_duplicate",
         ),
-        ACRecord(
-            id="AC-pricing.ingest.3",
-            statement=(
-                "An ingested statement observation is a first-class, "
-                "user-scoped resolve() candidate (source=statement, "
-                "authority=STATEMENT)."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_ingest.py"
-                "::test_AC_pricing_ingest_3_ingested_observation_is_resolvable"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.ingest.3",
+            "An ingested statement observation is a first-class, user-scoped resolve() candidate (source=statement, authority=STATEMENT).",
+            "apps/backend/tests/pricing/test_ingest.py::test_AC_pricing_ingest_3_ingested_observation_is_resolvable",
         ),
         # ── group manualvaluation (continued): valuation snapshot CRUD,
         # net-worth aggregation, liquidity separation, structured basis, and
         # traceability (was EPIC-011 AC11.9.1/.9.2/.9.3/.9.5/.9.10, #1821
         # Wave A pending-package move) ──
-        ACRecord(
-            id="AC-pricing.manualvaluation.5",
-            statement=(
-                "POST/GET/PATCH /api/assets/valuation-snapshots "
-                "records property value, mortgage/loan balance, CPF/"
-                "long-term savings, tax payable/refund, insurance cash "
-                "value, ESOP/RSU/options, source, notes, reminder cadence, "
-                "and audit timestamps; PATCH appends a correction and DELETE "
-                "is rejected for a decision-backed snapshot."
-            ),
-            # was AC11.9.1
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_create_manual_valuation_snapshot_crud_api"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.5",
+            "POST/GET/PATCH /api/assets/valuation-snapshots records property value, mortgage/loan balance, CPF/long-term savings, tax payable/refund, insurance cash value, ESOP/RSU/options, source, notes, reminder cadence, and audit timestamps; PATCH appends a correction and DELETE is rejected for a decision-backed snapshot.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_create_manual_valuation_snapshot_crud_api",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.6",
-            statement=(
-                "Latest manual valuation snapshots aggregate into asset/"
-                "liability net-worth deltas with Decimal arithmetic."
-            ),
-            # was AC11.9.2
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_manual_valuation_snapshot_latest_net_worth_components"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.6",
+            "Latest manual valuation snapshots aggregate into asset/liability net-worth deltas with Decimal arithmetic.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_manual_valuation_snapshot_latest_net_worth_components",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.7",
-            statement=(
-                "Restricted and illiquid manual-valuation components are "
-                "tagged separately and can be excluded from liquid "
-                "net-worth views."
-            ),
-            # was AC11.9.3
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_snapshots.py"
-                "::test_manual_valuation_snapshot_restricted_toggle"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.7",
+            "Restricted and illiquid manual-valuation components are tagged separately and can be excluded from liquid net-worth views.",
+            "apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_manual_valuation_snapshot_restricted_toggle",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.8",
-            statement=(
-                "A manual valuation correction with a structured valuation_basis appends a "
-                "new immutable head and supersedes the unsubstantiated version; reporting "
-                "carries the basis as provenance but never infers authority from it (#706)."
-            ),
-            # was AC11.9.5
-            test=(
-                "apps/backend/tests/assets/test_manual_valuation_basis.py"
-                "::test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.8",
+            "A manual valuation correction with a structured valuation_basis appends a new immutable head and supersedes the unsubstantiated version; reporting carries the basis as provenance but never infers authority from it (#706).",
+            "apps/backend/tests/assets/test_manual_valuation_basis.py::test_AC11_9_5_structured_basis_supersedes_the_unsubstantiated_head",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.9",
-            statement=(
-                "The package traceability appendix surfaces each manual "
-                "valuation snapshot's structured valuation_basis (the enum "
-                "value, or unspecified when no basis was captured) in its "
-                "source-anchor detail."
-            ),
-            # was AC11.9.10
-            test=(
-                "apps/backend/tests/api/test_personal_report_package_contract.py"
-                "::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis"
-            ),
+        ac(
+            "AC-pricing.manualvaluation.9",
+            "The package traceability appendix surfaces each manual valuation snapshot's structured valuation_basis (the enum value, or unspecified when no basis was captured) in its source-anchor detail.",
+            "apps/backend/tests/api/test_personal_report_package_contract.py::test_AC11_9_10_package_traceability_surfaces_manual_valuation_basis",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.manualvaluation.10",
-            statement=(
-                "ManualValuationSnapshot and its valuation vocabulary are pricing-owned: "
-                "the unchanged manual_valuation_snapshots table and append-only version chain "
-                "are mapped only by pricing, while production consumers use pricing's public "
-                "domain services rather than extraction ORM paths."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_manual_valuation_ownership.py"
-                "::test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.manualvaluation.10",
+            "ManualValuationSnapshot and its valuation vocabulary are pricing-owned: the unchanged manual_valuation_snapshots table and append-only version chain are mapped only by pricing, while production consumers use pricing's public domain services rather than extraction ORM paths.",
+            "apps/backend/tests/pricing/test_manual_valuation_ownership.py::test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
-        ACRecord(
-            id="AC-pricing.fe-currencies.1",
-            statement="`useCurrencies` returns default currencies while loading",
-            # was AC16.9.1
-            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.1 returns default currencies while loading",
+        ac(
+            "AC-pricing.fe-currencies.1",
+            "`useCurrencies` returns default currencies while loading",
+            "apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.1 returns default currencies while loading",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.fe-currencies.2",
-            statement="`useCurrencies` updates currencies from API response",
-            # was AC16.9.2
-            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.2 updates currencies from API response",
+        ac(
+            "AC-pricing.fe-currencies.2",
+            "`useCurrencies` updates currencies from API response",
+            "apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.2 updates currencies from API response",
             priority="P2",
-            status="done",
         ),
-        ACRecord(
-            id="AC-pricing.fe-currencies.3",
-            statement="`useCurrencies` falls back to defaults on API error",
-            # was AC16.9.3
-            test="apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.3 falls back to defaults when API returns empty array",
+        ac(
+            "AC-pricing.fe-currencies.3",
+            "`useCurrencies` falls back to defaults on API error",
+            "apps/frontend/src/__tests__/useCurrencies.test.tsx::AC16.9.3 falls back to defaults when API returns empty array",
             priority="P2",
-            status="done",
         ),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ACRecord(
-            id="AC-pricing.fe-settings.1",
-            statement='The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`)',
-            # was AC12.39.3
-            test="apps/frontend/src/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited",
+        ac(
+            "AC-pricing.fe-settings.1",
+            'The frontend General Settings page exposes a "Base currency" control that reads + updates the effective value via `lib/api.ts` (`fetchBaseCurrency`/`updateBaseCurrency`, never raw `fetch`)',
+            "apps/frontend/src/__tests__/generalSettingsPage.test.tsx::AC12.39.3 renders the effective base currency and keeps Save disabled until edited",
             priority="P1",
-            status="done",
         ),
         # ── group valuation-contribution: decision-backed values consumed by
         # the reporting package (#1915, child of #950) ──
-        ACRecord(
-            id="AC-pricing.valuation-contribution.1",
-            statement=(
-                "Recording or correcting a manual valuation appends its immutable "
-                "observation and a current, target-matching TraceRecord decision in "
-                "the same caller-owned transaction; the correction supersedes the "
-                "prior valuation decision."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.1",
+            "Recording or correcting a manual valuation appends its immutable observation and a current, target-matching TraceRecord decision in the same caller-owned transaction; the correction supersedes the prior valuation decision.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_1_manual_write_emits_and_supersedes_decision",
         ),
-        ACRecord(
-            id="AC-pricing.valuation-contribution.2",
-            statement=(
-                "resolve_valuation_contribution returns the exact selected "
-                "observation identity/version, resolution policy, and current "
-                "TraceRecord decision required by a package manifest."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.2",
+            "resolve_valuation_contribution returns the exact selected observation identity/version, resolution policy, and current TraceRecord decision required by a package manifest.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_2_resolve_pins_exact_observation_and_decision",
         ),
-        ACRecord(
-            id="AC-pricing.valuation-contribution.3",
-            statement=(
-                "An absent, stale, rejected, superseded, cross-tenant, or "
-                "target-mismatched valuation decision returns an explicit unproven "
-                "contribution; a stale physical authority head is not mistaken for a "
-                "never-authorized lineage or appended as a fork, and source, basis, "
-                "rank, or freshness never grants trust."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.3",
+            "An absent, stale, rejected, superseded, cross-tenant, or target-mismatched valuation decision returns an explicit unproven contribution; a stale physical authority head is not mistaken for a never-authorized lineage or appended as a fork, and source, basis, rank, or freshness never grants trust.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_3_missing_or_stale_decision_is_unproven",
         ),
-        ACRecord(
-            id="AC-pricing.valuation-contribution.4",
-            statement=(
-                "Rolling back a manual valuation write leaves neither the valuation "
-                "row nor its TraceRecord observation/decision durable."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_4_rollback_is_atomic"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.4",
+            "Rolling back a manual valuation write leaves neither the valuation row nor its TraceRecord observation/decision durable.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_4_rollback_is_atomic",
         ),
-        ACRecord(
-            id="AC-pricing.valuation-contribution.5",
-            statement=(
-                "Pricing resolves every current manual valuation lineage into the same "
-                "ResolvedValuationContribution shape, preserving multiple sources for one "
-                "component type independently and carrying component, liquidity, and valuation-basis "
-                "metadata for display; package-facing line builders expose no source-derived confidence "
-                "or trusted field."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.5",
+            "Pricing resolves every current manual valuation lineage into the same ResolvedValuationContribution shape, preserving multiple sources for one component type independently and carrying component, liquidity, and valuation-basis metadata for display; package-facing line builders expose no source-derived confidence or trusted field.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_5_resolves_each_manual_lineage_without_shadow_trust",
         ),
-        ACRecord(
-            id="AC-pricing.valuation-contribution.6",
-            statement=(
-                "A report schedule can name one selected market observation only through "
-                "pricing's typed selection boundary; pricing returns an authoritative "
-                "contribution only when its current resolved observation is that exact "
-                "identity, otherwise the package input is explicitly unproven."
-            ),
-            test=(
-                "apps/backend/tests/pricing/test_resolved_valuation_contribution.py"
-                "::test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-pricing.valuation-contribution.6",
+            "A report schedule can name one selected market observation only through pricing's typed selection boundary; pricing returns an authoritative contribution only when its current resolved observation is that exact identity, otherwise the package input is explicitly unproven.",
+            "apps/backend/tests/pricing/test_resolved_valuation_contribution.py::test_AC_pricing_valuation_contribution_6_selected_market_input_requires_exact_schedule_observation",
         ),
     ],
     concepts=[

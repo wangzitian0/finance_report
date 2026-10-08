@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ACRecord,
+    ac,
     ConceptRecord,
     ContextRelation,
     ContextScope,
@@ -138,32 +138,16 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
-        ACRecord(
-            id="AC-workflow.vocabulary-ownership.1",
-            statement=(
-                "Workflow event, lifecycle, status, and response payloads are "
-                "workflow-owned base value objects; src.schemas.workflow is a "
-                "compatibility re-export surface."
-            ),
-            test=(
-                "tests/tooling/test_vocabulary_ownership.py"
-                "::test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads"
-            ),
+        ac(
+            "AC-workflow.vocabulary-ownership.1",
+            "Workflow event, lifecycle, status, and response payloads are workflow-owned base value objects; src.schemas.workflow is a compatibility re-export surface.",
+            "tests/tooling/test_vocabulary_ownership.py::test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-workflow.package.1",
-            statement=(
-                "Workflow is a governed package and composes published extraction "
-                "and reporting reads through imports rather than service locators."
-            ),
-            test=(
-                "tests/tooling/test_s3_pr_d_structure.py"
-                "::test_AC_workflow_package_1_owns_contract_and_direct_domain_reads"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-workflow.package.1",
+            "Workflow is a governed package and composes published extraction and reporting reads through imports rather than service locators.",
+            "tests/tooling/test_s3_pr_d_structure.py::test_AC_workflow_package_1_owns_contract_and_direct_domain_reads",
         ),
     ],
     concepts=[

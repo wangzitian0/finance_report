@@ -15,6 +15,7 @@ from common.meta.base.package_contract import (  # noqa: F401
     ACProofKind,
     ACRecord,
     ACStatus,
+    ac,
     ConceptRecord,
     CommandBoundary,
     ContextRelation,
@@ -39,6 +40,7 @@ from common.meta.base.package_contract import (  # noqa: F401
 __all__ = [
     "ACProofKind",
     "ACRecord",
+    "ac",
     "ACStatus",
     "ConceptRecord",
     "CommandBoundary",
