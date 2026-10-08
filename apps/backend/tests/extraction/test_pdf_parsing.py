@@ -134,12 +134,14 @@ class TestInvalidParseNotPersisted:
 class TestFileSizeLimit:
     """Test file size limit enforcement."""
 
-    async def test_upload_file_exceeds_10mb_limit(self, client):
+    async def test_upload_file_exceeds_10mb_limit(self, client, monkeypatch):
         """
         [AC-extraction.5.2] HIGH #10: File exceeding 10MB should be rejected with 413.
         """
-        # Create content larger than 10MB
-        large_content = b"x" * (11 * 1024 * 1024)  # 11MB
+        import src.routers.statements
+
+        monkeypatch.setattr(src.routers.statements, "MAX_UPLOAD_BYTES", 1024)
+        large_content = b"x" * 1025
 
         response = await client.post(
             "/statements/upload",
@@ -154,8 +156,15 @@ class TestFileSizeLimit:
         """
         HIGH #10: File at exactly 10MB should be accepted.
         """
-        # Create content exactly 10MB
-        exact_content = b"x" * (10 * 1024 * 1024)
+        import src.routers.statements
+
+        monkeypatch.setattr(src.routers.statements, "MAX_UPLOAD_BYTES", 1024)
+        exact_content = b"x" * 1024
+
+        from unittest.mock import MagicMock
+
+        mock_storage = MagicMock()
+        monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
 
         # Mock the extraction to avoid actual API calls
         async def fake_parse(*args, **kwargs):
