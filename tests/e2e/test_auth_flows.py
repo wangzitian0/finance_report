@@ -183,8 +183,8 @@ async def test_full_registration_flow(page: Page):
             assert "Not Found" not in error_text, (
                 "Got 'Not Found' error - likely double /api prefix issue"
             )
-            # Other errors (like "Email exists") are acceptable test outcomes
-            pytest.skip(f"Registration failed with: {error_text}")
+            # Other errors (like "Email exists" or server 500) indicate registration failure
+            pytest.fail(f"Registration failed with: {error_text}")
         else:
             raise
 

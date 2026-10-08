@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import is_strict_or_ci
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATED_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf" / "generated"
@@ -58,8 +59,16 @@ def generated_pdf_path(source: str) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        pytest.skip(f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
-    pdfs = sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+        if is_strict_or_ci():
+            pytest.fail(
+                f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+        pytest.skip(
+            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+    pdfs = (
+        sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
+    )
     if not pdfs:
         pytest.fail(
             f"PDF generation for {source} exited 0 but produced no files in "
