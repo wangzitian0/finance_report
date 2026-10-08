@@ -535,7 +535,7 @@ def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
 
     assert len(DOMAIN_TO_CASES) == 7
     assert len(FLOW_TO_CASES) == 30
-    assert "1" in DOMAIN_TO_CASES[1]
-    assert "4" in DOMAIN_TO_CASES[4]
-    assert "2" in FLOW_TO_CASES[14]
-    assert "1" in FLOW_TO_CASES[23]
+    assert {"1"}.issubset(DOMAIN_TO_CASES[1])
+    assert {"4"}.issubset(DOMAIN_TO_CASES[4])
+    assert {"2"}.issubset(FLOW_TO_CASES[14])
+    assert {"1"}.issubset(FLOW_TO_CASES[23])
