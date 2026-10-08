@@ -270,6 +270,23 @@ export default function BalanceSheetPage() {
         warnings={report?.opening_balance_warnings}
       />
 
+      {report && report.is_balanced === false && (
+        <div
+          role="alert"
+          className="p-4 mb-6 bg-[var(--error)]/10 border border-[var(--error)] rounded-lg flex items-center justify-between text-[var(--error)]"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">
+              Accounting Equation Imbalance Detected
+            </span>
+            <span className="text-xs">
+              Assets do not match Liabilities + Equity (Delta:{" "}
+              {formatCurrencyLocale(report.equation_delta, report.currency)}).
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2 mb-6">
         <span className="text-xs text-muted uppercase">Quick filters</span>
         <div className="flex flex-wrap gap-2">
