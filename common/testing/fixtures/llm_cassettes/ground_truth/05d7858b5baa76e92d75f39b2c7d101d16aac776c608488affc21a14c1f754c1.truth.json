@@ -9,6 +9,7 @@
   "expected": {
     "opening_balance": "1238.57",
     "closing_balance": "1238.57",
-    "transactions": []
+    "transactions": [
+    ]
   }
 }
