@@ -62,6 +62,7 @@ from common.meta.base.governance_control import (
 
 __all__ = [
     "ACRecord",
+    "ac",
     "ConceptRecord",
     "ContextRelation",
     "ContextScope",
@@ -237,8 +238,8 @@ class ACRecord(BaseModel):
     id: str
     statement: str
     test: str
-    priority: Priority
-    status: ACStatus
+    priority: Priority = "P0"
+    status: ACStatus = "done"
     #: Proof kind the AC's test provides. The AC inherits its authority tier from
     #: the owning :class:`PackageContract` (tier is a module-design property, not a
     #: per-AC one), so ``proof_kind`` is the only tier-related attribute an AC
@@ -264,6 +265,27 @@ class ACRecord(BaseModel):
                 "vision_anchor must be a non-empty lowercase vision.md anchor id"
             )
         return normalized
+
+
+def ac(
+    id: str,
+    statement: str,
+    test: str,
+    priority: Priority = "P0",
+    status: ACStatus = "done",
+    proof_kind: ACProofKind | None = None,
+    vision_anchor: str | None = None,
+) -> ACRecord:
+    """Compact positional builder for ACRecord."""
+    return ACRecord(
+        id=id,
+        statement=statement,
+        test=test,
+        priority=priority,
+        status=status,
+        proof_kind=proof_kind,
+        vision_anchor=vision_anchor,
+    )
 
 
 class ConceptRecord(BaseModel):

@@ -16,7 +16,7 @@ the contract is the single source.
 from __future__ import annotations
 
 from common.meta.package_contract import (
-    ACRecord,
+    ac,
     ContextRelation,
     ContextScope,
     Invariant,
@@ -152,61 +152,32 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
-        ACRecord(
-            id="AC-counter.1.1",
-            statement=(
-                "CounterKey validates the namespaced lowercase dotted "
-                "'domain.action' shape and rejects invalid keys with "
-                "InvalidCounterKeyError."
-            ),
-            test="apps/backend/tests/counter/test_key.py::test_counter_key_rejects_invalid",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-counter.1.1",
+            "CounterKey validates the namespaced lowercase dotted 'domain.action' shape and rejects invalid keys with InvalidCounterKeyError.",
+            "apps/backend/tests/counter/test_key.py::test_counter_key_rejects_invalid",
         ),
-        ACRecord(
-            id="AC-counter.1.2",
-            statement=(
-                "Count is a non-negative tally; constructing a negative count "
-                "raises NegativeCountError."
-            ),
-            test="apps/backend/tests/counter/test_count.py::test_count_rejects_negative",
-            priority="P0",
-            status="done",
+        ac(
+            "AC-counter.1.2",
+            "Count is a non-negative tally; constructing a negative count raises NegativeCountError.",
+            "apps/backend/tests/counter/test_count.py::test_count_rejects_negative",
         ),
-        ACRecord(
-            id="AC-counter.1.3",
-            statement=(
-                "increment bumps the per-(user, key) tally by one, returns the new "
-                "per-user Count, and publishes an Incremented domain event through "
-                "the platform EventBus."
-            ),
-            test="apps/backend/tests/counter/test_increment.py::test_increment_is_per_user",
+        ac(
+            "AC-counter.1.3",
+            "increment bumps the per-(user, key) tally by one, returns the new per-user Count, and publishes an Incremented domain event through the platform EventBus.",
+            "apps/backend/tests/counter/test_increment.py::test_increment_is_per_user",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-counter.1.4",
-            statement=(
-                "get_count returns the per-user count for a concrete user_id and "
-                "the global count (sum across users) when user_id is None."
-            ),
-            test="apps/backend/tests/counter/test_query.py::test_global_vs_per_user_count",
+        ac(
+            "AC-counter.1.4",
+            "get_count returns the per-user count for a concrete user_id and the global count (sum across users) when user_id is None.",
+            "apps/backend/tests/counter/test_query.py::test_global_vs_per_user_count",
             priority="P1",
-            status="done",
         ),
-        ACRecord(
-            id="AC-counter.repository.5",
-            statement=(
-                "The async CounterRepository port is structurally implemented by "
-                "SqlCounterRepository and production API composition executes the "
-                "same increment/get_count operations used by fakes."
-            ),
-            test=(
-                "tests/tooling/test_s3_pr_d_structure.py"
-                "::test_AC_counter_repository_5_async_adapter_and_api_composition"
-            ),
-            priority="P0",
-            status="done",
+        ac(
+            "AC-counter.repository.5",
+            "The async CounterRepository port is structurally implemented by SqlCounterRepository and production API composition executes the same increment/get_count operations used by fakes.",
+            "tests/tooling/test_s3_pr_d_structure.py::test_AC_counter_repository_5_async_adapter_and_api_composition",
         ),
     ],
 )

@@ -354,13 +354,14 @@ def _repo_root_for(source_dir: Path) -> Path:
     return source_dir.resolve()
 
 
-def _ac_record_field(call: ast.Call, field: str) -> str | None:
-    """Return the literal string value of an ``ACRecord(...)`` keyword, or None.
+def _ac_record_field(
+    call: ast.Call, field: str, default: str | None = None
+) -> str | None:
+    """Return the literal string value of an ``ACRecord(...)`` or ``ac(...)`` field, or None.
 
-    Reads a keyword argument from an ``ACRecord(...)`` AST call node, returning
-    its value only when it is a string constant or a parenthesised concatenation
-    of string constants (the implicit ``("a" "b")`` form the contracts use).
-    Non-literal values (unlikely for these fields) yield ``None``.
+    Reads a keyword argument from an AST call node, or positional argument
+    matching the field's position in ``ac(id, statement, test, priority, status, proof_kind, vision_anchor)``.
+    Returns its value only when it is a string constant.
     """
     for kw in call.keywords:
         if kw.arg != field:
@@ -368,11 +369,23 @@ def _ac_record_field(call: ast.Call, field: str) -> str | None:
         node = kw.value
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             return node.value
-        # Implicit string concatenation parses as nested BinOp/JoinedStr-free
-        # Constants under ``ast.Constant`` only when adjacent literals; CPython
-        # folds ``("a" "b")`` into a single Constant, so the branch above covers
-        # it. Anything else (a Name, an f-string) is treated as absent.
-    return None
+        return None
+    pos_map = {
+        "id": 0,
+        "statement": 1,
+        "test": 2,
+        "priority": 3,
+        "status": 4,
+        "proof_kind": 5,
+        "vision_anchor": 6,
+    }
+    pos = pos_map.get(field)
+    if pos is not None and len(call.args) > pos:
+        node = call.args[pos]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+    return default
 
 
 def package_contract_meta(contract_path: Path) -> dict | None:
@@ -381,7 +394,7 @@ def package_contract_meta(contract_path: Path) -> dict | None:
     Returns ``{name, status, tier, roadmap}`` where ``tier``/``status``/``name``
     are the string literals on the ``PackageContract(...)`` call (``None`` if not
     an AST-readable literal) and ``roadmap`` is a list of ``{id, status, test}``
-    per ``ACRecord``. Returns ``None`` if the file has no ``PackageContract(...)``.
+    per ``ACRecord`` or ``ac``. Returns ``None`` if the file has no ``PackageContract(...)``.
 
     This is the AST view the registry generator and the migration-safety gates
     consume; it deliberately does NOT import the contract, so it runs in the
@@ -398,13 +411,18 @@ def package_contract_meta(contract_path: Path) -> dict | None:
             if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
                 continue
             for elt in kw.value.elts:
-                if isinstance(elt, ast.Call) and _call_name(elt.func) == "ACRecord":
+                if isinstance(elt, ast.Call) and _call_name(elt.func) in (
+                    "ACRecord",
+                    "ac",
+                ):
                     ac_id = _ac_record_field(elt, "id")
                     if ac_id:
                         roadmap.append(
                             {
                                 "id": ac_id,
-                                "status": _ac_record_field(elt, "status"),
+                                "status": _ac_record_field(
+                                    elt, "status", default="done"
+                                ),
                                 "test": _ac_record_field(elt, "test"),
                             }
                         )
@@ -418,11 +436,11 @@ def package_contract_meta(contract_path: Path) -> dict | None:
 
 
 def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
-    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` entries.
+    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` or ``ac(...)`` entries.
 
     Parses ``common/<pkg>/contract.py`` with :mod:`ast` (no import, so no
     pydantic/governance dependency — this runs in every tooling environment) and
-    returns one dict per ``ACRecord`` in the ``roadmap=[...]`` list, with its
+    returns one dict per ``ACRecord`` / ``ac`` in the ``roadmap=[...]`` list, with its
     ``id``/``statement``/``proof_kind`` literals plus the PACKAGE's ``tier``
     (authority tier is a module-design property declared once on the
     ``PackageContract``; every AC the package owns inherits it).
@@ -442,7 +460,8 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                 continue
             for elt in kw.value.elts:
                 if not (
-                    isinstance(elt, ast.Call) and _call_name(elt.func) == "ACRecord"
+                    isinstance(elt, ast.Call)
+                    and _call_name(elt.func) in ("ACRecord", "ac")
                 ):
                     continue
                 ac_id = _ac_record_field(elt, "id")
@@ -453,8 +472,8 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                         "id": ac_id,
                         "statement": _ac_record_field(elt, "statement") or "",
                         "test": _ac_record_field(elt, "test") or "",
-                        "priority": _ac_record_field(elt, "priority"),
-                        "status": _ac_record_field(elt, "status"),
+                        "priority": _ac_record_field(elt, "priority", default="P0"),
+                        "status": _ac_record_field(elt, "status", default="done"),
                         "tier": package_tier,
                         "proof_kind": _ac_record_field(elt, "proof_kind"),
                         "vision_anchor": _ac_record_field(elt, "vision_anchor"),
