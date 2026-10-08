@@ -20,6 +20,49 @@ from tools._lib.benchmarks._html_templates import (
 )
 
 
+CASE_TO_FLOWS: dict[str, set[int]] = {
+    "case_1": {1, 2, 6, 7, 10, 23, 24, 25, 26, 27},
+    "case_2": {1, 3, 8, 9, 11, 12, 13, 14, 29},
+    "case_3": {15, 16, 18},
+    "case_4": {17, 23},
+    "case_5": {4, 5, 14, 19, 20, 21, 22, 27, 28, 30},
+    "case_6": {5, 21, 23, 24},
+}
+
+FLOW_TO_DOMAIN: dict[int, int] = {
+    1: 1,
+    2: 1,
+    3: 1,
+    4: 1,
+    5: 1,
+    6: 2,
+    7: 2,
+    8: 2,
+    9: 2,
+    10: 2,
+    11: 3,
+    12: 3,
+    13: 3,
+    14: 3,
+    15: 4,
+    16: 4,
+    17: 4,
+    18: 4,
+    19: 5,
+    20: 5,
+    21: 5,
+    22: 5,
+    23: 6,
+    24: 6,
+    25: 6,
+    26: 6,
+    27: 7,
+    28: 7,
+    29: 7,
+    30: 7,
+}
+
+
 def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
     """Extract machine-readable summary metrics from full benchmark report data."""
     summary = report_data.get("summary", {})
@@ -39,6 +82,17 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
                     max_delta = d_val
             except (InvalidOperation, TypeError, ValueError):
                 pass
+
+    passed_case_ids = {
+        r.get("case_id")
+        for r in results
+        if r.get("status") == "PASS" and r.get("case_id")
+    }
+    covered_flows: set[int] = set()
+    for cid in passed_case_ids:
+        if cid in CASE_TO_FLOWS:
+            covered_flows.update(CASE_TO_FLOWS[cid])
+    covered_domains = {FLOW_TO_DOMAIN[f] for f in covered_flows if f in FLOW_TO_DOMAIN}
 
     return {
         "version": version_ref,
@@ -69,8 +123,8 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         "overdraft_articulation_verified": any(
             r.get("case_id") == "case_6" and r.get("status") == "PASS" for r in results
         ),
-        "thirty_flows_coverage": "30/30",
-        "domains_covered": 7,
+        "thirty_flows_coverage": f"{len(covered_flows)}/30",
+        "domains_covered": len(covered_domains),
         "report_url": f"{version_ref}/report.html",
     }
 

@@ -1,6 +1,6 @@
 """AC-reporting.journeys.1-4: In-memory domain shift-left tests for Bench V2 financial articulation.
 
-Validates the mathematical core of the Bench V2 accounting scenarios against SQLite in < 1.5s:
+Validates the mathematical core of the Bench V2 accounting scenarios across 36 tests (6 holistic cases + 30 shift-left flow invariants) in ~10s:
 - Cases 1–6: End-to-end multi-period holistic accounting scenarios.
 - Domains 1–7: Canonical 30-flow shift-left invariant matrix (Flows 1–30).
 """
@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,12 @@ from src.reporting import (
     generate_income_statement,
 )
 
+STANDARD_BENCHMARK_FX_RATES: dict[str, Decimal] = {
+    "USD": Decimal("1.35"),
+    "HKD": Decimal("0.17"),
+    "EUR": Decimal("1.45"),
+}
+
 
 def _post_entry(
     user_id,
@@ -55,6 +62,7 @@ def _post_entry(
     memo: str,
     lines: list[tuple[Account, Direction, Decimal, str]],
     fx_rate: Decimal | None = None,
+    fx_rates_by_currency: dict[str, Decimal] | None = None,
 ) -> JournalEntry:
     """Helper to construct a balanced journal entry with lines."""
     entry = JournalEntry(
@@ -65,14 +73,24 @@ def _post_entry(
         status=JournalEntryStatus.POSTED,
     )
     for account, direction, amount, currency in lines:
-        resolved_fx = fx_rate if fx_rate is not None else Decimal("1.35")
+        if currency == "SGD":
+            resolved_fx = None
+        elif fx_rate is not None:
+            resolved_fx = fx_rate
+        elif fx_rates_by_currency and currency in fx_rates_by_currency:
+            resolved_fx = fx_rates_by_currency[currency]
+        elif currency in STANDARD_BENCHMARK_FX_RATES:
+            resolved_fx = STANDARD_BENCHMARK_FX_RATES[currency]
+        else:
+            resolved_fx = Decimal("1.00")
+
         line = JournalLine(
             journal_entry=entry,
             account_id=account.id,
             direction=direction,
             amount=amount,
             currency=currency,
-            fx_rate=resolved_fx if currency != "SGD" else None,
+            fx_rate=resolved_fx,
         )
         entry.lines.append(line)
     return entry
@@ -962,16 +980,68 @@ class TestBenchDomain1Ingestion:
 
     async def test_flow_2_batch_multimonth_continuity_and_gap_detection(self, db: AsyncSession, test_user_id) -> None:
         """Flow 2: Statement[M].closing_balance == Statement[M+1].opening_balance."""
-        m1_close = Decimal("15271.23")
-        m2_open = Decimal("15271.23")
-        assert m1_close == m2_open, "Consecutive rollforward must match without delta"
+        from datetime import UTC, datetime
 
-        # Discontinuity gap detection
-        m3_tampered_open = Decimal("16000.00")
-        has_gap = m1_close != m3_tampered_open
-        assert has_gap is True
-        gap_delta = m3_tampered_open - m1_close
-        assert gap_delta == Decimal("728.77")
+        from src.ledger.data.account_coverage import (
+            StatementCoverageRow,
+            _coverage_issues,
+        )
+        from src.schemas.account import AccountCoverageIssueType
+
+        acc_id = uuid4()
+        now = datetime.now(UTC)
+
+        # 1. Continuous statements without gaps or mismatch
+        s1 = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 31),
+            opening_balance=Decimal("10000.00"),
+            closing_balance=Decimal("15271.23"),
+            updated_at=now,
+        )
+        s2 = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 2, 1),
+            period_end=date(2025, 2, 28),
+            opening_balance=Decimal("15271.23"),
+            closing_balance=Decimal("18500.00"),
+            updated_at=now,
+        )
+        issues = _coverage_issues([s1, s2], "SGD")
+        assert issues == [], "Continuous statements must produce zero coverage issues"
+
+        # 2. Tampered opening balance triggers OPENING_BALANCE_MISMATCH
+        s2_tampered = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 2, 1),
+            period_end=date(2025, 2, 28),
+            opening_balance=Decimal("16000.00"),
+            closing_balance=Decimal("18500.00"),
+            updated_at=now,
+        )
+        issues_tampered = _coverage_issues([s1, s2_tampered], "SGD")
+        assert any(issue.type == AccountCoverageIssueType.OPENING_BALANCE_MISMATCH for issue in issues_tampered)
+
+        # 3. Discontinuous gap triggers GAP issue
+        s3_gap = StatementCoverageRow(
+            id=uuid4(),
+            account_id=acc_id,
+            currency="SGD",
+            period_start=date(2025, 4, 1),
+            period_end=date(2025, 4, 30),
+            opening_balance=Decimal("15271.23"),
+            closing_balance=Decimal("19000.00"),
+            updated_at=now,
+        )
+        issues_gap = _coverage_issues([s1, s3_gap], "SGD")
+        assert any(issue.type == AccountCoverageIssueType.GAP for issue in issues_gap)
 
     async def test_flow_3_custom_csv_column_mapping_and_ledger_posting(self, db: AsyncSession, test_user_id) -> None:
         """Flow 3: All mapped rows have valid txn_date, description, and Decimal amount."""
@@ -1127,17 +1197,39 @@ class TestBenchDomain2ReviewAndTriage:
 
     async def test_flow_7_stage_1_balance_mismatch_defense_and_rejection(self, db: AsyncSession, test_user_id) -> None:
         """Flow 7: Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse."""
-        opening = Decimal("5000.00")
-        closing_stated = Decimal("4600.00")
-        txns = [{"amount": Decimal("200.00"), "dir": "OUT"}]
-        calculated_closing = opening - sum(t["amount"] for t in txns)  # 4800 != 4600
+        from src.extraction.base.validation import validate_balance
+        from src.extraction.extension.statement_posting import (
+            is_high_confidence_auto_approve_candidate,
+        )
+        from src.extraction.orm.statement_summary import BankStatementStatus, StatementSummary
 
-        has_mismatch = calculated_closing != closing_stated
-        assert has_mismatch is True
+        # 1. Validate payload with arithmetic mismatch: opening 5000 - out 200 = 4800 != 4600 stated
+        payload = {
+            "opening_balance": "5000.00",
+            "closing_balance": "4600.00",
+            "transactions": [{"amount": "200.00", "direction": "OUT"}],
+        }
+        val_result = validate_balance(payload)
+        assert val_result["balance_valid"] is False
+        assert val_result["difference"] == "200.00"
+        assert val_result["expected_closing"] == "4800.00"
 
-        # System defense: do not commit mismatched lines into general ledger
-        rejected = True
-        assert rejected is True
+        # 2. Defense: statement with balance_validated=False cannot be auto-approved
+        acc = Account(user_id=test_user_id, name="Checking", type=AccountType.ASSET, currency="SGD")
+        db.add(acc)
+        await db.commit()
+
+        stmt = StatementSummary(
+            user_id=test_user_id,
+            account_id=acc.id,
+            institution="DBS Bank",
+            file_hash="mismatch_hash_flow7",
+            currency="SGD",
+            status=BankStatementStatus.APPROVED,
+            balance_validated=False,
+            confidence_score=95,
+        )
+        assert is_high_confidence_auto_approve_candidate(stmt) is False
 
     async def test_flow_8_cross_statement_overlapping_deduplication(self, db: AsyncSession, test_user_id) -> None:
         """Flow 8: Duplicate transactions flagged and linked without double-counting in ledger."""
@@ -1164,15 +1256,41 @@ class TestBenchDomain2ReviewAndTriage:
 
     async def test_flow_9_low_quality_document_triage_and_quarantine(self, db: AsyncSession, test_user_id) -> None:
         """Flow 9: Rejected statements excluded from general ledger and marked with taxonomy reason."""
+        from src.extraction.extension.statement_posting import (
+            is_high_confidence_auto_approve_candidate,
+        )
+        from src.extraction.extension.statement_workflow import reject_statement_workflow
+        from src.extraction.orm.statement_summary import BankStatementStatus, StatementSummary
+
         cash = Account(user_id=test_user_id, name="Operating Cash", type=AccountType.ASSET, currency="SGD")
         db.add(cash)
         await db.commit()
 
-        # Simulating a rejected document
-        doc_status = "REJECTED"
-        rejection_reason = "OCR_RESOLUTION_BELOW_THRESHOLD"
-        assert doc_status == "REJECTED"
-        assert rejection_reason == "OCR_RESOLUTION_BELOW_THRESHOLD"
+        # Create parsed statement
+        stmt = StatementSummary(
+            user_id=test_user_id,
+            account_id=cash.id,
+            institution="DBS Bank",
+            file_hash="quarantine_hash_flow9",
+            currency="SGD",
+            status=BankStatementStatus.PARSED,
+            balance_validated=False,
+            confidence_score=35,
+        )
+        db.add(stmt)
+        await db.commit()
+        await db.refresh(stmt)
+
+        # Execute production rejection workflow
+        rejected_stmt = await reject_statement_workflow(
+            db, stmt.id, test_user_id, reason="OCR_RESOLUTION_BELOW_THRESHOLD"
+        )
+        from src.extraction.base.source_vocabulary import Stage1Status
+
+        assert rejected_stmt.status == BankStatementStatus.REJECTED
+        assert rejected_stmt.stage1_status == Stage1Status.REJECTED
+        assert rejected_stmt.stage1_reviewed_at is not None
+        assert is_high_confidence_auto_approve_candidate(rejected_stmt) is False
 
         # Assert no journal lines or ledger impacts exist
         bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 3, 31), currency="SGD")
@@ -1182,17 +1300,19 @@ class TestBenchDomain2ReviewAndTriage:
         self, db: AsyncSession, test_user_id
     ) -> None:
         """Flow 10: Chat prompt carries immutable statement metadata and gracefully recovers."""
-        statement_metadata = {
-            "statement_id": "stmt_2025_03_carson",
-            "institution": "Carson Bank",
-            "period": "2025-03-01 to 2025-03-31",
-            "currency": "USD",
-            "opening_balance": "10000.00",
-            "closing_balance": "12500.00",
+        from src.advisor.base.prompt import DISCLAIMER_EN, get_ai_advisor_prompt
+
+        context = {
+            "advisor_context": "Statement stmt_2025_03_carson: Carson Bank (10,000.00 USD -> 12,500.00 USD)",
+            "total_assets": "12500.00 USD",
+            "total_liabilities": "0.00 USD",
+            "equity": "12500.00 USD",
         }
-        prompt_payload = f"Reviewing {statement_metadata['institution']} statement {statement_metadata['statement_id']}"
-        assert statement_metadata["statement_id"] in prompt_payload
-        assert statement_metadata["currency"] == "USD"
+        prompt = get_ai_advisor_prompt(context, language="en")
+        assert "Statement stmt_2025_03_carson: Carson Bank" in prompt
+        assert "12500.00 USD" in prompt
+        assert DISCLAIMER_EN in prompt
+        assert "You can only read the user's financial data" in prompt
 
 
 class TestBenchDomain3IntentAndSplits:
@@ -1905,34 +2025,109 @@ class TestBenchDomain7AuditAndInsights:
         assert "stmt_772" in parent_entry.memo
 
     async def test_flow_28_annual_tax_package_zip_export_manifest_integrity(
-        self, db: AsyncSession, test_user_id
+        self, db: AsyncSession, test_user_id, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Flow 28: ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail."""
-        schedule_content = (
-            b"date,account,amount,type\n2025-01-15,Checking,5000.00,INCOME\n2025-01-20,Rent,-2000.00,EXPENSE\n"
+        import json
+        import zipfile
+        from io import BytesIO
+
+        from src.routers.reports import (
+            PackageSnapshotExportFormat,
+            export_personal_report_package_snapshot,
+            generate_personal_report_package_snapshot,
         )
-        digest = hashlib.sha256(schedule_content).hexdigest()
-        manifest = {
-            "version": "1.0",
-            "framework": "US_GAAP_LIKE",
-            "files": [
-                {
-                    "path": "schedules/general_ledger.csv",
-                    "sha256": digest,
-                    "bytes": len(schedule_content),
-                }
-            ],
-        }
-        assert hashlib.sha256(schedule_content).hexdigest() == manifest["files"][0]["sha256"]
+        from src.schemas import (
+            PersonalReportingFrameworkId,
+            PersonalReportPackageGenerateRequest,
+        )
+        from tests.api.test_personal_report_package_contract import (
+            _patch_package_snapshot_inputs,
+        )
+
+        await _patch_package_snapshot_inputs(
+            monkeypatch,
+            readiness_state="ready",
+            blocking_count=0,
+            section_label="Bench Annual Audit 2025",
+        )
+
+        snapshot = await generate_personal_report_package_snapshot(
+            request=PersonalReportPackageGenerateRequest(
+                framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+                start_date=date(2025, 1, 1),
+                end_date=date(2025, 12, 31),
+                as_of_date=date(2025, 12, 31),
+                currency="SGD",
+            ),
+            db=db,
+            user_id=test_user_id,
+        )
+
+        zip_response = await export_personal_report_package_snapshot(
+            snapshot_id=snapshot.id,
+            format=PackageSnapshotExportFormat.ZIP,
+            db=db,
+            user_id=test_user_id,
+        )
+        assert zip_response.media_type == "application/zip"
+
+        chunks = []
+        async for chunk in zip_response.body_iterator:
+            chunks.append(chunk.encode("utf-8") if isinstance(chunk, str) else chunk)
+        body_bytes = b"".join(chunks)
+
+        with zipfile.ZipFile(BytesIO(body_bytes), "r") as zf:
+            namelist = zf.namelist()
+            assert "manifest.json" in namelist
+            assert "balance_sheet.csv" in namelist
+            assert "income_statement.csv" in namelist
+            assert "cash_flow.csv" in namelist
+
+            manifest_data = json.loads(zf.read("manifest.json").decode("utf-8"))
+            assert manifest_data["package_id"] == str(snapshot.id)
+            assert manifest_data["reporting_currency"] == "SGD"
+            assert len(manifest_data["files"]) > 0
+
+            for entry in manifest_data["files"]:
+                filename = entry["filename"]
+                expected_sha256 = entry["sha256"]
+                assert filename in namelist
+                actual_sha256 = hashlib.sha256(zf.read(filename)).hexdigest()
+                assert actual_sha256 == expected_sha256
 
     async def test_flow_29_recurring_subscription_anomaly_alert(self, db: AsyncSession, test_user_id) -> None:
         """Flow 29: Identifies recurring cadence and flags unexpected amount increases or duplicate runs."""
-        cadence_history = [Decimal("12.99"), Decimal("12.99"), Decimal("12.99")]
-        avg_charge = sum(cadence_history) / len(cadence_history)
-        new_charge = Decimal("129.90")  # 10x spike
+        from datetime import timedelta
 
-        is_anomaly = new_charge > (avg_charge * Decimal("3.0"))
-        assert is_anomaly is True, "Spike exceeding 3x average must trigger anomaly alert"
+        from src.extraction import TransactionDirection
+        from src.reconciliation.extension.anomaly import detect_anomalies
+        from tests.factories import AtomicTransactionFactory
+
+        # Create baseline of small recurring charges within 30-day lookback
+        for i in range(30):
+            await AtomicTransactionFactory.create_async(
+                db,
+                user_id=test_user_id,
+                amount=Decimal("1.00"),
+                direction=TransactionDirection.OUT,
+                txn_date=date.today() - timedelta(days=(i % 28) + 1),
+                description="STREAMING SERVICE SUBSCRIPTION",
+            )
+
+        # Huge spike transaction
+        spike_txn = await AtomicTransactionFactory.create_async(
+            db,
+            user_id=test_user_id,
+            amount=Decimal("5000.00"),
+            direction=TransactionDirection.OUT,
+            txn_date=date.today(),
+            description="STREAMING SERVICE SUBSCRIPTION",
+        )
+        await db.commit()
+
+        anomalies = await detect_anomalies(db, spike_txn, user_id=test_user_id)
+        assert any(a.anomaly_type == "LARGE_AMOUNT" for a in anomalies)
 
     async def test_flow_30_natural_language_financial_ai_assistant_read_only_tool_calling(
         self, db: AsyncSession, test_user_id
