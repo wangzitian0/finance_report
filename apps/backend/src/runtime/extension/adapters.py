@@ -12,6 +12,12 @@ from __future__ import annotations
 
 import time
 
+from infra2_sdk.runtime import (
+    HttpClientSettings,
+    PostgresSettings,
+    probe_http,
+    redact_postgres_error,
+)
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -40,10 +46,16 @@ class DatabaseCheck:
                 (time.perf_counter() - start) * 1000,
             )
         except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
+            detail = str(exc)
+            try:
+                pg_settings = PostgresSettings(dsn=self._database_url)
+                detail = redact_postgres_error(detail, pg_settings)
+            except Exception:  # noqa: BLE001 - keep original message if parsing fails
+                pass
             return ProbeResult(
                 self.name,
                 DependencyStatus.ABSENT,
-                str(exc),
+                detail,
                 (time.perf_counter() - start) * 1000,
             )
         finally:
@@ -192,18 +204,17 @@ class WorkflowEngineCheck:
         self._api_url = api_url
 
     async def probe(self) -> ProbeResult:
-        import httpx
-
-        start = time.perf_counter()
         if not self._api_url:
             return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self._api_url.rstrip('/')}/health")
-            status = DependencyStatus.PRESENT if response.status_code < 500 else DependencyStatus.ABSENT
-            return ProbeResult(self.name, status, f"HTTP {response.status_code}", (time.perf_counter() - start) * 1000)
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), (time.perf_counter() - start) * 1000)
+        url = f"{self._api_url.rstrip('/')}/health"
+        settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
+        result = await probe_http(url, name=self.name, settings=settings)
+        return ProbeResult(
+            self.name,
+            DependencyStatus(result.status.value),
+            result.detail,
+            result.duration_ms,
+        )
 
 
 class TelemetryCheck:
@@ -243,18 +254,16 @@ class AnalyticsCheck:
         self._api_url = api_url
 
     async def probe(self) -> ProbeResult:
-        import httpx
-
-        start = time.perf_counter()
         if not self._api_url:
             return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(self._api_url)
-            status = DependencyStatus.PRESENT if response.status_code < 500 else DependencyStatus.ABSENT
-            return ProbeResult(self.name, status, f"HTTP {response.status_code}", (time.perf_counter() - start) * 1000)
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), (time.perf_counter() - start) * 1000)
+        settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
+        result = await probe_http(self._api_url, name=self.name, settings=settings)
+        return ProbeResult(
+            self.name,
+            DependencyStatus(result.status.value),
+            result.detail,
+            result.duration_ms,
+        )
 
 
 class MarketDataCheck:
@@ -269,20 +278,15 @@ class MarketDataCheck:
         self._timeout_seconds = timeout_seconds
 
     async def probe(self) -> ProbeResult:
-        import httpx
-
-        start = time.perf_counter()
-        try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout_seconds, headers={"User-Agent": "finance-report-smoke/1.0"}
-            ) as client:
-                response = await client.get(self._PROBE_URL)
-            status = DependencyStatus.PRESENT if response.status_code < 500 else DependencyStatus.ABSENT
-            return ProbeResult(
-                self.name,
-                status,
-                f"HTTP {response.status_code}",
-                (time.perf_counter() - start) * 1000,
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure means ABSENT
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), (time.perf_counter() - start) * 1000)
+        settings = HttpClientSettings(
+            timeout_seconds=float(self._timeout_seconds),
+            connect_timeout_seconds=float(self._timeout_seconds),
+            user_agent="finance-report-smoke/1.0",
+        )
+        result = await probe_http(self._PROBE_URL, name=self.name, settings=settings)
+        return ProbeResult(
+            self.name,
+            DependencyStatus(result.status.value),
+            result.detail,
+            result.duration_ms,
+        )
