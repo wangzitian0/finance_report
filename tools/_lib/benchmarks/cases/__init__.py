@@ -7,6 +7,7 @@ from tools._lib.benchmarks.cases.case_2 import execute_case_2
 from tools._lib.benchmarks.cases.case_3 import execute_case_3
 from tools._lib.benchmarks.cases.case_4 import execute_case_4
 from tools._lib.benchmarks.cases.case_5 import execute_case_5
+from tools._lib.benchmarks.cases.case_6 import execute_case_6
 
 __all__ = [
     "execute_case_1",
@@ -14,4 +15,5 @@ __all__ = [
     "execute_case_3",
     "execute_case_4",
     "execute_case_5",
+    "execute_case_6",
 ]

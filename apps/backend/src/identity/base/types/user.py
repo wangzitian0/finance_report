@@ -1,22 +1,15 @@
 """Identity-owned user CRUD and AI-settings wire vocabulary."""
 
 from datetime import UTC, datetime
-from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 
 class UserBase(BaseModel):
     """Base user schema."""
 
     email: EmailStr
-
-
-class UserCreate(UserBase):
-    """Schema for creating a user."""
-
-    password: Annotated[str, Field(min_length=8, max_length=128)]
 
 
 class UserUpdate(BaseModel):
@@ -60,7 +53,6 @@ __all__ = [
     "UserAiSettingsResponse",
     "UserAiSettingsUpdate",
     "UserBase",
-    "UserCreate",
     "UserResponse",
     "UserUpdate",
 ]

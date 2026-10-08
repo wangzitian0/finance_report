@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=5688bfbe6463668c8bb3efe9a96745e46d08f103945af7e2c0278df8bab28b23 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=c3f9e5c6b7a84cde4b0f86fbd2137f00fe5cffc8c405e0491ace185723157a26 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -13,7 +13,8 @@
 - **Define guard scope from what it must govern, not from today's passing tree.** Let the guard fail on existing violations, then repair them. A guard never seen failing is not yet evidence of protection.
 - **Worktree self-sufficiency:** Every worktree must resolve its dependencies, toolchain, skills, and configuration internally. Tools and tests must not navigate upward with `../..` to locate files in parent checkouts.
 - **Physical context verification:** Static file existence does not prove host runtime context injection. Junior runs non-interactive probes (`-p` or headless exec) using low-cost models. Probe assertions must check visible specification text, not markup comments. Junior tests both repository root and deep subdirectories.
-- **Desktop application boundary:** GUI desktop applications do not track shell working directories or shell environment variables. Do not use desktop applications as delivery targets for three-tier rules.
+- **Host verification scope:** Official host CLIs remain the primary execution environment. Regular testing includes Antigravity 2.0 project workspaces (`.agents/skills/` and project rules). Standalone desktop chat applications without directory awareness are excluded.
+- **Local and remote test segregation:** Inner-loop verification (Senior, Junior, Intern) executes only focused tests affecting changed files (`pytest <file>::<test> -x`). Monolithic regression verification belongs to remote CI parallel runners. Local full-suite execution is permitted at most once immediately prior to merge, and never in iteration loops.
 
 ## Delivery and merge
 
@@ -82,7 +83,7 @@ No document may usurp another document's role: vision does not dictate internal 
 | Tech stack, quick start | [README.md](README.md) |
 | Concept ownership registry (which package owns what) | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) |
 | Project tracking & EPICs | [docs/project/README.md](docs/project/README.md) |
-| Agent skills | [.opencode/skills/](.opencode/skills/) |
+| Agent skills | [skills/](skills/) |
 | Copilot-specific settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
 **Routing Rules**:
@@ -225,7 +226,7 @@ Per-runtime agents & MCP baseline: **[.claude/README.md](.claude/README.md)**
 - UI work: behavior is proven by tests; **visual quality passes the `ux-review`
   skill** on simulator or browser captures of the changed screens.
 
-Skills: [.opencode/skills/](.opencode/skills/) (canonical library; other
+Skills: [skills/](skills/) (canonical library; other
 runtimes symlink into it — see [.claude/README.md](.claude/README.md))
 
 ---

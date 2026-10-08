@@ -5,44 +5,54 @@ This directory contains the declarative manifest and infrastructure for multi-sc
 ## Architecture
 
 1. **Declarative Manifest (`manifest.yaml`)**:
-   - Declares external open-licensed statement PDFs (from DocuBench, Bankstatemently, etc.).
-   - Pinned to upstream commit SHAs and verified via SHA-256 checksums.
-   - Large raw PDFs (e.g. Fidelity Brokerage > 10MB) are automatically sliced on download to satisfy the 10MB upload gate without losing accounting fidelity.
+   - Declares verified external open-licensed statement fixtures pinned to immutable commit SHAs and verified via SHA-256 checksums.
+   - Declaratively specifies document types, currencies, and test scenario mappings.
 
-2. **Fixture Sync Tool (`tools/sync_benchmark_fixtures.py`)**:
-   - Sparse download tool: fetches external files on demand without cloning multi-gigabyte repos.
-   - Verification flag: `--verify` checks local presence and SHA-256 integrity.
+2. **Fast Shift-Left In-Memory Domain Matrix (`test_bench_articulation_matrix.py`)**:
+   - Executes all 6 core financial scenarios against SQLite in memory in < 5 seconds.
+   - Mathematically proves 3-statement reconciliation, debt clearance, multi-currency CTA, multi-asset valuation, and bank overdraft without network latency or external dependencies.
 
 3. **Temporal Scenario Runner (`tools/run_financial_scenario_benchmark.py`)**:
-   - Simulates real user flows against live target environments (e.g. Staging at `https://report-staging.zitian.party`).
+   - Simulates end-to-end user flows against live target environments (e.g. Staging at `https://report-staging.zitian.party`).
    - Registers an ephemeral user per test case to ensure strict data isolation.
-   - Automates: Statement Upload -> Asynchronous OCR/AI Parsing -> Economic Adjudication -> Stage 1 Ledger Approval -> 3-Statement Retrieval & Mathematical Reconciliations.
+   - Automates: Statement Upload -> Asynchronous Parsing -> Economic Adjudication -> Stage 1 Ledger Approval -> 3-Statement Retrieval & Mathematical Reconciliations.
 
 ## Scenarios Implemented
 
-- **Case 1: Consecutive Monthly Rollforward (连续双月滚续)**
-  - Month 1: Jan 2025 Straits Capital Bank Statement (Opening: 15,450.75 SGD, Closing: 15,271.23 SGD, Net: -179.52 SGD).
-  - Month 2: Feb 2025 Chained Statement (Opening: 15,271.23 SGD, Closing: 18,250.00 SGD, Net: +2,978.77 SGD).
-  - Mathematical Assertions:
-    - Balance chain continuity (M2 Opening == M1 Closing).
-    - Balance Sheet equation delta == 0.00 (`Assets == Liabilities + Equity`).
-    - Retained Earnings / Net Income accumulates across periods: `-179.52 + 2978.77 == 2799.25`.
-    - Cash Flow identity: `Beginning Cash (15450.75) + Net Cash Flow (2799.25) == Ending Cash (18250.00)`.
+- **Case 1: Consecutive 4-Month Rollforward & Q1 Articulation**
+  - Month 1 to Month 4 consecutive statements (Jan–Apr 2025).
+  - Asserts temporal balance continuity ($Month_{n+1}\,Opening \equiv Month_n\,Closing$).
+  - Validates Q1 closing checkpoint and Q2 transition.
 
-- **Case 3: Bank-Brokerage Transfer & Asset Swap (银证划转不污染损益)**
-  - Bank Statement: Initial 20,000.00 SGD, Transfer Out 5,000.00 SGD to Brokerage.
-  - Brokerage Counter Asset Account: Receives 5,000.00 SGD.
-  - Mathematical Assertions:
-    - Zero P&L contamination: `Total Income == 0.00`, `Total Expenses == 0.00`, `Net Income == 0.00`.
-    - Balance Sheet conservation: Total Assets = Bank Cash (15,000.00) + Brokerage Portfolio (5,000.00) = 20,000.00 SGD == Total Equity (20,000.00 SGD).
-    - `equation_delta == 0.00`.
+- **Case 2: Multi-PII Household Operations & Category Reconciliation**
+  - Simulates multi-member household accounts: Husband (DBS Bank) and Wife (Standard Chartered).
+  - Asserts source-scoped deduplication, category separation, and consolidated household net operating income.
+
+- **Case 3: Credit Card Liability & Non-P&L Debt Clearance**
+  - Credit card operating expense charge followed by bank settlement repayment.
+  - Asserts liability cleared to 0.00 SGD with zero double-counting of expenses in net income.
+
+- **Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet**
+  - Statements across SGD, USD, and HKD jurisdictions.
+  - Asserts multi-currency balance sheet balance with IAS 21 CTA tracking and zero equation delta.
+
+- **Case 5: Holistic Multi-Asset & Tax Ecosystem**
+  - Public equities (Interactive Brokers), illiquid real estate appraisal ($350k USD), and payroll tax withholding.
+  - Asserts comprehensive fair market valuation integration and 3-statement equity conservation.
+
+- **Case 6: Bank Overdraft & Capital Gain Asset Disposal**
+  - Temporary negative cash balance from expenses exceeding deposits, followed by capital injection and profitable asset disposal.
+  - Asserts exact accounting identity ($Assets \equiv Liabilities + Equity$) during negative balance and asset transitions.
 
 ## Quick Start Commands
 
 ```bash
-# 1. Sync & verify benchmark statement fixtures
+# 1. Run fast in-memory domain matrix tests (< 5s)
+uv run --directory apps/backend pytest tests/reporting/test_bench_articulation_matrix.py --no-cov -v
+
+# 2. Sync benchmark statement fixtures
 uv run --directory apps/backend python3 tools/sync_benchmark_fixtures.py
 
-# 2. Run the benchmark suite against Staging
-uv run --directory apps/backend python3 tools/run_financial_scenario_benchmark.py --app-url https://report-staging.zitian.party --case 1,3
+# 3. Run the live benchmark suite against Staging
+uv run --directory apps/backend python3 tools/run_financial_scenario_benchmark.py --app-url https://report-staging.zitian.party --case all
 ```

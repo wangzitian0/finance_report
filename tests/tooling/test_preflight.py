@@ -181,6 +181,16 @@ class TestSelectChecks:
         assert "api-reference" in names
         assert "router-contract" in names
 
+    def test_package_extension_api_edit_selects_api_reference(self):
+        """Package extension API changes select api-reference check."""
+        names = [
+            c.name
+            for c in preflight.select_checks(
+                ["apps/backend/src/identity/extension/api/users.py"]
+            )
+        ]
+        assert "api-reference" in names
+
     def test_schema_edit_selects_api_reference(self):
         # Schema changes also move the OpenAPI reference (but not the
         # router-contract scan, which only reads routers/).
@@ -601,3 +611,67 @@ class TestCiLogging:
         endgroup_tag = "::endgroup::"
         assert group_tag in out
         assert endgroup_tag in out
+
+    def test_run_cli_with_quiet_flag_success(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "--quiet", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        summary_prefix = "preflight: all"
+        summary_suffix = "gates passed"
+        verbose_running = "preflight: running"
+        gate_ok = "  [ok]"
+        assert summary_prefix in out
+        assert summary_suffix in out
+        assert verbose_running not in out
+        assert gate_ok not in out
+
+    def test_run_cli_with_quiet_flag_failure(self, capsys):
+        rc = preflight.run(
+            ["--tier=static", "-q", "--changed", ".env.example"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 1
+        out = capsys.readouterr().out
+        fail_indicator = "FAIL"
+        failed_summary = "failed"
+        assert fail_indicator in out
+        assert failed_summary in out
+
+    def test_default_quiet_runner_suppresses_output_on_success(
+        self, capsys, monkeypatch
+    ):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["echo", "clean"],
+            returncode=0,
+            stdout="some clean output\n",
+            stderr="",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["echo", "clean"], cwd="/tmp")
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_default_quiet_runner_dumps_output_on_failure(self, capsys, monkeypatch):
+        import subprocess
+
+        fake_proc = subprocess.CompletedProcess(
+            args=["flake8"],
+            returncode=1,
+            stdout="syntax error on line 42\n",
+            stderr="warning message\n",
+        )
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: fake_proc)
+        rc = preflight._default_quiet_runner(["flake8"], cwd="/tmp")
+        assert rc == 1
+        captured = capsys.readouterr()
+        error_msg = "syntax error on line 42"
+        warning_msg = "warning message"
+        assert error_msg in captured.out
+        assert warning_msg in captured.err

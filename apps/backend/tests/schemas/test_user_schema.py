@@ -7,30 +7,9 @@ from pydantic import ValidationError
 from src.schemas.user import (
     UserAiSettingsResponse,
     UserAiSettingsUpdate,
-    UserCreate,
     UserResponse,
     UserUpdate,
 )
-
-
-def test_user_create_valid():
-    u = UserCreate(email="a@b.com", password="password123")
-    assert u.email == "a@b.com"
-
-
-def test_user_create_password_too_short():
-    with pytest.raises(ValidationError):
-        UserCreate(email="a@b.com", password="short")
-
-
-def test_user_create_password_too_long():
-    with pytest.raises(ValidationError):
-        UserCreate(email="a@b.com", password="x" * 129)
-
-
-def test_user_create_invalid_email():
-    with pytest.raises(ValidationError):
-        UserCreate(email="not-an-email", password="password123")
 
 
 def test_user_update_partial():

@@ -10,12 +10,12 @@ not restate it here (#1658):
 
 - App secret contract (`config.py` → generated `.env.example` and
   `required-env.generated.json`), vault-agent injection flow, and cross-repo seam →
-  [`common/runtime/deployment.md`](../../../../common/runtime/deployment.md)
+  [`common/runtime/deployment.md`](../../common/runtime/deployment.md)
 - Environment taxonomy (names, suffixes, isolation) →
-  [`common/runtime/environments.md`](../../../../common/runtime/environments.md)
-- CI gates on env consistency → [`common/testing/ci-cd.md`](../../../../common/testing/ci-cd.md)
+  [`common/runtime/environments.md`](../../common/runtime/environments.md)
+- CI gates on env consistency → [`common/testing/ci-cd.md`](../../common/testing/ci-cd.md)
 - Env-var red lines (`NEXT_PUBLIC_` Dockerfile bake, config.py typing) →
-  [`docs/agents/red-lines.md`](../../../../docs/agents/red-lines.md)
+  [`docs/agents/red-lines.md`](../../docs/agents/red-lines.md)
 
 Vault path convention: `secret/data/{project}/{environment}/{component}`
 (e.g. `secret/data/finance_report/production/app`).

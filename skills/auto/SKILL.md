@@ -18,6 +18,8 @@ Run this after `smoke` passes. Use `prr` for the review and gate mechanics.
 ## Loop
 
 1. Open the PR. Quote the owner instruction in the description when the change touches rules, gates, or other protected files.
+   Under the quote, list each agent decision that the quote does not cover. A quote above agent decisions reads as owner approval of all of them.
+   A change to rule text also carries the section `Owner touchpoints` (dev_env Repo tier, rule-text checklist item 8).
 2. Run the `prr` gate. Fix each finding in the issue worktree. Do not touch unrelated files.
 3. Run focused checks on every fix. Read the decision from the gate exit code.
 4. A change with no side effect needs no question to the owner. Fix it and merge it.
@@ -35,6 +37,11 @@ Stop only for one of these:
 - **Another worker's issue lock**: an issue-prefixed worktree, an open PR, or a running process.
 
 A large impact or an unclear preference is not a stop reason. Choose, state the basis, and keep a way back.
+
+When a gate returns the owner for a non-production PR, add the label `needs-owner`. Remove it when the PR merges or closes.
+A non-production PR that waits for the owner more than 12 hours shows a defect in the rule that holds it.
+Find the missing physical fact. Do the agent work that supplies it. Ask the owner only for what needs the owner's hands.
+Never list a merge or a head approval of non-production work as an owner action.
 
 ## Report rules
 

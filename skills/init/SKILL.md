@@ -46,6 +46,9 @@ A substring match is wrong: `issue12` would match `issue123`.
 
 Report the open production decisions once: issues labelled `prod-pending` in every repository of the owner. The command is in `local.md`.
 
+Report the open PRs labelled `needs-owner` once. A non-production PR that waits more than 12 hours shows a defect in the rule that holds it.
+Find the missing physical fact and supply it. The command is in `local.md`.
+
 ## 5. Create the worktree
 
 - Name: `<repo>_issue<N>_<slug>`. Branch: `feat/issue<N>-<slug>`. Base: the latest `origin/main`.
@@ -56,3 +59,4 @@ Report the open production decisions once: issues labelled `prod-pending` in eve
 ## 6. Report the baseline
 
 Reply in the owner's language with four lines: the goal, the tools you reuse, the facts you recalled, the worktree path.
+Do not execute test suites during baseline reporting. The baseline report is task metadata only.

@@ -6,13 +6,12 @@ uploaded statement document (ODS ``UploadedDocument``) to its custody account
 opening/closing balances, institution, and review state.
 
 Together with ``UploadedDocument`` (the raw file) and ``AtomicTransaction`` (the
-per-transaction DWD facts), this completes the decomposition of the legacy
-``BankStatement`` into the layered model, so ``bank_statements`` can eventually
-be deprecated (EPIC-011 Stage 3).
+per-transaction DWD facts), this completes the decomposition and retirement
+of the legacy ``BankStatement`` table into the layered domain model (EPIC-011).
 
 The Python ``BankStatementStatus`` / ``Stage1Status`` enums are reused, but with
-distinct PostgreSQL type names so this table does not collide with the legacy
-``bank_statements`` enum types.
+distinct PostgreSQL type names so this table does not collide with historical
+enum types.
 """
 
 from datetime import date, datetime

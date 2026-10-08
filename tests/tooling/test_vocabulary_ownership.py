@@ -99,7 +99,6 @@ def test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos() -> None:
             "UserAiSettingsResponse",
             "UserAiSettingsUpdate",
             "UserBase",
-            "UserCreate",
             "UserResponse",
             "UserUpdate",
         },

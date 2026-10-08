@@ -66,6 +66,9 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         "portfolio_holdings_verified": any(
             r.get("case_id") == "case_5" and r.get("status") == "PASS" for r in results
         ),
+        "overdraft_articulation_verified": any(
+            r.get("case_id") == "case_6" and r.get("status") == "PASS" for r in results
+        ),
         "report_url": f"{version_ref}/report.html",
     }
 
@@ -272,6 +275,37 @@ def _render_case_5_table(cdetails: dict[str, Any], case_passed: bool) -> str:
     """
 
 
+def _render_case_6_table(cdetails: dict[str, Any], case_passed: bool) -> str:
+    overdraft_cash = cdetails.get("overdraft_cash", "-1500.00")
+    capital_gain = cdetails.get("capital_gain", "2500.00")
+    net_income = cdetails.get("net_income", "0.00")
+    total_assets = cdetails.get("total_assets", "11000.00")
+    total_equity = cdetails.get("total_equity", "11000.00")
+    eq_delta = cdetails.get("equation_delta", "0.00")
+
+    eq_badge = (
+        '<span class="badge badge-pass">✅ Balanced (Δ = 0.00 SGD)</span>'
+        if case_passed
+        else '<span class="badge badge-fail">❌ Equation Broken</span>'
+    )
+
+    return f"""
+    <table class="details-table">
+        <thead>
+            <tr><th>Accounting Invariant</th><th>Reported Metric</th><th>Integrity Check</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Overdraft Checkpoint Cash Balance</td><td>${html.escape(str(overdraft_cash))} SGD</td><td>{"✅ Negative Balance Equation Validated" if case_passed else "❌ Equation Broken"}</td></tr>
+            <tr><td>Realized Capital Gain from Art Disposal</td><td>+${html.escape(str(capital_gain))} SGD</td><td>{"✅ Capital Gain Recognized in P&amp;L" if case_passed else "❌ Untracked"}</td></tr>
+            <tr><td>Final Period Net Income</td><td>${html.escape(str(net_income))} SGD</td><td>{"✅ Expense Offset by Capital Gain" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Final Period Total Assets</td><td>${html.escape(str(total_assets))} SGD</td><td>{"✅ Ending Assets Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Final Period Total Equity</td><td>${html.escape(str(total_equity))} SGD</td><td>{"✅ Ending Equity Reconciled" if case_passed else "❌ Mismatched"}</td></tr>
+            <tr><td>Balance Sheet Equation Delta</td><td>${html.escape(str(eq_delta))}</td><td>{eq_badge}</td></tr>
+        </tbody>
+    </table>
+    """
+
+
 def _render_case_details_table(
     cid: str, cdetails: dict[str, Any], case_passed: bool
 ) -> str:
@@ -286,6 +320,8 @@ def _render_case_details_table(
         return _render_case_4_table(cdetails, case_passed)
     if cid == "case_5":
         return _render_case_5_table(cdetails, case_passed)
+    if cid == "case_6":
+        return _render_case_6_table(cdetails, case_passed)
     return f"<pre class='raw-json'>{html.escape(json.dumps(cdetails, indent=2))}</pre>"
 
 

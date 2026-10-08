@@ -12,24 +12,11 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.schemas.user import UserCreate, UserUpdate
+from src.schemas.user import UserUpdate
 
 
 class TestUserSchemas:
     """Unit tests for user schemas without database."""
-
-    def test_user_create_schema_valid(self) -> None:
-        user = UserCreate(email="test@example.com", password="securepassword123")
-        assert user.email == "test@example.com"
-        assert user.password == "securepassword123"
-
-    def test_user_create_schema_invalid_email(self) -> None:
-        with pytest.raises(ValidationError):
-            UserCreate(email="not-an-email", password="securepassword123")
-
-    def test_user_create_schema_short_password(self) -> None:
-        with pytest.raises(ValidationError):
-            UserCreate(email="test@example.com", password="short")
 
     def test_user_update_schema_optional_email(self) -> None:
         update = UserUpdate()
@@ -37,3 +24,7 @@ class TestUserSchemas:
 
         update = UserUpdate(email="new@example.com")
         assert update.email == "new@example.com"
+
+    def test_user_update_schema_invalid_email(self) -> None:
+        with pytest.raises(ValidationError):
+            UserUpdate(email="not-an-email")

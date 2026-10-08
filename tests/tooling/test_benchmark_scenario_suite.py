@@ -8,6 +8,8 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
 from tools._lib.benchmarks.run_financial_scenario_benchmark import (
     generate_credit_card_repayment_bank_pdf,
@@ -201,41 +203,43 @@ def test_benchmark_cli_cassette_option_parsing() -> None:
 
 
 def test_benchmark_manifest_v2_fixtures_verified() -> None:
-    """AC-testing.benchmarks.v2: manifest.yaml is version 2.0 and all registered fixtures exist with valid SHA-256."""
+    """AC-testing.benchmarks.v2: manifest.yaml is version 2.1 and all registered fixtures have verified schema and sha256."""
     import hashlib
+    import re
     import yaml
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     assert manifest_path.exists()
     data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
-    assert data["version"] == "2.0"
+    assert data["version"] == "2.1"
 
     fixtures = data.get("fixtures", [])
     fixture_ids = {f["id"] for f in fixtures}
     expected_ids = {
         "bankstatemently_straits_capital",
-        "bankstatemently_liberty_national",
-        "bankstatemently_silk_road",
-        "docubench_carson_bank",
-        "docubench_fidelity_brokerage",
-        "docubench_fha_appraisal",
         "docubench_w2_tax_statement",
         "docubench_payslip_statement",
     }
-    assert expected_ids.issubset(fixture_ids)
+    assert expected_ids == fixture_ids, f"Manifest fixtures drifted: {fixture_ids}"
 
-    required_fixture_keys = {"id", "doc_type", "currency", "download_url"}
+    required_fixture_keys = {
+        "id",
+        "doc_type",
+        "currency",
+        "download_url",
+        "sha256",
+        "local_path",
+    }
+    sha256_pattern = re.compile(r"^[a-f0-9]{64}$")
     for item in fixtures:
         assert required_fixture_keys.issubset(item.keys())
-        assert bool({"sha256", "raw_sha256"} & set(item.keys()))
+        assert item["download_url"].startswith("https://")
+        assert sha256_pattern.match(item["sha256"]), f"Invalid sha256 for {item['id']}"
         rel_path = item["local_path"]
         f_path = REPO_ROOT / rel_path
         if f_path.exists():
-            if "slice_pages" in item:
-                assert len(f_path.read_bytes()) < 10 * 1024 * 1024
-            elif "sha256" in item:
-                actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
-                assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
+            actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
+            assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
 
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
@@ -251,8 +255,8 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
         "app_url": "https://report-staging.zitian.party",
         "run_at": "2026-09-24T12:00:00",
         "summary": {
-            "total": 5,
-            "passed": 5,
+            "total": 6,
+            "passed": 6,
             "failed": 0,
             "success": True,
         },
@@ -330,8 +334,27 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
                     "holdings_count": 2,
                     "property_valuation_usd": "350,000.00",
                     "appraisal_source": "DocuBench FHA 1004 (KpewWz3R)",
-                    "tax_ecosystem_status": "Form W-2 and Payslip fixtures verified",
+                    "tax_ecosystem_status": "Form W-2 and Payslip structured tax withholding entry verified",
+                    "gross_salary_sgd": "10000.00",
+                    "tax_withheld_sgd": "2000.00",
+                    "net_payroll_cash_sgd": "8000.00",
                     "total_assets": "385,000.00",
+                    "equation_delta": "0.00",
+                    "is_balanced": True,
+                },
+            },
+            {
+                "case_id": "case_6",
+                "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
+                "status": "PASS",
+                "duration_seconds": 6.8,
+                "details": {
+                    "overdraft_cash": "-1,500.00",
+                    "ending_cash": "11,000.00",
+                    "capital_gain": "2,500.00",
+                    "net_income": "0.00",
+                    "total_assets": "11,000.00",
+                    "total_equity": "11,000.00",
                     "equation_delta": "0.00",
                     "is_balanced": True,
                 },
@@ -340,32 +363,65 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     }
 
     summary = extract_summary_data(mock_report)
-    assert summary["cases_total"] == 5
-    assert summary["cases_passed"] == 5
+    assert summary["cases_total"] == 6
+    assert summary["cases_passed"] == 6
     assert summary["cases_failed"] == 0
     assert summary["status"] == "PASS"
     assert summary["rollforward_balanced"] is True
     assert summary["zero_pnl_contamination"] is True
     assert summary["multicurrency_consolidated"] is True
     assert summary["portfolio_holdings_verified"] is True
+    assert summary["overdraft_articulation_verified"] is True
     assert summary["max_equation_delta"] == "0.00"
 
     html_out = generate_html_report(mock_report)
     expected_snippets = [
-        "ALL 5 SCENARIOS BALANCED",
+        "ALL 6 SCENARIOS BALANCED",
         "CASE_1",
         "CASE_2",
         "CASE_3",
         "CASE_4",
         "CASE_5",
+        "CASE_6",
         "Husband Account (DBS Bank) Ending Cash",
         "Wife Account (Standard Chartered) Ending Cash",
         "Credit Card Incurred Charges",
         "Real Estate Property Appraisal",
+        "Overdraft Checkpoint Cash Balance",
     ]
     for snippet in expected_snippets:
         assert html_out.find(snippet) != -1, f"Missing {snippet} in html output"
     assert len(html_out) > 5000
+
+
+def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-testing.benchmarks.v2: Case 6 is exported and dispatchable via CLI and scenario runner."""
+    from tools._lib.benchmarks import run_financial_scenario_benchmark
+    from tools._lib.benchmarks.case_types import CaseResult
+    from tools._lib.benchmarks.cases import execute_case_6
+
+    assert callable(execute_case_6)
+
+    # Prove case 6 is genuinely wired into scenario dispatch
+    fake_result = CaseResult(
+        case_id="case_6",
+        case_name="Case 6 Test",
+        status="PASS",
+        duration_seconds=0.1,
+        details={},
+    )
+    dispatched_cases: list[str] = []
+    monkeypatch.setattr(
+        run_financial_scenario_benchmark,
+        "execute_case_6",
+        lambda runner: (dispatched_cases.append("case_6"), fake_result)[1],
+    )
+
+    fake_runner = object()  # type: ignore[arg-type]
+    results = run_financial_scenario_benchmark._dispatch_cases(fake_runner, "6")
+    assert dispatched_cases == ["case_6"]
+    assert len(results) == 1
+    assert results[0].case_id == "case_6"
 
 
 def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
@@ -397,3 +453,60 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     # Runner method signature must default to legal enum value
     sig = inspect.signature(ScenarioBenchmarkRunner.create_valuation_snapshot)
     assert sig.parameters["valuation_basis"].default == "market_appraisal"
+
+
+def test_benchmark_statement_generators_zero_orphan_contract() -> None:
+    """AC-testing.benchmarks.v2: All statement generators are mapped to active scenario cases."""
+    import inspect
+    from tools._lib.benchmarks import statement_generators
+
+    all_generators = {
+        name
+        for name, fn in inspect.getmembers(statement_generators, inspect.isfunction)
+        if name.startswith("generate_")
+    }
+
+    # Invariant: dead generator must be deleted
+    assert "generate_bank_asset_transfer_pdf" not in all_generators
+
+    expected_generators = {
+        "generate_consecutive_month1_csv",
+        "generate_consecutive_month2_csv",
+        "generate_consecutive_month3_csv",
+        "generate_consecutive_month4_csv",
+        "generate_consecutive_month2_pdf",
+        "generate_consecutive_month3_pdf",
+        "generate_consecutive_month4_pdf",
+        "generate_credit_card_repayment_bank_pdf",
+        "generate_household_wife_operations_csv",
+        "generate_multicurrency_hkd_csv",
+        "generate_multicurrency_usd_csv",
+        "generate_standard_operations_csv",
+    }
+    assert all_generators == expected_generators, (
+        f"Generator set mismatch (orphaned or missing): {all_generators ^ expected_generators}"
+    )
+
+
+def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
+    """AC-testing.benchmarks.v2: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
+    from tools._lib.benchmarks import sync_benchmark_fixtures
+
+    manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
+    manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
+    assert manifest["version"] == "2.1"
+    assert len(manifest["fixtures"]) == 3
+
+    # Test SHA-256 computation
+    sample_bytes = b"hello finance report benchmark"
+    digest = sync_benchmark_fixtures.compute_sha256(sample_bytes)
+    assert len(digest) == 64
+
+    # Test missing fixture detection
+    dummy_fixture = {
+        "id": "dummy_test_doc",
+        "local_path": "nonexistent/path/to/fixture.pdf",
+    }
+    is_ok, msg = sync_benchmark_fixtures.verify_fixture(dummy_fixture, tmp_path)
+    assert not is_ok
+    assert "Missing file" in msg

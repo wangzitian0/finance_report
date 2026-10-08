@@ -4,8 +4,7 @@ Sync Benchmark Statement Fixtures.
 
 Downloads and validates external benchmark fixtures defined in
 `common/testing/fixtures/benchmarks/manifest.yaml`.
-Enforces exact SHA-256 verification and performs on-the-fly page slicing
-where necessary to satisfy upload size limits.
+Enforces exact SHA-256 verification.
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ import hashlib
 from pathlib import Path
 from typing import Any, Sequence
 
-import fitz  # PyMuPDF
 import httpx
 import yaml
 
@@ -47,23 +45,6 @@ def verify_fixture(fixture: dict[str, Any], root_dir: Path) -> tuple[bool, str]:
         return False, f"Missing file: {fixture['local_path']}"
 
     content = local_path.read_bytes()
-
-    if "slice_pages" in fixture:
-        try:
-            doc = fitz.open(stream=content, filetype="pdf")
-            page_count = doc.page_count
-            doc.close()
-            expected_pages = fixture["slice_pages"]
-            if page_count != expected_pages:
-                return (
-                    False,
-                    f"Page count mismatch for sliced PDF: expected {expected_pages}, got {page_count}",
-                )
-            if len(content) > 10 * 1024 * 1024:
-                return False, f"Sliced file exceeds 10MB limit: {len(content)} bytes"
-            return True, f"OK (Sliced {page_count} pages, {len(content):,} bytes)"
-        except Exception as exc:
-            return False, f"Invalid PDF format: {exc}"
 
     expected_sha = fixture.get("sha256")
     if expected_sha:
@@ -98,35 +79,6 @@ def download_fixture(
         return False
 
     raw_bytes = response.content
-
-    # Handle page slicing if required (e.g. Fidelity Brokerage)
-    if "slice_pages" in fixture:
-        expected_raw_sha = fixture.get("raw_sha256")
-        if expected_raw_sha:
-            actual_raw_sha = compute_sha256(raw_bytes)
-            if actual_raw_sha != expected_raw_sha:
-                print(
-                    f"  [ERROR] Raw SHA-256 mismatch: expected {expected_raw_sha}, got {actual_raw_sha}"
-                )
-                return False
-            print(
-                f"  [VERIFIED] Raw payload SHA-256 matched ({len(raw_bytes):,} bytes)"
-            )
-
-        slice_pages = fixture["slice_pages"]
-        print(f"  [SLICING] Extracting pages 1-{slice_pages} with PyMuPDF...")
-        src_doc = fitz.open(stream=raw_bytes, filetype="pdf")
-        sliced_doc = fitz.open()
-        sliced_doc.insert_pdf(src_doc, from_page=0, to_page=slice_pages - 1)
-        sliced_bytes = sliced_doc.tobytes(deflate=True, clean=True)
-        src_doc.close()
-        sliced_doc.close()
-
-        local_path.write_bytes(sliced_bytes)
-        print(
-            f"  [SAVED] Sliced {slice_pages} pages -> {local_path} ({len(sliced_bytes):,} bytes)"
-        )
-        return True
 
     # Standard fixture verification and write
     expected_sha = fixture.get("sha256")
