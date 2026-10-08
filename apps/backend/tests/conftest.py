@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -11,7 +12,7 @@ import pytest
 import pytest_asyncio
 import structlog
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -398,6 +399,17 @@ async def _schema_engine(test_database_url):
         poolclass=NullPool,
     )
 
+    # Attach dirty table listener to capture any writes through this engine
+    @event.listens_for(engine.sync_engine, "before_cursor_execute")
+    def _track_dirty_tables(conn, cursor, statement, parameters, context, executemany):
+        stripped = statement.strip()
+        if stripped[:10].upper().startswith(_WRITE_STMT_PREFIXES):
+            match = _TABLE_EXTRACT_RE.search(stripped)
+            if match:
+                _DIRTY_TABLES.add(match.group(1).lower())
+            else:
+                _DIRTY_TABLES.add("__ALL__")
+
     # Create all tables once for this worker.
     async with engine.begin() as conn:
         # Ensure clean slate - drop all tables with CASCADE to handle foreign keys
@@ -410,9 +422,44 @@ async def _schema_engine(test_database_url):
         # own their rows via the ``test_user`` fixture, so cross-user / cross-version
         # isolation leaks surface here instead of being silently allowed.
 
+    _DIRTY_TABLES.clear()
+
     yield engine
 
     await engine.dispose()
+
+
+_WRITE_STMT_PREFIXES = ("INSERT", "UPDATE", "DELETE", "TRUNCATE")
+_TABLE_EXTRACT_RE = re.compile(
+    r"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+[\"'\`]?([a-zA-Z0-9_]+)[\"'\`]?",
+    re.IGNORECASE,
+)
+_DIRTY_TABLES: set[str] = set()
+
+
+async def _cleanup_dirty_tables(engine) -> None:
+    global _DIRTY_TABLES
+    if not _DIRTY_TABLES:
+        return
+
+    from src.database import Base
+
+    sorted_tables = Base.metadata.sorted_tables
+    if "__ALL__" in _DIRTY_TABLES or len(_DIRTY_TABLES) > 10:
+        all_tables = ", ".join(f'"{table.name}"' for table in sorted_tables)
+        async with engine.begin() as conn:
+            await conn.execute(text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE"))
+    else:
+        to_delete = [t.name for t in reversed(sorted_tables) if t.name.lower() in _DIRTY_TABLES]
+        try:
+            async with engine.begin() as conn:
+                for table_name in to_delete:
+                    await conn.execute(text(f'DELETE FROM "{table_name}"'))
+        except Exception:
+            all_tables = ", ".join(f'"{table.name}"' for table in sorted_tables)
+            async with engine.begin() as conn:
+                await conn.execute(text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE"))
+    _DIRTY_TABLES.clear()
 
 
 _DB_FIXTURES = {
@@ -430,9 +477,9 @@ _DB_FIXTURES = {
 async def db_engine(request, _schema_engine):
     """Provide the shared per-worker engine with a pristine database per test.
 
-    The schema is built once by `_schema_engine`; here each test only truncates
-    all tables (RESTART IDENTITY CASCADE) when the test actually exercises
-    database operations.
+    The schema is built once by `_schema_engine`; each test tracks dirty tables
+    and only deletes/truncates rows that were actually modified, avoiding
+    expensive 50-table TRUNCATE CASCADE overhead when the DB is clean.
     """
     if request.node.get_closest_marker("no_db"):
         yield None
@@ -443,13 +490,12 @@ async def db_engine(request, _schema_engine):
         yield None
         return
 
-    from src.database import Base
+    await _cleanup_dirty_tables(_schema_engine)
 
-    tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
-    async with _schema_engine.begin() as conn:
-        await conn.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
-
-    yield _schema_engine
+    try:
+        yield _schema_engine
+    finally:
+        await _cleanup_dirty_tables(_schema_engine)
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)

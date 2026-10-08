@@ -60,7 +60,8 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt (per-password salt)."""
-    salt = bcrypt.gensalt()
+    rounds = 4 if src.config.settings.environment == "testing" else 12
+    salt = bcrypt.gensalt(rounds=rounds)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
