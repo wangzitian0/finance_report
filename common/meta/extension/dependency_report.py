@@ -103,14 +103,8 @@ def _parse_source_tree_cached(path_str: str, mtime_ns: int, size: int) -> ast.Mo
 
 def _parse_source_tree(source: Path) -> ast.Module:
     resolved = source.resolve()
-    try:
-        st = resolved.stat()
-        mtime_ns = st.st_mtime_ns
-        size = st.st_size
-    except OSError:
-        mtime_ns = 0
-        size = 0
-    return _parse_source_tree_cached(str(resolved), mtime_ns, size)
+    st = resolved.stat()
+    return _parse_source_tree_cached(str(resolved), st.st_mtime_ns, st.st_size)
 
 
 def _annotation(node: ast.expr | None) -> str:
@@ -539,7 +533,7 @@ def _imported_definition_fingerprint(
     repo_root: Path,
     value_seen: frozenset[_ValueKey],
 ) -> str | None:
-    tree = _parse_source_tree(source)
+    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
     for index in range(len(tree.body) - 1, -1, -1):
         node = tree.body[index]
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
