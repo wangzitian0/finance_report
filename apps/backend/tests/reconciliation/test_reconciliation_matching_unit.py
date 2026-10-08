@@ -83,6 +83,40 @@ async def _seed_document(db, *, owner_id: UUID) -> UploadedDocument:
     return doc
 
 
+def _make_account(
+    db: AsyncSession,
+    user_id: UUID,
+    name: str = "Test Account",
+    acc_type: AccountType = AccountType.ASSET,
+    currency: str = "SGD",
+) -> Account:
+    account = Account(id=uuid4(), user_id=user_id, name=name, type=acc_type, currency=currency)
+    db.add(account)
+    return account
+
+
+def _make_pair(
+    db: AsyncSession,
+    user_id: UUID,
+    account: Account,
+    amount: Decimal | str,
+    memo: str = "Test Entry",
+    *,
+    credit_account: Account | None = None,
+    entry_date: date = date(2024, 1, 1),
+    status: JournalEntryStatus = JournalEntryStatus.POSTED,
+) -> JournalEntry:
+    entry = JournalEntry(user_id=user_id, entry_date=entry_date, memo=memo, status=status)
+    amt = Decimal(str(amount))
+    cred_acc = credit_account or account
+    entry.lines = [
+        JournalLine(account_id=account.id, amount=amt, direction=Direction.DEBIT),
+        JournalLine(account_id=cred_acc.id, amount=amt, direction=Direction.CREDIT),
+    ]
+    db.add(entry)
+    return entry
+
+
 def test_normalize_text_edge_cases():
     assert normalize_text("") == ""
     assert normalize_text("!!! @@@ ###") == ""
@@ -389,77 +423,20 @@ async def test_execute_matching_no_candidates_marked_unmatched(db: AsyncSession,
 
 async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user):
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Complex Multi",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
+    )
+    account = _make_account(db, user_id)
     await db.flush()
-
-    # Transaction for 100.00
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Complex Multi",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
-
-    # Entries: 50.00 + 50.00
-    e1 = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Part 1",
-        status=JournalEntryStatus.POSTED,
-    )
-    e2 = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Part 2",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add_all([e1, e2])
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=e1.id,
-                account_id=account.id,
-                amount=Decimal("50.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=e1.id,
-                account_id=account.id,
-                amount=Decimal("50.00"),
-                direction=Direction.CREDIT,
-            ),
-            JournalLine(
-                journal_entry_id=e2.id,
-                account_id=account.id,
-                amount=Decimal("50.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=e2.id,
-                account_id=account.id,
-                amount=Decimal("50.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
+    _make_pair(db, user_id, account, Decimal("50.00"), "Part 1")
+    _make_pair(db, user_id, account, Decimal("50.00"), "Part 2")
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -469,61 +446,20 @@ async def test_execute_matching_complex_multi_entry(db: AsyncSession, test_user)
 
 async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Triple Multi",
-        amount=Decimal("150.00"),
-        direction="OUT",
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Triple Multi",
+            amount=Decimal("150.00"),
+            direction="OUT",
+        )
     )
-    db.add(txn)
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
+    account = _make_account(db, user_id)
     await db.flush()
-
-    entries = []
     for i in range(3):
-        e = JournalEntry(
-            user_id=user_id,
-            entry_date=date(2024, 1, 1),
-            memo=f"Part {i + 1}",
-            status=JournalEntryStatus.POSTED,
-        )
-        db.add(e)
-        entries.append(e)
-    await db.flush()
-
-    for e in entries:
-        db.add_all(
-            [
-                JournalLine(
-                    journal_entry_id=e.id,
-                    account_id=account.id,
-                    amount=Decimal("50.00"),
-                    direction=Direction.DEBIT,
-                ),
-                JournalLine(
-                    journal_entry_id=e.id,
-                    account_id=account.id,
-                    amount=Decimal("50.00"),
-                    direction=Direction.CREDIT,
-                ),
-            ]
-        )
+        _make_pair(db, user_id, account, Decimal("50.00"), f"Part {i + 1}")
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -534,26 +470,17 @@ async def test_execute_matching_triple_entry(db: AsyncSession, test_user):
 async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
     """AC-reconciliation.layer2-dedup.1: AC11.16.2: many-to-one matches on Layer 2 when running balances keep batch txns distinct."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
-    await db.flush()
-
-    # Distinct running balances keep these two otherwise-identical txns separate in
-    # Layer 2 (real statements progress the running balance); see dedup_hash.
-    t1 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    t1 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="Batch Payment #1",
         amount=Decimal("50.00"),
         direction="OUT",
         dedup_hash="batch-950.00-" + uuid4().hex,
     )
-    t2 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    t2 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="Batch Payment #1",
         amount=Decimal("50.00"),
@@ -561,41 +488,9 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
         dedup_hash="batch-900.00-" + uuid4().hex,
     )
     db.add_all([t1, t2])
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
+    account = _make_account(db, user_id)
     await db.flush()
-
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Batch Payment #1",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
+    _make_pair(db, user_id, account, Decimal("100.00"), "Batch Payment #1")
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -623,22 +518,16 @@ async def test_find_candidates(db: AsyncSession, test_user):
 
 async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Check Unbalanced",
-        amount=Decimal("100.00"),
-        direction="OUT",
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Check Unbalanced",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
     )
-    db.add(txn)
-
     await create_valid_posted_entry(
         db,
         user_id,
@@ -646,7 +535,6 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
         memo="Unbalanced",
         amount=Decimal("100.00"),
     )
-
     with patch(
         "src.reconciliation.extension.candidate_policy.is_entry_balanced",
         return_value=False,
@@ -657,57 +545,19 @@ async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
 
 async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user):
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Bad Match",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
+    )
+    account = _make_account(db, user_id)
     await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Bad Match",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
-
-    # Entry with very different amount and description
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Random",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("1.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("1.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
+    _make_pair(db, user_id, account, Decimal("1.00"), "Random")
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -716,93 +566,34 @@ async def test_execute_matching_low_score_unmatched(db: AsyncSession, test_user)
 
 async def test_execute_matching_with_statement_id_filter(db: AsyncSession, test_user):
     user_id = test_user.id
-
-    statement1 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    statement2 = _make_statement(owner_id=user_id, base_date=date(2024, 1, 15))
-    db.add_all([statement1, statement2])
-    await db.flush()
-
-    txn1 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    db.add_all(
+        [
+            _make_statement(owner_id=user_id, base_date=date(2024, 1, 1)),
+            _make_statement(owner_id=user_id, base_date=date(2024, 1, 15)),
+        ]
+    )
+    txn1 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="TXN1",
         amount=Decimal("100.00"),
         direction="OUT",
     )
-    txn2 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    txn2 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 15),
         description="TXN2",
         amount=Decimal("200.00"),
         direction="OUT",
     )
     db.add_all([txn1, txn2])
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
+    account = _make_account(db, user_id)
     await db.flush()
-
-    entry1 = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Entry1",
-        status=JournalEntryStatus.POSTED,
-    )
-    entry2 = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 15),
-        memo="Entry2",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add_all([entry1, entry2])
-    await db.flush()
-
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry1.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry1.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry2.id,
-                account_id=account.id,
-                amount=Decimal("200.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry2.id,
-                account_id=account.id,
-                amount=Decimal("200.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
+    _make_pair(db, user_id, account, Decimal("100.00"), "Entry1", entry_date=date(2024, 1, 1))
+    _make_pair(db, user_id, account, Decimal("200.00"), "Entry2", entry_date=date(2024, 1, 15))
     await db.commit()
 
-    # statement_id has no meaning on the Layer-2 atomic stream; matching scans all
-    # pending atomic transactions for the user.
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
-
     matched_atomic_ids = {m.atomic_txn_id for m in matches}
     assert txn1.id in matched_atomic_ids
     assert txn2.id in matched_atomic_ids
@@ -872,33 +663,18 @@ async def test_transfer_out_creates_match(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-out-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
+    source_account = _make_account(db, user_id, "Checking Account")
     await db.flush()
 
-    # Create source account
-    source_account = Account(
-        id=uuid4(),
-        name="Checking Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(source_account)
-    await db.flush()
-
-    # Statement WITH account_id, linked to its ODS document so transfer detection
-    # can resolve the custody account via source_documents.
     doc = await _seed_document(db, owner_id=user_id)
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement.account_id = source_account.id
     statement.uploaded_document_id = doc.id
     statement.file_hash = doc.file_hash
     db.add(statement)
-    await db.flush()
 
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
+    txn = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
@@ -921,16 +697,7 @@ async def test_transfer_in_creates_match(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-in-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
-    await db.flush()
-
-    dest_account = Account(
-        id=uuid4(),
-        name="Savings Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(dest_account)
+    dest_account = _make_account(db, user_id, "Savings Account")
     await db.flush()
 
     doc = await _seed_document(db, owner_id=user_id)
@@ -939,12 +706,9 @@ async def test_transfer_in_creates_match(db: AsyncSession):
     statement.uploaded_document_id = doc.id
     statement.file_hash = doc.file_hash
     db.add(statement)
-    await db.flush()
 
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
+    txn = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER FROM CHECKING",
@@ -967,28 +731,15 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-fail-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
-    await db.flush()
-
-    source_account = Account(
-        id=uuid4(),
-        name="Checking",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(source_account)
+    source_account = _make_account(db, user_id, "Checking")
     await db.flush()
 
     statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
     statement.account_id = source_account.id
     db.add(statement)
-    await db.flush()
 
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
@@ -1001,9 +752,7 @@ async def test_transfer_entry_creation_failure(db: AsyncSession):
         "src.reconciliation.extension.phases.transfer_detection.create_transfer_out_entry",
         side_effect=Exception("DB Error"),
     ):
-        # Should not crash — falls through to normal matching
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
-        # No transfer match should be created
         transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
         assert len(transfer_matches) == 0
 
@@ -1013,16 +762,7 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"m2o-matched-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
-    await db.flush()
-
-    source_account = Account(
-        id=uuid4(),
-        name="Checking",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(source_account)
+    source_account = _make_account(db, user_id, "Checking")
     await db.flush()
 
     doc = await _seed_document(db, owner_id=user_id)
@@ -1031,13 +771,9 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
     statement.uploaded_document_id = doc.id
     statement.file_hash = doc.file_hash
     db.add(statement)
-    await db.flush()
 
-    # Batch-looking transactions that are also transfers → all get matched in Phase 1.
-    # Distinct running balances keep them separate in Layer 2.
-    t1 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
+    t1 = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Transfer TO savings",
@@ -1045,9 +781,8 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
         direction="OUT",
         dedup_hash="batch-950.00-" + uuid4().hex,
     )
-    t2 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
+    t2 = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="Batch Transfer TO savings",
@@ -1060,7 +795,6 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
 
     # Both should be matched as transfers, many-to-one should skip them
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
-    # Should have transfer matches for both
     transfer_matches = [m for m in matches if m.score_breakdown.get("transfer_out")]
     assert len(transfer_matches) == 2
 
@@ -1068,26 +802,17 @@ async def test_many_to_one_all_already_matched(db: AsyncSession):
 async def test_many_to_one_no_candidates(db: AsyncSession, test_user):
     """Cover lines 790-791: many-to-one with no journal entry candidates."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
-    await db.flush()
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
 
-    # Two batch-looking transactions but NO journal entries
-    t1 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    t1 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="Batch Settlement #1",
         amount=Decimal("50.00"),
         direction="OUT",
     )
-    t2 = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    t2 = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="Batch Settlement #1",
         amount=Decimal("50.00"),
@@ -1097,75 +822,32 @@ async def test_many_to_one_no_candidates(db: AsyncSession, test_user):
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
-    # No candidates → no many-to-one matches, txns should be UNMATCHED
     assert len(matches) == 0
 
 
 async def test_normal_matching_supersession_same_entries(db: AsyncSession, test_user):
     """Cover lines 949-952: re-match same journal entries → skip (no new match)."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    account = _make_account(db, user_id)
     await db.flush()
-
-    account = Account(
-        id=uuid4(),
-        name="Test Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
+    _make_pair(db, user_id, account, Decimal("100.00"), "Same Entry")
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Same Entry",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
     )
-    db.add(account)
-    await db.flush()
-
-    # Create a balanced journal entry
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Same Entry",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Same Entry",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
     await db.commit()
 
-    # First matching run → creates a match
     matches1 = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches1) == 1
     await db.commit()
 
-    # Second matching run → txn already has a match (idempotent), no new match
     matches2 = await execute_matching(db, user_id=user_id, currency="SGD")
-    # Should skip creating a new match because the txn is already matched.
     assert len(matches2) == 0
 
 
@@ -1174,23 +856,8 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"xfer-pair-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
-    await db.flush()
-
-    source_account = Account(
-        id=uuid4(),
-        name="Checking",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    dest_account = Account(
-        id=uuid4(),
-        name="Savings",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add_all([source_account, dest_account])
+    source_account = _make_account(db, user_id, "Checking")
+    dest_account = _make_account(db, user_id, "Savings")
     await db.flush()
 
     doc1 = await _seed_document(db, owner_id=user_id)
@@ -1206,22 +873,16 @@ async def test_transfer_pairs_auto_pairing(db: AsyncSession):
     db.add_all([statement1, statement2])
     await db.flush()
 
-    # Transfer OUT from checking
-    txn_out = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
+    txn_out = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc1.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER TO SAVINGS",
         amount=Decimal("500.00"),
         direction="OUT",
     )
-    # Transfer IN to savings
-    txn_in = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
+    txn_in = _atomic_txn(
+        owner_id=user_id,
         source_documents=[{"doc_id": str(doc2.id), "doc_type": "bank_statement"}],
         txn_date=date(2024, 1, 1),
         description="TRANSFER FROM CHECKING",
@@ -1447,64 +1108,20 @@ async def test_many_to_one_pending_review_status(db: AsyncSession):
 async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, test_user):
     """AC-reconciliation.match.2: Cover lines 980-990: auto-accepted match marks entries as RECONCILED."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    account = _make_account(db, user_id, "Asset Account")
+    expense_account = _make_account(db, user_id, "Expense Account", AccountType.EXPENSE)
     await db.flush()
-
-    account = Account(
-        id=uuid4(),
-        name="Asset Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
+    entry = _make_pair(db, user_id, account, Decimal("100.00"), "Matching Transaction", credit_account=expense_account)
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Matching Transaction",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
     )
-    expense_account = Account(
-        id=uuid4(),
-        name="Expense Account",
-        type=AccountType.EXPENSE,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add_all([account, expense_account])
-    await db.flush()
-
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Matching Transaction",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense_account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Matching Transaction",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
@@ -1521,58 +1138,19 @@ async def test_normal_matching_auto_accept_reconciles_entries(db: AsyncSession, 
 async def test_normal_matching_pending_review(db: AsyncSession, test_user):
     """Cover lines 991-993: score below auto_accept → PENDING status."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    account = _make_account(db, user_id, "Asset")
     await db.flush()
-
-    account = Account(
-        id=uuid4(),
-        name="Asset",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
+    _make_pair(db, user_id, account, Decimal("100.00"), "Completely different memo text")
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 5),
+            description="Some random description here",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
     )
-    db.add(account)
-    await db.flush()
-
-    # Entry with matching amount but different description → medium score
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Completely different memo text",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 5),
-        description="Some random description here",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
     await db.commit()
 
     # Use config with very high auto_accept but low pending_review
@@ -1617,67 +1195,19 @@ async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
     """L2 read path: execute_matching reads pending AtomicTransactions and keys the
     match on atomic_txn_id. The enable_4_layer_read flag was removed when the read
     cutover completed (EPIC-011 Stage 3); this path is now unconditional."""
-    from src.extraction.orm.layer2 import AtomicTransaction
-
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
+    account = _make_account(db, user_id, "Asset Account")
+    expense_account = _make_account(db, user_id, "Expense Account", AccountType.EXPENSE)
     await db.flush()
-
-    account = Account(
-        id=uuid4(),
-        name="Asset Account",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    expense_account = Account(
-        id=uuid4(),
-        name="Expense Account",
-        type=AccountType.EXPENSE,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add_all([account, expense_account])
-    await db.flush()
-
-    # Create a journal entry
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Layer 4 Test",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=expense_account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
-    await db.flush()
-
-    # Create an AtomicTransaction (L2) — NOT matched yet
-    l2_txn = AtomicTransaction(
-        user_id=user_id,
+    _make_pair(db, user_id, account, Decimal("100.00"), "Layer 4 Test", credit_account=expense_account)
+    l2_txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         amount=Decimal("100.00"),
         direction="OUT",
         description="Layer 4 Test",
-        currency="SGD",
-        dedup_hash=uuid4().hex,
-        source_documents=[],
     )
     db.add(l2_txn)
     await db.commit()
@@ -1691,88 +1221,39 @@ async def test_execute_matching_layer2_atomic_txn(db: AsyncSession):
 async def test_execute_matching_layer2_no_candidates(db: AsyncSession):
     """L2 read path: a pending AtomicTransaction with no candidate entries yields no
     matches (match status lives on ReconciliationMatch, not the txn)."""
-    from src.extraction.orm.layer2 import AtomicTransaction
-
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-nocand-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
     await db.flush()
-
-    # L2 txn with no matching journal entries
-    l2_txn = AtomicTransaction(
-        user_id=user_id,
+    l2_txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 6, 1),
         amount=Decimal("999.00"),
         direction="OUT",
         description="No Match Possible",
-        currency="SGD",
-        dedup_hash=uuid4().hex,
-        source_documents=[],
     )
     db.add(l2_txn)
     await db.commit()
 
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
-    # No candidates → no matches.
     assert len(matches) == 0
 
 
 async def test_execute_matching_layer2_pending_review(db: AsyncSession):
     """L2 read path: a medium-confidence AtomicTransaction match lands in
     PENDING_REVIEW and is keyed on atomic_txn_id."""
-    from src.extraction.orm.layer2 import AtomicTransaction
-
     user_id = uuid4()
     user = User(id=user_id, email=f"layer4-pending-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
+    account = _make_account(db, user_id, "Asset")
     await db.flush()
-
-    account = Account(
-        id=uuid4(),
-        name="Asset",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
-
-    # Create entry with slightly different amount/description → medium score
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Different memo entirely",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.DEBIT,
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=account.id,
-                amount=Decimal("100.00"),
-                direction=Direction.CREDIT,
-            ),
-        ]
-    )
-    await db.flush()
-
-    l2_txn = AtomicTransaction(
-        user_id=user_id,
+    _make_pair(db, user_id, account, Decimal("100.00"), "Different memo entirely")
+    l2_txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 5),
         amount=Decimal("100.00"),
         direction="OUT",
         description="Totally unrelated text here",
-        currency="SGD",
-        dedup_hash=uuid4().hex,
-        source_documents=[],
     )
     db.add(l2_txn)
     await db.commit()
@@ -1795,89 +1276,36 @@ async def test_execute_matching_layer2_pending_review(db: AsyncSession):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
         assert len(matches) == 1
         assert matches[0].status == ReconciliationStatus.PENDING_REVIEW
-        # L2 mode: match is keyed on atomic_txn_id.
         assert matches[0].atomic_txn_id == l2_txn.id
 
 
 async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, test_user):
     """Cover lines 903-904: multi-entry combination where one entry is unbalanced → skip."""
     user_id = test_user.id
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add_all([statement])
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    account = _make_account(db, user_id, "Asset")
     await db.flush()
 
-    account = Account(
-        id=uuid4(),
-        name="Asset",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
+    _make_pair(db, user_id, account, Decimal("50.00"), "Entry A")
+    entry_b = _make_pair(db, user_id, account, Decimal("60.00"), "Entry B Unbalanced")
     await db.flush()
 
-    # Entry A: balanced, amount=50
-    entry_a = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Entry A",
-        status=JournalEntryStatus.POSTED,
+    db.add(
+        _atomic_txn(
+            owner_id=user_id,
+            txn_date=date(2024, 1, 1),
+            description="Entry A",
+            amount=Decimal("100.00"),
+            direction="OUT",
+        )
     )
-    db.add(entry_a)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.DEBIT
-            ),
-            JournalLine(
-                journal_entry_id=entry_a.id, account_id=account.id, amount=Decimal("50.00"), direction=Direction.CREDIT
-            ),
-        ]
-    )
-
-    # Entry B is persisted balanced; the test mocks the reconciliation balance
-    # predicate to exercise the skip-unbalanced branch without dirty DB state.
-    entry_b = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Entry B Unbalanced",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry_b)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.DEBIT
-            ),
-            JournalLine(
-                journal_entry_id=entry_b.id, account_id=account.id, amount=Decimal("60.00"), direction=Direction.CREDIT
-            ),
-        ]
-    )
-    await db.flush()
-
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
-        txn_date=date(2024, 1, 1),
-        description="Entry A",
-        amount=Decimal("100.00"),
-        direction="OUT",
-    )
-    db.add(txn)
     await db.commit()
 
-    # The combinations(candidates, 2) check should skip (entry_a, entry_b) because entry_b is marked unbalanced
     with patch(
         "src.reconciliation.extension.candidate_policy.is_entry_balanced",
         side_effect=lambda entry, *, base_currency: entry.id != entry_b.id,
     ):
         matches = await execute_matching(db, user_id=user_id, currency="SGD")
-    # entry_a alone (50) doesn't match txn (100) well; unbalanced pair is skipped
     assert all(str(entry_b.id) not in match.journal_entry_ids for match in matches)
 
 
@@ -1886,39 +1314,12 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     user_id = uuid4()
     user = User(id=user_id, email=f"no-hist-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
+    account = _make_account(db, user_id, "Asset")
     await db.flush()
 
-    account = Account(
-        id=uuid4(),
-        name="Asset",
-        type=AccountType.ASSET,
-        user_id=user_id,
-        currency="SGD",
-    )
-    db.add(account)
+    entry = _make_pair(db, user_id, account, Decimal("100.00"), "Score Pattern Test")
     await db.flush()
 
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=date(2024, 1, 1),
-        memo="Score Pattern Test",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.DEBIT
-            ),
-            JournalLine(
-                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.CREDIT
-            ),
-        ]
-    )
-    await db.flush()
-
-    # Load entry with lines+accounts for score_business_logic
     result = await db.execute(
         select(JournalEntry)
         .where(JournalEntry.id == entry.id)
@@ -1926,15 +1327,9 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     )
     loaded_entry = result.scalar_one()
 
-    # Create a real statement so the FK is satisfied
-    statement = _make_statement(owner_id=user_id, base_date=date(2024, 1, 1))
-    db.add(statement)
-    await db.flush()
-    txn = AtomicTransaction(
-        user_id=user_id,
-        currency="SGD",
-        dedup_hash=uuid4().hex + uuid4().hex,
-        source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
+    db.add(_make_statement(owner_id=user_id, base_date=date(2024, 1, 1)))
+    txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         description="Score Pattern Test",
         amount=Decimal("100.00"),
@@ -1944,7 +1339,6 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     await db.flush()
 
     config = DEFAULT_CONFIG
-    # No history_score_override → calls score_pattern at line 426
     candidate = await calculate_match_score(db, txn, [loaded_entry], config, user_id=user_id)
     assert candidate.score > 0
     assert "history" in candidate.breakdown
@@ -1952,7 +1346,6 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
 
 async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
     """Cover lines 568-581: _get_pending_layer2_transactions with limit."""
-    from src.extraction.orm.layer2 import AtomicTransaction
     from src.reconciliation import _get_pending_layer2_transactions
 
     user_id = uuid4()
@@ -1960,33 +1353,27 @@ async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
     db.add(user)
     await db.flush()
 
-    # Create 3 L2 transactions, none matched
     for i in range(3):
-        l2_txn = AtomicTransaction(
-            user_id=user_id,
-            txn_date=date(2024, 1, 1 + i),
-            amount=Decimal(f"{100 + i}.00"),
-            direction="OUT",
-            description=f"L2 Pending {i}",
-            currency="SGD",
-            dedup_hash=uuid4().hex,
-            source_documents=[],
+        db.add(
+            _atomic_txn(
+                owner_id=user_id,
+                txn_date=date(2024, 1, 1 + i),
+                amount=Decimal(f"{100 + i}.00"),
+                direction="OUT",
+                description=f"L2 Pending {i}",
+            )
         )
-        db.add(l2_txn)
     await db.commit()
 
-    # Without limit → all 3
     result_all = await _get_pending_layer2_transactions(db, user_id)
     assert len(result_all) == 3
 
-    # With limit=2 → 2
     result_limited = await _get_pending_layer2_transactions(db, user_id, limit=2)
     assert len(result_limited) == 2
 
 
 async def test_get_existing_active_match_layer2(db: AsyncSession):
     """Cover _get_existing_active_match returning None then the active match."""
-    from src.extraction.orm.layer2 import AtomicTransaction
     from src.reconciliation import _get_existing_active_match
 
     user_id = uuid4()
@@ -1994,21 +1381,17 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
     db.add(user)
     await db.flush()
 
-    # Create a real AtomicTransaction so the FK on ReconciliationMatch.atomic_txn_id is satisfied
-    real_txn = AtomicTransaction(
-        user_id=user_id,
+    real_txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         amount=Decimal("100.00"),
         direction="OUT",
         description="FK target",
-        currency="SGD",
-        dedup_hash=uuid4().hex,
-        source_documents=[],
     )
     db.add(real_txn)
     await db.flush()
     txn_id = real_txn.id
-    # No existing match → None
+
     result = await _get_existing_active_match(db, txn_id)
     assert result is None
     match = ReconciliationMatch(
@@ -2028,8 +1411,6 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
 async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSession, monkeypatch):
     """AC-observability.10.4: execute_matching emits one business metric per resolved match,
     labelled by the match's final disposition (driven through the real path)."""
-    from src.extraction.orm.layer2 import AtomicTransaction
-
     outcomes: list[str] = []
     monkeypatch.setattr(
         "src.reconciliation.extension.matching.record_reconciliation_match_outcome",
@@ -2039,34 +1420,16 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
     user_id = uuid4()
     user = User(id=user_id, email=f"recon-metric-{uuid4()}@example.com", hashed_password="hashed")
     db.add(user)
+    account = _make_account(db, user_id, "Asset")
+    expense = _make_account(db, user_id, "Expense", AccountType.EXPENSE)
     await db.flush()
-    account = Account(id=uuid4(), name="Asset", type=AccountType.ASSET, user_id=user_id, currency="SGD")
-    expense = Account(id=uuid4(), name="Expense", type=AccountType.EXPENSE, user_id=user_id, currency="SGD")
-    db.add_all([account, expense])
-    await db.flush()
-    entry = JournalEntry(user_id=user_id, entry_date=date(2024, 1, 1), memo="Metric", status=JournalEntryStatus.POSTED)
-    db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id, account_id=account.id, amount=Decimal("100.00"), direction=Direction.DEBIT
-            ),
-            JournalLine(
-                journal_entry_id=entry.id, account_id=expense.id, amount=Decimal("100.00"), direction=Direction.CREDIT
-            ),
-        ]
-    )
-    await db.flush()
-    l2_txn = AtomicTransaction(
-        user_id=user_id,
+    _make_pair(db, user_id, account, Decimal("100.00"), "Metric", credit_account=expense)
+    l2_txn = _atomic_txn(
+        owner_id=user_id,
         txn_date=date(2024, 1, 1),
         amount=Decimal("100.00"),
         direction="OUT",
         description="Metric",
-        currency="SGD",
-        dedup_hash=uuid4().hex,
-        source_documents=[],
     )
     db.add(l2_txn)
     await db.commit()
@@ -2074,6 +1437,4 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
 
     assert len(matches) == 1
-    # One emission per resolved match, labelled by its status.
-    assert outcomes == [m.status.value for m in matches]
     assert outcomes == ["auto_accepted"]
