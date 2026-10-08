@@ -1,12 +1,11 @@
-# AI/OCR Audit Replay (nightly + manual)
+# AI/OCR Audit Replay (on-demand manual)
 #
 # Issue #1232 (AC8.13.157): the heavy provider-backed LLM audit journeys (full
 # statement journey, four-asset net-worth golden path, personal financial report
 # package, CSV/traceability) are NOT part of the production-promotion blocking
 # path. The blocking deploy path runs only the minimal AI/OCR canary
 # (deploy.yml#ai-ocr-gate, corpus: canary). This workflow gives the heavy
-# journeys a separate, non-blocking home: a nightly schedule plus on-demand
-# manual dispatch.
+# journeys a separate, non-blocking home: on-demand manual dispatch.
 #
 # It calls the SAME reusable gate body (staging-ai-ocr-gate.yml) as the deploy
 # path and the manual recovery gate (single owner, AC8.13.153), selecting the
@@ -15,10 +14,6 @@
 name: AI/OCR Audit Replay
 
 on:
-  schedule:
-    # Nightly at 04:23 UTC — off-peak, after any same-day staging deploys and
-    # clear of the 03:17 maintenance window.
-    - cron: "23 4 * * *"
   workflow_dispatch:
     inputs:
       version_ref:

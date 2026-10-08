@@ -43,10 +43,10 @@ ON_KEYS = ("on", True)
 WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     ".github/workflows/audit-replay.yml": {
         # Heavy provider-backed LLM audit journeys, decoupled from the blocking
-        # deploy path: nightly schedule + manual dispatch, record-only
+        # deploy path: on-demand manual dispatch, record-only
         # (issue #1232 / AC8.13.157).
         "jobs": ("resolve-target", "audit-replay"),
-        "triggers": ("schedule", "workflow_dispatch"),
+        "triggers": ("workflow_dispatch",),
     },
     ".github/workflows/ci.yml": {
         # The classifier job id is `changes` (NOT `classify-changes`).

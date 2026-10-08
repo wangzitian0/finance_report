@@ -5,10 +5,11 @@ AC8.13.36 AC8.13.39: Ensures the deployed application matches the source
 code version (Git SHA).
 """
 
+import os
 import pytest
 import httpx
 import logging
-from conftest import TestConfig
+from conftest import TestConfig, _strict_e2e_gates_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,14 @@ logger = logging.getLogger(__name__)
 async def test_deployed_version_matches_source(config: TestConfig):
     """EPIC-007 EPIC-008 EPIC-012 EPIC-026 / AC8.13.36 AC8.13.39: /health Git SHA."""
     if not config.EXPECTED_SHA:
+        if (
+            _strict_e2e_gates_enabled()
+            or os.getenv("CI") == "true"
+            or config.TEST_ENV != "local"
+        ):
+            pytest.fail(
+                "Fatal: EXPECTED_SHA must be explicitly set in CI, staging, and strict gate environments"
+            )
         logger.warning("Skipping version check: EXPECTED_SHA not set in environment")
         pytest.skip("EXPECTED_SHA not set")
 
