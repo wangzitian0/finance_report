@@ -126,6 +126,48 @@ _BANK_CSV_PROFILES: tuple[tuple[frozenset[str], _BankCsvProfile], ...] = (
             ref_cols=("Reference", "Reference No", "Cheque No"),
         ),
     ),
+    (
+        frozenset({"wechat", "wechat_pay", "wechat pay", "weixin"}),
+        _BankCsvProfile(
+            date_cols=("交易时间", "时间", "Date", "Transaction Date"),
+            amount_strategy="unsigned_direction",
+            amount_cols=("金额(元)", "金额", "Amount"),
+            direction_cols=("收/支", "收支", "Type", "Direction"),
+            desc_cols=("交易对方", "商品", "交易类型", "Description"),
+            desc_col_groups=(
+                ("交易对方", "Counterparty"),
+                ("商品", "Product"),
+                ("交易类型", "Type"),
+            ),
+            desc_default="WeChat Pay Transaction",
+            warn_desc_default="WeChat Pay Transaction",
+            desc_strip=True,
+            desc_fallback_on_empty=True,
+            ref_cols=("交易单号", "商户单号", "Reference"),
+            include_reference=True,
+        ),
+    ),
+    (
+        frozenset({"alipay", "ali_pay", "alipay.com", "zhifubao"}),
+        _BankCsvProfile(
+            date_cols=("交易时间", "时间", "Date", "Transaction Date"),
+            amount_strategy="unsigned_direction",
+            amount_cols=("金额", "金额(元)", "Amount"),
+            direction_cols=("收/支", "收支", "Type", "Direction"),
+            desc_cols=("交易对方", "商品说明", "交易分类", "Description"),
+            desc_col_groups=(
+                ("交易对方", "Counterparty"),
+                ("商品说明", "Product"),
+                ("交易分类", "Category"),
+            ),
+            desc_default="Alipay Transaction",
+            warn_desc_default="Alipay Transaction",
+            desc_strip=True,
+            desc_fallback_on_empty=True,
+            ref_cols=("交易订单号", "商家订单号", "Reference"),
+            include_reference=True,
+        ),
+    ),
 )
 
 _GENERIC_BANK_CSV_PROFILE = _BankCsvProfile(
@@ -224,7 +266,7 @@ def _append_bank_csv_rows(
     period_end: date | None = None
 
     for row in rows:
-        date_raw = row.get(cols.date, "") if cols.date else ""
+        date_raw = (row.get(cols.date, "") if cols.date else "").strip()
         if profile.date_time_split and "T" in date_raw:
             date_raw = date_raw.split("T")[0]
         txn_date = parse_date(date_raw) if cols.date else None
@@ -269,8 +311,16 @@ def _append_bank_csv_rows(
                 )
                 continue
             amount = parsed
-            direction_raw = row.get(cols.direction, "").lower() if cols.direction else ""
-            direction = "OUT" if ("out" in direction_raw or "send" in direction_raw) else "IN"
+            direction_raw = (row.get(cols.direction, "") if cols.direction else "").strip().lower()
+            if "不计收支" in direction_raw or "其他" in direction_raw or direction_raw == "/":
+                logger.info(
+                    "CSV non-monetary or excluded row skipped",
+                    institution=institution,
+                    direction_raw=direction_raw,
+                    description=warn_desc,
+                )
+                continue
+            direction = "OUT" if ("out" in direction_raw or "send" in direction_raw or "支" in direction_raw) else "IN"
         else:  # "signed_or_debit_credit"
             if cols.amount and row.get(cols.amount):
                 parsed = parse_amount(row.get(cols.amount, ""))
@@ -315,7 +365,8 @@ def _append_bank_csv_rows(
             "description": _resolve_row_description(row, cols, profile),
         }
         if profile.include_reference:
-            txn["reference"] = row.get(cols.ref, "") if cols.ref else None
+            ref_val = row.get(cols.ref, "") if cols.ref else ""
+            txn["reference"] = str(ref_val).strip() if ref_val else None
         transactions.append(txn)
 
         if period_start is None or txn_date < period_start:
@@ -324,6 +375,25 @@ def _append_bank_csv_rows(
             period_end = txn_date
 
     return period_start, period_end
+
+
+def _strip_csv_preamble(text: str) -> str:
+    """Skip metadata preamble lines in bank/wallet exports to locate the table header."""
+    lines = text.splitlines(keepends=True)
+    candidate_headers = (
+        "transaction date",
+        "交易时间",
+        "date",
+        "posting date",
+        "value date",
+        "created on",
+        "statement currency",
+    )
+    for idx, line in enumerate(lines[:50]):
+        line_lower = line.lower()
+        if any(h in line_lower for h in candidate_headers):
+            return "".join(lines[idx:])
+    return text
 
 
 class _CsvMixin:
@@ -339,9 +409,17 @@ class _CsvMixin:
         import io
 
         if isinstance(file_content, bytes):
-            text = file_content.decode(encoding="utf-8-sig", errors="ignore")
+            try:
+                text = file_content.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                try:
+                    text = file_content.decode("gb18030")
+                except UnicodeDecodeError:
+                    text = file_content.decode("utf-8-sig", errors="ignore")
         else:
             text = file_content.lstrip("\ufeff")
+
+        text = _strip_csv_preamble(text)
 
         pii_matches = detect_pii(text)
         if pii_matches:
@@ -402,7 +480,17 @@ class _CsvMixin:
             """Parse amount string to Decimal."""
             if not value or not value.strip():
                 return None
-            cleaned = value.strip().replace(",", "").replace("$", "").replace("SGD", "").replace("USD", "").strip()
+            cleaned = (
+                value.strip()
+                .replace(",", "")
+                .replace("$", "")
+                .replace("SGD", "")
+                .replace("USD", "")
+                .replace("¥", "")
+                .replace("￥", "")
+                .replace("元", "")
+                .strip()
+            )
             if not cleaned or cleaned == "-":
                 return None
             try:
